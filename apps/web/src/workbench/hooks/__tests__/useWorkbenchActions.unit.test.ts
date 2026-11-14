@@ -312,8 +312,6 @@ describe('useWorkbenchActions', () => {
 						// Only an authority that reads the Session's Agent catalog starts an Agent.
 						actionId !== WORKBENCH_ACTION_IDS.openAgentStart &&
 						actionId !== WORKBENCH_ACTION_IDS.startAgent &&
-						// Only an authority that keeps earlier layouts reopens one.
-						actionId !== WORKBENCH_ACTION_IDS.reopenEarlierLayout &&
 						// Worktree Actions exist only where an authority reaches Git.
 						!actionId.startsWith('workbench.worktree.') &&
 						// A host that wires no callback lacks these Actions, so no surface lists them.

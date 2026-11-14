@@ -25,7 +25,6 @@ import { createServerWorktrees } from './createServerWorktrees';
 import { createServerAgentResumeNotices } from './createServerAgentResumeNotices';
 import { createServerAgentStartNotices } from './createServerAgentStartNotices';
 import { createServerHeldRestores } from './createServerHeldRestores';
-import { createServerEarlierLayouts } from './createServerEarlierLayouts';
 import { duplicateServerTabs } from './duplicateServerTabs';
 import {
 	SERVER_MINIMUM_SPLIT_PERCENT,
@@ -380,7 +379,6 @@ export function createServerWorkbenchAuthority({
 		duplicateTabs: (context, duplication) => duplicateServerTabs(session, context, duplication),
 		agentResumeNotices: createServerAgentResumeNotices(session),
 		agentStartNotices: createServerAgentStartNotices(session),
-		earlierLayouts: createServerEarlierLayouts(session),
 		heldRestores: createServerHeldRestores(session),
 		worktrees: createServerWorktrees(session),
 	};

@@ -57,7 +57,6 @@ import {
 	type WorkbenchProjectCreationView,
 } from '../components/workbench-project-creation/hooks/useWorkbenchProjectCreation';
 import type { WorkbenchProjectCreationMessages } from '../components/workbench-project-creation/types/workbench-project-creation-messages';
-import { createEarlierLayoutPicker } from '../model/createEarlierLayoutPicker';
 import { createFocusedPanelWorktreePicker } from '../model/createFocusedPanelWorktreePicker';
 import type { WorkbenchSidebarPresentation } from '../model/workbench-sidebar-presentation';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
@@ -720,17 +719,12 @@ export function useWorkbench({
 		scope: actions.scope,
 	});
 	const worktrees = authorityNotice.authority.worktrees;
-	const earlierLayouts = authorityNotice.authority.earlierLayouts;
 	const newFolderAvailable = projectFolderAcquisition?.newFolder !== undefined;
 	const searchArgumentPickerForAction = React.useMemo(() => {
 		const worktreePicker =
 			worktrees === undefined
 				? undefined
 				: createFocusedPanelWorktreePicker({ intl, projectWorkspaceRuntime, worktrees });
-		const earlierLayoutPicker =
-			earlierLayouts === undefined
-				? undefined
-				: createEarlierLayoutPicker({ earlierLayouts, intl });
 		// The folder choices the sidebar's New Project menu offered before Search took it over.
 		const newProjectPicker: WorkbenchSearchProviderArgumentPicker = {
 			kind: 'options',
@@ -763,13 +757,11 @@ export function useWorkbench({
 					return worktreePicker;
 				case WORKBENCH_ACTION_IDS.newProject:
 					return newProjectPicker;
-				case WORKBENCH_ACTION_IDS.reopenEarlierLayout:
-					return earlierLayoutPicker;
 				default:
 					return undefined;
 			}
 		};
-	}, [earlierLayouts, intl, newFolderAvailable, projectWorkspaceRuntime, worktrees]);
+	}, [intl, newFolderAvailable, projectWorkspaceRuntime, worktrees]);
 	const invokeAction = actions.invoke;
 	const closeResume = React.useMemo<TabStripCloseResume>(() => {
 		const decider = authorityNotice.authority;

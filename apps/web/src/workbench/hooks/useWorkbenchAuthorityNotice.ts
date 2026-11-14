@@ -10,7 +10,6 @@ import {
 	workbenchCloseWithdrawnNotice,
 	workbenchConfiguredCommandNotice,
 	workbenchCreationFailureNotice,
-	workbenchEarlierLayoutNotice,
 	workbenchFailureNotice,
 	workbenchPanelsFailureNotice,
 	workbenchSplitRatioFailureNotice,
@@ -29,7 +28,6 @@ import type {
 	WorkbenchAgentStartFailure,
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
-	WorkbenchEarlierLayouts,
 	WorkbenchHeldRestores,
 	WorkbenchTabDuplicationStop,
 } from '../types/workbench-authority';
@@ -211,22 +209,6 @@ function sameWords(
 	);
 }
 
-/** Reopening an earlier layout says what it reopened or why nothing came back, as the TUI does. */
-function reportingEarlierLayouts(
-	layouts: WorkbenchEarlierLayouts,
-	setNotice: React.Dispatch<React.SetStateAction<WorkbenchAuthorityNotice | null>>,
-): WorkbenchEarlierLayouts {
-	return {
-		list: () => layouts.list(),
-		reopen: async (savedAt) => {
-			setNotice(null);
-			const outcome = await layouts.reopen(savedAt);
-			setNotice(workbenchEarlierLayoutNotice(outcome));
-			return outcome;
-		},
-	};
-}
-
 /**
  * Reports what the authority decided without taking the person from what they are doing: only a
  * refusal or an unknown outcome needs words, because a committed change shows in the Workbench.
@@ -392,10 +374,6 @@ export function useWorkbenchAuthorityNotice(
 				setNotice(workbenchTabCreationFailureNotice(result));
 				return result;
 			},
-			earlierLayouts:
-				authority.earlierLayouts === undefined
-					? undefined
-					: reportingEarlierLayouts(authority.earlierLayouts, setNotice),
 			focusNewPanel: authority.focusNewPanel,
 			heldRestores:
 				authority.heldRestores === undefined

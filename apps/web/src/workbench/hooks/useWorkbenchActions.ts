@@ -37,7 +37,6 @@ import {
 import { registerWorkbenchPanelTargetCloseAction } from '../actions/registerWorkbenchPanelTargetCloseAction';
 import { registerWorkbenchTabSelectionActions } from '../actions/registerWorkbenchTabSelectionActions';
 import { registerWorkbenchFocusActions } from '../actions/registerWorkbenchFocusActions';
-import { registerWorkbenchEarlierLayoutAction } from '../actions/registerWorkbenchEarlierLayoutAction';
 import { registerWorkbenchLastPanelAction } from '../actions/registerWorkbenchLastPanelAction';
 import type { WorkbenchWorktreeFormRequest } from '../types/workbench-worktree-form';
 import { registerWorkbenchWorktreeActions } from '../actions/registerWorkbenchWorktreeActions';
@@ -300,17 +299,6 @@ export function useWorkbenchActions({
 				scope,
 				typedRuntime,
 			}),
-			...(authority.earlierLayouts === undefined
-				? []
-				: [
-						registerWorkbenchEarlierLayoutAction({
-							earlierLayouts: authority.earlierLayouts,
-							navigation,
-							projectWorkspaceRuntime,
-							scope,
-							typedRuntime,
-						}),
-					]),
 			...(authority.agentCatalog === undefined
 				? []
 				: registerWorkbenchAgentStartActions({

@@ -492,27 +492,4 @@ export const zhCNWorkbenchMessages = {
 		'未输入任何内容：shell 不在空的提示符上。请先结束正在运行的命令，或清空输入行后按回车获得新的提示符，再重试。',
 	'workbench.agentStart.terminalTooOld':
 		'未输入任何内容：这个终端由旧版 Orchbee 启动。请新开一个终端。',
-	'workbench.earlierLayouts.action': '早先的布局…',
-	'workbench.earlierLayouts.reading': '正在读取早先的布局…',
-	'workbench.earlierLayouts.empty': '还没有早先的布局',
-	'workbench.earlierLayouts.when.justNow': '刚刚',
-	'workbench.earlierLayouts.when.minutes': '{count} 分钟前',
-	'workbench.earlierLayouts.when.hours': '{count} 小时前',
-	'workbench.earlierLayouts.when.days': '{count} 天前',
-	'workbench.earlierLayouts.when.clock': '{relative} · {clock}',
-	'workbench.earlierLayouts.summary.allOpen': '其中内容都已打开',
-	'workbench.earlierLayouts.summary.tabs': '{tabs} 个标签页当前未打开',
-	'workbench.earlierLayouts.summary.workspacesTabs':
-		'{workspaces} 个工作区、{tabs} 个标签页当前未打开',
-	'workbench.earlierLayouts.reopened.tabs': '已重新打开 {tabs} 个标签页',
-	'workbench.earlierLayouts.reopened.workspaces': '已重新打开 {workspaces} 个工作区',
-	'workbench.earlierLayouts.reopened.workspacesTabs':
-		'已重新打开 {workspaces} 个工作区、{tabs} 个标签页',
-	'workbench.earlierLayouts.nothingToReopen': '无需重新打开：该布局中的内容都已打开',
-	'workbench.earlierLayouts.notFound': '该早先布局已不再保留',
-	'workbench.earlierLayouts.resourceLimit': '未重新打开：会超出工作区或标签页上限',
-	'workbench.earlierLayouts.busy': '未重新打开：有工作区正在关闭，请重试',
-	'workbench.earlierLayouts.denied': '未重新打开：此客户端无权打开标签页',
-	'workbench.earlierLayouts.unknown': '重新打开的结果未知 · 未重试',
-	'workbench.earlierLayouts.unavailable': '早先的布局暂不可用',
 } as const satisfies Readonly<Record<WorkbenchMessageId, string>>;

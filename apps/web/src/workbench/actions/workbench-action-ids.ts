@@ -52,7 +52,6 @@ export const WORKBENCH_ACTION_IDS = {
 	focusPreviousRegion: 'workbench.focus.previous-region',
 	focusSidebar: 'workbench.focus.sidebar',
 	focusTabStrip: 'workbench.focus.tab-strip',
-	reopenEarlierLayout: 'workbench.layout.reopen-earlier',
 	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
 	openAgentStart: 'workbench.agent.start',
 	startAgent: 'workbench.agent.start-provider',
@@ -198,11 +197,6 @@ interface WorkbenchWorkspaceReorderInput extends WorkbenchWorkspaceInput {
 
 export type WorkbenchPanelPosition = PanelFocusPosition;
 
-/** One earlier layout, named by its save time in Unix milliseconds. */
-export interface WorkbenchEarlierLayoutInput {
-	readonly savedAt: number;
-}
-
 export interface WorkbenchPanelPositionInput {
 	readonly position: WorkbenchPanelPosition;
 }
@@ -311,7 +305,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.focusPreviousRegion]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusSidebar]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusTabStrip]: ActionSignature<void>;
-	readonly [WORKBENCH_ACTION_IDS.reopenEarlierLayout]: ActionSignature<WorkbenchEarlierLayoutInput>;
 	readonly [WORKBENCH_ACTION_IDS.increaseTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openAgentStart]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.startAgent]: ActionSignature<WorkbenchAgentStartInput>;
@@ -905,17 +898,4 @@ export const workbenchWorkspaceUpdateInput: ActionInputValidation<WorkbenchWorks
 					},
 				}
 			: { success: false, code: 'expected-workbench-workspace-update-input' },
-};
-
-export const workbenchEarlierLayoutInput: ActionInputValidation<WorkbenchEarlierLayoutInput> = {
-	name: 'WorkbenchEarlierLayoutInput',
-	parse: (input) =>
-		typeof input === 'object' &&
-		input !== null &&
-		'savedAt' in input &&
-		Number.isSafeInteger(input.savedAt) &&
-		typeof input.savedAt === 'number' &&
-		input.savedAt > 0
-			? { success: true, data: { savedAt: input.savedAt } }
-			: { success: false, code: 'expected-workbench-earlier-layout-input' },
 };

@@ -3,7 +3,6 @@
 	"catalogs": {
 		"workbench": [
 			"workbench.focus.sidebar",
-			"workbench.layout.reopen-earlier",
 			"workbench.panel.active.focus-down",
 			"workbench.panel.active.focus-left",
 			"workbench.panel.active.focus-right",
