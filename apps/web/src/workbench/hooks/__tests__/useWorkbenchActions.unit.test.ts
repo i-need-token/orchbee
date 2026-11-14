@@ -117,7 +117,6 @@ function WorkbenchActionsHarness({
 		requestWorktreeForm: () => Promise.resolve(null),
 		runtime,
 		searchFilters: WORKBENCH_SEARCH_FILTERS,
-		setTabStripOrientation: () => undefined,
 		tabStripOrientation: 'horizontal',
 		toggleSidebar: () => setIsSidebarVisible((visible) => !visible),
 		worktreeLabel: worktreeTestLabel,
@@ -279,9 +278,6 @@ describe('useWorkbenchActions', () => {
 							[WORKBENCH_ACTION_IDS.renameProject]: {
 								name: 'Missing Project',
 								projectId: 'missing-project',
-							},
-							[WORKBENCH_ACTION_IDS.setTabStripOrientation]: {
-								orientation: 'horizontal',
 							},
 							[WORKBENCH_ACTION_IDS.focusActivePanelByPosition]: {
 								position: 1,

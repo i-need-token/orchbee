@@ -40,7 +40,7 @@ function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: Workben
 	});
 	workbench.onLeftPanelResize({ inPixels: 318.4 });
 	workbench.onLayoutChanged({}, { isUserInteraction });
-	return `${workbench.leftPanelSize} ${workbench.tabStripOrientation} ${workbench.sidebarToggleLabel} ${workbench.sidebarShortcutLabel} ${workbench.searchShortcutLabel} ${workbench.settingsShortcutLabel}`;
+	return `${workbench.leftPanelSize} ${workbench.sidebarToggleLabel} ${workbench.sidebarShortcutLabel} ${workbench.searchShortcutLabel} ${workbench.settingsShortcutLabel}`;
 }
 
 function renderHarness(storage: WorkbenchLayoutStorage, isUserInteraction: boolean): string {
@@ -69,7 +69,7 @@ describe('useWorkbench', () => {
 			false,
 		);
 
-		expect(markup).toContain('320px horizontal Hide Sidebar ⌘B ⇧⌘F ⌘,');
+		expect(markup).toContain('320px Hide Sidebar ⌘B ⇧⌘F ⌘,');
 		expect(setItem).not.toHaveBeenCalled();
 	});
 

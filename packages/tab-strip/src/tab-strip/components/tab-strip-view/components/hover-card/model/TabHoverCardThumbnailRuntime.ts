@@ -24,7 +24,6 @@ interface HoverCardThumbnailTarget<Image> {
 	needsThumbnail: boolean;
 	isGroup?: boolean;
 	discarded?: boolean;
-	crashed?: boolean;
 	isInitialShow: boolean;
 	useAnimations?: boolean;
 	crossfadeStart?: number | null;
@@ -93,7 +92,6 @@ export class TabHoverCardThumbnailRuntime<Image> {
 			this.target.needsThumbnail === target.needsThumbnail &&
 			(this.target.isGroup ?? false) === (target.isGroup ?? false) &&
 			(this.target.discarded ?? false) === (target.discarded ?? false) &&
-			(this.target.crashed ?? false) === (target.crashed ?? false) &&
 			(this.target.useAnimations ?? true) === (target.useAnimations ?? true) &&
 			(this.target.crossfadeStart === undefined
 				? HOVER_CARD_PREVIEW_CROSSFADE_START
@@ -122,7 +120,6 @@ export class TabHoverCardThumbnailRuntime<Image> {
 			needsThumbnail: this.target.needsThumbnail,
 			isGroup: this.target.isGroup ?? false,
 			discarded: this.target.discarded ?? false,
-			crashed: this.target.crashed ?? false,
 			hasThumbnailObject: source !== null,
 			hasThumbnailData: source?.hasData() ?? false,
 			readiness: source?.getCaptureReadiness() ?? ThumbnailCaptureReadiness.NotReady,
@@ -141,7 +138,7 @@ export class TabHoverCardThumbnailRuntime<Image> {
 			this.commit();
 			return;
 		}
-		if (plan.presentation === 'crashed' || plan.presentation === 'placeholder') {
+		if (plan.presentation === 'placeholder') {
 			this.setVisual(visual(plan.presentation));
 		}
 		if (!source) {

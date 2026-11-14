@@ -13,10 +13,6 @@ export interface TabStripMessages {
 	/** Closes the unpinned Tabs after the Tab the menu opened on, or after its selected set. */
 	readonly closeTabsBelow: string;
 	readonly closeTabsToRight: string;
-	readonly closeVerticalTabs: string;
-	readonly collapseTabStrip: string;
-	readonly expandTabStrip: string;
-	readonly expandTabStripOnHover: string;
 	readonly formatAddTabsToGroup: (count: number) => string;
 	readonly formatClosedTabAnnouncement: (title: string) => string;
 	readonly formatClosedTabsAnnouncement: (count: number) => string;
@@ -68,21 +64,13 @@ export interface TabStripMessages {
 	/** Optional for older message providers; product hosts supply a localized loading title. */
 	readonly loadingTabTitle?: string;
 	readonly newTabTitle: string;
-	readonly openVerticalTabs: string;
-	readonly pinSearchTabs: string;
 	readonly previewUnavailable: string;
 	readonly rename: string;
 	/** Continues the Tab's close that stopped; it acts on the Tab the menu opened on alone. */
 	readonly resumeTabClose: string;
-	readonly searchTabs: string;
-	readonly searchTabsMenu: string;
-	readonly tabCrashed: string;
 	readonly tabGroups: string;
 	readonly tabMoveCanceled: string;
 	readonly tabOptions: string;
 	readonly tabStripLabel: string;
-	readonly tabStripMenu: string;
 	readonly unnamedGroup: string;
-	readonly unpinSearchTabs: string;
-	readonly verticalTabStripMenu: string;
 }

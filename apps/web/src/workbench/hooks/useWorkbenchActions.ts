@@ -46,7 +46,6 @@ import {
 	type WorkbenchActionCatalog,
 	type WorkbenchSearchOpenInput,
 	workbenchSearchOpenInput,
-	workbenchTabStripOrientationInput,
 	type WorkbenchTerminalCreateInput,
 	workbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
@@ -104,7 +103,7 @@ interface UseWorkbenchActionsOptions {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly runtime: ActionRuntime;
-	readonly setTabStripOrientation: (orientation: TabStripOrientation) => void;
+	/** How the strip lays out Tabs now, which names the place after the active Tab. */
 	readonly tabStripOrientation: TabStripOrientation;
 	readonly toggleSidebar: () => void;
 	/** Opens the New Worktree form; keep it stable across renders. */
@@ -153,7 +152,6 @@ export function useWorkbenchActions({
 	requestWorktreeForm,
 	runtime,
 	searchFilters,
-	setTabStripOrientation,
 	tabStripOrientation,
 	toggleSidebar,
 	worktreeLabel,
@@ -526,35 +524,6 @@ export function useWorkbenchActions({
 				scope,
 				defineAction({
 					category: categoryView,
-					execution: {
-						concurrency: 'parallel',
-						concurrencyKey: () => 'tab-strip-orientation',
-						mode: 'foreground',
-					},
-					getDiscoveryAvailability: () => ({ kind: 'enabled' }),
-					getAvailability: (_context, input) => ({
-						checked: input.orientation === tabStripOrientation,
-						kind: 'enabled',
-					}),
-					handler: {
-						execute: (context, input) => {
-							if (input.orientation === tabStripOrientation) {
-								return { kind: 'unchanged' };
-							}
-							context.markCommitted();
-							setTabStripOrientation(input.orientation);
-							return { kind: 'completed' };
-						},
-					},
-					id: WORKBENCH_ACTION_IDS.setTabStripOrientation,
-					input: workbenchTabStripOrientationInput,
-					title: workbenchMessages.tabStripOrientation,
-				}),
-			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category: categoryView,
 					execution,
 					getAvailability: () => ({ checked: isSidebarVisible, kind: 'enabled' }),
 					handler: {
@@ -601,7 +570,6 @@ export function useWorkbenchActions({
 		requestWorktreeForm,
 		runtime,
 		searchFilters,
-		setTabStripOrientation,
 		scope,
 		tabStripOrientation,
 		toggleSidebar,

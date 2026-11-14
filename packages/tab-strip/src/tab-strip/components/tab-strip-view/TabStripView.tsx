@@ -1,7 +1,6 @@
 import styles from './TabStripView.module.css';
 import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
 import { type ReactNode } from 'react';
-import { TAB_STRIP_ACTION_IDS } from '../../actions/tab-strip-action-contracts';
 import { HoverCardUpdateType } from './components/hover-card/model/tab-hover-card-controller';
 import { LAYOUT_CONSTANTS } from '../../layout/layout-constants';
 import { TabStripContextMenu } from './components/tab-strip-context-menu/TabStripContextMenu';
@@ -27,19 +26,10 @@ export function TabStripView({
 		identityIcons,
 		statusAdornments,
 		orientation,
-		onOrientationChange,
 		verticalCollapsed,
-		verticalExpandOnHover,
 		showHoverCardPreviews,
 		showHoverCardMemoryUsage,
 		showGroupHoverCards,
-		showVerticalTopControls,
-		verticalToolbarHeight,
-		verticalCaptionButtonWidth,
-		verticalIsExitingExpandOnHover,
-		onVerticalCollapsedChange,
-		onVerticalTabSearchClick,
-		onVerticalExpandOnHoverChange,
 		showNewTabButton,
 		touchUi,
 		verticalFill,
@@ -68,12 +58,6 @@ export function TabStripView({
 		openGroupEditor,
 		hoverCardSnapshot,
 		thumbnailSnapshot,
-		comboButtonController,
-		comboButtonSnapshot,
-		expandOnHoverController,
-		expandOnHoverSnapshot,
-		expandedOnHover,
-		effectiveVerticalCollapsed,
 		requestCloseTabs,
 		clearHover,
 		updateHoverForElement,
@@ -89,7 +73,6 @@ export function TabStripView({
 		addTab,
 	} = view;
 	const closeMenu = () => {
-		if (menu?.kind === 'combo-end') comboButtonController.onMenuClosed();
 		setMenu(null);
 	};
 	const openGroupEditorFromControl = (id: string, x: number, y: number) => {
@@ -126,60 +109,18 @@ export function TabStripView({
 				data-orientation={orientation}
 				data-touch-ui={touchUi || undefined}
 				data-fill={fill || undefined}
-				data-collapsed={effectiveVerticalCollapsed || undefined}
-				data-expanded-on-hover={expandedOnHover || undefined}
-				data-waiting-to-expand={expandOnHoverSnapshot.waitingToExpand || undefined}
+				data-collapsed={verticalCollapsed || undefined}
 				data-hover-card-waiting={hoverCardSnapshot.waitingToShow || undefined}
 				data-dragging={(drag?.started && !drag.settling) || undefined}
 				data-tab-closing-mode={tabClosingMode?.source}
-				onContextMenu={(event) => {
-					if (onOrientationChange === undefined) return;
-					const target = event.target;
-					const ownedContextTarget =
-						target instanceof Element
-							? target.closest('[data-tab-id], [data-group-id], button, input, a, [role="button"]')
-							: null;
-					if (ownedContextTarget !== null && event.currentTarget.contains(ownedContextTarget)) {
-						return;
-					}
-					setMenu({ kind: 'strip', x: event.clientX, y: event.clientY });
-				}}
 				onScrollCapture={() => {
 					clearHover(HoverCardUpdateType.Event);
 					if (menu?.kind === 'group' && groupEditorTracker.onContentsScrolled()) {
 						setMenu(null);
 					}
 				}}
-				onMouseEnter={(event) => {
-					const target = event.target;
-					if (!horizontal && target instanceof Node && event.currentTarget.contains(target)) {
-						expandOnHoverController.recordPointerPosition?.(
-							event.clientX,
-							event.currentTarget.getBoundingClientRect().right,
-						);
-						expandOnHoverController.setHovered(true);
-					}
-				}}
-				onMouseMove={(event) => {
-					const target = event.target;
-					if (!horizontal && target instanceof Node && event.currentTarget.contains(target)) {
-						expandOnHoverController.recordPointerPosition?.(
-							event.clientX,
-							event.currentTarget.getBoundingClientRect().right,
-						);
-					}
-				}}
-				onMouseLeave={(event) => {
-					const target = event.target;
-					if (!horizontal && target instanceof Node && event.currentTarget.contains(target)) {
-						expandOnHoverController.setHovered(false);
-					}
-				}}
 				onFocusCapture={(event) => {
 					const target = event.target;
-					if (!horizontal && target instanceof Node && event.currentTarget.contains(target)) {
-						expandOnHoverController.setFocused(true);
-					}
 					const anchor =
 						target instanceof Element
 							? target.closest<HTMLElement>('[data-tab-id], [data-group-id]')
@@ -208,14 +149,6 @@ export function TabStripView({
 				onBlurCapture={(event) => {
 					const target = event.target;
 					const next = event.relatedTarget;
-					if (
-						!horizontal &&
-						target instanceof Node &&
-						event.currentTarget.contains(target) &&
-						(!(next instanceof Node) || !event.currentTarget.contains(next))
-					) {
-						expandOnHoverController.setFocused(false);
-					}
 					if (!(next instanceof Node) || !event.currentTarget.contains(next)) {
 						onRovingFocusExited();
 						onTabKeyboardFocusChanged?.(null);
@@ -240,13 +173,9 @@ export function TabStripView({
 						statusAdornments={statusAdornments}
 						tabCountTransitionSuppressed={verticalTabCountTransitionSuppressed}
 						collapsed={verticalCollapsed}
-						expandedOnHover={expandedOnHover}
-						expandOnHoverEnabled={verticalExpandOnHover}
-						topContainerCollapsed={verticalCollapsed}
-						bottomContainerCollapsed={verticalCollapsed}
 						availableWidth={
 							size.width ||
-							(effectiveVerticalCollapsed ? LAYOUT_CONSTANTS.verticalTabStripCollapsedWidth : 240)
+							(verticalCollapsed ? LAYOUT_CONSTANTS.verticalTabStripCollapsedWidth : 240)
 						}
 						drag={drag}
 						requestCloseTabs={requestCloseTabs}
@@ -272,42 +201,6 @@ export function TabStripView({
 						newTabMenuAvailable={newTabMenuAvailable}
 						touchUi={touchUi}
 						closeButtonAllowed
-						showTopControls={showVerticalTopControls}
-						showTabSearchButton={comboButtonSnapshot.tabSearchVisible}
-						tabSearchTargetVisible={comboButtonSnapshot.tabSearchTargetVisible}
-						tabSearchAnimating={comboButtonSnapshot.tabSearchAnimating}
-						toolbarHeight={verticalToolbarHeight}
-						captionButtonWidth={verticalCaptionButtonWidth}
-						isExitingExpandOnHover={verticalIsExitingExpandOnHover}
-						onTabSearchContextMenu={(event) => {
-							comboButtonController.onMenuOpened('tab-search');
-							setMenu({ kind: 'combo-end', x: event.clientX, y: event.clientY });
-						}}
-						onCollapseContextMenu={(event) => {
-							setMenu({ kind: 'collapse', x: event.clientX, y: event.clientY });
-						}}
-						onCollapsedChange={
-							onVerticalCollapsedChange === undefined
-								? undefined
-								: (collapsed) => {
-										if (collapsed) {
-											expandOnHoverController.setHovered(false);
-											expandOnHoverController.setFocused(false);
-										}
-										actions.execute(
-											TAB_STRIP_ACTION_IDS.setVerticalCollapsed,
-											{ value: collapsed },
-											'button',
-										);
-									}
-						}
-						onTabSearchClick={
-							onVerticalTabSearchClick === undefined
-								? undefined
-								: () => {
-										actions.execute(TAB_STRIP_ACTION_IDS.openTabSearch, undefined, 'button');
-									}
-						}
 					/>
 				)}
 				{drag?.started && !horizontal ? (
@@ -352,11 +245,7 @@ export function TabStripView({
 					state={menu}
 					snapshot={snapshot}
 					orientation={orientation}
-					onOrientationChange={onOrientationChange}
 					closeAllowed
-					verticalExpandOnHover={verticalExpandOnHover}
-					tabSearchPinned={comboButtonSnapshot.tabSearchPinned}
-					onVerticalExpandOnHoverChange={onVerticalExpandOnHoverChange}
 					closeResume={closeResume}
 					onSetTabTitle={onSetTabTitle}
 					onNameGroup={onNameGroup}

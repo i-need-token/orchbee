@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 
-import { ActionRuntime, defineAction, noActionInput, type ActionScope } from '@orchbee/actions';
+import {
+	ActionRuntime,
+	defineAction,
+	noActionInput,
+	type ActionInputValidation,
+	type ActionScope,
+} from '@orchbee/actions';
 import { OrchbeeI18nProvider, workbenchMessages } from '@orchbee/i18n';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-	WORKBENCH_ACTION_IDS,
-	workbenchTabStripOrientationInput,
-} from '../../../actions/workbench-action-ids';
 import {
 	createWorkbenchSearchState,
 	transitionWorkbenchSearch,
@@ -177,34 +179,60 @@ describe('WorkbenchSearchSurface', () => {
 	});
 
 	it('keeps focus in the combobox while filtering and running a nested action input', async () => {
-		const execute = vi.fn<(orientation: string) => void>();
+		const execute = vi.fn<(choice: string) => void>();
 		const runtime = new ActionRuntime();
 		const scope = runtime.createScope('workbench');
+		const choiceInput: ActionInputValidation<{ readonly choice: string }> = {
+			name: 'TestChoiceInput',
+			parse: (input) =>
+				typeof input === 'object' &&
+				input !== null &&
+				'choice' in input &&
+				typeof input.choice === 'string'
+					? { success: true, data: { choice: input.choice } }
+					: { success: false, code: 'expected-test-choice' },
+		};
 		runtime.register(
 			scope,
 			defineAction({
 				category: { id: 'view', title: workbenchMessages.actionCategoryView },
 				execution: {
 					concurrency: 'parallel',
-					concurrencyKey: () => 'orientation',
+					concurrencyKey: () => 'layout',
 					mode: 'foreground',
 				},
 				getDiscoveryAvailability: () => ({ kind: 'enabled' }),
 				getAvailability: () => ({ kind: 'enabled' }),
 				handler: {
 					execute: (_context, input) => {
-						execute(input.orientation);
+						execute(input.choice);
 						return { kind: 'completed' };
 					},
 				},
-				id: WORKBENCH_ACTION_IDS.setTabStripOrientation,
-				input: workbenchTabStripOrientationInput,
-				title: workbenchMessages.tabStripOrientation,
+				id: 'test.layout.choose',
+				input: choiceInput,
+				title: { defaultMessage: 'Choose layout', id: 'test.layout.choose' },
 			}),
 		);
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
-				<SearchHarness runtime={runtime} scope={scope} />
+				<SearchHarness
+					argumentPickerForAction={(actionId) =>
+						actionId === 'test.layout.choose'
+							? {
+									kind: 'options',
+									options: [
+										{ id: 'compact', input: { choice: 'compact' }, keywords: [], label: 'Compact' },
+										{ id: 'roomy', input: { choice: 'roomy' }, keywords: [], label: 'Roomy' },
+									],
+									placeholder: 'Search options…',
+									prompt: 'Choose an option for Choose layout',
+								}
+							: undefined
+					}
+					runtime={runtime}
+					scope={scope}
+				/>
 			</OrchbeeI18nProvider>,
 		);
 
@@ -213,20 +241,20 @@ describe('WorkbenchSearchSurface', () => {
 		expect(input.getAttribute('placeholder')).toBe('Search actions…');
 		expect(screen.getByRole('tab', { name: 'Actions' }).getAttribute('aria-selected')).toBe('true');
 
-		fireEvent.change(input, { target: { value: 'orientation' } });
-		expect(screen.getByRole('option', { name: /Set tab strip orientation/u })).toBeDefined();
+		fireEvent.change(input, { target: { value: 'layout' } });
+		expect(screen.getByRole('option', { name: /Choose layout/u })).toBeDefined();
 		fireEvent.keyDown(input, { key: 'Enter' });
 		expect(input.getAttribute('placeholder')).toBe('Search options…');
-		expect(screen.getByText('Choose an option for Set tab strip orientation')).toBeDefined();
+		expect(screen.getByText('Choose an option for Choose layout')).toBeDefined();
 
 		fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 		await waitFor(() => expect(input.getAttribute('placeholder')).toBe('Search actions…'));
-		expect((input as HTMLInputElement).value).toBe('orientation');
+		expect((input as HTMLInputElement).value).toBe('layout');
 		expect(document.activeElement).toBe(input);
 
 		fireEvent.keyDown(input, { key: 'Enter' });
-		fireEvent.click(screen.getByRole('option', { name: /Vertical tabs/u }));
-		await waitFor(() => expect(execute).toHaveBeenCalledWith('vertical'));
+		fireEvent.click(screen.getByRole('option', { name: /Roomy/u }));
+		await waitFor(() => expect(execute).toHaveBeenCalledWith('roomy'));
 		expect(screen.queryByRole('dialog')).toBeNull();
 	});
 

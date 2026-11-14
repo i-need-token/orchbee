@@ -15,7 +15,7 @@ import {
 	type TabStripCloseResume,
 	type TabStripNewTabSection,
 	type TabStripNewTabRequest,
-	type TabStripOrientation,
+	TabStripOrientation,
 	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
 import * as React from 'react';
@@ -29,9 +29,7 @@ import {
 	MAXIMUM_LEFT_PANEL_WIDTH,
 	MINIMUM_LEFT_PANEL_WIDTH,
 	readWorkbenchLeftPanelWidth,
-	readWorkbenchTabStripOrientation,
 	writeWorkbenchLeftPanelWidth,
-	writeWorkbenchTabStripOrientation,
 	type WorkbenchLayoutStorage,
 } from '../../workbench-layout-storage';
 import type { ProjectWorkspaceState, WorkbenchActiveLocation } from '../../project-workspace';
@@ -335,11 +333,7 @@ interface WorkbenchView {
 	readonly emptyWorkspace: WorkbenchEmptyWorkspace | null;
 	/** Double-clicking the content of a Workspace with no Tab starts one, as the New Tab control does. */
 	readonly onEmptyContentDoubleClick: (event: React.MouseEvent<HTMLElement>) => void;
-	readonly tabStripOrientation: TabStripOrientation;
 	readonly tabStripFocusRequest: number;
-	readonly onTabStripOrientationChange: (orientation: TabStripOrientation) => void;
-	readonly verticalTabStripCollapsed: boolean;
-	readonly onVerticalTabStripCollapsedChange: (collapsed: boolean) => void;
 	readonly toggleSidebar: () => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
@@ -454,10 +448,10 @@ export function useWorkbench({
 		}),
 		[focusRouting.beginTerminalHandover, layoutFocusRouter.focus, layoutFocusRouter.getResolution],
 	);
-	const [tabStripOrientation, setTabStripOrientationState] = React.useState<TabStripOrientation>(
-		() => readWorkbenchTabStripOrientation(storage),
-	);
-	const [verticalTabStripCollapsed, setVerticalTabStripCollapsed] = React.useState(false);
+	// Wide windows show the horizontal strip; the mobile layout's Tab list is a vertical one.
+	const tabStripOrientation = sidebar.mobile
+		? TabStripOrientation.Vertical
+		: TabStripOrientation.Horizontal;
 	const [defaultLeftPanelWidth] = React.useState(() => readWorkbenchLeftPanelWidth(storage));
 	const leftPanelWidth = React.useRef(defaultLeftPanelWidth);
 	const leftPanelReference = React.useRef<ResizablePanelHandle>(null);
@@ -564,10 +558,6 @@ export function useWorkbench({
 	React.useEffect(() => {
 		if (tabListOpen) focusRegion({ kind: 'direct', region: 'tab-strip' });
 	}, [focusRegion, tabListOpen]);
-	const setTabStripOrientation = useMemoizedFn((orientation: TabStripOrientation) => {
-		setTabStripOrientationState(orientation);
-		writeWorkbenchTabStripOrientation(storage, orientation);
-	});
 	const worktreeForm = useWorkbenchWorktreeForm({ projectWorkspaceRuntime });
 	const worktreeLabel = useMemoizedFn((ordinal: number) =>
 		intl.formatMessage(workbenchMessages.worktreeDefaultLabel, { ordinal }),
@@ -701,7 +691,6 @@ export function useWorkbench({
 		requestWorktreeForm: worktreeForm.request,
 		runtime: actionRuntime,
 		searchFilters,
-		setTabStripOrientation,
 		tabStripOrientation,
 		toggleSidebar,
 		worktreeLabel,
@@ -1326,13 +1315,7 @@ export function useWorkbench({
 			if (!isPlainPrimaryPress(event) || tabCount > 0) return;
 			actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null }, 'pointer');
 		},
-		tabStripOrientation,
 		tabStripFocusRequest: focusRouting.tabStripFocusRequest,
-		onTabStripOrientationChange: (orientation) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.setTabStripOrientation, { orientation }, 'context-menu');
-		},
-		verticalTabStripCollapsed,
-		onVerticalTabStripCollapsedChange: setVerticalTabStripCollapsed,
 		toggleSidebar: () => {
 			actions.invoke(WORKBENCH_ACTION_IDS.toggleSidebar, undefined, 'button');
 		},

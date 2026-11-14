@@ -690,10 +690,7 @@ export function areDraggedTabIdsConsecutive(
 export type MenuState =
 	| { kind: 'tab'; id: string; x: number; y: number }
 	| { kind: 'group'; id: string; x: number; y: number }
-	| { kind: 'strip'; x: number; y: number }
-	| { kind: 'new-tab'; x: number; y: number }
-	| { kind: 'collapse'; x: number; y: number }
-	| { kind: 'combo-end'; x: number; y: number };
+	| { kind: 'new-tab'; x: number; y: number };
 
 export type HoverState =
 	| { kind: 'tab'; id: string; x: number; y: number }

@@ -13,7 +13,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TAB_STRIP_ACTION_IDS } from '../../actions/tab-strip-action-contracts';
 import { DEFAULT_TAB_STRIP_MESSAGES } from '../../constants/default-tab-strip-messages';
 import { TabModel } from '../../model/tab-model';
-import { TabStripComboButtonController } from '../../model/TabStripComboButtonController';
 import type {
 	TabStripChangeCallback,
 	TabStripCloseCallback,
@@ -27,7 +26,6 @@ import { useTabStripActions } from '../useTabStripActions';
 interface HarnessProps {
 	readonly captureActions?: ((actions: TabStripActions) => void) | undefined;
 	readonly captureScope: (scope: ActionScope) => void;
-	readonly comboButtonController?: TabStripComboButtonController | undefined;
 	readonly model: TabModel;
 	readonly getTabCreationAvailability?:
 		| ((intent: TabStripTabCreationIntent) => ActionAvailability)
@@ -43,7 +41,6 @@ interface HarnessProps {
 function Harness({
 	captureActions,
 	captureScope,
-	comboButtonController = new TabStripComboButtonController(),
 	model,
 	getTabCreationAvailability,
 	onCloseTabs,
@@ -55,7 +52,6 @@ function Harness({
 }: HarnessProps): ReactNode {
 	const actions = useTabStripActions({
 		actionRuntime: runtime,
-		comboButtonController,
 		messages: DEFAULT_TAB_STRIP_MESSAGES,
 		model,
 		getTabCreationAvailability,
@@ -67,11 +63,6 @@ function Harness({
 		requestCloseTabs: (tabIds) => {
 			model.closeTabs(tabIds);
 		},
-		onVerticalCollapsedChange: undefined,
-		onVerticalExpandOnHoverChange: undefined,
-		onVerticalTabSearchClick: undefined,
-		verticalCollapsed: false,
-		verticalExpandOnHover: true,
 	});
 	captureActions?.(actions);
 	captureScope(actions.scope);
@@ -746,13 +737,10 @@ describe('useTabStripActions', () => {
 							collapsed: false,
 							groupId: 'group-1',
 						},
-						[TAB_STRIP_ACTION_IDS.setTabSearchPinned]: { value: true },
 						[TAB_STRIP_ACTION_IDS.setTabsPinned]: {
 							pinned: true,
 							tabIds: ['tab-1'],
 						},
-						[TAB_STRIP_ACTION_IDS.setVerticalCollapsed]: { value: true },
-						[TAB_STRIP_ACTION_IDS.setVerticalExpandOnHover]: { value: false },
 						[TAB_STRIP_ACTION_IDS.ungroup]: { groupId: 'group-1' },
 						[TAB_STRIP_ACTION_IDS.updateGroup]: {
 							groupId: 'group-1',
@@ -765,12 +753,7 @@ describe('useTabStripActions', () => {
 		expect(listedActionIds).toEqual(
 			new Set(
 				Object.values(TAB_STRIP_ACTION_IDS).filter(
-					(actionId) =>
-						actionId !== TAB_STRIP_ACTION_IDS.applyArrangement &&
-						// This host wires no vertical callbacks, so it lacks those Actions.
-						actionId !== TAB_STRIP_ACTION_IDS.openTabSearch &&
-						actionId !== TAB_STRIP_ACTION_IDS.setVerticalCollapsed &&
-						actionId !== TAB_STRIP_ACTION_IDS.setVerticalExpandOnHover,
+					(actionId) => actionId !== TAB_STRIP_ACTION_IDS.applyArrangement,
 				),
 			),
 		);
@@ -882,10 +865,9 @@ describe('useTabStripActions', () => {
 		).toBeNull();
 	});
 
-	it('notifies Action consumers when model and checked-state dependencies change', async () => {
+	it('notifies Action consumers when the model changes', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');
-		const comboButtonController = new TabStripComboButtonController({ richAnimations: false });
 		const model = new TabModel({
 			activeTabId: 'tab-1',
 			groups: [],
@@ -900,7 +882,6 @@ describe('useTabStripActions', () => {
 				captureScope: (candidate) => {
 					scope = candidate;
 				},
-				comboButtonController,
 				model,
 				parentScope,
 				runtime,
@@ -924,20 +905,6 @@ describe('useTabStripActions', () => {
 			),
 		).toMatchObject({
 			availability: { kind: 'disabled' },
-		});
-
-		comboButtonController.setPinned('tab-search', true);
-		await Promise.resolve();
-
-		expect(listener).toHaveBeenCalledTimes(2);
-		expect(
-			runtime.resolveAction(
-				TAB_STRIP_ACTION_IDS.setTabSearchPinned,
-				{ value: false },
-				{ scope, source: 'command-surface' },
-			),
-		).toMatchObject({
-			availability: { checked: true, kind: 'enabled' },
 		});
 	});
 });

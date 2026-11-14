@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { TabStripOrientation } from '../../types/tab-strip-types';
 import { calculateRoundedScrollbarThumb } from '../../components/tab-strip-view/components/vertical-contents/components/rounded-scrollbar/utils/rounded-scrollbar';
 import {
-	getComboButtonFlatEdges,
 	getFlatEdgeButtonCornerRadii,
 	TabStripFlatEdge,
 } from '../../components/tab-strip-view/components/vertical-contents/components/flat-edge-button/utils/tab-strip-flat-edge-button';
@@ -37,21 +35,6 @@ describe('TabStripFlatEdgeButton geometry', () => {
 			topRight: 6,
 			bottomRight: 10,
 			bottomLeft: 10,
-		});
-	});
-
-	it('assigns combo-button shared edges for orientation and RTL', () => {
-		expect(getComboButtonFlatEdges(TabStripOrientation.Vertical, true)).toEqual({
-			start: TabStripFlatEdge.Bottom,
-			end: TabStripFlatEdge.Top,
-		});
-		expect(getComboButtonFlatEdges(TabStripOrientation.Horizontal, true, true)).toEqual({
-			start: TabStripFlatEdge.Left,
-			end: TabStripFlatEdge.Right,
-		});
-		expect(getComboButtonFlatEdges(TabStripOrientation.Horizontal, false)).toEqual({
-			start: TabStripFlatEdge.None,
-			end: TabStripFlatEdge.None,
 		});
 	});
 });

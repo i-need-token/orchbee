@@ -12,7 +12,6 @@ import {
 	workbenchSearchOpenInput,
 	workbenchTabPositionInput,
 	workbenchTabTitleInput,
-	workbenchTabStripOrientationInput,
 	workbenchTerminalCreateInput,
 	workbenchWorkspaceCreateInput,
 	workbenchWorkspaceInput,
@@ -84,7 +83,6 @@ describe('workbench action contracts', () => {
 			splitActivePanelLeft: 'workbench.panel.active.split-left',
 			splitActivePanelRight: 'workbench.panel.active.split-right',
 			swapActivePanelVisible: 'workbench.panel.active.swap-visible',
-			setTabStripOrientation: 'workbench.tab-strip.orientation.set',
 			toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 			toggleProjectExpansion: 'workbench.project.expansion.toggle',
 			toggleRecentsExpansion: 'workbench.recents.expansion.toggle',
@@ -295,17 +293,6 @@ describe('workbench action contracts', () => {
 		expect(workbenchSearchOpenInput.parse({ filter: 'files' })).toEqual({
 			success: false,
 			code: 'expected-workbench-search-filter',
-		});
-	});
-
-	it('accepts only supported tab-strip orientations', () => {
-		expect(workbenchTabStripOrientationInput.parse({ orientation: 'horizontal' })).toEqual({
-			success: true,
-			data: { orientation: 'horizontal' },
-		});
-		expect(workbenchTabStripOrientationInput.parse({ orientation: 'diagonal' })).toEqual({
-			success: false,
-			code: 'expected-tab-strip-orientation',
 		});
 	});
 

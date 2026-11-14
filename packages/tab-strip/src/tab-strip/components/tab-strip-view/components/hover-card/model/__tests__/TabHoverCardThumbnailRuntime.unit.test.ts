@@ -103,14 +103,11 @@ describe('TabHoverCardThumbnailRuntime', () => {
 		});
 	});
 
-	it('does not capture missing discarded previews and replaces crashed tabs with crash art', () => {
+	it('does not capture missing discarded previews', () => {
 		const source = new FakeThumbnailSource(false);
 		const runtime = new TabHoverCardThumbnailRuntime<string>();
 		runtime.updateTarget(target('discarded', source, { discarded: true }));
 		expect(runtime.getSnapshot().current.presentation).toBe('none');
-		expect(source.requested).toBe(0);
-		runtime.updateTarget(target('crashed', source, { crashed: true }));
-		expect(runtime.getSnapshot().current.presentation).toBe('crashed');
 		expect(source.requested).toBe(0);
 	});
 

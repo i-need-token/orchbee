@@ -1,6 +1,5 @@
 import styles from './TabStripContextMenu.module.css';
 import {
-	ContextMenuCheckboxItem,
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuRadioGroup,
@@ -31,11 +30,7 @@ interface TabStripContextMenuProps {
 	state: MenuState;
 	snapshot: TabModelSnapshot;
 	orientation: TabStripOrientation;
-	onOrientationChange?: ((orientation: TabStripOrientation) => void) | undefined;
 	closeAllowed: boolean;
-	verticalExpandOnHover: boolean;
-	onVerticalExpandOnHoverChange?: ((enabled: boolean) => void) | undefined;
-	tabSearchPinned: boolean;
 	closeResume: TabStripOptions['closeResume'];
 	onNameGroup: TabStripOptions['onNameGroup'];
 	onSetTabTitle: ((tabId: string) => void) | undefined;
@@ -69,11 +64,7 @@ export function TabStripContextMenu({
 	state,
 	snapshot,
 	orientation,
-	onOrientationChange,
 	closeAllowed,
-	verticalExpandOnHover,
-	onVerticalExpandOnHoverChange,
-	tabSearchPinned,
 	closeResume,
 	onNameGroup,
 	onSetTabTitle,
@@ -85,63 +76,6 @@ export function TabStripContextMenu({
 		action();
 		onClose();
 	};
-
-	if (state.kind === 'strip') {
-		const vertical = orientation === TabStripOrientation.Vertical;
-		return (
-			<ContextMenuContent aria-label={messages.tabStripMenu}>
-				<ContextMenuItem
-					disabled={onOrientationChange === undefined}
-					onClick={run(() =>
-						onOrientationChange?.(
-							vertical ? TabStripOrientation.Horizontal : TabStripOrientation.Vertical,
-						),
-					)}
-				>
-					{vertical ? messages.closeVerticalTabs : messages.openVerticalTabs}
-				</ContextMenuItem>
-			</ContextMenuContent>
-		);
-	}
-
-	if (state.kind === 'combo-end') {
-		return (
-			<ContextMenuContent aria-label={messages.searchTabsMenu}>
-				<ContextMenuCheckboxItem
-					checked={tabSearchPinned}
-					onClick={run(() =>
-						actions.execute(
-							TAB_STRIP_ACTION_IDS.setTabSearchPinned,
-							{ value: !tabSearchPinned },
-							'context-menu',
-						),
-					)}
-				>
-					{tabSearchPinned ? messages.unpinSearchTabs : messages.pinSearchTabs}
-				</ContextMenuCheckboxItem>
-			</ContextMenuContent>
-		);
-	}
-
-	if (state.kind === 'collapse') {
-		return (
-			<ContextMenuContent aria-label={messages.verticalTabStripMenu}>
-				<ContextMenuCheckboxItem
-					checked={verticalExpandOnHover}
-					disabled={onVerticalExpandOnHoverChange === undefined}
-					onClick={run(() =>
-						actions.execute(
-							TAB_STRIP_ACTION_IDS.setVerticalExpandOnHover,
-							{ value: !verticalExpandOnHover },
-							'context-menu',
-						),
-					)}
-				>
-					{messages.expandTabStripOnHover}
-				</ContextMenuCheckboxItem>
-			</ContextMenuContent>
-		);
-	}
 
 	if (state.kind === 'new-tab') {
 		// Grouped and other new-Tab variants are Search Actions; this menu only picks how the Tab starts.

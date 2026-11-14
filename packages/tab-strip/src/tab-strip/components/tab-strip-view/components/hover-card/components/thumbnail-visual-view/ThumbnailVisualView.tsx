@@ -19,7 +19,6 @@ export function ThumbnailVisualView({
 			{visual.presentation === 'thumbnail' && visual.image ? (
 				<img src={visual.image} alt='' />
 			) : null}
-			{visual.presentation === 'crashed' ? <span>{messages.tabCrashed}</span> : null}
 			{visual.presentation === 'placeholder' ? <span>{messages.previewUnavailable}</span> : null}
 		</div>
 	);

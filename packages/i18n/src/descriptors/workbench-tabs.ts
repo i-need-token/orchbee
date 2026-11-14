@@ -25,14 +25,6 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.closeToRight',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.closeToRight'],
 	},
-	closeVerticalTabs: {
-		id: 'workbench.tabs.actions.closeVertical',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.closeVertical'],
-	},
-	collapseTabStrip: {
-		id: 'workbench.tabs.actions.collapse',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.collapse'],
-	},
 	commandPromptTitle: {
 		id: 'workbench.tabs.titles.commandPrompt',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titles.commandPrompt'],
@@ -81,14 +73,6 @@ export const workbenchTabMessages = defineMessages({
 	setGroupCollapsed: {
 		id: 'workbench.tabs.actions.setGroupCollapsed',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.setGroupCollapsed'],
-	},
-	expandTabStrip: {
-		id: 'workbench.tabs.actions.expand',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.expand'],
-	},
-	expandTabStripOnHover: {
-		id: 'workbench.tabs.actions.expandOnHover',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.expandOnHover'],
 	},
 	groupColor: {
 		id: 'workbench.tabs.groups.color',
@@ -238,17 +222,9 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.newToRight',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newToRight'],
 	},
-	openVerticalTabs: {
-		id: 'workbench.tabs.actions.openVertical',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.openVertical'],
-	},
 	pin: {
 		id: 'workbench.tabs.actions.pin',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.pin'],
-	},
-	pinSearchTabs: {
-		id: 'workbench.tabs.actions.pinSearch',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.pinSearch'],
 	},
 	positionTitle: {
 		id: 'workbench.tabs.titles.position',
@@ -259,18 +235,6 @@ export const workbenchTabMessages = defineMessages({
 	previewUnavailable: {
 		id: 'workbench.tabs.states.previewUnavailable',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.states.previewUnavailable'],
-	},
-	searchTabs: {
-		id: 'workbench.tabs.actions.search',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.search'],
-	},
-	searchTabsMenu: {
-		id: 'workbench.tabs.menus.search',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menus.search'],
-	},
-	tabCrashed: {
-		id: 'workbench.tabs.states.crashed',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.states.crashed'],
 	},
 	tabGroups: {
 		id: 'workbench.tabs.groups.collection',
@@ -335,10 +299,6 @@ export const workbenchTabMessages = defineMessages({
 	tabStripLabel: {
 		id: 'workbench.tabs.label',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.label'],
-	},
-	tabStripMenu: {
-		id: 'workbench.tabs.menus.strip',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menus.strip'],
 	},
 	terminalTitle: {
 		id: 'workbench.tabs.titles.terminal',
@@ -411,14 +371,6 @@ export const workbenchTabMessages = defineMessages({
 	updateGroup: {
 		id: 'workbench.tabs.actions.updateGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.updateGroup'],
-	},
-	unpinSearchTabs: {
-		id: 'workbench.tabs.actions.unpinSearch',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.unpinSearch'],
-	},
-	verticalTabStripMenu: {
-		id: 'workbench.tabs.menus.vertical',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menus.vertical'],
 	},
 	closedAnnouncement: {
 		id: 'workbench.tabs.announcements.closed',

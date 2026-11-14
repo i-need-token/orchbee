@@ -2,10 +2,7 @@ import { ActionRuntime, defineAction, noActionInput } from '@orchbee/actions';
 import { createOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import { describe, expect, it } from 'vitest';
 
-import {
-	WORKBENCH_ACTION_IDS,
-	workbenchTabStripOrientationInput,
-} from '../../../../actions/workbench-action-ids';
+import { WORKBENCH_ACTION_IDS } from '../../../../actions/workbench-action-ids';
 import { projectWorkbenchSearchCatalog } from '../project-workbench-search-catalog';
 
 describe('Workbench search catalog projection', () => {
@@ -42,19 +39,6 @@ describe('Workbench search catalog projection', () => {
 				title: { defaultMessage: 'Paste', id: 'test.terminal.paste' },
 			}),
 		);
-		runtime.register(
-			scope,
-			defineAction({
-				category: { id: 'view', title: workbenchMessages.actionCategoryView },
-				execution,
-				getDiscoveryAvailability: () => ({ kind: 'enabled' }),
-				getAvailability: () => ({ kind: 'enabled' }),
-				handler: { execute: () => ({ kind: 'completed' }) },
-				id: WORKBENCH_ACTION_IDS.setTabStripOrientation,
-				input: workbenchTabStripOrientationInput,
-				title: workbenchMessages.tabStripOrientation,
-			}),
-		);
 
 		const catalog = projectWorkbenchSearchCatalog({
 			argumentPickerForAction: () => undefined,
@@ -77,20 +61,6 @@ describe('Workbench search catalog projection', () => {
 				shortcut: '⌘,',
 			},
 		]);
-		expect(
-			catalog.actionResults.find(
-				(result) => result.actionId === WORKBENCH_ACTION_IDS.setTabStripOrientation,
-			),
-		).toMatchObject({
-			groupLabel: 'View',
-			invocation: {
-				kind: 'requires-input',
-				picker: {
-					kind: 'options',
-					options: [{ id: 'horizontal' }, { id: 'vertical' }],
-				},
-			},
-		});
 		expect(
 			catalog.actionResults.find((result) => result.actionId === 'terminal.clipboard.paste'),
 		).toMatchObject({ shortcut: '⌘V' });

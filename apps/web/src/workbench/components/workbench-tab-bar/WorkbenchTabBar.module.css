@@ -9,11 +9,6 @@
 	flex: none;
 }
 
-.root[data-orientation='vertical'][data-reserve-sidebar-toggle-space] {
-	padding-block-start: var(--ob-ref-size-control-lg);
-	background: var(--ob-sys-color-surface-canvas);
-}
-
 .leadingActions {
 	box-sizing: border-box;
 	height: 100%;

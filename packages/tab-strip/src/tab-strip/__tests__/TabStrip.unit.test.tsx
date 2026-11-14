@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { ActionRuntime } from '@orchbee/actions';
-import { StrictMode, useState } from 'react';
+import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TAB_BOUNDS_ANIMATION_DURATION_MS } from '../utils/tab-strip-internals';
@@ -14,8 +14,6 @@ import type {
 	HoverCardThumbnailSubscription,
 } from '../components/tab-strip-view/components/hover-card/model/TabHoverCardThumbnailObserver';
 import { TabModel } from '../model/tab-model';
-import { TabStripComboButtonController } from '../model/TabStripComboButtonController';
-import { VerticalTabStripExpandOnHoverController } from '../model/vertical-tab-strip-expand-on-hover';
 import { TabStrip, type TabStripGroupNameRequest, type TabStripNewTabChoice } from '../TabStrip';
 
 class FakeThumbnailSource implements HoverCardThumbnailSource<string> {
@@ -1019,36 +1017,6 @@ describe('TabStrip', () => {
 		expect(screen.queryByRole('menuitem', { name: 'Resume closing this Tab…' })).toBeNull();
 	});
 
-	it('requests the opposite orientation from the blank tab-strip context menu', () => {
-		const model = createModel();
-		const onOrientationChange = vi.fn<(orientation: TabStripOrientation) => void>();
-		const { rerender } = render(
-			<TabStrip model={model} onOrientationChange={onOrientationChange} />,
-		);
-
-		fireEvent.contextMenu(screen.getByRole('tablist', { name: 'Tabs' }), {
-			clientX: 700,
-			clientY: 20,
-		});
-		expect(screen.getByRole('menu', { name: 'Tab strip menu' })).toBeTruthy();
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Open vertical tabs' }));
-		expect(onOrientationChange).toHaveBeenLastCalledWith(TabStripOrientation.Vertical);
-
-		rerender(
-			<TabStrip
-				model={model}
-				orientation={TabStripOrientation.Vertical}
-				onOrientationChange={onOrientationChange}
-			/>,
-		);
-		fireEvent.contextMenu(screen.getByRole('tablist', { name: 'Tabs' }), {
-			clientX: 120,
-			clientY: 500,
-		});
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Close vertical tabs' }));
-		expect(onOrientationChange).toHaveBeenLastCalledWith(TabStripOrientation.Horizontal);
-	});
-
 	it('runs group membership commands from the tab context menu', () => {
 		const model = createModel();
 		const onNameGroup = vi.fn<(request: TabStripGroupNameRequest) => void>();
@@ -1888,95 +1856,6 @@ describe('TabStrip', () => {
 		expect(model.getSnapshot().tabs.filter((tab) => tab.group === 'research')).toHaveLength(3);
 	});
 
-	it('wires the vertical top-container actions and expand-on-hover preference menu', () => {
-		const model = createModel();
-		const onCollapsedChange = vi.fn<() => void>();
-		const onExpandOnHoverChange = vi.fn<() => void>();
-		render(
-			<TabStrip
-				model={model}
-				orientation={TabStripOrientation.Vertical}
-				onVerticalCollapsedChange={onCollapsedChange}
-				onVerticalExpandOnHoverChange={onExpandOnHoverChange}
-			/>,
-		);
-
-		fireEvent.click(screen.getByRole('button', { name: 'Collapse tab strip' }));
-		expect(onCollapsedChange).toHaveBeenCalledWith(true);
-
-		fireEvent.contextMenu(screen.getByRole('button', { name: 'Collapse tab strip' }), {
-			clientX: 20,
-			clientY: 20,
-		});
-		const preference = screen.getByRole('menuitemcheckbox', { name: 'Expand tab strip on hover' });
-		expect(preference.getAttribute('aria-checked')).toBe('true');
-		fireEvent.click(preference);
-		expect(onExpandOnHoverChange).toHaveBeenCalledWith(false);
-	});
-
-	it('shows unpinned Tab Search while its bubble is open and hides it after the ephemeral delay', () => {
-		vi.useFakeTimers();
-		const controller = new TabStripComboButtonController({ richAnimations: false });
-		const { rerender } = render(
-			<TabStrip
-				model={createModel()}
-				orientation={TabStripOrientation.Vertical}
-				verticalComboButtonController={controller}
-			/>,
-		);
-		expect(screen.queryByRole('button', { name: 'Search tabs' })).toBeNull();
-
-		rerender(
-			<TabStrip
-				model={createModel()}
-				orientation={TabStripOrientation.Vertical}
-				verticalComboButtonController={controller}
-				verticalTabSearchOpen
-			/>,
-		);
-		expect(screen.getByRole('button', { name: 'Search tabs' })).toBeTruthy();
-
-		rerender(
-			<TabStrip
-				model={createModel()}
-				orientation={TabStripOrientation.Vertical}
-				verticalComboButtonController={controller}
-			/>,
-		);
-		act(() => vi.advanceTimersByTime(1_999));
-		expect(screen.getByRole('button', { name: 'Search tabs' })).toBeTruthy();
-		act(() => vi.advanceTimersByTime(1));
-		expect(screen.queryByRole('button', { name: 'Search tabs' })).toBeNull();
-	});
-
-	it('holds the vertical expand-on-hover state while the Tab Search bubble is open', () => {
-		const comboController = new TabStripComboButtonController({ richAnimations: false });
-		const expandController = new VerticalTabStripExpandOnHoverController();
-		const model = createModel();
-		const { rerender } = render(
-			<TabStrip
-				model={model}
-				orientation={TabStripOrientation.Vertical}
-				verticalCollapsed
-				verticalComboButtonController={comboController}
-				verticalExpandOnHoverController={expandController}
-				verticalTabSearchOpen
-			/>,
-		);
-		expect(expandController.getSnapshot().keepCurrentStateLocks).toBe(1);
-
-		rerender(
-			<TabStrip
-				model={model}
-				orientation={TabStripOrientation.Vertical}
-				verticalCollapsed
-				verticalComboButtonController={comboController}
-				verticalExpandOnHoverController={expandController}
-			/>,
-		);
-		expect(expandController.getSnapshot().keepCurrentStateLocks).toBe(0);
-	});
-
 	it('notifies the host before invoking the New Tab action', () => {
 		const model = createModel();
 		const order: string[] = [];
@@ -2106,102 +1985,6 @@ describe('TabStrip', () => {
 		).toEqual(['Zsh', 'Codex', 'More Agents…']);
 		fireEvent.click(within(menu).getByRole('menuitem', { name: 'Codex' }));
 		expect(selected).toEqual(['codex']);
-	});
-
-	it("expands a collapsed vertical strip after Chromium's inside-edge velocity delay", () => {
-		vi.useFakeTimers();
-		const model = createModel();
-		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} verticalCollapsed />);
-		const strip = screen.getByRole('tablist', { name: 'Tabs' });
-
-		fireEvent.mouseEnter(strip);
-		expect(strip.hasAttribute('data-waiting-to-expand')).toBe(true);
-		act(() => vi.advanceTimersByTime(209));
-		expect(strip.hasAttribute('data-expanded-on-hover')).toBe(false);
-		act(() => vi.advanceTimersByTime(1));
-		expect(strip.hasAttribute('data-expanded-on-hover')).toBe(true);
-		expect(strip.hasAttribute('data-collapsed')).toBe(false);
-		expect(screen.getByRole('button', { name: 'Expand tab strip' })).toBeTruthy();
-
-		fireEvent.mouseLeave(strip);
-		expect(strip.hasAttribute('data-expanded-on-hover')).toBe(false);
-		expect(strip.hasAttribute('data-collapsed')).toBe(true);
-	});
-
-	it('collapses immediately when its own control holds pointer and keyboard focus', () => {
-		const model = createModel();
-		const ControlledVerticalTabStrip = () => {
-			const [collapsed, setCollapsed] = useState(false);
-			return (
-				<TabStrip
-					model={model}
-					orientation={TabStripOrientation.Vertical}
-					verticalCollapsed={collapsed}
-					onVerticalCollapsedChange={setCollapsed}
-				/>
-			);
-		};
-		render(<ControlledVerticalTabStrip />);
-		const strip = screen.getByRole('tablist', { name: 'Tabs' });
-		const collapseButton = screen.getByRole('button', { name: 'Collapse tab strip' });
-
-		fireEvent.mouseEnter(strip);
-		fireEvent.focus(collapseButton);
-		fireEvent.click(collapseButton);
-
-		expect(strip.hasAttribute('data-expanded-on-hover')).toBe(false);
-		expect(strip.hasAttribute('data-collapsed')).toBe(true);
-	});
-
-	it('falls back safely when Fast Refresh preserves a pre-velocity controller', () => {
-		const setHovered = vi.fn<() => void>();
-		const snapshot = Object.freeze({
-			revision: 0,
-			expanded: false,
-			waitingToExpand: false,
-			forceCollapseLocks: 0,
-			keepCurrentStateLocks: 0,
-			keepExpandedLocks: 0,
-		});
-		const legacyController = {
-			subscribe: () => () => undefined,
-			getSnapshot: () => snapshot,
-			setEnvironment: vi.fn<() => void>(),
-			setHovered,
-			setFocused: vi.fn<() => void>(),
-			getLock: vi.fn<() => void>(),
-		} as unknown as VerticalTabStripExpandOnHoverController;
-		render(
-			<TabStrip
-				model={createModel()}
-				orientation={TabStripOrientation.Vertical}
-				verticalCollapsed
-				verticalExpandOnHoverController={legacyController}
-			/>,
-		);
-
-		expect(() => fireEvent.mouseEnter(screen.getByRole('tablist', { name: 'Tabs' }))).not.toThrow();
-		expect(setHovered).toHaveBeenCalledWith(true);
-	});
-
-	it('keeps hover expansion locked while a tab menu is open', () => {
-		vi.useFakeTimers();
-		const model = createModel();
-		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} verticalCollapsed />);
-		const strip = screen.getByRole('tablist', { name: 'Tabs' });
-		fireEvent.mouseEnter(strip);
-		act(() => vi.advanceTimersByTime(210));
-
-		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
-			clientX: 50,
-			clientY: 30,
-		});
-		fireEvent.mouseEnter(screen.getByRole('menu'));
-		fireEvent.mouseLeave(strip);
-		expect(strip.hasAttribute('data-expanded-on-hover')).toBe(true);
-
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Pin' }));
-		expect(strip.hasAttribute('data-expanded-on-hover')).toBe(false);
 	});
 
 	it('reorders live after the scaled drag threshold and restores on cancel', () => {

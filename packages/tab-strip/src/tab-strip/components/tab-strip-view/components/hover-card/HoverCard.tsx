@@ -101,8 +101,7 @@ export function HoverCard({
 				) : null}
 			</>
 		);
-	} else if (tab.crashed) previewContent = <span>{messages.tabCrashed}</span>;
-	else if (tab.thumbnailUrl) previewContent = <img src={tab.thumbnailUrl} alt='' />;
+	} else if (tab.thumbnailUrl) previewContent = <img src={tab.thumbnailUrl} alt='' />;
 	return createPortal(
 		<div
 			className={styles['ct-hover-card']}
@@ -116,14 +115,9 @@ export function HoverCard({
 			{showPreview ? (
 				<div
 					className={styles['ct-hover-card__preview']}
-					data-crashed={
-						runtimePreview?.current.presentation === 'crashed' ||
-						(!runtimePreview && tab.crashed) ||
-						undefined
-					}
 					data-placeholder={
 						runtimePreview?.current.presentation === 'placeholder' ||
-						(!runtimePreview && !tab.crashed && !tab.thumbnailUrl) ||
+						(!runtimePreview && !tab.thumbnailUrl) ||
 						undefined
 					}
 					data-thumbnail-wait-state={runtimePreview?.waitState}

@@ -84,7 +84,6 @@ describe('hover-card thumbnail planning', () => {
 		needsThumbnail: true,
 		isGroup: false,
 		discarded: false,
-		crashed: false,
 		hasThumbnailObject: true,
 		hasThumbnailData: false,
 		readiness: ThumbnailCaptureReadiness.ReadyForInitialCapture,
@@ -102,8 +101,7 @@ describe('hover-card thumbnail planning', () => {
 		});
 	});
 
-	it('does not request a missing discarded thumbnail and shows crash state', () => {
+	it('does not request a missing discarded thumbnail', () => {
 		expect(getThumbnailPlan({ ...base, discarded: true }).presentation).toBe('none');
-		expect(getThumbnailPlan({ ...base, crashed: true }).presentation).toBe('crashed');
 	});
 });

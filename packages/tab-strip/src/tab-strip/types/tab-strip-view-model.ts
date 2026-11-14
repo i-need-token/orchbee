@@ -16,14 +16,6 @@ import type { TabCloseSource } from '../layout/tab-closing-mode';
 import type { Rect } from '../utils/rectRight';
 import type { TabStripOrientation } from './tab-strip-types';
 import type { TabGroupEditorBubbleTracker } from '../model/TabGroupEditorBubbleTracker';
-import type {
-	VerticalExpandOnHoverSnapshot,
-	VerticalTabStripExpandOnHoverController,
-} from '../model/vertical-tab-strip-expand-on-hover';
-import type {
-	TabStripComboButtonController,
-	TabStripComboButtonSnapshot,
-} from '../model/TabStripComboButtonController';
 import type { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
 import type { TabStripOptions } from './tab-strip-options';
 import type { DragState, HoverState, MenuState, VisualItem } from '../utils/tab-strip-internals';
@@ -36,19 +28,10 @@ export interface TabStripViewModel {
 	readonly model: TabModel;
 	readonly statusAdornments: NonNullable<TabStripOptions['statusAdornments']>;
 	readonly orientation: TabStripOrientation;
-	readonly onOrientationChange: TabStripOptions['onOrientationChange'];
 	readonly verticalCollapsed: boolean;
-	readonly verticalExpandOnHover: boolean;
 	readonly showHoverCardPreviews: boolean;
 	readonly showHoverCardMemoryUsage: boolean;
 	readonly showGroupHoverCards: boolean;
-	readonly showVerticalTopControls: boolean;
-	readonly verticalToolbarHeight: number;
-	readonly verticalCaptionButtonWidth: number;
-	readonly verticalIsExitingExpandOnHover: boolean;
-	readonly onVerticalCollapsedChange: TabStripOptions['onVerticalCollapsedChange'];
-	readonly onVerticalTabSearchClick: TabStripOptions['onVerticalTabSearchClick'];
-	readonly onVerticalExpandOnHoverChange: TabStripOptions['onVerticalExpandOnHoverChange'];
 	readonly showNewTabButton: boolean;
 	readonly horizontalFrameCondensed: boolean;
 	readonly touchUi: boolean;
@@ -85,12 +68,6 @@ export interface TabStripViewModel {
 	readonly openGroupEditor: (id: string, x: number, y: number) => void;
 	readonly hoverCardSnapshot: TabHoverCardSnapshot;
 	readonly thumbnailSnapshot: HoverCardThumbnailSnapshot<string>;
-	readonly comboButtonController: TabStripComboButtonController;
-	readonly comboButtonSnapshot: TabStripComboButtonSnapshot;
-	readonly expandOnHoverController: VerticalTabStripExpandOnHoverController;
-	readonly expandOnHoverSnapshot: VerticalExpandOnHoverSnapshot;
-	readonly expandedOnHover: boolean;
-	readonly effectiveVerticalCollapsed: boolean;
 	readonly requestCloseTabs: (tabIds: readonly string[], source?: TabCloseSource) => void;
 	readonly expandedHeaderDragGroupId: string | null;
 	readonly horizontalLayout: TabBoundsResult | null;

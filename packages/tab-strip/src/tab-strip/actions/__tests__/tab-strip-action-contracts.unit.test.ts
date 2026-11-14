@@ -3,7 +3,6 @@ import registry from '../../../../../../schemas/workbench/v1/workbench-action-id
 
 import {
 	TAB_STRIP_ACTION_IDS,
-	booleanValueInput,
 	tabArrangementInput,
 	tabCloseInput,
 	tabCreateInput,
@@ -70,7 +69,6 @@ describe('tab strip action contracts', () => {
 		expect(tabPinnedInput.parse({ pinned: true, tabIds: ['tab-1'] })).toMatchObject({
 			success: true,
 		});
-		expect(booleanValueInput.parse({ value: true })).toMatchObject({ success: true });
 		const arrangement = {
 			activeTabId: 'tab-1',
 			groups: [
@@ -121,7 +119,6 @@ describe('tab strip action contracts', () => {
 		expect(tabGroupUpdateInput.parse({ groupId: 'group-1' })).toMatchObject({
 			success: false,
 		});
-		expect(booleanValueInput.parse({ value: 'true' })).toMatchObject({ success: false });
 		expect(tabArrangementInput.parse({ state: { tabs: 'tab-1' } })).toMatchObject({
 			success: false,
 		});

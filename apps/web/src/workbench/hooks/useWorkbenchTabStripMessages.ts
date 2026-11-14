@@ -25,9 +25,6 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 				.trimEnd()}…`;
 		};
 		const getTabState = (tab: Readonly<TabData>) => {
-			if (tab.crashed) return 'crashed';
-			if (tab.networkState === 'error') return 'networkError';
-			if (tab.permissionRequested) return 'permission';
 			if (tab.discarded) return 'discarded';
 			return 'normal';
 		};
@@ -64,10 +61,6 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 			closeTab: format(workbenchTabMessages.close),
 			closeTabsBelow: format(workbenchTabMessages.closeTabsBelow),
 			closeTabsToRight: format(workbenchTabMessages.closeTabsToRight),
-			closeVerticalTabs: format(workbenchTabMessages.closeVerticalTabs),
-			collapseTabStrip: format(workbenchTabMessages.collapseTabStrip),
-			expandTabStrip: format(workbenchTabMessages.expandTabStrip),
-			expandTabStripOnHover: format(workbenchTabMessages.expandTabStripOnHover),
 			formatAddTabsToGroup: (count) => format(workbenchTabMessages.tabMenuAddToGroup, { count }),
 			formatClosedTabAnnouncement: (title) =>
 				format(workbenchTabMessages.closedAnnouncement, { title }),
@@ -156,22 +149,14 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 			newTabMenu: format(workbenchTabMessages.newTabMenu),
 			newTabTitle,
 			loadingTabTitle: format(workbenchTabMessages.loadingTabTitle),
-			openVerticalTabs: format(workbenchTabMessages.openVerticalTabs),
-			pinSearchTabs: format(workbenchTabMessages.pinSearchTabs),
 			previewUnavailable: format(workbenchTabMessages.previewUnavailable),
 			rename: format(workbenchTabMessages.tabMenuRename),
 			resumeTabClose: format(workbenchMessages.tabCloseResume),
-			searchTabs: format(workbenchTabMessages.searchTabs),
-			searchTabsMenu: format(workbenchTabMessages.searchTabsMenu),
-			tabCrashed: format(workbenchTabMessages.tabCrashed),
 			tabGroups: format(workbenchTabMessages.tabGroups),
 			tabMoveCanceled: format(workbenchTabMessages.tabMoveCanceled),
 			tabOptions: format(workbenchTabMessages.tabOptions),
 			tabStripLabel: format(workbenchTabMessages.tabStripLabel),
-			tabStripMenu: format(workbenchTabMessages.tabStripMenu),
 			unnamedGroup,
-			unpinSearchTabs: format(workbenchTabMessages.unpinSearchTabs),
-			verticalTabStripMenu: format(workbenchTabMessages.verticalTabStripMenu),
 		};
 	}, [intl]);
 }

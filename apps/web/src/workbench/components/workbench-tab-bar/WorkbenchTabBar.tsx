@@ -13,7 +13,7 @@ import {
 	type TabStripMessages,
 	type TabStripNewTabSection,
 	type TabStripNewTabRequest,
-	type TabStripOrientation,
+	TabStripOrientation,
 	type TabStripSelectCallback,
 	type TabStatusAdornment,
 	type TabStripTabCreationIntent,
@@ -37,17 +37,14 @@ interface WorkbenchTabBarProps {
 		| undefined;
 	/**
 	 * The mobile layout's Tab list: a vertical strip at the host's full width without its own
-	 * controls or New Tab button, which the list leads with instead.
+	 * controls or New Tab button, which the list leads with instead. Otherwise the strip is
+	 * horizontal; the person does not choose its direction.
 	 */
 	readonly fill?: boolean | undefined;
 	readonly onDraggingChange?: ((dragging: boolean) => void) | undefined;
-	/** Absent, the strip offers no orientation change. */
-	readonly onOrientationChange?: ((orientation: TabStripOrientation) => void) | undefined;
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly onSetTabTitle: (tabId: string) => void;
 	readonly onTabsChange: TabStripChangeCallback | undefined;
-	readonly onVerticalCollapsedChange: (collapsed: boolean) => void;
-	readonly orientation: TabStripOrientation;
 	readonly reserveSidebarToggleSpace: boolean;
 	readonly tabIdentityIcons?: ReadonlyMap<string, ReactNode> | undefined;
 	readonly tabModel: TabModel;
@@ -55,7 +52,6 @@ interface WorkbenchTabBarProps {
 	readonly tabStripMessages: TabStripMessages;
 	/** Touch rows: 44 px targets 2 px apart. */
 	readonly touchUi?: boolean | undefined;
-	readonly verticalCollapsed: boolean;
 }
 
 export function WorkbenchTabBar({
@@ -68,12 +64,9 @@ export function WorkbenchTabBar({
 	onDraggingChange,
 	focusRequest,
 	getTabCreationAvailability,
-	onOrientationChange,
 	onSelectTab,
 	onSetTabTitle,
 	onTabsChange,
-	onVerticalCollapsedChange,
-	orientation,
 	parentActionScope,
 	reserveSidebarToggleSpace,
 	tabIdentityIcons,
@@ -81,9 +74,9 @@ export function WorkbenchTabBar({
 	statusAdornments,
 	tabStripMessages,
 	touchUi = false,
-	verticalCollapsed,
 }: WorkbenchTabBarProps): ReactNode {
 	const groupName = useTabGroupNameDialog(tabModel);
+	const orientation = fill ? TabStripOrientation.Vertical : TabStripOrientation.Horizontal;
 	return (
 		<>
 			<div
@@ -119,7 +112,6 @@ export function WorkbenchTabBar({
 					onDraggingChange={onDraggingChange}
 					closeResume={closeResume}
 					getTabCreationAvailability={getTabCreationAvailability}
-					onOrientationChange={onOrientationChange}
 					onNameGroup={groupName.open}
 					onSelectTab={onSelectTab}
 					onSetTabTitle={onSetTabTitle}
@@ -131,11 +123,8 @@ export function WorkbenchTabBar({
 					showHoverCardPreviews={false}
 					newTabSections={newTabSections}
 					showNewTabButton={!fill}
-					showVerticalTopControls={!fill}
 					touchUi={touchUi}
-					verticalCollapsed={!fill && verticalCollapsed}
 					verticalFill={fill}
-					onVerticalCollapsedChange={onVerticalCollapsedChange}
 				/>
 			</div>
 			{groupName.dialog === null ? null : (

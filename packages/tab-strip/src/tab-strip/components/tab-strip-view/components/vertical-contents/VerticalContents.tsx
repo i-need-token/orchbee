@@ -26,7 +26,6 @@ import {
 import { LAYOUT_CONSTANTS } from '../../../../layout/layout-constants';
 import { getVerticalTabMetrics } from '../../../../layout/getVerticalTabMetrics';
 import { RoundedScrollbar } from './components/rounded-scrollbar/RoundedScrollbar';
-import { VerticalTabStripTopContainer } from './components/vertical-tab-strip-top-container/VerticalTabStripTopContainer';
 import { VerticalTabStripBottomContainer } from './components/vertical-tab-strip-bottom-container/VerticalTabStripBottomContainer';
 import {
 	GROUP_COLORS,
@@ -48,10 +47,6 @@ export function VerticalContents({
 	statusAdornments,
 	tabCountTransitionSuppressed,
 	collapsed,
-	expandedOnHover,
-	expandOnHoverEnabled,
-	topContainerCollapsed,
-	bottomContainerCollapsed,
 	availableWidth,
 	drag,
 	requestCloseTabs,
@@ -75,27 +70,12 @@ export function VerticalContents({
 	newTabMenuAvailable,
 	touchUi,
 	closeButtonAllowed,
-	showTopControls,
-	showTabSearchButton,
-	tabSearchTargetVisible,
-	tabSearchAnimating,
-	toolbarHeight,
-	captionButtonWidth,
-	isExitingExpandOnHover,
-	onCollapsedChange,
-	onTabSearchClick,
-	onTabSearchContextMenu,
-	onCollapseContextMenu,
 }: {
 	identityIcons: ReadonlyMap<string, ReactNode>;
 	snapshot: TabModelSnapshot;
 	statusAdornments: ReadonlyMap<string, Readonly<TabStatusAdornment>>;
 	tabCountTransitionSuppressed: boolean;
 	collapsed: boolean;
-	expandedOnHover: boolean;
-	expandOnHoverEnabled: boolean;
-	topContainerCollapsed: boolean;
-	bottomContainerCollapsed: boolean;
 	availableWidth: number;
 	drag: DragState | null;
 	requestCloseTabs: (tabIds: readonly string[], source?: TabCloseSource) => void;
@@ -122,17 +102,6 @@ export function VerticalContents({
 	newTabMenuAvailable: boolean;
 	touchUi: boolean;
 	closeButtonAllowed: boolean;
-	showTopControls: boolean;
-	showTabSearchButton: boolean;
-	tabSearchTargetVisible: boolean;
-	tabSearchAnimating: boolean;
-	toolbarHeight: number;
-	captionButtonWidth: number;
-	isExitingExpandOnHover: boolean;
-	onCollapsedChange?: ((collapsed: boolean) => void) | undefined;
-	onTabSearchClick?: (() => void) | undefined;
-	onTabSearchContextMenu: (event: ReactMouseEvent<HTMLButtonElement>) => void;
-	onCollapseContextMenu: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }): ReactNode {
 	const { isAnimatingSize, pinnedScrollRef, regionsRef, regionsSize, scrollRef } =
 		useVerticalContents({ availableWidth, collapsed, drag, onDragScrolled, snapshot });
@@ -221,7 +190,6 @@ export function VerticalContents({
 					tabIndex={rovingFocusKey === `tab:${tab.id}` ? 0 : -1}
 					touchUi={touchUi}
 					closeButtonAllowed={closeButtonAllowed}
-					verticalExpandedOnHover={expandedOnHover}
 					hoveredTabId={null}
 				/>
 			</div>
@@ -232,8 +200,7 @@ export function VerticalContents({
 	): ReactNode[] => entries.map((entry) => renderTab(entry));
 
 	const pinnedLayoutCollapsed =
-		collapsed &&
-		(expandedOnHover || availableWidth <= LAYOUT_CONSTANTS.verticalTabStripCollapsedWidth);
+		collapsed && availableWidth <= LAYOUT_CONSTANTS.verticalTabStripCollapsedWidth;
 	const pinnedLayoutWidth = Math.max(
 		0,
 		availableWidth - LAYOUT_CONSTANTS.verticalTabStripHorizontalPadding,
@@ -243,7 +210,6 @@ export function VerticalContents({
 		collapseState: pinnedLayoutCollapsed
 			? VerticalTabStripCollapseState.Collapsed
 			: VerticalTabStripCollapseState.Expanded,
-		expandOnHoverEnabled,
 		children: pinned,
 		childMinimumWidth: metrics.pinnedTabMinWidth,
 		tileHeight: metrics.pinnedTabHeight,
@@ -345,22 +311,6 @@ export function VerticalContents({
 
 	return (
 		<>
-			{showTopControls ? (
-				<VerticalTabStripTopContainer
-					availableWidth={availableWidth}
-					collapsed={topContainerCollapsed}
-					toolbarHeight={toolbarHeight}
-					captionButtonWidth={captionButtonWidth}
-					isExitingExpandOnHover={isExitingExpandOnHover}
-					showTabSearchButton={showTabSearchButton}
-					tabSearchTargetVisible={tabSearchTargetVisible}
-					tabSearchAnimating={tabSearchAnimating}
-					onTabSearchContextMenu={onTabSearchContextMenu}
-					onCollapseContextMenu={onCollapseContextMenu}
-					onCollapsedChange={onCollapsedChange}
-					onTabSearchClick={onTabSearchClick}
-				/>
-			) : null}
 			<div
 				ref={regionsRef}
 				className={styles['ct-vertical-regions']}
@@ -628,7 +578,7 @@ export function VerticalContents({
 			{showNewTabButton ? (
 				<VerticalTabStripBottomContainer
 					collapseState={
-						bottomContainerCollapsed
+						collapsed
 							? VerticalTabStripCollapseState.Collapsed
 							: VerticalTabStripCollapseState.Expanded
 					}

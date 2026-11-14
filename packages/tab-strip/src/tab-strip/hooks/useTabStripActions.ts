@@ -20,7 +20,6 @@ import {
 	type TabCreateInput,
 	type TabStripActionCatalog,
 	tabArrangementInput,
-	booleanValueInput,
 	tabCloseInput,
 	tabCreateInput,
 	tabGroupCollapsedInput,
@@ -41,7 +40,6 @@ import {
 	type TabDragRestoreState,
 	type TabModel,
 } from '../model/tab-model';
-import type { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import type { TabStripMessages } from '../types/tab-strip-messages';
 import type {
 	TabStripArrangementChange,
@@ -96,7 +94,6 @@ interface UseTabStripActionsOptions {
 	readonly actionRuntime: ActionRuntime | undefined;
 	readonly messages: TabStripMessages;
 	readonly model: TabModel;
-	readonly comboButtonController: TabStripComboButtonController;
 	readonly onNewTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly getTabCreationAvailability?:
 		| ((
@@ -108,16 +105,10 @@ interface UseTabStripActionsOptions {
 	readonly onTabsChange: TabStripChangeCallback | undefined;
 	readonly parentActionScope: ActionScope | undefined;
 	readonly requestCloseTabs: (tabIds: readonly string[], source?: TabCloseSource) => void;
-	readonly onVerticalCollapsedChange: ((collapsed: boolean) => void) | undefined;
-	readonly onVerticalExpandOnHoverChange: ((enabled: boolean) => void) | undefined;
-	readonly onVerticalTabSearchClick: (() => void) | undefined;
-	readonly verticalCollapsed: boolean;
-	readonly verticalExpandOnHover: boolean;
 }
 
 export function useTabStripActions({
 	actionRuntime,
-	comboButtonController,
 	messages,
 	model,
 	onNewTab,
@@ -127,11 +118,6 @@ export function useTabStripActions({
 	onTabsChange,
 	parentActionScope,
 	requestCloseTabs,
-	onVerticalCollapsedChange,
-	onVerticalExpandOnHoverChange,
-	onVerticalTabSearchClick,
-	verticalCollapsed,
-	verticalExpandOnHover,
 }: UseTabStripActionsOptions): TabStripActions {
 	const [ownedRuntime] = useState(() => new ActionRuntime());
 	const lifecycleGeneration = useRef(0);
@@ -179,13 +165,11 @@ export function useTabStripActions({
 			});
 		};
 		const unsubscribeModel = model.subscribe(notifyChanged);
-		const unsubscribeComboButton = comboButtonController.subscribe(notifyChanged);
 		return () => {
 			active = false;
 			unsubscribeModel();
-			unsubscribeComboButton();
 		};
-	}, [comboButtonController, model, runtime]);
+	}, [model, runtime]);
 
 	useEffect(() => {
 		const category = {
@@ -661,119 +645,6 @@ export function useTabStripActions({
 					title: workbenchTabMessages.updateGroup,
 				}),
 			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category,
-					execution: {
-						concurrency: 'reject-duplicate',
-						concurrencyKey: () => 'tab-search',
-						mode: 'foreground',
-					},
-					// A host that wires no callback lacks the Action, so no surface offers it.
-					getAvailability: () =>
-						onVerticalTabSearchClick === undefined ? { kind: 'hidden' } : { kind: 'enabled' },
-					handler: {
-						execute: (context) => {
-							if (onVerticalTabSearchClick === undefined) {
-								return { kind: 'blocked', code: 'host-capability-unavailable' };
-							}
-							context.markCommitted();
-							onVerticalTabSearchClick();
-							return { kind: 'completed' };
-						},
-					},
-					id: TAB_STRIP_ACTION_IDS.openTabSearch,
-					input: noActionInput,
-					title: workbenchTabMessages.searchTabs,
-				}),
-			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category,
-					execution: {
-						concurrency: 'parallel',
-						concurrencyKey: () => 'tab-search-pinned',
-						mode: 'foreground',
-					},
-					getAvailability: (_context, _input) => ({
-						checked: comboButtonController.getSnapshot().tabSearchPinned,
-						kind: 'enabled',
-					}),
-					handler: {
-						execute: (context, input) => {
-							if (comboButtonController.getSnapshot().tabSearchPinned === input.value) {
-								return { kind: 'unchanged' };
-							}
-							context.markCommitted();
-							comboButtonController.executeTogglePinned('tab-search');
-							return { kind: 'completed' };
-						},
-					},
-					id: TAB_STRIP_ACTION_IDS.setTabSearchPinned,
-					input: booleanValueInput,
-					title: workbenchTabMessages.pinSearchTabs,
-				}),
-			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category,
-					execution: {
-						concurrency: 'parallel',
-						concurrencyKey: () => 'vertical-collapsed',
-						mode: 'foreground',
-					},
-					getAvailability: (_context, _input) =>
-						onVerticalCollapsedChange === undefined
-							? { kind: 'hidden' }
-							: { checked: verticalCollapsed, kind: 'enabled' },
-					handler: {
-						execute: (context, input) => {
-							if (onVerticalCollapsedChange === undefined) {
-								return { kind: 'blocked', code: 'host-capability-unavailable' };
-							}
-							if (input.value === verticalCollapsed) return { kind: 'unchanged' };
-							context.markCommitted();
-							onVerticalCollapsedChange(input.value);
-							return { kind: 'completed' };
-						},
-					},
-					id: TAB_STRIP_ACTION_IDS.setVerticalCollapsed,
-					input: booleanValueInput,
-					title: workbenchTabMessages.collapseTabStrip,
-				}),
-			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category,
-					execution: {
-						concurrency: 'parallel',
-						concurrencyKey: () => 'vertical-expand-on-hover',
-						mode: 'foreground',
-					},
-					getAvailability: () =>
-						onVerticalExpandOnHoverChange === undefined
-							? { kind: 'hidden' }
-							: { checked: verticalExpandOnHover, kind: 'enabled' },
-					handler: {
-						execute: (context, input) => {
-							if (onVerticalExpandOnHoverChange === undefined) {
-								return { kind: 'blocked', code: 'host-capability-unavailable' };
-							}
-							if (input.value === verticalExpandOnHover) return { kind: 'unchanged' };
-							context.markCommitted();
-							onVerticalExpandOnHoverChange(input.value);
-							return { kind: 'completed' };
-						},
-					},
-					id: TAB_STRIP_ACTION_IDS.setVerticalExpandOnHover,
-					input: booleanValueInput,
-					title: workbenchTabMessages.expandTabStripOnHover,
-				}),
-			),
 		];
 
 		return () => {
@@ -782,7 +653,6 @@ export function useTabStripActions({
 			}
 		};
 	}, [
-		comboButtonController,
 		messages.newTabTitle,
 		model,
 		getCreationAvailability,
@@ -791,14 +661,9 @@ export function useTabStripActions({
 		onCloseTabs,
 		onSelectTab,
 		onTabsChange,
-		onVerticalCollapsedChange,
-		onVerticalExpandOnHoverChange,
-		onVerticalTabSearchClick,
 		requestCloseTabs,
 		scope,
 		typedRuntime,
-		verticalCollapsed,
-		verticalExpandOnHover,
 	]);
 
 	const execute = useMemoizedFn(

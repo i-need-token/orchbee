@@ -146,9 +146,6 @@ export function SystemTestFixture(): ReactNode {
 	);
 	const snapshot = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);
 	const [orientation, setOrientation] = useState(TabStripOrientation.Horizontal);
-	const [collapsed, setCollapsed] = useState(false);
-	const [expandOnHover, setExpandOnHover] = useState(true);
-	const [tabSearchOpen, setTabSearchOpen] = useState(false);
 	const thumbnailSources = useMemo(
 		() => new Map([['source', new FixtureThumbnailSource(sourceThumbnail)]]),
 		[],
@@ -165,10 +162,7 @@ export function SystemTestFixture(): ReactNode {
 				<div className='fixture-segmented' aria-label='Tab strip orientation'>
 					<button
 						data-active={orientation === TabStripOrientation.Horizontal || undefined}
-						onClick={() => {
-							setOrientation(TabStripOrientation.Horizontal);
-							setTabSearchOpen(false);
-						}}
+						onClick={() => setOrientation(TabStripOrientation.Horizontal)}
 					>
 						Horizontal
 					</button>
@@ -181,43 +175,10 @@ export function SystemTestFixture(): ReactNode {
 				</div>
 			</header>
 
-			<main
-				className='fixture-surface'
-				data-orientation={orientation}
-				data-collapsed={collapsed || undefined}
-			>
-				{tabSearchOpen ? (
-					<aside className='fixture-tab-search' role='dialog' aria-label='Search tabs'>
-						<strong>Search tabs</strong>
-						<span>{snapshot.tabs.length} open tabs</span>
-						<div>
-							{snapshot.tabs.map((tab) => (
-								<button
-									key={tab.id}
-									onClick={() => {
-										model.selectTab(tab.id);
-										setTabSearchOpen(false);
-									}}
-								>
-									<span>{tab.title.slice(0, 1).toUpperCase()}</span>
-									{tab.title}
-								</button>
-							))}
-						</div>
-					</aside>
-				) : null}
+			<main className='fixture-surface' data-orientation={orientation}>
 				<TabStrip
 					model={model}
 					orientation={orientation}
-					verticalCollapsed={collapsed}
-					verticalExpandOnHover={expandOnHover}
-					showVerticalTabSearchButton
-					verticalTabSearchOpen={tabSearchOpen}
-					onVerticalCollapsedChange={setCollapsed}
-					onVerticalTabSearchClick={() => {
-						setTabSearchOpen((value) => !value);
-					}}
-					onVerticalExpandOnHoverChange={setExpandOnHover}
 					// A product host asks for the name; the fixture leaves every group it names unnamed.
 					onNameGroup={(request) => request.commit('')}
 					getHoverCardThumbnailSource={(tab) => thumbnailSources.get(tab.id) ?? null}

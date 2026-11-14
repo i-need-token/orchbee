@@ -77,9 +77,7 @@ function projectActionResult(
 	needsContext: string,
 ): WorkbenchSearchResult {
 	const picker =
-		result.kind === 'requires-input'
-			? argumentPicker(result.descriptor.id, intl, argumentPickerForAction)
-			: undefined;
+		result.kind === 'requires-input' ? argumentPickerForAction(result.descriptor.id) : undefined;
 	const invocation =
 		result.kind === 'ready'
 			? {
@@ -172,41 +170,6 @@ function actionCategoryIcon(categoryId: string): ProductIconName {
 function isRecommendedAction(actionId: string): boolean {
 	return (
 		actionId === WORKBENCH_ACTION_IDS.createTerminal ||
-		actionId === WORKBENCH_ACTION_IDS.setTabStripOrientation ||
 		actionId === WORKBENCH_ACTION_IDS.toggleSidebar
 	);
-}
-
-function argumentPicker(
-	actionId: string,
-	intl: IntlShape,
-	argumentPickerForAction: (actionId: string) => WorkbenchSearchArgumentPicker | undefined,
-): WorkbenchSearchArgumentPicker | undefined {
-	return actionId === WORKBENCH_ACTION_IDS.setTabStripOrientation
-		? createTabOrientationPicker(intl)
-		: argumentPickerForAction(actionId);
-}
-
-function createTabOrientationPicker(intl: IntlShape): WorkbenchSearchArgumentPicker {
-	return {
-		kind: 'options',
-		options: [
-			{
-				id: 'horizontal',
-				input: { orientation: 'horizontal' },
-				keywords: ['top'],
-				label: intl.formatMessage(workbenchMessages.searchArgumentHorizontalTabs),
-			},
-			{
-				id: 'vertical',
-				input: { orientation: 'vertical' },
-				keywords: ['left'],
-				label: intl.formatMessage(workbenchMessages.searchArgumentVerticalTabs),
-			},
-		],
-		placeholder: intl.formatMessage(workbenchMessages.searchArgumentPlaceholder),
-		prompt: intl.formatMessage(workbenchMessages.searchArgumentPrompt, {
-			action: intl.formatMessage(workbenchMessages.tabStripOrientation),
-		}),
-	};
 }

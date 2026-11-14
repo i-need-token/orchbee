@@ -93,10 +93,6 @@ export function getAccessibleTabLabel(
 	}
 	if (tab.pinned) title = `${title}, pinned`;
 
-	// Chromium returns early for these mutually exclusive, high-priority states.
-	if (tab.crashed) return `${title}, crashed`;
-	if (tab.networkState === 'error') return `${title}, network error`;
-	if (tab.permissionRequested) return `${title}, permission requested`;
 	const alert = alertDescription(tab.alertState);
 	if (alert) title = `${title}, ${alert}`;
 	if (tab.discarded) {

@@ -295,14 +295,13 @@ export const ThumbnailWaitState = {
 
 export type ThumbnailWaitState = (typeof ThumbnailWaitState)[keyof typeof ThumbnailWaitState];
 
-export type ThumbnailPresentation = 'none' | 'placeholder' | 'crashed' | 'thumbnail';
+export type ThumbnailPresentation = 'none' | 'placeholder' | 'thumbnail';
 
 interface ThumbnailPlanInput {
 	previewsEnabled: boolean;
 	needsThumbnail: boolean;
 	isGroup: boolean;
 	discarded: boolean;
-	crashed: boolean;
 	hasThumbnailObject: boolean;
 	hasThumbnailData: boolean;
 	readiness: ThumbnailCaptureReadiness;
@@ -333,7 +332,6 @@ export function getThumbnailPlan(input: Readonly<ThumbnailPlanInput>): Thumbnail
 	};
 	if (!input.previewsEnabled || !input.needsThumbnail || input.isGroup) return none;
 	if (input.discarded && !input.hasThumbnailData) return none;
-	if (input.crashed) return { ...none, presentation: 'crashed' };
 	if (!input.hasThumbnailObject) return { ...none, presentation: 'placeholder' };
 
 	const delay =

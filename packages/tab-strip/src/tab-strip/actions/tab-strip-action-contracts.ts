@@ -13,13 +13,9 @@ export const TAB_STRIP_ACTION_IDS = {
 	moveTab: 'tabs.tab.move',
 	moveTabsToGroup: 'tabs.tab.move-to-group',
 	applyArrangement: 'tabs.layout.apply-arrangement',
-	openTabSearch: 'tabs.search.open',
 	selectTab: 'tabs.tab.select',
 	setGroupCollapsed: 'tabs.group.collapsed.set',
-	setTabSearchPinned: 'tabs.search.pinned.set',
 	setTabsPinned: 'tabs.tab.pinned.set',
-	setVerticalCollapsed: 'tabs.strip.collapsed.set',
-	setVerticalExpandOnHover: 'tabs.strip.expand-on-hover.set',
 	ungroup: 'tabs.group.ungroup',
 	updateGroup: 'tabs.group.update',
 } as const;
@@ -80,10 +76,6 @@ interface TabGroupUpdateInput extends TabGroupIdInput {
 	readonly title?: string | undefined;
 }
 
-interface BooleanValueInput {
-	readonly value: boolean;
-}
-
 interface TabArrangementInput {
 	/** What the drag started from, so an authority can be told one change instead of each step. */
 	readonly before: TabDragRestoreState;
@@ -101,13 +93,9 @@ export interface TabStripActionCatalog {
 	readonly [TAB_STRIP_ACTION_IDS.moveGroup]: ActionSignature<TabGroupShiftInput>;
 	readonly [TAB_STRIP_ACTION_IDS.moveTab]: ActionSignature<TabMoveInput>;
 	readonly [TAB_STRIP_ACTION_IDS.moveTabsToGroup]: ActionSignature<TabGroupMoveInput>;
-	readonly [TAB_STRIP_ACTION_IDS.openTabSearch]: ActionSignature<void>;
 	readonly [TAB_STRIP_ACTION_IDS.selectTab]: ActionSignature<TabSelectionInput>;
 	readonly [TAB_STRIP_ACTION_IDS.setGroupCollapsed]: ActionSignature<TabGroupCollapsedInput>;
-	readonly [TAB_STRIP_ACTION_IDS.setTabSearchPinned]: ActionSignature<BooleanValueInput>;
 	readonly [TAB_STRIP_ACTION_IDS.setTabsPinned]: ActionSignature<TabPinnedInput>;
-	readonly [TAB_STRIP_ACTION_IDS.setVerticalCollapsed]: ActionSignature<BooleanValueInput>;
-	readonly [TAB_STRIP_ACTION_IDS.setVerticalExpandOnHover]: ActionSignature<BooleanValueInput>;
 	readonly [TAB_STRIP_ACTION_IDS.ungroup]: ActionSignature<TabGroupIdInput>;
 	readonly [TAB_STRIP_ACTION_IDS.updateGroup]: ActionSignature<TabGroupUpdateInput>;
 }
@@ -331,14 +319,6 @@ export const tabGroupUpdateInput: ActionInputValidation<TabGroupUpdateInput> = {
 					},
 				}
 			: { success: false, code: 'expected-tab-group-update' },
-};
-
-export const booleanValueInput: ActionInputValidation<BooleanValueInput> = {
-	name: 'BooleanValueInput',
-	parse: (input) =>
-		isRecord(input) && typeof input['value'] === 'boolean'
-			? { success: true, data: { value: input['value'] } }
-			: { success: false, code: 'expected-boolean-value-input' },
 };
 
 function parseArrangementState(state: unknown): TabDragRestoreState | null {

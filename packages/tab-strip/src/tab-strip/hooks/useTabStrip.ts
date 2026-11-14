@@ -72,12 +72,7 @@ import { TabStripOrientation, VerticalTabStripCollapseState } from '../types/tab
 import { DEFAULT_TAB_STYLE_METRICS } from '../layout/tab-style-metrics';
 import { LAYOUT_CONSTANTS } from '../layout/layout-constants';
 import { TabGroupEditorBubbleTracker } from '../model/TabGroupEditorBubbleTracker';
-import {
-	ExpandOnHoverLockType,
-	VerticalTabStripExpandOnHoverController,
-} from '../model/vertical-tab-strip-expand-on-hover';
 import { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
-import { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import { useElementSize } from './useElementSize';
 import { useTabStripActions } from './useTabStripActions';
 import { DEFAULT_TAB_STRIP_MESSAGES } from '../constants/default-tab-strip-messages';
@@ -122,26 +117,12 @@ export function useTabStrip(
 		model,
 		statusAdornments = new Map(),
 		orientation = TabStripOrientation.Horizontal,
-		onOrientationChange,
 		verticalCollapsed = false,
-		verticalExpandOnHover = true,
-		verticalExpandOnHoverController,
 		hoverCardController: externalHoverCardController,
 		getHoverCardThumbnailSource,
 		showHoverCardPreviews = true,
 		showHoverCardMemoryUsage = true,
 		showGroupHoverCards = true,
-		onVerticalExpandedOnHoverChange,
-		showVerticalTopControls = true,
-		showVerticalTabSearchButton = false,
-		verticalTabSearchOpen = false,
-		verticalComboButtonController: externalComboButtonController,
-		verticalToolbarHeight = 0,
-		verticalCaptionButtonWidth = 0,
-		verticalIsExitingExpandOnHover = false,
-		onVerticalCollapsedChange,
-		onVerticalTabSearchClick,
-		onVerticalExpandOnHoverChange,
 		showNewTabButton = true,
 		horizontalFrameCondensed = false,
 		touchUi = false,
@@ -295,24 +276,6 @@ export function useTabStrip(
 		groupEditorTrackerRef.current = new TabGroupEditorBubbleTracker();
 	}
 	const groupEditorTracker = groupEditorTrackerRef.current;
-	const internalComboButtonController = useRef<TabStripComboButtonController | null>(null);
-	const comboLifecycleGeneration = useRef(0);
-	if (internalComboButtonController.current === null) {
-		internalComboButtonController.current = new TabStripComboButtonController({
-			tabSearchPinned: showVerticalTabSearchButton,
-		});
-	}
-	const ownedComboButtonController = internalComboButtonController.current;
-	const comboButtonController = externalComboButtonController ?? ownedComboButtonController;
-	const comboButtonSnapshot = useSyncExternalStore(
-		comboButtonController.subscribe,
-		comboButtonController.getSnapshot,
-		comboButtonController.getSnapshot,
-	);
-	const previousTabSearchOpen = useRef<{
-		controller: TabStripComboButtonController;
-		open: boolean;
-	} | null>(null);
 	const openGroupEditor = useMemoizedFn((id: string, x: number, y: number) => {
 		groupEditorTracker.open();
 		setMenu({ kind: 'group', id, x, y });
@@ -336,7 +299,6 @@ export function useTabStrip(
 	currentModelRef.current = model;
 	const actions = useTabStripActions({
 		actionRuntime,
-		comboButtonController,
 		messages,
 		model,
 		onNewTab,
@@ -344,13 +306,8 @@ export function useTabStrip(
 		onCloseTabs,
 		onSelectTab,
 		onTabsChange,
-		onVerticalCollapsedChange,
-		onVerticalExpandOnHoverChange,
-		onVerticalTabSearchClick,
 		parentActionScope,
 		requestCloseTabs: commitCloseTabs,
-		verticalCollapsed,
-		verticalExpandOnHover,
 	});
 
 	// A started drag shows grabbing wherever the pointer goes until it lets go.
@@ -667,62 +624,10 @@ export function useTabStrip(
 		thumbnailRuntime.getSnapshot,
 		thumbnailRuntime.getSnapshot,
 	);
-	const internalExpandOnHoverController = useRef<VerticalTabStripExpandOnHoverController | null>(
-		null,
-	);
-	if (internalExpandOnHoverController.current === null) {
-		internalExpandOnHoverController.current = new VerticalTabStripExpandOnHoverController();
-	}
-	const expandOnHoverController =
-		verticalExpandOnHoverController ?? internalExpandOnHoverController.current;
-	const expandOnHoverSnapshot = useSyncExternalStore(
-		expandOnHoverController.subscribe,
-		expandOnHoverController.getSnapshot,
-		expandOnHoverController.getSnapshot,
-	);
-
-	const expandedOnHover = !horizontal && verticalCollapsed && expandOnHoverSnapshot.expanded;
-	const effectiveVerticalCollapsed = verticalCollapsed && !expandedOnHover;
-
-	useEffect(() => {
-		comboLifecycleGeneration.current += 1;
-		const generation = comboLifecycleGeneration.current;
-		return () => {
-			// Effect replay retains the original timers; only final unmount retires the owner.
-			queueMicrotask(() => {
-				if (comboLifecycleGeneration.current === generation) ownedComboButtonController.destroy();
-			});
-		};
-	}, [ownedComboButtonController]);
-	useEffect(() => () => internalExpandOnHoverController.current?.destroy(), []);
 	useEffect(() => () => internalHoverCardController.current?.destroy(), []);
 	// React StrictMode replays effects without recreating refs. Reset observation
 	// here instead of permanently destroying the reusable runtime instance.
 	useEffect(() => () => thumbnailRuntime.updateTarget(null), [thumbnailRuntime]);
-
-	useEffect(() => {
-		if (externalComboButtonController) return;
-		comboButtonController.setPinned('tab-search', showVerticalTabSearchButton);
-	}, [comboButtonController, externalComboButtonController, showVerticalTabSearchButton]);
-
-	useEffect(() => {
-		comboButtonController.setOrientation(orientation);
-	}, [comboButtonController, orientation]);
-
-	useEffect(() => {
-		if (
-			previousTabSearchOpen.current?.controller === comboButtonController &&
-			previousTabSearchOpen.current.open === verticalTabSearchOpen
-		)
-			return;
-		previousTabSearchOpen.current = {
-			controller: comboButtonController,
-			open: verticalTabSearchOpen,
-		};
-		if (comboButtonController.getSnapshot().bubbleOpen === verticalTabSearchOpen) return;
-		if (verticalTabSearchOpen) comboButtonController.onBubbleInitializing();
-		else comboButtonController.onBubbleDestroying();
-	}, [comboButtonController, verticalTabSearchOpen]);
 
 	useEffect(() => {
 		const targetTab =
@@ -743,7 +648,6 @@ export function useTabStrip(
 			isInitialShow: hoverCardSnapshot.cardsSeen <= 1,
 			useAnimations: true,
 			...(targetTab.discarded === undefined ? {} : { discarded: targetTab.discarded }),
-			...(targetTab.crashed === undefined ? {} : { crashed: targetTab.crashed }),
 		});
 	}, [
 		getHoverCardThumbnailSource,
@@ -852,42 +756,6 @@ export function useTabStrip(
 		window.addEventListener('pointermove', handlePointerMove);
 		return () => window.removeEventListener('pointermove', handlePointerMove);
 	}, [menuOpen, stripRef, tabClosingMode?.source]);
-
-	useEffect(() => {
-		expandOnHoverController.setEnvironment({
-			shouldDisplayVerticalTabs: !horizontal,
-			collapsed: verticalCollapsed,
-			enabled: verticalExpandOnHover,
-			frameActive: document.visibilityState !== 'hidden',
-		});
-	}, [expandOnHoverController, horizontal, verticalCollapsed, verticalExpandOnHover]);
-
-	useEffect(() => {
-		onVerticalExpandedOnHoverChange?.(expandedOnHover);
-	}, [expandedOnHover, onVerticalExpandedOnHoverChange]);
-
-	useEffect(() => {
-		if (!menu || horizontal || !verticalCollapsed) return;
-		const lock = expandOnHoverController.getLock(ExpandOnHoverLockType.KeepCurrentState);
-		return () => lock.dispose();
-	}, [expandOnHoverController, horizontal, menu, verticalCollapsed]);
-
-	useEffect(() => {
-		if (!comboButtonSnapshot.keepCurrentStateLock || horizontal || !verticalCollapsed) return;
-		const lock = expandOnHoverController.getLock(ExpandOnHoverLockType.KeepCurrentState);
-		return () => lock.dispose();
-	}, [
-		comboButtonSnapshot.keepCurrentStateLock,
-		expandOnHoverController,
-		horizontal,
-		verticalCollapsed,
-	]);
-
-	useEffect(() => {
-		if (!drag?.started || horizontal || !verticalCollapsed) return;
-		const lock = expandOnHoverController.getLock(ExpandOnHoverLockType.KeepExpanded);
-		return () => lock.dispose();
-	}, [drag?.started, expandOnHoverController, horizontal, verticalCollapsed]);
 
 	useEffect(() => {
 		if (!menu && !drag?.started) return;
@@ -1179,8 +1047,7 @@ export function useTabStrip(
 		) => {
 			const targetTab =
 				kind === 'tab' ? (snapshot.tabs.find((tab) => tab.id === id) ?? null) : null;
-			const pinnedBelowAnchor =
-				!horizontal && targetTab?.pinned === true && !effectiveVerticalCollapsed;
+			const pinnedBelowAnchor = !horizontal && targetTab?.pinned === true && !verticalCollapsed;
 			const rawRect = element.getBoundingClientRect();
 			const slotId = kind === 'group' ? `group-${id}` : id;
 			const slotBounds = horizontalAnimationRuntimeRef.current
@@ -2533,19 +2400,10 @@ export function useTabStrip(
 		model,
 		statusAdornments,
 		orientation,
-		onOrientationChange,
 		verticalCollapsed,
-		verticalExpandOnHover,
 		showHoverCardPreviews,
 		showHoverCardMemoryUsage,
 		showGroupHoverCards,
-		showVerticalTopControls,
-		verticalToolbarHeight,
-		verticalCaptionButtonWidth,
-		verticalIsExitingExpandOnHover,
-		onVerticalCollapsedChange,
-		onVerticalTabSearchClick,
-		onVerticalExpandOnHoverChange,
 		showNewTabButton,
 		horizontalFrameCondensed,
 		touchUi,
@@ -2581,12 +2439,6 @@ export function useTabStrip(
 		openGroupEditor,
 		hoverCardSnapshot,
 		thumbnailSnapshot,
-		comboButtonController,
-		comboButtonSnapshot,
-		expandOnHoverController,
-		expandOnHoverSnapshot,
-		expandedOnHover,
-		effectiveVerticalCollapsed,
 		requestCloseTabs,
 		expandedHeaderDragGroupId,
 		horizontalLayout,

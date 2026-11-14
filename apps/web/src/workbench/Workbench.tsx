@@ -363,9 +363,6 @@ export function Workbench({
 				closeResume={view.closeResume}
 				newTabSections={view.newTabSections}
 				onNewTerminal={view.newTab}
-				onOrientationChange={view.onTabStripOrientationChange}
-				onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
-				orientation={view.tabStripOrientation}
 				onCloseTabs={view.onCloseTabs}
 				focusRequest={view.tabStripFocusRequest}
 				getTabCreationAvailability={view.getTabCreationAvailability}
@@ -378,7 +375,6 @@ export function Workbench({
 				statusAdornments={agentPresentation.tabStatusAdornments}
 				tabIdentityIcons={agentPresentation.tabIdentityIcons}
 				tabStripMessages={tabStripMessages}
-				verticalCollapsed={view.verticalTabStripCollapsed}
 			/>
 		);
 	}
@@ -508,13 +504,7 @@ export function Workbench({
 						</>
 					)}
 					<ResizablePanel id='right'>
-						<div
-							className={styles['rightPanel']}
-							data-slot='workbench-right-panel'
-							data-tab-strip-orientation={
-								terminalContext === null || view.mobileLayout ? undefined : view.tabStripOrientation
-							}
-						>
+						<div className={styles['rightPanel']} data-slot='workbench-right-panel'>
 							{tabChrome}
 							<div
 								className={styles['tabContent']}

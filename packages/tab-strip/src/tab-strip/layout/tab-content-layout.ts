@@ -178,7 +178,6 @@ interface VerticalTabChildVisibilityInput {
 	active: boolean;
 	pinned: boolean;
 	collapsed: boolean;
-	expandingOnHover?: boolean;
 	hovered?: boolean;
 	focused?: boolean;
 	closeFocused?: boolean;
@@ -199,7 +198,7 @@ export function calculateVerticalTabChildVisibility(
 	input: Readonly<VerticalTabChildVisibilityInput>,
 ): TabChildVisibility {
 	const interacted = Boolean(input.hovered || input.focused || input.closeFocused);
-	const centered = (input.pinned || input.collapsed) && !input.expandingOnHover;
+	const centered = input.pinned || input.collapsed;
 	const hasAlert = input.hasAlert;
 	const closeVisible =
 		(input.closeAllowed ?? true) &&
@@ -218,7 +217,7 @@ export function calculateVerticalTabChildVisibility(
 		},
 		{
 			kind: 'title',
-			visible: !input.pinned || Boolean(input.expandingOnHover),
+			visible: !input.pinned,
 			minWidth: 10,
 			padding: 4,
 		},

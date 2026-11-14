@@ -1,6 +1,5 @@
 import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
 import { z } from 'zod';
-import type { TabStripOrientation } from '@orchbee/tab-strip';
 import {
 	TerminalPresentationIdSchema,
 	UserLaunchProfileSchema,
@@ -90,7 +89,6 @@ export const WORKBENCH_ACTION_IDS = {
 	splitActivePanelLeft: 'workbench.panel.active.split-left',
 	splitActivePanelRight: 'workbench.panel.active.split-right',
 	swapActivePanelVisible: 'workbench.panel.active.swap-visible',
-	setTabStripOrientation: 'workbench.tab-strip.orientation.set',
 	toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 	toggleProjectExpansion: 'workbench.project.expansion.toggle',
 	toggleRecentsExpansion: 'workbench.recents.expansion.toggle',
@@ -195,10 +193,6 @@ interface WorkbenchWorkspaceReorderInput extends WorkbenchWorkspaceInput {
 	readonly beforeWorkspaceId: string | null;
 	/** The destination Project, or null for the Workspaces outside any Project. */
 	readonly projectId: string | null;
-}
-
-interface WorkbenchTabStripOrientationInput {
-	readonly orientation: TabStripOrientation;
 }
 
 export type WorkbenchPanelPosition = PanelFocusPosition;
@@ -353,7 +347,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelLeft]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelRight]: ActionSignature<WorkbenchAgentStartOption>;
 	readonly [WORKBENCH_ACTION_IDS.swapActivePanelVisible]: ActionSignature<void>;
-	readonly [WORKBENCH_ACTION_IDS.setTabStripOrientation]: ActionSignature<WorkbenchTabStripOrientationInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleRecentsExpansion]: ActionSignature<void>;
@@ -924,18 +917,3 @@ export const workbenchEarlierLayoutInput: ActionInputValidation<WorkbenchEarlier
 			? { success: true, data: { savedAt: input.savedAt } }
 			: { success: false, code: 'expected-workbench-earlier-layout-input' },
 };
-
-export const workbenchTabStripOrientationInput: ActionInputValidation<WorkbenchTabStripOrientationInput> =
-	{
-		name: 'WorkbenchTabStripOrientationInput',
-		parse: (input) =>
-			typeof input === 'object' &&
-			input !== null &&
-			'orientation' in input &&
-			(input.orientation === 'horizontal' || input.orientation === 'vertical')
-				? {
-						success: true,
-						data: { orientation: input.orientation },
-					}
-				: { success: false, code: 'expected-tab-strip-orientation' },
-	};

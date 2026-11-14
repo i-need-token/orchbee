@@ -54,7 +54,6 @@ export function TabButton({
 	closeButtonAllowed,
 	declutterEnabled = false,
 	hoveredTabId,
-	verticalExpandedOnHover = false,
 	frameCondensed = false,
 	slotState,
 	dragging = false,
@@ -78,7 +77,6 @@ export function TabButton({
 	closeButtonAllowed: boolean;
 	declutterEnabled?: boolean;
 	hoveredTabId?: string | null;
-	verticalExpandedOnHover?: boolean;
 	frameCondensed?: boolean;
 	slotState?: Readonly<TabSlotViewState> | undefined;
 	dragging?: boolean;
@@ -126,7 +124,6 @@ export function TabButton({
 					active,
 					pinned: tab.pinned,
 					collapsed,
-					expandingOnHover: verticalExpandedOnHover,
 					hovered: visualHovered,
 					focused,
 					hasFavicon,

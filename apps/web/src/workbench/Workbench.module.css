@@ -199,10 +199,6 @@ button.statusNoticeText {
 	background: var(--ob-sys-color-surface-raised);
 }
 
-.rightPanel[data-tab-strip-orientation='vertical'] {
-	flex-direction: row;
-}
-
 .noWorkspaceChrome {
 	flex: none;
 	height: var(--ob-comp-workbench-horizontal-chrome-height);

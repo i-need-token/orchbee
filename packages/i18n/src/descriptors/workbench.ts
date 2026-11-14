@@ -1291,11 +1291,6 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Explanation for a discovered action that needs a target not available in unified search.',
 	},
-	searchArgumentHorizontalTabs: {
-		id: 'workbench.search.arguments.horizontalTabs',
-		defaultMessage: enUSWorkbenchMessages['workbench.search.arguments.horizontalTabs'],
-		description: 'Argument option that places the Workbench tab strip horizontally.',
-	},
 	searchArgumentOptions: {
 		id: 'workbench.search.arguments.options',
 		defaultMessage: enUSWorkbenchMessages['workbench.search.arguments.options'],
@@ -1310,11 +1305,6 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.search.arguments.prompt',
 		defaultMessage: enUSWorkbenchMessages['workbench.search.arguments.prompt'],
 		description: 'Prompt for a nested unified-search argument picker.',
-	},
-	searchArgumentVerticalTabs: {
-		id: 'workbench.search.arguments.verticalTabs',
-		defaultMessage: enUSWorkbenchMessages['workbench.search.arguments.verticalTabs'],
-		description: 'Argument option that places the Workbench tab strip vertically.',
 	},
 	searchDialogDescription: {
 		id: 'workbench.search.dialog.description',
@@ -1489,11 +1479,6 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.sidebar.actions.toggle',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.actions.toggle'],
 		description: 'Action that toggles Workbench sidebar visibility.',
-	},
-	tabStripOrientation: {
-		id: 'workbench.tabs.actions.setOrientation',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.setOrientation'],
-		description: 'Action that sets the Workbench tab-strip orientation.',
 	},
 	mobileTabs: {
 		id: 'workbench.tabs.mobile.all',

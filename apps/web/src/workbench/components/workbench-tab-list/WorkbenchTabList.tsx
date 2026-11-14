@@ -6,7 +6,6 @@ import type {
 } from '@orchbee/actions';
 import { useOrchbeeIntl, workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
 import {
-	TabStripOrientation,
 	type TabModel,
 	type TabStatusAdornment,
 	type TabStripChangeCallback,
@@ -211,8 +210,6 @@ export function WorkbenchTabList({
 					onSelectTab={choice.onSelectTab}
 					onSetTabTitle={onSetTabTitle}
 					onTabsChange={onTabsChange}
-					onVerticalCollapsedChange={ignoreCollapse}
-					orientation={TabStripOrientation.Vertical}
 					parentActionScope={parentActionScope}
 					reserveSidebarToggleSpace={false}
 					statusAdornments={statusAdornments}
@@ -220,12 +217,8 @@ export function WorkbenchTabList({
 					tabModel={tabModel}
 					tabStripMessages={tabStripMessages}
 					touchUi={touch}
-					verticalCollapsed={false}
 				/>
 			</div>
 		</section>
 	);
 }
-
-/** The list's strip never collapses; it offers no control for it. */
-function ignoreCollapse(): void {}

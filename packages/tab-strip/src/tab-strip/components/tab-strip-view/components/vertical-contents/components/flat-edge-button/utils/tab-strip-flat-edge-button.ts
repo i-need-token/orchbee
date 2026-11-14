@@ -1,6 +1,3 @@
-import { TabStripOrientation } from '../../../../../../../types/tab-strip-types';
-
-export const TAB_STRIP_FLAT_EDGE_BUTTON_SIZE = 28;
 const TAB_STRIP_FLAT_EDGE_RADIUS = 2;
 const TAB_STRIP_ROUNDED_EDGE_RADIUS = 10;
 
@@ -41,19 +38,4 @@ export function getFlatEdgeButtonCornerRadii(
 		case TabStripFlatEdge.None:
 			return { topLeft: rounded, topRight: rounded, bottomRight: rounded, bottomLeft: rounded };
 	}
-}
-
-/** Port of TabStripComboButton::UpdateStyles. */
-export function getComboButtonFlatEdges(
-	orientation: TabStripOrientation,
-	bothVisible: boolean,
-	rightToLeft = false,
-): Readonly<{ start: TabStripFlatEdge; end: TabStripFlatEdge }> {
-	if (!bothVisible) return { start: TabStripFlatEdge.None, end: TabStripFlatEdge.None };
-	if (orientation === TabStripOrientation.Vertical) {
-		return { start: TabStripFlatEdge.Bottom, end: TabStripFlatEdge.Top };
-	}
-	return rightToLeft
-		? { start: TabStripFlatEdge.Left, end: TabStripFlatEdge.Right }
-		: { start: TabStripFlatEdge.Right, end: TabStripFlatEdge.Left };
 }

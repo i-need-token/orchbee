@@ -119,13 +119,12 @@ describe('tab strip accessibility ports', () => {
 				tab({
 					group: 'work',
 					pinned: true,
-					crashed: true,
 				}),
 				{
 					group,
 				},
 			),
-		).toBe('Document, in group Work, pinned, crashed');
+		).toBe('Document, in group Work, pinned');
 		expect(
 			getAccessibleTabLabel(
 				tab({

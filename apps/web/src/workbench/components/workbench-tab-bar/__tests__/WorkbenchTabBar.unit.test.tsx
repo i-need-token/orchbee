@@ -2,9 +2,8 @@
 
 import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import { TabModel, TabStripOrientation } from '@orchbee/tab-strip';
-import { useState } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { TabModel } from '@orchbee/tab-strip';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { useWorkbenchTabStripMessages } from '../../../hooks/useWorkbenchTabStripMessages';
@@ -30,22 +29,25 @@ afterAll(() => {
 	vi.unstubAllGlobals();
 });
 
-function VerticalWorkbenchTabBar({
+function HarnessWorkbenchTabBar({
 	actionRuntime,
 	creationEnabled = true,
+	fill = false,
 	tabModel,
 }: {
 	readonly actionRuntime: ActionRuntime;
 	readonly creationEnabled?: boolean | undefined;
+	/** The mobile layout's vertical Tab list, which draws each title whole. */
+	readonly fill?: boolean | undefined;
 	readonly tabModel: TabModel;
 }) {
 	const messages = useWorkbenchTabStripMessages();
 	const parentActionScope = actionRuntime.createScope('workbench');
-	const [verticalCollapsed, setVerticalCollapsed] = useState(false);
 
 	return (
 		<WorkbenchTabBar
 			actionRuntime={actionRuntime}
+			fill={fill}
 			focusRequest={0}
 			getTabCreationAvailability={() =>
 				creationEnabled
@@ -53,16 +55,12 @@ function VerticalWorkbenchTabBar({
 					: { kind: 'disabled', reason: { id: 'creation-unavailable' } }
 			}
 			onNewTerminal={undefined}
-			onOrientationChange={() => undefined}
 			onSetTabTitle={() => undefined}
 			onTabsChange={undefined}
-			onVerticalCollapsedChange={setVerticalCollapsed}
-			orientation={TabStripOrientation.Vertical}
 			parentActionScope={parentActionScope}
 			reserveSidebarToggleSpace={false}
 			tabModel={tabModel}
 			tabStripMessages={messages}
-			verticalCollapsed={verticalCollapsed}
 		/>
 	);
 }
@@ -93,14 +91,14 @@ describe('Workbench browser behavior', () => {
 			try {
 				const mounted = render(
 					<OrchbeeI18nProvider locale={locale}>
-						<VerticalWorkbenchTabBar actionRuntime={actionRuntime} tabModel={tabModel} />
+						<HarnessWorkbenchTabBar actionRuntime={actionRuntime} fill tabModel={tabModel} />
 					</OrchbeeI18nProvider>,
 				);
 				const labels = () => screen.getAllByRole('tab').map((tab) => tab.textContent);
 				expect(labels()).toEqual([emptyTitle, loadingTitle, 'User title']);
 				mounted.rerender(
 					<OrchbeeI18nProvider locale={locale === 'en-US' ? 'zh-CN' : 'en-US'}>
-						<VerticalWorkbenchTabBar actionRuntime={actionRuntime} tabModel={tabModel} />
+						<HarnessWorkbenchTabBar actionRuntime={actionRuntime} fill tabModel={tabModel} />
 					</OrchbeeI18nProvider>,
 				);
 				expect(labels()).toEqual(
@@ -121,7 +119,7 @@ describe('Workbench browser behavior', () => {
 
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
-				<VerticalWorkbenchTabBar
+				<HarnessWorkbenchTabBar
 					actionRuntime={actionRuntime}
 					creationEnabled={false}
 					tabModel={tabModel}
@@ -130,29 +128,5 @@ describe('Workbench browser behavior', () => {
 		);
 
 		expect(screen.getByRole('button', { name: 'New Tab' }).hasAttribute('disabled')).toBe(true);
-	});
-
-	it('owns and updates the vertical tab-strip collapsed state', () => {
-		const actionRuntime = new ActionRuntime();
-		const tabModel = new TabModel({
-			activeTabId: 'terminal-1',
-			tabs: [{ group: null, id: 'terminal-1', pinned: false, title: 'Terminal 1' }],
-		});
-
-		render(
-			<OrchbeeI18nProvider locale='en-US'>
-				<VerticalWorkbenchTabBar actionRuntime={actionRuntime} tabModel={tabModel} />
-			</OrchbeeI18nProvider>,
-		);
-
-		const tabStrip = screen.getByRole('tablist', { name: 'Terminal tabs' });
-		const collapseButton = screen.getByRole('button', { name: 'Collapse tab strip' });
-		fireEvent.mouseEnter(tabStrip);
-		fireEvent.focus(collapseButton);
-		fireEvent.click(collapseButton);
-
-		expect(screen.getByRole('button', { name: 'Expand tab strip' })).toBeDefined();
-		expect(tabStrip.getAttribute('data-expanded-on-hover')).toBeNull();
-		expect(tabStrip.getAttribute('data-collapsed')).toBe('true');
 	});
 });

@@ -177,19 +177,6 @@ describe('PinnedTabContainerView vertical grid', () => {
 			height: 68,
 		});
 	});
-	it('uses one child per row when collapsed with expand-on-hover enabled', () => {
-		const layout = calculatePinnedTabContainerLayout({
-			sizeBounds: {
-				width: 72,
-				height: null,
-			},
-			children: pinnedChildren.slice(0, 2),
-			collapseState: VerticalTabStripCollapseState.Collapsed,
-			expandOnHoverEnabled: true,
-		});
-		expect(layout.children.map((child) => child.bounds.y)).toEqual([0, 36]);
-		expect(layout.children.map((child) => child.bounds.width)).toEqual([60, 60]);
-	});
 	it('calculates the Chrome row-and-a-half minimum height', () => {
 		expect(
 			calculatePinnedTabContainerMinimumSize(3, VerticalTabStripCollapseState.Collapsed),

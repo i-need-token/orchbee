@@ -101,7 +101,7 @@ installed release's. A Session already running keeps the configuration it starte
   unoccupied point in its `36px` top chrome without losing Tabs, groups, the sidebar toggle, the
   new-Tab control, or operating-system window controls. This projection covers the sidebar top row
   in every sidebar presentation, a horizontal Tab bar, the mobile bar, the open Tab list's top band,
-  and the no-Workspace row. The vertical Tab Strip, content below the top chrome, Panel and sidebar
+  and the no-Workspace row. Content below the top chrome, Panel and sidebar
   interactions, resize separators, and the native move lifecycle are non-goals.
 - **Inputs, data, and ownership:** Trusted Workbench layout supplies sidebar visibility, Tab Strip
   orientation, the horizontal chrome boundary, the rendered control geometry, the sidebar toggle's
@@ -120,7 +120,7 @@ installed release's. A Session already running keeps the configuration it starte
   | Sidebar toggle, its place in the chrome beneath it, Tab, group, or button geometry        | `no-drag`      | Retains the control's ordinary pointer behavior  |
   | Overlay sidebar's scrim                                                                   | `no-drag`      | A click outside the overlay closes it            |
   | Layout covered by the overlay sidebar, the filling sidebar, or the open Tab list          | Unset          | The covering surface alone decides               |
-  | Vertical Tab Strip or content outside the horizontal chrome                               | Unset          | Retains its existing non-window-drag interaction |
+  | Content outside the horizontal chrome                                                     | Unset          | Retains its existing non-window-drag interaction |
 
 - **Invariants and transitions:** Native window controls and rendered Workbench controls always
   take precedence over a background drag region. Electron folds app regions in document order, a
@@ -132,7 +132,7 @@ installed release's. A Session already running keeps the configuration it starte
   leave the covered layout without any app region. The z-index never decides the projection.
   Because the blank Tab bar is a drag region, a double-click there maximizes or restores the window,
   as the operating system does, and never reaches the Tab Strip's blank-track New Tab double-click;
-  no Desktop drag projection extends below the `36px` boundary. Showing or hiding the sidebar and switching Tab Strip orientation recompute the
+  no Desktop drag projection extends below the `36px` boundary. Showing or hiding the sidebar and switching between the wide and mobile layouts recompute the
   projection without starting, committing, or cancelling a native drag. Unsupported or absent
   horizontal chrome is an intentional no-op.
 - **Dependencies and verification:** Electron's CSS app-region contract is the only platform

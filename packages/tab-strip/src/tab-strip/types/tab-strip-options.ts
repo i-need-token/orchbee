@@ -15,9 +15,7 @@ import type { TabHoverCardController } from '../components/tab-strip-view/compon
 import type { HoverCardThumbnailSource } from '../components/tab-strip-view/components/hover-card/model/TabHoverCardThumbnailObserver';
 import type { TabData, TabGroupColor, TabModel } from '../model/tab-model';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
-import type { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import type { TabStripOrientation } from './tab-strip-types';
-import type { VerticalTabStripExpandOnHoverController } from '../model/vertical-tab-strip-expand-on-hover';
 
 export interface TabStripNewTabRequest {
 	readonly groupId: string | null;
@@ -178,29 +176,16 @@ export interface TabStripOptions {
 	model: TabModel;
 	/** Host-owned semantic status keyed by Tab identity. */
 	statusAdornments?: ReadonlyMap<string, Readonly<TabStatusAdornment>> | undefined;
+	/** Set by the host's layout; the strip offers no way to change it. */
 	orientation?: TabStripOrientation;
-	onOrientationChange?: ((orientation: TabStripOrientation) => void) | undefined;
+	/** Draws a vertical strip at its collapsed width; the strip offers no control for it. */
 	verticalCollapsed?: boolean;
-	verticalExpandOnHover?: boolean;
-	verticalExpandOnHoverController?: VerticalTabStripExpandOnHoverController;
 	hoverCardController?: TabHoverCardController;
 	getHoverCardThumbnailSource?: (tab: Readonly<TabData>) => HoverCardThumbnailSource<string> | null;
 	showHoverCardPreviews?: boolean;
 	showHoverCardMemoryUsage?: boolean;
 	/** Mirrors the feature-gated tab-group hover card; false uses native title tooltips. */
 	showGroupHoverCards?: boolean;
-	onVerticalExpandedOnHoverChange?: (expanded: boolean) => void;
-	showVerticalTopControls?: boolean;
-	showVerticalTabSearchButton?: boolean;
-	verticalTabSearchOpen?: boolean;
-	/** Host-owned controller; TabStrip never destroys an injected instance. */
-	verticalComboButtonController?: TabStripComboButtonController;
-	verticalToolbarHeight?: number;
-	verticalCaptionButtonWidth?: number;
-	verticalIsExitingExpandOnHover?: boolean;
-	onVerticalCollapsedChange?: (collapsed: boolean) => void;
-	onVerticalTabSearchClick?: () => void;
-	onVerticalExpandOnHoverChange?: (enabled: boolean) => void;
 	showNewTabButton?: boolean;
 	horizontalFrameCondensed?: boolean;
 	/**

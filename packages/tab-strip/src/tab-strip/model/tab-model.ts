@@ -47,7 +47,6 @@ export interface TabData {
 	crashed?: boolean;
 	blocked?: boolean;
 	needsAttention?: boolean;
-	permissionRequested?: boolean;
 	discarded?: boolean;
 	discardedMemorySavingsBytes?: number;
 	memoryUsageBytes?: number;
