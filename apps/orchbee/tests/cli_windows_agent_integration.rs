@@ -13,14 +13,32 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     sync::{
-        Arc, Mutex, Weak,
+        Arc, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak,
         atomic::{AtomicBool, Ordering},
     },
     time::{Duration, Instant},
 };
 
-/// The fixture root, the shared cohort, and whether a verb may have left its Session running.
-struct Fixture(PathBuf, Arc<Cohort>, AtomicBool);
+/// The fixture root, the shared cohort, whether a verb may have left its Session running, and
+/// the fixture's turn.
+struct Fixture(PathBuf, Arc<Cohort>, AtomicBool, Option<Turn>);
+
+/// The turn a fixture holds for its whole life. The Worker gives each provider command three
+/// seconds, and every fake provider here is a batch file, most of them starting Node. Alone, one
+/// command takes about 150 ms; beside three other tests of this module restarting Sessions and
+/// running hook programs on a four-vCPU runner, its process starts stretched past the budget. So
+/// a test that runs a provider command runs alone, and tests that never run one share the turn.
+static TURN: RwLock<()> = RwLock::new(());
+
+/// A fixture's hold on [`TURN`].
+enum Turn {
+    Alone {
+        _guard: RwLockWriteGuard<'static, ()>,
+    },
+    Shared {
+        _guard: RwLockReadGuard<'static, ()>,
+    },
+}
 
 /// One private native cohort shared by overlapping fixtures: the CLI, Server and Worker under
 /// test plus an inert Host, because integration jobs run before any Host starts.
@@ -333,7 +351,7 @@ fn hermes_plugin_activation_repairs_members_and_preserves_python_cache() {
 #[test]
 fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     fs::write(fixture.0.join("bin/devin.cmd"), b"@exit /b 99\r\n").unwrap();
     let target = fixture.0.join("roaming/devin/config.json");
     fs::create_dir_all(target.parent().unwrap()).unwrap();
@@ -481,7 +499,7 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
 #[test]
 fn letta_silent_hooks_preserve_settings_and_use_provider_home() {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     fs::write(fixture.0.join("bin/letta.cmd"), b"@exit /b 99\r\n").unwrap();
     let target = fixture.home().join(".letta/settings.json");
     fs::create_dir_all(target.parent().unwrap()).unwrap();
@@ -598,7 +616,7 @@ fn letta_silent_hooks_preserve_settings_and_use_provider_home() {
 #[test]
 fn kimi_toml_hooks_preserve_user_settings_and_execute_on_windows() {
     use std::os::windows::process::CommandExt;
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     fs::write(fixture.0.join("bin/kimi.cmd"), b"@exit /b 99\r\n").unwrap();
     let target = fixture.home().join(".kimi-code/config.toml");
     let legacy = fixture.home().join(".kimi/config.toml");
@@ -748,7 +766,7 @@ fn check_json_hooks(provider: &str) {
         ),
         _ => panic!("unexpected test provider"),
     };
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     fs::write(
         fixture.0.join(format!("bin/{executable}.cmd")),
         b"@exit /b 99\r\n",
@@ -951,7 +969,7 @@ fn exercise_installed_json_hooks(provider: &str, target: &Path) {
 
 #[test]
 fn antigravity_named_hooks_preserve_foreign_blocks_and_execute_on_windows() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     fs::write(fixture.0.join("bin/agy.cmd"), b"@exit /b 99\r\n").unwrap();
     let target = fixture.home().join(".gemini/config/hooks.json");
     fs::create_dir_all(target.parent().unwrap()).unwrap();
@@ -1006,7 +1024,7 @@ fn antigravity_named_hooks_preserve_foreign_blocks_and_execute_on_windows() {
 
 #[test]
 fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     fs::write(fixture.0.join("bin/opencode.cmd"), "@exit /b 0\r\n").unwrap();
     let inspect = |verb| fixture.provider_document(verb, "opencode", 0);
     inspect("enable");
@@ -1161,7 +1179,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
 fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
     use sha2::Digest;
     use std::os::windows::process::CommandExt;
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
         .map(|p| p.join("node.exe"))
         .find(|p| p.is_file())
@@ -1358,7 +1376,7 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
 
 #[test]
 fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     fs::write(fixture.0.join("bin/kilo.cmd"), "@exit /b 99\r\n").unwrap();
     let xdg = fixture.0.join("Kilo XDG");
     let explicit = fixture.0.join("Kilo explicit");
@@ -1662,7 +1680,20 @@ fn windows_codex_inspects_complete_toml_without_rewriting_unrelated_settings() {
     }
 }
 impl Fixture {
+    /// A fixture for a test that runs provider commands, alone.
     fn new() -> Self {
+        // Holding the cohort while waiting keeps it staged between consecutive fixtures.
+        let cohort = Cohort::shared();
+        let _guard = TURN.write().unwrap_or_else(PoisonError::into_inner);
+        Self::with(cohort, Turn::Alone { _guard })
+    }
+    /// A fixture for a test that never runs a provider command, beside others like it.
+    fn without_provider_commands() -> Self {
+        let cohort = Cohort::shared();
+        let _guard = TURN.read().unwrap_or_else(PoisonError::into_inner);
+        Self::with(cohort, Turn::Shared { _guard })
+    }
+    fn with(cohort: Arc<Cohort>, turn: Turn) -> Self {
         let root = temporary("orchbee-integration-cli-");
         for path in [
             "用户 & ' $ ` home/.codex",
@@ -1695,7 +1726,7 @@ impl Fixture {
             b"user_default = 'must remain untouched'\n",
         )
         .unwrap();
-        Self(root, Cohort::shared(), AtomicBool::new(false))
+        Self(root, cohort, AtomicBool::new(false), Some(turn))
     }
     /// The CLI under test, selecting this fixture's runtime base and profile.
     fn cli(&self) -> Command {
@@ -2078,7 +2109,7 @@ fn list_starts_no_agent_program_and_explain_does() {
 /// no Session behind, so none restores saved terminals and no runtime folder appears.
 #[test]
 fn list_answers_without_starting_a_session() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     fixture.document("list", 0);
     let output = fixture
         .cli()
@@ -2098,7 +2129,7 @@ fn list_answers_without_starting_a_session() {
 #[test]
 fn javascript_modules_load_and_deliver_ordered_windows_observations() {
     use std::os::windows::process::CommandExt;
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
         .map(|path| path.join("node.exe"))
         .find(|path| path.is_file())
@@ -2305,6 +2336,8 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         self.stop(!std::thread::panicking());
         remove(&self.0, "orchbee-integration-cli-");
+        // The next fixture's turn begins only once this one's Session and folder are gone.
+        drop(self.3.take());
     }
 }
 
@@ -2400,7 +2433,7 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
     for case in [
         "absent", "version", "digest", "shared", "foreign", "unknown",
     ] {
-        let fixture = Fixture::new();
+        let fixture = Fixture::without_provider_commands();
         let config = fixture.config_home().join("config.toml");
         let content = match case {
             "absent" => "unrelated = true\n".into(),
@@ -2463,7 +2496,7 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
 
 #[test]
 fn mastracode_flat_hooks_repair_missing_entries_and_execute_on_windows() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::without_provider_commands();
     fs::write(fixture.0.join("bin/mastracode.cmd"), b"@exit /b 99\r\n").unwrap();
     let target = fixture.home().join(".mastracode/hooks.json");
     fs::create_dir_all(target.parent().unwrap()).unwrap();
@@ -2535,7 +2568,7 @@ fn mastracode_flat_hooks_repair_missing_entries_and_execute_on_windows() {
 #[test]
 fn droid_uses_the_effective_configuration_without_shadowing_fallback_hooks() {
     for origin in ["new", "preferred", "legacy", "settings"] {
-        let fixture = Fixture::new();
+        let fixture = Fixture::without_provider_commands();
         fs::write(fixture.0.join("bin/droid.cmd"), b"@exit /b 99\r\n").unwrap();
         let preferred = fixture.home().join(".factory/hooks.json");
         let legacy = fixture.home().join(".factory/hooks/hooks.json");
