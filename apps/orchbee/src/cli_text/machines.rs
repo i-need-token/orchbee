@@ -84,6 +84,16 @@ impl super::CliText {
         format!("{}\n", self.locale.machine_answer_undelivered(again))
     }
 
+    /// The line a command writes when the login to the Machine `label` waits for a person at an
+    /// Orchbee interface.
+    pub(crate) fn cli_machine_waiting(self, label: &str) -> String {
+        let label = super::escape::unquoted(label);
+        match self.locale {
+            Locale::EnUs => format!("Waiting for login to {label} in Orchbee…\n"),
+            Locale::ZhCn => format!("正在等待在 Orchbee 中登录 {label}…\n"),
+        }
+    }
+
     pub(crate) fn cli_machine_route_failure(self, unknown: bool) -> &'static str {
         match (self.locale, unknown) {
             (Locale::EnUs, false) => "Remote command was not submitted.",
@@ -169,8 +179,8 @@ impl super::CliText {
             ),
             C::MachineConnect => (
                 "orchbee machine connect <id|label> [--remember] [--format text|json]",
-                "Connect an enabled saved machine through the background machine hub, starting the hub when none runs. Returns once the machine is online or with the reason it is not. When standard input and standard error are both consoles, an Orchbee Panel included, it shows each sign-in question OpenSSH asks, such as a password or whether to trust a new host, with OpenSSH's own words, and waits for an answer; an empty answer or Ctrl+C ends the attempt. Otherwise, as with standard input redirected from the null device, which an Agent that cannot answer uses, a sign-in that needs an answer ends the command. The connection stays after the command ends. With '--remember', a password or key passphrase typed there is remembered in the system credential store once the sign-in succeeds, and later connections use it without asking; a remembered answer OpenSSH refuses is deleted. Removing the machine forgets it.",
-                "通过后台连接进程连接一台已启用的已保存机器，没有连接进程时会启动它。机器上线后返回，或返回未能上线的原因。标准输入和标准错误都是控制台时（包括 Orchbee 面板），它会连同 OpenSSH 的原文显示 OpenSSH 提出的每个登录问题，例如密码或是否信任新主机，并等待回答；空回答或 Ctrl+C 结束本次尝试。否则（例如标准输入重定向自空设备，无法回答的 Agent 应这样做），需要回答的登录会结束命令。命令结束后连接仍保持。使用 ‘--remember’ 时，登录成功后在那里输入的密码或密钥口令会记在系统的凭据存储里，之后的连接直接使用，不再询问；OpenSSH 拒绝的已记住回答会被删除。删除机器时会一并忘记。",
+                "Connect an enabled saved machine through the background machine hub, starting the hub when none runs. Returns once the machine is online or with the reason it is not. A remembered password is tried first, without asking. When sign-in needs an answer and an Orchbee TUI is running, it says so on standard error and waits up to 120 seconds for a person to log in there. Otherwise, when standard input and standard error are both consoles, an Orchbee Panel included, it shows each sign-in question OpenSSH asks, such as a password or whether to trust a new host, with OpenSSH's own words, and waits for an answer; an empty answer or Ctrl+C ends the attempt. Otherwise, as with standard input redirected from the null device, which an Agent that cannot answer uses, a sign-in that needs an answer ends the command. The connection stays after the command ends. With '--remember', a password or key passphrase typed there is remembered in the system credential store once the sign-in succeeds, and later connections use it without asking; a remembered answer OpenSSH refuses is deleted. Removing the machine forgets it.",
+                "通过后台连接进程连接一台已启用的已保存机器，没有连接进程时会启动它。机器上线后返回，或返回未能上线的原因。记住的密码会先直接使用，不询问。登录需要回答而有 Orchbee TUI 在运行时，它会在标准错误写一行提示，并最多等待 120 秒，由用户在 TUI 中登录。否则，标准输入和标准错误都是控制台时（包括 Orchbee 面板），它会连同 OpenSSH 的原文显示 OpenSSH 提出的每个登录问题，例如密码或是否信任新主机，并等待回答；空回答或 Ctrl+C 结束本次尝试。再否则（例如标准输入重定向自空设备，无法回答的 Agent 应这样做），需要回答的登录会结束命令。命令结束后连接仍保持。使用 ‘--remember’ 时，登录成功后在那里输入的密码或密钥口令会记在系统的凭据存储里，之后的连接直接使用，不再询问；OpenSSH 拒绝的已记住回答会被删除。删除机器时会一并忘记。",
             ),
             C::MachineDisconnect => (
                 "orchbee machine disconnect <id|label> [--format text|json]",
@@ -317,10 +327,10 @@ impl super::CliText {
                 "无法连接这台机器：名称无法解析、连接被拒绝或未及时响应。"
             }
             (Locale::EnUs, "auth-required") => {
-                "Signing in to this machine needs an answer, such as a password, and none was given. Run 'orchbee machine connect' in a terminal to answer."
+                "Signing in to this machine needs an answer, such as a password, and none was given. Log in to it in Orchbee, or run 'orchbee machine connect' in a terminal to answer."
             }
             (Locale::ZhCn, "auth-required") => {
-                "登录这台机器需要回答问题，例如密码，但没有得到回答。请在终端中运行 ‘orchbee machine connect’ 来回答。"
+                "登录这台机器需要回答问题，例如密码，但没有得到回答。请在 Orchbee 中登录这台机器，或在终端中运行 ‘orchbee machine connect’ 来回答。"
             }
             (Locale::EnUs, "auth-failed") => {
                 "The machine refused the sign-in: the SSH key, or the answers given."

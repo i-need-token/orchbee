@@ -226,6 +226,8 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             let gained = attach.presence && !peer.presence;
             let dropped = !attach.presence && peer.presence;
             let watching = attach.watch && !peer.watch;
+            let asking = attach.asks && !peer.asks;
+            let unasked = !attach.asks && peer.asks;
             peer.presence = attach.presence;
             peer.asks = attach.asks;
             peer.watch = attach.watch;
@@ -251,6 +253,14 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             if gained {
                 hub.machines(|machine, cx| machine.attach(cx));
             }
+            // A connection that starts asking is offered the running `command` episodes; one
+            // that stops no longer is, and an episode it claimed is offered to the others again.
+            if asking {
+                hub.machines(|machine, _| machine.asking(id));
+            }
+            if unasked {
+                hub.machines(|machine, cx| machine.stopped_asking(id, cx));
+            }
             if watching {
                 let events = hub.machines.events();
                 let mut wire = line.lock();
@@ -269,11 +279,7 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
                     Origin::Command { answers: true } => Answers::Command,
                     Origin::Command { answers: false } => Answers::Never,
                 };
-                let waiter = Waiter {
-                    peer: id,
-                    request,
-                    answers,
-                };
+                let waiter = Waiter::new(id, request, answers);
                 hub.machine(&connect.machine, |machine, cx| machine.connect(waiter, cx));
                 return;
             }
@@ -289,11 +295,21 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             Some(Reply::Disconnect(DisconnectOutcome::Disconnected))
         }
         Request::Claim { .. } if closing => Some(Reply::Claim(ClaimOutcome::Stopping)),
-        Request::Claim { login } => Some(Reply::Claim(
-            hub.machines
+        Request::Claim { login } => {
+            let mut outcome = ClaimOutcome::Ended;
+            if let Some(machine) = hub
+                .machines
                 .login_owner(login)
-                .map_or(ClaimOutcome::Ended, |machine| machine.claim(id, login)),
-        )),
+                .map(|machine| machine.id().clone())
+            {
+                hub.machine(&machine, |machine, cx| {
+                    let (claimed, effects) = machine.claim(id, login, cx);
+                    outcome = claimed;
+                    effects
+                });
+            }
+            Some(Reply::Claim(outcome))
+        }
         Request::Dismiss { .. } if closing => Some(Reply::Dismiss(DismissOutcome::Stopping)),
         Request::Dismiss { login } => {
             let mut outcome = DismissOutcome::Ended;

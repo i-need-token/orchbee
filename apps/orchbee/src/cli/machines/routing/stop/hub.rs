@@ -26,12 +26,17 @@ const CONNECT: Duration = Duration::from_secs(90);
 /// seconds, and the exchange in progress then takes at most 30 more.
 const ANSWER: Duration = Duration::from_secs(120);
 
-/// Asks the hub to stop the remote Session of the Machine `machine`.
-pub(super) fn stop(machine: &str, context: &mut Context) -> Result<Stopped, Refusal> {
+/// Asks the hub to stop the remote Session of the Machine `machine`; a login the hub offers to an
+/// interface on the way writes `waiting` and waits for the person.
+pub(super) fn stop(
+    machine: &str,
+    waiting: &str,
+    context: &mut Context,
+) -> Result<Stopped, Refusal> {
     let machine = MachineId::new(machine).map_err(|_| mapped(Error::Internal))?;
     context.deadline = Instant::now() + CONNECT;
     let client = connect::open(context).map_err(mapped)?;
-    let result = carry(&client, &machine, context);
+    let result = carry(&client, &machine, waiting, context);
     connect::close(client);
     result
 }
@@ -39,6 +44,7 @@ pub(super) fn stop(machine: &str, context: &mut Context) -> Result<Stopped, Refu
 fn carry(
     client: &Arc<HubClient>,
     machine: &MachineId,
+    waiting: &str,
     context: &mut Context,
 ) -> Result<Stopped, Refusal> {
     // The hub learns a machine saved after it started; taking the catalog restarts nothing.
@@ -61,7 +67,7 @@ fn carry(
         remote_version: None,
         unforgotten: false,
     };
-    connect::ask_connect(client, machine, context, &mut report).map_err(mapped)?;
+    connect::ask_connect(client, machine, waiting, context, &mut report).map_err(mapped)?;
     ask(client, machine, context)
 }
 

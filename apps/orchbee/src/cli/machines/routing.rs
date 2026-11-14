@@ -32,6 +32,7 @@ mod hub {
 
     pub(super) fn route(
         _machine: &str,
+        _waiting: &str,
         _packet: &[u8],
         _limit: usize,
         _context: &mut Context,
@@ -381,7 +382,15 @@ fn execute(
     if bytes.len() > REQUEST_LIMIT {
         return Err(INPUT_SOURCE);
     }
-    let reply = hub::route(profile.id.as_str(), &bytes, REPLY_LIMIT, context, outcome)?;
+    let waiting = CliText::new(locale).cli_machine_waiting(&profile.draft.label);
+    let reply = hub::route(
+        profile.id.as_str(),
+        &waiting,
+        &bytes,
+        REPLY_LIMIT,
+        context,
+        outcome,
+    )?;
     let reply: Reply = serde_json::from_slice(&reply).map_err(|_| mapped(Error::RemoteProtocol))?;
     match reply.output() {
         Ok(output) => {

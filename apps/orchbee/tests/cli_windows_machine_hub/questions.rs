@@ -5,16 +5,19 @@
 //! `login-failed`; a changed host key is refused without a question; a silent attempt or a command
 //! without answers asks nobody; an unanswered question ends within its bound; an endpoint takes one
 //! answer for its own question only; the claimant leaving ends the attempt; and a helper that
-//! cannot ask ends the attempt before `ssh` could read an empty answer. `remembered` covers the
-//! answers the askpass helper reads from the credential store. After each run that delivered
-//! answers, no file under the scratch root and no captured stream holds one.
+//! cannot ask ends the attempt before `ssh` could read an empty answer. A piped command waits
+//! while two clients that ask, as two TUIs do, are offered its login: the first claim takes it, a
+//! claimant that leaves hands it back, a dismissal fails every waiting command and mutes the
+//! Machine until the person logs in, and a command nobody answers fails at its bound.
+//! `remembered` covers the answers the askpass helper reads from the credential store. After each
+//! run that delivered answers, no file under the scratch root and no captured stream holds one.
 
 use super::*;
 use orchbee_machine_protocol::{
     AnswerToken, Id,
     hub::{
-        AnswerEndpoint, ConnectResult, LoginEnd, LoginEvent, LoginPhase, NeedsLoginCause, Question,
-        QuestionKind,
+        AnswerEndpoint, Claimant, ConnectResult, DismissOutcome, LoginEnd, LoginEvent, LoginPhase,
+        NeedsLoginCause, Question, QuestionKind, Trigger,
     },
 };
 use orchbee_workbench_client::application::machine_hub::{DeliveryFailure, deliver};
@@ -352,6 +355,201 @@ fn a_helper_that_cannot_ask_ends_the_attempt_before_ssh_reads_an_empty_answer() 
         [(FIRST.to_owned(), "needs login".to_owned())]
     );
     assert_eq!(fake.transcript(), "started\nasked 1\n");
+}
+
+/// The line a piped command writes while its login waits for a person, as `en-US` words it for the
+/// fixture's Machine.
+const WAITING: &str = "Waiting for login to First in Orchbee…";
+
+#[test]
+fn a_command_waits_for_the_first_claim_and_a_claimant_that_leaves_hands_the_login_back() {
+    let (carried, fake) = Carried::faking(
+        "mw1-claim-",
+        &json!({"questions": [step(PASSWORD, RIGHT_PASSWORD, 1, false)]}),
+        &[],
+    );
+    let mut first = asker(&carried);
+    let mut second = asker(&carried);
+    let command = waiting_command(&carried);
+    thread::scope(|scope| {
+        let ran = scope.spawn(command);
+        // Every client that asks is offered the login; the first claim takes it.
+        let offered = offered(&mut first, 1);
+        let login = offered.login;
+        assert_eq!(offered.trigger, Trigger::Command);
+        assert_eq!(self::offered(&mut second, 1).login, login);
+        assert_eq!(claim(&mut first, login), ClaimOutcome::Claimed);
+        assert_eq!(claim(&mut second, login), ClaimOutcome::Taken);
+        phase(
+            &mut second,
+            login,
+            LoginPhase::Claimed {
+                claim: Claimant::Other,
+            },
+        );
+        let asked = question(&mut first);
+        assert_eq!(asked.login, login);
+        // The claimant leaves before it answers: the login and its question are offered again.
+        drop(first);
+        assert_eq!(self::offered(&mut second, 1).login, login);
+        assert_eq!(claim(&mut second, login), ClaimOutcome::Claimed);
+        let again = question(&mut second);
+        assert_eq!((again.login, again.question), (login, asked.question));
+        deliver(&again.answer, RIGHT_PASSWORD.as_bytes()).unwrap();
+        let ran = finished(ran.join().unwrap());
+        assert_eq!(ran.code, Some(0), "{ran}");
+        assert_eq!(ran.stderr.matches(WAITING).count(), 1, "{ran}");
+        assert_eq!(login_end(&mut second), LoginEnd::Succeeded);
+        assert_eq!(fake.transcript(), "started\nasked 1\nright 1\nlinked\n");
+        drop(second);
+        search(&carried, &[ran.stderr.as_bytes()]);
+    });
+}
+
+#[test]
+fn not_now_fails_every_waiting_command_and_mutes_the_machine_until_the_person_logs_in() {
+    let (carried, _fake) = Carried::faking(
+        "mw1-dismiss-",
+        &json!({"questions": [step(PASSWORD, RIGHT_PASSWORD, 1, false)]}),
+        &[],
+    );
+    let mut first = asker(&carried);
+    let mut second = asker(&carried);
+    let commands = [waiting_command(&carried), waiting_command(&carried)];
+    let login = thread::scope(|scope| {
+        let ran = commands.map(|command| scope.spawn(command));
+        // One login for both commands; either client's dismissal ends it for both.
+        let login = offered(&mut first, 2).login;
+        assert_eq!(dismiss(&mut second, login), DismissOutcome::Dismissed);
+        for ran in ran {
+            let ran = finished(ran.join().unwrap());
+            assert_eq!(ran.code, Some(4), "{ran}");
+            assert_eq!(ran.document["result"]["error"], "auth-required", "{ran}");
+            assert!(ran.stderr.contains(WAITING), "{ran}");
+        }
+        login
+    });
+    for client in [&mut first, &mut second] {
+        phase(
+            client,
+            login,
+            LoginPhase::Ended {
+                end: LoginEnd::Dismissed,
+            },
+        );
+        // What the episode sent before it ended is read; only what follows counts below.
+        client.deliveries.clear();
+    }
+    // Muted: the next command fails at once, offered to nobody.
+    let muted = carried.run(&["machine", "connect", FIRST]);
+    assert_eq!(muted.code, Some(4), "{muted}");
+    assert!(!muted.stderr.contains(WAITING), "{muted}");
+    assert!(no_question(&mut first) && no_question(&mut second));
+    // The person logs in themselves, which ends the mute.
+    let id = first.send(user_connect());
+    let asked = question(&mut first);
+    deliver(&asked.answer, RIGHT_PASSWORD.as_bytes()).unwrap();
+    let result = connect_reply(&mut first, id);
+    assert!(
+        matches!(result.outcome, ConnectOutcome::Online { .. }),
+        "{result:?}"
+    );
+    drop((first, second));
+    search(&carried, &[muted.stderr.as_bytes()]);
+}
+
+#[test]
+fn a_command_nobody_answers_fails_at_its_bound_and_its_untouched_login_ends() {
+    let (carried, _fake) = Carried::faking(
+        "mw1-bound-",
+        &json!({"questions": [step(PASSWORD, RIGHT_PASSWORD, 1, false)]}),
+        &[("ORCHBEE_MACHINE_HUB_QUESTION_MS", "2000")],
+    );
+    let mut idle = asker(&carried);
+    let ran = carried.run(&["machine", "connect", FIRST]);
+    assert_eq!(ran.code, Some(4), "{ran}");
+    assert_eq!(ran.document["result"]["error"], "auth-required", "{ran}");
+    assert!(ran.stderr.contains(WAITING), "{ran}");
+    assert!(ran.elapsed < WAIT, "{ran}");
+    let login = offered(&mut idle, 1).login;
+    phase(
+        &mut idle,
+        login,
+        LoginPhase::Ended {
+            end: LoginEnd::Abandoned,
+        },
+    );
+}
+
+/// A client attached to the running hub that holds it and asks, as a TUI does.
+fn asker(carried: &Carried) -> Client {
+    let mut client = Client::connect(&carried.endpoint());
+    attach(&mut client, true, true, false);
+    client
+}
+
+/// `machine connect` of `FIRST` with its streams piped, so it can ask nobody itself.
+fn waiting_command(carried: &Carried) -> impl FnOnce() -> (Output, Duration) + Send + use<> {
+    let mut command = carried.command(&["machine", "connect", FIRST, "--format=json"]);
+    move || {
+        let started = Instant::now();
+        let output = command.output().unwrap();
+        (output, started.elapsed())
+    }
+}
+
+fn finished((output, elapsed): (Output, Duration)) -> session::Run {
+    session::Run {
+        words: format!("machine connect {FIRST}"),
+        code: output.status.code(),
+        elapsed,
+        document: serde_json::from_slice(&output.stdout).unwrap_or_default(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+    }
+}
+
+/// The offer of a login with `waiters` commands waiting on it.
+fn offered(client: &mut Client, waiters: u64) -> LoginEvent {
+    client.until(WAIT, "offer", |client| {
+        client.take(|delivery| match delivery {
+            Delivery::Message(Message::Event {
+                event: Event::Login(event),
+                ..
+            }) if event.phase == LoginPhase::Offered && event.waiters.get() == waiters => {
+                Some(event.clone())
+            }
+            _ => None,
+        })
+    })
+}
+
+/// Waits for login `login` to reach `phase`.
+fn phase(client: &mut Client, login: Id, phase: LoginPhase) {
+    client.until(WAIT, "login phase", |client| {
+        client.take(|delivery| match delivery {
+            Delivery::Message(Message::Event {
+                event: Event::Login(event),
+                ..
+            }) if event.login == login && event.phase == phase => Some(()),
+            _ => None,
+        })
+    });
+}
+
+fn claim(client: &mut Client, login: Id) -> ClaimOutcome {
+    let id = client.send(Request::Claim { login });
+    match client.answer(WAIT, id) {
+        Answer::Reply(Reply::Claim(outcome)) => outcome,
+        other => panic!("claim answered {other:?}"),
+    }
+}
+
+fn dismiss(client: &mut Client, login: Id) -> DismissOutcome {
+    let id = client.send(Request::Dismiss { login });
+    match client.answer(WAIT, id) {
+        Answer::Reply(Reply::Dismiss(outcome)) => outcome,
+        other => panic!("dismiss answered {other:?}"),
+    }
 }
 
 /// The fake `ssh` of one test: its plan, which holds digests and never an answer, and the

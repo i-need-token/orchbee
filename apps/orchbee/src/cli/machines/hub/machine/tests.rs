@@ -3,6 +3,7 @@ use orchbee_connection_handshake::RejectionReason;
 use orchbee_machine_protocol::{AnswerToken, HostKey, KeyFingerprint, PathText};
 
 mod remembered;
+mod waiting;
 
 /// The model's clock and the hub's serials, advanced by hand.
 struct Hub {
@@ -11,7 +12,7 @@ struct Hub {
     serials: Serials,
     presence: bool,
     closing: bool,
-    asking: bool,
+    askers: Vec<u64>,
 }
 
 impl Hub {
@@ -22,7 +23,7 @@ impl Hub {
             serials: Serials::default(),
             presence,
             closing: false,
-            asking: false,
+            askers: Vec::new(),
         }
     }
 
@@ -39,7 +40,7 @@ impl Hub {
             },
             presence: self.presence,
             closing: self.closing,
-            asking: self.asking,
+            askers: &self.askers,
             question: QUESTION,
             serials: &mut self.serials,
         }
@@ -93,11 +94,7 @@ fn waiter(request: u32) -> Waiter {
 }
 
 fn asker(peer: u64, request: u32, answers: Answers) -> Waiter {
-    Waiter {
-        peer,
-        request: Id::new(request).unwrap(),
-        answers,
-    }
+    Waiter::new(peer, Id::new(request).unwrap(), answers)
 }
 
 fn host_key() -> HostKey {
@@ -591,8 +588,8 @@ fn a_claimant_receives_each_question_in_order_and_a_refused_answer_is_marked_rep
 
 #[test]
 fn a_question_nobody_can_answer_ends_the_attempt_in_its_state_without_an_event() {
-    // A silent attempt, a command without answers, and one while another client asks.
-    for case in 0..3 {
+    // A silent attempt, and a command without answers while no client asks.
+    for case in 0..2 {
         for kind in [
             QuestionKind::HostKey {
                 host_key: host_key(),
@@ -600,12 +597,11 @@ fn a_question_nobody_can_answer_ends_the_attempt_in_its_state_without_an_event()
             QuestionKind::Password,
         ] {
             let mut hub = Hub::new(case == 0);
-            hub.asking = case == 2;
             let mut machine = machine();
-            let effects = match case {
-                0 => machine.attach(&mut hub.cx()),
-                1 => machine.connect(waiter(1), &mut hub.cx()),
-                _ => machine.connect(asker(1, 1, Answers::Command), &mut hub.cx()),
+            let effects = if case == 0 {
+                machine.attach(&mut hub.cx())
+            } else {
+                machine.connect(waiter(1), &mut hub.cx())
             };
             let carrier = started(&effects).unwrap();
             let host = matches!(kind, QuestionKind::HostKey { .. });
@@ -715,9 +711,18 @@ fn only_the_claimant_dismisses_and_its_leaving_abandons_the_episode() {
     );
     let login = machine.login().unwrap();
     let other = Id::new(login.get() + 1).unwrap();
-    assert_eq!(machine.claim(1, login), ClaimOutcome::Claimed);
-    assert_eq!(machine.claim(2, login), ClaimOutcome::Taken);
-    assert_eq!(machine.claim(1, other), ClaimOutcome::Ended);
+    assert_eq!(
+        machine.claim(1, login, &hub.cx()),
+        (ClaimOutcome::Claimed, Vec::new())
+    );
+    assert_eq!(
+        machine.claim(2, login, &hub.cx()),
+        (ClaimOutcome::Taken, Vec::new())
+    );
+    assert_eq!(
+        machine.claim(1, other, &hub.cx()),
+        (ClaimOutcome::Ended, Vec::new())
+    );
     assert_eq!(
         machine.dismiss(2, login, &hub.cx()),
         (DismissOutcome::NotClaimant, Vec::new())

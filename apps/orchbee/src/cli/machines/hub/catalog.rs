@@ -24,14 +24,15 @@ pub(super) struct Machines {
 }
 
 /// What the hub knows around a transition, beside the carrier numbers the catalog keeps.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(super) struct Conditions {
     pub(super) now: Moment,
     pub(super) presence: bool,
     pub(super) closing: bool,
-    /// A connection that `asks` is attached.
-    pub(super) asking: bool,
-    /// How long a question stays open unanswered.
+    /// The connections that `asks`, in ascending order.
+    pub(super) askers: Vec<u64>,
+    /// How long a question put to a claimant stays open unanswered, and how long a `command`
+    /// request waits for a person.
     pub(super) question: Duration,
 }
 
@@ -155,7 +156,7 @@ impl Machines {
     pub(super) fn update(
         &mut self,
         id: &MachineId,
-        conditions: Conditions,
+        conditions: &Conditions,
         transition: impl FnOnce(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
     ) -> Outcome {
         let mut outcome = Outcome::default();
@@ -174,7 +175,7 @@ impl Machines {
     /// Applies `transition` to every Machine in catalog order.
     pub(super) fn each(
         &mut self,
-        conditions: Conditions,
+        conditions: &Conditions,
         mut transition: impl FnMut(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
     ) -> Outcome {
         let mut outcome = Outcome::default();
@@ -194,7 +195,7 @@ impl Machines {
     /// its new content; a removed record's carrier ends and its waiters read `not-found`; a new or
     /// changed one [arrives](Machine::arrived). Watchers receive `catalog` and every Machine that
     /// is new or reads differently, or nothing when neither changed.
-    pub(super) fn replace(&mut self, next: Self, conditions: Conditions) -> Outcome {
+    pub(super) fn replace(&mut self, next: Self, conditions: &Conditions) -> Outcome {
         let listed = |machines: &Self| -> Vec<MachineId> {
             machines
                 .entries
@@ -250,7 +251,7 @@ impl Machines {
 fn step(
     machine: &mut Machine,
     serials: &mut Serials,
-    conditions: Conditions,
+    conditions: &Conditions,
     outcome: &mut Outcome,
     transition: impl FnOnce(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
 ) {
@@ -264,12 +265,12 @@ fn step(
     }
 }
 
-fn context(conditions: Conditions, serials: &mut Serials) -> Context<'_> {
+fn context<'a>(conditions: &'a Conditions, serials: &'a mut Serials) -> Context<'a> {
     Context {
         now: conditions.now,
         presence: conditions.presence,
         closing: conditions.closing,
-        asking: conditions.asking,
+        askers: &conditions.askers,
         question: conditions.question,
         serials,
     }

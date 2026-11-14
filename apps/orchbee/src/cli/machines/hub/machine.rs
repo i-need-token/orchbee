@@ -1,6 +1,6 @@
 //! One Machine as the hub carries it: a state machine over its phase, its retry history, its one
-//! carrier, its login episode and the `connect` requests waiting on it, with the time, each carrier
-//! event and each question as arguments. It returns its effects for the hub to apply; it reads no
+//! carrier, its login episode, its mute and the `connect` requests waiting on it, with the time,
+//! each carrier event, each question and each client's act as arguments. It returns its effects for the hub to apply; it reads no
 //! clock and starts nothing. `docs/machines.md#carrying-a-machine` and
 //! `docs/machines.md#login-episode` own the rules.
 
@@ -12,7 +12,7 @@ pub(super) use failure::{End, Failure, classify, refusal};
 
 use super::lifetime::Moment;
 use crate::cli::machines::askpass::question::attributed;
-use episode::{Episode, Tag};
+use episode::{Episode, Holder};
 use failure::reconnect_cause;
 use orchbee_connection_handshake::ProductVersion;
 use orchbee_machine_protocol::{
@@ -20,8 +20,8 @@ use orchbee_machine_protocol::{
     hub::{
         AnswerEndpoint, ClaimOutcome, Claimant, ConnectFailure, ConnectOutcome, ConnectResult,
         ConnectWaiting, DismissOutcome, Event, LoginEnd, LoginEvent, LoginFailedCause, LoginPhase,
-        MachineEvent, MachineState, NeedsLoginCause, OfflineCause, Question, QuestionKind,
-        ReconnectCause, Remote, Stage, Trigger, UnsupportedCause, WaitReason,
+        MachineEvent, MachineState, NeedsLoginCause, OfflineCause, QuestionKind, ReconnectCause,
+        Remote, Stage, Trigger, UnsupportedCause, WaitReason,
     },
 };
 use orchbee_workbench_client::application::machine_credentials::SecretKind;
@@ -55,13 +55,38 @@ pub(super) struct Route {
     pub(super) session: SessionName,
 }
 
-/// A `connect` request waiting for its reply: its connection, its request id, and whether it can
-/// be asked a question.
+/// A `connect` request waiting for its reply: its connection, its request id, whether it can be
+/// asked a question, and, for a `command` request while a login episode runs, when it stops
+/// waiting for a person.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Waiter {
     pub(super) peer: u64,
     pub(super) request: Id,
     pub(super) answers: Answers,
+    pub(super) until: Option<Instant>,
+}
+
+impl Waiter {
+    /// A request of `peer` that has not started waiting for a person.
+    pub(super) const fn new(peer: u64, request: Id, answers: Answers) -> Self {
+        Self {
+            peer,
+            request,
+            answers,
+            until: None,
+        }
+    }
+
+    /// A `command` request, which an episode bounds and counts.
+    const fn command(&self) -> bool {
+        !matches!(self.answers, Answers::User)
+    }
+
+    /// Whether `holder` claimed the episode by this very request.
+    fn holds(&self, holder: Option<Holder>) -> bool {
+        holder
+            .is_some_and(|holder| holder.peer == self.peer && holder.request == Some(self.request))
+    }
 }
 
 /// Whether a waiting request can be asked a question.
@@ -69,7 +94,8 @@ pub(super) struct Waiter {
 pub(super) enum Answers {
     /// A `command` without `answers`.
     Never,
-    /// A `command` with `answers`: asked as `user` while no connection that `asks` is attached.
+    /// A `command` with `answers`: asked as `user` while no connection that `asks` is attached or
+    /// the Machine is muted.
     Command,
     /// A `user` request.
     User,
@@ -124,12 +150,20 @@ pub(super) struct Context<'a> {
     pub(super) presence: bool,
     /// The hub is closing: nothing starts and nothing is scheduled.
     pub(super) closing: bool,
-    /// A connection that `asks` is attached.
-    pub(super) asking: bool,
-    /// How long a question stays open unanswered.
+    /// The connections that `asks`, in ascending order.
+    pub(super) askers: &'a [u64],
+    /// How long a question put to a claimant stays open unanswered, and how long a `command`
+    /// request waits for a person.
     pub(super) question: Duration,
     /// The numbers given out in the hub's life.
     pub(super) serials: &'a mut Serials,
+}
+
+impl Context<'_> {
+    /// Whether a connection that `asks` is attached.
+    const fn asking(&self) -> bool {
+        !self.askers.is_empty()
+    }
 }
 
 /// The last carrier number and the last login id given out in the hub's life.
@@ -168,9 +202,14 @@ struct Attempt {
 }
 
 impl Attempt {
-    /// When the open question goes unanswered, if one is open.
+    /// When the open question goes unanswered, if one is open and put to a claimant.
     fn question_due(&self) -> Option<Instant> {
         self.episode.as_ref().and_then(Episode::due)
+    }
+
+    /// Whether a helper waits for an answer: the attempt's clock stops meanwhile.
+    fn question_open(&self) -> bool {
+        self.episode.as_ref().is_some_and(Episode::question_open)
     }
 }
 
@@ -199,6 +238,9 @@ pub(super) struct Machine {
     waiters: Vec<Waiter>,
     /// The remembered answers no attempt recalls now; kept through a change of the record.
     holds: Holds,
+    /// A `command` episode was dismissed: none is offered until a `user` request or until no
+    /// connection asks.
+    muted: bool,
 }
 
 impl Machine {
@@ -217,6 +259,7 @@ impl Machine {
             proven: false,
             waiters: Vec::new(),
             holds: Holds::default(),
+            muted: false,
         }
     }
 
@@ -286,16 +329,24 @@ impl Machine {
 
     /// When the Machine's next timed transition is due.
     pub(super) fn next_wake(&self) -> Option<Instant> {
-        match &self.phase {
+        let phase = match &self.phase {
             Phase::Idle => None,
             Phase::Waiting { at, .. } => Some(*at),
-            Phase::Attempting(attempt) => Some(attempt.question_due().unwrap_or(attempt.deadline)),
+            // A held question stops the attempt's clock and has no bound of its own: only the
+            // waiters' bounds run.
+            Phase::Attempting(attempt) => match attempt.question_due() {
+                Some(due) => Some(due),
+                None if attempt.question_open() => None,
+                None => Some(attempt.deadline),
+            },
             Phase::Online(link) => match link.pong_by {
                 Some(_) if self.state == MachineState::Unresponsive => None,
                 Some(by) => Some(by),
                 None => Some(link.ping_at),
             },
-        }
+        };
+        let waiting = self.waiters.iter().filter_map(|waiter| waiter.until).min();
+        phase.into_iter().chain(waiting).min()
     }
 
     /// A `connect` request: replied at once when the answer is known, otherwise it waits for the
@@ -315,18 +366,53 @@ impl Machine {
         if let Some(outcome) = known {
             return vec![self.reply(vec![waiter], outcome)];
         }
-        // A person asked: an answer held back from automatic attempts may be tried once more.
+        // A person asked: the mute lifts, and an answer held back from automatic attempts may be
+        // tried once more.
         if waiter.answers == Answers::User {
+            self.unmute();
             self.holds.release();
         }
-        self.waiters.push(waiter);
         match &self.phase {
-            Phase::Idle => self.start(false, None, cx),
-            Phase::Waiting { cause, .. } => self.start(true, *cause, cx),
-            // The claimant learns the new count of requests waiting on its episode.
-            Phase::Attempting(_) => self.recount(),
-            Phase::Online(_) => Vec::new(),
+            Phase::Idle => {
+                self.waiters.push(waiter);
+                self.start(false, None, cx)
+            }
+            Phase::Waiting { cause, .. } => {
+                let cause = *cause;
+                self.waiters.push(waiter);
+                self.start(true, cause, cx)
+            }
+            Phase::Attempting(_) => self.join(waiter, cx),
+            Phase::Online(_) => {
+                self.waiters.push(waiter);
+                Vec::new()
+            }
         }
+    }
+
+    /// `waiter` joins the running attempt. While an episode runs it starts waiting for a person: a
+    /// `user` request claims an offered episode, and the audience reads the new count.
+    fn join(&mut self, mut waiter: Waiter, cx: &Context<'_>) -> Vec<Effect> {
+        let Some(episode) = self.episode() else {
+            self.waiters.push(waiter);
+            return Vec::new();
+        };
+        let claim = waiter.answers == Answers::User && episode.claimant().is_none();
+        if waiter.command() {
+            waiter.until = Some(cx.now.at + cx.question);
+        }
+        let mut effects = vec![waiting(&waiter)];
+        let holder = Holder {
+            peer: waiter.peer,
+            request: Some(waiter.request),
+        };
+        self.waiters.push(waiter);
+        if claim {
+            effects.extend(self.claimed_by(holder, cx));
+        } else {
+            effects.extend(self.announce());
+        }
+        effects
     }
 
     /// A `presence` connection attached: an idle Machine is attempted silently.
@@ -354,12 +440,31 @@ impl Machine {
             return Vec::new();
         }
         let now = cx.now.at;
+        // A `command` request that waited its bound for a person fails alone; an offered episode
+        // it leaves without a waiter ends.
+        let expired: Vec<Waiter> = self
+            .waiters
+            .extract_if(.., |waiter| waiter.until.is_some_and(|until| until <= now))
+            .collect();
+        let mut effects = Vec::new();
+        if !expired.is_empty() {
+            effects.push(self.reply(expired, not_online(ConnectFailure::AuthRequired)));
+            effects.extend(self.review(None, cx));
+        }
+        effects.extend(self.timed(cx));
+        effects
+    }
+
+    /// The timed transitions of the phase due at `cx.now`.
+    fn timed(&mut self, cx: &mut Context<'_>) -> Vec<Effect> {
+        let now = cx.now.at;
         match &mut self.phase {
             Phase::Waiting { at, cause } if *at <= now => {
                 let cause = *cause;
                 self.start(true, cause, cx)
             }
-            // While a question is open only its own bound runs.
+            // While a question is open only its own bound runs, and only once a claimant was
+            // asked.
             Phase::Attempting(attempt) if attempt.question_due().is_some_and(|due| due <= now) => {
                 let carrier = attempt.carrier;
                 self.conclude(
@@ -370,9 +475,7 @@ impl Machine {
                     cx,
                 )
             }
-            Phase::Attempting(attempt)
-                if attempt.question_due().is_none() && attempt.deadline <= now =>
-            {
+            Phase::Attempting(attempt) if !attempt.question_open() && attempt.deadline <= now => {
                 let cause = if attempt.answered.is_some() {
                     OfflineCause::RemoteNotReady
                 } else {
@@ -601,10 +704,11 @@ impl Machine {
     /// target, so another host's password or new host is `other`. While `recall` says the local
     /// `ssh` is known to be 8.5 or later, the attempt's first question of a kind that may be
     /// remembered, and that no hold keeps back, is held while the helper reads the remembered
-    /// answer. A password question after that answer went to `ssh`, or a passphrase question in
-    /// the same words, means `ssh` refused it, which is then deleted and never tried again in this
-    /// attempt. Otherwise the question is [posed](Self::pose). A helper that comes while the
-    /// attempt cannot ask is [refused](Self::refuse).
+    /// answer, before any person is asked or offered the login. A password question after that
+    /// answer went to `ssh`, or a passphrase question in the same words, means `ssh` refused it,
+    /// which is then deleted and never tried again in this attempt. Otherwise the question is
+    /// [posed](Self::pose). A helper that comes while the attempt cannot ask is
+    /// [refused](Self::refuse).
     pub(super) fn question(
         &mut self,
         carrier: u64,
@@ -712,21 +816,31 @@ impl Machine {
         if attempt.episode.is_some() {
             return self.ask(carrier, raised, rejected, cx);
         }
+        let commands = self.waiters.iter().any(Waiter::command);
+        let offer = commands && cx.asking() && !self.muted;
+        // A person's request claims; otherwise an interface that asks is offered the login, and a
+        // `command` that answers itself claims only when no interface can.
         let claimant = self
             .waiters
             .iter()
-            .find(|waiter| match waiter.answers {
-                Answers::User => true,
-                Answers::Command => !cx.asking,
-                Answers::Never => false,
+            .find(|waiter| waiter.answers == Answers::User)
+            .or_else(|| {
+                self.waiters
+                    .iter()
+                    .find(|waiter| waiter.answers == Answers::Command && !offer)
             })
-            .cloned();
-        let login = claimant.as_ref().and_then(|_| {
-            let next = cx.serials.logins.checked_add(1)?;
-            cx.serials.logins = next;
-            Id::new(next)
-        });
-        let (Some(claimant), Some(login)) = (claimant, login) else {
+            .map(|waiter| Holder {
+                peer: waiter.peer,
+                request: Some(waiter.request),
+            });
+        let login = (claimant.is_some() || offer)
+            .then(|| {
+                let next = cx.serials.logins.checked_add(1)?;
+                cx.serials.logins = next;
+                Id::new(next)
+            })
+            .flatten();
+        let Some(login) = login else {
             let failure = match raised.kind {
                 QuestionKind::HostKey { host_key } => Failure::Untrusted(host_key),
                 _ if rejected => Failure::RememberedRejected,
@@ -737,32 +851,31 @@ impl Machine {
             effects.insert(1.min(effects.len()), Effect::Close { carrier });
             return effects;
         };
-        let episode = Episode::new(login, claimant.clone());
-        let mut effects = vec![
-            Effect::Notify {
-                peer: claimant.peer,
-                event: Event::ConnectWaiting(ConnectWaiting {
-                    request: claimant.request,
-                    reason: WaitReason::Login,
-                }),
-            },
-            self.login_event(
-                &episode,
-                LoginPhase::Claimed {
-                    claim: Claimant::You,
-                },
-            ),
-        ];
+        let episode = match claimant {
+            Some(holder) => Episode::claimed(login, holder),
+            None => Episode::offered(login, cx.askers),
+        };
+        // Every request starts waiting for a person; a `command` one for at most its bound.
+        let until = cx.now.at + cx.question;
+        let mut effects = Vec::new();
+        for waiter in &mut self.waiters {
+            if waiter.command() && !waiter.holds(claimant) {
+                waiter.until = Some(until);
+            }
+            effects.push(waiting(waiter));
+        }
         if let Phase::Attempting(attempt) = &mut self.phase {
             attempt.episode = Some(episode);
             self.state = attempting(attempt.retry, attempt.cause, Some(Stage::Authenticating));
         }
+        effects.extend(self.announce());
         effects.extend(self.ask(carrier, raised, rejected, cx));
         effects
     }
 
-    /// Puts `raised` to the claimant of the running episode as its next question; a helper that
-    /// comes while one is open is refused.
+    /// Opens `raised` as the running episode's next question, marked when `ssh` refused the
+    /// remembered answer to it, and puts it to the claimant, or holds it while the episode is
+    /// offered; a helper that comes while one is open is refused.
     fn ask(
         &mut self,
         carrier: u64,
@@ -777,22 +890,10 @@ impl Machine {
         else {
             return self.refuse(carrier, cx);
         };
-        let due = cx.now.at + cx.question;
-        let Some((question, repeated)) = episode.open(Tag::of(&raised.kind), cx.now.at, due) else {
+        if episode.open(raised, rejected, cx.now.at).is_none() {
             return self.refuse(carrier, cx);
-        };
-        vec![Effect::Notify {
-            peer: episode.claimant().peer,
-            event: Event::Question(Question {
-                login: episode.login(),
-                question,
-                kind: raised.kind,
-                prompt: raised.prompt,
-                repeated,
-                remembered_rejected: rejected,
-                answer: raised.answer,
-            }),
-        }]
+        }
+        put(episode, cx).into_iter().collect()
     }
 
     /// The askpass helper of `carrier` took the answer to the open question: the question closes
@@ -820,9 +921,7 @@ impl Machine {
             {
                 self.fail(carrier, Failure::NeedsLogin, cx)
             }
-            Phase::Attempting(attempt)
-                if attempt.carrier == carrier && attempt.question_due().is_some() =>
-            {
+            Phase::Attempting(attempt) if attempt.carrier == carrier && attempt.question_open() => {
                 self.conclude(
                     carrier,
                     Failure::NeedsLogin,
@@ -851,33 +950,56 @@ impl Machine {
         effects
     }
 
-    /// `claim` of the episode `login` from the connection `peer`.
-    pub(super) fn claim(&self, peer: u64, login: Id) -> ClaimOutcome {
-        match self.episode() {
-            Some(episode) if episode.login() == login && episode.claimant().peer == peer => {
-                ClaimOutcome::Claimed
+    /// `claim` of the episode `login` from the connection `peer`: a connection that asks claims an
+    /// offered episode, which then goes to it with its held question.
+    pub(super) fn claim(
+        &mut self,
+        peer: u64,
+        login: Id,
+        cx: &Context<'_>,
+    ) -> (ClaimOutcome, Vec<Effect>) {
+        let claimant = match self.episode() {
+            Some(episode) if episode.login() == login => episode.claimant(),
+            _ => return (ClaimOutcome::Ended, Vec::new()),
+        };
+        match claimant {
+            Some(holder) if holder.peer == peer => (ClaimOutcome::Claimed, Vec::new()),
+            None if cx.askers.contains(&peer) => {
+                let holder = Holder {
+                    peer,
+                    request: None,
+                };
+                (ClaimOutcome::Claimed, self.claimed_by(holder, cx))
             }
-            Some(episode) if episode.login() == login => ClaimOutcome::Taken,
-            _ => ClaimOutcome::Ended,
+            Some(_) | None => (ClaimOutcome::Taken, Vec::new()),
         }
     }
 
-    /// `dismiss` of the episode `login` from the connection `peer`: the claimant's ends the
-    /// attempt `auth-required`.
+    /// `dismiss` of the episode `login` from the connection `peer`: the claimant's, or any asking
+    /// connection's while the episode is offered, ends the attempt `auth-required`, and a `command`
+    /// episode's mutes the Machine.
     pub(super) fn dismiss(
         &mut self,
         peer: u64,
         login: Id,
         cx: &Context<'_>,
     ) -> (DismissOutcome, Vec<Effect>) {
-        let (carrier, claimant) = match (&self.phase, self.episode()) {
-            (Phase::Attempting(attempt), Some(episode)) if episode.login() == login => {
-                (attempt.carrier, episode.claimant().peer)
-            }
+        let (carrier, allowed, trigger) = match (&self.phase, self.episode()) {
+            (Phase::Attempting(attempt), Some(episode)) if episode.login() == login => (
+                attempt.carrier,
+                match episode.claimant() {
+                    Some(holder) => holder.peer == peer,
+                    None => cx.askers.contains(&peer),
+                },
+                episode.trigger(),
+            ),
             _ => return (DismissOutcome::Ended, Vec::new()),
         };
-        if claimant != peer {
+        if !allowed {
             return (DismissOutcome::NotClaimant, Vec::new());
+        }
+        if trigger == Trigger::Command {
+            self.muted = true;
         }
         let effects = self.conclude(carrier, Failure::NeedsLogin, LoginEnd::Dismissed, None, cx);
         (DismissOutcome::Dismissed, effects)
@@ -973,21 +1095,125 @@ impl Machine {
         effects
     }
 
-    /// The connection `peer` closed: its requests wait no longer, and an episode it claimed ends
-    /// `abandoned` with the attempt.
+    /// The connection `peer` closed: its requests wait no longer, an episode it shows no longer
+    /// goes to it, and one it claimed is offered again or ends `abandoned` with the attempt.
     pub(super) fn forget(&mut self, peer: u64, cx: &Context<'_>) -> Vec<Effect> {
         let before = self.waiters.len();
         self.waiters.retain(|waiter| waiter.peer != peer);
-        let Phase::Attempting(attempt) = &self.phase else {
+        let left = self.waiters.len() != before;
+        if !cx.asking() {
+            self.unmute();
+        }
+        let mut effects = self.review(Some((peer, true)), cx);
+        if left && effects.is_empty() {
+            effects = self.announce();
+        }
+        effects
+    }
+
+    /// The connection `peer` stopped asking: a `command` episode no longer goes to it and one it
+    /// claimed is offered again or ends `abandoned`; with nobody asking any more the mute lifts.
+    pub(super) fn stopped_asking(&mut self, peer: u64, cx: &Context<'_>) -> Vec<Effect> {
+        if !cx.asking() {
+            self.unmute();
+        }
+        self.review(Some((peer, false)), cx)
+    }
+
+    /// The connection `peer` started asking: a running `command` episode goes to it as it stands.
+    pub(super) fn asking(&mut self, peer: u64) -> Vec<Effect> {
+        let Phase::Attempting(Attempt {
+            episode: Some(episode),
+            ..
+        }) = &mut self.phase
+        else {
             return Vec::new();
         };
-        let carrier = attempt.carrier;
-        match self.episode() {
-            Some(episode) if episode.claimant().peer == peer => {
-                self.conclude(carrier, Failure::NeedsLogin, LoginEnd::Abandoned, None, cx)
+        if episode.trigger() != Trigger::Command || !episode.join(peer) {
+            return Vec::new();
+        }
+        let episode = episode.clone();
+        vec![self.phase_event(&episode, peer)]
+    }
+
+    /// Settles the running episode after the connection `peer` left, `closed` telling whether its
+    /// connection closed or it stopped asking, or, without `peer`, after waiters left by
+    /// themselves. A claimant that left gives a `command` episode back to the connections that ask
+    /// while a waiter remains, and otherwise ends it `abandoned`; an offered episode with no
+    /// waiter or nobody to ask ends `abandoned` too. Otherwise the audience reads the episode as
+    /// it stands now.
+    fn review(&mut self, peer: Option<(u64, bool)>, cx: &Context<'_>) -> Vec<Effect> {
+        let waiting = self.waiters.iter().any(Waiter::command);
+        let Phase::Attempting(Attempt {
+            carrier,
+            episode: Some(episode),
+            ..
+        }) = &mut self.phase
+        else {
+            return Vec::new();
+        };
+        let carrier = *carrier;
+        let command = episode.trigger() == Trigger::Command;
+        // The connection that left still reads an end it caused.
+        let offered = episode.claimant().is_none();
+        if let Some((peer, closed)) = peer {
+            // A `user` episode is its claimant's whether it asks or not.
+            if !command && !closed {
+                return Vec::new();
             }
-            Some(_) if self.waiters.len() != before => self.recount(),
-            _ => Vec::new(),
+            if episode.claimant().is_some_and(|holder| holder.peer == peer) {
+                if !(command && waiting && cx.asking()) {
+                    return self.abandon(carrier, cx);
+                }
+                episode.leave(peer);
+                episode.release();
+                return self.announce();
+            }
+            if offered && !(waiting && cx.asking()) {
+                return self.abandon(carrier, cx);
+            }
+            episode.leave(peer);
+            return Vec::new();
+        }
+        if offered && !waiting {
+            return self.abandon(carrier, cx);
+        }
+        self.announce()
+    }
+
+    /// Ends the attempt of `carrier` and its episode `abandoned`: nobody is left to answer.
+    fn abandon(&mut self, carrier: u64, cx: &Context<'_>) -> Vec<Effect> {
+        self.conclude(carrier, Failure::NeedsLogin, LoginEnd::Abandoned, None, cx)
+    }
+
+    /// `holder` claims the offered episode: the audience reads who holds it and the held question
+    /// goes to the claimant, its bound starting now.
+    fn claimed_by(&mut self, holder: Holder, cx: &Context<'_>) -> Vec<Effect> {
+        let Phase::Attempting(Attempt {
+            episode: Some(episode),
+            ..
+        }) = &mut self.phase
+        else {
+            return Vec::new();
+        };
+        episode.claim(holder);
+        let question = put(episode, cx);
+        let mut effects = self.announce();
+        effects.extend(question);
+        effects
+    }
+
+    /// Lifts the mute; a Machine that read `login-dismissed` reads `auth-required` again.
+    fn unmute(&mut self) {
+        self.muted = false;
+        if self.state
+            == (MachineState::NeedsLogin {
+                cause: Some(NeedsLoginCause::LoginDismissed),
+            })
+        {
+            self.state = MachineState::NeedsLogin {
+                cause: Some(NeedsLoginCause::AuthRequired),
+            };
         }
     }
 
@@ -1065,6 +1291,11 @@ impl Machine {
                 }
                 self.phase = Phase::Idle;
                 self.state = failure.state();
+                if self.muted && matches!(self.state, MachineState::NeedsLogin { .. }) {
+                    self.state = MachineState::NeedsLogin {
+                        cause: Some(NeedsLoginCause::LoginDismissed),
+                    };
+                }
             }
         }
         effects.extend(self.reply_all(not_online(outcome)));
@@ -1086,8 +1317,8 @@ impl Machine {
         }
     }
 
-    /// Ends the running episode, if any, with `end`: an open question's helper is closed and the
-    /// claimant receives the ended `login`.
+    /// Ends the running episode, if any, with `end`: an open question's helper is closed, the
+    /// audience receives the ended `login`, and the waiters no longer wait for a person.
     fn close_episode(&mut self, end: LoginEnd) -> Vec<Effect> {
         let Phase::Attempting(attempt) = &mut self.phase else {
             return Vec::new();
@@ -1101,26 +1332,46 @@ impl Machine {
         let Some(episode) = attempt.episode.take() else {
             return effects;
         };
-        if episode.due().is_some() {
+        if episode.question_open() {
             effects.push(Effect::Close { carrier });
         }
-        effects.push(self.login_event(&episode, LoginPhase::Ended { end }));
+        for waiter in &mut self.waiters {
+            waiter.until = None;
+        }
+        effects.extend(
+            episode
+                .audience()
+                .iter()
+                .map(|peer| self.login_event(&episode, *peer, LoginPhase::Ended { end })),
+        );
         effects
     }
 
-    /// The running episode's `login` event again, after the requests waiting on it changed.
-    fn recount(&self) -> Vec<Effect> {
-        self.episode()
-            .map(|episode| {
-                self.login_event(
-                    episode,
-                    LoginPhase::Claimed {
-                        claim: Claimant::You,
-                    },
-                )
-            })
-            .into_iter()
+    /// The running episode's `login` event, as it stands, to every connection it goes to.
+    fn announce(&self) -> Vec<Effect> {
+        let Some(episode) = self.episode() else {
+            return Vec::new();
+        };
+        episode
+            .audience()
+            .iter()
+            .map(|peer| self.phase_event(episode, *peer))
             .collect()
+    }
+
+    /// The `login` event of `episode` as it stands, for the connection `peer`.
+    fn phase_event(&self, episode: &Episode, peer: u64) -> Effect {
+        let phase = match episode.claimant() {
+            None => LoginPhase::Offered,
+            Some(holder) => LoginPhase::Claimed {
+                claim: if holder.peer == peer {
+                    Claimant::You
+                } else {
+                    Claimant::Other
+                },
+            },
+        };
+        self.login_event(episode, peer, phase)
     }
 
     /// The link of `carrier` was lost after `online`.
@@ -1147,21 +1398,21 @@ impl Machine {
         effects
     }
 
-    /// The `login` event of `episode` in `phase`, for its claimant alone; `waiters` counts the
-    /// other requests that are no `user` request.
-    fn login_event(&self, episode: &Episode, phase: LoginPhase) -> Effect {
+    /// The `login` event of `episode` in `phase` for the connection `peer`; `waiters` counts the
+    /// `command` requests waiting, the claimant's own excluded.
+    fn login_event(&self, episode: &Episode, peer: u64, phase: LoginPhase) -> Effect {
         let claimant = episode.claimant();
         let waiters = self
             .waiters
             .iter()
-            .filter(|waiter| *waiter != claimant && waiter.answers != Answers::User)
+            .filter(|waiter| waiter.command() && !waiter.holds(claimant))
             .count();
         Effect::Notify {
-            peer: claimant.peer,
+            peer,
             event: Event::Login(LoginEvent {
                 login: episode.login(),
                 machine: self.id.clone(),
-                trigger: Trigger::User,
+                trigger: episode.trigger(),
                 phase,
                 waiters: count(waiters),
             }),
@@ -1219,6 +1470,27 @@ const fn attempting(
 
 const fn not_online(failure: ConnectFailure) -> ConnectOutcome {
     ConnectOutcome::NotOnline(failure)
+}
+
+/// `connect-waiting` for `waiter`: its request now waits for a person.
+const fn waiting(waiter: &Waiter) -> Effect {
+    Effect::Notify {
+        peer: waiter.peer,
+        event: Event::ConnectWaiting(ConnectWaiting {
+            request: waiter.request,
+            reason: WaitReason::Login,
+        }),
+    }
+}
+
+/// Puts the open question of `episode` to its claimant, unanswered after the question bound.
+fn put(episode: &mut Episode, cx: &Context<'_>) -> Option<Effect> {
+    episode
+        .put(cx.now.at + cx.question)
+        .map(|(peer, question)| Effect::Notify {
+            peer,
+            event: Event::Question(question),
+        })
 }
 
 /// The wall-clock time `wall`, in milliseconds since the Unix epoch.

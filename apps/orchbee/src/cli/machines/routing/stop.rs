@@ -29,7 +29,11 @@ mod hub;
 mod hub {
     use super::{super::Refusal, Context, Error, Stopped, mapped};
 
-    pub(super) fn stop(_machine: &str, _context: &mut Context) -> Result<Stopped, Refusal> {
+    pub(super) fn stop(
+        _machine: &str,
+        _waiting: &str,
+        _context: &mut Context,
+    ) -> Result<Stopped, Refusal> {
         Err(mapped(Error::SshUnavailable))
     }
 }
@@ -94,7 +98,8 @@ pub(crate) fn run(stop: &RemoteStop, locale: Locale) -> Output {
         signals,
         deadline: Instant::now(),
     };
-    let mut result = match hub::stop(machine.id, &mut context) {
+    let waiting = CliText::new(locale).cli_machine_waiting(machine.label);
+    let mut result = match hub::stop(machine.id, &waiting, &mut context) {
         Ok(stopped) => emit(&machine, stopped, stop.format, locale),
         Err(refusal) => failed(refusal, Outcome::NotSubmitted, stop.format, locale),
     };

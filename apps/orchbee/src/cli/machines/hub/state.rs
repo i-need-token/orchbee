@@ -213,7 +213,7 @@ impl Hub {
         if order > self.reload_applied {
             self.reload_applied = order;
             let conditions = self.conditions();
-            let outcome = self.machines.replace(read, conditions);
+            let outcome = self.machines.replace(read, &conditions);
             self.publish(outcome);
         }
     }
@@ -229,7 +229,16 @@ impl Hub {
             now: Moment::now(),
             presence: self.peers.values().any(|peer| peer.presence),
             closing: self.lifetime.is_closing(),
-            asking: self.peers.values().any(|peer| peer.asks),
+            askers: {
+                let mut askers: Vec<u64> = self
+                    .peers
+                    .iter()
+                    .filter(|(_, peer)| peer.asks)
+                    .map(|(id, _)| *id)
+                    .collect();
+                askers.sort_unstable();
+                askers
+            },
             question: self.question,
         }
     }
@@ -276,7 +285,7 @@ impl Hub {
         transition: impl FnOnce(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
     ) {
         let conditions = self.conditions();
-        let outcome = self.machines.update(id, conditions, transition);
+        let outcome = self.machines.update(id, &conditions, transition);
         self.publish(outcome);
     }
 
@@ -301,7 +310,7 @@ impl Hub {
         transition: impl FnMut(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
     ) {
         let conditions = self.conditions();
-        let outcome = self.machines.each(conditions, transition);
+        let outcome = self.machines.each(&conditions, transition);
         self.publish(outcome);
     }
 

@@ -16,7 +16,8 @@
 //! them; a routed path operand is resolved by the far business process against the far home; a
 //! Session stream through the hub carries bytes both ways, its client leaving keeps the hub and the
 //! Machine, and `stop-session` stops the far Session through the link. Through a fake `ssh` that asks its questions through the
-//! askpass helper, `questions` covers the login episode and the answer path. Every hub runs a
+//! askpass helper, `questions` covers the login episode and the answer path, and commands that wait
+//! for a person at the interfaces that ask. Every hub runs a
 //! stand-in, so no test starts `ssh` or names a reachable machine.
 #![cfg(windows)]
 

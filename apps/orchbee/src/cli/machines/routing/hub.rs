@@ -42,9 +42,11 @@ impl Failed {
 }
 
 /// Sends `packet` to the Machine `machine` and returns the reply packet's bytes. `outcome` turns
-/// `unknown` once the packet's `end` is sent and stays so unless the hub states no effect.
+/// `unknown` once the packet's `end` is sent and stays so unless the hub states no effect. A login
+/// the hub offers to an interface writes `waiting` on standard error and waits for the person.
 pub(super) fn route(
     machine: &str,
+    waiting: &str,
     packet: &[u8],
     limit: usize,
     context: &mut Context,
@@ -53,7 +55,7 @@ pub(super) fn route(
     let machine = MachineId::new(machine).map_err(|_| mapped(Error::Internal))?;
     context.deadline = Instant::now() + CONNECT;
     let client = connect::open(context).map_err(mapped)?;
-    let result = carry(&client, &machine, packet, limit, context, outcome);
+    let result = carry(&client, &machine, waiting, packet, limit, context, outcome);
     connect::close(client);
     result
 }
@@ -61,6 +63,7 @@ pub(super) fn route(
 fn carry(
     client: &Arc<HubClient>,
     machine: &MachineId,
+    waiting: &str,
     packet: &[u8],
     limit: usize,
     context: &mut Context,
@@ -83,7 +86,7 @@ fn carry(
         remote_version: None,
         unforgotten: false,
     };
-    connect::ask_connect(client, machine, context, &mut report).map_err(mapped)?;
+    connect::ask_connect(client, machine, waiting, context, &mut report).map_err(mapped)?;
     attempt(client, machine, packet, limit, context, outcome).map_err(Failed::refusal)
 }
 

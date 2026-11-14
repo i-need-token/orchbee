@@ -4,7 +4,9 @@
 //! standard error, answered on standard input: without echo for a secret, `yes` for a new host. An
 //! answer goes straight to the question's endpoint; one it does not take is reported at once. An
 //! empty line or anything but `yes` for a host dismisses the episode, and an interrupt dismisses
-//! it and ends the command. `docs/machines.md#connect-and-disconnect` owns the rule and
+//! it and ends the command. Every `connect` of a command waits here, with a console or without:
+//! one the hub offers to an interface that asks says so on standard error and waits for the
+//! person there. `docs/machines.md#connect-and-disconnect` owns the rule and
 //! `docs/machines.md#answer-path` the buffers that hold an answer. With `--remember` a password or
 //! passphrase answer is kept until the login ends; see [`super::remember`].
 
@@ -44,6 +46,9 @@ const DISMISS: Duration = Duration::from_secs(3);
 /// Where the `connect` request's own wait ends. The command's deadline, which time at a question
 /// extends, ends the wait sooner, and the hub bounds every question and the attempt.
 const REQUEST: Duration = Duration::from_secs(60 * 60);
+/// The hub's bound on a command's wait for a person at an interface, which the command's deadline
+/// does not count.
+const PERSON: Duration = Duration::from_secs(120);
 /// UTF-16 units one read takes: the longest admissible answer, one unit for each byte, and the
 /// line's CR LF.
 const UNITS: usize = MAXIMUM_ANSWER_BYTES + 2;
@@ -80,14 +85,18 @@ impl Console {
 }
 
 /// Sends the `connect` request and waits for its reply under the command's deadline, asking each
-/// question the hub puts to this command meanwhile. `Err` is an interrupt, which dismisses the
-/// episode, or a failure to wait at all. An interrupt at an open question leaves `remote`
-/// unchanged, since `ssh` asks before the far side runs anything.
+/// question the hub puts to this command on `console` meanwhile. A request the hub sends
+/// `connect-waiting` without making this command the claimant waits for a person at an interface:
+/// `waiting` goes on standard error once, and the hub's bound for that wait is added to the
+/// deadline. `Err` is an interrupt, which dismisses the episode, or a failure to wait at all. An
+/// interrupt at an open question leaves `remote` unchanged, since `ssh` asks before the far side
+/// runs anything.
 pub(super) fn converse(
     client: &Arc<HubClient>,
     request: Request,
     machine: &MachineId,
-    console: &Console,
+    console: Option<&Console>,
+    waiting: &str,
     context: &mut Context,
     remote: &mut Remote,
 ) -> Result<Result<Reply, RequestFailure>, Error> {
@@ -102,7 +111,10 @@ pub(super) fn converse(
         .map_err(|_| Error::Internal)?;
     let mut login: Option<Id> = None;
     let mut asking: Option<Asking> = None;
-    let mut kept = Kept::new(console.remember.as_ref());
+    let mut kept = Kept::new(console.and_then(|console| console.remember.as_ref()));
+    // `connect-waiting` came and no claim followed it yet; and whether the line was written.
+    let mut pending = false;
+    let mut said = false;
     loop {
         match replies.try_recv() {
             Ok(reply) => {
@@ -141,6 +153,7 @@ pub(super) fn converse(
             {
                 // Time at a question does not count against the command's deadline.
                 context.deadline += open.since.elapsed();
+                let text = open.text;
                 let question = open.finish();
                 match reply(&line, &question.kind) {
                     Act::Deliver(answer) => match deliver(&question.answer, answer) {
@@ -148,8 +161,8 @@ pub(super) fn converse(
                         // Nothing reached the endpoint, which still waits: the same question
                         // again.
                         Err(DeliveryFailure::Inadmissible) => {
-                            say(&console.text.cli_machine_answer_undelivered(true));
-                            match Asking::start(console, question) {
+                            say(&text.cli_machine_answer_undelivered(true));
+                            match console.and_then(|console| Asking::start(console, question)) {
                                 Some(open) => asking = Some(open),
                                 None => dismiss(client, login),
                             }
@@ -157,7 +170,7 @@ pub(super) fn converse(
                         // The endpoint is gone or refused it: the login stops, and the reply
                         // says how the attempt ended.
                         Err(DeliveryFailure::Unreachable | DeliveryFailure::Refused) => {
-                            say(&console.text.cli_machine_answer_undelivered(false));
+                            say(&text.cli_machine_answer_undelivered(false));
                             dismiss(client, login);
                         }
                     },
@@ -173,11 +186,25 @@ pub(super) fn converse(
             return Err(Error::Timeout);
         }
         match client.next(Instant::now() + POLL) {
+            // The claimant hears of its claim with the same write; once nothing more is queued,
+            // a request that was not claimed waits for an interface.
+            None if pending => {
+                pending = false;
+                said = true;
+                say(waiting);
+                context.deadline += PERSON;
+            }
+            Some(Notice::Event(Event::ConnectWaiting(_))) if !said && login.is_none() => {
+                pending = true;
+            }
             Some(Notice::Event(Event::Login(event))) if event.machine == *machine => {
                 match event.phase {
                     LoginPhase::Claimed {
                         claim: Claimant::You,
-                    } => login = Some(event.login),
+                    } => {
+                        login = Some(event.login);
+                        pending = false;
+                    }
                     LoginPhase::Ended { end } if login == Some(event.login) => {
                         login = None;
                         kept.ended(end);
@@ -188,6 +215,11 @@ pub(super) fn converse(
             Some(Notice::Event(Event::Question(question)))
                 if login == Some(question.login) && asking.is_none() =>
             {
+                // A command without a console never claims, so it is never put a question.
+                let Some(console) = console else {
+                    dismiss(client, login);
+                    continue;
+                };
                 if question.remembered_rejected {
                     say(console
                         .text
@@ -246,6 +278,7 @@ struct Asking {
     since: Instant,
     mode: Mode,
     lines: mpsc::Receiver<Line>,
+    text: CliText,
 }
 
 impl Asking {
@@ -283,6 +316,7 @@ impl Asking {
             since: Instant::now(),
             mode,
             lines,
+            text: console.text,
         })
     }
 

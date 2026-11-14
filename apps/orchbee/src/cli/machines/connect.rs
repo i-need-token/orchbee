@@ -57,6 +57,7 @@ mod windows {
         remember::Remember,
     };
     use crate::{
+        cli_text::CliText,
         localization::Locale,
         machines::{Connection, Error as CatalogError, Store},
     };
@@ -83,8 +84,8 @@ mod windows {
 
     /// Connects the Machine `selector` names and returns once the hub reports it `online` or the
     /// reason it is not. With standard input and standard error both consoles, the command asks
-    /// the login questions on them, and with `remember` it remembers a password or passphrase
-    /// typed there once the login succeeds.
+    /// the login questions on them unless an interface that asks is attached to the hub, and with
+    /// `remember` it remembers a password or passphrase typed there once the login succeeds.
     pub(in super::super) fn connect(
         store: &Store,
         selector: &str,
@@ -97,23 +98,33 @@ mod windows {
         let remembering = remember.then(|| Remember::new(machine.clone(), &label(report)));
         let console =
             target(report).and_then(|target| Console::detect(target, locale, remembering));
+        let waiting = CliText::new(locale).cli_machine_waiting(&label(report));
         context.check()?;
         let client = open(context)?;
-        let result = connect_through(&client, &machine, console.as_ref(), context, report);
+        let result = connect_through(
+            &client,
+            &machine,
+            console.as_ref(),
+            &waiting,
+            context,
+            report,
+        );
         close(client);
         result
     }
 
     /// Brings the Machine `machine` `online` through `client` under the `machine connect` rules,
-    /// asking nobody: the hub takes the current catalog first, and a hub closing under the request
-    /// is asked once more through the one that takes its place.
+    /// asking nobody here: the hub takes the current catalog first, a hub closing under the
+    /// request is asked once more through the one that takes its place, and a login the hub
+    /// offers to an interface writes `waiting` and waits for the person there.
     pub(in super::super) fn ask_connect(
         client: &Arc<HubClient>,
         machine: &MachineId,
+        waiting: &str,
         context: &mut Context,
         report: &mut Report,
     ) -> Result<(), Error> {
-        connect_through(client, machine, None, context, report)
+        connect_through(client, machine, None, waiting, context, report)
     }
 
     /// `ask_connect`, with `answers` and the questions asked on `console` when there is one.
@@ -121,6 +132,7 @@ mod windows {
         client: &Arc<HubClient>,
         machine: &MachineId,
         console: Option<&Console>,
+        waiting: &str,
         context: &mut Context,
         report: &mut Report,
     ) -> Result<(), Error> {
@@ -139,17 +151,15 @@ mod windows {
                 },
                 draft: None,
             });
-            let answered = match console {
-                Some(console) => asking::converse(
-                    client,
-                    request,
-                    machine,
-                    console,
-                    context,
-                    &mut report.remote,
-                )?,
-                None => ask(client, request, context)?,
-            };
+            let answered = asking::converse(
+                client,
+                request,
+                machine,
+                console,
+                waiting,
+                context,
+                &mut report.remote,
+            )?;
             match answered {
                 Ok(Reply::Connect(ConnectResult {
                     outcome: ConnectOutcome::Online { remote_version },
@@ -316,27 +326,17 @@ mod windows {
         asked.map(drop).or_else(interrupted)
     }
 
-    /// The `ssh` target of the machine the report resolved.
-    /// The saved label of the Machine the report names.
+    /// The label of the machine the report resolved.
     fn label(report: &Report) -> String {
         report
             .id
             .as_ref()
-            .and_then(|id| {
-                Some(
-                    report
-                        .catalog
-                        .as_ref()?
-                        .resolve(id.as_str())
-                        .ok()?
-                        .draft
-                        .label
-                        .clone(),
-                )
-            })
+            .and_then(|id| report.catalog.as_ref()?.resolve(id.as_str()).ok())
+            .map(|profile| profile.draft.label.clone())
             .unwrap_or_default()
     }
 
+    /// The `ssh` target of the machine the report resolved.
     fn target(report: &Report) -> Option<String> {
         let id = report.id.as_ref()?;
         match &report
