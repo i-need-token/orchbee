@@ -180,9 +180,10 @@ member that no restore holds keeps the empty-slot hint. Retry is focused first; 
 right arrows move between the buttons, and Enter or Space activates one; other keys are refused as
 for any unattached member. A pointer press activates a button on release. Retry and Start in home
 folder send one `panel.restore-terminal` at a time and keep the buttons disabled until the reply.
-Retry while the directory is still missing shows "Directory still unavailable"; Start in home
-folder for a Panel whose Agent conversation was waiting shows "Agent conversation not resumed";
-any other refusal shows "Terminal not started". A failed launch then shows the ordinary failed
+Retry while the directory is still missing shows "Couldn't find the folder."; Start in home
+folder for a Panel whose Agent conversation was waiting shows "Couldn't resume the Agent
+conversation."; any other refusal shows "Couldn't start the terminal.". A failed launch then shows
+the ordinary failed
 page. Close is the ordinary Panel close, with its confirmation path. Nothing retries
 automatically. The [checkpoint owner](../../orchbee-server/docs/workbench-checkpoint.md#held-restore)
 owns what the hold keeps.

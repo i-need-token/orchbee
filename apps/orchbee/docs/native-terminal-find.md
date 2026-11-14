@@ -50,14 +50,14 @@ A plain left release on a control acts as its key: `Aa` toggles Match case, `[^]
 `[x]` closes. Controls take the shared hover and pressed states; disabled previous and next take
 neither. The bar shows no tooltips, like the other mode bars of the native Client.
 
-| State      | Counter cell | Other                                                                                           |
-| ---------- | ------------ | ----------------------------------------------------------------------------------------------- |
-| Empty      | blank        | No read is made; previous and next are disabled                                                 |
-| Searching  | `…`          | The previous highlights stay until the result arrives                                           |
-| Matches    | `3/17`       | Active match painted `surface-selection`, other visible matches `surface-related`               |
-| No matches | `0/0`        | Previous and next are disabled; the view does not move                                          |
-| Time limit | blank        | Notice "Search stopped after reaching the time limit" (short: Search stopped)                   |
-| Read error | blank        | Notice "Retained terminal output could not be searched" (short: Search failed); the query stays |
+| State      | Counter cell | Other                                                                             |
+| ---------- | ------------ | --------------------------------------------------------------------------------- |
+| Empty      | blank        | No read is made; previous and next are disabled                                   |
+| Searching  | `…`          | The previous highlights stay until the result arrives                             |
+| Matches    | `3/17`       | Active match painted `surface-selection`, other visible matches `surface-related` |
+| No matches | `0/0`        | Previous and next are disabled; the view does not move                            |
+| Time limit | blank        | Notice "Couldn't finish the search."                                              |
+| Read error | blank        | Notice "Couldn't search the terminal output."; the query stays                    |
 
 The status chip shows the indicator `FIND` / `查找` with the hints `Esc` Close and `Enter` Next.
 A Find notice leads the chip while it shows, and the prefix indicator replaces `FIND` while the

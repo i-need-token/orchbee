@@ -1066,7 +1066,7 @@ application calls no store.
   "Passwords can't be remembered in this kind of login." in place of the box. The TUI asks the
   store, and the `ssh` release below, on a thread of its own when the first password or passphrase
   question arrives or a remote row is first selected, and shows the box once they answered. A
-  ticked answer the store does not take after a login that succeeded shows "Password not saved" in
+  ticked answer the store does not take after a login that succeeded shows "Couldn't save the password." in
   the status line.
 - **The `ssh` release.** Only an `ssh` of OpenSSH 8.5 or later is given a remembered answer: an
   older one may pass a server's keyboard-interactive prompt without the `(user@host) ` prefix, so

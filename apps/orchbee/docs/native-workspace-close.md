@@ -178,7 +178,7 @@ missing receipt only revokes shown authority; it does not classify geometry or d
 A newer projection that leaves the confirmed scope's facts unchanged — the addressed Workspace with
 its whole terminal Context, or the named Project with its ordered members — rebases the prompt onto
 that projection. A change to those facts or to the Session cancels it with the localized
-"Workspace changed; try again" notice, and a selection change cancels it. A background publication
+"Couldn't apply the change." notice, and a selection change cancels it. A background publication
 read neither blocks opening nor cancels the prompt; `Enter` during one waits for it to settle and
 submits before the next background read. The addressed Workspace must still name the exact
 captured terminal Context; disappearance or identity replacement invalidates confirmation even when

@@ -117,12 +117,12 @@ Presentation, canonical binding and expected physical host must still match, Wor
 switch as needed, and the Panel takes focus. Navigation stays inside the notification's source
 Session and never switches machines.
 
-| Outcome     | Effect                                                                                                                                                                                                                                                              |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Opened      | The target was current or its selection was admitted. The card closes and the Agent's current versions are marked seen, as [explicit Agent focus](native-client-attention.md) marks them.                                                                           |
-| Held        | The user's own switch or a background read is settling. The card closes, terminal input waits as it does for a held focus move, and the opening replays once that settles, with every fact checked again. A hold past five seconds ends with the busy notice.       |
-| Busy        | Other work, such as a pending change, keeps the Workbench from navigating. The busy notice answers, nothing moves, and the card stays, so a later click or key can open it.                                                                                         |
-| Unavailable | The Panel was closed or removed, its terminal was rebound, or the Session, Workspace or host is unavailable. The card closes, the status line says "This Agent is no longer available" ("这个智能体已不可用"), and nothing else takes focus or replaces the target. |
+| Outcome     | Effect                                                                                                                                                                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Opened      | The target was current or its selection was admitted. The card closes and the Agent's current versions are marked seen, as [explicit Agent focus](native-client-attention.md) marks them.                                                                     |
+| Held        | The user's own switch or a background read is settling. The card closes, terminal input waits as it does for a held focus move, and the opening replays once that settles, with every fact checked again. A hold past five seconds ends with the busy notice. |
+| Busy        | Other work, such as a pending change, keeps the Workbench from navigating. The busy notice answers, nothing moves, and the card stays, so a later click or key can open it.                                                                                   |
+| Unavailable | The Panel was closed or removed, its terminal was rebound, or the Session, Workspace or host is unavailable. The card closes, the status line says "Couldn't go to the Agent." ("没能跳到这个智能体。"), and nothing else takes focus or replaces the target. |
 
 The Agent card shows the shared pointer feedback: hover takes the hover surface, and a press takes
 the pressed surface with a bold title. It has no tooltip, because TUI pointer tooltips belong to the

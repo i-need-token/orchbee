@@ -103,7 +103,7 @@ old terminal cursor before terminal cells are drawn. A status token describes ex
 completely visible in the final frame; notice replacement, clipping or later coverage cannot
 qualify it.
 
-A definite Close refusal displays “Close request was not applied” / “关闭请求未执行”.
+A definite Close refusal displays “Couldn't close it.” / “没能关闭。”.
 When a retained Close status exists, this local notice uses the secondary notice area and preserves
 that status.
 
@@ -1711,25 +1711,23 @@ reveal readiness. Ordinary Move admission refusal preserves
 the existing notice without reacquiring the mailbox; the local-busy row applies to the other
 structural admission paths.
 
-| Semantic state                       | en-US                                                    | zh-CN                                          |
-| ------------------------------------ | -------------------------------------------------------- | ---------------------------------------------- |
-| Creating                             | `Creating Tab…`                                          | `正在创建 Tab…`                                |
-| Definite Create precommit refusal    | `Couldn't create the Tab.`                               | `没能创建标签页。`                             |
-| Refreshing                           | `Refreshing Tabs…`                                       | `正在刷新 Tab…`                                |
-| Refresh success                      | no status                                                | no status                                      |
-| Refresh failure                      | `Couldn't refresh the Tabs.`                             | `没能刷新标签页。`                             |
-| Local admission refusal              | `Couldn't run the action.`                               | `没能执行操作。`                               |
-| Numeric selection out of range       | `Couldn't go to Tab {N}.`                                | `没能切换到第 {N} 个标签页。`                  |
-| Switching                            | `Tab {N} · Connecting…`                                  | `Tab {N} · 正在连接…`                          |
-| NeedSnapshot before first frame      | `Tab {N} · Connecting · waiting for full frame`          | `Tab {N} · 正在连接 · 等待完整帧`              |
-| ProjectionBlocked before first frame | `Tab {N} · Connecting · display blocked`                 | `Tab {N} · 正在连接 · 显示已阻塞`              |
-| Ready Controlling                    | `Tab {N} · Ready · controlling`                          | `Tab {N} · 已就绪 · 可控制`                    |
-| Ready ReadOnly                       | `Tab {N} · Ready · view only`                            | `Tab {N} · 已就绪 · 仅查看`                    |
-| Committed snapshot unavailable       | `Couldn't show the latest change.`                       | `没能显示最新的更改。`                         |
-| Known terminal pending               | `Tab {N} · Connecting`                                   | `Tab {N} · 连接中`                             |
-| Known terminal unavailable           | `Tab {N} · terminal unavailable`                         | `Tab {N} · 终端不可用`                         |
-| Known terminal failure               | `Tab {N} · Couldn't start the terminal.`                 | `Tab {N} · 没能启动终端。`                     |
-| Known terminal outcome unknown       | `Tab {N} · Not sure it finished. Check, then try again.` | `Tab {N} · 不确定是否完成，请先看一下再重试。` |
+| Semantic state                    | en-US                                                    | zh-CN                                             |
+| --------------------------------- | -------------------------------------------------------- | ------------------------------------------------- |
+| Creating                          | `Creating Tab…`                                          | `正在创建标签页…`                                 |
+| Definite Create precommit refusal | `Couldn't create the Tab.`                               | `没能创建标签页。`                                |
+| Refreshing                        | `Refreshing Tabs…`                                       | `正在刷新标签页…`                                 |
+| Refresh success                   | no status                                                | no status                                         |
+| Refresh failure                   | `Couldn't refresh the Tabs.`                             | `没能刷新标签页。`                                |
+| Local admission refusal           | `Couldn't run the action.`                               | `没能执行操作。`                                  |
+| Numeric selection out of range    | `Couldn't go to Tab {N}.`                                | `没能切换到第 {N} 个标签页。`                     |
+| Switching or starting             | `Connecting`                                             | `连接中`                                          |
+| Ready Controlling                 | `Tab {N} · Ready`                                        | `标签页 {N} · 已就绪`                             |
+| Ready ReadOnly                    | `Tab {N} · View only`                                    | `标签页 {N} · 仅查看`                             |
+| Committed snapshot unavailable    | `Couldn't show the latest change.`                       | `没能显示最新的更改。`                            |
+| Known terminal pending            | `Tab {N} · Connecting`                                   | `标签页 {N} · 连接中`                             |
+| Known terminal unavailable        | `Tab {N} · terminal unavailable`                         | `标签页 {N} · 终端不可用`                         |
+| Known terminal failure            | `Tab {N} · Couldn't start the terminal.`                 | `标签页 {N} · 没能启动终端。`                     |
+| Known terminal outcome unknown    | `Tab {N} · Not sure it finished. Check, then try again.` | `标签页 {N} · 不确定是否完成，请先看一下再重试。` |
 
 Refresh statuses render inside the open navigator. They are retained but visually silent while it
 is closed. PTY observers read the resting frame: one active Tab token, and for control the absence
