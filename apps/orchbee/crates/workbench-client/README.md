@@ -27,8 +27,8 @@ the application does not name keep crate or narrower visibility.
   start.
 - Machines: saved-machine discovery through the machine hub, pickers, hub Session carriers, and
   observation.
-- Client-local configuration, localization of runtime copy, notifications, onboarding, and
-  termination signals.
+- Client-local configuration, localization of runtime copy, notifications, and termination
+  signals.
 
 ## Dependency direction
 
@@ -163,6 +163,5 @@ in both locales that the file can't be used and the last valid settings stay in 
 editable over the last valid values, and a Save against the broken file is refused without writing
 and names why. Unrelated configuration warnings retain their existing guidance.
 
-No read silently repairs a record or saves a migration; the onboarding, machine and TUI position
-records persist a migration only when they are next written, through the local runtime's
+No read silently repairs a record or saves a migration; the machine and TUI position records persist a migration only when they are next written, through the local runtime's
 `VersionedFile`.

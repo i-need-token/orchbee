@@ -144,7 +144,6 @@ impl InteractionTarget {
                 action: target.control(),
             },
             Self::GlobalChrome(action) => match action {
-                super::GlobalChromeAction::Onboarding(action) => HitTarget::Onboarding(*action),
                 super::GlobalChromeAction::RestoreSidebar => HitTarget::SidebarRestoreButton,
                 super::GlobalChromeAction::HideSidebar => HitTarget::SidebarHideButton,
                 super::GlobalChromeAction::ShortcutHelp => HitTarget::ShortcutHelpButton,

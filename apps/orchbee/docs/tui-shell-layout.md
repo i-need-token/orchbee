@@ -119,7 +119,7 @@ top edge and ends with the [sidebar toggle](#sidebar-toggle-and-help), as the Se
 with Help. The bracketed action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
-remain outside the scrolling navigation tree. Undismissed first-run guidance, when offered, also reserves space above Settings, leaving at least four navigation rows; it never paints into the terminal. It is withheld for now; see [native onboarding](native-onboarding.md). Projects in their canonical
+remain outside the scrolling navigation tree. Projects in their canonical
 display order and their children follow, then the Workspaces outside any Project under a localized
 Recents heading (`Recents`; `最近` in Chinese), always last. Headings show no member count; only the
 label truncates. Optional Projects group

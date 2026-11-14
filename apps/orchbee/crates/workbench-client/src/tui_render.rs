@@ -99,7 +99,6 @@ mod modal;
 pub(crate) use modal::{OverlayFrame, overlay_surface, titled_overlay};
 use modal::{overlay_block, overlay_heading, overlay_title};
 mod navigator;
-mod onboarding;
 mod pane_graphics;
 mod pane_titles;
 mod panel_close;

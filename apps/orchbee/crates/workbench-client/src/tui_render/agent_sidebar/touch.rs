@@ -9,7 +9,7 @@
 use super::super::environment_marker;
 use super::super::sidebar_chrome::{self, TRAILING_GAP, TouchRow};
 use super::super::sidebar_touch::{Halos, Painted, TouchAction, paint_action, resolve};
-use super::{ActionKind, Rect, Role, SidebarArea, SidebarInput, Theme, display_width};
+use super::{ActionKind, Rect, Role, SidebarArea, Theme, display_width};
 use super::{ClientView, Frame, HitLayer, HitMapBuilder, Locale, Paragraph};
 use crate::tui_hit_map::InteractionTarget;
 
@@ -27,7 +27,6 @@ pub(super) struct Context<'a> {
     pub(super) locale: Locale,
     pub(super) theme: &'a Theme,
     pub(super) layer: HitLayer,
-    pub(super) input: SidebarInput,
     pub(super) owns_keyboard: bool,
     pub(super) source: &'a crate::machine_picker::SidebarSource,
     pub(super) controls: &'a sidebar_chrome::Context<'a>,
@@ -85,7 +84,6 @@ pub(super) fn render(
         locale,
         theme,
         layer,
-        input,
         owns_keyboard,
         source,
         controls,
@@ -255,24 +253,12 @@ pub(super) fn render(
 
     // The list runs from under the actions down to the blank line above Settings.
     let list_top = top + LIST_LINE;
-    let mut area = Rect::new(
+    let area = Rect::new(
         inner.x,
         list_top,
         inner.width,
         settings_line.saturating_sub(list_top),
     );
-    if view.onboarding.visible
-        && input == SidebarInput::Terminal
-        && !view.prefix_active()
-        && !view.navigator_active()
-        && !view.resize_pending
-        && let Some(guidance) = super::super::onboarding::area(area)
-        && let Some(hits) = hits.as_deref_mut()
-    {
-        super::super::onboarding::render(frame, guidance, view, locale, layer, theme, hits);
-        halos.text(guidance);
-        area.height = area.height.saturating_sub(guidance.height);
-    }
     let rows = view.machines.sidebar_navigation_rows();
     super::super::workspace_sidebar::render(
         frame,

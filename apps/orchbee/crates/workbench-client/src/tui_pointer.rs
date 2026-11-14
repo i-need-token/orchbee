@@ -2067,8 +2067,6 @@ impl PointerState {
             }
             HitResolution::Region(
                 HitTarget::CreateMenu(_)
-                | HitTarget::Onboarding(_)
-                | HitTarget::OnboardingSurface
                 | HitTarget::SidebarRestoreButton
                 | HitTarget::SidebarHideButton
                 | HitTarget::ShortcutHelpButton

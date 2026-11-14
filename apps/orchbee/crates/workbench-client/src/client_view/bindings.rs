@@ -74,10 +74,6 @@ use super::PanelDirection;
 /// each group joins with `" / "` into the help chord column.
 pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
     PrefixGroup {
-        members: &[member(key(KeyCode::F(1)), ClientAction::DismissOnboarding)],
-        desc: PrefixDesc::DismissOnboarding,
-    },
-    PrefixGroup {
         members: &[member(key(KeyCode::F(4)), ClientAction::OpenSettings)],
         desc: PrefixDesc::Settings,
     },

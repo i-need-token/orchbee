@@ -327,7 +327,6 @@ pub(super) fn render(
                 locale,
                 theme,
                 layer,
-                input,
                 owns_keyboard,
                 source: &source,
                 controls: &controls,
@@ -411,17 +410,6 @@ pub(super) fn render(
         }
     }
     area.height = area.height.saturating_sub(footer_rows);
-    if view.onboarding.visible
-        && input == SidebarInput::Terminal
-        && !view.prefix_active()
-        && !view.navigator_active()
-        && !view.resize_pending
-        && let Some(guidance) = super::onboarding::area(area)
-        && let Some(hits) = hits.as_deref_mut()
-    {
-        super::onboarding::render(frame, guidance, view, locale, layer, theme, hits);
-        area.height = area.height.saturating_sub(guidance.height);
-    }
     super::workspace_sidebar::render(
         frame,
         area,

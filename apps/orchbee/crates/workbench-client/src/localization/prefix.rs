@@ -5,7 +5,6 @@ use super::Locale;
 /// and status hints. Global shortcut discovery uses action metadata instead.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PrefixDesc {
-    DismissOnboarding,
     ActionMenu,
     Settings,
     ConfiguredCommand(u8),
@@ -72,7 +71,6 @@ pub(crate) enum PrefixDesc {
 
 pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
-        PrefixDesc::DismissOnboarding => "Dismiss the welcome guide",
         PrefixDesc::ConfiguredCommand(_) => "Run configured command",
         PrefixDesc::ResizeMode => "Enter panel resize mode",
         PrefixDesc::CopyMode => "Enter keyboard copy mode",
@@ -146,7 +144,6 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
 
 pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
-        PrefixDesc::DismissOnboarding => "关闭首次运行引导",
         PrefixDesc::ConfiguredCommand(_) => "运行配置命令",
         PrefixDesc::ResizeMode => "进入面板大小调整模式",
         PrefixDesc::CopyMode => "进入键盘复制模式",

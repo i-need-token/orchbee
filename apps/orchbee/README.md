@@ -1165,5 +1165,3 @@ Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action l
 ## Native Settings
 
 Press Ctrl+b F4 in the Windows or Linux TUI to open the Settings page; Windows also exposes Settings through navigation. All common settings are the same `config.toml` keys Desktop edits through the Server, including locale, application and terminal themes, selection, Agent tail display, notifications, sound, scrollback and launch profiles. Each change applies at once as one edit, Del restores a changed row's default, and a refused or unknown result puts the row back and names the reason without replay. See the [native Settings contract](docs/native-settings.md) and the [settings registry](../../crates/local-runtime/README.md#user-settings).
-
-Windows first-run guidance keeps terminal input active while exposing Workspace creation, Agent selection, actions and Help. Dismissal is remembered per native configuration profile. The guidance is withheld for now and its code is kept. See [native first-run guidance](docs/native-onboarding.md).

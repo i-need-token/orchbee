@@ -247,7 +247,7 @@ impl ClientView {
             no_color: false,
             notifications: notifications::State::default(),
             window_title: None,
-            onboarding: crate::onboarding::State::default(),
+            onboarding: crate::onboarding::State,
             notice: None,
             notice_timer: Default::default(),
             configuration_warning: false,
@@ -1525,11 +1525,6 @@ impl ClientView {
             return (ClientAction::UnknownPrefix, ShellCommand::None);
         };
         match &member.action {
-            PrefixAction::Client(ClientAction::DismissOnboarding)
-                if !self.onboarding.visible || self.overlay.is_some() =>
-            {
-                (ClientAction::DismissPrefix, ShellCommand::None)
-            }
             PrefixAction::Client(action) => {
                 let (action, _) = self.apply_action_decision(action.clone());
                 (action, member.shell)

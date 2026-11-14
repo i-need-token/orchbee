@@ -3432,9 +3432,7 @@ impl WorkbenchClientUi {
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
             ClientAction::ToggleAgentBoard => self.toggle_agent_board(),
             ClientAction::StartAgent => self.open_agent_picker(),
-            ClientAction::FocusBusinessSidebar | ClientAction::DismissOnboarding => {
-                ClientActionDisposition::KeepNavigator
-            }
+            ClientAction::FocusBusinessSidebar => ClientActionDisposition::KeepNavigator,
             ClientAction::ReloadConfiguration
             | ClientAction::ToggleBusinessSidebar
             | ClientAction::OpenShortcutHelp

@@ -118,8 +118,6 @@ pub enum HitLayer {
 /// state so a reorder between paint and click cannot misroute.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HitTarget {
-    Onboarding(crate::onboarding::Action),
-    OnboardingSurface,
     CopyControl {
         token: crate::terminal_copy_mode::CopyModeToken,
         control: crate::terminal_copy_mode::CopyControl,
@@ -297,7 +295,6 @@ pub enum HitTarget {
 /// availability is still revalidated by the dispatcher on release.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GlobalChromeAction {
-    Onboarding(crate::onboarding::Action),
     /// The Tab strip's toggle while the sidebar is hidden.
     RestoreSidebar,
     /// The sidebar's own toggle while it is visible.

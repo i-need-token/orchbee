@@ -9,7 +9,6 @@ use crate::localization::{BackendAction, PanelDirection};
 // Not `Copy`: `FocusPanel` carries a `WorkbenchPanelId` (heap identity).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientAction {
-    DismissOnboarding,
     TabMenu {
         action: MenuAction,
         tab_id: Option<orchbee_workbench_protocol::WorkbenchTabId>,
@@ -110,7 +109,7 @@ pub enum ClientAction {
 impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
-            Self::OpenActionMenu | Self::FocusBusinessSidebar | Self::DismissOnboarding => None,
+            Self::OpenActionMenu | Self::FocusBusinessSidebar => None,
             Self::OpenSettings => None,
             Self::EnterResizeMode
             | Self::EnterCopyMode

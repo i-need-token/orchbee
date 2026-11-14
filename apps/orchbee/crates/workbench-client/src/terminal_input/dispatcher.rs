@@ -2039,7 +2039,6 @@ impl InputDispatcher {
                                 InteractionTarget::GlobalChrome(action) => {
                                     if Self::projected_capture(view, port).is_none() {
                                         let action = match action {
-                                            crate::tui_hit_map::GlobalChromeAction::Onboarding(action) => view.onboarding.visible.then(|| action.client()),
                                             crate::tui_hit_map::GlobalChromeAction::RestoreSidebar
                                                 if view.machines.available
                                                     && view.sidebar_surface()
@@ -2378,14 +2377,6 @@ impl InputDispatcher {
             captured,
         } = decision.into();
         let action = transition.action();
-        if action == Some(ClientAction::DismissOnboarding) {
-            view.commit(transition, ClientActionDisposition::KeepNavigator);
-            if view.onboarding.dismiss().is_err() {
-                view.startup_notice(crate::client_view::Notice::OnboardingSaveFailed);
-            }
-            self.pointer.invalidate_map_with_port(port);
-            return Ok(DispatchOutcome::Continue);
-        }
         if action != Some(ClientAction::OpenActionMenu) && !transition.prefix_active() {
             // A prefix has not chosen an action yet. Preserve the active drag
             // until the decision, so menu admission can observe its owner.

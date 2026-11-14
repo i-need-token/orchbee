@@ -39,7 +39,6 @@ pub enum BackendAction {
 /// Client chrome feedback; action selection and delivery remain with the feature owner.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Notice {
-    OnboardingSaveFailed,
     WorkspaceNavigationUnavailable,
     /// A selected saved machine refused this Client until one side changes; nothing switched.
     MachineRefused(crate::machine_refusal::Refusal),

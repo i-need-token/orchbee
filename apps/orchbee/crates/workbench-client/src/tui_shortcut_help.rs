@@ -64,14 +64,6 @@ pub(crate) fn entries(
         ) {
             continue;
         }
-        // A withheld welcome card is hidden, so help never offers to dismiss it (ORC-402).
-        if matches!(
-            binding.action,
-            PrefixAction::Client(ClientAction::DismissOnboarding)
-        ) && !crate::onboarding::offered()
-        {
-            continue;
-        }
         let group = if common_action(&binding.action) {
             ShortcutHelpGroup::Common
         } else {
@@ -327,11 +319,6 @@ fn local_action_title(locale: Locale, action: &PrefixAction) -> String {
         PrefixAction::Client(A::RequestWorkspaceCreate | A::RequestQuickWorkspace) => {
             return locale
                 .menu_action(&crate::action_menu::MenuAction::NewWorkspace)
-                .to_owned();
-        }
-        PrefixAction::Client(A::DismissOnboarding) => {
-            return locale
-                .onboarding_label(crate::onboarding::Action::Dismiss)
                 .to_owned();
         }
         PrefixAction::Client(A::FocusBusinessSidebar) => {

@@ -60,8 +60,6 @@ pub(crate) use agent_board::{
 #[cfg(any(unix, windows))]
 mod location_labels;
 pub(crate) use location_labels::{LocationLabelStatus, LocationLabelTarget};
-mod onboarding;
-pub(crate) use onboarding::OnboardingLabel;
 #[cfg(any(unix, windows))]
 mod panel_close;
 mod prefix;

@@ -281,12 +281,6 @@ impl Locale {
             }
             (Self::ZhCn, Some(Notice::WindowTitleUnsupported)) => "此平台尚不支持设置宿主窗口标题",
 
-            (Self::EnUs, Some(Notice::OnboardingSaveFailed)) => {
-                "Guide closed here; saving failed, so it may return next time"
-            }
-            (Self::ZhCn, Some(Notice::OnboardingSaveFailed)) => {
-                "本次引导已关闭；保存失败，下次可能再次显示"
-            }
             (Self::EnUs, Some(Notice::ResizeBusy)) => "Resize pending; input was not queued",
             (Self::ZhCn, Some(Notice::ResizeBusy)) => "大小调整待定；输入未排队",
             (Self::EnUs, Some(Notice::ResizeFailed)) => "Resize failed; inspect the current layout",
@@ -533,9 +527,6 @@ impl Locale {
     /// width, for the notices that can be; it keeps the outcome and drops the advice.
     pub(crate) const fn shell_notice_shorter(self, notice: Notice) -> Option<&'static str> {
         let (english, chinese) = match notice {
-            Notice::OnboardingSaveFailed => {
-                ("Guide closed; saving failed", "本次引导已关闭；保存失败")
-            }
             Notice::ResizeUnknown => ("Resize outcome unknown", "大小调整结果不确定"),
             Notice::CheckpointRecovered => (
                 "Workspace snapshot restored; some unreadable",

@@ -315,7 +315,6 @@ fn every_client_notice() -> Vec<Notice> {
     use BackendAction as Action;
 
     let mut all = vec![
-        Notice::OnboardingSaveFailed,
         Notice::WorkspaceNavigationUnavailable,
         Notice::NoNotificationTarget,
         Notice::NavigatorChanged,
@@ -409,7 +408,6 @@ fn every_client_notice() -> Vec<Notice> {
                 | Action::ClosePanel
                 | Action::MovePanel,
             )
-            | Notice::OnboardingSaveFailed
             | Notice::WorkspaceNavigationUnavailable
             | Notice::NoNotificationTarget
             | Notice::NavigatorChanged
