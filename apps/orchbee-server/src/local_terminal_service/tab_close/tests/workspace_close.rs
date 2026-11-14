@@ -482,8 +482,9 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
     dispose_all(&service, &mut peer, &close);
 
     // A failed target cleanup parks the member resumably — the same
-    // `disposed-awaiting-publication` truth the Workspace read reports.
-    {
+    // `disposed-awaiting-publication` truth the Workspace read reports. The
+    // Server renews the first two parks itself; the third stays for Resume.
+    for _ in 0..3 {
         let mut session = service.coordinator.lock().unwrap();
         let step = session
             .close_authority()
@@ -499,7 +500,7 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
         session
             .close_authority()
             .unwrap()
-            .park_terminal_tab_close_target_cleanup(&close.request_id, runtime)
+            .park_terminal_tab_close_target_cleanup(&close.request_id, runtime, Instant::now())
             .unwrap();
     }
     assert!(matches!(
@@ -514,13 +515,15 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
             ..
         } if members.len() == 1 && counts.disposed_awaiting_publication == 1
     ));
+    drop(peer);
+    let _exit = worker_thread.join().unwrap();
     let resume = WorkbenchWorkspaceCloseResume {
         protocol_version: ProtocolVersion,
         request_id: id(60),
         session_id: close.session_id.clone(),
         workspace_id: workspace_id.clone(),
         close_request_id: close.request_id.clone(),
-        expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+        expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(3).unwrap(),
     };
     let resumed = service.resume_workspace_close(resume.clone()).unwrap();
     assert!(matches!(
@@ -536,6 +539,4 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
             ..
         }
     ));
-    drop(peer);
-    let _exit = worker_thread.join().unwrap();
 }

@@ -134,6 +134,23 @@ fn settle_disposed(
     step: WorkbenchTabCloseStepTarget,
     now: Instant,
 ) {
+    settle_step(
+        authority,
+        close_id,
+        step,
+        now,
+        Some(TerminalLifecycleOutcome::Disposed),
+    );
+}
+
+/// Settles the scheduled lifecycle step with `outcome`, or as not delivered when it is `None`.
+fn settle_step(
+    authority: &mut WorkbenchAuthority,
+    close_id: &WorkbenchRequestId,
+    step: WorkbenchTabCloseStepTarget,
+    now: Instant,
+    outcome: Option<TerminalLifecycleOutcome>,
+) {
     let target = step.target().expect("targeted lifecycle step");
     let CloseContinuationNext::Lifecycle {
         action,
@@ -150,9 +167,13 @@ fn settle_disposed(
     authority
         .confirm_terminal_tab_close_step_admitted(close_id, &token, now)
         .unwrap();
-    let result = TerminalLifecycleResult::new(request, TerminalLifecycleOutcome::Disposed).unwrap();
+    let result = outcome.map(|outcome| TerminalLifecycleResult::new(request, outcome).unwrap());
+    let observation = result.as_ref().map_or(
+        CloseStepObservation::NotDelivered,
+        CloseStepObservation::Result,
+    );
     authority
-        .settle_terminal_tab_close_step(close_id, token, now, CloseStepObservation::Result(&result))
+        .settle_terminal_tab_close_step(close_id, token, now, observation)
         .unwrap();
 }
 
@@ -719,6 +740,7 @@ fn resumable_populated_workspace_close_opens_a_new_generation_and_completes() {
     };
     let workspace_id = workspace_id.clone();
     accept_workspace(&mut authority, &grant, close.clone(), now);
+    spend_automatic_renewals(&mut authority, &close.request_id);
     let parked = now + Duration::from_secs(30);
     assert_eq!(
         authority
@@ -783,6 +805,7 @@ fn empty_workspace_parked_publication_resumes_then_publishes() {
     };
     let workspace_id = workspace_id.clone();
     accept_workspace(&mut authority, &grant, close.clone(), now);
+    spend_automatic_renewals(&mut authority, &close.request_id);
     // A failed publication parks the empty scope resumably.
     authority
         .close_record_mut(&close.request_id)
@@ -818,6 +841,146 @@ fn empty_workspace_parked_publication_resumes_then_publishes() {
     let closed = drive_close_to_publication(&mut authority, &close.request_id, now);
     assert!(matches!(closed, WorkbenchTabCloseStatus::Closed { .. }));
     assert!(!authority.retired);
+}
+
+/// A retryable step failure keeps the close `closing`: the Server renews two expired attempts,
+/// and the third park is the first parked status, carrying the last cause.
+#[test]
+fn retryable_failure_stays_closing_through_two_renewals_then_parks_with_its_cause() {
+    let (mut authority, grant) = workspace_fixture(1);
+    let now = Instant::now();
+    let close = workspace_close_command(&authority, 10000, 1, 0);
+    let WorkbenchAction::WorkspaceClose { workspace_id } = &close.action else {
+        panic!()
+    };
+    let workspace_id = workspace_id.clone();
+    accept_workspace(&mut authority, &grant, close.clone(), now);
+    let spacing = Duration::from_millis(250);
+    for attempt in 0..3_u32 {
+        let started = now + Duration::from_secs(30) * attempt;
+        let step = authority
+            .next_terminal_tab_close_step_target(&close.request_id, started)
+            .unwrap();
+        assert!(matches!(
+            step.next(),
+            CloseContinuationNext::Lifecycle {
+                action: TerminalLifecycleAction::Dispose,
+                ..
+            }
+        ));
+        assert_eq!(
+            authority
+                .terminal_tab_close_generation(&close.request_id)
+                .unwrap()
+                .value(),
+            u64::from(attempt) + 1
+        );
+        settle_step(&mut authority, &close.request_id, step, started, None);
+        assert!(matches!(
+            workspace_status(&authority, &grant, &workspace_id),
+            WorkbenchWorkspaceCloseReadOutcome::Available {
+                status: WorkbenchTabCloseStatus::Closing { .. },
+                ..
+            }
+        ));
+        assert_eq!(
+            authority
+                .next_terminal_tab_close_step(&close.request_id, started)
+                .unwrap(),
+            CloseContinuationNext::WaitUntil(started + spacing)
+        );
+        assert!(matches!(
+            authority
+                .next_terminal_tab_close_step(&close.request_id, started + spacing)
+                .unwrap(),
+            CloseContinuationNext::Lifecycle {
+                action: TerminalLifecycleAction::Dispose,
+                ..
+            }
+        ));
+    }
+    assert_eq!(
+        authority
+            .next_terminal_tab_close_step(&close.request_id, now + Duration::from_secs(90))
+            .unwrap(),
+        CloseContinuationNext::Parked
+    );
+    assert_eq!(
+        authority
+            .terminal_tab_close_generation(&close.request_id)
+            .unwrap()
+            .value(),
+        3
+    );
+    assert!(matches!(
+        workspace_status(&authority, &grant, &workspace_id),
+        WorkbenchWorkspaceCloseReadOutcome::Available {
+            status: WorkbenchTabCloseStatus::CleanupBlocked {
+                reason:
+                    orchbee_workbench_protocol::WorkbenchTabCloseBlockedReason::WorkerUnavailable,
+                resumable: true,
+            },
+            ..
+        }
+    ));
+}
+
+/// A record with an unknown member is never renewed, even when another member parks resumably.
+#[test]
+fn a_close_with_an_unknown_member_is_never_renewed() {
+    let (mut authority, grant) = workspace_fixture(2);
+    let now = Instant::now();
+    let close = workspace_close_command(&authority, 10000, 1, 0);
+    let WorkbenchAction::WorkspaceClose { workspace_id } = &close.action else {
+        panic!()
+    };
+    let workspace_id = workspace_id.clone();
+    accept_workspace(&mut authority, &grant, close.clone(), now);
+    let retried = authority
+        .next_terminal_tab_close_step_target(&close.request_id, now)
+        .unwrap();
+    settle_step(&mut authority, &close.request_id, retried, now, None);
+    let lost = authority
+        .next_terminal_tab_close_step_target(&close.request_id, now)
+        .unwrap();
+    settle_step(
+        &mut authority,
+        &close.request_id,
+        lost,
+        now,
+        Some(TerminalLifecycleOutcome::OutcomeUnknown(
+            orchbee_capability_node_protocol::LifecycleUnknownReason::TransportLost,
+        )),
+    );
+    for expired in [30, 60] {
+        assert_eq!(
+            authority
+                .next_terminal_tab_close_step(&close.request_id, now + Duration::from_secs(expired))
+                .unwrap(),
+            CloseContinuationNext::Parked
+        );
+    }
+    assert_eq!(
+        authority
+            .terminal_tab_close_generation(&close.request_id)
+            .unwrap()
+            .value(),
+        1
+    );
+    assert_eq!(
+        authority
+            .close_record(&close.request_id)
+            .unwrap()
+            .automatic_renewals,
+        super::super::AUTOMATIC_RENEWALS
+    );
+    assert!(matches!(
+        workspace_status(&authority, &grant, &workspace_id),
+        WorkbenchWorkspaceCloseReadOutcome::Available {
+            status: WorkbenchTabCloseStatus::OutcomeUnknown { .. },
+            ..
+        }
+    ));
 }
 
 #[test]

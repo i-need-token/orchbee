@@ -90,6 +90,7 @@ impl WorkbenchAuthority {
         if record.next_step(now).next() != super::continuation::CloseContinuationNext::Publication
             || !record.publication_ready()
         {
+            record.renew_if_parked(now);
             return Err(WorkbenchTabClosePublicationError::NotReady);
         }
         let record = self
@@ -97,6 +98,7 @@ impl WorkbenchAuthority {
             .ok_or(WorkbenchTabClosePublicationError::OperationUnavailable)?;
         if self.retired {
             return self.fail_close_publication(
+                now,
                 close_request_id,
                 WorkbenchTabClosePublicationError::AuthorityRetired,
             );
@@ -110,6 +112,7 @@ impl WorkbenchAuthority {
         let panel_id = record.panel_id().cloned();
         if self.ledger_bytes < record.reserved_bytes {
             return self.fail_close_publication(
+                now,
                 close_request_id,
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
@@ -118,6 +121,7 @@ impl WorkbenchAuthority {
             || (matches!(scope, CloseScope::Panel) && panel_id.is_none())
         {
             return self.fail_close_publication(
+                now,
                 close_request_id,
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
@@ -126,6 +130,7 @@ impl WorkbenchAuthority {
             Ok(membership) => membership,
             Err(_error) => {
                 return self.fail_close_publication(
+                    now,
                     close_request_id,
                     WorkbenchTabClosePublicationError::CompositionMismatch,
                 );
@@ -145,6 +150,7 @@ impl WorkbenchAuthority {
             || !actual_members.eq(targets.iter().map(|target| &target.member))
         {
             return self.fail_close_publication(
+                now,
                 close_request_id,
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
@@ -157,6 +163,7 @@ impl WorkbenchAuthority {
             .map(WorkbenchRevision::new)
         else {
             return self.fail_close_publication(
+                now,
                 close_request_id,
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
@@ -170,6 +177,7 @@ impl WorkbenchAuthority {
                     .find(|context| context.terminal_context_id == context_id)
                 else {
                     return self.fail_close_publication(
+                        now,
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
@@ -180,6 +188,7 @@ impl WorkbenchAuthority {
                     .position(|tab| Some(&tab.tab_id) == tab_id.as_ref())
                 else {
                     return self.fail_close_publication(
+                        now,
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
@@ -205,6 +214,7 @@ impl WorkbenchAuthority {
                     .find(|context| context.terminal_context_id == context_id)
                 else {
                     return self.fail_close_publication(
+                        now,
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
@@ -215,6 +225,7 @@ impl WorkbenchAuthority {
                     .position(|tab| Some(&tab.tab_id) == tab_id.as_ref())
                 else {
                     return self.fail_close_publication(
+                        now,
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
@@ -225,6 +236,7 @@ impl WorkbenchAuthority {
                     .and_then(|tab| leaf_presentation(&tab.root, panel_id))
                 else {
                     return self.fail_close_publication(
+                        now,
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
@@ -236,6 +248,7 @@ impl WorkbenchAuthority {
                     let tab = &mut context.tabs[tab_index];
                     if !remove_leaf_panel(&mut tab.root, panel_id) {
                         return self.fail_close_publication(
+                            now,
                             close_request_id,
                             WorkbenchTabClosePublicationError::CompositionMismatch,
                         );
@@ -253,6 +266,7 @@ impl WorkbenchAuthority {
                     .is_none()
                 {
                     return self.fail_close_publication(
+                        now,
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
@@ -268,6 +282,7 @@ impl WorkbenchAuthority {
                         })
                 else {
                     return self.fail_close_publication(
+                        now,
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
@@ -293,6 +308,7 @@ impl WorkbenchAuthority {
                 Ok(membership) => membership,
                 Err(_error) => {
                     return self.fail_close_publication(
+                        now,
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
@@ -304,6 +320,7 @@ impl WorkbenchAuthority {
             .and_then(|encoded| self.projection.prepare_advance(&encoded).ok());
         let Some(prepared) = prepared else {
             return self.fail_close_publication(
+                now,
                 close_request_id,
                 WorkbenchTabClosePublicationError::PreparationFailed,
             );
@@ -327,6 +344,7 @@ impl WorkbenchAuthority {
 
     fn fail_close_publication<T>(
         &mut self,
+        now: Instant,
         close_request_id: &WorkbenchRequestId,
         failure: WorkbenchTabClosePublicationError,
     ) -> Result<T, WorkbenchTabClosePublicationError> {
@@ -343,6 +361,7 @@ impl WorkbenchAuthority {
         };
         if let Some(record) = self.close_record_mut(close_request_id) {
             record.publication_failed(reason);
+            record.renew_if_parked(now);
         }
         Err(failure)
     }

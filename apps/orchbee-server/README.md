@@ -222,7 +222,9 @@ the retained lifecycle authority and one process-lifetime maintenance owner. A P
 one exact leaf, disposes and cleans it through the same lifecycle, and publishes the surviving Tab
 with the leaf's parent Split collapsed into the sibling subtree; a Tab's only leaf closes as an
 aggregate Close. Known Host disposal and exact Worker/Server cleanup precede
-canonical removal; Client exit does not cancel accepted Close. Linux carrier/process checks cover
+canonical removal; Client exit does not cancel accepted Close. The owner retries a failed step
+within each attempt and renews an expired attempt twice itself, so a Close reports a parked status
+only once the Server has given up; Resume restarts it from there. Linux carrier/process checks cover
 thirty-two live Client connections, idle control-slot release and same-connection reuse while an
 unrelated shell survives. The [Close contract](docs/terminal-tab-close.md) owns the bounds and
 separately evidenced native TUI integration and remaining production recovery and release obligations.

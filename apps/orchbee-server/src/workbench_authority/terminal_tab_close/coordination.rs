@@ -1,6 +1,7 @@
 //! Associates retained close records with exact physical lifecycle steps and settles matching
-//! admission, completion, and local cleanup reports. It updates canonical close state without
-//! performing Worker requests or directly publishing topology removal.
+//! admission, completion, and local cleanup reports; every call that can park a record renews it
+//! within its automatic allowance. It updates canonical close state without performing Worker
+//! requests or directly publishing topology removal.
 
 use std::{num::NonZeroU64, time::Instant};
 
@@ -173,10 +174,19 @@ impl WorkbenchAuthority {
         let record = self
             .close_record_mut(close_request_id)
             .ok_or(CloseStepTokenMismatch)?;
-        Ok(if held {
-            record.held_step(now)
+        let step = |record: &mut CloseRecord| {
+            if held {
+                record.held_step(now)
+            } else {
+                record.next_step(now)
+            }
+        };
+        let next = step(record);
+        // A renewed attempt has its next step at once.
+        Ok(if record.renew_if_parked(now) {
+            step(record)
         } else {
-            record.next_step(now)
+            next
         })
     }
 
@@ -212,10 +222,12 @@ impl WorkbenchAuthority {
         }
         let generation =
             NonZeroU64::new(record.generation.value()).ok_or(CloseStepTokenMismatch)?;
-        record
+        let reserved = record
             .continuation_mut(index)
             .ok_or(CloseStepTokenMismatch)?
-            .reserve_step(now, generation, request)
+            .reserve_step(now, generation, request);
+        record.renew_if_parked(now);
+        reserved
     }
 
     pub fn confirm_terminal_tab_close_step_admitted(
@@ -254,7 +266,9 @@ impl WorkbenchAuthority {
         record
             .continuation_mut(index)
             .ok_or(CloseStepTokenMismatch)?
-            .reject_prequeue(token, now, failure)
+            .reject_prequeue(token, now, failure)?;
+        record.renew_if_parked(now);
+        Ok(())
     }
 
     pub fn settle_terminal_tab_close_step(
@@ -275,7 +289,9 @@ impl WorkbenchAuthority {
         record
             .continuation_mut(index)
             .ok_or(CloseStepTokenMismatch)?
-            .settle_step(token, now, generation, observation)
+            .settle_step(token, now, generation, observation)?;
+        record.renew_if_parked(now);
+        Ok(())
     }
 
     /// The Server controller owner supplies its completed exact-target local cleanup.
@@ -304,6 +320,7 @@ impl WorkbenchAuthority {
         &mut self,
         close_request_id: &WorkbenchRequestId,
         runtime: WorkbenchTabCloseRuntimeTarget,
+        now: Instant,
     ) -> Result<(), CloseStepTokenMismatch> {
         let record = self
             .close_record_mut(close_request_id)
@@ -318,6 +335,7 @@ impl WorkbenchAuthority {
         {
             return Err(CloseStepTokenMismatch);
         }
+        record.renew_if_parked(now);
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
-//! Owns one target's bounded close progression, exact lifecycle-step tokens, explicit resume
-//! generations, and unknown or blocked settlement. It chooses the next authorized step without
-//! executing I/O or replaying an uncertain mutation.
+//! Owns one target's bounded close progression, exact lifecycle-step tokens, in-attempt retries
+//! of known step failures, resume preparation, and unknown or blocked settlement. It chooses the
+//! next authorized step without executing I/O or replaying an uncertain mutation.
 
 use std::{
     num::NonZeroU64,
@@ -142,7 +142,11 @@ pub(super) struct CloseContinuation {
     deadline: Instant,
     submitted_steps: u8,
     last_query_at: Option<Instant>,
-    backpressure_until: Option<Instant>,
+    /// The earliest next step after backpressure or a retryable step failure. It never renews
+    /// the attempt's deadline.
+    retry_not_before: Option<Instant>,
+    /// The cause of the last retryable step failure in this attempt. A budget park reports it.
+    retry_reason: Option<BlockedReason>,
     terminate_acknowledged: bool,
     /// Queries admitted since Terminate was accepted, choosing the next `GRACE_SPACING`.
     grace_queries: u8,
@@ -181,7 +185,8 @@ impl CloseContinuation {
             deadline: now.checked_add(ATTEMPT_DURATION)?,
             submitted_steps: 0,
             last_query_at: None,
-            backpressure_until: None,
+            retry_not_before: None,
+            retry_reason: None,
             terminate_acknowledged: false,
             grace_queries: 0,
             grace_deadline: None,
@@ -267,7 +272,8 @@ impl CloseContinuation {
         self.deadline = prepared.deadline;
         self.progress = prepared.progress;
         self.submitted_steps = 0;
-        self.backpressure_until = None;
+        self.retry_not_before = None;
+        self.retry_reason = None;
     }
 
     pub(super) fn generation_exhausted(&mut self) {
@@ -303,7 +309,7 @@ impl CloseContinuation {
             self.park_budget();
             return CloseContinuationNext::Parked;
         }
-        if let Some(until) = self.backpressure_until.filter(|until| now < *until) {
+        if let Some(until) = self.retry_not_before.filter(|until| now < *until) {
             return CloseContinuationNext::WaitUntil(until.min(self.deadline));
         }
         let stage = match self.progress {
@@ -415,7 +421,7 @@ impl CloseContinuation {
             }
             self.inventory.incomplete = true;
         }
-        self.backpressure_until = None;
+        self.retry_not_before = None;
         Ok(())
     }
 
@@ -427,14 +433,9 @@ impl CloseContinuation {
     ) -> Result<(), CloseStepTokenMismatch> {
         self.take_pending(&token, false)?;
         match failure {
-            CloseStepPrequeueFailure::Backpressure => {
-                self.backpressure_until = now.checked_add(QUERY_SPACING);
-                if self.backpressure_until.is_none() || now >= self.deadline {
-                    self.park_budget();
-                }
-            }
+            CloseStepPrequeueFailure::Backpressure => self.retry_after_spacing(now),
             CloseStepPrequeueFailure::Unavailable => {
-                self.park_lifecycle(BlockedReason::WorkerUnavailable, true)
+                self.retry_step(now, BlockedReason::WorkerUnavailable)
             }
             CloseStepPrequeueFailure::IdentityConflict => {
                 self.park_lifecycle(BlockedReason::IdentityConflict, false)
@@ -455,13 +456,17 @@ impl CloseContinuation {
         }
         self.take_pending(&token, true)?;
         let request = *token.seal;
+        // A retryable failure of this step records its own cause again below.
+        self.retry_reason = None;
         match observation {
             CloseStepObservation::NotDelivered => {
-                self.park_lifecycle(BlockedReason::WorkerUnavailable, true)
+                self.retry_step(now, BlockedReason::WorkerUnavailable)
             }
-            CloseStepObservation::OutcomeUnknown(reason) => self.unknown(request.action, reason),
+            CloseStepObservation::OutcomeUnknown(reason) => {
+                self.unknown(now, request.action, reason)
+            }
             CloseStepObservation::Result(result) if result.request() != request => {
-                self.unknown(request.action, LifecycleUnknownReason::InvalidResponse)
+                self.unknown(now, request.action, LifecycleUnknownReason::InvalidResponse)
             }
             CloseStepObservation::Result(result) => {
                 self.settle_outcome(now, request.action, result.outcome())
@@ -497,7 +502,7 @@ impl CloseContinuation {
     ) {
         match outcome {
             TerminalLifecycleOutcome::HostUnavailableBeforeHandoff => {
-                self.park_lifecycle(BlockedReason::WorkerUnavailable, true);
+                self.retry_step(now, BlockedReason::WorkerUnavailable);
             }
             TerminalLifecycleOutcome::TerminateAccepted => {
                 self.terminate_acknowledged = true;
@@ -518,29 +523,26 @@ impl CloseContinuation {
                     parked: None,
                 }
             }
-            TerminalLifecycleOutcome::InventoryPage(page) => self.inventory_page(action, page),
-            TerminalLifecycleOutcome::Rejected(reason) => {
-                let (blocked, resumable) = match reason {
-                    LifecycleRejection::LeaseExpired | LifecycleRejection::BindingUnavailable => {
-                        (BlockedReason::WorkerUnavailable, true)
-                    }
-                    LifecycleRejection::WrongWorker
-                    | LifecycleRejection::StaleWorkerGeneration
-                    | LifecycleRejection::UnsupportedCapability
-                    | LifecycleRejection::BindingFenceMismatch
-                    | LifecycleRejection::HostIdentityMismatch
-                    | LifecycleRejection::LifecycleConflict => {
-                        (BlockedReason::IdentityConflict, false)
-                    }
-                };
-                self.park_lifecycle(blocked, resumable);
-            }
-            TerminalLifecycleOutcome::HostFailure(reason) => self.park_lifecycle(
+            TerminalLifecycleOutcome::InventoryPage(page) => self.inventory_page(now, action, page),
+            TerminalLifecycleOutcome::Rejected(reason) => match reason {
+                LifecycleRejection::LeaseExpired | LifecycleRejection::BindingUnavailable => {
+                    self.retry_step(now, BlockedReason::WorkerUnavailable);
+                }
+                LifecycleRejection::WrongWorker
+                | LifecycleRejection::StaleWorkerGeneration
+                | LifecycleRejection::UnsupportedCapability
+                | LifecycleRejection::BindingFenceMismatch
+                | LifecycleRejection::HostIdentityMismatch
+                | LifecycleRejection::LifecycleConflict => {
+                    self.park_lifecycle(BlockedReason::IdentityConflict, false);
+                }
+            },
+            TerminalLifecycleOutcome::HostFailure(reason) => self.retry_step(
+                now,
                 match reason {
                     LifecycleHostFailure::HostRefused => BlockedReason::HostRefused,
                     LifecycleHostFailure::CleanupIncomplete => BlockedReason::CleanupIncomplete,
                 },
-                true,
             ),
             TerminalLifecycleOutcome::InventoryFailure(LifecycleInventoryFailure::StaleCursor) => {
                 self.inventory = InventoryWalk {
@@ -548,22 +550,24 @@ impl CloseContinuation {
                     ..InventoryWalk::default()
                 }
             }
-            TerminalLifecycleOutcome::InventoryFailure(reason) => self.park_lifecycle(
-                match reason {
-                    LifecycleInventoryFailure::IdentityConflict => BlockedReason::IdentityConflict,
-                    LifecycleInventoryFailure::StaleCursor
-                    | LifecycleInventoryFailure::PageRejected
-                    | LifecycleInventoryFailure::InvalidPage => BlockedReason::InventoryIncomplete,
-                },
-                !matches!(reason, LifecycleInventoryFailure::IdentityConflict),
-            ),
-            TerminalLifecycleOutcome::OutcomeUnknown(reason) => self.unknown(action, reason),
+            TerminalLifecycleOutcome::InventoryFailure(
+                LifecycleInventoryFailure::IdentityConflict,
+            ) => self.park_lifecycle(BlockedReason::IdentityConflict, false),
+            TerminalLifecycleOutcome::InventoryFailure(
+                LifecycleInventoryFailure::PageRejected | LifecycleInventoryFailure::InvalidPage,
+            ) => self.retry_step(now, BlockedReason::InventoryIncomplete),
+            TerminalLifecycleOutcome::OutcomeUnknown(reason) => self.unknown(now, action, reason),
         }
     }
 
-    fn inventory_page(&mut self, action: TerminalLifecycleAction, page: LifecycleInventoryPage) {
+    fn inventory_page(
+        &mut self,
+        now: Instant,
+        action: TerminalLifecycleAction,
+        page: LifecycleInventoryPage,
+    ) {
         let TerminalLifecycleAction::InventoryPage { cursor } = action else {
-            self.unknown(action, LifecycleUnknownReason::InvalidResponse);
+            self.unknown(now, action, LifecycleUnknownReason::InvalidResponse);
             return;
         };
         if cursor != self.inventory.cursor
@@ -601,11 +605,17 @@ impl CloseContinuation {
         self.progress = Progress::Running(stage);
     }
 
-    fn unknown(&mut self, action: TerminalLifecycleAction, reason: LifecycleUnknownReason) {
+    fn unknown(
+        &mut self,
+        now: Instant,
+        action: TerminalLifecycleAction,
+        reason: LifecycleUnknownReason,
+    ) {
         let phase = match action {
+            // A query changes nothing, so its lost reply is only a failed read.
             TerminalLifecycleAction::InventoryPage { .. }
             | TerminalLifecycleAction::InspectInventoryPage { .. } => {
-                self.park_lifecycle(BlockedReason::InventoryIncomplete, true);
+                self.retry_step(now, BlockedReason::InventoryIncomplete);
                 return;
             }
             TerminalLifecycleAction::Terminate => UnknownPhase::Terminate,
@@ -620,6 +630,23 @@ impl CloseContinuation {
                 LifecycleUnknownReason::InvalidResponse => UnknownReason::InvalidResponse,
             },
         };
+    }
+
+    /// A known step failure that a later try can heal keeps the stage and takes it again after
+    /// the spacing. The attempt's own deadline and step allowance end the retries, and its budget
+    /// park reports this cause.
+    fn retry_step(&mut self, now: Instant, reason: BlockedReason) {
+        if matches!(self.progress, Progress::Running(_)) {
+            self.retry_reason = Some(reason);
+            self.retry_after_spacing(now);
+        }
+    }
+
+    fn retry_after_spacing(&mut self, now: Instant) {
+        self.retry_not_before = now.checked_add(QUERY_SPACING);
+        if self.retry_not_before.is_none() || now >= self.deadline {
+            self.park_budget();
+        }
     }
 
     fn park_lifecycle(&mut self, reason: BlockedReason, resumable: bool) {
@@ -637,11 +664,13 @@ impl CloseContinuation {
             Progress::Running(resume) => {
                 self.progress = Progress::Blocked {
                     resume,
-                    reason: if self.inventory.incomplete || resume == LifecycleStage::Observe {
-                        BlockedReason::InventoryIncomplete
-                    } else {
-                        BlockedReason::ContinuationBudgetExhausted
-                    },
+                    reason: self.retry_reason.unwrap_or(
+                        if self.inventory.incomplete || resume == LifecycleStage::Observe {
+                            BlockedReason::InventoryIncomplete
+                        } else {
+                            BlockedReason::ContinuationBudgetExhausted
+                        },
+                    ),
                     resumable: true,
                 }
             }

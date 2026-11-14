@@ -247,6 +247,18 @@ pub(super) fn status(
         .outcome
 }
 
+/// Starts from a close that has spent its automatic renewals, so its next park stays parked for
+/// a person's Resume.
+pub(super) fn spend_automatic_renewals(
+    authority: &mut WorkbenchAuthority,
+    close: &WorkbenchRequestId,
+) {
+    authority
+        .close_record_mut(close)
+        .unwrap()
+        .automatic_renewals = 0;
+}
+
 fn submit(
     authority: &mut WorkbenchAuthority,
     grant: &WorkbenchGrant,

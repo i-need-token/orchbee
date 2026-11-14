@@ -168,6 +168,7 @@ impl PreparedWorkbenchTabCloseResume<'_> {
     pub fn commit(self) -> WorkbenchTabCloseResumeResult {
         self.record.commit_resumes(self.continuations);
         self.record.generation = self.generation;
+        self.record.restore_automatic_renewals();
         self.record.resume_receipt = Some(self.receipt);
         self.response
     }
@@ -275,6 +276,7 @@ impl PreparedWorkbenchWorkspaceCloseResume<'_> {
     pub fn commit(self) -> WorkbenchWorkspaceCloseResumeResult {
         self.record.commit_resumes(self.continuations);
         self.record.generation = self.generation;
+        self.record.restore_automatic_renewals();
         self.record.resume_receipt = Some(self.receipt);
         self.response
     }

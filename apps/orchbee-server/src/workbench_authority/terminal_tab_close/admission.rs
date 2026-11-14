@@ -584,6 +584,7 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
             terminal_context_id: self.membership.terminal_context_id().clone(),
             targets,
             generation,
+            automatic_renewals: super::AUTOMATIC_RENEWALS,
             resume_receipt: None,
             receipt_slot_bytes,
             reserved_bytes: 0,

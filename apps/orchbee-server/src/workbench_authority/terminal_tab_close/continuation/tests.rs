@@ -173,36 +173,40 @@ fn admitted_not_delivered_failure_is_counted_but_prequeue_unavailable_is_not() {
         .reject_prequeue(token, now, CloseStepPrequeueFailure::Unavailable)
         .expect("prequeue failure");
     assert_eq!(close.submitted_steps, 0);
-    resume(&mut close, now);
-    let token = prepare_step(&mut close, now, NonZeroU64::new(2).expect("generation"));
+    let retry = now + QUERY_SPACING;
+    let token = prepare_step(&mut close, retry, NonZeroU64::MIN);
     close
-        .confirm_admitted(&token, now, NonZeroU64::new(2).expect("generation"))
+        .confirm_admitted(&token, retry, NonZeroU64::MIN)
         .expect("admitted");
     close
         .settle_step(
             token,
-            now,
-            NonZeroU64::new(2).expect("generation"),
+            retry,
+            NonZeroU64::MIN,
             CloseStepObservation::NotDelivered,
         )
         .expect("known no delivery");
     assert_eq!(close.submitted_steps, 1);
-    assert!(close.is_resumable());
 }
 
 #[test]
 fn query_spacing_uses_admitted_observation_across_resume() {
     let now = Instant::now();
     let mut close = core(now, None);
+    let queried = now + ATTEMPT_DURATION - Duration::from_millis(100);
     step(
         &mut close,
-        now,
+        queried,
         NonZeroU64::MIN,
         TerminalLifecycleOutcome::InventoryFailure(LifecycleInventoryFailure::PageRejected),
     );
-    resume(&mut close, now + Duration::from_millis(10));
+    assert_eq!(
+        close.next(now + ATTEMPT_DURATION),
+        CloseContinuationNext::Parked
+    );
+    resume(&mut close, now + ATTEMPT_DURATION);
     for milliseconds in [249, 250, 251] {
-        let result = close.next(now + Duration::from_millis(milliseconds));
+        let result = close.next(queried + Duration::from_millis(milliseconds));
         assert_eq!(
             matches!(result, CloseContinuationNext::Lifecycle { .. }),
             milliseconds >= 250
@@ -362,7 +366,6 @@ fn grace_and_force_acknowledgment_survive_resume_without_repeat_signals() {
         NonZeroU64::new(2).expect("generation"),
         TerminalLifecycleOutcome::InventoryFailure(LifecycleInventoryFailure::PageRejected),
     );
-    resume(&mut close, later + QUERY_SPACING);
     assert!(close.force_acknowledged);
     assert!(matches!(
         close.next(later + QUERY_SPACING),
@@ -511,7 +514,7 @@ fn exact_settled_observation_ends_grace_early_without_force() {
 }
 
 #[test]
-fn mutating_unknown_is_permanently_parked_but_query_unknown_is_inventory_incomplete() {
+fn mutating_unknown_is_permanently_parked() {
     let now = Instant::now();
     let mut mutating = core(now, Some(LifecycleTerminalPhase::AwaitingStart));
     step(
@@ -532,21 +535,6 @@ fn mutating_unknown_is_permanently_parked_but_query_unknown_is_inventory_incompl
         mutating.next(now + ATTEMPT_DURATION),
         CloseContinuationNext::Parked
     );
-    let mut querying = core(now, None);
-    step(
-        &mut querying,
-        now,
-        NonZeroU64::MIN,
-        TerminalLifecycleOutcome::OutcomeUnknown(LifecycleUnknownReason::TransportLost),
-    );
-    assert!(querying.is_resumable());
-    assert!(matches!(
-        querying.status(),
-        WorkbenchTabCloseStatus::CleanupBlocked {
-            reason: BlockedReason::InventoryIncomplete,
-            ..
-        }
-    ));
 }
 
 #[test]
@@ -812,13 +800,67 @@ fn host_unavailable_before_handoff_preserves_the_admitted_server_step_charge() {
             TerminalLifecycleOutcome::HostUnavailableBeforeHandoff,
         );
         assert_eq!(close.submitted_steps, 1);
+        assert!(!close.publication_ready());
+    }
+}
+
+/// A retryable step failure keeps the attempt running and takes the same stage again after the
+/// spacing; the budget park reports the last such cause.
+#[test]
+fn retryable_failure_retries_the_same_stage_and_the_budget_park_reports_its_cause() {
+    let now = Instant::now();
+    for (phase, outcome, reason) in [
+        (
+            None,
+            TerminalLifecycleOutcome::OutcomeUnknown(LifecycleUnknownReason::TransportLost),
+            BlockedReason::InventoryIncomplete,
+        ),
+        (
+            None,
+            TerminalLifecycleOutcome::InventoryFailure(LifecycleInventoryFailure::PageRejected),
+            BlockedReason::InventoryIncomplete,
+        ),
+        (
+            Some(LifecycleTerminalPhase::AwaitingStart),
+            TerminalLifecycleOutcome::HostUnavailableBeforeHandoff,
+            BlockedReason::WorkerUnavailable,
+        ),
+        (
+            Some(LifecycleTerminalPhase::AwaitingStart),
+            TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::HostRefused),
+            BlockedReason::HostRefused,
+        ),
+    ] {
+        let mut close = core(now, phase);
+        let CloseContinuationNext::Lifecycle { action, .. } = close.next(now) else {
+            panic!("first step");
+        };
+        step(&mut close, now, NonZeroU64::MIN, outcome);
         assert!(matches!(
             close.status(),
+            WorkbenchTabCloseStatus::Closing { .. }
+        ));
+        assert!(!close.is_resumable());
+        assert_eq!(
+            close.next(now),
+            CloseContinuationNext::WaitUntil(now + QUERY_SPACING)
+        );
+        let retry = now + QUERY_SPACING;
+        assert!(matches!(
+            close.next(retry),
+            CloseContinuationNext::Lifecycle { action: again, .. } if again == action
+        ));
+        step(&mut close, retry, NonZeroU64::MIN, outcome);
+        assert_eq!(
+            close.next(now + ATTEMPT_DURATION),
+            CloseContinuationNext::Parked
+        );
+        assert_eq!(
+            close.status(),
             WorkbenchTabCloseStatus::CleanupBlocked {
-                reason: BlockedReason::WorkerUnavailable,
+                reason,
                 resumable: true
             }
-        ));
-        assert!(!close.publication_ready());
+        );
     }
 }

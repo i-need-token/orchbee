@@ -1,6 +1,7 @@
 //! Retains bounded close records, captured members, physical targets, attempt generations, and
-//! structural fences until cleanup and publication settle. It does not perform lifecycle I/O
-//! or equate a missing member with confirmed disposal.
+//! structural fences until cleanup and publication settle, renewing a parked attempt by itself a
+//! bounded number of times. It does not perform lifecycle I/O or equate a missing member with
+//! confirmed disposal.
 
 use std::time::Instant;
 
@@ -46,6 +47,10 @@ pub use control::{
     WorkbenchWorkspaceCloseResumePreparation,
 };
 pub use publication::{PreparedWorkbenchTabClosePublication, WorkbenchTabClosePublicationError};
+
+/// Attempts the Server renews by itself after a person starts or renews a close, before it gives
+/// up and leaves the parked status for that person.
+const AUTOMATIC_RENEWALS: u8 = 2;
 
 /// Exact retained runtime association supplied by the Session/Terminal owner under its gate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -203,6 +208,9 @@ pub(super) struct CloseRecord {
     terminal_context_id: WorkbenchTerminalContextId,
     targets: Vec<WorkbenchTabCloseTarget>,
     generation: WorkbenchTabCloseAttemptGeneration,
+    /// Renewals the Server may still start by itself when this close parks resumable. Every
+    /// person-driven renewal restores `AUTOMATIC_RENEWALS`.
+    automatic_renewals: u8,
     resume_receipt: Option<AcceptedResumeReceipt>,
     /// One receipt payload slot — the measured owned-buffer budget any
     /// single accepted-resume receipt must fit; the reservation holds two.
@@ -551,6 +559,31 @@ impl CloseRecord {
         if self.targets.is_empty() {
             self.parked_publication = None;
         }
+    }
+
+    /// The Server continues a close it parked resumable by itself, at most `automatic_renewals`
+    /// times: the renewal a person's Resume commits, without its receipt or a confirmation. A
+    /// finished record and one with an unknown member or an outstanding step are never renewed.
+    /// Returns whether it renewed.
+    fn renew_if_parked(&mut self, now: Instant) -> bool {
+        if self.automatic_renewals == 0 || self.is_finished() || !self.is_resumable() {
+            return false;
+        }
+        let Some(generation) = self.generation.checked_next() else {
+            return false;
+        };
+        let Ok(resumes) = self.prepare_resumes(now) else {
+            return false;
+        };
+        self.commit_resumes(resumes);
+        self.generation = generation;
+        self.automatic_renewals -= 1;
+        true
+    }
+
+    /// A person renewed this close; the Server may again renew it by itself.
+    fn restore_automatic_renewals(&mut self) {
+        self.automatic_renewals = AUTOMATIC_RENEWALS;
     }
 
     fn generation_exhausted(&mut self) {

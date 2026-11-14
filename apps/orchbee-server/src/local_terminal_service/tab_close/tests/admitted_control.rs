@@ -140,7 +140,7 @@ fn preadmitted_input_and_resize_keep_success_while_new_effects_are_fenced_withou
                             &mut peer,
                             request,
                             TerminalLifecycleOutcome::InventoryFailure(
-                                LifecycleInventoryFailure::PageRejected,
+                                LifecycleInventoryFailure::IdentityConflict,
                             ),
                         );
                     }

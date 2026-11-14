@@ -40,8 +40,9 @@ Close primary capacity and revision credits are Session-wide: every non-Closed p
 future revision in the shared ledger, and publication consumes exactly that credit with one
 revision increment. Admission, aliases and exact replay do not advance revision or duplicate
 cleanup. Closed tombstones and immutable acknowledgments survive later context changes. Failed
-or unknown disposal cannot publish removal; known disposal with blocked cleanup remains retained
-for the existing explicit Resume path. This extension adds no persistence, remote execution,
+or unknown disposal cannot publish removal; known disposal with blocked cleanup remains retained,
+renewed by the Server within its [automatic allowance](#automatic-renewal) and then by explicit
+Resume. This extension adds no persistence, remote execution,
 cross-context transfer or recovery of unestablished runtime identity.
 
 `Ctrl+B x` closes the selected canonical Workspace Tab after localized confirmation of what it
@@ -132,8 +133,8 @@ revision/structural conflicts retain their ordinary precise outcomes.
 Accepted conditional Close installs the existing complete reservation/fence before releasing the
 gate and from then on is the ordinary Close of its scope, as an accepted Tab or Panel Close is: it
 terminates live members, because the Server's own evidence already decided, escalates to Force
-after grace, and disposes ended ones. A Host refusal parks the retained
-operation with `HostRefused`, including partial member results. A fresh explicitly confirmed
+after grace, and disposes ended ones. A Host refusal is retried within the attempt, and a park
+after it reports `HostRefused`, including partial member results. A fresh explicitly confirmed
 ordinary `workspace.close` may upgrade a resumable conditional record, retaining its canonical Close ID and all receipts while
 advancing the attempt once; outstanding or unknown signals cannot be upgraded. Exact request replay
 never grants another attempt, and changing the same request ID's action still conflicts.
@@ -284,13 +285,13 @@ returns under its monotonic ID, while leaf closes of its Panels may retain any n
 beside it. Should several Tab closes be retained, the open one answers, else the one admitted at the
 newest revision. Read authority does not authorize Resume.
 
-| Status                                             | Retained meaning and permitted continuation                                                                                                             |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `closing {phase}`                                  | `queued`, `waiting-grace`, `waiting-outcome`, or `disposing`; Server owns continuation. Signal acknowledgment is not lifetime completion.               |
-| `cleanup-blocked {reason,resumable}`               | Known state parked; only explicit Resume can restart an eligible attempt for the same identity and phase.                                               |
-| `outcome-unknown {phase,reason}`                   | Terminate, Force or Dispose may have crossed the Host boundary. Preserve membership and known facts; no blind resend, deletion or replacement identity. |
-| `disposed-awaiting-publication {reason,resumable}` | Dispose is known; only remaining exact local cleanup/publication may run, never termination again.                                                      |
-| `closed {revision}`                                | Exact disposal, target-owner cleanup and canonical removal committed; immutable thereafter.                                                             |
+| Status                                             | Retained meaning and permitted continuation                                                                                                                                              |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `closing {phase}`                                  | `queued`, `waiting-grace`, `waiting-outcome`, or `disposing`; Server owns continuation, including step retries and automatic renewals. Signal acknowledgment is not lifetime completion. |
+| `cleanup-blocked {reason,resumable}`               | Known state parked after the Server gave up; only explicit Resume can restart an eligible attempt for the same identity and phase.                                                       |
+| `outcome-unknown {phase,reason}`                   | Terminate, Force or Dispose may have crossed the Host boundary. Preserve membership and known facts; no blind resend, deletion or replacement identity.                                  |
+| `disposed-awaiting-publication {reason,resumable}` | Dispose is known; only remaining exact local cleanup/publication may run, never termination again.                                                                                       |
+| `closed {revision}`                                | Exact disposal, target-owner cleanup and canonical removal committed; immutable thereafter.                                                                                              |
 
 Closed reason sets are:
 
@@ -356,6 +357,19 @@ older than the retained one: an older accepted request becomes effect-free Stale
 Native never automatically repeats a definite refusal. A lost reply may replay the same control;
 Resumed acknowledges that attempt, while a status read establishes its current phase.
 
+### Automatic renewal
+
+Every Server call that can park a record (step selection, reservation, prequeue rejection,
+settlement, local cleanup failure, publication preparation and publication failure) renews it in
+the same owner step when it is now resumable and its in-memory allowance is above zero: the
+checked generation increment, checked deadline preparation and running state of a Resume commit,
+with no receipt, ledger entry, revision credit or confirmation. A person-started Close holds two
+renewals: admission sets the allowance and every accepted Resume restores it. A record with an
+unknown member, an outstanding step or only nonresumable parks is never renewed, and generation
+exhaustion parks it as above. The status stays `closing` across a renewal, so the first parked
+status a reader sees comes after the allowance is spent. A Resume prepared against the generation a
+renewal replaced is `stale`, whose status read shows the Server still continuing.
+
 ## Server continuation and exact Host lifecycle
 
 Each visible Tab has at most one Close owner, with 256 Tabs per context. Session-wide primaries and
@@ -396,6 +410,14 @@ count a step when admitted to the carrier. A Worktree hold is the one exception:
 publication-ready Close without spending this budget, and its release restarts the deadline. Backpressure consumes time without a Host step, clock
 reset or busy loop. Each lifecycle step contains at most one Host request; no hidden page/retry loop.
 
+A retryable step failure does not park. Prequeue unavailability, an admitted step that was not
+delivered, Host unavailability before handoff, an expired lease or unavailable binding, a typed Host
+failure, a rejected or invalid inventory page and a lost query reply each take the same stage again
+as a new step no earlier than 250 ms later, inside the same deadline and step allowance. When that
+budget is spent, the park reports the last such cause: `worker-unavailable`, `host-refused`,
+`cleanup-incomplete` or `inventory-incomplete`. Identity conflicts, a mutating step's unknown
+outcome, local cleanup failure and publication failure are not retried within the attempt.
+
 Preserve the existing independent budgets: Worker HostExchange is **1s**; Server carrier frame I/O
 is **2s**, with a separate **20s response wait**; submission waits on `result.recv()`. The 30s
 attempt budget governs next-step admission, not Host join, scheduling or total return time.
@@ -414,7 +436,8 @@ An inventory walk begins without a cursor and stays in one Host epoch/inventory 
 Validate bounded page size and contiguous advancing cursor/generation; retain bounded target-match
 facts. Every page, stale-cursor response and restarted first page spends the same step/deadline/query
 budget. A stale cursor discards the incomplete walk and may restart only within remaining allowance.
-Churn, exhaustion or oversized-summary refusal parks inventory-incomplete. Only full same-generation
+A rejected or invalid page is retried after the spacing; a walk the budget ends parks
+inventory-incomplete. Only full same-generation
 exhaustion establishes absence; a partial page never does. Identity mismatch is a fenced conflict.
 Even proven absence of a previously known same-epoch target requires its exact idempotent Dispose
 acknowledgment before cleanup/removal. Stable inventory membership does not prove lifecycle freshness;
@@ -424,8 +447,10 @@ For a running target: exact Terminate acknowledgment → fixed **five-second gra
 settled outcome → exact Exited/Failed outcome → Dispose. Grace and known signal facts survive
 attempt expiry/Resume: no renewed grace or repeated acknowledged Force. AwaitingStart goes directly
 to Dispose; Exited/Failed still obey Host outcome-publication and cleanup barriers. A typed blocked
-Dispose may be reobserved/retried through its idempotent known-state path after Resume. Ambiguous
-delivery parks Unknown under existing fail-closed carrier rules, with no blind resend or replacement.
+Dispose is retried through its idempotent known-state path within the attempt and after renewal or
+Resume. Ambiguous delivery of Terminate, Force or Dispose parks Unknown under existing fail-closed
+carrier rules, with no blind resend or replacement; a query changes nothing, so its lost reply is
+only a failed read.
 
 ## Admission fence and cleanup in every owner
 
@@ -640,7 +665,7 @@ cargo test --locked -p orchbee-server -p orchbee-worker -p orchbee --all-targets
 
 Integration still requires composed traces: both A-close/B-create orders; Closing/Unknown survivor retargeting; Empty then fresh C; rejection of an old completion after C; pending/final replay after removal; cross-Client removal during barriers; and result/UI/retirement handoff. Grant checks, complete identities and fingerprints, exact encoded bounds, zero/noncanonical/max/overflow generations and closed failure reasons remain implementation obligations.
 
-One submitted continuation step does not establish the whole inventory or Host lifecycle. Known-blocked and Unknown remain distinct; exact late Disposed receipts survive expiry. Unknown forbids disposal-derived cleanup or retry, but permits legitimate exact lease cleanup. Server cleanup is required before publication. Reads/replay remain effect-free. Initial admission captures membership at generation one; only eligible Resume advances one generation without changing that membership.
+One submitted continuation step does not establish the whole inventory or Host lifecycle. Known-blocked and Unknown remain distinct; exact late Disposed receipts survive expiry. Unknown forbids disposal-derived cleanup or retry, but permits legitimate exact lease cleanup. Server cleanup is required before publication. Reads/replay remain effect-free. Initial admission captures membership at generation one; only eligible Resume or automatic renewal advances one generation without changing that membership.
 
 Tests must cover full-ledger Resume, stale/duplicate/exhausted controls, revision reservation, inventory churn and complete last-page absence, idle Client slots and original creation-result preservation. Real process witnesses cover descendant cleanup while another terminal survives, last Close followed by explicit Workspace Tab creation, and bounded continuation accounting. Deterministic clocks prove ordering rather than OS timing. Unexecuted platform witnesses remain unverified.
 
@@ -771,8 +796,10 @@ every 50 ms and publishes its request ID, attempt generation and status. A Close
 set on; an unknown outcome stops it with `outcome-unknown`, and a blocked child or one awaiting a
 resumable publication with `child-blocked`.
 
-Earlier members stay closed and later ones are never submitted. The failed member's own Close stays
-retained and continues only through its own Tab Close Resume; a set has no Resume. An ended set
+A child's step retries and automatic renewals keep it `closing`, so the set keeps waiting within
+its time limit; a blocked child is one the Server has given up on. Earlier members stay closed and
+later ones are never submitted. The failed member's own Close stays retained and continues only
+through its own Tab Close Resume; a set has no Resume. An ended set
 releases the members it never submitted. After Start no Client cancels a set, and a Client that
 exits ends only its own observation. Windows managed stop stops this owner after the group Close
 owner and before Close maintenance freezes; every set it reaches fails `session-stopping`.

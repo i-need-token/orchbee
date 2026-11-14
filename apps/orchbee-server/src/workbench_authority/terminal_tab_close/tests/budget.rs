@@ -225,6 +225,7 @@ fn resume_receipts_coexist_inside_two_slots_and_an_oversized_candidate_is_busy_w
     let now = Instant::now();
     let close = workspace_close_command(&authority, 10000, 1, 0);
     accept_workspace(&mut authority, &grant, close.clone(), now);
+    spend_automatic_renewals(&mut authority, &close.request_id);
     let parked = now + Duration::from_secs(30);
     authority
         .next_terminal_tab_close_step_target(&close.request_id, parked)
@@ -255,6 +256,7 @@ fn resume_receipts_coexist_inside_two_slots_and_an_oversized_candidate_is_busy_w
     );
     // The second receipt commits while the first is still retained — the
     // two slots cover the coexistence window.
+    spend_automatic_renewals(&mut authority, &close.request_id);
     let later = parked + Duration::from_secs(30);
     authority
         .next_terminal_tab_close_step_target(&close.request_id, later)
@@ -273,6 +275,7 @@ fn resume_receipts_coexist_inside_two_slots_and_an_oversized_candidate_is_busy_w
     assert!(record_controlled_heap(record).unwrap() <= record.reserved_bytes);
 
     // An oversized candidate is ServerBusy with zero retained effect.
+    spend_automatic_renewals(&mut authority, &close.request_id);
     let even_later = later + Duration::from_secs(30);
     authority
         .next_terminal_tab_close_step_target(&close.request_id, even_later)
@@ -435,6 +438,7 @@ fn leaf_close_uses_the_same_actual_accounting_and_busy_denial_is_effect_free() {
         Some(record.receipt_slot_bytes)
     );
 
+    spend_automatic_renewals(&mut authority, &close.request_id);
     let parked = now + Duration::from_secs(30);
     assert_eq!(
         authority

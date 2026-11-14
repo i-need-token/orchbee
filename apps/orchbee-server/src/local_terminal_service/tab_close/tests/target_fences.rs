@@ -120,7 +120,7 @@ fn parked_attach_and_acquire_success_cannot_install_after_close_acceptance() {
                             &mut peer,
                             request,
                             TerminalLifecycleOutcome::InventoryFailure(
-                                LifecycleInventoryFailure::PageRejected,
+                                LifecycleInventoryFailure::IdentityConflict,
                             ),
                         );
                     }

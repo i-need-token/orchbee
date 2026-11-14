@@ -63,6 +63,7 @@ fn full_ordinary_ledger_does_not_block_resume_receipt_replay_or_replacement() {
     }
     let bytes = authority.ledger_bytes;
     let revision = authority.projection.snapshot().revision;
+    spend_automatic_renewals(&mut authority, &close.request_id);
     let expired = now + Duration::from_secs(30);
     assert_eq!(
         authority
@@ -95,6 +96,7 @@ fn full_ordinary_ledger_does_not_block_resume_receipt_replay_or_replacement() {
             reason: WorkbenchTabCloseResumeRejectionReason::RequestIdentityConflict
         }
     );
+    spend_automatic_renewals(&mut authority, &close.request_id);
     let later = expired + Duration::from_secs(30);
     authority
         .next_terminal_tab_close_step(&close.request_id, later)
@@ -189,6 +191,7 @@ fn generation_exhaustion_keeps_known_facts_and_dropped_resume_keeps_receipt_and_
     let now = Instant::now();
     let close = close_command(&authority, 10000, 0);
     accept(&mut authority, &grant, close.clone(), now);
+    spend_automatic_renewals(&mut authority, &close.request_id);
     let expired = now + Duration::from_secs(30);
     authority
         .next_terminal_tab_close_step(&close.request_id, expired)
@@ -238,6 +241,7 @@ fn resume_authorization_operation_and_generation_precedence_are_effect_free() {
     let now = Instant::now();
     let close = close_command(&authority, 10000, 0);
     accept(&mut authority, &grant, close.clone(), now);
+    spend_automatic_renewals(&mut authority, &close.request_id);
     let parked = now + Duration::from_secs(30);
     authority
         .next_terminal_tab_close_step(&close.request_id, parked)

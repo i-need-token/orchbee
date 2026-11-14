@@ -147,26 +147,6 @@ fn successful_enqueue_is_confirmed_after_expiry_under_the_real_session_gate() {
     );
     reply(&mut peer, query, settled_page());
     drop(session);
-    let deadline = Instant::now() + Duration::from_secs(2);
-    loop {
-        if matches!(
-            read(&service, &close),
-            WorkbenchTabCloseReadOutcome::Available {
-                status: WorkbenchTabCloseStatus::CleanupBlocked {
-                    resumable: true,
-                    ..
-                },
-                ..
-            }
-        ) {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "late admission/result must settle before parking"
-        );
-        thread::yield_now();
-    }
     assert_eq!(read_snapshot(&service).revision, WorkbenchRevision::new(1));
     service.stop_close_maintenance();
     drop(peer);

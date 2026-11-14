@@ -154,13 +154,19 @@ fn confirmed_close_resumes_a_stopped_conditional_close_but_never_an_unknown_sign
                 CloseStepObservation::Result(&result),
             )
             .unwrap();
+        spend_automatic_renewals(&mut owner, &close.request_id);
+        let parked = now + Duration::from_secs(30);
+        owner
+            .next_terminal_tab_close_step_target(&close.request_id, parked)
+            .unwrap();
         let confirmed = workspace_close_command(&owner, 11821, 1, 0);
         let WorkbenchWorkspaceCloseBegin::Admitted(admission) =
             owner.begin_workspace_close(Some(&grant), confirmed.clone())
         else {
             panic!("confirmed admission");
         };
-        let WorkbenchTabCloseResolution::Ready(result) = admission.resolve_after_confirmation(now)
+        let WorkbenchTabCloseResolution::Ready(result) =
+            admission.resolve_after_confirmation(parked)
         else {
             panic!("retained operation");
         };
@@ -191,7 +197,7 @@ fn confirmed_close_resumes_a_stopped_conditional_close_but_never_an_unknown_sign
             );
             assert!(matches!(
                 owner
-                    .next_terminal_tab_close_step_target(&close.request_id, now)
+                    .next_terminal_tab_close_step_target(&close.request_id, parked)
                     .unwrap()
                     .next(),
                 CloseContinuationNext::Lifecycle {

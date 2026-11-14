@@ -373,7 +373,7 @@ fn stopping_owner_waits_for_admitted_receipt_and_preserves_its_known_effect() {
 }
 
 #[test]
-fn late_dispose_is_retained_and_local_resume_publishes_without_a_live_worker() {
+fn late_dispose_is_retained_and_publishes_without_a_live_worker() {
     use orchbee_workbench_protocol::{
         WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseResumeOutcome,
     };
@@ -427,41 +427,15 @@ fn late_dispose_is_retained_and_local_resume_publishes_without_a_live_worker() {
     };
     assert!(
         matches!(
-            service
-                .resume_terminal_tab_close(resume.clone())
-                .unwrap()
-                .outcome,
+            service.resume_terminal_tab_close(resume).unwrap().outcome,
             WorkbenchTabCloseResumeOutcome::Rejected { .. }
         ),
         "expiry cannot Resume across the admitted receipt"
     );
     reply(&mut peer, dispose, TerminalLifecycleOutcome::Disposed);
-    let deadline = Instant::now() + Duration::from_secs(2);
-    loop {
-        if matches!(
-            read(&service, &close),
-            WorkbenchTabCloseReadOutcome::Available {
-                status: WorkbenchTabCloseStatus::DisposedAwaitingPublication {
-                    resumable: true,
-                    ..
-                },
-                ..
-            }
-        ) {
-            break;
-        }
-        assert!(Instant::now() < deadline);
-        thread::sleep(Duration::from_millis(5));
-    }
     drop(peer);
     let _exit = worker_thread.join().unwrap();
     assert!(service.workers.lock().unwrap().request_handle().is_none());
-    let resumed = service.resume_terminal_tab_close(resume.clone()).unwrap();
-    assert!(matches!(
-        resumed.outcome,
-        WorkbenchTabCloseResumeOutcome::Resumed { .. }
-    ));
-    assert_eq!(service.resume_terminal_tab_close(resume), Some(resumed));
     let deadline = Instant::now() + Duration::from_secs(2);
     loop {
         if matches!(

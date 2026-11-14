@@ -272,7 +272,7 @@ impl LocalTerminalService {
                     } else {
                         coordinator
                             .close_authority()?
-                            .park_terminal_tab_close_target_cleanup(&id, runtime)
+                            .park_terminal_tab_close_target_cleanup(&id, runtime, Instant::now())
                             .map_err(|_| PostcommitCoordinationError)?;
                     }
                     return Ok(Some(Instant::now()));
