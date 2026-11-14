@@ -405,13 +405,10 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             C::Pane,
             &[ActionSearchAlias::Pane, ActionSearchAlias::Close],
         ),
-        A::NewTab
-        | A::NewTabWithProfile(_)
-        | A::NewTabToRight
-        | A::NewTabInGroup
-        | A::NewTabInRecentGroup => built_in("workbench.terminal.create", C::Tab, TAB),
+        A::NewTab | A::NewTabWithProfile(_) | A::NewTabToRight | A::NewTabInGroup => {
+            built_in("workbench.terminal.create", C::Tab, TAB)
+        }
         A::TabCreation => built_in("orchbee.native.tab-create.open", C::Tab, ACTIONS),
-        A::NewGroupWithTab => built_in("tabs.group.create-with-tab", C::Tab, TAB),
         A::DuplicateTab => built_in("tabs.tab.duplicate", C::Tab, TAB),
         A::MoveTabPrevious | A::MoveTabNext | A::MoveTabFirst | A::MoveTabLast => {
             built_in("tabs.tab.move", C::Tab, MOVE_TAB)
@@ -432,7 +429,6 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             built_in("tabs.tab.move-to-group", C::Tab, MOVE_TAB)
         }
         A::Ungroup => built_in("tabs.group.ungroup", C::Tab, TAB),
-        A::CollapseGroup => built_in("orchbee.native.tab-group.collapse", C::Tab, TAB),
         A::RenameTab => built_in("workbench.tab.title.set", C::Tab, RENAME_TAB),
         A::RenamePanel => built_in(
             "workbench.panel.rename",

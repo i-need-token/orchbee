@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import corpus from '../../../../../../schemas/workbench/v1/tab-creation-conformance-v1.json';
-import { createNewTabGroup } from '../../utils/tab-strip-internals';
 import { TabModel, type TabGroupColor } from '../tab-model';
 
 function color(value: string): TabGroupColor {
@@ -9,7 +8,8 @@ function color(value: string): TabGroupColor {
 }
 
 describe('canonical terminal creation placement matches GUI TabModel', () => {
-	for (const scenario of corpus.cases) {
+	// The GUI no longer creates a new group with a Tab; the Rust corpus test still covers that placement.
+	for (const scenario of corpus.cases.filter((entry) => entry.operation?.kind !== 'new-group')) {
 		it(`${scenario.name}`, () => {
 			const model = new TabModel({
 				tabs: scenario.tabs,
@@ -32,12 +32,6 @@ describe('canonical terminal creation placement matches GUI TabModel', () => {
 					{ title: 'New Tab', group: source.group, pinned: false },
 					{ index: index + 1 },
 				);
-			} else if (operation?.kind === 'new-group') {
-				createNewTabGroup(model);
-				created =
-					model
-						.getSnapshot()
-						.tabs.find((tab) => !scenario.tabs.some((prior) => prior.id === tab.id))?.id ?? '';
 			} else {
 				created = model.addTab({ title: 'New Tab', group: operation?.groupId ?? null });
 			}

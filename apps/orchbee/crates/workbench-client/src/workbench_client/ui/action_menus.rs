@@ -190,16 +190,6 @@ fn action_availability(
             _ => ActionAvailability::Hidden,
         };
     }
-    // Collapse group joins only while the current Tab sits in an expanded group.
-    if action == MenuAction::CollapseGroup
-        && !state.is_some_and(|state| {
-            super::tab_groups::current_tab(state)
-                .and_then(crate::workbench_projection::ClientTab::group)
-                .is_some_and(|group| !state.group_collapsed(&group.group_id))
-        })
-    {
-        return ActionAvailability::Hidden;
-    }
     if matches!(target, Target::Global)
         && matches!(
             action,
@@ -270,23 +260,13 @@ fn action_availability(
     if matches!(action, MenuAction::ClearTerminal | MenuAction::Copy) && facts.disconnected {
         return ActionAvailability::Disabled(MenuUnavailable::TerminalDisconnected);
     }
-    if matches!(
-        action,
-        MenuAction::NewGroupWithTab
-            | MenuAction::NewTabInRecentGroup
-            | MenuAction::NewTabWithProfile(_)
-    ) && state.is_some_and(|state| {
-        matches!(state.cache().location(), ClientContextLocation::NoWorkspace)
-            && state.cache().tabs().is_empty()
-    }) {
-        return ActionAvailability::Disabled(MenuUnavailable::WorkspaceRequired);
-    }
-    if action == MenuAction::NewTabInRecentGroup
-        && state
-            .and_then(WorkbenchClientState::recent_tab_group)
-            .is_none()
+    if matches!(action, MenuAction::NewTabWithProfile(_))
+        && state.is_some_and(|state| {
+            matches!(state.cache().location(), ClientContextLocation::NoWorkspace)
+                && state.cache().tabs().is_empty()
+        })
     {
-        return ActionAvailability::Disabled(MenuUnavailable::NoRecentGroup);
+        return ActionAvailability::Disabled(MenuUnavailable::WorkspaceRequired);
     }
     if action == MenuAction::ResumeTabClose {
         return match (state, target, resume_permit) {
@@ -925,11 +905,7 @@ impl WorkbenchClientUi {
             });
         }
         if tab_creation {
-            actions = vec![
-                MenuAction::NewTab,
-                MenuAction::NewTabInRecentGroup,
-                MenuAction::NewGroupWithTab,
-            ];
+            actions = vec![MenuAction::NewTab];
             actions.extend(
                 self.preferences
                     .launch_profiles
@@ -972,41 +948,29 @@ impl WorkbenchClientUi {
         let search_children = if matches!(&entry, MenuTarget::Global)
             && let Some(drawn) = self.view().tab_create_target()
         {
-            let child_actions = [
-                MenuAction::NewTab,
-                MenuAction::NewTabInRecentGroup,
-                MenuAction::NewGroupWithTab,
-            ]
-            .into_iter()
-            .chain(
-                self.preferences
-                    .launch_profiles
-                    .profiles
-                    .iter()
-                    .map(|profile| MenuAction::NewTabWithProfile(Box::new(profile.clone()))),
-            )
-            .filter(|action| {
-                !action_availability(
-                    self.capabilities,
-                    state,
-                    &target,
-                    action.clone(),
-                    pointer_released,
-                    resume_permit.as_ref(),
-                    facts,
+            let child_actions = [MenuAction::NewTab]
+                .into_iter()
+                .chain(
+                    self.preferences
+                        .launch_profiles
+                        .profiles
+                        .iter()
+                        .map(|profile| MenuAction::NewTabWithProfile(Box::new(profile.clone()))),
                 )
-                .is_hidden()
-            })
-            .collect::<Vec<_>>();
-            let labels = child_actions
-                .iter()
-                .map(|action| match action {
-                    MenuAction::NewTabInRecentGroup => state
-                        .and_then(WorkbenchClientState::recent_tab_group)
-                        .map(|group| group.label.clone()),
-                    _ => None,
+                .filter(|action| {
+                    !action_availability(
+                        self.capabilities,
+                        state,
+                        &target,
+                        action.clone(),
+                        pointer_released,
+                        resume_permit.as_ref(),
+                        facts,
+                    )
+                    .is_hidden()
                 })
-                .collect();
+                .collect::<Vec<_>>();
+            let labels = vec![None; child_actions.len()];
             vec![MenuSearchChild {
                 parent: MenuAction::TabCreation,
                 source: MenuTarget::TabCreate(drawn),
@@ -1046,9 +1010,6 @@ impl WorkbenchClientUi {
             action @ (MenuAction::OpenWorktreeAt(_) | MenuAction::WorkspaceInFolder(_)) => {
                 choices.label(&action)
             }
-            MenuAction::NewTabInRecentGroup => state
-                .and_then(WorkbenchClientState::recent_tab_group)
-                .map(|group| group.label.clone()),
             MenuAction::JoinGroup(index) => state
                 .and_then(|state| state.cache().groups().get(usize::from(index)))
                 .map(|group| group.label.clone()),

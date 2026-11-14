@@ -702,13 +702,6 @@ function nextAvailableEntityId(prefix: string, existingIds: ReadonlySet<string>)
 	return `${prefix}-${sequence}`;
 }
 
-export function createNewTabGroup(model: TabModel, newTabTitle = 'New Tab'): void {
-	const snapshot = model.getSnapshot();
-	const groupId = nextAvailableEntityId('group', new Set(snapshot.groups.map((group) => group.id)));
-	const tabId = model.addTab({ title: newTabTitle, pinned: false, group: null });
-	model.createGroup({ id: groupId, title: '', color: 'grey', collapsed: false }, [tabId]);
-}
-
 export function createGroupForTabs(
 	model: TabModel,
 	tabIds: readonly string[],

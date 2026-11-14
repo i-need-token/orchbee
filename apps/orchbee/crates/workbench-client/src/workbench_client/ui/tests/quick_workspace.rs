@@ -484,12 +484,6 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
 fn empty_compatibility_create_tab_uses_workspace_launch_and_cancel_never_resurrects_a_terminal() {
     for cancelled in [false, true] {
         let (mut ui, mailbox, clock, snapshot) = no_workspace();
-        ui.apply_client_action(ClientAction::TabMenu {
-            action: crate::action_menu::MenuAction::NewGroupWithTab,
-            tab_id: None,
-        });
-        assert_eq!(ui.view().notice(), Some(WorkbenchClientNotice::NoWorkspace));
-        assert!(mailbox.try_recv().unwrap().is_none());
         ui.apply_client_action(ClientAction::CreateTab);
         finish_preparation(&mut ui, &mailbox, &clock, &snapshot, cancelled);
         if cancelled {

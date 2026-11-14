@@ -202,8 +202,6 @@ pub enum MenuAction {
     TabCreation,
     NewTabToRight,
     NewTabInGroup,
-    NewTabInRecentGroup,
-    NewGroupWithTab,
     DuplicateTab,
     MoveTabPrevious,
     MoveTabNext,
@@ -222,8 +220,6 @@ pub enum MenuAction {
     JoinGroup(u16),
     RemoveFromGroup,
     Ungroup,
-    /// The global menu's keyboard path to folding the current Tab's expanded group.
-    CollapseGroup,
     RenameTab,
     RenamePanel,
     /// Opens the Find bar on the Panel the menu addresses.
@@ -298,8 +294,6 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::TabCreation => Self::TabCreation,
             MenuAction::NewTabToRight => Self::NewTabToRight,
             MenuAction::NewTabInGroup => Self::NewTabInGroup,
-            MenuAction::NewTabInRecentGroup => Self::NewTabInRecentGroup,
-            MenuAction::NewGroupWithTab => Self::NewGroupWithTab,
             MenuAction::DuplicateTab => Self::DuplicateTab,
             MenuAction::MoveTabPrevious => Self::MoveTabPrevious,
             MenuAction::MoveTabNext => Self::MoveTabNext,
@@ -318,7 +312,6 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::JoinGroup(_) => Self::JoinGroup,
             MenuAction::RemoveFromGroup => Self::RemoveFromGroup,
             MenuAction::Ungroup => Self::Ungroup,
-            MenuAction::CollapseGroup => Self::CollapseGroup,
             MenuAction::RenameTab => Self::RenameTab,
             MenuAction::RenamePanel => Self::RenamePanel,
             MenuAction::FindInTerminal => Self::FindInTerminal,
@@ -409,10 +402,8 @@ impl MenuAction {
             | Self::PinTab
             | Self::NewTabInGroup
             | Self::NewTabWithProfile(_)
-            | Self::NewTabInRecentGroup
             | Self::TabCreation
             | Self::NewTabToRight
-            | Self::NewGroupWithTab
             | Self::DuplicateTab
             | Self::UnpinTab
             | Self::ManageGroups
@@ -422,8 +413,7 @@ impl MenuAction {
             | Self::GroupColor(_)
             | Self::JoinGroup(_)
             | Self::RemoveFromGroup
-            | Self::Ungroup
-            | Self::CollapseGroup => ClientAction::TabMenu {
+            | Self::Ungroup => ClientAction::TabMenu {
                 action: self.clone(),
                 tab_id: None,
             },

@@ -150,10 +150,6 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.newGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newGroup'],
 	},
-	newGroupWithTab: {
-		id: 'workbench.tabs.actions.newGroupWithTab',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newGroupWithTab'],
-	},
 	newTab: {
 		id: 'workbench.tabs.actions.new',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.new'],
@@ -169,12 +165,6 @@ export const workbenchTabMessages = defineMessages({
 	newTabInGroup: {
 		id: 'workbench.tabs.actions.newInGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newInGroup'],
-	},
-	newTabInRecentGroup: {
-		id: 'workbench.tabs.actions.newInRecentGroup',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newInRecentGroup'],
-		description:
-			'Action that opens a Tab in the active Tab group, or else the group used most recently.',
 	},
 	newTabMenu: {
 		id: 'workbench.tabs.menus.new',
@@ -357,12 +347,6 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.unavailable.groupMissing',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.groupMissing'],
 		description: 'Reason a Tab group action is disabled: the group it names is gone.',
-	},
-	unavailableNoRecentGroup: {
-		id: 'workbench.tabs.unavailable.noRecentGroup',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.noRecentGroup'],
-		description:
-			'Reason New Tab in recent group is disabled: no group exists. Matches the TUI reason for the same condition.',
 	},
 	unnamedGroup: {
 		id: 'workbench.tabs.groups.unnamed',

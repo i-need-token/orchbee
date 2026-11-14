@@ -6,7 +6,6 @@ import type { TabCloseSource } from '../layout/tab-closing-mode';
 export const TAB_STRIP_ACTION_IDS = {
 	closeTabs: 'tabs.tab.close',
 	createGroup: 'tabs.group.create',
-	createGroupWithTab: 'tabs.group.create-with-tab',
 	createTab: 'tabs.tab.create',
 	duplicateTabs: 'tabs.tab.duplicate',
 	moveGroup: 'tabs.group.move',
@@ -87,7 +86,6 @@ export interface TabStripActionCatalog {
 	readonly [TAB_STRIP_ACTION_IDS.applyArrangement]: ActionSignature<TabArrangementInput>;
 	readonly [TAB_STRIP_ACTION_IDS.closeTabs]: ActionSignature<TabCloseInput>;
 	readonly [TAB_STRIP_ACTION_IDS.createGroup]: ActionSignature<TabGroupCreateInput>;
-	readonly [TAB_STRIP_ACTION_IDS.createGroupWithTab]: ActionSignature<void>;
 	readonly [TAB_STRIP_ACTION_IDS.createTab]: ActionSignature<TabCreateInput>;
 	readonly [TAB_STRIP_ACTION_IDS.duplicateTabs]: ActionSignature<TabIdsInput>;
 	readonly [TAB_STRIP_ACTION_IDS.moveGroup]: ActionSignature<TabGroupShiftInput>;

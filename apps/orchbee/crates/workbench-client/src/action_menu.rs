@@ -143,7 +143,6 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::NewTabToRight,
     MenuAction::DuplicateTab,
     MenuAction::RenameTab,
-    MenuAction::CollapseGroup,
     MenuAction::MoveTabPrevious,
     MenuAction::MoveTabNext,
     MenuAction::MoveTabFirst,
@@ -453,7 +452,6 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::NewTabToRight
         | MenuAction::DuplicateTab
         | MenuAction::RenameTab
-        | MenuAction::CollapseGroup
         | MenuAction::MoveTabPrevious
         | MenuAction::MoveTabNext
         | MenuAction::MoveTabFirst
@@ -559,7 +557,6 @@ fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -
         | MenuAction::ResumeTabClose
         | MenuAction::CreateGroup
         | MenuAction::Ungroup
-        | MenuAction::NewGroupWithTab
         | MenuAction::ClosePane => true,
         _ => false,
     }

@@ -367,9 +367,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.actions.moveToGroup': 'Move tabs to group',
 	'workbench.tabs.actions.updateGroup': 'Update tab group',
 	'workbench.tabs.actions.newGroup': 'New group',
-	'workbench.tabs.actions.newGroupWithTab': 'New group with Tab',
 	'workbench.tabs.actions.newInGroup': 'New Tab in group',
-	'workbench.tabs.actions.newInRecentGroup': 'New Tab in recent group',
 	'workbench.tabs.actions.ungroup': 'Ungroup',
 	'workbench.tabs.unavailable.missing':
 		'{count, plural, =1 {This Tab no longer exists} other {These Tabs no longer exist}}',
@@ -381,7 +379,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.unavailable.amongPinned': 'A new Tab cannot go among pinned Tabs',
 	'workbench.tabs.unavailable.noMatchingTabs': 'No Tabs match this close action',
 	'workbench.tabs.unavailable.groupMissing': 'This group no longer exists',
-	'workbench.tabs.unavailable.noRecentGroup': 'No recent group',
 	'workbench.tabs.actions.more': 'More options',
 	'workbench.tabs.menu.addToGroup':
 		'{count, plural, =1 {Add to group} other {Add selected # Tabs to group}}',

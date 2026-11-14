@@ -16,7 +16,6 @@ pub(super) struct GroupView {
     context: Option<(SessionId, WorkbenchTerminalContextId)>,
     collapsed: Vec<WorkbenchTabGroupId>,
     selected: Vec<WorkbenchTabId>,
-    recent: Option<WorkbenchTabGroupId>,
     scroll: Option<StripScroll>,
 }
 
@@ -172,29 +171,8 @@ impl WorkbenchClientState {
             .filter(|start| self.cache.tab_index(&start.tab).is_some())
     }
 
-    pub(crate) fn recent_tab_group(&self) -> Option<&orchbee_workbench_protocol::TabGroup> {
-        self.active()
-            .and_then(|active| self.cache.tabs().get(active.index()))
-            .and_then(|tab| tab.group())
-            .or_else(|| {
-                self.tab_groups
-                    .recent
-                    .as_ref()
-                    .filter(|_| self.tab_groups.matches(&self.cache))
-                    .and_then(|id| {
-                        self.cache
-                            .groups()
-                            .iter()
-                            .find(|group| &group.group_id == id)
-                    })
-            })
-            .or_else(|| self.cache.groups().last())
-    }
-
-    pub(super) fn remember_tab_group(&mut self) {
-        let group = self.recent_tab_group().map(|group| group.group_id.clone());
+    pub(super) fn prepare_tab_groups(&mut self) {
         self.tab_groups.prepare(&self.cache);
-        self.tab_groups.recent = group;
     }
     /// Native marking keeps the current terminal attached. The active Tab is always included,
     /// and canonical order determines the selected set independently from marking order.
@@ -216,7 +194,7 @@ impl WorkbenchClientState {
     }
 
     pub(crate) fn clear_tab_selection(&mut self) {
-        self.remember_tab_group();
+        self.prepare_tab_groups();
         self.tab_groups.selected.clear();
     }
 

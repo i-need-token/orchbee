@@ -71,7 +71,6 @@ export const WORKBENCH_ACTION_IDS = {
 	closeActiveTab: 'workbench.tab.active.close',
 	closeTabsAfterActive: 'workbench.tab.active.close-after',
 	createTabAfterActive: 'workbench.tab.active.create-after',
-	createTabInRecentGroup: 'workbench.tab.recent-group.create',
 	duplicateActiveTabs: 'workbench.tab.active.duplicate',
 	moveActivePanelDown: 'workbench.panel.active.move-down',
 	moveActivePanelLeft: 'workbench.panel.active.move-left',
@@ -329,7 +328,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.closeActiveTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.closeTabsAfterActive]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.createTabAfterActive]: ActionSignature<void>;
-	readonly [WORKBENCH_ACTION_IDS.createTabInRecentGroup]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.duplicateActiveTabs]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelDown]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelLeft]: ActionSignature<void>;

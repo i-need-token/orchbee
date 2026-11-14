@@ -92,7 +92,10 @@ fn commit(
 
 #[test]
 fn creation_routes_install_foreground_marks_and_preserve_duplicate_or_removed_tab_marks() {
-    for (kind, removed) in (0..5).flat_map(|kind| [(kind, false), (kind, true)]) {
+    for (kind, removed) in [0, 2, 3, 4]
+        .into_iter()
+        .flat_map(|kind| [(kind, false), (kind, true)])
+    {
         let (mut ui, mailbox, clock, baseline) = ready_snapshot(grouped());
         let source = baseline.terminal_contexts[0].tabs[1].tab_id.clone();
         let group = baseline.terminal_contexts[0].groups[0].group_id.clone();
@@ -117,10 +120,6 @@ fn creation_routes_install_foreground_marks_and_preserve_duplicate_or_removed_ta
                     group_id: group.clone(),
                 }),
             ),
-            1 => (
-                MenuAction::NewGroupWithTab,
-                Some(TabCreationPlacement::NewGroup {}),
-            ),
             2 => (
                 MenuAction::DuplicateTab,
                 Some(TabCreationPlacement::Duplicate {
@@ -136,14 +135,10 @@ fn creation_routes_install_foreground_marks_and_preserve_duplicate_or_removed_ta
             ),
         };
         match kind {
-            0 | 1 => {
-                let target = if kind == 0 {
-                    MenuTarget::TabGroups {
-                        tab_id: source.clone(),
-                        colors: false,
-                    }
-                } else {
-                    MenuTarget::TabCreate(ui.view().tab_create_target().unwrap())
+            0 => {
+                let target = MenuTarget::TabGroups {
+                    tab_id: source.clone(),
+                    colors: false,
                 };
                 assert!(ui.open_action_menu(target, None, false));
                 choose(&mut ui, action);

@@ -1481,12 +1481,7 @@ fn action_label(
     let text = if let Some(label) = label {
         let label = if matches!(action, MenuAction::JoinWorkspaceProject(_)) {
             crate::machine_discovery::display_label(label)
-        } else if label.is_empty()
-            && matches!(
-                action,
-                MenuAction::JoinGroup(_) | MenuAction::NewTabInRecentGroup
-            )
-        {
+        } else if label.is_empty() && matches!(action, MenuAction::JoinGroup(_)) {
             locale.shell().unnamed_tab_group.to_owned()
         } else {
             sanitize_terminal_text(label).into_owned()

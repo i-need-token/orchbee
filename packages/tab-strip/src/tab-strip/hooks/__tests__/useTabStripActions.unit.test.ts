@@ -549,10 +549,6 @@ describe('useTabStripActions', () => {
 			actions.createTab({ groupId: null, title: 'New Tab' }, 'button').completion,
 		).resolves.toMatchObject({ kind: 'blocked' });
 		await expect(
-			actions.execute(TAB_STRIP_ACTION_IDS.createGroupWithTab, undefined, 'context-menu')
-				.completion,
-		).resolves.toMatchObject({ kind: 'blocked' });
-		await expect(
 			actions.execute(TAB_STRIP_ACTION_IDS.duplicateTabs, { tabIds: ['tab-1'] }, 'context-menu')
 				.completion,
 		).resolves.toMatchObject({ kind: 'blocked' });

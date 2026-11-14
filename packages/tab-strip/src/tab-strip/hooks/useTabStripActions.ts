@@ -2,7 +2,6 @@ import {
 	ActionRuntime,
 	createTypedActionRuntime,
 	defineAction,
-	noActionInput,
 	type ActionCatalogId,
 	type ActionExecution,
 	type ActionExecutionContext,
@@ -51,11 +50,7 @@ import type {
 	TabStripTabCreationIntent,
 } from '../types/tab-strip-options';
 import type { TabStripActions } from '../types/tab-strip-actions';
-import {
-	createGroupForTabs,
-	createNewTabGroup,
-	NEW_TAB_GROUP_COLOR,
-} from '../utils/tab-strip-internals';
+import { createGroupForTabs, NEW_TAB_GROUP_COLOR } from '../utils/tab-strip-internals';
 
 function hasTargetGroup(model: TabModel, groupId: string | null): boolean {
 	return groupId === null || model.getGroup(groupId) !== null;
@@ -388,28 +383,6 @@ export function useTabStripActions({
 					id: TAB_STRIP_ACTION_IDS.createGroup,
 					input: tabGroupCreateInput,
 					title: workbenchTabMessages.newGroup,
-				}),
-			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category,
-					// An authority can take longer to answer than a person takes to press again.
-					execution: {
-						concurrency: 'reject-duplicate',
-						concurrencyKey: () => 'new-group',
-						mode: 'foreground',
-					},
-					getAvailability: () => getCreationAvailability({ kind: 'new-group' }),
-					handler: {
-						execute: (context) =>
-							apply(context, { kind: 'tab-created-in-new-group' }, () =>
-								createNewTabGroup(model, messages.newTabTitle),
-							),
-					},
-					id: TAB_STRIP_ACTION_IDS.createGroupWithTab,
-					input: noActionInput,
-					title: workbenchTabMessages.newGroupWithTab,
 				}),
 			),
 			typedRuntime.register(

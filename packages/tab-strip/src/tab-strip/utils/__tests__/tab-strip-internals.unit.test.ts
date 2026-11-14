@@ -3,15 +3,16 @@ import { describe, expect, it } from 'vitest';
 import {
 	areDraggedTabIdsConsecutive,
 	calculateHorizontalTabStripTrailingEdge,
-	createNewTabGroup,
+	createGroupForTabs,
 } from '../tab-strip-internals';
 
 describe('tab-strip internals', () => {
 	it('preserves deterministic identifiers and dragged-tab adjacency', () => {
 		const model = new TabModel();
-		createNewTabGroup(model);
-		createNewTabGroup(model);
-		createNewTabGroup(model);
+		for (let count = 0; count < 3; count += 1) {
+			const tabId = model.addTab({ title: 'New Tab', pinned: false, group: null });
+			createGroupForTabs(model, [tabId], '');
+		}
 		expect(model.getSnapshot().groups.map((group) => group.id)).toEqual([
 			'group-1',
 			'group-2',

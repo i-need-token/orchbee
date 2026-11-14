@@ -440,7 +440,7 @@ the existing English and Chinese catalogs.
 | Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                                       |
 
 Right-clicking the Tab-strip `+` lists the saved launch profiles and the Agents that start in a new
-Tab, unless a single profile is all it would hold; the global menu's new-Tab submenu also offers the recent group and a new group. The profile menu
+Tab, unless a single profile is all it would hold. The profile menu
 retains the same exact `DrawnTabCreate` context proof. See [Tab menus](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 
 Tab-create gestures cancel on changed identity, geometry, covering capture, released pointer

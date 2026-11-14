@@ -337,9 +337,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.actions.moveToGroup': '将标签页移至组',
 	'workbench.tabs.actions.updateGroup': '更新标签页组',
 	'workbench.tabs.actions.newGroup': '新建分组',
-	'workbench.tabs.actions.newGroupWithTab': '新建分组及标签页',
 	'workbench.tabs.actions.newInGroup': '在分组中新建标签页',
-	'workbench.tabs.actions.newInRecentGroup': '在最近的分组中新建标签页',
 	'workbench.tabs.actions.ungroup': '取消分组',
 	'workbench.tabs.unavailable.missing':
 		'{count, plural, =1 {此标签页已不存在} other {这些标签页已不存在}}',
@@ -351,7 +349,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.unavailable.amongPinned': '新标签页不能放在固定标签页之间',
 	'workbench.tabs.unavailable.noMatchingTabs': '没有符合此关闭操作的标签页',
 	'workbench.tabs.unavailable.groupMissing': '此分组已不存在',
-	'workbench.tabs.unavailable.noRecentGroup': '暂无最近使用的分组',
 	'workbench.tabs.actions.more': '更多选项',
 	'workbench.tabs.menu.addToGroup':
 		'{count, plural, =1 {加入分组} other {将所选 # 个标签页加入分组}}',

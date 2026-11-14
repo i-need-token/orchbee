@@ -105,8 +105,6 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
         ui.view().action_menu().unwrap().actions,
         &[
             MenuAction::NewTab,
-            MenuAction::NewTabInRecentGroup,
-            MenuAction::NewGroupWithTab,
             MenuAction::NewTabWithProfile(Box::new(
                 orchbee_workbench_protocol::UserLaunchProfile {
                     id: "system-default".into(),
@@ -117,10 +115,6 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
                 }
             ))
         ]
-    );
-    assert_eq!(
-        ui.view().action_menu().unwrap().labels[1].as_deref(),
-        Some("源组")
     );
     assert!(mailbox.try_recv().unwrap().is_none());
 }

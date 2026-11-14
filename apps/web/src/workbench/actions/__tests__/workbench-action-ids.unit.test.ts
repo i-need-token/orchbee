@@ -34,7 +34,6 @@ describe('workbench action contracts', () => {
 			closeWorkspaceConfirmed: 'workbench.workspace.close-confirmed',
 			closeTabConfirmed: 'workbench.tab.close-confirmed',
 			createTabAfterActive: 'workbench.tab.active.create-after',
-			createTabInRecentGroup: 'workbench.tab.recent-group.create',
 			decreaseTerminalFontSize: 'workbench.terminal.font-size.decrease',
 			deleteWorkspace: 'workbench.workspace.delete',
 			duplicateActiveTabs: 'workbench.tab.active.duplicate',

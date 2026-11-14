@@ -36,7 +36,6 @@
 		],
 		"tabs": [
 			"tabs.group.create",
-			"tabs.group.create-with-tab",
 			"tabs.group.ungroup",
 			"tabs.group.update",
 			"tabs.tab.close",

@@ -225,11 +225,7 @@ fn menu_and_binding_presenters_share_common_action_identity() {
 #[test]
 fn dynamic_menu_input_keeps_one_semantic_identity() {
     use orchbee_workbench_protocol::TabGroupColor;
-    for candidate in [
-        MenuAction::NewTabToRight,
-        MenuAction::NewTabInGroup,
-        MenuAction::NewTabInRecentGroup,
-    ] {
+    for candidate in [MenuAction::NewTabToRight, MenuAction::NewTabInGroup] {
         assert_eq!(
             menu_metadata(MenuAction::NewTab).action.identity,
             menu_metadata(candidate).action.identity
