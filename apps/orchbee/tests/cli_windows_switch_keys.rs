@@ -34,7 +34,11 @@ const LANDING: Duration = Duration::from_secs(8);
 const CONFIRMATION: &str = "Close Workspace?";
 /// The refused key's notice, the notice of a click the held frame could not resolve, which takes
 /// the status line first, and the busy refusal of a key whose hold outlived its bound.
-const REFUSALS: [&str; 3] = ["Workspace changed", "input was not sent", "Client busy"];
+const REFUSALS: [&str; 3] = [
+    "Couldn't apply the change.",
+    "Couldn't send the input.",
+    "Couldn't run the action.",
+];
 
 #[test]
 fn close_after_a_second_click_never_closes_the_earlier_destination() {
