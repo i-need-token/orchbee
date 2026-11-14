@@ -61,7 +61,8 @@ function colorSwatch(color: TabGroupColor): ReactNode {
 /**
  * The Tab and group menus follow the TUI's composition: rows count the selected set only when the
  * menu opened on one of several selected Tabs, close rows are destructive, and rows that act on the
- * active Tab rather than the menu's target live in Search's Actions.
+ * active Tab rather than the menu's target live in Search's Actions. Duplicate and Close Tabs to the
+ * right act on the menu's target, as a browser's Tab menu does.
  */
 export function TabStripContextMenu({
 	actions,
@@ -295,6 +296,22 @@ export function TabStripContextMenu({
 				<ProductIcon name='pin' size='menu-leading' />
 				{willPin ? messages.formatPinTabs(count) : messages.formatUnpinTabs(count)}
 			</ContextMenuItem>
+			<ContextMenuItem
+				disabled={
+					actions.getCreationAvailability({ kind: 'duplicate', tabIds: targetIds }).kind !==
+					'enabled'
+				}
+				onClick={run(() =>
+					actions.execute(
+						TAB_STRIP_ACTION_IDS.duplicateTabs,
+						{ tabIds: targetIds },
+						'context-menu',
+					),
+				)}
+			>
+				<ProductIcon name='copy' size='menu-leading' />
+				{messages.formatDuplicateTabs(count)}
+			</ContextMenuItem>
 			{groupChoices || grouped ? <ContextMenuSeparator /> : null}
 			{groupChoices ? (
 				<ContextMenuSub>
@@ -377,6 +394,24 @@ export function TabStripContextMenu({
 				>
 					<ProductIcon name='close' size='menu-leading' />
 					{messages.formatCloseOtherTabs(closeTargets.other.length)}
+				</ContextMenuItem>
+			)}
+			{closeTargets.trailing.length === 0 ? null : (
+				<ContextMenuItem
+					variant='destructive'
+					disabled={!closeAllowed}
+					onClick={run(() =>
+						actions.execute(
+							TAB_STRIP_ACTION_IDS.closeTabs,
+							{ closeSource: 'non-ui', tabIds: closeTargets.trailing },
+							'context-menu',
+						),
+					)}
+				>
+					<ProductIcon name='close' size='menu-leading' />
+					{orientation === TabStripOrientation.Vertical
+						? messages.closeTabsBelow
+						: messages.closeTabsToRight}
 				</ContextMenuItem>
 			)}
 		</ContextMenuContent>

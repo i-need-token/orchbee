@@ -62,6 +62,8 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 		return {
 			close: format(workbenchTabMessages.close),
 			closeTab: format(workbenchTabMessages.close),
+			closeTabsBelow: format(workbenchTabMessages.closeTabsBelow),
+			closeTabsToRight: format(workbenchTabMessages.closeTabsToRight),
 			closeVerticalTabs: format(workbenchTabMessages.closeVerticalTabs),
 			collapseTabStrip: format(workbenchTabMessages.collapseTabStrip),
 			expandTabStrip: format(workbenchTabMessages.expandTabStrip),
@@ -73,6 +75,7 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 				format(workbenchTabMessages.closedTabsAnnouncement, { count }),
 			formatCloseOtherTabs: (count) => format(workbenchTabMessages.tabMenuCloseOthers, { count }),
 			formatCloseTabs: (count) => format(workbenchTabMessages.tabMenuClose, { count }),
+			formatDuplicateTabs: (count) => format(workbenchTabMessages.tabMenuDuplicate, { count }),
 			formatDragCompleteAnnouncement: (label, position, count) =>
 				format(workbenchTabMessages.dragCompleteAnnouncement, { label, position, count }),
 			formatGroupAccessibleName: (group, tabs) => {

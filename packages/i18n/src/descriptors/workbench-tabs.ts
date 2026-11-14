@@ -294,6 +294,11 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.menu.closeOthers',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.closeOthers'],
 	},
+	tabMenuDuplicate: {
+		id: 'workbench.tabs.menu.duplicate',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.duplicate'],
+		description: 'A count of 1 means the Tab the menu opened on; a larger one is its selected set.',
+	},
 	tabMenuNewGroup: {
 		id: 'workbench.tabs.menu.newGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.newGroup'],

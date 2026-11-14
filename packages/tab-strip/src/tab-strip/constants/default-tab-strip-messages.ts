@@ -10,6 +10,8 @@ import type { TabStripMessages } from '../types/tab-strip-messages';
 export const DEFAULT_TAB_STRIP_MESSAGES = {
 	close: 'Close',
 	closeTab: 'Close',
+	closeTabsBelow: 'Close Tabs below…',
+	closeTabsToRight: 'Close Tabs to the right…',
 	closeVerticalTabs: 'Close vertical tabs',
 	collapseTabStrip: 'Collapse tab strip',
 	expandTabStrip: 'Expand tab strip',
@@ -20,6 +22,7 @@ export const DEFAULT_TAB_STRIP_MESSAGES = {
 	formatClosedTabsAnnouncement: (count) => `Closed ${count} tabs`,
 	formatCloseOtherTabs: (count) => `Close ${count} other ${count === 1 ? 'Tab' : 'Tabs'}…`,
 	formatCloseTabs: (count) => (count === 1 ? 'Close' : `Close selected ${count} Tabs…`),
+	formatDuplicateTabs: (count) => (count === 1 ? 'Duplicate' : `Duplicate selected ${count} Tabs`),
 	formatDragCompleteAnnouncement: (label, position, count) =>
 		`${label} moved to position ${position} of ${count}`,
 	formatGroupAccessibleName: getGroupAccessibleName,

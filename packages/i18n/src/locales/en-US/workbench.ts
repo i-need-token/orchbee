@@ -399,6 +399,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.menu.close': '{count, plural, =1 {Close} other {Close selected # Tabs…}}',
 	'workbench.tabs.menu.closeOthers':
 		'{count, plural, one {Close # other Tab…} other {Close # other Tabs…}}',
+	'workbench.tabs.menu.duplicate':
+		'{count, plural, =1 {Duplicate} other {Duplicate selected # Tabs}}',
 	'workbench.tabs.menu.newGroup': 'New group…',
 	'workbench.tabs.menu.pin': '{count, plural, =1 {Pin} other {Pin selected # Tabs}}',
 	'workbench.tabs.menu.removeFromGroup':

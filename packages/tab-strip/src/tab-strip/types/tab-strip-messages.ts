@@ -10,6 +10,9 @@ export type TabStripMoveDirection = 'down' | 'left' | 'right' | 'up';
 export interface TabStripMessages {
 	readonly close: string;
 	readonly closeTab: string;
+	/** Closes the unpinned Tabs after the Tab the menu opened on, or after its selected set. */
+	readonly closeTabsBelow: string;
+	readonly closeTabsToRight: string;
 	readonly closeVerticalTabs: string;
 	readonly collapseTabStrip: string;
 	readonly expandTabStrip: string;
@@ -19,6 +22,7 @@ export interface TabStripMessages {
 	readonly formatClosedTabsAnnouncement: (count: number) => string;
 	readonly formatCloseOtherTabs: (count: number) => string;
 	readonly formatCloseTabs: (count: number) => string;
+	readonly formatDuplicateTabs: (count: number) => string;
 	readonly formatDragCompleteAnnouncement: (
 		label: string,
 		position: number,

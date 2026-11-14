@@ -368,6 +368,7 @@ export const zhCNWorkbenchMessages = {
 		'{count, plural, =1 {加入分组} other {将所选 # 个标签页加入分组}}',
 	'workbench.tabs.menu.close': '{count, plural, =1 {关闭} other {关闭所选 # 个标签页…}}',
 	'workbench.tabs.menu.closeOthers': '{count, plural, other {关闭其他 # 个标签页…}}',
+	'workbench.tabs.menu.duplicate': '{count, plural, =1 {复制} other {复制所选 # 个标签页}}',
 	'workbench.tabs.menu.newGroup': '新建分组…',
 	'workbench.tabs.menu.pin': '{count, plural, =1 {固定} other {固定所选 # 个标签页}}',
 	'workbench.tabs.menu.removeFromGroup':
