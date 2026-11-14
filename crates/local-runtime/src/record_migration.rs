@@ -29,8 +29,6 @@ pub(crate) use backup::{KEPT_UPGRADE_FOLDERS, upgrade_folder};
 /// notice, earlier layouts and kept terminal output carry theirs in their frame header instead.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum VersionedRecord {
-    /// `internal/state/onboarding.json`.
-    Onboarding,
     /// `internal/state/machines.json`.
     Machines,
     /// `internal/plugins/registry.json`.
@@ -43,8 +41,7 @@ pub enum VersionedRecord {
 
 impl VersionedRecord {
     /// Every native record, in the order `config check` lists them.
-    pub const ALL: [Self; 5] = [
-        Self::Onboarding,
+    pub const ALL: [Self; 4] = [
         Self::Machines,
         Self::PluginRegistry,
         Self::SessionLifecycle,
@@ -54,7 +51,6 @@ impl VersionedRecord {
     /// The record's stable machine name, as logs and machine-readable output spell it.
     pub const fn token(self) -> &'static str {
         match self {
-            Self::Onboarding => "onboarding",
             Self::Machines => "machines",
             Self::PluginRegistry => "plugin-registry",
             Self::SessionLifecycle => "session",
@@ -76,7 +72,6 @@ impl VersionedRecord {
     /// staging file `<name>.pending`.
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Onboarding => "onboarding",
             Self::Machines => "machines",
             Self::PluginRegistry => "registry",
             Self::SessionLifecycle => "session",
@@ -87,7 +82,6 @@ impl VersionedRecord {
     /// The record's file name.
     pub const fn file_name(self) -> &'static str {
         match self {
-            Self::Onboarding => "onboarding.json",
             Self::Machines => "machines.json",
             Self::PluginRegistry => "registry.json",
             Self::SessionLifecycle => "session.json",

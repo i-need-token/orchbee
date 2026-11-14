@@ -83,8 +83,6 @@ impl Locale {
     /// The record's name as the messages' `{item}`, capitalized for the start of a sentence.
     fn record_item(self, record: VersionedRecord, session: Option<&str>) -> String {
         match (self, record) {
-            (Self::EnUs, VersionedRecord::Onboarding) => "The onboarding notice state".into(),
-            (Self::ZhCn, VersionedRecord::Onboarding) => "入门提示状态".into(),
             (Self::EnUs, VersionedRecord::Machines) => "The saved machine list".into(),
             (Self::ZhCn, VersionedRecord::Machines) => "已保存的机器列表".into(),
             (Self::EnUs, VersionedRecord::PluginRegistry) => "The plugin registry".into(),
@@ -112,12 +110,6 @@ impl Locale {
     /// it, as its owner's README states.
     const fn record_consequence(self, record: VersionedRecord) -> &'static str {
         match (self, record) {
-            (Self::EnUs, VersionedRecord::Onboarding) => {
-                "The onboarding notice shows again, and dismissing it lasts only until Orchbee closes."
-            }
-            (Self::ZhCn, VersionedRecord::Onboarding) => {
-                "入门提示会再次显示，关闭它只在 Orchbee 退出前有效。"
-            }
             (Self::EnUs, VersionedRecord::Machines) => {
                 "Saved machines aren't shown, and changes last only until Orchbee closes."
             }

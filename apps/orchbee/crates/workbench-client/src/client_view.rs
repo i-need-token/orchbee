@@ -178,7 +178,6 @@ pub struct ClientView {
     capabilities: crate::tui_capabilities::Capabilities,
     /// The build environment the sidebar marks; `None` for release and in pure UI traces.
     environment_marker: Option<crate::environment_marker::EnvironmentMarker>,
-    pub onboarding: crate::onboarding::State,
     /// Confirmed common setting values. `apply_user_preferences` is the single writer;
     /// `WorkbenchClientUi` receives its copy from here in the same settlement.
     user_preferences: Option<orchbee_workbench_protocol::UserSettingsValues>,
@@ -247,7 +246,6 @@ impl ClientView {
             no_color: false,
             notifications: notifications::State::default(),
             window_title: None,
-            onboarding: crate::onboarding::State,
             notice: None,
             notice_timer: Default::default(),
             configuration_warning: false,

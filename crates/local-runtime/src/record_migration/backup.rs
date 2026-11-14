@@ -48,7 +48,6 @@ pub(crate) fn persist_migration(
 /// use. `config check` lists them, and a Client shows what the Server's records hold.
 pub fn inspect_records(root: &DataRoot, session: Option<&str>) -> Vec<RecordNotice> {
     let mut found = vec![
-        (VersionedRecord::Onboarding, root.state(), "onboarding.json"),
         (VersionedRecord::Machines, root.state(), "machines.json"),
         (
             VersionedRecord::PluginRegistry,

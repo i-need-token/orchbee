@@ -360,7 +360,6 @@ fn run_prepared_surface(
         // `config.toml` reaches the Client only through the Server's configuration snapshot; the
         // watcher applies the startup baseline before the first creation can read it.
         if crate::tui_capabilities::Capability::ConfigurationFile.available() {
-            initial_view.onboarding = crate::onboarding::State::load();
             initial_view.configure_theme(crate::tui_theme::ThemeName::TerminalNative);
         }
     }

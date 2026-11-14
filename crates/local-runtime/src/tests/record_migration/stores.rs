@@ -171,18 +171,18 @@ fn scenario(record: VersionedRecord, open: impl Fn(&DataRoot) -> Box<dyn Store>)
 #[test]
 fn every_store_persists_a_migration_only_in_its_writer() {
     let covered = [
-        VersionedRecord::Onboarding,
         VersionedRecord::Machines,
         VersionedRecord::PluginRegistry,
         VersionedRecord::SessionLifecycle,
         VersionedRecord::TuiPosition,
     ];
     assert_eq!(covered, VersionedRecord::ALL);
-    for record in [VersionedRecord::Onboarding, VersionedRecord::Machines] {
-        scenario(record, |root| {
-            File::open(VersionedFile::device(root.clone(), record))
-        });
-    }
+    scenario(VersionedRecord::Machines, |root| {
+        File::open(VersionedFile::device(
+            root.clone(),
+            VersionedRecord::Machines,
+        ))
+    });
     // The plugin registry is not ported to macOS and Linux yet, where it refuses as unsupported.
     #[cfg(windows)]
     scenario(VersionedRecord::PluginRegistry, |root| {
@@ -200,7 +200,7 @@ fn every_store_persists_a_migration_only_in_its_writer() {
     });
 }
 
-/// A private file record: the onboarding and machine records and a Session's TUI position.
+/// A private file record: the machine record and a Session's TUI position.
 struct File {
     record: VersionedFile,
     saved: Cell<u64>,

@@ -39,7 +39,6 @@ mod machine_ssh;
 mod machines;
 mod native_settings;
 mod notifications;
-mod onboarding;
 mod pane_canvas;
 mod sidebar_width;
 mod startup_directory;
@@ -322,10 +321,6 @@ pub mod application {
         pub use crate::notifications::paint::render;
         pub use crate::notifications::system::{SystemNotifications, sound};
         pub use crate::workbench_client::notification_available as available;
-    }
-
-    pub mod onboarding {
-        pub use crate::onboarding::State;
     }
 
     pub mod terminal_content {

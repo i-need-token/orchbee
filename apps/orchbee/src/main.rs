@@ -36,7 +36,6 @@ use orchbee_workbench_client::application::machine_spaces;
 use orchbee_workbench_client::application::machine_ssh;
 use orchbee_workbench_client::application::machines;
 use orchbee_workbench_client::application::notifications;
-use orchbee_workbench_client::application::onboarding;
 use orchbee_workbench_client::application::terminal_copy;
 use orchbee_workbench_client::application::terminal_device;
 use orchbee_workbench_client::application::terminal_graphics;

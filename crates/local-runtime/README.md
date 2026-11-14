@@ -126,7 +126,7 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/version.json`                              | Layout record and the newest Orchbee version that used the root; `version.lock` and `version.pending` guard its replacement                  |
 | `internal/config.lock`                               | Writer lock of the default settings file                                                                                                     |
 | `internal/sessions.lock`                             | Namespace lock that serializes Session activation and deletion                                                                               |
-| `internal/state/<record>.json`                       | `StateRecord`: onboarding and the machine catalog                                                                                            |
+| `internal/state/<record>.json`                       | `StateRecord`: the machine catalog                                                                                                           |
 | `internal/cache/agent-detection/`                    | Downloaded detection rules and `catalog.json`, which names the URL                                                                           |
 | `internal/backups/<date>-upgrade-<version>/`         | Originals of the records one product version migrated, at their paths relative to the root; the three newest folders stay                    |
 | `internal/plugins/registry.json`                     | Plugin registry, folder assignments, and recorded cleanup                                                                                    |
@@ -227,7 +227,7 @@ Each store keeps an `extensions` object it reads as opaque and writes back uncha
 release adds an optional field there without a migration. A record migrates only in a process that
 writes it: the plugin registry when a writer changes it, and
 `session.json` when it is published, which outside the Server happens only after proving no Server
-of the Session runs. Workbench Client owns the onboarding, machine and TUI position records, kept
+of the Session runs. Workbench Client owns the machine and TUI position records, kept
 through `VersionedFile`, with the same rules. `inspect_records` reads every versioned
 record of a root, or one Session's, creating nothing, and reports the unusable ones; `config check`
 lists them and the TUI shows the first when it starts, since the Server reads the records it holds.
