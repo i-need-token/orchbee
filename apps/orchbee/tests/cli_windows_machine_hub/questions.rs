@@ -359,7 +359,7 @@ fn a_helper_that_cannot_ask_ends_the_attempt_before_ssh_reads_an_empty_answer() 
 
 /// The line a piped command writes while its login waits for a person, as `en-US` words it for the
 /// fixture's Machine.
-const WAITING: &str = "Waiting for login to First in Orchbee…";
+const WAITING: &str = "Waiting for login to First…";
 
 #[test]
 fn a_command_waits_for_the_first_claim_and_a_claimant_that_leaves_hands_the_login_back() {

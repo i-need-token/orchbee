@@ -84,13 +84,13 @@ impl super::CliText {
         format!("{}\n", self.locale.machine_answer_undelivered(again))
     }
 
-    /// The line a command writes when the login to the Machine `label` waits for a person at an
-    /// Orchbee interface.
+    /// The line a command writes when the login to the Machine `label` waits for a person who
+    /// answers elsewhere: at an Orchbee interface, or at another terminal's `machine connect`.
     pub(crate) fn cli_machine_waiting(self, label: &str) -> String {
         let label = super::escape::unquoted(label);
         match self.locale {
-            Locale::EnUs => format!("Waiting for login to {label} in Orchbee…\n"),
-            Locale::ZhCn => format!("正在等待在 Orchbee 中登录 {label}…\n"),
+            Locale::EnUs => format!("Waiting for login to {label}…\n"),
+            Locale::ZhCn => format!("正在等待登录 {label}…\n"),
         }
     }
 

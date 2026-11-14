@@ -111,9 +111,12 @@ false, with the resolved `profileId` and the catalog it was read from.
   that needs a person ends `auth-required` at once, as before. With a client that `asks` attached,
   such as a running TUI, and the Machine not [muted](#login-episode), the interface asks instead,
   as the design's commands that wait for a login do, and the command, with or without `answers`,
-  writes `Waiting for login to <label> in Orchbee…` on standard error, in the person's locale, and
-  waits for the hub's reply: the person logs in there, declines, or the hub's 120 seconds pass,
-  which end it `auth-required`; that wait does not count against the 90 seconds. Each question goes on standard error in the person's locale: first
+  writes `Waiting for login to <label>…` on standard error, in the person's locale, and waits for
+  the hub's reply: the person logs in there, declines, or the hub's bound on the question passes,
+  which ends it `auth-required`. The 90 seconds stand still for as long as that wait lasts, and a
+  request sent again through a hub that replaced a closing one writes no second line. The line
+  does not say where the person answers: another terminal's `machine connect` may hold the login
+  as well as an interface, and the reply does not tell them apart. Each question goes on standard error in the person's locale: first
   `ssh`'s own prompt, every line marked `ssh:` and escaped, so control characters, escape
   sequences and bidirectional controls show as `\u{…}`, its last 16 lines, each its last 200
   characters, with `…` standing for what was cut, so the sentence that asks always shows, then one
@@ -159,8 +162,9 @@ false, with the resolved `profileId` and the catalog it was read from.
   or Session, reads `cancelled` with exit 7, the accepted operation's cancelled result; the reply
   does not tell the two apart, so the message names both.
 - `remote` reads `possibly-started` from the moment `connect` is sent, so a deadline or interrupt
-  reports that the remote Session may have started, but an interrupt at an open question reads
-  `unchanged`, since `ssh` asks before the far side runs anything; a reply settles it: `ready` once
+  reports that the remote Session may have started, but an interrupt at an open question, or while
+  the command waits for a person elsewhere, reads `unchanged`, since `ssh` asks before the far
+  side runs anything; a reply settles it: `ready` once
   online, `possibly-started` after `remote-not-ready`, `timeout`, or `cancelled`, `not-contacted` when
   the hub never tried the machine (`not-found`, `disabled-machine`, `unsupported-machine`,
   `ssh-unavailable`, or a failure of the hub itself), and `unchanged` otherwise.
@@ -299,9 +303,9 @@ more through the hub that replaces it, and then opens one hub `route` channel at
 already `online` serves the command without a `connect`, so the hub's [countdown](#lifetime) stays
 where it was. Only when the hub resets the route `not-online`, or `stopping` because it closed
 meanwhile, does the command ask it to `connect` the Machine with `origin` `command` and no
-`answers`, under the rules and errors of `machine connect`: a login that needs a person waits up to
-the hub's 120 seconds for a person at an interface that `asks`, with the waiting line on standard
-error, and ends `auth-required` at once when none `asks` or the Machine is muted, nothing
+`answers`, under the rules and errors of `machine connect`: a login that needs a person waits for a
+person at an interface that `asks`, within the hub's bound on the question, with the waiting line
+on standard error, and ends `auth-required` at once when none `asks` or the Machine is muted, nothing
 submitted; then it opens the route once more; that `connect` restarts the countdown
 as every `connect` does. On the route the command writes one bounded request packet, sends `end`,
 and reads the reply packet until `close`; the hub [relays](#channels) it to a link `route` channel,

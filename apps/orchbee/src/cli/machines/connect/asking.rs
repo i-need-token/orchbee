@@ -44,16 +44,27 @@ const POLL: Duration = Duration::from_millis(50);
 /// The bound on a `dismiss` request.
 const DISMISS: Duration = Duration::from_secs(3);
 /// Where the `connect` request's own wait ends. The command's deadline, which time at a question
-/// extends, ends the wait sooner, and the hub bounds every question and the attempt.
+/// and time waiting for a person elsewhere extend, ends the wait sooner, and the hub bounds every
+/// question and the attempt.
 const REQUEST: Duration = Duration::from_secs(60 * 60);
-/// The hub's bound on a command's wait for a person at an interface, which the command's deadline
-/// does not count.
-const PERSON: Duration = Duration::from_secs(120);
 /// UTF-16 units one read takes: the longest admissible answer, one unit for each byte, and the
 /// line's CR LF.
 const UNITS: usize = MAXIMUM_ANSWER_BYTES + 2;
 const LINE_FEED: u16 = 0x0A;
 const CARRIAGE_RETURN: u16 = 0x0D;
+
+/// One command's wait for a person who answers elsewhere, across its requests: the line it writes
+/// once, and whether it was written.
+pub(super) struct Waited<'a> {
+    line: &'a str,
+    said: bool,
+}
+
+impl<'a> Waited<'a> {
+    pub(super) const fn new(line: &'a str) -> Self {
+        Self { line, said: false }
+    }
+}
 
 /// The console the command asks on, and the machine it names in its questions.
 pub(in super::super) struct Console {
@@ -86,17 +97,18 @@ impl Console {
 
 /// Sends the `connect` request and waits for its reply under the command's deadline, asking each
 /// question the hub puts to this command on `console` meanwhile. A request the hub sends
-/// `connect-waiting` without making this command the claimant waits for a person at an interface:
-/// `waiting` goes on standard error once, and the hub's bound for that wait is added to the
-/// deadline. `Err` is an interrupt, which dismisses the episode, or a failure to wait at all. An
-/// interrupt at an open question leaves `remote` unchanged, since `ssh` asks before the far side
+/// `connect-waiting` without making this command the claimant waits for a person who answers
+/// elsewhere: `waiting`'s line goes on standard error once per command, and the deadline stands
+/// still for as long as that wait lasts, which the hub bounds. `Err` is an interrupt, which
+/// dismisses the episode, or a failure to wait at all. An interrupt at an open question, or while
+/// waiting for a person elsewhere, leaves `remote` unchanged, since `ssh` asks before the far side
 /// runs anything.
 pub(super) fn converse(
     client: &Arc<HubClient>,
     request: Request,
     machine: &MachineId,
     console: Option<&Console>,
-    waiting: &str,
+    waiting: &mut Waited<'_>,
     context: &mut Context,
     remote: &mut Remote,
 ) -> Result<Result<Reply, RequestFailure>, Error> {
@@ -112,9 +124,10 @@ pub(super) fn converse(
     let mut login: Option<Id> = None;
     let mut asking: Option<Asking> = None;
     let mut kept = Kept::new(console.and_then(|console| console.remember.as_ref()));
-    // `connect-waiting` came and no claim followed it yet; and whether the line was written.
+    // `connect-waiting` came and no claim followed it yet; and since when the deadline last moved
+    // for the wait that followed.
     let mut pending = false;
-    let mut said = false;
+    let mut elsewhere: Option<Instant> = None;
     loop {
         match replies.try_recv() {
             Ok(reply) => {
@@ -137,6 +150,8 @@ pub(super) fn converse(
         if context.interrupted().map_err(|_| Error::Internal)? {
             if let Some(open) = asking.take() {
                 open.abandon();
+                *remote = Remote::Unchanged;
+            } else if elsewhere.is_some() {
                 *remote = Remote::Unchanged;
             }
             dismiss(client, login);
@@ -182,19 +197,29 @@ pub(super) fn converse(
                     }
                 }
             }
+        } else if let Some(since) = elsewhere.as_mut() {
+            // Time waiting for a person elsewhere does not count against the command's deadline.
+            let now = Instant::now();
+            context.deadline += now.saturating_duration_since(*since);
+            *since = now;
         } else if Instant::now() >= context.deadline {
             return Err(Error::Timeout);
         }
         match client.next(Instant::now() + POLL) {
             // The claimant hears of its claim with the same write; once nothing more is queued,
-            // a request that was not claimed waits for an interface.
+            // a request that was not claimed waits for a person elsewhere. A request sent again
+            // through the hub that replaced a closing one says nothing more.
             None if pending => {
                 pending = false;
-                said = true;
-                say(waiting);
-                context.deadline += PERSON;
+                if !waiting.said {
+                    waiting.said = true;
+                    say(waiting.line);
+                }
+                elsewhere = Some(Instant::now());
             }
-            Some(Notice::Event(Event::ConnectWaiting(_))) if !said && login.is_none() => {
+            Some(Notice::Event(Event::ConnectWaiting(_)))
+                if elsewhere.is_none() && login.is_none() =>
+            {
                 pending = true;
             }
             Some(Notice::Event(Event::Login(event))) if event.machine == *machine => {
@@ -204,6 +229,9 @@ pub(super) fn converse(
                     } => {
                         login = Some(event.login);
                         pending = false;
+                        if let Some(since) = elsewhere.take() {
+                            context.deadline += since.elapsed();
+                        }
                     }
                     LoginPhase::Ended { end } if login == Some(event.login) => {
                         login = None;

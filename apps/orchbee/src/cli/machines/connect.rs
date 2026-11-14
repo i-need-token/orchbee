@@ -136,6 +136,8 @@ mod windows {
         context: &mut Context,
         report: &mut Report,
     ) -> Result<(), Error> {
+        // The line is written once per command, whichever request the hub makes wait.
+        let mut waiting = asking::Waited::new(waiting);
         for round in 1..=ROUNDS {
             // The hub reads the catalog this command resolved, so a machine saved after the hub
             // started is known to it; an unchanged record keeps its connection.
@@ -156,7 +158,7 @@ mod windows {
                 request,
                 machine,
                 console,
-                waiting,
+                &mut waiting,
                 context,
                 &mut report.remote,
             )?;
