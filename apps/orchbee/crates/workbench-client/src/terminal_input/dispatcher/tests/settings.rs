@@ -78,6 +78,24 @@ fn search_query_and_local_return_packets_never_edit_preferences_or_reach_a_pane(
     assert!(forwarded_bytes(&port.calls).is_empty());
 }
 
+/// The GUI opens Settings with Ctrl+,; the terminal's prefix chord ends in the same comma.
+#[test]
+fn prefix_comma_opens_settings_without_reaching_the_pane() {
+    let mut port = Port {
+        editor: Editor::default(),
+        edits: 0,
+        calls: Rc::new(RefCell::new(Vec::new())),
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02,");
+    assert_eq!(
+        port.calls.borrow().as_slice(),
+        [Call::Action(ClientAction::OpenSettings)]
+    );
+    assert!(port.editor.view().is_some());
+}
+
 /// Settings stays the owner after Enter, Delete or a move, so every key of one packet applies in
 /// order on the state the keys before it left, and none reaches a pane.
 #[test]

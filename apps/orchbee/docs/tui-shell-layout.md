@@ -518,8 +518,8 @@ input packet tail. Workspace browsing and Agent filters remain reachable through
 Machine picker modes; this layout does not assign new browse/filter controls to group headings. The fixed bottom Settings entry opens the existing settings editor directly,
 matching the GUI sidebar entry. It stays outside the scrolling tree and has no Menu or machine
 label. Its complete configured key path appears when it fits, using the binding registry rather
-than a hard-coded default. Keyboard users open Settings with the configured action (default `Ctrl+b F4`); the existing comma binding
-continues to rename a Tab. Global actions remain on `Ctrl+b Space` and machine selection on
+than a hard-coded default. Keyboard users open Settings with the configured action (default `Ctrl+b ,`); `Ctrl+b F2`
+renames a Tab. Global actions remain on `Ctrl+b Space` and machine selection on
 `Ctrl+b Shift+M`. Hidden sidebars publish no sidebar hits. All entry points retain existing
 admission and capture ownership.
 

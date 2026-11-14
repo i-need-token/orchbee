@@ -95,7 +95,7 @@ fn native_rename_visible_editor_updates_canonical_label_and_preserves_live_shell
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     let identities = create_three_shells(&fixture, &mut client);
     let checkpoint = client.checkpoint();
-    client.send(b"\x02,\x15renamed shell");
+    client.send(b"\x02\x1bOQ\x15renamed shell");
     // The editor may draw before it echoes the typed label, so wait for one frame with both.
     client.wait_completed_frame_after(
         checkpoint,

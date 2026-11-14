@@ -2,7 +2,7 @@
 
 ## Interaction and scope
 
-`Ctrl+b F4`, the sidebar Settings row and the global action menu open Settings on supported native
+`Ctrl+b ,`, the sidebar Settings row and the global action menu open Settings on supported native
 TUI hosts. Settings is a full page that captures the client area while pane output continues. It
 covers every common setting both Clients present in the
 [settings registry](../../../crates/local-runtime/README.md#user-settings), including launch profiles

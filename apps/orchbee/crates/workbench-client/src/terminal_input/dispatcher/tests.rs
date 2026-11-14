@@ -586,7 +586,7 @@ fn failed_mode_write_precedes_and_prevents_native_draft_request_and_packet_tail(
     let mut view = ClientView::new(100);
     let result = dispatcher.dispatch(
         &mut view,
-        b"before\x02,after",
+        b"before\x02\x1bOQafter",
         &mut port,
         Instant::now(),
         |_, _| Ok::<bool, io::Error>(false),
@@ -1145,7 +1145,7 @@ fn unavailable_entry_restores_mode_and_preserves_ordinary_batch_order() {
         dispatcher
             .dispatch(
                 &mut view,
-                b"before\x02,after",
+                b"before\x02\x1bOQafter",
                 &mut port,
                 Instant::now(),
                 |_, _| Ok::<bool, io::Error>(false),

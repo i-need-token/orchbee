@@ -142,7 +142,7 @@ inside the bar remain fixed.
 `new_worktree` and `open_worktree` enter [Worktree launch](native-worktrees.md), default
 `prefix+W` and `prefix+O`. Safe direct chords and disabling use the same registry.
 
-`settings` opens [Settings](native-settings.md), default `prefix+f4`. `close_workspace` asks to close
+`settings` opens [Settings](native-settings.md), default `prefix+,`. `close_workspace` asks to close
 the current Workspace with its existing [confirmation](native-workspace-close.md), default `prefix+D`
 (capital D). `rename_panel` and `clear_terminal` are unbound by default and run the Panel menu's
 Rename and Clear terminal on the focused Panel, with their menu outcomes. `last_panel` steps back to the last focused Panel in any Tab or Workspace

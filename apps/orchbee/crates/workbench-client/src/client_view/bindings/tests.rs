@@ -14,7 +14,6 @@ fn every_existing_prefix_key_resolves_to_its_action() {
         ('a', ClientAction::RequestWorkspaceCreate),
         ('r', ClientAction::RequestWorkspaceRename),
         ('x', ClientAction::RequestCloseTab),
-        (',', ClientAction::RequestRenameTab),
         ('c', ClientAction::CreateTab),
         ('<', ClientAction::MovePreviousTab),
         ('>', ClientAction::MoveNextTab),

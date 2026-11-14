@@ -77,7 +77,7 @@ fn run_native_rename_resize(
         server,
         quit_deadline: None,
         inputs: VecDeque::from([
-            (0, Some(b"\x02,".to_vec())),
+            (0, Some(b"\x02\x1bOQ".to_vec())),
             (1, Some(b"\x15renamed".to_vec())),
             (2, Some(b"\r".to_vec())),
             (52, None),

@@ -878,7 +878,9 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     assert!(compact_help.contains("键盘快捷键"));
     assert!(help.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b c")));
     assert!(
-        !help.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b ,")),
+        !help.contains(&crate::terminal_events::keys::tests::host_label(
+            "Ctrl+b F2"
+        )),
         "Help opens with common tasks only"
     );
     commit(
@@ -886,8 +888,9 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
         PrefixInput::Key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE)),
     );
     let help = rendered_text(120, 32, &view, Locale::ZhCn);
-    let mut rename_visible =
-        help.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b ,"));
+    let mut rename_visible = help.contains(&crate::terminal_events::keys::tests::host_label(
+        "Ctrl+b F2",
+    ));
 
     // The composed registry paginates whole groups at this size: the
     // literal-prefix row sits on a later page. Page forward with the
@@ -906,8 +909,9 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
             PrefixInput::Key(KeyEvent::press(KeyCode::PageDown, Modifiers::NONE)),
         );
         paged = rendered_text(120, 32, &view, Locale::ZhCn);
-        rename_visible |=
-            paged.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b ,"));
+        rename_visible |= paged.contains(&crate::terminal_events::keys::tests::host_label(
+            "Ctrl+b F2",
+        ));
     }
     assert!(rename_visible, "rename is discoverable in expanded Help");
     assert!(

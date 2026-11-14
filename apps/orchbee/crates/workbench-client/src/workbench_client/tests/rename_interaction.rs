@@ -95,7 +95,7 @@ fn actual_localized_draw_and_exact_token_enter_submit_one_unicode_rename() -> Te
             &mut dispatcher,
             &mut workbench_client,
             &mut view,
-            b"\x02,",
+            b"\x02\x1bOQ",
             now,
         );
         let token = workbench_client.rename_input_context().unwrap().token();
@@ -158,7 +158,7 @@ fn input_fault_survives_valid_edits_until_explicit_complete_backspace() -> TestR
         &mut dispatcher,
         &mut workbench_client,
         &mut view,
-        b"\x02,",
+        b"\x02\x1bOQ",
         now,
     );
     draw(&mut workbench_client, &view, Locale::EnUs, 120, 32)?;
@@ -230,7 +230,7 @@ fn clipped_draw_suspends_draft_and_cancelled_paste_keeps_its_frame_until_the_bou
         &mut dispatcher,
         &mut workbench_client,
         &mut view,
-        b"\x02,",
+        b"\x02\x1bOQ",
         now,
     );
     let token = workbench_client.rename_input_context().unwrap().token();
@@ -319,7 +319,7 @@ fn clipped_draw_suspends_draft_and_cancelled_paste_keeps_its_frame_until_the_bou
         &mut dispatcher,
         &mut workbench_client,
         &mut view,
-        b"\x02,",
+        b"\x02\x1bOQ",
         later,
     );
     let token = workbench_client.rename_input_context().unwrap().token();
@@ -384,7 +384,7 @@ fn maximum_atomic_paste_draws_sanitized_cells_but_submits_trimmed_original_scala
         &mut dispatcher,
         &mut workbench_client,
         &mut view,
-        b"\x02,",
+        b"\x02\x1bOQ",
         now,
     );
     draw(&mut workbench_client, &view, Locale::EnUs, 120, 40)?;
@@ -489,7 +489,7 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
             &mut dispatcher,
             &mut workbench_client,
             &mut view,
-            b"\x02,",
+            b"\x02\x1bOQ",
             now,
         );
         draw(&mut workbench_client, &view, Locale::EnUs, 120, 32)?;
@@ -613,7 +613,7 @@ fn renamed_removed_target_successor_finishes_setup_feedback_and_accepts_input() 
         &mut dispatcher,
         &mut workbench_client,
         &mut view,
-        b"\x02,",
+        b"\x02\x1bOQ",
         now,
     );
     draw(&mut workbench_client, &view, Locale::EnUs, 120, 32)?;
@@ -712,7 +712,7 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
         &mut dispatcher,
         &mut workbench_client,
         &mut view,
-        b"\x02,",
+        b"\x02\x1bOQ",
         now,
     );
     assert_eq!(view.overlay(), None);

@@ -1852,7 +1852,7 @@ atomic text-limit faults, explicit correction, incomplete input, independent bas
 staleness, cancellation, retirement and reciprocal state admission. Actual mailbox tests cover
 capacity, cursor/serial exhaustion, fixed-cutoff refusals, exact ACK and retained worker-loss evidence.
 
-`Ctrl+b ,` opens a state-owned draft for the exact selected Tab in the active context in a live stable phase.
+`Ctrl+b F2` opens a state-owned draft for the exact selected Tab in the active context in a live stable phase.
 Capture the canonical baseline, Session/context/Tab and attachment generation without allocating a
 request or deadline. Empty, structural/recovery flights and Close confirmation refuse entry.
 The draft and Close confirmation are mutually exclusive. Applied authority or selection changes
