@@ -52,7 +52,7 @@ fn hover_rejects_unpainted_disabled_stale_and_recovery_rows() {
 #[test]
 fn hover_preserves_a_scrolled_viewport_and_keyboard_resumes_from_its_candidate() {
     let mut menu = ActionMenu::default();
-    menu.open("Actions".into(), vec![MenuAction::Help; 8], None);
+    menu.open("Actions".into(), vec![MenuAction::Navigator; 8], None);
     let draw = present(&mut menu, 0, 3);
     let token = menu.scroll(draw.token, false, 3).unwrap();
     present(&mut menu, 3, 3);

@@ -232,7 +232,7 @@ fn refusals_leave_the_file_untouched() {
             "invalid-value",
         ),
         (
-            &["keys", "help"][..],
+            &["keys", "settings"][..],
             string("not a chord"),
             "invalid-binding",
         ),

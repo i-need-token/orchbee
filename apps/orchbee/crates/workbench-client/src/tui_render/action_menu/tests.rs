@@ -30,7 +30,7 @@ fn global_search_uses_localized_aliases_effective_chords_and_nested_labels() {
         String::new(),
         vec![
             MenuAction::SplitPanel(crate::client_view::PanelDirection::Up),
-            MenuAction::Help,
+            MenuAction::Settings,
             MenuAction::TabCreation,
         ],
         None,
@@ -75,8 +75,8 @@ fn global_search_uses_localized_aliases_effective_chords_and_nested_labels() {
         "a matching nested action keeps its owning TabCreation row"
     );
 
-    let chord = effective_binding(bindings, &view, &MenuAction::Help, glyphs)
-        .expect("Help has its existing effective shortcut");
+    let chord = effective_binding(bindings, &view, &MenuAction::Settings, glyphs)
+        .expect("Settings has its existing effective shortcut");
     menu.set_query(Some(&chord));
     let view = menu.view().unwrap();
     let binding_labels = view
@@ -100,7 +100,7 @@ fn restored_filtered_selection_is_visible_on_the_first_small_frame() {
         MenuTarget::Global,
         String::new(),
         vec![
-            MenuAction::Help,
+            MenuAction::Navigator,
             MenuAction::Detach,
             MenuAction::ClosePane,
             MenuAction::Zoom,
@@ -184,7 +184,7 @@ fn no_results_keeps_a_drawn_query_surface_without_an_activatable_row() {
     assert!(menu.open_for(
         MenuTarget::Global,
         String::new(),
-        vec![MenuAction::Help],
+        vec![MenuAction::Navigator],
         None
     ));
     menu.set_query(Some("no-such-action"));
@@ -460,7 +460,7 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
                             crate::action_menu::MenuTarget::Global
                         },
                         "QZX".into(),
-                        vec![MenuAction::Help, MenuAction::Machines],
+                        vec![MenuAction::Navigator, MenuAction::Machines],
                         Some((3, 2).into()),
                     ));
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -542,7 +542,7 @@ fn context_menu_admission_requires_one_action_without_footer_or_reason_rows() {
                 assert!(menu.open_for(
                     crate::action_menu::MenuTarget::Create(None),
                     "QZX".into(),
-                    vec![MenuAction::Help],
+                    vec![MenuAction::Navigator],
                     None,
                 ));
                 menu.refresh_availability(|_| {
@@ -602,7 +602,7 @@ fn hovered_candidate_uses_the_full_row_selection_and_marker_in_every_usable_tier
                 let mut menu = ActionMenu::default();
                 menu.open(
                     "Actions".into(),
-                    vec![MenuAction::Help, MenuAction::Machines],
+                    vec![MenuAction::Navigator, MenuAction::Machines],
                     None,
                 );
                 let paint = |menu: &mut ActionMenu| {
@@ -856,7 +856,7 @@ fn global_tab_and_panel_rows_render_the_current_binding_for_each_localized_actio
     ];
 
     let width = 140;
-    let height = 60;
+    let height = 80;
     let client = ClientView::new(width);
     let theme = Theme::terminal_native();
     for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -885,7 +885,7 @@ fn global_tab_and_panel_rows_render_the_current_binding_for_each_localized_actio
             })
             .unwrap();
         let ModalPresentation::Presented(draw) = presentation else {
-            panic!("the global menu fits at 140x60");
+            panic!("the global menu fits at 140x80");
         };
         assert_eq!(draw.visible_rows, GLOBAL_ACTIONS.len());
         assert!(menu.presented(draw.clone()));
@@ -937,7 +937,7 @@ fn configured_prefix(
 #[test]
 fn rejected_menu_paints_nothing_and_does_not_claim_the_pointer_backdrop() {
     let mut menu = ActionMenu::default();
-    assert!(menu.open("Actions".into(), vec![MenuAction::Help], None));
+    assert!(menu.open("Actions".into(), vec![MenuAction::Navigator], None));
     let client = ClientView::new(16);
     let theme = Theme::terminal_native();
     let mut hits = HitMapBuilder::new();

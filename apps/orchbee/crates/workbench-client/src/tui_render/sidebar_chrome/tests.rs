@@ -148,7 +148,7 @@ fn visible_sidebar_ends_its_first_and_settings_rows_with_the_toggle_and_help() {
 
                     let last = sidebar.bottom() - 1;
                     let settings = extent(&map, sidebar, &HitTarget::SettingsButton).unwrap();
-                    let help = extent(&map, sidebar, &HitTarget::ShortcutHelpButton)
+                    let help = extent(&map, sidebar, &HitTarget::ShortcutsButton)
                         .unwrap_or_else(|| panic!("{case}: help"));
                     assert_eq!(settings.y, last, "{case}");
                     assert_eq!(help, Rect::new(list_end - 3, last, 3, 1), "{case}");
@@ -179,7 +179,10 @@ fn visible_sidebar_ends_its_first_and_settings_rows_with_the_toggle_and_help() {
 
                     for (label, key) in [
                         (TooltipLabel::HideSidebar, PrefixAction::SidebarToggle),
-                        (TooltipLabel::Shortcuts, PrefixAction::ShowHelp),
+                        (
+                            TooltipLabel::Shortcuts,
+                            PrefixAction::Client(crate::client_view::ClientAction::OpenActionMenu),
+                        ),
                     ] {
                         let expected = action_tooltip(&view, locale, label, key, &theme);
                         assert!(tooltips.contains(&expected), "{case}: {expected:?}");
@@ -218,7 +221,7 @@ fn hidden_sidebar_leaves_its_toggle_at_the_strip_leading_edge() {
             assert_eq!(text(terminal.backend().buffer(), 0, 0, 4), "[»] ");
             for hidden in [
                 HitTarget::SidebarHideButton,
-                HitTarget::ShortcutHelpButton,
+                HitTarget::ShortcutsButton,
                 HitTarget::SettingsButton,
             ] {
                 assert!(extent(&map, area, &hidden).is_none(), "{hidden:?}");
@@ -312,7 +315,7 @@ fn narrow_sidebar_regions_drop_the_icons_before_their_actions_without_overlap() 
             let toggle = extent(&map, area, &HitTarget::SidebarHideButton);
             let new_workspace = extent(&map, area, &HitTarget::NewWorkspaceButton);
             let settings = extent(&map, area, &HitTarget::SettingsButton);
-            let help = extent(&map, area, &HitTarget::ShortcutHelpButton);
+            let help = extent(&map, area, &HitTarget::ShortcutsButton);
             assert_eq!(
                 settings.is_some(),
                 list >= settings_width,
@@ -419,7 +422,7 @@ fn environment_marker_takes_only_what_settings_and_help_leave() {
             });
             let map = hits.finish();
             let settings = extent(&map, area, &HitTarget::SettingsButton);
-            let help = extent(&map, area, &HitTarget::ShortcutHelpButton);
+            let help = extent(&map, area, &HitTarget::ShortcutsButton);
             assert_eq!(settings.is_some(), list >= settings_width, "{case}");
             assert_eq!(help.is_some(), expected.is_some(), "{case}");
             let (Some(settings), Some(help), Some(expected)) = (settings, help, expected) else {

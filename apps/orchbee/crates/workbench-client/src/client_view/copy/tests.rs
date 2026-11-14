@@ -23,18 +23,17 @@ fn every_discovered_binding_is_unique_exact_and_repeatable() {
             assert_eq!(decide(event), None);
         }
     }
-    let help = help_rows();
-    assert_eq!(help.len(), GROUPS.len() + 1);
-    let repeat = help
-        .iter()
-        .position(|(_, desc)| *desc == PrefixDesc::CopyRepeatSearch)
-        .unwrap();
-    let reverse = &help[repeat + 1];
+    for group in GROUPS {
+        assert!(key_label(group.desc, super::super::KeyLabelGlyphs::Unicode).is_some());
+    }
     assert_eq!(
-        reverse.0,
-        crate::terminal_events::keys::tests::host_label("Ctrl+r")
+        key_label(
+            PrefixDesc::CopyReverseSearch,
+            super::super::KeyLabelGlyphs::Unicode
+        )
+        .as_deref(),
+        Some(crate::terminal_events::keys::tests::host_label("Ctrl+r").as_str())
     );
-    assert_eq!(reverse.1, PrefixDesc::CopyReverseSearch);
 }
 
 #[test]

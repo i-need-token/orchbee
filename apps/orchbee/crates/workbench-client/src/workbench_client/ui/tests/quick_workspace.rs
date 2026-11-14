@@ -680,7 +680,9 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
             let main_text = rendered_area(buffer, main);
             let status_text = rendered_area(buffer, areas.status);
             let label = if canonical {
-                locale.shortcut_label(crate::localization::ShortcutLabel::NewTab)
+                locale
+                    .menu_action(crate::localization::MenuLabel::NewTab)
+                    .to_owned()
             } else {
                 locale.status().create_workspace.to_owned()
             };

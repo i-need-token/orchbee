@@ -1,7 +1,7 @@
 //! Drag coordinates remain tied to the painted copy episode and content surface.
 use super::{
-    ClientView, FrameHitMap, HitResolution, HitTarget, Modifiers, MouseAction, MouseButton,
-    MouseEvent, PointerState, Rect, TerminalInputPort, plain_primary_press,
+    FrameHitMap, HitResolution, HitTarget, Modifiers, MouseAction, MouseButton, MouseEvent,
+    PointerState, Rect, TerminalInputPort, plain_primary_press,
 };
 use crate::terminal_copy_mode::{CopyModeCursor, CopySurfaceToken};
 use crate::workbench_client::input::SurfaceInput;
@@ -47,14 +47,13 @@ impl PointerState {
 
     pub(crate) fn copy_event(
         &mut self,
-        view: &mut ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
         event: MouseEvent,
     ) -> bool {
         if self.queue_list_scroll(event) {
             return false;
         }
-        if self.copy_control_event(view, port, event) {
+        if self.copy_control_event(port, event) {
             return true;
         }
         if !self.capture || event.mods != Modifiers::NONE {

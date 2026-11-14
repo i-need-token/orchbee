@@ -43,25 +43,25 @@ and SSH-guard retirement scheduling keep their original cadence.
 
 ## Current adapters
 
-| Responsibility                                                                       | Windows                                     | Linux and macOS                                                                          |
-| ------------------------------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Inherited terminal admission, raw mode, output, signals and pointer capture          | Retained console adapter                    | Existing POSIX TTY adapter                                                               |
-| Workbench protocol, local selection, pane layout, menus, help and Agent observations | Shared Client implementation                | Shared Client implementation                                                             |
-| Settings drafts and confirmed settings                                               | Server settings snapshots and edits         | Server settings snapshots and edits                                                      |
-| Keyboard copy-mode navigation, selection and search                                  | Shared Client implementation                | Shared Client implementation                                                             |
-| Find in terminal                                                                     | Shared Client implementation                | Shared Client implementation                                                             |
-| System clipboard writes                                                              | Hidden Win32 owner                          | Desktop clipboard program or OSC 52, by [session route](#linux-and-macos-session-routes) |
-| Browser link activation                                                              | Windows shell                               | `open` or `xdg-open` in a local desktop session                                          |
-| Saved-machine SSH carriers                                                           | Owned OpenSSH processes                     | Unsupported                                                                              |
-| Saved-machine catalog, remembered position and first-run dismissal storage           | Private Windows cache                       | Unsupported                                                                              |
-| Local directory entry and Agent launch/provider probing                              | Existing Windows adapters                   | Unsupported                                                                              |
-| Legacy TOML configuration and plugin registry persistence                            | Existing Windows adapters                   | Unsupported                                                                              |
-| Host window title                                                                    | Console title, original restored on exit    | OSC 0, original restored from the terminal's title stack on exit                         |
-| Terminal notification transport                                                      | Ghostty/iTerm/WezTerm OSC 9 or Kitty OSC 99 | Same as Windows                                                                          |
-| System notification transport                                                        | Notification-area balloon                   | Terminal sequence, `osascript` or `notify-send`, by session route                        |
-| Terminal graphics                                                                    | Existing Windows adapter and host admission | Unsupported                                                                              |
-| Notification cards and ordinary terminal bell                                        | Shared TUI / admitted terminal              | Shared TUI / admitted terminal                                                           |
-| Login-shell preference                                                               | Unsupported by the Windows shell adapter    | Existing POSIX shell adapter                                                             |
+| Responsibility                                                                 | Windows                                     | Linux and macOS                                                                          |
+| ------------------------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Inherited terminal admission, raw mode, output, signals and pointer capture    | Retained console adapter                    | Existing POSIX TTY adapter                                                               |
+| Workbench protocol, local selection, pane layout, menus and Agent observations | Shared Client implementation                | Shared Client implementation                                                             |
+| Settings drafts and confirmed settings                                         | Server settings snapshots and edits         | Server settings snapshots and edits                                                      |
+| Keyboard copy-mode navigation, selection and search                            | Shared Client implementation                | Shared Client implementation                                                             |
+| Find in terminal                                                               | Shared Client implementation                | Shared Client implementation                                                             |
+| System clipboard writes                                                        | Hidden Win32 owner                          | Desktop clipboard program or OSC 52, by [session route](#linux-and-macos-session-routes) |
+| Browser link activation                                                        | Windows shell                               | `open` or `xdg-open` in a local desktop session                                          |
+| Saved-machine SSH carriers                                                     | Owned OpenSSH processes                     | Unsupported                                                                              |
+| Saved-machine catalog, remembered position and first-run dismissal storage     | Private Windows cache                       | Unsupported                                                                              |
+| Local directory entry and Agent launch/provider probing                        | Existing Windows adapters                   | Unsupported                                                                              |
+| Legacy TOML configuration and plugin registry persistence                      | Existing Windows adapters                   | Unsupported                                                                              |
+| Host window title                                                              | Console title, original restored on exit    | OSC 0, original restored from the terminal's title stack on exit                         |
+| Terminal notification transport                                                | Ghostty/iTerm/WezTerm OSC 9 or Kitty OSC 99 | Same as Windows                                                                          |
+| System notification transport                                                  | Notification-area balloon                   | Terminal sequence, `osascript` or `notify-send`, by session route                        |
+| Terminal graphics                                                              | Existing Windows adapter and host admission | Unsupported                                                                              |
+| Notification cards and ordinary terminal bell                                  | Shared TUI / admitted terminal              | Shared TUI / admitted terminal                                                           |
+| Login-shell preference                                                         | Unsupported by the Windows shell adapter    | Existing POSIX shell adapter                                                             |
 
 The optional-capability list does not gate the whole TUI. In particular, an absent saved-machine
 adapter does not disable the local Workspace/Agent sidebar or repeatedly retire its observations.
@@ -83,8 +83,8 @@ I/O failure or fabricates a recovered or empty checkpoint.
 ## Admission and unsupported outcomes
 
 Unsupported optional actions are absent from menus and shortcut discovery. The sidebar omits
-New workspace without directory input. Without a launch adapter, Start Agent is absent from menus,
-shortcut help and the status line; its binding opens the picker only to show the
+New workspace without directory input. Without a launch adapter, Start Agent is absent from menus
+and the status line; its binding opens the picker only to show the
 localized unsupported explanation. Copy-mode navigation
 and search remain usable without a clipboard; the copy button and copy hint are absent. The UI
 revalidates capability at invocation, so a stale or explicitly entered operation reports an

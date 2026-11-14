@@ -5,7 +5,6 @@ use super::{
     FrameHitMap, HitTarget, MouseAction, MouseButton, MouseEvent, PointerState, TerminalInputPort,
     contains,
 };
-use crate::client_view::help::HelpDrawSource;
 
 pub(super) struct Pending {
     target: Target,
@@ -47,9 +46,6 @@ impl PointerState {
         let HitTarget::ListScroll(target) = &region.target else {
             return false;
         };
-        if matches!(target, Target::Help(HelpDrawSource::Refused { .. })) {
-            return false;
-        }
         if matches!(target, Target::Copy(_))
             && !self.map.as_ref().is_some_and(|map| {
                 matches!(
@@ -68,12 +64,7 @@ impl PointerState {
                 pending.target == *target && pending.area == region.rect && pending.up == up
             })
             .map_or(0, |pending| pending.lines);
-        // Help is a paginated document: one notch requests one page. Lists use lines.
-        let amount = if matches!(target, Target::Help(_)) {
-            1
-        } else {
-            3
-        };
+        let amount = 3;
         self.list_scroll = Some(Pending {
             target: target.clone(),
             area: region.rect,
@@ -102,11 +93,7 @@ impl PointerState {
         if !pending.exposed_in(map) {
             return false;
         }
-        let capacity = if matches!(pending.target, Target::Help(_)) {
-            1
-        } else {
-            usize::from(pending.area.height)
-        };
+        let capacity = usize::from(pending.area.height);
         let lines = pending.lines.min(capacity);
         let lines = if matches!(pending.target, Target::Worktree(_)) {
             pending.lines.min(capacity / 2)
@@ -121,15 +108,6 @@ impl PointerState {
             | Target::AgentBoard(_)
             | Target::Settings(_)
             | Target::Menu(_)) => port.scroll_list(target, pending.up, lines),
-            Target::Help(source @ HelpDrawSource::Presented { last, rows, .. }) => view
-                .scroll_drawn_help(source, pending.up)
-                .then(|| {
-                    let candidate = view.help_draw_candidate()?;
-                    candidate.presented_rows(candidate.page(), *last, *rows)
-                })
-                .flatten()
-                .map(Target::Help),
-            Target::Help(HelpDrawSource::Refused { .. }) => None,
             Target::Navigator(row) => view
                 .navigator
                 .scroll(row, pending.up, lines)

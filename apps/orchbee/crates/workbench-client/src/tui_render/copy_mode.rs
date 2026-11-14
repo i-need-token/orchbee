@@ -180,19 +180,6 @@ pub(super) fn render_controls(
                 remaining = after_control(rect, close.x);
             }
         }
-        let _ = paint_action_control(
-            frame,
-            remaining,
-            locale.copy_help_label(),
-            ActionKind::Secondary,
-            HitTarget::CopyControl {
-                token,
-                control: CopyControl::Help,
-            },
-            true,
-            theme,
-            hits,
-        );
     }
     hits.record(HitLayer::Chrome, bar, HitTarget::OverlaySurface);
 }

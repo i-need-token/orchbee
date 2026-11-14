@@ -3,7 +3,7 @@
 use crate::{
     action_menu::menu_binding_action,
     action_menu::{
-        MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuRowNote, MenuTarget, MenuView,
+        KeyRow, MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuRowNote, MenuTarget, MenuView,
         TabMenuScope,
     },
     client_view::{
@@ -961,7 +961,10 @@ fn search_result_actions(
     binding_labels: &[Option<String>],
 ) -> Vec<usize> {
     let Some(query) = menu.query.filter(|query| !query.is_empty()) else {
-        return (0..menu.actions.len()).collect();
+        // Key rows answer a search only; the unsearched menu lists what it can run.
+        return (0..menu.actions.len())
+            .filter(|index| !matches!(menu.actions[*index], MenuAction::Key(_)))
+            .collect();
     };
     menu.actions
         .iter()
@@ -1104,6 +1107,16 @@ fn effective_binding_for_source(
     action: &MenuAction,
     glyphs: KeyLabelGlyphs,
 ) -> Option<String> {
+    let label = match action {
+        MenuAction::Key(KeyRow::Copy(desc)) => crate::client_view::copy_key_label(*desc, glyphs),
+        MenuAction::Key(KeyRow::Sidebar(command)) => {
+            crate::machine_picker::sidebar_binding_label(*command, glyphs)
+        }
+        _ => None,
+    };
+    if let Some(label) = label {
+        return Some(sanitize_terminal_text(&label).into_owned());
+    }
     let action = menu_binding_action(source, action.clone())?;
     bindings
         .action_labels_with_glyphs(action, glyphs)
@@ -1455,6 +1468,9 @@ fn action_label(
             |scope| locale.menu_tab_action(action, scope),
         )
     };
+    if let MenuAction::Key(row) = action {
+        return key_row_label(locale, *row, separator);
+    }
     if let MenuAction::StartAgentInTab(provider) = action {
         // Under the Agents heading a row names only its Agent, as the picker does.
         return crate::agent_provider::product_name(provider).to_owned();
@@ -1488,6 +1504,24 @@ fn action_label(
         format!("{text} {disclosure}")
     } else {
         text
+    }
+}
+
+/// A key row names the mode its key works in, then the key's own words: `Copy mode · Search …`.
+fn key_row_label(locale: Locale, row: KeyRow, separator: &str) -> String {
+    let describe = locale.shell().prefix_desc;
+    match row {
+        KeyRow::Prefix(desc) => describe(desc).to_owned(),
+        KeyRow::Copy(desc) => format!(
+            "{} {separator} {}",
+            locale.menu_key_mode(false),
+            describe(desc)
+        ),
+        KeyRow::Sidebar(command) => format!(
+            "{} {separator} {}",
+            locale.menu_key_mode(true),
+            locale.sidebar_navigation_action(command)
+        ),
     }
 }
 

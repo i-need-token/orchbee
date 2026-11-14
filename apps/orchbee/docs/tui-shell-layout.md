@@ -9,7 +9,7 @@ application to declare. It owns the layout projection only: colors, glyphs, and 
 to the theme surface, overlay contents belong to their surface renderers, and terminal cell drawing
 belongs to `terminal_cells`.
 
-Shortcut discovery belongs to `tui_shortcut_help`: it selects effective bindings and active modes, filters capability availability, and merges stable action identities before rendering. Localization owns semantic labels and groups, never a `ClientView` or its filtering policy. Shell hints receive the effective prefix and action labels selected by `Bindings::shell_bindings`; their placeholder substitution retains the original ordering and unbound text.
+Shortcut discovery belongs to the [global action menu](native-action-menus.md): its rows show effective bindings from the per-Client registry, and its search also finds the keys that work only inside a mode. There is no separate shortcut-help overlay. Shell hints receive the effective prefix and action labels selected by `Bindings::shell_bindings`; their placeholder substitution retains the original ordering and unbound text.
 
 The projection is pure. `tui_layout::project_shell_areas` computes every region from the current
 frame rectangle and the sidebar surface (including its preferred width) the view asks for; `tui_shell` computes the terminal
@@ -29,7 +29,7 @@ only where its adoption tests exercise the shared implementation.
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Actions and fixed icon actions     | [`controls.rs`](../crates/workbench-client/src/tui_render/controls.rs), [`action.rs`](../crates/workbench-client/src/tui_render/controls/action.rs), and [`icon.rs`](../crates/workbench-client/src/tui_render/controls/icon.rs); `ActionSpec`, `IconActionSpec`, `InteractionState`, `Availability`, and `PointerPresentation`; `frame_close_rect` and `render_frame_icon_action` for frame-borne controls | [`controls/tests.rs`](../crates/workbench-client/src/tui_render/controls/tests.rs), [`icon/tests.rs`](../crates/workbench-client/src/tui_render/controls/icon/tests.rs), and adopted Settings and modal renderer tests                                                                                                                                                              |
 | Structured key hints               | [`hint.rs`](../crates/workbench-client/src/tui_render/controls/hint.rs); `KeyHint`, `measure_key_hints`, and `render_key_hints` for persistent chrome; `measure_overlay_hints` and `render_overlay_hints` for overlay footers                                                                                                                                                                               | [`hint/tests.rs`](../crates/workbench-client/src/tui_render/controls/hint/tests.rs) plus [`settings/tests.rs`](../crates/workbench-client/src/tui_render/settings/tests.rs), [`workspace_setup/tests.rs`](../crates/workbench-client/src/tui_render/workspace_setup/tests.rs), and [`worktree_launch/tests.rs`](../crates/workbench-client/src/tui_render/worktree_launch/tests.rs) |
-| Overlay query slot                 | [`query.rs`](../crates/workbench-client/src/tui_render/controls/query.rs); `QueryField`, `render_query_field`, and `render_divider`                                                                                                                                                                                                                                                                         | [`settings/tests.rs`](../crates/workbench-client/src/tui_render/settings/tests.rs), [`help/tests.rs`](../crates/workbench-client/src/tui_render/help/tests.rs), and [`machine_picker/tests/agents.rs`](../crates/workbench-client/src/machine_picker/tests/agents.rs)                                                                                                               |
+| Overlay query slot                 | [`query.rs`](../crates/workbench-client/src/tui_render/controls/query.rs); `QueryField`, `render_query_field`, and `render_divider`                                                                                                                                                                                                                                                                         | [`settings/tests.rs`](../crates/workbench-client/src/tui_render/settings/tests.rs) and [`machine_picker/tests/agents.rs`](../crates/workbench-client/src/machine_picker/tests/agents.rs)                                                                                                                                                                                            |
 | Full-row interaction composition   | [`row.rs`](../crates/workbench-client/src/tui_render/controls/row.rs); `RowTracks`, `RowContentBand`, and `RowFocusCue`                                                                                                                                                                                                                                                                                     | [`controls/tests.rs`](../crates/workbench-client/src/tui_render/controls/tests.rs) plus the Settings, Workspace setup, and Worktree renderer tests linked above                                                                                                                                                                                                                     |
 | Recurring native modal composition | [`modal.rs`](../crates/workbench-client/src/tui_render/modal.rs); `ModalLayout`, `SingleModalLayout`, and `ModalAction`                                                                                                                                                                                                                                                                                     | [`modal/tests.rs`](../crates/workbench-client/src/tui_render/modal/tests.rs), feature renderer tests, and the real [modal pointer round trip](../crates/workbench-client/src/workbench_client/ui/tests/modal_pointer_roundtrip.rs)                                                                                                                                                  |
 
@@ -144,7 +144,7 @@ the button's pointer target. The Settings action leads the sidebar's last row wi
 hint, followed only by the [Help control](#sidebar-toggle-and-help) at the row's end, and at every
 size the list runs directly down to it with no divider, hint or blank row between them. The
 prefix status teaches the sidebar-focus binding as `Tab` sidebar; while sidebar navigation
-owns the keyboard, the floating status shows its Back and Help bindings. The default focus switch
+owns the keyboard, the floating status shows its Back binding. The default focus switch
 is `Ctrl+b Tab`, with the previous
 `Ctrl+b Shift+B` alias retained. Repeating the focus switch returns to the terminal without activating
 a Workspace. Blank sidebar cells do not change focus; the explicit binding and row controls own it.
@@ -352,8 +352,8 @@ the independent metadata/Git polling interval never delays this local feedback o
 
 In sidebar keyboard navigation, Ctrl+Up and Ctrl+Down move the focused Project, or move a Workspace
 within its current Project or Recents list. The existing row-menu binding retains grouping commands
-and shares the same stable target proof as secondary click. These local bindings appear in sidebar
-help from the binding registry; the gesture does not add a separate shortcut system.
+and shares the same stable target proof as secondary click. These local bindings appear as
+sidebar key rows in the action menu's search; the gesture does not add a separate shortcut system.
 
 At Full and Compact tiers, the top strip contains Tabs, their close and creation controls,
 and the hidden sidebar's [toggle](#sidebar-toggle-and-help) when needed. It rests on
@@ -412,12 +412,6 @@ one.
 These controls reserve no additional terminal geometry; painted control cells take pointer
 precedence over the content beneath them. Their behavior belongs to the owning action and copy
 references.
-
-When help cannot fit a complete page in a presentable tier, the status chip shows the
-localized resize notice with a complete three-cell `[x]` button. This button can remain visible
-in Minimal and dismisses help without changing the underlying mode or PTY geometry. TooSmall
-paints only the root size notice and status; it retains the help episode without publishing
-hidden controls. A restored presentable frame can resume the retained help page.
 
 ## Quick creation controls
 
@@ -506,7 +500,8 @@ target and Esc returns to the terminal. Machine and Agent modes remain available
 their painted controls; Agent scope and filters retain their existing semantics. See the
 [workspace search owner](machines.md#cross-machine-workspace-navigation).
 Within explicit sidebar keyboard ownership, `Shift+N` invokes the same
-New workspace action and `/` enters the same search editor; F1 lists these bindings. The fixed
+New workspace action and `/` enters the same search editor; the action menu's search lists these
+bindings as sidebar key rows. The fixed
 actions show those local key labels only while that owner is active, and derive them from
 `SIDEBAR_BINDINGS` rather than embedded copy. If the complete key label does not fit, it is omitted.
 An exclusive input capture may preserve the Picker's remembered row focus for recovery, but it
@@ -536,9 +531,9 @@ Search code stays in place. The composition input `Capabilities` carries that bu
 the host effects: `Capabilities::for_host()` sets `search` to `false`, while pure UI traces still
 compose every entry point. The TUI leaves out the fixed Search row, whose plain-layout line then
 joins the list while a touch-spaced list leaves its lines blank, and the `/` key, which then
-behaves as an unbound sidebar key and leaves F1. Without New workspace either, the toggle keeps the
+behaves as an unbound sidebar key and leaves the action menu's search. Without New workspace either, the toggle keeps the
 first row on its own. The machine picker itself is the remote-machines feature and stays whole:
-`Ctrl+b Shift+M`, its action-menu row and F1 entry open it, with all three modes and Tab switching.
+`Ctrl+b Shift+M` and its action-menu row open it, with all three modes and Tab switching.
 Because the picker has no query field, those rows name it Browse machines, Workspaces and Agents
 (`浏览机器、工作区和智能体`) rather than search. The GUI withholds its Search too; see the
 [Web Workbench](../../web/docs/workbench.md#release-withheld-search).
@@ -604,7 +599,7 @@ focus or selection. Menu, Create, right-click and wheel retain their specialized
 | Arrow / Home / End                 | Move and reveal only the stable keyboard focus among visible rows; do not activate a Context or Agent.                                                                                                                                                                                                                                                                |
 | Right / Left                       | Right opens a folded Project, Recents or eligible Context; on an expanded row it enters the first child immediately. Left moves from an Agent to its Context, folds an expanded Context before moving to its Project or Recents heading, or folds a group heading. Enter on a Project or Recents toggles it.                                                          |
 | Enter on Context / Agent           | Return one identity-checked `Activate(Selection)` for the exact visible target, including an Agent's existing Tab and Panel. The existing owner applies it; the current Agent is a no-op and focus movement never writes `Picker.request`.                                                                                                                            |
-| Menu / F1                          | Context and Project rows retain their existing menu intent and admission; Agent rows open their Rename and Close menu; Recents rows invent no menu. F1 opens shortcut help while preserving row focus and navigation ownership.                                                                                                                                       |
+| Menu                               | Context and Project rows retain their existing menu intent and admission; Agent rows open their Rename and Close menu; Recents rows invent no menu. F1 does nothing.                                                                                                                                                                                                  |
 | Source replacement / collapse      | Prune a disclosure preference only when its target disappears. Group and Context folding preserve the active terminal and hidden disclosure preferences; a folded Context takes its hidden current Agent's fill. Retain exact visible focus; otherwise use the nearest visible ancestor, then the bounded prior position. Removed IDs never redirect to equal labels. |
 | Regroup / dissolve                 | Resolve an existing Workspace or Agent's ancestors from current Project metadata. Retain its exact focus when visible; if regrouped under a folded Project or Recents, focus that heading. For a removed identity, recover through its last known surviving ancestors before the prior position.                                                                      |
 | Wheel / key reveal                 | Workspace and Agent hits use the same coalesced, viewport-capped wheel window. Keyboard movement resumes focus reveal; wheel movement does not activate a target.                                                                                                                                                                                                     |
@@ -681,7 +676,7 @@ those effects. The existing bounded hierarchy traces remain the hierarchy author
 ## Sidebar toggle and Help
 
 Two three-cell [icon actions](../../../docs/tui/components.md#action-controls) give pointer users
-the sidebar's visibility and shortcut help without knowing the prefix. Both invoke existing Client
+the sidebar's visibility and the action menu without knowing the prefix. Both invoke existing Client
 actions through global chrome, so no binding, action identity or surface is new:
 
 - The hide toggle `[«]` ends the visible sidebar's first fixed-action row, after
@@ -690,8 +685,8 @@ actions through global chrome, so no binding, action identity or surface is new:
 - While an available sidebar is hidden at Full or Compact, the show toggle `[»]` leads the Tab
   strip, one strip cell before the Tabs, and invokes the same action. The toggle therefore stays on
   the first row in both states.
-- Help `[?]` ends the Settings row in the hide toggle's columns and invokes `OpenShortcutHelp`, the
-  same Help as `Ctrl+b ?`.
+- Help `[?]` ends the Settings row in the hide toggle's columns and invokes `OpenActionMenu`, the
+  same action menu as `Ctrl+b ?`, where every key can be searched.
 
 `«` and `»` mean only this toggle. Their simplified-glyph fallbacks `[<]` and `[>]` share the
 Previous and Next characters because their tracks never coincide: the toggle holds the sidebar's
@@ -699,7 +694,7 @@ top corner and the strip's leading edge, while Previous and Next flank a page or
 controls rest, hover and press as icon actions and sit on the sidebar's own hit layer, or the
 foreground on the strip. Their pointer tooltips name Hide sidebar, Show sidebar or Shortcuts with
 the key from the effective binding table. Release revalidates the painted state: hide needs an
-available visible sidebar, show an available hidden one, and Help a closed Help.
+available visible sidebar, show an available hidden one, and Help a closed action menu.
 
 Visibility is session state, like the width preference: hiding keeps the preferred width for the
 next show, and neither persists across Client restarts. An admitted sidebar is at least 24
@@ -884,10 +879,10 @@ draw no Panel chrome or because a split cannot keep its minimum pane size, names
 position among the Tab's Panels as context, such as `Panel 1/2` (`面板 1/2`), followed by the
 effective focus binding toward a neighbor (`switch`, `切换`). It leaves when the split
 is drawn again; maximization keeps its own context instead.
-Segments follow `docs/tui/overlays-and-status.md`. Prefix hints start with cancel, help and
+Segments follow `docs/tui/overlays-and-status.md`. Prefix hints start with cancel and
 `Tab` sidebar; trailing hints drop as whole records. The prefix badge shortens its cancellation hint
-to `Esc`, then to the badge alone. Sidebar navigation keeps Back and Help; its Row menu hint yields
-first, then Open. One owner paints the status cells per frame: recovery, copy mode, the help refusal,
+to `Esc`, then to the badge alone. Sidebar navigation keeps Back; its Row menu hint yields
+first, then Open. One owner paints the status cells per frame: recovery, copy mode,
 menus and Settings replace the ordinary chip instead of stacking a second one, and copy mode keeps
 its full status row while open.
 Runtime producers provide localized facts without embedded shortcut text. The footer appends
@@ -924,13 +919,12 @@ the row Enter will open. Complete visible rows publish exact proofs with the suc
 Esc/Enter instructions precede optional toggle and movement details; source cases cover both
 locales, configured prefix labels, long scrolled columns, 120x41, 120x40 and 80x24. At less than
 40x7 inner cells it refuses presentation and releases capture through the fresh-frame fence.
-The navigator suppresses pane cursor/focus emphasis. Prefix input also hides the terminal cursor. Shortcut Help
-retains its nonmodal behavior.
+The navigator suppresses pane cursor/focus emphasis. Prefix input also hides the terminal cursor.
 
-Dialogs, reference surfaces (Help, the navigator and Application Settings) and
+Dialogs, reference surfaces (the navigator and Application Settings) and
 anchored context menus use the full host viewport, including the sidebar, top strip and last row in
 their reference; the status chip paints above them. Sidebar visibility and width never shift these
-surfaces, and their placement leaves terminal geometry unchanged. Help and the navigator place
+surfaces, and their placement leaves terminal geometry unchanged. The navigator places
 through `tui_layout::place_overlay(area, preferred_width, preferred_height) ->
 Option<Rect>`, which resolves to `min(preferred, area - 4)` by `min(preferred, area - 2)`, centered
 with the extra cell rounding toward the top-left, and returns `None` when the resolved inner area
@@ -1043,10 +1037,4 @@ Pending and canonical Workspace rows reserve the same nonempty configured token 
 
 ## Sidebar symbol discovery
 
-F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent row or group heading gives the first such name in full, and a default Agent row its whole name and provider; a later line that cuts a name of its own gives that name from its own cells instead. Text that fits offers nothing. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
-
-## Shortcut discovery scope
-
-Help opens with common tasks and any active mode controls. Tab or the painted scope button expands all actions and the sidebar symbol legend; reopening restores common tasks. A nonempty filter always searches every action. Groups retain their declared order. Within each group, whole-word prefixes match case-insensitively, with title matches before key/alias matches; Chinese text also supports contiguous substring matches. Help names identify their object and use Panel consistently, distinguishing terminals inside a Panel. PageUp/PageDown and the header arrows move one published viewport of rows; wheel and arrow keys move one row. Scope/filter changes revoke the previous draw authority and reset scrolling. The footer explains the header buttons.
-
-The sidebar legend names disclosure glyphs as Expanded and Collapsed. Before its first successful draw, Help uses a bounded eight-row navigation estimate; after drawing, paging uses the published capacity.
+A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent row or group heading gives the first such name in full, and a default Agent row its whole name and provider; a later line that cuts a name of its own gives that name from its own cells instead. Text that fits offers nothing. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.

@@ -124,26 +124,6 @@ fn paint(dispatcher: &mut InputDispatcher, view: &ClientView) {
     dispatcher.publish_hit_map(hits.finish());
 }
 
-fn paint_help(dispatcher: &mut InputDispatcher, view: &mut ClientView) {
-    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 24)).unwrap();
-    let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
-    let theme = crate::tui_theme::Theme::terminal_native();
-    terminal
-        .draw(|frame| {
-            crate::tui_render::render_terminal_shell(
-                frame,
-                view,
-                crate::localization::Locale::EnUs,
-                None,
-                &theme,
-                &mut hits,
-            );
-        })
-        .unwrap();
-    let source = dispatcher.publish_hit_map_with_help(hits.finish());
-    view.settle_help_draw(source);
-}
-
 fn opened() -> (InputDispatcher, ClientView, Port) {
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(80);
@@ -358,7 +338,7 @@ fn local_prefix_unknown_double_prefix_paste_and_escape_stay_navigator_owned() {
 }
 
 #[test]
-fn navigator_prefix_can_close_itself_or_switch_to_help() {
+fn navigator_prefix_closes_itself() {
     let (mut d, mut v, mut p) = opened();
     dispatch_all(&mut d, &mut v, &mut p, b"\x02w");
     assert!(!v.navigator_active());
@@ -370,20 +350,6 @@ fn navigator_prefix_can_close_itself_or_switch_to_help() {
         ]
     );
 
-    let (mut d, mut v, mut p) = opened();
-    dispatch_all(&mut d, &mut v, &mut p, b"\x02?");
-    assert!(!v.navigator_active());
-    assert_eq!(v.overlay(), Some(crate::client_view::Overlay::ShortcutHelp));
-    assert_eq!(
-        *p.calls.borrow(),
-        [
-            Call::Action(ClientAction::OpenWorkbenchNavigator),
-            Call::Action(ClientAction::OpenShortcutHelp),
-        ]
-    );
-    paint_help(&mut d, &mut v);
-    escape(&mut d, &mut v, &mut p);
-    assert!(v.overlay().is_none());
     assert!(forwarded_bytes(&p.calls).is_empty());
 }
 

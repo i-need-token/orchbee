@@ -533,7 +533,10 @@ impl WorkbenchClient {
                     .ok();
                 }
                 if let Some(watcher) = &mut self.configuration {
-                    configuration_changed |= watcher.tick(view);
+                    if watcher.tick(view) {
+                        configuration_changed = true;
+                        native.configure_menu_commands(view.bindings().configured_commands());
+                    }
                     // The watcher configured `view.notifications`, the policy's single writer;
                     // the UI receives that policy with the revision that admitted it.
                     if let Some(revision) = watcher.take_notification_update() {
@@ -1132,18 +1135,6 @@ impl TerminalInputPort for WorkbenchClient {
             if let Some(control) = &mut self.client_control {
                 control.resize(native, direction);
             }
-            return Some(ClientActionDisposition::KeepNavigator);
-        }
-        if matches!(
-            action,
-            ClientAction::OpenShortcutHelp
-                | ClientAction::CloseShortcutHelp
-                | ClientAction::PageShortcutHelp
-        ) && self
-            .client_control
-            .as_ref()
-            .is_some_and(ui::control_steps::ClientControl::local_resize_pending)
-        {
             return Some(ClientActionDisposition::KeepNavigator);
         }
         if let ClientAction::ConfiguredCommand(id) = &action {

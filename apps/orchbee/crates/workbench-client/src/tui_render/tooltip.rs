@@ -140,7 +140,7 @@ fn unread(locale: Locale, theme: &Theme) -> LegendItem {
         glyph: theme.glyphs.status_bullet.to_owned(),
         role: Role::StatusUnread,
         style: theme.style(Role::StatusUnread),
-        label: locale.sidebar_marker_label("unread").to_owned(),
+        label: locale.unread_label().to_owned(),
     }
 }
 

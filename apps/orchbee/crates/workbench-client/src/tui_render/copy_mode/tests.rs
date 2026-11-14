@@ -209,7 +209,7 @@ fn footer_drops_only_complete_owner_ordered_key_hints() {
         (
             120,
             Locale::EnUs,
-            &["Esc Exit", "y Copy", "v Select", "/ Search", "F1 Help"][..],
+            &["Esc Exit", "y Copy", "v Select", "/ Search"][..],
             &[][..],
         ),
         (16, Locale::ZhCn, &["Esc 退出"][..], &["y 复制"][..]),
@@ -222,7 +222,7 @@ fn footer_drops_only_complete_owner_ordered_key_hints() {
         (
             120,
             Locale::ZhCn,
-            &["Esc 退出", "y 复制", "v 选择", "/ 搜索", "F1 帮助"][..],
+            &["Esc 退出", "y 复制", "v 选择", "/ 搜索"][..],
             &[][..],
         ),
     ] {
@@ -482,7 +482,6 @@ fn toolbar_uses_action_boolean_and_icon_grammars_with_typed_targets() {
             CopyControl::Search,
             CopyControl::RepeatSearch { reverse: true },
             CopyControl::RepeatSearch { reverse: false },
-            CopyControl::Help,
             CopyControl::Exit,
         ] {
             assert!(
@@ -580,7 +579,6 @@ fn disabled_copy_controls_keep_their_shape_and_checked_value() {
         CopyControl::Search,
         CopyControl::RepeatSearch { reverse: true },
         CopyControl::RepeatSearch { reverse: false },
-        CopyControl::Help,
         CopyControl::Exit,
     ] {
         assert!(map_contains_control(&map, width, height, token, control));

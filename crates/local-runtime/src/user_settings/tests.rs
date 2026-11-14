@@ -26,10 +26,10 @@ fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
         assert!(!read(text).diagnostics.is_empty());
     }
     let admitted =
-        read("[appearance.sidebar.workspaces]\nrows=[['workspace']]\n[keys]\nhelp='ctrl+c'");
-    assert_eq!(admitted.keys.overrides[0].action, "help");
+        read("[appearance.sidebar.workspaces]\nrows=[['workspace']]\n[keys]\nsettings='ctrl+c'");
+    assert_eq!(admitted.keys.overrides[0].action, "settings");
     assert!(admitted.keys.overrides[0].triggers.is_empty());
-    assert_eq!(admitted.diagnostics.items()[0].field, "keys.help");
+    assert_eq!(admitted.diagnostics.items()[0].field, "keys.settings");
 }
 
 #[test]
@@ -364,7 +364,7 @@ fn window_title_settings_default_empty_invalid_syntax_and_strict_type() {
 #[test]
 fn unknown_fields_and_partial_key_failures_are_bounded_warnings() {
     let admitted = parse(
-        "onboarding=false\n[server]\naddress='DO-NOT-ECHO'\n[advanced]\n[experimental]\nenabled=true\n[remote]\nenabled=true\n[theme]\nname='one-light'\ncustom={}\n[terminal]\nkitty_graphics=true\n[update]\nversion_check=false\n[keys]\nhelp=['prefix+?', 'ctrl+c', 'f1']\nnew_tab='prefix+n'\nnavigate_pane_left='h'\nindexed=true\n[appearance]\nsidebar_width=24\nunknown_presentation=true\n[notifications]\nenabled=true\nclipboard=true\ndone_path='done.mp3'\n[ui]\nwindow_title='{workspace}'",
+        "onboarding=false\n[server]\naddress='DO-NOT-ECHO'\n[advanced]\n[experimental]\nenabled=true\n[remote]\nenabled=true\n[theme]\nname='one-light'\ncustom={}\n[terminal]\nkitty_graphics=true\n[update]\nversion_check=false\n[keys]\nsettings=['prefix+,', 'ctrl+c', 'f1']\nnew_tab='prefix+n'\nnavigate_pane_left='h'\nindexed=true\n[appearance]\nsidebar_width=24\nunknown_presentation=true\n[notifications]\nenabled=true\nclipboard=true\ndone_path='done.mp3'\n[ui]\nwindow_title='{workspace}'",
         Path::new(r"C:\config.toml"),
         &|_| None,
     );
@@ -407,7 +407,7 @@ fn unknown_fields_and_partial_key_failures_are_bounded_warnings() {
         .keys
         .overrides
         .iter()
-        .find(|override_| override_.action == "help")
+        .find(|override_| override_.action == "settings")
         .unwrap();
     assert_eq!(help.triggers.len(), 2);
     assert!(
@@ -421,7 +421,12 @@ fn unknown_fields_and_partial_key_failures_are_bounded_warnings() {
 
 #[test]
 fn invalid_explicit_key_action_stays_explicitly_disabled() {
-    for body in ["help=[]", "help=''", "help=42", "help=['ctrl+c']"] {
+    for body in [
+        "settings=[]",
+        "settings=''",
+        "settings=42",
+        "settings=['ctrl+c']",
+    ] {
         let admitted = parse(
             &format!("[keys]\n{body}\nnew_tab='prefix+n'"),
             Path::new(r"C:\config.toml"),
@@ -431,7 +436,7 @@ fn invalid_explicit_key_action_stays_explicitly_disabled() {
             .keys
             .overrides
             .iter()
-            .find(|override_| override_.action == "help")
+            .find(|override_| override_.action == "settings")
             .unwrap();
         assert!(help.triggers.is_empty());
         assert!(
@@ -444,7 +449,7 @@ fn invalid_explicit_key_action_stays_explicitly_disabled() {
                 .diagnostics
                 .items()
                 .iter()
-                .any(|diagnostic| diagnostic.field == "keys.help")
+                .any(|diagnostic| diagnostic.field == "keys.settings")
         );
     }
 }
@@ -452,8 +457,8 @@ fn invalid_explicit_key_action_stays_explicitly_disabled() {
 #[test]
 fn explicit_key_conflicts_use_registry_order_instead_of_toml_order() {
     for body in [
-        "help='prefix+q'\nnew_tab='prefix+q'",
-        "new_tab='prefix+q'\nhelp='prefix+q'",
+        "settings='prefix+q'\nnew_tab='prefix+q'",
+        "new_tab='prefix+q'\nsettings='prefix+q'",
     ] {
         let admitted = parse(
             &format!("[keys]\n{body}"),
@@ -464,7 +469,7 @@ fn explicit_key_conflicts_use_registry_order_instead_of_toml_order() {
             .keys
             .overrides
             .iter()
-            .find(|setting| setting.action == "help")
+            .find(|setting| setting.action == "settings")
             .unwrap();
         let new_tab = admitted
             .keys
@@ -623,12 +628,12 @@ fn default_configuration_reference_covers_the_setting_and_action_registries() {
 #[test]
 fn default_configuration_quotes_and_roundtrips_binding_strings() {
     let text = default_user_settings_toml_with_actions(&[DefaultActionBindings {
-        action: "help",
+        action: "settings",
         bindings: vec!["prefix+\"".to_owned(), "prefix+\\".to_owned()],
     }]);
     let action_line = text
         .lines()
-        .find(|line| line.starts_with("# help = "))
+        .find(|line| line.starts_with("# settings = "))
         .unwrap();
     let config = text
         .replace(action_line, action_line.strip_prefix("# ").unwrap())
@@ -639,7 +644,7 @@ fn default_configuration_quotes_and_roundtrips_binding_strings() {
     let help = settings
         .overrides
         .iter()
-        .find(|override_| override_.action == "help")
+        .find(|override_| override_.action == "settings")
         .unwrap();
     assert_eq!(
         help.triggers

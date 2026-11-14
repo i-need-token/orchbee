@@ -444,7 +444,6 @@ impl WorkbenchClientUi {
                 self.leave_copy_mode();
                 return;
             }
-            CopyModeKey::Help => Ok(()),
         };
         self.settle_copy_refusal(result.err());
         self.drive_copy_effects();

@@ -4,7 +4,7 @@ use std::convert::Infallible;
 use std::time::Instant;
 
 use crate::client_view::{
-    ClientAction, ClientActionDisposition, ClientView, Notice, Overlay, SidebarSurface,
+    ClientAction, ClientActionDisposition, ClientView, Notice, SidebarSurface,
 };
 
 use super::{
@@ -375,42 +375,6 @@ fn unavailable_backend_action_reports_no_effect_after_completed_prefix() {
     );
     assert_eq!(input.recorded, [Recorded::Action(ClientAction::CreateTab)]);
     assert!(matches!(view.notice(), Some(Notice::BackendUnavailable(_))));
-}
-
-#[test]
-fn shortcut_help_captures_ordinary_input_and_consumes_escape() {
-    let mut view = ClientView::new(120);
-    let mut dispatcher = InputDispatcher::default();
-    let mut input = RecordingTerminalInput::default();
-    dispatch(&mut dispatcher, &mut view, b"\x02?", &mut input);
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-
-    dispatch(
-        &mut dispatcher,
-        &mut view,
-        b"text\x03\x04\x1b[A",
-        &mut input,
-    );
-    assert!(
-        !input
-            .recorded
-            .iter()
-            .any(|call| matches!(call, Recorded::Forward(_))),
-        "Help owns ordinary keys, controls and escape sequences"
-    );
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-
-    dispatch(&mut dispatcher, &mut view, b"\x1b[27u", &mut input);
-    assert_eq!(view.overlay(), None);
-    assert_eq!(
-        input.recorded,
-        [
-            Recorded::Action(ClientAction::OpenShortcutHelp),
-            Recorded::Action(ClientAction::PageShortcutHelp),
-            Recorded::Action(ClientAction::CloseShortcutHelp)
-        ],
-        "the consumed Escape must never reach the terminal port"
-    );
 }
 
 #[test]

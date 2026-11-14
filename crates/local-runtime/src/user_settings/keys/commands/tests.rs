@@ -86,7 +86,7 @@ fn command_fields_types_chords_and_action_dimensions_fail_closed() {
         );
     }
     for profile in [
-        "[keys]\nhelp='prefix+x'\n[[keys.command]]\ncommand='echo x'\nkey='prefix+x'",
+        "[keys]\nsettings='prefix+x'\n[[keys.command]]\ncommand='echo x'\nkey='prefix+x'",
         "[keys]\n[[keys.command]]\ncommand='echo x'\nkey='prefix+x'\n[[keys.command]]\ncommand='echo y'\nkey='prefix+x'",
     ] {
         assert!(KeySettings::from_profile(profile).is_err());

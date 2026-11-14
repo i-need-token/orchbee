@@ -6,13 +6,13 @@ use crate::{localization::Locale, tui_presentation::ModalPresentation, tui_theme
 fn hover_moves_only_the_menu_candidate_and_one_click_activates_the_painted_row() {
     for repaint in [0, 1, 2] {
         let mut port = Port::new(MenuAction::Detach);
-        port.actions = vec![MenuAction::Detach, MenuAction::Help];
+        port.actions = vec![MenuAction::Detach, MenuAction::Machines];
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
         let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
-        let (x, y) = painted.row(&MenuAction::Help);
+        let (x, y) = painted.row(&MenuAction::Machines);
         dispatch_all(
             &mut dispatcher,
             &mut view,
@@ -46,10 +46,9 @@ fn hover_moves_only_the_menu_candidate_and_one_click_activates_the_painted_row()
             format!("\x1b[<0;{x};{y}mtail").as_bytes(),
         );
         assert!(!port.menu.active());
-        assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
         assert_eq!(
             *port.calls.borrow(),
-            [Call::Action(ClientAction::OpenShortcutHelp)]
+            [Call::Action(ClientAction::OpenMachines)]
         );
     }
 }
@@ -78,8 +77,8 @@ fn a_click_survives_an_availability_refresh_that_keeps_its_row() {
             if change == Change::RowMoved && !repaint {
                 continue;
             }
-            let mut port = Port::new(MenuAction::Help);
-            port.actions = vec![MenuAction::Help, MenuAction::Detach];
+            let mut port = Port::new(MenuAction::Machines);
+            port.actions = vec![MenuAction::Machines, MenuAction::Detach];
             let mut dispatcher = InputDispatcher::default();
             let mut view = ClientView::new(50);
             dispatcher.set_pointer_capture(&mut view, &mut port, true);
@@ -92,7 +91,7 @@ fn a_click_survives_an_availability_refresh_that_keeps_its_row() {
                 Locale::EnUs,
                 area,
             );
-            let (x, y) = painted.row(&MenuAction::Help);
+            let (x, y) = painted.row(&MenuAction::Machines);
             dispatch_all(
                 &mut dispatcher,
                 &mut view,
@@ -107,12 +106,12 @@ fn a_click_survives_an_availability_refresh_that_keeps_its_row() {
                 }
                 Change::RowDisabled => {
                     assert!(port.menu.refresh_availability(|action| {
-                        (action == MenuAction::Help).then_some(busy)
+                        (action == MenuAction::Machines).then_some(busy)
                     }));
                 }
                 Change::RowsReplaced => {
                     port.menu.set_labels(|action| {
-                        (action == MenuAction::Help).then(|| "Help target".into())
+                        (action == MenuAction::Machines).then(|| "Help target".into())
                     });
                 }
             }
@@ -143,7 +142,7 @@ fn a_click_survives_an_availability_refresh_that_keeps_its_row() {
                 "{change:?}, repainted {repaint}"
             );
             let expected: &[Call] = if clicked {
-                &[Call::Action(ClientAction::OpenShortcutHelp)]
+                &[Call::Action(ClientAction::OpenMachines)]
             } else {
                 &[]
             };
@@ -159,13 +158,17 @@ fn a_click_survives_an_availability_refresh_that_keeps_its_row() {
 #[test]
 fn hover_admission_leave_and_keyboard_navigation_preserve_menu_ownership() {
     let mut port = Port::new(MenuAction::Detach);
-    port.actions = vec![MenuAction::Detach, MenuAction::Help, MenuAction::Settings];
+    port.actions = vec![
+        MenuAction::Detach,
+        MenuAction::Machines,
+        MenuAction::Settings,
+    ];
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(50);
     dispatcher.set_pointer_capture(&mut view, &mut port, false);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
-    let help_point = painted.row(&MenuAction::Help);
+    let help_point = painted.row(&MenuAction::Machines);
     let motion = |code, (x, row)| format!("\x1b[<{code};{x};{row}M");
     dispatch_all(
         &mut dispatcher,
@@ -189,7 +192,7 @@ fn hover_admission_leave_and_keyboard_navigation_preserve_menu_ownership() {
         PointerCaptureRequest::MenuMotion
     );
     let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
-    let help_point = painted.row(&MenuAction::Help);
+    let help_point = painted.row(&MenuAction::Machines);
     for code in [39, 43, 51, 32] {
         dispatch_all(
             &mut dispatcher,
@@ -256,7 +259,7 @@ fn captured_menu_press_loses_authority_on_owner_source_geometry_or_transport_ret
         Retirement::Capture,
         Retirement::Focus,
     ] {
-        let mut port = Port::new(MenuAction::Help);
+        let mut port = Port::new(MenuAction::Machines);
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
@@ -285,7 +288,7 @@ fn captured_menu_press_loses_authority_on_owner_source_geometry_or_transport_ret
                 assert!(port.menu.open_for(
                     MenuTarget::Create(None),
                     String::new(),
-                    vec![MenuAction::Help],
+                    vec![MenuAction::Machines],
                     None,
                 ));
             }
@@ -325,14 +328,18 @@ fn captured_menu_press_loses_authority_on_owner_source_geometry_or_transport_ret
 
 #[test]
 fn hover_and_keyboard_bursts_require_a_draw_before_their_candidate_can_execute() {
-    let mut port = Port::new(MenuAction::Help);
-    port.actions = vec![MenuAction::Detach, MenuAction::Settings, MenuAction::Help];
+    let mut port = Port::new(MenuAction::Machines);
+    port.actions = vec![
+        MenuAction::Detach,
+        MenuAction::Settings,
+        MenuAction::Machines,
+    ];
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(50);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
-    let (help_x, help_y) = painted.row(&MenuAction::Help);
+    let (help_x, help_y) = painted.row(&MenuAction::Machines);
 
     dispatch_all(
         &mut dispatcher,
@@ -369,10 +376,9 @@ fn hover_and_keyboard_bursts_require_a_draw_before_their_candidate_can_execute()
     paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\r");
     assert!(!port.menu.active());
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
     assert_eq!(
         *port.calls.borrow(),
-        [Call::Action(ClientAction::OpenShortcutHelp)]
+        [Call::Action(ClientAction::OpenMachines)]
     );
 }
 
@@ -483,8 +489,8 @@ impl PaintedActionMenu {
 #[test]
 fn menu_wheel_is_regional_bounded_reversible_and_cancelled_by_keyboard() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let mut port = Port::new(MenuAction::Help);
-        port.actions = vec![MenuAction::Help; 40];
+        let mut port = Port::new(MenuAction::Machines);
+        port.actions = vec![MenuAction::Machines; 40];
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
@@ -548,7 +554,7 @@ fn menu_wheel_is_regional_bounded_reversible_and_cancelled_by_keyboard() {
 
 #[test]
 fn global_menu_has_no_top_button_and_keyboard_open_retains_its_close_control() {
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
@@ -580,228 +586,6 @@ fn global_menu_has_no_top_button_and_keyboard_open_retains_its_close_control() {
     );
     assert!(!port.menu.active());
     assert!(port.calls.borrow().is_empty());
-}
-
-fn help_map(
-    dispatcher: &mut InputDispatcher,
-    view: &mut ClientView,
-    locale: Locale,
-) -> crate::tui_hit_map::FrameHitMap {
-    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 16)).unwrap();
-    let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
-    let theme = Theme::terminal_native();
-    terminal
-        .draw(|frame| {
-            crate::tui_render::render_terminal_shell(frame, view, locale, None, &theme, &mut hits);
-        })
-        .unwrap();
-    if locale == Locale::EnUs && view.help_page() == 0 {
-        crate::tui_render::test_capture::capture_screen(
-            &mut terminal,
-            "alignment-help-presented-en-us-80x16-terminal-native",
-            locale,
-            &theme,
-        );
-    }
-    let map = hits.finish();
-    let source = dispatcher.publish_hit_map_with_help(map.clone());
-    view.settle_help_draw(source);
-    map
-}
-
-#[test]
-fn help_mouse_pages_and_close_capture_only_their_own_surface_and_packet() {
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let mut port = Port::new(MenuAction::Help);
-        let mut dispatcher = InputDispatcher::default();
-        let mut view = ClientView::new(80);
-        view.commit(
-            view.decide_action(ClientAction::OpenShortcutHelp),
-            ClientActionDisposition::KeepNavigator,
-        );
-        dispatcher.set_pointer_capture(&mut view, &mut port, true);
-        let map = help_map(&mut dispatcher, &mut view, locale);
-        let wheel = (0..16)
-            .find_map(|y| {
-                (0..80).find_map(|x| {
-                    matches!(
-                        map.hit_target_at(x, y),
-                        Some(HitTarget::ListScroll(
-                            crate::tui_hit_map::ListScrollTarget::Help(_)
-                        ))
-                    )
-                    .then_some((x + 1, y + 1))
-                })
-            })
-            .unwrap();
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<65;1;1M");
-        assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-        assert_eq!(view.help_page(), 0);
-        let down = format!("\x1b[<65;{};{}M", wheel.0, wheel.1);
-        dispatch_all(
-            &mut dispatcher,
-            &mut view,
-            &mut port,
-            down.repeat(12).as_bytes(),
-        );
-        assert_eq!(
-            view.help_page(),
-            1,
-            "paginated help advances at most one page per frame"
-        );
-        help_map(&mut dispatcher, &mut view, locale);
-        dispatch_all(
-            &mut dispatcher,
-            &mut view,
-            &mut port,
-            format!("\x1b[<64;{};{}M", wheel.0, wheel.1).as_bytes(),
-        );
-        assert_eq!(
-            view.help_page(),
-            0,
-            "reversal abandons the queued later pages"
-        );
-        let map = help_map(&mut dispatcher, &mut view, locale);
-        for action in [
-            crate::tui_pointer::HelpControl::Next,
-            crate::tui_pointer::HelpControl::Close,
-        ] {
-            let current = if action == crate::tui_pointer::HelpControl::Next {
-                map.clone()
-            } else {
-                help_map(&mut dispatcher, &mut view, locale)
-            };
-            let cell = (0..16).find_map(|y| (0..80).find_map(|x| matches!(current.hit_target_at(x, y), Some(HitTarget::Help { action: actual, .. }) if *actual == action).then_some((x + 1, y + 1)))).unwrap();
-            dispatch_all(
-                &mut dispatcher,
-                &mut view,
-                &mut port,
-                format!(
-                    "\x1b[<0;{};{}Mtail\x1b[<0;{};{}m",
-                    cell.0, cell.1, cell.0, cell.1
-                )
-                .as_bytes(),
-            );
-            assert!(forwarded_bytes(&port.calls).is_empty());
-        }
-        assert_eq!(view.overlay(), None);
-        dispatcher.publish_hit_map(HitMapBuilder::new().finish());
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"fresh");
-        assert_eq!(forwarded_bytes(&port.calls), b"fresh");
-    }
-}
-
-#[test]
-fn help_close_activates_on_release_and_fences_that_packet_once() {
-    let mut port = Port::new(MenuAction::Help);
-    let mut dispatcher = InputDispatcher::default();
-    let mut view = ClientView::new(80);
-    view.commit(
-        view.decide_action(ClientAction::OpenShortcutHelp),
-        ClientActionDisposition::KeepNavigator,
-    );
-    dispatcher.set_pointer_capture(&mut view, &mut port, true);
-    let map = help_map(&mut dispatcher, &mut view, Locale::EnUs);
-    let close = (0..16)
-        .find_map(|y| {
-            (0..80).find_map(|x| {
-                matches!(
-                    map.hit_target_at(x, y),
-                    Some(HitTarget::Help {
-                        action: crate::tui_pointer::HelpControl::Close,
-                        ..
-                    })
-                )
-                .then_some((x + 1, y + 1))
-            })
-        })
-        .unwrap();
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        format!("\x1b[<0;{};{}M", close.0, close.1).as_bytes(),
-    );
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-    port.calls.borrow_mut().clear();
-
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        format!(
-            "\x1b[<0;{};{}mtail\x1b[200~paste\x1b[201~\x1b[",
-            close.0, close.1
-        )
-        .as_bytes(),
-    );
-    assert_eq!(view.overlay(), None);
-    assert!(forwarded_bytes(&port.calls).is_empty());
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"A");
-    assert!(forwarded_bytes(&port.calls).is_empty());
-    dispatcher.publish_hit_map(HitMapBuilder::new().finish());
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"fresh");
-    assert_eq!(forwarded_bytes(&port.calls), b"fresh");
-    port.calls.borrow_mut().clear();
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        format!("\x1b[<0;{};{}morphan", close.0, close.1).as_bytes(),
-    );
-    assert_eq!(forwarded_bytes(&port.calls), b"orphan");
-}
-
-#[test]
-fn replaced_help_episode_consumes_the_old_release_without_closing_the_new_surface() {
-    let mut port = Port::new(MenuAction::Help);
-    let mut dispatcher = InputDispatcher::default();
-    let mut view = ClientView::new(80);
-    view.commit(
-        view.decide_action(ClientAction::OpenShortcutHelp),
-        ClientActionDisposition::KeepNavigator,
-    );
-    dispatcher.set_pointer_capture(&mut view, &mut port, true);
-    let map = help_map(&mut dispatcher, &mut view, Locale::EnUs);
-    let close = (0..16)
-        .find_map(|y| {
-            (0..80).find_map(|x| {
-                matches!(
-                    map.hit_target_at(x, y),
-                    Some(HitTarget::Help {
-                        action: crate::tui_pointer::HelpControl::Close,
-                        ..
-                    })
-                )
-                .then_some((x + 1, y + 1))
-            })
-        })
-        .unwrap();
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        format!("\x1b[<0;{};{}M", close.0, close.1).as_bytes(),
-    );
-    view.commit(
-        view.decide_action(ClientAction::OpenShortcutHelp),
-        ClientActionDisposition::KeepNavigator,
-    );
-    assert_eq!(view.overlay(), None);
-    view.commit(
-        view.decide_action(ClientAction::OpenShortcutHelp),
-        ClientActionDisposition::KeepNavigator,
-    );
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-    help_map(&mut dispatcher, &mut view, Locale::EnUs);
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        format!("\x1b[<0;{};{}mtail", close.0, close.1).as_bytes(),
-    );
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-    assert!(forwarded_bytes(&port.calls).is_empty());
 }
 
 #[test]

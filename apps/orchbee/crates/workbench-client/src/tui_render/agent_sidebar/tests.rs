@@ -1187,7 +1187,8 @@ fn bounded_sidebar_width_records_only_its_border_and_never_overrides_covering_he
                     }
                     if target.is_some() {
                         let mut covered = view.clone();
-                        let transition = covered.decide_action(ClientAction::OpenShortcutHelp);
+                        let transition =
+                            covered.decide_action(ClientAction::OpenWorkbenchNavigator);
                         covered.commit(transition, ClientActionDisposition::KeepNavigator);
                         let (_, covered_map) = paint(&covered, locale, &theme, width, height);
                         assert!((0..height).all(|y| (0..width).all(|x| !matches!(

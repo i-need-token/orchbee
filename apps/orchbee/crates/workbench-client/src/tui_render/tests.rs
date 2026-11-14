@@ -118,7 +118,7 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
 }
 
 #[test]
-fn sidebar_status_keeps_return_and_help_as_whole_hints_yield_and_never_shows_the_fact() {
+fn sidebar_status_keeps_return_as_a_whole_hint_yields_and_never_shows_the_fact() {
     use crate::{
         machine_picker::{SidebarCommand, sidebar_binding_label},
         tui_theme::{GlyphSet, Theme},
@@ -131,20 +131,17 @@ fn sidebar_status_keeps_return_and_help_as_whole_hints_yield_and_never_shows_the
                 let mut view = ClientView::new(width);
                 view.machines.available = true;
                 assert!(view.machines.enter_sidebar_navigation());
-                // Row menu yields first, then Open; Return to terminal and Help stay.
+                // Row menu yields first, then Open; Return to terminal stays.
                 let commands = match (width, locale) {
                     (120, _) | (70, Locale::ZhCn) => vec![
                         SidebarCommand::Exit,
                         SidebarCommand::Activate,
                         SidebarCommand::OpenMenu,
-                        SidebarCommand::Help,
                     ],
-                    (70, Locale::EnUs) => vec![
-                        SidebarCommand::Exit,
-                        SidebarCommand::Activate,
-                        SidebarCommand::Help,
-                    ],
-                    _ => vec![SidebarCommand::Exit, SidebarCommand::Help],
+                    (70, Locale::EnUs) | (50, Locale::ZhCn) => {
+                        vec![SidebarCommand::Exit, SidebarCommand::Activate]
+                    }
+                    _ => vec![SidebarCommand::Exit],
                 };
                 let key_glyphs = if glyphs == GlyphSet::ASCII {
                     crate::client_view::KeyLabelGlyphs::Ascii
@@ -595,21 +592,11 @@ fn too_small_root_compositor_paints_only_the_notice_and_status() {
         tui_theme::Theme,
     };
 
-    #[derive(Clone, Copy, Debug)]
-    enum Scenario {
-        Ordinary,
-        Help,
-    }
-
     for (width, height) in [(100, 1), (100, 3), (100, 4), (19, 24)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            for scenario in [Scenario::Ordinary, Scenario::Help] {
+            {
                 let mut view = ClientView::new(width);
                 view.machines.available = true;
-                match scenario {
-                    Scenario::Ordinary => {}
-                    Scenario::Help => prefix(&mut view, plain('?')),
-                }
 
                 let theme = Theme::orchbee_dark();
                 let key_glyphs = match theme.glyphs.mode() {
@@ -637,24 +624,15 @@ fn too_small_root_compositor_paints_only_the_notice_and_status() {
                 infallible(terminal.draw(|frame| {
                     super::render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
                 }));
-                assert_eq!(
-                    hits.painted_panes().count(),
-                    0,
-                    "{width}x{height} {scenario:?}"
-                );
+                assert_eq!(hits.painted_panes().count(), 0, "{width}x{height}");
                 let map = hits.finish();
-                assert_eq!(
-                    map.help_draw_source(),
-                    None,
-                    "{width}x{height} {scenario:?} published hidden Help metadata"
-                );
                 for row in 0..height {
                     for column in 0..width {
                         if let Some(target) = map.hit_target_at(column, row) {
                             assert_eq!(
                                 target,
                                 &HitTarget::OverlaySurface,
-                                "{width}x{height} {scenario:?} published {target:?}"
+                                "{width}x{height} published {target:?}"
                             );
                         }
                     }
@@ -691,7 +669,7 @@ fn too_small_root_compositor_paints_only_the_notice_and_status() {
                     .collect::<Vec<_>>();
                 assert_eq!(
                     visible_body, expected_body,
-                    "{width}x{height} {scenario:?} painted hidden chrome"
+                    "{width}x{height} painted hidden chrome"
                 );
                 if height > 1 {
                     let buffer = terminal.backend().buffer();
@@ -730,7 +708,7 @@ fn too_small_root_compositor_paints_only_the_notice_and_status() {
                         assert_eq!(
                             cell.fg,
                             theme.color(role),
-                            "{width}x{height} {scenario:?} misstyled {:?}",
+                            "{width}x{height} misstyled {:?}",
                             cell.symbol()
                         );
                     }
@@ -738,7 +716,7 @@ fn too_small_root_compositor_paints_only_the_notice_and_status() {
                 let status = &rows[usize::from(height - 1)];
                 assert!(
                     without_cell_padding(status).contains(&without_cell_padding(&exit_hint)),
-                    "{width}x{height} {scenario:?} lost the available exit hint: {status:?}"
+                    "{width}x{height} lost the available exit hint: {status:?}"
                 );
             }
         }
@@ -846,80 +824,13 @@ fn narrow_render_hides_then_overlays_the_business_sidebar() {
 }
 
 #[test]
-fn renders_visible_prefix_and_localized_shortcut_overlays() {
+fn renders_visible_prefix_mode() {
     let mut view = ClientView::new(120);
     commit(&mut view, ctrl_b());
     let prefix_mode = rendered_text(120, 32, &view, Locale::ZhCn);
     assert!(without_cell_padding(&prefix_mode).contains(
         &crate::terminal_events::keys::tests::host_label("前缀Ctrl+b")
     ));
-
-    commit(&mut view, plain('?'));
-    for character in "关闭帮助".chars() {
-        commit(&mut view, plain(character));
-    }
-    let filtered_help = rendered_text(120, 32, &view, Locale::ZhCn);
-    let filtered_compact = without_cell_padding(&filtered_help);
-    assert!(filtered_help.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b ?")));
-    assert!(
-        filtered_compact.contains(&crate::terminal_events::keys::tests::host_label(
-            "Ctrl+b?关闭帮助"
-        ))
-    );
-    assert!(filtered_compact.contains("其他"));
-
-    commit(
-        &mut view,
-        PrefixInput::Key(KeyEvent::press(KeyCode::Char('u'), Modifiers::CTRL)),
-    );
-    assert!(view.help_filter().is_empty());
-    let help = rendered_text(120, 32, &view, Locale::ZhCn);
-    let compact_help = without_cell_padding(&help);
-    assert!(compact_help.contains("键盘快捷键"));
-    assert!(help.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b c")));
-    assert!(
-        !help.contains(&crate::terminal_events::keys::tests::host_label(
-            "Ctrl+b F2"
-        )),
-        "Help opens with common tasks only"
-    );
-    commit(
-        &mut view,
-        PrefixInput::Key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE)),
-    );
-    let help = rendered_text(120, 32, &view, Locale::ZhCn);
-    let mut rename_visible = help.contains(&crate::terminal_events::keys::tests::host_label(
-        "Ctrl+b F2",
-    ));
-
-    // The composed registry paginates whole groups at this size: the
-    // literal-prefix row sits on a later page. Page forward with the
-    // documented `Ctrl+B PageDown` binding until it renders.
-    let mut paged = String::new();
-    for _ in 0..8 {
-        if paged.contains(&crate::terminal_events::keys::tests::host_label(
-            "Ctrl+b Ctrl+b",
-        )) && rename_visible
-        {
-            break;
-        }
-        commit(&mut view, ctrl_b());
-        commit(
-            &mut view,
-            PrefixInput::Key(KeyEvent::press(KeyCode::PageDown, Modifiers::NONE)),
-        );
-        paged = rendered_text(120, 32, &view, Locale::ZhCn);
-        rename_visible |= paged.contains(&crate::terminal_events::keys::tests::host_label(
-            "Ctrl+b F2",
-        ));
-    }
-    assert!(rename_visible, "rename is discoverable in expanded Help");
-    assert!(
-        paged.contains(&crate::terminal_events::keys::tests::host_label(
-            "Ctrl+b Ctrl+b"
-        )),
-        "the literal-prefix row must render on a reachable help page"
-    );
 }
 
 #[test]
@@ -960,15 +871,6 @@ fn ordinary_state_omits_status_chrome_except_the_too_small_exit_hint() {
 
 #[test]
 fn overlays_never_cover_the_status_row() {
-    let mut view = ClientView::new(80);
-    prefix(&mut view, plain('?'));
-    let rows = rendered_rows(80, 24, &view, Locale::EnUs);
-    let status = &rows[23];
-    assert!(status.contains("unavailable"), "{status:?}");
-    for row in &rows[..23] {
-        assert!(!row.contains("Backend unavailable ·"), "{row:?}");
-    }
-
     let mut view = ClientView::new(60);
     prefix(&mut view, plain('w'));
     let rows = rendered_rows(60, 12, &view, Locale::ZhCn);

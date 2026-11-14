@@ -21,16 +21,11 @@ fn binding(action: &'static str, key: &str, prefix: bool) -> KeyOverride {
     }
 }
 
-fn shortcut_entries(
-    locale: crate::localization::Locale,
-    view: &ClientView,
-) -> Vec<crate::tui_shortcut_help::ShortcutHelpEntry> {
-    crate::tui_shortcut_help::entries(
-        locale,
-        view,
-        true,
-        crate::client_view::KeyLabelGlyphs::Unicode,
-    )
+/// The keys the action menu shows for `action`, joined as one searchable label.
+fn key_labels(view: &ClientView, action: crate::client_view::PrefixAction) -> String {
+    view.bindings()
+        .action_labels_with_glyphs(action, crate::client_view::KeyLabelGlyphs::Unicode)
+        .join(" / ")
 }
 
 fn run(
@@ -59,7 +54,10 @@ fn configured_actions_displace_defaults_and_preserve_passthrough_order() {
     let keys = KeySettings {
         commands: Vec::new(),
         prefix: chord("a", true),
-        overrides: vec![binding("new_tab", "n", true), binding("help", "f1", false)],
+        overrides: vec![
+            binding("new_tab", "n", true),
+            binding("next_tab", "f1", false),
+        ],
     };
     let mut view = ClientView::new(100);
     view.configure_keys(&keys);
@@ -81,7 +79,7 @@ fn configured_actions_displace_defaults_and_preserve_passthrough_order() {
             Call::Action(ClientAction::ForwardLiteralPrefix),
             Call::Forward(vec![1]),
             Call::Forward(b"after".to_vec()),
-            Call::Action(ClientAction::OpenShortcutHelp)
+            Call::Action(ClientAction::SelectNextTab)
         ]
     );
     run(&mut view, &mut dispatcher, &mut port, b"\x01c");
@@ -111,31 +109,6 @@ fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
             Call::Forward(b"tail".to_vec()),
         ]
     );
-    let projected_id = view
-        .bindings()
-        .entries
-        .iter()
-        .find_map(|entry| {
-            let crate::client_view::PrefixAction::Client(ClientAction::ConfiguredCommand(
-                candidate,
-            )) = &entry.member.action
-            else {
-                return None;
-            };
-            if candidate != &id {
-                return None;
-            }
-            Some(
-                crate::action_projection::binding_metadata(&entry.member.action)
-                    .expect("configured action metadata")
-                    .identity,
-            )
-        })
-        .expect("configured action projection");
-    assert_eq!(
-        projected_id,
-        crate::action_projection::ActionIdentity::ConfiguredCommand(id.as_str())
-    );
     let catalog = keys
         .command_catalog()
         .into_iter()
@@ -152,9 +125,10 @@ fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
         )
         .collect::<Vec<_>>();
     view.name_configured_commands(&catalog);
-    let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
-    assert!(entries.iter().any(|entry| entry.title == "Run hello"));
-    assert!(!entries.iter().any(|entry| entry.title == "Refresh tools"));
+    assert_eq!(
+        view.bindings().configured_commands()[0],
+        (id.clone(), Some("Run hello".to_owned()))
+    );
 }
 
 #[test]
@@ -296,7 +270,7 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
 }
 
 #[test]
-fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_help() {
+fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_keys() {
     let keys =
         KeySettings::from_profile("[keys]\nprefix='ctrl+a'\nfocus_agent='alt+1..9'").unwrap();
     let mut view = ClientView::new(100);
@@ -320,30 +294,9 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
         2,
         "picker owns input while ordinal waits"
     );
-    for locale in [
-        crate::localization::Locale::EnUs,
-        crate::localization::Locale::ZhCn,
-    ] {
-        let entries = shortcut_entries(locale, &view);
-        let title = match locale {
-            crate::localization::Locale::EnUs => "Select Agent by number",
-            crate::localization::Locale::ZhCn => "按编号选择智能体",
-        };
-        let numbered_agents = entries
-            .iter()
-            .find(|entry| entry.title == title)
-            .expect("numbered Agent binding remains discoverable");
-        assert!(
-            numbered_agents
-                .key
-                .contains(&crate::terminal_events::keys::tests::host_label("Alt+1"))
-        );
-        assert!(
-            numbered_agents
-                .key
-                .contains(&crate::terminal_events::keys::tests::host_label("Alt+9"))
-        );
-    }
+    let numbered_agents = key_labels(&view, crate::client_view::PrefixAction::SelectAgentDigit);
+    assert!(numbered_agents.contains(&crate::terminal_events::keys::tests::host_label("Alt+1")));
+    assert!(numbered_agents.contains(&crate::terminal_events::keys::tests::host_label("Alt+9")));
     view.machines
         .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
     let shifted = KeySettings::from_profile("[keys]\nfocus_agent='alt+shift+3'").unwrap();
@@ -369,21 +322,17 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
     view.machines
         .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
     let literal =
-        KeySettings::from_profile("[keys]\nfocus_agent='alt+shift+3'\nhelp='alt+#'").unwrap();
+        KeySettings::from_profile("[keys]\nfocus_agent='alt+shift+3'\nnext_tab='alt+#'").unwrap();
     view.configure_keys(&literal);
     run(&mut view, &mut dispatcher, &mut port, b"\x1b#");
     assert_eq!(
         calls.borrow().last(),
-        Some(&Call::Action(ClientAction::OpenShortcutHelp)),
+        Some(&Call::Action(ClientAction::SelectNextTab)),
         "exact literal binding wins before shifted-digit compatibility"
     );
     let disabled = KeySettings::from_profile("[keys]\nfocus_agent=[]").unwrap();
     view.configure_keys(&disabled);
-    assert!(
-        !shortcut_entries(crate::localization::Locale::EnUs, &view)
-            .iter()
-            .any(|entry| entry.title == "Select Agent by number")
-    );
+    assert!(key_labels(&view, crate::client_view::PrefixAction::SelectAgentDigit).is_empty());
 }
 
 #[test]
@@ -511,7 +460,7 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
     }
     let keys = KeySettings {
         commands: Vec::new(),
-        overrides: vec![binding("help", "f1", false)],
+        overrides: vec![binding("next_tab", "f1", false)],
         ..KeySettings::default()
     };
     for owner in 1..=3 {
@@ -552,7 +501,7 @@ fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
         commands: Vec::new(),
         prefix: chord("a", true),
         overrides: vec![
-            binding("help", "f1", false),
+            binding("menu", "f1", false),
             KeyOverride {
                 action: "new_tab",
                 triggers: vec![],
@@ -569,25 +518,22 @@ fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
         let shell_text = locale.shell();
         let bound = shell_text.bind(&view.bindings().shell_bindings(shell_text.binding_unbound));
         let text = bound.text();
-        assert!(text.hint_short.contains("F1"));
-        assert!(
-            !text
-                .hint_short
-                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b"))
-        );
         assert!(
             text.prefix_active
                 .ends_with(&crate::terminal_events::keys::tests::host_label("Ctrl+a"))
         );
-        let entries = shortcut_entries(locale, &view);
-        assert!(entries.iter().any(|entry| entry.key == "F1"));
-        assert!(!entries.iter().any(|entry| entry.title == "New Tab"));
-        assert!(!entries.iter().any(|entry| {
-            entry
-                .key
-                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b"))
-                || entry.key.contains("F9")
-        }));
+        let menu = key_labels(
+            &view,
+            crate::client_view::PrefixAction::Client(ClientAction::OpenActionMenu),
+        );
+        assert_eq!(menu, "F1");
+        assert!(
+            key_labels(
+                &view,
+                crate::client_view::PrefixAction::Client(ClientAction::CreateTab)
+            )
+            .is_empty()
+        );
     }
 }
 
@@ -595,7 +541,7 @@ fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
 fn indexed_default_conflict_displaces_only_the_occupied_digit() {
     let keys = KeySettings {
         commands: Vec::new(),
-        overrides: vec![binding("help", "3", true)],
+        overrides: vec![binding("next_tab", "3", true)],
         ..KeySettings::default()
     };
     let mut view = ClientView::new(100);
@@ -612,7 +558,7 @@ fn indexed_default_conflict_displaces_only_the_occupied_digit() {
         *calls.borrow(),
         [
             Call::Action(ClientAction::SelectTab(2)),
-            Call::Action(ClientAction::OpenShortcutHelp),
+            Call::Action(ClientAction::SelectNextTab),
             Call::Action(ClientAction::SelectTab(4))
         ]
     );
@@ -653,18 +599,12 @@ fn configured_indexed_direct_keys_keep_modifiers_and_all_discovery_chords() {
             Call::Forward(b"\x1b[53;4u".to_vec())
         ]
     );
-    let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
-    let indexed_tabs = entries
-        .iter()
-        .find(|entry| entry.title == "Select Tab by number")
-        .expect("direct Tab selection remains discoverable");
+    let indexed_tabs = key_labels(&view, crate::client_view::PrefixAction::SelectTabDigit);
     for digit in 1..=9 {
         assert!(
-            indexed_tabs
-                .key
-                .contains(&crate::terminal_events::keys::tests::host_label(&format!(
-                    "Alt+{digit}"
-                )))
+            indexed_tabs.contains(&crate::terminal_events::keys::tests::host_label(&format!(
+                "Alt+{digit}"
+            )))
         );
     }
     let keys = KeySettings {
@@ -673,14 +613,20 @@ fn configured_indexed_direct_keys_keep_modifiers_and_all_discovery_chords() {
         ..KeySettings::default()
     };
     view.configure_keys(&keys);
-    let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
-    assert!(!entries.iter().any(|entry| entry.title == "Select next Tab"));
-    assert!(entries.iter().any(|entry| {
-        entry.title == "Select previous Tab"
-            && entry
-                .key
-                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b p"))
-    }));
+    assert!(
+        key_labels(
+            &view,
+            crate::client_view::PrefixAction::Client(ClientAction::SelectNextTab)
+        )
+        .is_empty()
+    );
+    assert!(
+        key_labels(
+            &view,
+            crate::client_view::PrefixAction::Client(ClientAction::SelectPreviousTab)
+        )
+        .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b p"))
+    );
 }
 
 #[test]
@@ -731,12 +677,12 @@ fn configured_direct_resize_uses_registry_and_never_forwards_the_chord() {
             Call::Forward(b"after".to_vec())
         ]
     );
-    let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
-    assert!(entries.iter().any(|entry| {
-        entry.title == "Resize panel left"
-            && entry
-                .key
-                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+"))
-            && (entry.key.contains("Left") || entry.key.contains("←"))
-    }));
+    let resize = key_labels(
+        &view,
+        crate::client_view::PrefixAction::Client(ClientAction::ResizePane {
+            direction: crate::client_view::PanelDirection::Left,
+        }),
+    );
+    assert!(resize.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+")));
+    assert!(resize.contains("Left") || resize.contains("←"));
 }

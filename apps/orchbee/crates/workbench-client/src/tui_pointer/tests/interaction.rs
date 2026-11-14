@@ -3,10 +3,7 @@ use super::*;
 const AREA: Rect = Rect::new(10, 5, 8, 2);
 
 fn close_hit() -> HitTarget {
-    HitTarget::Help {
-        page: 1,
-        action: HelpControl::Close,
-    }
+    HitTarget::SidebarHideButton
 }
 
 fn close() -> InteractionTarget {
@@ -14,10 +11,7 @@ fn close() -> InteractionTarget {
 }
 
 fn previous_hit() -> HitTarget {
-    HitTarget::Help {
-        page: 1,
-        action: HelpControl::Previous,
-    }
+    HitTarget::SidebarRestoreButton
 }
 
 fn previous() -> InteractionTarget {
@@ -635,10 +629,7 @@ fn hit_extent_layer_and_effective_child_exposure_are_part_of_the_arm() {
             }
             // The same covered cells now belong to a different semantic child.
             3 => {
-                let initial_child = InteractionTarget::Fixture(HitTarget::Help {
-                    page: 2,
-                    action: HelpControl::Close,
-                });
+                let initial_child = InteractionTarget::Fixture(HitTarget::TabListButton);
                 let mut initial = HitMapBuilder::with_pointer(PointerProjection::default());
                 initial.record_interaction(
                     HitLayer::Foreground,

@@ -298,7 +298,7 @@ fn entry_exit_packets_and_fragmented_exit_tail_never_reach_the_pane() {
 }
 
 #[test]
-fn atomic_paste_release_and_mode_help_keep_exclusive_capture() {
+fn atomic_paste_and_release_keep_exclusive_capture() {
     let mut port = CopyPort::default();
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(80);
@@ -318,26 +318,6 @@ fn atomic_paste_release_and_mode_help_keep_exclusive_capture() {
     assert_eq!(port.pastes, [Some("q\u{2}U".into()), None]);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[113;1:3u");
     assert!(port.active, "release cannot exit mode");
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOP");
-    assert_eq!(
-        view.overlay(),
-        Some(crate::client_view::Overlay::ShortcutHelp)
-    );
-    let before = port.keys.len();
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[6~");
-    assert_eq!(
-        port.keys.len(),
-        before,
-        "help owns paging before the copy cursor"
-    );
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"?");
-    assert_eq!(
-        port.keys.len(),
-        before,
-        "Help keeps ordinary search input away from the copy cursor"
-    );
-    assert_eq!(view.help_filter(), "?");
-    assert!(port.active, "Help remains above the underlying copy mode");
     assert!(port.forwarded.is_empty());
     assert!(!view.prefix_active());
 }
@@ -354,25 +334,18 @@ fn configured_entry_and_disabled_default_share_dispatch_and_discovery() {
         let mut dispatcher = InputDispatcher::default();
         dispatch_all(&mut dispatcher, &mut view, &mut port, input);
         assert_eq!(port.active, enters);
-        let entries = crate::tui_shortcut_help::entries(
-            crate::localization::Locale::EnUs,
-            &view,
-            true,
+        let keys = view.bindings().action_labels_with_glyphs(
+            crate::client_view::PrefixAction::Client(
+                crate::client_view::ClientAction::EnterCopyMode,
+            ),
             crate::client_view::KeyLabelGlyphs::Unicode,
         );
-        let copy_title =
-            crate::localization::Locale::EnUs.menu_action(&crate::action_menu::MenuAction::Copy);
         if enters {
-            assert!(
-                entries
-                    .iter()
-                    .any(|entry| entry.key == "F2" && entry.title == copy_title),
-                "configured F2 copy binding should discover the shared action title {copy_title:?}"
-            );
+            assert_eq!(keys, ["F2"], "the menu's Copy row shows the configured key");
         } else {
             assert!(
-                !entries.iter().any(|entry| entry.title == copy_title),
-                "disabling the default copy binding should remove {copy_title:?} from discovery"
+                keys.is_empty(),
+                "a disabled copy binding leaves the Copy row keyless"
             );
         }
     }

@@ -10,7 +10,6 @@ pub(crate) enum CopyHintLabel {
     Select,
     Search,
     Repeat,
-    Help,
     Move,
     Find,
     Back,
@@ -91,12 +90,6 @@ impl Locale {
             Self::ZhCn => "反转",
         }
     }
-    pub(crate) const fn copy_help_label(self) -> &'static str {
-        match self {
-            Self::EnUs => "Help",
-            Self::ZhCn => "帮助",
-        }
-    }
     pub(crate) const fn copy_mode_label(
         self,
         status: CopyModeStatus,
@@ -127,7 +120,6 @@ impl Locale {
             CopyHintLabel::Copy => self.copy_action_label(),
             CopyHintLabel::Select => self.copy_select_label(),
             CopyHintLabel::Search => self.copy_search_label(),
-            CopyHintLabel::Help => self.copy_help_label(),
             CopyHintLabel::Find => self.copy_find_label(),
             CopyHintLabel::Back => self.copy_back_label(),
             CopyHintLabel::Reverse => self.copy_reverse_label(),

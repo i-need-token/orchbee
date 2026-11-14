@@ -54,18 +54,13 @@ release must remain outside the same completely painted surface; entering its bo
 map invalidation or focus loss cancels the intent. Wheel and modified reports are inert there.
 Closing follows the existing X owner, preserving accepted submissions and their recovery; no
 underlying pane, control or shell receives the gesture or its decision-packet tail. Existing menu,
-Help, navigator and Start Agent picker backdrop routes retain their local return policy.
+navigator and Start Agent picker backdrop routes retain their local return policy.
 
 `tui_composition::project_capture` is the one authority for exclusive paint, input, and notification
 admission. Machine capture covers native exclusive surfaces; their existing order covers Copy,
 which covers Resize. Claims describe retained capture intent rather than proof that a surface was
 painted. A missing or stale context for the selected owner consumes input instead of exposing a
 lower owner. Copy exit retains its physical packet fence even when Resize becomes the next owner.
-
-Client shortcut help remains noncapturing. `client_chrome_overlay_allowed` admits its painting and
-mouse route over retained Copy or Resize while rejecting it beneath Machine or a native exclusive
-capture. Help mouse controls run before the retained mode; ordinary key and paste routing keep
-that mode's existing contract. Closing help restores the parent without releasing its input lease.
 
 When a separately admitted higher capture covers a chrome gesture, the dispatcher immediately
 retires its Divider, Sidebar-width, Tab-drag, or Tab-create arm into the existing one-shot release
@@ -93,7 +88,6 @@ its effect.
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Machine/Workspace/Agent search  | Bracketed categories switch views; complete rows select exact identities. Agent filters, search, Clear/Done and X remain local to the picker.             |
 | Workspace navigator             | X closes; each column has its own scroll area. Scrolling changes local focus without activating a context or Tab.                                         |
-| Shortcut help                   | X and previous/next page controls; wheel inside the document changes one page. Closing restores any underlying copy, resize or sidebar mode.              |
 | Native confirmations and rename | X, Cancel and Confirm/Submit share keyboard owners. Destructive confirmation remains unavailable unless the full warning and action row were drawn.       |
 | Workspace/Worktree forms        | Clickable fields, exact choice rows, Cancel/Submit and stage-specific status/hide controls; accepted operations retain their existing completion owner.   |
 | Settings                        | Clickable categories, rows, controls, steppers and Back; a click that changes a value applies it at once; the wheel scrolls the column under the pointer. |
@@ -103,8 +97,6 @@ its effect.
 Wheel belongs only to the painted list under the pointer; headings, buttons, frame padding and the backdrop are inert. Lists normalize three rows/choices per notch, bound accumulated work and settle at most one painted viewport per pass; Worktree capacity counts its two-line choices. Reversal drops old-direction work while retaining the first opposite notch. A changed owner/source/geometry cancels backlog. Pending list movement settles before a following keyboard decision, and any resulting native draft token still requires its own successful draw. No scroll path executes a row or changes a setting value.
 
 Released capture deliberately returns mouse input to the host. The existing keyboard capture toggle remains the restoration path; local controls cannot reclaim mouse events the host does not send.
-
-When a complete help page cannot fit, the resize notice retains a painted X button. Dismissal still captures the decision packet and restores the underlying mode; widening the window instead restores the retained help page. A refused page cannot leave an invisible mouse owner with only a keyboard exit.
 
 An already-read packet resolves pending input frames before idle decoder timeouts. Rendering or native-state work taking longer than the 50 ms wait must not turn a split mouse report into a lone Escape plus printable coordinates, either in the terminal or in a native form. Only a poll without input expires these waits; an actual idle lone Escape still cancels or forwards through its existing owner. Shell-loop and modal/dispatcher traces cover ready SGR/X10 fragments across a busy frame and retain the idle-Escape witnesses.
 
@@ -123,8 +115,7 @@ dispatching an already-read packet and after layout-changing actions. An absent
 viewport sample uses the last dimensions for this settlement. Hidden geometry
 retires Picker navigation before dispatcher reconciliation captures pending
 fragments. Actual compact-sidebar dismissal retires it in the same local
-transition for ordinary backdrop button presses. Backdrop wheel is inert. Help retains its underlying sidebar
-projection and returns to that surface instead.
+transition for ordinary backdrop button presses. Backdrop wheel is inert.
 
 Dispatch reconciles the final pointer report before returning for paint, even
 when no following byte exists. An ordinary backdrop button press retires before
@@ -137,16 +128,15 @@ terminal bytes until a successful new frame releases later input. This is the
 production refinement of the model's RetireSidebar event; a test that manually
 observes a hidden Picker before synchronization does not establish that ordering.
 
-| Event / input                               | Guard and observable result                                                                                                                                                                                                                                     |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Enter navigation                            | Clear competing local modes, reveal the sidebar and ask Picker to enter; capture the opening packet tail.                                                                                                                                                       |
-| Navigate / disclose                         | Picker's typed key decision changes only local focus, expansion and window; no Selection request or terminal input.                                                                                                                                             |
-| F1 help                                     | Cover the tree with existing shortcut help without leaving navigation, including the compact overlay; F1, Escape or an outside press dismisses help back to the sidebar, PageUp/PageDown page its registry-derived rows, and covered tree keys do not navigate. |
-| Explicit Context activation                 | Revalidate the focused Context, invoke the existing sidebar Selection path, leave navigation and capture the decision packet tail.                                                                                                                              |
-| Open object menu                            | The exact live row must occur in the last successfully drawn map on the current machine and Session; wrap its menu target in that map's Session/revision proof. Opening leaves Picker focus and terminal context unchanged.                                     |
-| Menu cancellation                           | Existing menu capture fences the decision packet and already-polled input until a new frame; Picker reconciles its retained focused identity.                                                                                                                   |
-| Escape / hidden sidebar / competing capture | Leave navigation without activation; capture pending fragments and the retiring packet until a fresh map publishes. Leaving the navigation of a sidebar that covers the terminal, the mobile list or the narrow overlay, also closes it.                        |
-| Unbound key or paste in navigation          | Consume without action; outside an explicit input owner, preserve the ordinary terminal byte path.                                                                                                                                                              |
+| Event / input                               | Guard and observable result                                                                                                                                                                                                              |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enter navigation                            | Clear competing local modes, reveal the sidebar and ask Picker to enter; capture the opening packet tail.                                                                                                                                |
+| Navigate / disclose                         | Picker's typed key decision changes only local focus, expansion and window; no Selection request or terminal input.                                                                                                                      |
+| Explicit Context activation                 | Revalidate the focused Context, invoke the existing sidebar Selection path, leave navigation and capture the decision packet tail.                                                                                                       |
+| Open object menu                            | The exact live row must occur in the last successfully drawn map on the current machine and Session; wrap its menu target in that map's Session/revision proof. Opening leaves Picker focus and terminal context unchanged.              |
+| Menu cancellation                           | Existing menu capture fences the decision packet and already-polled input until a new frame; Picker reconciles its retained focused identity.                                                                                            |
+| Escape / hidden sidebar / competing capture | Leave navigation without activation; capture pending fragments and the retiring packet until a fresh map publishes. Leaving the navigation of a sidebar that covers the terminal, the mobile list or the narrow overlay, also closes it. |
+| Unbound key or paste in navigation          | Consume without action; outside an explicit input owner, preserve the ordinary terminal byte path.                                                                                                                                       |
 
 Project-row and disclosure presses request the dispatcher to acquire its paste
 lease before focusing and expanding the exact Project; a failed lease write leaves
@@ -318,21 +308,19 @@ candidate and invalidates the previous pointer authority before the fatal loop e
 entirely of button-free motion can skip repaint only when every decoded item leaves the projection
 unchanged and no decoder, timer, layout, or owner transition changed anything else.
 
-Settings, action menus, sidebars, the Start Agent picker, Help, Navigator, Machine Picker, Presentation
+Settings, action menus, sidebars, the Start Agent picker, Navigator, Machine Picker, Presentation
 selectors, Tab creation, and the global Menu, sidebar toggle and sidebar Help buttons use this
 central protocol. Generic controls activate on matching release. Sidebar Menu/Create retain their
 specialized menu-opening owner. Tab/group arrangement, dividers, scrollbars, Copy selection, and pane input
 retain their specialized gesture owners. Disabled targets stay visible and consuming without
 falling through to a containing row or pane.
 
-Help controls and scrolling carry the exact opening episode and successfully presented page;
-complete refusal admits only its close control. Help remains noncapturing for keyboard input and
-paste. Navigator rows and close carry their opening and catalog source. Machine Picker uses an
+Navigator rows and close carry their opening and catalog source. Machine Picker uses an
 exact opening, mode, ordered catalog, and actual filter/query basis; its renderer stages targets
 in the central map and owns no local rectangle cache. Async replacement, reopen, or source drift
 cannot activate an older candidate. Global chrome actions have stable action identity and recheck
 live admission on release; the sidebar toggle also requires an available sidebar still hidden or
-shown as painted, and Help a closed Help.
+shown as painted, and Help a closed action menu.
 
 Copy, Resize, and native forms publish explicit specialized modal-control fingerprints with
 availability and exact geometry. A raw modal-shaped region does not acquire implicit Enabled
@@ -627,7 +615,7 @@ owners and no thread or timer of its own.
 | `terminal_lifecycle.rs`                                                                                  | Baseline Button/SGR capture, one-shot typed `1003` admission, settled motion observability, journaled restoration on every exit                                                                                                   |
 | `tui_shell.rs`                                                                                           | Startup arming, immutable pointer projection per candidate, publish on success only, one later-turn reconciliation repaint, failed-draw authority invalidation, capture callback wiring                                           |
 | `tui_render/settings.rs`, `action_menu.rs`, `agent_board.rs`, `agent_sidebar.rs`, `workspace_sidebar.rs` | Exact typed interactions for Settings, open action menus, the Start Agent picker and visible sidebars                                                                                                                             |
-| `tui_render.rs`, `help`, `navigator`, `tabs`, `contexts`, `presentation_selector`, `machine_picker`      | Exact authored chrome interactions and source witnesses; pane leaf regions keep their dedicated input contract                                                                                                                    |
+| `tui_render.rs`, `navigator`, `tabs`, `contexts`, `presentation_selector`, `machine_picker`              | Exact authored chrome interactions and source witnesses; pane leaf regions keep their dedicated input contract                                                                                                                    |
 | `client_view.rs`, `client_view/bindings.rs`                                                              | `Ctrl+b m` → `TogglePointerCapture`, `SelectContextAt`/`FocusPanel`/`SelectTab` dispositions, released indicator and pointer notices                                                                                              |
 | `workbench_client/ui.rs`, `state/`                                                                       | `pointer_probe` fresh facts, `focus_panel`/`select_context_at` admission, stable-id accessors (`tab_id`, `panel_id`, `location`)                                                                                                  |
 | `terminal_link_activation.rs`                                                                            | Exact source fences, OSC 8/plain resolution, ordered handler handoff, one-effect browser fallback, bounded lane and joined shutdown                                                                                               |
@@ -648,7 +636,7 @@ control/attach byte witnesses described in [terminal streams](windows-terminal-s
 | Encode and ownership      | `route_pane_pointer` fresh-event matrix plus `encode_pane_report` rows for every tracking × format cell, captured cleanup, release finals, dedup, clamping, legacy bound, and SGR cell fallback                                                                                                                                                                                                                                     |
 | Hit map                   | `tui_pointer/tests` layer order, edge/outside cells, overlay capture and backdrop dismiss — including an outside press on the uncovered tab strip and pane that never selects or forwards — stale-map drop                                                                                                                                                                                                                          |
 | Interaction projection    | `tui_pointer/tests/interaction` covers hover enter/repeat/leave, disabled and specialized targets, press/release, permanent leave cancellation, repaint continuity, changed fingerprint/occlusion, transport loss, child precedence, and one bounded stationary-position follow-up                                                                                                                                                  |
-| Generic adopters          | Renderer/dispatcher tests cover Settings, menus, sidebars, the Start Agent picker, Help, Navigator, Machine Picker, Presentation, Tab creation and global chrome: exact sources/geometry, disabled consumption, stale refusal, hover isolation from committed selection, menu candidate movement, release cancellation and no retarget                                                                                              |
+| Generic adopters          | Renderer/dispatcher tests cover Settings, menus, sidebars, the Start Agent picker, Navigator, Machine Picker, Presentation, Tab creation and global chrome: exact sources/geometry, disabled consumption, stale refusal, hover isolation from committed selection, menu candidate movement, release cancellation and no retarget                                                                                                    |
 | Pointer tooltips          | `tui_pointer/tooltip/tests` cover the rest from real motion only, a consumed rest, admission loss, adjacent opening, press quieting, publication close and retarget, transport loss, and a pane title offered over its divider or dead frame but not under chrome; `tui_render/tooltip/tests` cover placement and text; `terminal_input/dispatcher/tests` prove a key closes the tooltip and still reaches its owner                |
 | Gesture and pending focus | `tui_pointer/tests` press/release ordering, queue bound and overflow cancel, timeout, orphan, read-only, target-moved refusal, settled-without-frame wait, and fact-gated admission                                                                                                                                                                                                                                                 |
 | Dispatcher port writes    | `terminal_input/dispatcher/tests` — malformed SGR/X10 and aborted/timed-out mouse runs produce zero forwarded bytes while ordinary keys, paste, and unrelated unknown CSI pass through in order; continuous button-free motion cannot starve an expired Escape and only an all-unchanged-motion packet skips repaint                                                                                                                |

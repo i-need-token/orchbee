@@ -1,27 +1,15 @@
 //! Shared semantic metadata for native action discovery.
 //!
 //! Execution owners keep the typed `ClientAction` / `MenuAction` input and exact target. This
-//! module only projects the stable identity and discovery metadata that help and menus must agree
+//! module only projects the stable identity and discovery metadata that menus and bindings must agree
 //! on. Availability is supplied by the owning UI snapshot; it is never inferred here.
 
-use crate::client_actions::{ClientAction, MenuAction, PrefixAction};
+use crate::client_actions::MenuAction;
 use crate::localization::PanelDirection;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ActionIdentity<'a> {
     BuiltIn(&'a str),
-    /// The configured identifier is already the user's durable identity. Keep it opaque.
-    ConfiguredCommand(&'a str),
-}
-
-#[cfg(test)]
-impl<'a> ActionIdentity<'a> {
-    pub(crate) const fn stable_id(self) -> &'a str {
-        match self {
-            Self::BuiltIn(id) => id,
-            Self::ConfiguredCommand(id) => id,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -65,14 +53,6 @@ impl ActionTone {
     }
 }
 
-impl<'a> ActionMetadata<'a> {
-    pub(crate) fn same_discovery_entry(&self, other: &Self) -> bool {
-        self.identity == other.identity
-            && self.category == other.category
-            && self.search_aliases == other.search_aliases
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ActionAvailability<R> {
     Enabled,
@@ -112,7 +92,6 @@ const SELECT_TAB: &[ActionSearchAlias] = &[ActionSearchAlias::Tab, ActionSearchA
 const SIDEBAR: &[ActionSearchAlias] = &[ActionSearchAlias::Sidebar];
 const NAVIGATOR: &[ActionSearchAlias] = &[ActionSearchAlias::Navigator];
 const AGENT: &[ActionSearchAlias] = &[ActionSearchAlias::Agent];
-const HELP: &[ActionSearchAlias] = &[ActionSearchAlias::Help];
 const MOUSE: &[ActionSearchAlias] = &[ActionSearchAlias::Mouse];
 const DETACH: &[ActionSearchAlias] = &[ActionSearchAlias::Detach];
 const NONE: &[ActionSearchAlias] = &[];
@@ -129,163 +108,11 @@ const fn built_in(
     }
 }
 
-/// Projects a resolved binding target without replacing that target as dispatch authority.
-pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'_>> {
-    use ActionCategory as C;
-    use ClientAction as A;
-    let metadata = match action {
-        PrefixAction::Client(A::OpenSettings) => {
-            built_in("workbench.settings.open", C::Application, PREFERENCES)
-        }
-        PrefixAction::Client(A::OpenActionMenu) => {
-            built_in("orchbee.native.action-menu.open", C::Application, ACTIONS)
-        }
-        PrefixAction::Client(A::ConfiguredCommand(id)) => ActionMetadata {
-            identity: ActionIdentity::ConfiguredCommand(id),
-            category: C::Application,
-            search_aliases: COMMANDS,
-        },
-        PrefixAction::Client(A::ResizePane { direction }) => resize_panel(*direction),
-        PrefixAction::Client(A::EnterCopyMode) => {
-            built_in("orchbee.native.copy-mode.enter", C::Input, COPY)
-        }
-        PrefixAction::Client(A::FindInTerminal) => built_in("terminal.search.open", C::Pane, FIND),
-        PrefixAction::Client(A::RequestWorkspaceCreate) => {
-            built_in("workbench.workspace.create", C::Workspace, WORKSPACE)
-        }
-        PrefixAction::Client(A::RequestQuickWorkspace) => built_in(
-            "orchbee.native.workspace.quick-create",
-            C::Workspace,
-            WORKSPACE,
-        ),
-        PrefixAction::Client(A::RequestWorkspaceAtDirectory) => built_in(
-            "orchbee.native.workspace.create-in-directory",
-            C::Workspace,
-            WORKSPACE,
-        ),
-        PrefixAction::Client(A::RequestWorktreeCreate) => {
-            built_in("orchbee.native.worktree.create", C::Workspace, WORKTREE)
-        }
-        PrefixAction::Client(A::RequestWorktreeOpen) => {
-            built_in("orchbee.native.worktree.open", C::Workspace, WORKTREE)
-        }
-        PrefixAction::Client(A::RequestWorkspaceClose) => built_in(
-            "workbench.workspace.delete",
-            C::Workspace,
-            &[ActionSearchAlias::Workspace, ActionSearchAlias::Close],
-        ),
-        PrefixAction::Client(A::RequestControlTakeover) => {
-            built_in("orchbee.native.panel.control.takeover", C::Pane, PANE)
-        }
-        PrefixAction::Client(A::RequestWorkspaceRename) => built_in(
-            "orchbee.native.workspace.rename",
-            C::Workspace,
-            &[ActionSearchAlias::Workspace, ActionSearchAlias::Rename],
-        ),
-        PrefixAction::Client(A::RequestProjectRename) => {
-            built_in("workbench.project.rename", C::Project, PROJECT)
-        }
-        PrefixAction::Client(A::RequestRenameTab) => {
-            built_in("workbench.tab.title.set", C::Tab, RENAME_TAB)
-        }
-        PrefixAction::Client(A::RequestRenamePanel) => built_in(
-            "workbench.panel.rename",
-            C::Pane,
-            &[ActionSearchAlias::Pane, ActionSearchAlias::Rename],
-        ),
-        PrefixAction::Client(A::ClearTerminal) => built_in("terminal.clear", C::Pane, PANE),
-        PrefixAction::Client(A::FocusLastPanel) => last_panel(),
-        PrefixAction::Client(A::RequestCloseTab) => built_in("tabs.tab.close", C::Tab, CLOSE_TAB),
-        PrefixAction::Client(A::MovePreviousTab | A::MoveNextTab) => {
-            built_in("tabs.tab.move", C::Tab, MOVE_TAB)
-        }
-        PrefixAction::Client(A::CreateTab) => built_in("workbench.terminal.create", C::Tab, TAB),
-        PrefixAction::Client(A::SelectNextTab) => {
-            built_in("workbench.tab.select-next", C::Navigation, SELECT_TAB)
-        }
-        PrefixAction::Client(A::SelectPreviousTab) => {
-            built_in("workbench.tab.select-previous", C::Navigation, SELECT_TAB)
-        }
-        PrefixAction::Client(A::SelectPreviousContext | A::SelectNextContext) => built_in(
-            "orchbee.native.workspace.select",
-            C::Navigation,
-            &[ActionSearchAlias::Workspace, ActionSearchAlias::Select],
-        ),
-        PrefixAction::Client(A::PreviousPresentation | A::NextPresentation) => built_in(
-            "orchbee.native.presentation.select",
-            C::Navigation,
-            &[ActionSearchAlias::Pane, ActionSearchAlias::Select],
-        ),
-        PrefixAction::Client(A::MovePanelFocus(direction)) => panel_focus(*direction),
-        PrefixAction::Client(A::ToggleZoom) => {
-            built_in("workbench.panel.active.maximization.toggle", C::Pane, PANE)
-        }
-        PrefixAction::Client(A::SplitPanel(direction)) => split_panel(*direction),
-        PrefixAction::Client(A::ClosePanel) => built_in(
-            "workbench.terminal.active.close",
-            C::Pane,
-            &[ActionSearchAlias::Pane, ActionSearchAlias::Close],
-        ),
-        PrefixAction::Client(A::MovePanel(direction)) => move_panel(*direction),
-        PrefixAction::Client(A::TogglePointerCapture) => {
-            built_in("orchbee.native.pointer-capture.toggle", C::Input, MOUSE)
-        }
-        PrefixAction::Client(A::ForwardLiteralPrefix) => built_in(
-            "orchbee.native.terminal.literal-prefix.forward",
-            C::Input,
-            NONE,
-        ),
-        PrefixAction::Client(A::DismissPrefix) => {
-            built_in("orchbee.native.prefix.dismiss", C::Input, NONE)
-        }
-        PrefixAction::Client(A::Exit) => {
-            built_in("orchbee.native.window.detach", C::Client, DETACH)
-        }
-        PrefixAction::Client(A::FocusBusinessSidebar) => {
-            built_in("workbench.focus.sidebar", C::Navigation, SIDEBAR)
-        }
-        PrefixAction::Client(A::OpenMachines) => {
-            built_in("orchbee.native.machines.open", C::Navigation, NONE)
-        }
-        PrefixAction::Client(A::OpenNotificationTarget) => {
-            built_in("orchbee.native.notification.target.open", C::Agent, AGENT)
-        }
-        PrefixAction::Client(A::PreviousAgent | A::NextAgent) => built_in(
-            "orchbee.native.agent.select",
-            C::Agent,
-            &[ActionSearchAlias::Agent, ActionSearchAlias::Select],
-        ),
-        PrefixAction::SelectTabDigit => built_in(
-            "workbench.tab.select-by-position",
-            C::Navigation,
-            SELECT_TAB,
-        ),
-        PrefixAction::SelectAgentDigit => built_in(
-            "orchbee.native.agent.focus",
-            C::Agent,
-            &[ActionSearchAlias::Agent, ActionSearchAlias::Select],
-        ),
-        PrefixAction::SidebarToggle => built_in("workbench.sidebar.toggle", C::Navigation, SIDEBAR),
-        PrefixAction::NavigatorToggle => built_in(
-            "orchbee.native.workspace-navigator.toggle",
-            C::Navigation,
-            NAVIGATOR,
-        ),
-        PrefixAction::Client(A::StartAgent) => {
-            built_in("orchbee.native.agent.start", C::Agent, AGENT)
-        }
-        PrefixAction::ShowHelp => {
-            built_in("orchbee.native.shortcut-help.toggle", C::Application, HELP)
-        }
-        PrefixAction::HelpPagePrevious | PrefixAction::HelpPageNext => {
-            built_in("orchbee.native.shortcut-help.page", C::Application, HELP)
-        }
-        _ => return None,
-    };
-    Some(metadata)
-}
-
 const COMMANDS: &[ActionSearchAlias] = &[ActionSearchAlias::Commands];
+/// Key rows answer a search for help, which is where their keys were once listed.
+const KEYS: &[ActionSearchAlias] = &[ActionSearchAlias::Help];
+const COPY_KEYS: &[ActionSearchAlias] = &[ActionSearchAlias::Copy, ActionSearchAlias::Help];
+const SIDEBAR_KEYS: &[ActionSearchAlias] = &[ActionSearchAlias::Sidebar, ActionSearchAlias::Help];
 
 const fn panel_focus(direction: PanelDirection) -> ActionMetadata<'static> {
     let id = match direction {
@@ -469,7 +296,6 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::RemoveWorktree => built_in("orchbee.native.worktree.remove", C::Workspace, WORKTREE),
         A::Settings => built_in("workbench.settings.open", C::Application, PREFERENCES),
         A::Machines => built_in("orchbee.native.machines.open", C::Navigation, NONE),
-        A::Help => built_in("orchbee.native.shortcut-help.toggle", C::Application, HELP),
         A::Sidebar => built_in("workbench.sidebar.toggle", C::Navigation, SIDEBAR),
         A::Navigator => built_in(
             "orchbee.native.workspace-navigator.toggle",
@@ -484,6 +310,40 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         }
         A::ReleasePointer => built_in("orchbee.native.pointer-capture.toggle", C::Input, MOUSE),
         A::Detach => built_in("orchbee.native.window.detach", C::Client, DETACH),
+        A::NextTab => built_in("workbench.tab.select-next", C::Navigation, SELECT_TAB),
+        A::PreviousTab => built_in("workbench.tab.select-previous", C::Navigation, SELECT_TAB),
+        A::NextWorkspace | A::PreviousWorkspace => built_in(
+            "orchbee.native.workspace.select",
+            C::Navigation,
+            &[ActionSearchAlias::Workspace, ActionSearchAlias::Select],
+        ),
+        A::FocusPanel(direction) => panel_focus(direction),
+        A::ResizePanel(direction) => resize_panel(direction),
+        A::NextAgent | A::PreviousAgent => built_in(
+            "orchbee.native.agent.select",
+            C::Agent,
+            &[ActionSearchAlias::Agent, ActionSearchAlias::Select],
+        ),
+        A::FocusSidebar => built_in("workbench.focus.sidebar", C::Navigation, SIDEBAR),
+        // The configured identity stays opaque; every configured row shares one menu identity.
+        A::ConfiguredCommand(_) => built_in(
+            "orchbee.native.configured-command.run",
+            C::Application,
+            COMMANDS,
+        ),
+        // Tab 1..9 is the GUI's select-by-position operation; other key rows only teach a key.
+        A::Key(crate::client_actions::KeyRow::Prefix(
+            crate::localization::PrefixDesc::SelectTabDigit,
+        )) => built_in("workbench.tab.select-by-position", C::Navigation, KEYS),
+        A::Key(row) => built_in(
+            "orchbee.native.key-reference",
+            C::Input,
+            match row {
+                crate::client_actions::KeyRow::Prefix(_) => KEYS,
+                crate::client_actions::KeyRow::Copy(_) => COPY_KEYS,
+                crate::client_actions::KeyRow::Sidebar(_) => SIDEBAR_KEYS,
+            },
+        ),
     };
     MenuActionMetadata {
         action: projected,

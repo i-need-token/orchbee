@@ -1199,7 +1199,7 @@ failed or expired pre-marker request may retire the carrier before the marker is
 The proposed label is decimal `cached.tabs.len() + 1`; at the 256-Tab bound this is `257` and the
 single submitted command lets Server capacity policy return the typed result. Duplicate labels are
 valid. A successful admission dismisses the navigator and enters Creating. Exit remains available.
-Help/sidebar overlay changes remain local; they do not admit terminal or Workbench effects.
+Sidebar overlay changes remain local; they do not admit terminal or Workbench effects.
 
 Creating rejects further Create, switch, refresh, user input, and effectful Resize. Resize
 observations still update latest measured geometry. It stops scheduling new old-target Polls. The
@@ -1610,7 +1610,7 @@ implementation traces do not exhaust this cross-product.
 
 A full/refused opening still shows cached rows and local-busy status; cache, active/desired Tab,
 attachment generation, projection, and latest admitted refresh generation do not change. Closing,
-replacing the navigator with shortcut help/sidebar, or a successful selection/admitted Create only
+replacing the navigator with the sidebar, or a successful selection/admitted Create only
 hides it and never cancels an admitted SnapshotRead. Outside-prefix Escape remains terminal input
 and does not dismiss an overlay. Same-Tab no-op, out-of-range selection, and admission refusal leave
 the navigator open.

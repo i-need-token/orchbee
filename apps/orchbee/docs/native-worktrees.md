@@ -6,7 +6,7 @@ On Windows, New Worktree… and `Ctrl+b Shift+W` open the New Worktree form afte
 discovery, with Branch blank (a generated branch) and Base `HEAD`. Nothing is created until its
 Create or Enter; Esc or Cancel creates nothing. No Project chooser blocks this intent. Use the CLI
 for an explicit destination. `Ctrl+b Shift+O` opens an exact checkout
-selected from the repository listing. F1 and `[keys].new_worktree` / `open_worktree` use the
+selected from the repository listing. The action menu and `[keys].new_worktree` / `open_worktree` use the
 existing binding registry. Both start only from a settled Workspace view. Without one, such as
 in a Workspace whose terminals ended while its close waits on a failed removal, they start
 nothing and the status line says the Workspace is not ready; while another local operation

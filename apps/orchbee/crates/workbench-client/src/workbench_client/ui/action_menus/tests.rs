@@ -219,7 +219,7 @@ fn arm(ui: &mut WorkbenchClientUi) -> MenuToken {
         (
             menu.token,
             menu.selected,
-            menu.actions.len(),
+            menu.result_actions.len(),
             menu.result_actions.to_vec(),
             menu.candidate_hidden,
         )
@@ -876,7 +876,7 @@ fn typed_menu_pointer_activation_requires_the_exact_source_and_token() {
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     let token = arm(&mut ui);
-    let row = action_row(&ui, MenuAction::Help);
+    let row = action_row(&ui, MenuAction::Navigator);
 
     ui.activate_action_menu_row(&MenuTarget::Create(None), token, row);
     assert_eq!(ui.menus.menu.confirmed(), None);
@@ -884,11 +884,11 @@ fn typed_menu_pointer_activation_requires_the_exact_source_and_token() {
     assert!(ui.action_menu_capture_claim());
 
     ui.activate_action_menu_row(&MenuTarget::Global, token, row);
-    assert_eq!(ui.menus.menu.confirmed(), Some(MenuAction::Help));
+    assert_eq!(ui.menus.menu.confirmed(), Some(MenuAction::Navigator));
     assert_eq!(
         ui.take_action_menu_action(false)
             .map(|command| command.intent()),
-        Some(ClientAction::OpenShortcutHelp)
+        Some(ClientAction::OpenWorkbenchNavigator)
     );
     assert!(!ui.action_menu_capture_claim());
 }
@@ -901,7 +901,7 @@ fn typed_menu_hover_requires_a_drawn_source_and_never_enters_a_submenu_or_action
     let row = action_row(&ui, MenuAction::TabCreation);
     assert!(!ui.hover_action_menu_row(&MenuTarget::Global, token, row));
     arm(&mut ui);
-    let other = action_row(&ui, MenuAction::Help);
+    let other = action_row(&ui, MenuAction::Navigator);
     assert!(ui.hover_action_menu_row(&MenuTarget::Global, token, other));
     assert!(!ui.hover_action_menu_row(&MenuTarget::Create(None), token, row));
     assert!(ui.hover_action_menu_row(&MenuTarget::Global, token, row));
@@ -1029,13 +1029,13 @@ fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
     ui.observe_geometry(Geometry::new(120, 30, 8, 16).unwrap());
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
-    ui.menus.menu.select_action(MenuAction::Help);
-    let help_row = action_row(&ui, MenuAction::Help);
+    ui.menus.menu.select_action(MenuAction::Settings);
+    let settings_row = action_row(&ui, MenuAction::Settings);
     let mut view = ClientView::new(120);
     view.configure_keys(&KeySettings {
         prefix: chord("a", true),
         overrides: vec![KeyOverride {
-            action: "help",
+            action: "settings",
             triggers: vec![KeyTrigger {
                 prefix: true,
                 chord: chord("left", false),
@@ -1045,7 +1045,10 @@ fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
     });
     let expected = view
         .bindings()
-        .action_labels_with_glyphs(PrefixAction::ShowHelp, KeyLabelGlyphs::Ascii)
+        .action_labels_with_glyphs(
+            PrefixAction::Client(ClientAction::OpenSettings),
+            KeyLabelGlyphs::Ascii,
+        )
         .into_iter()
         .next()
         .unwrap();
@@ -1074,7 +1077,7 @@ fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
             (0..120).any(|x| {
                 matches!(
                     hits.hit_target_at(x, *y),
-                    Some(HitTarget::ActionMenuRow { row, .. }) if *row == help_row
+                    Some(HitTarget::ActionMenuRow { row, .. }) if *row == settings_row
                 )
             })
         })
@@ -1304,7 +1307,11 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                 let view = ui.view();
                 let menu = view.action_menu().unwrap();
                 assert_eq!(menu.actions[menu.selected], MenuAction::ReleasePointer);
-                assert!(text.contains(&format!("{}/{}", menu.selected + 1, menu.actions.len())));
+                assert!(text.contains(&format!(
+                    "{}/{}",
+                    menu.selected + 1,
+                    menu.result_actions.len()
+                )));
                 assert!(!text.contains("Enter"));
                 let hits = hits.finish();
                 let (x, y) = (0..height)
@@ -1383,9 +1390,9 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
     }
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let (mut ui, _, _, _) = tests::move_membership::ready_ui();
-        ui.observe_geometry(Geometry::new(120, 60, 8, 16).unwrap());
+        ui.observe_geometry(Geometry::new(120, 80, 8, 16).unwrap());
         assert!(ui.open_action_menu(MenuTarget::Global, None, true));
-        let mut full = Terminal::new(TestBackend::new(120, 60)).unwrap();
+        let mut full = Terminal::new(TestBackend::new(120, 80)).unwrap();
         paint(&mut ui, &mut full, 120, locale);
         for key in [
             crate::client_view::KeyCode::End,
@@ -1600,7 +1607,7 @@ fn ux_status_short_menu_exposes_its_selection_position() {
             let (mut ui, _, _, _) = tests::move_membership::ready_ui();
             ui.observe_geometry(Geometry::new(width, 8, 8, 16).unwrap());
             assert!(ui.open_action_menu(MenuTarget::Global, None, false));
-            let count = ui.view().action_menu().unwrap().actions.len();
+            let count = ui.view().action_menu().unwrap().result_actions.len();
             let mut terminal = Terminal::new(TestBackend::new(width, 8)).unwrap();
             for selected in [1, count] {
                 let mut receipt = crate::workbench_client::DrawReceipt::default();
@@ -1775,7 +1782,7 @@ fn exact_incarnation_modal_priority_resize_and_timeout_revoke_unhanded_authority
         .unwrap()
         .actions
         .iter()
-        .position(|action| *action == MenuAction::Help)
+        .position(|action| *action == MenuAction::Navigator)
         .unwrap();
     let token = arm(&mut timed);
     activate_row(&mut timed, token, row);
@@ -1940,7 +1947,7 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                 let mut receipt = DrawReceipt::default();
                 let mut view = crate::client_view::ClientView::new(width);
                 view.commit(
-                    view.decide_action(ClientAction::OpenShortcutHelp),
+                    view.decide_action(ClientAction::OpenWorkbenchNavigator),
                     ClientActionDisposition::KeepNavigator,
                 );
                 terminal
@@ -2002,7 +2009,7 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                 ui.cancel_action_menu();
                 assert_eq!(
                     view.overlay(),
-                    Some(crate::client_view::Overlay::ShortcutHelp)
+                    Some(crate::client_view::Overlay::WorkbenchNavigator)
                 );
             }
         }
@@ -2087,13 +2094,22 @@ fn carrier_retirement_revokes_members_and_stateless_global_menu_observes_geometr
         assert_eq!(ui.take_action_menu_action(false), None);
         assert!(!ui.open_action_menu(MenuTarget::Pane(pane), None, false));
         assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+        let runnable: Vec<_> = ui
+            .view()
+            .action_menu()
+            .unwrap()
+            .actions
+            .iter()
+            .filter(|action| !matches!(action, MenuAction::Key(_)))
+            .cloned()
+            .collect();
         assert_eq!(
-            ui.view().action_menu().unwrap().actions,
-            &[
+            runnable,
+            [
                 MenuAction::Detach,
                 MenuAction::Machines,
-                MenuAction::Help,
                 MenuAction::Sidebar,
+                MenuAction::FocusSidebar,
                 MenuAction::ReleasePointer,
             ]
         );

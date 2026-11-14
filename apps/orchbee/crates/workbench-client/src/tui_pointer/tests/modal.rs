@@ -792,10 +792,7 @@ fn raw_modal_hit_without_explicit_interaction_metadata_never_hovers_or_arms() {
 fn generic_and_specialized_modal_presses_never_steal_each_others_owner() {
     let generic_area = Rect::new(2, 2, 4, 1);
     let modal_area = Rect::new(10, 5, 8, 1);
-    let generic_hit = HitTarget::Help {
-        page: 1,
-        action: HelpControl::Close,
-    };
+    let generic_hit = HitTarget::OverlaySurface;
     let generic = InteractionTarget::Fixture(generic_hit.clone());
     let modal = HitTarget::WorkspaceClose {
         token: WorkspaceCloseToken::for_test(51),

@@ -1095,8 +1095,8 @@ fn overlay_swallows_inside_click_and_backdrop_dismisses() {
     ));
 }
 
-/// Opens the help overlay through the real prefix decision path.
-fn open_help_overlay(view: &mut ClientView) {
+/// Opens the navigator overlay through the real prefix decision path.
+fn open_navigator_overlay(view: &mut ClientView) {
     let armed = view.decide(PrefixInput::Key(KeyEvent::press(
         KeyCode::Char('b'),
         Modifiers::CTRL,
@@ -1104,11 +1104,11 @@ fn open_help_overlay(view: &mut ClientView) {
     view.commit(armed, ClientActionDisposition::KeepNavigator);
     assert!(view.prefix_active());
     let opened = view.decide(PrefixInput::Key(KeyEvent::press(
-        KeyCode::Char('?'),
+        KeyCode::Char('w'),
         Modifiers::NONE,
     )));
     view.commit(opened, ClientActionDisposition::KeepNavigator);
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+    assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
 }
 
 #[test]
@@ -1116,7 +1116,7 @@ fn overlay_backdrop_press_dismisses_without_selecting_or_forwarding() {
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     let mut view = ClientView::new(120);
-    open_help_overlay(&mut view);
+    open_navigator_overlay(&mut view);
     let mut port = RecordingPort {
         probe: active_probe(0, 0, 1, 2),
         ..RecordingPort::default()
@@ -1160,7 +1160,7 @@ fn overlay_backdrop_press_dismisses_without_selecting_or_forwarding() {
 
     // Same for the uncovered pane region: dismiss, never a focus switch or
     // a forwarded report.
-    open_help_overlay(&mut view);
+    open_navigator_overlay(&mut view);
     assert!(
         pointer
             .event(&mut view, &mut port, now(), press(10, 10))

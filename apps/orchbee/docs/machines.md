@@ -2189,8 +2189,8 @@ matched binding digit selects the corresponding zero-based entry in the same
 active-source-filtered, stable merged list used by previous/next actions; the picker's
 status filter and query never narrow that list. The
 first nine eligible Agent rows display those numbers; loading/unavailable/empty
-placeholders never take an ordinal. Configured shortcut help lists the actual
-triggers in both locales, including disabled bindings. Shifted digit symbols from
+placeholders never take an ordinal. The binding registry keeps the actual
+configured triggers, including disabled bindings. Shifted digit symbols from
 legacy terminals resolve the binding digit; an exact configured symbol binding
 takes precedence over that compatibility path.
 

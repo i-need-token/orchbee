@@ -9,7 +9,6 @@ use ratatui::layout::Rect;
 
 use orchbee_workbench_protocol::WorkbenchTabId;
 
-use crate::client_view::help::HelpControl;
 use crate::workbench_state::{PaneRef, TabStripStart};
 
 pub(crate) mod chrome;
@@ -136,10 +135,6 @@ pub enum HitTarget {
     FindSurface(crate::terminal_find::FindToken),
     /// The content of the Panel the Find bar searches: a press closes the bar, the wheel scrolls.
     FindContent(crate::terminal_find::FindToken),
-    Help {
-        page: usize,
-        action: HelpControl,
-    },
     TabClose {
         token: crate::workbench_state::CloseConfirmationToken,
         confirm: bool,
@@ -207,7 +202,7 @@ pub enum HitTarget {
     SidebarResize(crate::tui_layout::DrawnSidebarWidth),
     SidebarRestoreButton,
     SidebarHideButton,
-    ShortcutHelpButton,
+    ShortcutsButton,
     TabListButton,
     TabListCloseButton,
     Popup {
@@ -295,8 +290,8 @@ pub enum GlobalChromeAction {
     RestoreSidebar,
     /// The sidebar's own toggle while it is visible.
     HideSidebar,
-    /// The sidebar's Help control beside Settings.
-    ShortcutHelp,
+    /// The sidebar's Shortcuts control beside Settings: the action menu, as `Ctrl+b ?` opens it.
+    Shortcuts,
     /// The Mobile bar's current Tab and Tabs button.
     OpenTabList,
     /// The Tab list's way back.
@@ -407,7 +402,6 @@ pub struct FrameHitMap {
     pub(super) modal_controls: Vec<modal::Fingerprint>,
     pub(super) chrome_projection: chrome::Projection,
     pub(super) chrome_controls: Vec<chrome::Fingerprint>,
-    pub(super) help_draw_source: Option<crate::client_view::help::HelpDrawSource>,
     pub(super) link_sources: Vec<(Rect, crate::terminal_link_activation::PaintedLinkSource)>,
     pub(super) menu_source: Option<crate::action_menu::DrawnMenuSource>,
     pub(super) navigator: Option<crate::client_view::navigator::Paint>,
@@ -420,10 +414,6 @@ pub struct FrameHitMap {
 }
 
 impl FrameHitMap {
-    pub(crate) fn help_draw_source(&self) -> Option<&crate::client_view::help::HelpDrawSource> {
-        self.help_draw_source.as_ref()
-    }
-
     pub(crate) fn navigator_paint(&self) -> Option<&crate::client_view::navigator::Paint> {
         self.navigator.as_ref()
     }
@@ -725,7 +715,6 @@ impl HitMapBuilder {
             self.map.navigator = None;
         }
         self.map.overlay_active = true;
-        self.map.help_draw_source = None;
         self.map
             .regions
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
@@ -736,7 +725,6 @@ impl HitMapBuilder {
             self.map.navigator = None;
         }
         self.map.overlay_active = true;
-        self.map.help_draw_source = None;
         self.map
             .regions
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
@@ -791,7 +779,6 @@ impl HitMapBuilder {
         self.map.backdrop_dismissal = None;
         self.map.navigator = None;
         self.map.overlay_active = true;
-        self.map.help_draw_source = None;
         self.map
             .regions
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
@@ -808,7 +795,6 @@ impl HitMapBuilder {
                 modal_controls: Vec::new(),
                 chrome_projection: chrome::Projection::empty(),
                 chrome_controls: Vec::new(),
-                help_draw_source: None,
                 link_sources: Vec::new(),
                 menu_source: None,
                 navigator: None,
@@ -854,20 +840,12 @@ impl HitMapBuilder {
         focus: Option<crate::client_view::navigator::Target>,
         page_rows: usize,
     ) {
-        self.map.help_draw_source = None;
         self.map.navigator = Some(crate::client_view::navigator::Paint {
             source,
             focus,
             page_rows,
             rows: Vec::new(),
         });
-    }
-
-    /// Publishes the exact Help episode and page actually painted by this
-    /// candidate frame. Refused fallback surfaces carry their own source and
-    /// never inherit paging authority from an older successful frame.
-    pub(crate) fn record_help_draw(&mut self, source: crate::client_view::help::HelpDrawSource) {
-        self.map.help_draw_source = Some(source);
     }
 
     /// Only the row painter can publish a complete row's activation proof.

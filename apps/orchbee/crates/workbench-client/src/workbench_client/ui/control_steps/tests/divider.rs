@@ -284,7 +284,7 @@ fn divider_hit_map_and_preview_follow_visible_geometry_locales_and_overlay_cance
     );
     let transition = view.decide(crate::client_view::PrefixInput::Key(
         crate::client_view::KeyEvent::press(
-            crate::client_view::KeyCode::Char('?'),
+            crate::client_view::KeyCode::Char('w'),
             crate::client_view::Modifiers::NONE,
         ),
     ));

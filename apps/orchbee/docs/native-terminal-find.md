@@ -25,7 +25,7 @@ except, per Client until it exits, the last query and Match case.
 | Panel menu row "Find in terminal"             | Focuses that Panel, then opens the bar on it                             |
 | Global menu (`Ctrl+b Space`) row, Panel group | Opens the bar on the focused Panel                                       |
 
-Shortcut help and both menu rows name the action "Find in terminal" / "在终端中查找"; the rows sit
+Both menu rows name the action "Find in terminal" / "在终端中查找"; the rows sit
 between Copy selection and Clear terminal in the Panel menu and before copy mode in the global
 menu, show the effective shortcut, and are found by find, search / 查找, 搜索. Opening while the bar
 is open keeps the bar and its query. Opening while keyboard copy mode is active keeps copy mode. A

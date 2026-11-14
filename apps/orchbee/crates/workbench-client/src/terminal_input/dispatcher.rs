@@ -9,8 +9,7 @@ use crate::client_view::{
     PrefixInput, ShellCommand,
 };
 use crate::tui_composition::{
-    CaptureOwner, ClientCaptureClaims, WorkbenchCaptureOwner, client_chrome_overlay_allowed,
-    project_capture,
+    CaptureOwner, ClientCaptureClaims, WorkbenchCaptureOwner, project_capture,
 };
 use crate::tui_hit_map::{FrameHitMap, InteractionTarget, PrimaryContract};
 use crate::tui_pointer::{
@@ -485,18 +484,7 @@ impl InputDispatcher {
     }
 
     /// The renderer's finished frame map becomes the resolution authority.
-    #[cfg(any(test, feature = "test-support"))]
     pub fn publish_hit_map(&mut self, map: FrameHitMap) {
-        let _ = self.publish_hit_map_with_help(map);
-    }
-
-    /// Publishes the map and returns its exact Help draw proof to the
-    /// client-owned surface authority. Other callers do not need to observe it.
-    pub fn publish_hit_map_with_help(
-        &mut self,
-        map: FrameHitMap,
-    ) -> Option<crate::client_view::help::HelpDrawSource> {
-        let help = map.help_draw_source().copied();
         self.settings_cancel_capture = false;
         {
             if self.navigator.owned {
@@ -508,7 +496,6 @@ impl InputDispatcher {
             self.sidebar_cancel_capture = false;
         }
         self.pointer.publish(map);
-        help
     }
 
     /// A layout change or pending redraw drops the recorded regions:
@@ -973,7 +960,7 @@ impl InputDispatcher {
                         let decision = if port.find_bar_active() {
                             self.pointer.find_event(port, *event)
                         } else {
-                            self.pointer.copy_event(view, port, *event)
+                            self.pointer.copy_event(port, *event)
                         };
                         self.capture_modal_release(*event);
                         if event.action == super::MouseAction::Press
@@ -991,7 +978,7 @@ impl InputDispatcher {
                             self.keys.capture_pending();
                         }
                     }
-                    DecodedKind::Key(key) if !view.copy_help_key(*key) => {
+                    DecodedKind::Key(key) => {
                         port.surface_input(SurfaceInput::CopyMode(TextEntry::Key(*key)));
                     }
                     DecodedKind::Paste { text } => {
@@ -1573,23 +1560,6 @@ impl InputDispatcher {
                 mode,
             );
         }
-        // An accepted generic Help press owns its exact release even when
-        // intervening packet bytes were fenced. Route that release before
-        // `item.owned` can consume it as ordinary tail.
-        if let DecodedKind::Mouse(event) = item.kind
-            && event.action == super::MouseAction::Release
-            && self.modal_release.is_some_and(|button| {
-                event.button == button || event.button == super::MouseButton::None
-            })
-            && self.pointer.modal_release_ownership() == ReleaseOwnership::Active
-            && view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp)
-            && client_chrome_overlay_allowed(Self::projected_capture(view, port))
-        {
-            self.flush_pending(view, port);
-            let captured = self.capture_help_mouse(view, port, event);
-            debug_assert!(captured, "an active Help release remains Help-owned");
-            return Ok(DispatchOutcome::Continue);
-        }
         if self.capture_navigator_release(&item) {
             return Ok(DispatchOutcome::Continue);
         }
@@ -1612,28 +1582,6 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
         let projected = Self::projected_capture(view, port);
-        if view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp)
-            && client_chrome_overlay_allowed(projected)
-        {
-            match &item.kind {
-                DecodedKind::Key(event) if event.kind == KeyKind::Release => {
-                    self.flush_pending(view, port);
-                    return Ok(DispatchOutcome::Continue);
-                }
-                DecodedKind::Key(_) | DecodedKind::Nondecision => {
-                    self.flush_pending(view, port);
-                    return self.decide(view, port, now, item, after_layout, mode);
-                }
-                DecodedKind::Paste { .. } | DecodedKind::RejectedPaste => {
-                    self.flush_pending(view, port);
-                    return Ok(DispatchOutcome::Continue);
-                }
-                DecodedKind::Ignored
-                | DecodedKind::Focus(_)
-                | DecodedKind::HostReply(_)
-                | DecodedKind::Mouse(_) => {}
-            }
-        }
         if projected == Some(CaptureOwner::Native(WorkbenchCaptureOwner::AgentBoard))
             && matches!(
                 &item.kind,
@@ -1663,13 +1611,6 @@ impl InputDispatcher {
             && port.find_bar_active()
             && matches!(&item.kind, DecodedKind::Mouse(event) if !self.pointer.find_owns(*event));
         if let Some(owner) = projected.filter(|_| !find_passes) {
-            if client_chrome_overlay_allowed(Some(owner))
-                && let DecodedKind::Mouse(event) = &item.kind
-                && self.capture_help_mouse(view, port, *event)
-            {
-                self.flush_pending(view, port);
-                return Ok(DispatchOutcome::Continue);
-            }
             self.flush_pending(view, port);
             return self.handle_projected_capture(
                 view,
@@ -1701,12 +1642,6 @@ impl InputDispatcher {
             _ => false,
         } {
             port.observe_terminal(TerminalObservation::InputIntent);
-        }
-        if let DecodedKind::Mouse(event) = &item.kind
-            && self.capture_help_mouse(view, port, *event)
-        {
-            self.flush_pending(view, port);
-            return Ok(DispatchOutcome::Continue);
         }
         if self.navigator.packet || view.navigator_active() {
             self.flush_pending(view, port);
@@ -1799,9 +1734,7 @@ impl InputDispatcher {
                     return self.decide(view, port, now, item, after_layout, mode);
                 }
                 let intent = match item.kind {
-                    DecodedKind::Key(key) if !view.sidebar_help_key(key) => {
-                        view.machines.sidebar_key(key)
-                    }
+                    DecodedKind::Key(key) => view.machines.sidebar_key(key),
                     _ => crate::machine_picker::SidebarIntent::None,
                 };
                 // Leaving a covering sidebar's navigation, as Esc does, closes it and returns the
@@ -1840,11 +1773,6 @@ impl InputDispatcher {
                     crate::machine_picker::SidebarIntent::None
                     | crate::machine_picker::SidebarIntent::Search => {
                         // Focus/window changes invalidate the row geometry until repaint.
-                        self.pointer.invalidate_map_with_port(port);
-                    }
-                    crate::machine_picker::SidebarIntent::Help => {
-                        let transition = view.decide_action(ClientAction::OpenShortcutHelp);
-                        view.commit(transition, ClientActionDisposition::KeepNavigator);
                         self.pointer.invalidate_map_with_port(port);
                     }
                     crate::machine_picker::SidebarIntent::Activate(selected) => {
@@ -2009,10 +1937,8 @@ impl InputDispatcher {
                                                         != crate::client_view::SidebarSurface::Hidden)
                                                     .then_some(ClientAction::ToggleBusinessSidebar)
                                             }
-                                            crate::tui_hit_map::GlobalChromeAction::ShortcutHelp => {
-                                                (view.overlay()
-                                                    != Some(crate::client_view::Overlay::ShortcutHelp))
-                                                .then_some(ClientAction::OpenShortcutHelp)
+                                            crate::tui_hit_map::GlobalChromeAction::Shortcuts => {
+                                                Some(ClientAction::OpenActionMenu)
                                             }
                                             // The Tab list is the strip's own presentation; opening
                                             // or leaving it changes no Workbench state.
@@ -2581,57 +2507,6 @@ impl InputDispatcher {
         self.sidebar_cancel_capture = true;
         self.keys.capture_pending();
         self.pointer.invalidate_map_with_port(port);
-    }
-
-    fn capture_help_mouse(
-        &mut self,
-        view: &mut ClientView,
-        port: &mut (impl TerminalInputPort + ?Sized),
-        event: super::MouseEvent,
-    ) -> bool {
-        let outcome = self.pointer.help_event(view, event);
-        if outcome == PointerOutcome::Ignored {
-            return false;
-        }
-        if event.action == super::MouseAction::Press && event.button == super::MouseButton::Left {
-            self.modal_release = Some(event.button);
-            self.pointer_packet = true;
-            self.keys.capture_pending();
-        }
-        match outcome {
-            PointerOutcome::Interaction {
-                target: InteractionTarget::Help(target),
-                contract: PrimaryContract::ActivateOnRelease,
-            } => {
-                self.modal_release = None;
-                self.pointer_packet = true;
-                self.keys.capture_pending();
-                if view.activate_drawn_help(&target) {
-                    self.pointer.invalidate_map_with_port(port);
-                }
-            }
-            PointerOutcome::Interaction { .. } | PointerOutcome::InteractionEnded => {
-                // A stale or mismatched release is still owned by the painted
-                // Help control. Consume its packet without re-hitting another surface.
-                self.modal_release = None;
-                self.pointer_packet = true;
-                self.keys.capture_pending();
-            }
-            PointerOutcome::RegionsChanged => {
-                self.pointer_packet = true;
-                self.keys.capture_pending();
-            }
-            PointerOutcome::Handled | PointerOutcome::IdleMotion { .. } => {}
-            PointerOutcome::Ignored => unreachable!("ignored Help input returned above"),
-            PointerOutcome::TabGestureEnded
-            | PointerOutcome::SidebarReorderEnded
-            | PointerOutcome::SidebarWidthEnded
-            | PointerOutcome::MenuRequested { .. }
-            | PointerOutcome::ChromeGestureEnded => {
-                unreachable!("Help routing cannot produce a Windows chrome outcome")
-            }
-        }
-        true
     }
 
     fn reconcile(

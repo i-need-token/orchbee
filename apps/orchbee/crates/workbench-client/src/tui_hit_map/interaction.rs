@@ -15,7 +15,6 @@ use super::{HitLayer, HitTarget, InteractionSpec, ProjectedPointer};
 /// meaning depends on current context are deliberately excluded.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InteractionTarget {
-    Help(crate::client_view::help::DrawnHelpControl),
     GlobalChrome(super::GlobalChromeAction),
     SettingsRow {
         token: crate::native_settings::Token,
@@ -61,10 +60,6 @@ pub enum InteractionTarget {
 }
 
 impl InteractionTarget {
-    pub(crate) const fn is_help(&self) -> bool {
-        matches!(self, Self::Help(_))
-    }
-
     pub(crate) const fn is_settings(&self) -> bool {
         matches!(
             self,
@@ -138,14 +133,10 @@ impl InteractionTarget {
 
     pub(crate) fn hit_target(&self) -> HitTarget {
         match self {
-            Self::Help(target) => HitTarget::Help {
-                page: target.source().page(),
-                action: target.control(),
-            },
             Self::GlobalChrome(action) => match action {
                 super::GlobalChromeAction::RestoreSidebar => HitTarget::SidebarRestoreButton,
                 super::GlobalChromeAction::HideSidebar => HitTarget::SidebarHideButton,
-                super::GlobalChromeAction::ShortcutHelp => HitTarget::ShortcutHelpButton,
+                super::GlobalChromeAction::Shortcuts => HitTarget::ShortcutsButton,
                 super::GlobalChromeAction::OpenTabList => HitTarget::TabListButton,
                 super::GlobalChromeAction::CloseTabList => HitTarget::TabListCloseButton,
             },

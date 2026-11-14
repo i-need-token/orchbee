@@ -9,8 +9,11 @@ adapter are absent from menus; direct invocation rechecks the same capability an
 localized unsupported outcome. Shared Workbench actions retain their own admission rules. See
 [TUI platform boundaries](tui-platforms.md).
 
-`Ctrl+b Space` and `[keys].menu` open the global action menu. These keyboard routes remain
-available without a permanent Actions button. Unmodified right-click opens a menu for a drawn
+`Ctrl+b Space`, `Ctrl+b ?` and `[keys].menu` open the global action menu. These keyboard routes remain
+available without a permanent Actions button. There is no separate shortcut-help overlay: the
+global menu is where keys are found, and `Ctrl+b ?` is the same action under the key people try
+first when they look for help. Its query row takes typing at once, so `Ctrl+b ?` followed by a word
+searches. Unmodified right-click opens a menu for a drawn
 pane, Tab, Project, Workspace or Agent row. Opening or cancelling does not change focus. A right
 press never reaches the pane's program, even one that reports mouse tracking. Shift gestures retain
 the host-terminal bypass. Machines retains `Ctrl+b Shift+M`.
@@ -39,7 +42,7 @@ requests a machine or context switch on opening or cancellation.
 
 An Agent row's menu holds Rename, which only a Panel's primary terminal offers, then a separated Close. Both name the row's Panel rather than its terminal: Rename edits the primary Presentation's shared override as the Panel menu does, and Close ends the whole Panel, asking first when one of its terminals runs something. The Panel actions act only on the focused Panel, so the menu first focuses the Agent's Panel, as a click on the row does, and offers the action once that Panel holds focus. An Agent in a child terminal has no Rename row.
 
-A context menu's frame title names its target, and a `+` creation menu names what it creates; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Maximize; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, unless discovery shows its first terminal is outside Git, then a separated Close. Availability reasons take the frame's bottom edge; a Git refusal removes Git-only rows under a fresh draw token.
+A context menu's frame title names its target, and a `+` creation menu names what it creates; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Maximize; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles and tooltips keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, unless discovery shows its first terminal is outside Git, then a separated Close. Availability reasons take the frame's bottom edge; a Git refusal removes Git-only rows under a fresh draw token.
 
 A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
@@ -105,6 +108,16 @@ aliases and the current effective shortcut. A matching child action makes its pa
 searchable; opening it carries the query into the ordinary child menu, where the child actions are
 filtered under their existing ownership and availability rules. The query row shows the filtered
 count, and an empty result set shows a localized no-results state.
+
+Keys that work only inside a mode also have rows, so a search finds every key the Client takes.
+These key rows answer a search only: the unsearched menu lists what it can run, and a key row
+appears once a query matches it. Each row names its mode before the key's own words, as in
+Copy mode · Search, and shows the key; the plain prefix keys (Tab 1..9, sending the prefix to the
+terminal and cancelling the prefix) name only themselves. Search also matches each key row on
+help, and on its mode's word. A key row is always disabled, with the localized reason that it
+works in keyboard copy mode, while the sidebar has the keyboard, or only as a key, so choosing one
+changes nothing. A copy key that needs the clipboard, and the sidebar's search key without sidebar
+search, are hidden as their keys are.
 The new-Tab submenu retains quick default creation and also lists the confirmed device launch
 profiles, including System default. Each saved choice names its profile and creates one Tab with
 that profile's literal executable and arguments; it never changes the shared default. System shell
@@ -139,7 +152,7 @@ Recurring menu and prefix actions share one native metadata projection: a stable
 category and reviewed semantic search aliases. Dynamic group color, group index and parameterized
 resize input remain typed `ClientAction` or `MenuAction` data rather than becoming row-derived
 identities; direction-specific IDs reuse an owning GUI catalog only where that catalog already
-defines the same operation. Configured command IDs remain opaque and unchanged. Prefix help obtains
+defines the same operation. Configured command IDs remain opaque and unchanged. Menu rows obtain
 effective chords from the resolved per-Client binding registry, including overrides and shadowing.
 A menu row shows the first effective chord only when an explicit `MenuTarget` plus `MenuAction`
 mapping has the same dispatch meaning; a current-Tab or current-Workspace binding is never advertised
@@ -148,9 +161,9 @@ typed target, exact coordinator proof and owner-derived availability; metadata a
 grant no execution authority. Search aliases find only admitted actions in the global menu and its
 searchable child menus; they do not expose command identities or hidden configuration commands.
 
-Shortcut Help and the global Detach action share localized wording: only the current Client
+The global Detach action states its effect in localized wording: only the current Client
 detaches, and terminal programs keep running. Its search aliases add the words people use for
-leaving, quit and exit (退出 and 关闭 in Chinese), so both surfaces find it without renaming it.
+leaving, quit and exit (退出 and 关闭 in Chinese), so search finds it without renaming it.
 This differs from closing a Panel, Tab or Workspace; the existing detach/reconnect behavior and
 confirmation policy remain unchanged.
 
@@ -338,14 +351,16 @@ cancelled menus or retarget another episode. The [shell layout](tui-shell-layout
 owns the entry geometry and direct Tab-strip create gesture.
 
 The global menu groups its existing actions under Tab, Panel, Workspace and Session sections. Tab
-includes new-Tab options, New Tab to right, Duplicate Tab, Rename Tab, moving the current Tab left,
+includes new-Tab options, New Tab to right, Duplicate Tab, Rename Tab, Next and Previous Tab, moving the current Tab left,
 right, to the start or to the end, Select all Tabs, Keep only current Tab selected, Close Tab… and
 Close Tabs to the right…; these act on the current Tab and name the selected set where it applies.
 Close Tab… is the current-Tab close request that `Ctrl+b x` makes, with that key and its confirmation
 rules: the Server decides whether closing asks first, as it does when terminals still run. Panel
-includes Back to last focused panel, directional split and move, close, maximize,
+includes Back to last focused panel, directional focus, split, move and resize, close, maximize,
 Find in terminal and copy mode. Workspace includes
-creation and Worktree actions; Session includes Detach. A row whose keyboard action has the same
+creation, Worktree actions, Next and Previous Workspace, Rename and Close Workspace; Session includes
+the sidebar toggle, Focus sidebar, Next and Previous Agent, and Detach. Each configured command
+follows as Run configured command · its name, running the same command its key runs. A row whose keyboard action has the same
 meaning shows the current binding registry's shortcut and dispatches that same existing
 ClientAction. Pane and Tab actions require a focused pane and show the localized
 focused-panel-required reason when none is available; Close Tabs to the right… shows the
@@ -434,7 +449,7 @@ The user wants to discover and execute existing actions without memorizing chord
 | Inputs          | Drawn stable target, exact context/member/incarnation, projected stable action identity and typed input, current action prerequisites, complete decoded input packet, configuration, monotonic deadline and successful menu draw receipt                                                                                                                                            |
 | Data            | One local episode, `Pending`/`Admitted`/`Suspended` presentation phase, independent whole-surface lease and exact row-window proof, `Recovery`/`Continuation`/`ActivationReady` input readiness, retained viewport and selection, owner-derived enabled/disabled/hidden availability, presentation token, frozen confirmed action, parent snapshot and optional exact target member |
 | Outputs         | Local capture and drawing; bounded navigation through existing membership owners; at most one action handed to the full ClientView/dispatcher path; localized cancellation or refusal                                                                                                                                                                                               |
-| Decisions       | Existing captures, including the native navigator, take priority. Help and sidebar remain unchanged underlays. Choosing an action admits navigation; opening does not. Each action retains its original availability policy rather than a universal Ready requirement                                                                                                               |
+| Decisions       | Existing captures, including the native navigator, take priority. The sidebar remains an unchanged underlay. Choosing an action admits navigation; opening does not. Each action retains its original availability policy rather than a universal Ready requirement                                                                                                                 |
 | Invariants      | No undrawn or stale activation, no focus on open/cancel, no action on a replacement target, no implicit retry, no input or decision-packet tail reaching a pane; ordinary Close keeps its confirmation; conditional Delete requires exact authority proof or a new reviewed decision                                                                                                |
 | Model           | Finite safety machine for capture, drawing, target invalidation, owned and foreign navigation, cancellation, prerequisites and one action transfer                                                                                                                                                                                                                                  |
 | Dependencies    | Existing native membership, terminal state, input decoder, hit map, layout, localization and action owners; additive conditional Delete wire actions remain Server-owned; no new dependency or persistent data                                                                                                                                                                      |
@@ -576,7 +591,7 @@ closes the episode under the existing rules.
 
 ## Correctness and verification
 
-The owning implementation tests cover shared menu/help identity, opaque configured-command IDs,
+The owning implementation tests cover shared menu identity, opaque configured-command IDs,
 effective binding discovery, hidden unsupported actions, draw authority, packet tails, generated
 event replay, cancellation, source/target/focus drift, exact draft capture, at-most-once handoff,
 known-commit retention and execution deadlines independent of browsing time. Candidate-hover

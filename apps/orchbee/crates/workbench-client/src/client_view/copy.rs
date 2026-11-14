@@ -17,7 +17,6 @@ pub(crate) enum CopyModeKey {
     ToggleSelection,
     Copy,
     Exit,
-    Help,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -61,7 +60,6 @@ enum LocalBinding {
     CopyEnter,
     Exit,
     ExitEscape,
-    Help,
     SearchBack,
     SearchReverse,
 }
@@ -196,7 +194,6 @@ impl LocalBinding {
             ),
             Self::Exit => (KeyCode::Char('q'), Modifiers::NONE, Some(K::Exit), None),
             Self::ExitEscape => (KeyCode::Esc, Modifiers::NONE, Some(K::Exit), None),
-            Self::Help => (KeyCode::F(1), Modifiers::NONE, Some(K::Help), None),
             Self::SearchBack => (KeyCode::Char('g'), Modifiers::CTRL, None, Some(C::Back)),
             Self::SearchReverse => (KeyCode::Char('r'), Modifiers::CTRL, None, Some(C::Reverse)),
         };
@@ -273,10 +270,6 @@ const GROUPS: &[Group] = &[
         bindings: &[LocalBinding::Exit, LocalBinding::ExitEscape],
         desc: PrefixDesc::CopyExit,
     },
-    Group {
-        bindings: &[LocalBinding::Help],
-        desc: PrefixDesc::ShowHelp,
-    },
 ];
 
 const SEARCH_DISPATCH: &[LocalBinding] = &[
@@ -311,7 +304,6 @@ const COPY_KEY: &[LocalBinding] = &[LocalBinding::Copy];
 const SELECT_KEY: &[LocalBinding] = &[LocalBinding::ToggleSelection];
 const SEARCH_KEY: &[LocalBinding] = &[LocalBinding::SearchForward];
 const REPEAT_KEYS: &[LocalBinding] = &[LocalBinding::RepeatForward, LocalBinding::RepeatReverse];
-const HELP_KEY: &[LocalBinding] = &[LocalBinding::Help];
 const MOVE_KEYS: &[LocalBinding] = &[
     LocalBinding::Up,
     LocalBinding::Down,
@@ -328,7 +320,6 @@ const NORMAL_HINTS: &[CopyFooterBinding] = &[
     CopyFooterBinding::new(SELECT_KEY, CopyHintLabel::Select),
     CopyFooterBinding::new(SEARCH_KEY, CopyHintLabel::Search),
     CopyFooterBinding::new(REPEAT_KEYS, CopyHintLabel::Repeat),
-    CopyFooterBinding::new(HELP_KEY, CopyHintLabel::Help),
     CopyFooterBinding::new(MOVE_KEYS, CopyHintLabel::Move),
 ];
 const SEARCH_HINTS: &[CopyFooterBinding] = &[
@@ -377,29 +368,24 @@ pub(crate) fn search_command(event: KeyEvent) -> Option<CopySearchCommand> {
     })
 }
 
-pub(super) fn help_rows() -> Vec<(String, PrefixDesc)> {
-    let mut rows = Vec::with_capacity(GROUPS.len() + 1);
-    for group in GROUPS {
-        rows.push((
-            group
-                .bindings
-                .iter()
-                .map(|key| super::format_binding(&key.spec().binding, LabelStyle::for_host()))
-                .collect::<Vec<_>>()
-                .join(" / "),
-            group.desc,
-        ));
-        if group.desc == PrefixDesc::CopyRepeatSearch {
-            rows.push((
-                super::format_binding(
-                    &LocalBinding::SearchReverse.spec().binding,
-                    LabelStyle::for_host(),
-                ),
-                PrefixDesc::CopyReverseSearch,
-            ));
-        }
+/// The keys copy mode dispatches for one described group, as the action menu's key row shows
+/// them; `None` for a description copy mode does not own.
+pub(crate) fn key_label(desc: PrefixDesc, glyphs: super::KeyLabelGlyphs) -> Option<String> {
+    let label = |key: &LocalBinding| {
+        super::format_binding_with_glyphs(&key.spec().binding, LabelStyle::for_host(), glyphs)
+    };
+    if desc == PrefixDesc::CopyReverseSearch {
+        return Some(label(&LocalBinding::SearchReverse));
     }
-    rows
+    let group = GROUPS.iter().find(|group| group.desc == desc)?;
+    Some(
+        group
+            .bindings
+            .iter()
+            .map(label)
+            .collect::<Vec<_>>()
+            .join(" / "),
+    )
 }
 
 #[cfg(test)]

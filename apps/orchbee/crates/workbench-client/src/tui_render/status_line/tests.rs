@@ -32,7 +32,7 @@ fn facts(primary: &str) -> StatusFacts<'_> {
 #[test]
 fn workspace_and_tab_creation_hints_retain_the_same_effective_action_binding_and_localized_scope() {
     let mut view = ClientView::new(120);
-    view.configure_keys(&configured_arrow_help());
+    view.configure_keys(&configured_arrow_menu());
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let workspace = super::action_hint(
             &view,
@@ -135,7 +135,7 @@ fn the_prefix_banner_floats_end_aligned_only_while_the_prefix_is_armed() {
         for configured in [false, true] {
             let mut view = ClientView::new(width);
             if configured {
-                view.configure_keys(&configured_arrow_help());
+                view.configure_keys(&configured_arrow_menu());
             }
             let assert_nothing_floats = |view: &ClientView| {
                 let (terminal, paint) = paint_at_tier_with_locale(
@@ -205,7 +205,6 @@ fn prefix_mode_status_hints_drop_only_the_lowest_priority_whole_items_by_width()
     let theme = Theme::rgb_test_dark();
     let expected = [
         "Esc cancel",
-        "? help",
         "Tab sidebar",
         "Space actions",
         "c create Tab",
@@ -213,7 +212,7 @@ fn prefix_mode_status_hints_drop_only_the_lowest_priority_whole_items_by_width()
         "q detach",
     ];
 
-    let width_cases: &[(u16, usize)] = &[(160, 7), (115, 7), (100, 6), (85, 5), (60, 3)];
+    let width_cases: &[(u16, usize)] = &[(160, 6), (115, 6), (100, 6), (85, 4), (60, 3)];
 
     for &(width, visible_count) in width_cases {
         let mut view = ClientView::new(width);
@@ -255,7 +254,6 @@ fn prefix_mode_hint_labels_are_localized_in_both_supported_locales() {
         let copy = locale.status();
         for label in [
             copy.cancel,
-            copy.help,
             copy.focus_sidebar,
             copy.actions,
             copy.create_tab,
@@ -271,14 +269,14 @@ fn prefix_mode_hint_labels_are_localized_in_both_supported_locales() {
 fn prefix_mode_hint_uses_the_configured_effective_binding_without_repeating_the_prefix() {
     let theme = Theme::rgb_test_dark();
     let mut view = ClientView::new(120);
-    view.configure_keys(&configured_arrow_help());
+    view.configure_keys(&configured_arrow_menu());
     arm_prefix(&mut view);
 
     let (terminal, _) = paint(&view, 120, facts("Ready"), &theme);
     let text = row(&terminal, 120);
     assert!(
         text.contains(&crate::terminal_events::keys::tests::host_label(
-            "PREFIX Ctrl+a · Esc cancel · ← help"
+            "PREFIX Ctrl+a · Esc cancel · Tab sidebar · ← actions"
         )),
         "{text}"
     );
@@ -288,7 +286,7 @@ fn prefix_mode_hint_uses_the_configured_effective_binding_without_repeating_the_
     );
 }
 
-fn configured_arrow_help() -> orchbee_local_runtime::KeySettings {
+fn configured_arrow_menu() -> orchbee_local_runtime::KeySettings {
     use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
 
     let chord = |key: &str, ctrl| KeyChord {
@@ -302,7 +300,7 @@ fn configured_arrow_help() -> orchbee_local_runtime::KeySettings {
         commands: Vec::new(),
         prefix: chord("a", true),
         overrides: vec![KeyOverride {
-            action: "help",
+            action: "menu",
             triggers: vec![KeyTrigger {
                 prefix: true,
                 chord: chord("left", false),
@@ -316,15 +314,15 @@ fn configured_effective_hint_uses_ascii_glyphs_and_semantic_key_styles() {
     let width = 80;
     let theme = Theme::rgb_test_dark().with_glyphs(GlyphSet::ASCII);
     let mut view = ClientView::new(width);
-    view.configure_keys(&configured_arrow_help());
+    view.configure_keys(&configured_arrow_menu());
     view.startup_notice(Notice::UnknownPrefix);
 
     let (terminal, paint) = paint(&view, width, facts("ignored"), &theme);
     let text = row(&terminal, width);
     let key = "Ctrl+a Left";
-    let key_start = text.find(key).expect("effective Help chord is visible");
+    let key_start = text.find(key).expect("effective menu chord is visible");
     assert!(text.contains("Unknown prefix key"));
-    assert!(text.contains("Ctrl+a Left shortcuts"));
+    assert!(text.contains("Ctrl+a Left actions"));
     assert!(!text.contains("Ctrl+b ?"));
     assert!(!text.contains('←'));
     assert_eq!(
@@ -339,7 +337,7 @@ fn configured_effective_hint_uses_ascii_glyphs_and_semantic_key_styles() {
         );
     }
     let label_start = key_start + key.len() + 1;
-    for x in label_start..label_start + "shortcuts".len() {
+    for x in label_start..label_start + "actions".len() {
         assert_eq!(
             terminal.backend().buffer()[(u16::try_from(x).unwrap(), 0)].style(),
             semantic_on_chip(&theme, Role::HintLabel)
@@ -352,14 +350,14 @@ fn a_hint_that_does_not_fit_is_dropped_as_a_whole() {
     let width = 24;
     let theme = Theme::rgb_test_dark().with_glyphs(GlyphSet::ASCII);
     let mut view = ClientView::new(width);
-    view.configure_keys(&configured_arrow_help());
+    view.configure_keys(&configured_arrow_menu());
     view.startup_notice(Notice::UnknownPrefix);
 
     let (terminal, _) = paint(&view, width, facts("ignored"), &theme);
     let text = row(&terminal, width);
     assert_eq!(text.trim(), "Unknown prefix key");
     assert!(!text.contains("Ctrl+a"));
-    assert!(!text.contains("shortcuts"));
+    assert!(!text.contains("actions"));
 }
 
 #[test]

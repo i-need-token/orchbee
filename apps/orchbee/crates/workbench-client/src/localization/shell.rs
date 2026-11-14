@@ -23,7 +23,6 @@ pub struct ShellText<'a> {
     pub(crate) backend_status: &'static str,
     pub(crate) business_section: &'static str,
     pub(crate) exit_hint: &'a str,
-    pub(crate) hint_short: &'a str,
     pub(crate) binding_unbound: &'static str,
     pub(crate) overlay_refused: &'static str,
     /// The status line's shorter form of `overlay_refused`, without the advice.
@@ -36,7 +35,6 @@ pub struct ShellText<'a> {
     pub(crate) prefix_desc: fn(PrefixDesc) -> &'static str,
     pub(crate) projects: &'static str,
     pub(crate) shell_only_detail: &'static str,
-    pub(crate) shortcut_title: &'static str,
     pub(crate) sidebar_hint: &'a str,
     pub(crate) session_section: &'static str,
     pub(crate) no_workspace: &'static str,
@@ -57,7 +55,6 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     backend_status: "Backend unavailable",
     business_section: "BUSINESS",
     exit_hint: "{exit} · exit",
-    hint_short: "{help} · help",
     overlay_refused: "Not enough room to show this view · resize the terminal",
     overlay_refused_short: "Not enough room to show this view",
     navigator_title: "Workbench navigator",
@@ -69,7 +66,6 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     prefix_desc: en_us_prefix_desc,
     projects: "Projects",
     shell_only_detail: "Connect to a session to use terminals and agents.",
-    shortcut_title: "Keyboard shortcuts",
     sidebar_hint: "{sidebar} · sidebar",
     session_section: "SESSION",
     no_workspace: "No workspace",
@@ -90,7 +86,6 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     backend_status: "后端不可用",
     business_section: "业务",
     exit_hint: "{exit} · 退出",
-    hint_short: "{help} · 帮助",
     overlay_refused: "空间不足，无法显示此视图 · 请调整终端大小",
     overlay_refused_short: "空间不足，无法显示此视图",
     navigator_title: "Workbench 导航器",
@@ -102,7 +97,6 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     prefix_desc: zh_cn_prefix_desc,
     projects: "项目",
     shell_only_detail: "连接会话后即可使用终端和智能体。",
-    shortcut_title: "键盘快捷键",
     sidebar_hint: "{sidebar} · 边栏",
     session_section: "会话",
     no_workspace: "未打开工作区",
@@ -121,7 +115,6 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
 #[derive(Clone, Debug)]
 pub(crate) struct ShellBindings {
     pub(crate) prefix: String,
-    pub(crate) help: String,
     pub(crate) exit: String,
     pub(crate) sidebar: String,
     pub(crate) zoom: String,
@@ -146,18 +139,17 @@ pub(crate) const START_AGENT_KEY_SLOT: &str = "\u{e000}start-agent\u{e001}";
 /// Temporary render-owned strings; the borrowed shell text remains cheap to copy.
 pub(crate) struct BoundShellText<'a> {
     base: ShellText<'a>,
-    hints: [String; 6],
+    hints: [String; 5],
 }
 
 impl BoundShellText<'_> {
     pub(crate) fn text(&self) -> ShellText<'_> {
         ShellText {
             exit_hint: &self.hints[0],
-            hint_short: &self.hints[1],
-            pointer_released: &self.hints[2],
-            prefix_active: &self.hints[3],
-            sidebar_hint: &self.hints[4],
-            zoom_badge: &self.hints[5],
+            pointer_released: &self.hints[1],
+            prefix_active: &self.hints[2],
+            sidebar_hint: &self.hints[3],
+            zoom_badge: &self.hints[4],
             ..self.base
         }
     }
@@ -167,7 +159,6 @@ impl<'a> ShellText<'a> {
     pub(crate) fn bind(self, bindings: &ShellBindings) -> BoundShellText<'a> {
         let hints = [
             self.exit_hint,
-            self.hint_short,
             self.pointer_released,
             self.prefix_active,
             self.sidebar_hint,
@@ -182,7 +173,6 @@ impl<'a> ShellText<'a> {
     pub(crate) fn bound_hint(&self, bindings: &ShellBindings, hint: &str) -> String {
         [
             ("{prefix}", &bindings.prefix),
-            ("{help}", &bindings.help),
             ("{exit}", &bindings.exit),
             ("{sidebar}", &bindings.sidebar),
             ("{zoom}", &bindings.zoom),

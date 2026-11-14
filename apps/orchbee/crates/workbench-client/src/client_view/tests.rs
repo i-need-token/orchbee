@@ -433,7 +433,7 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
 }
 
 #[test]
-fn toggles_the_navigator_and_replaces_other_overlays() {
+fn toggles_the_navigator() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
     let opened = commit(&mut view, plain('w'));
@@ -444,17 +444,6 @@ fn toggles_the_navigator_and_replaces_other_overlays() {
     let closed = commit(&mut view, plain('w'));
     assert_eq!(closed.action(), Some(ClientAction::CloseWorkbenchNavigator));
     assert_eq!(view.overlay(), None);
-
-    enter_prefix(&mut view);
-    commit(&mut view, plain('?'));
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-    enter_prefix(&mut view);
-    let replaced = commit(&mut view, plain('w'));
-    assert_eq!(
-        replaced.action(),
-        Some(ClientAction::OpenWorkbenchNavigator)
-    );
-    assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
 }
 
 #[test]
@@ -470,63 +459,6 @@ fn wide_sidebar_toggle_replaces_an_open_overlay() {
     assert!(toggle.layout_changed());
     assert_eq!(view.overlay(), None);
     assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
-}
-
-#[test]
-fn shortcut_help_captures_input_and_escape_closes_it() {
-    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
-    enter_prefix(&mut view);
-    let opened = commit(&mut view, plain('?'));
-    assert_eq!(opened.action(), Some(ClientAction::OpenShortcutHelp));
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-
-    // Help filters ordinary input while visible, but the global prefix can
-    // still close it or replace it with another Client overlay.
-    assert_eq!(commit(&mut view, plain('x')).shell(), ShellCommand::None);
-    assert_eq!(view.help_filter(), "x");
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-    let escaped = commit(&mut view, key(KeyCode::Esc));
-    assert_eq!(escaped.action(), Some(ClientAction::CloseShortcutHelp));
-    assert_eq!(escaped.shell(), ShellCommand::None);
-    assert_eq!(view.overlay(), None);
-
-    // The same binding closes the overlay it opened.
-    enter_prefix(&mut view);
-    assert_eq!(
-        commit(&mut view, plain('?')).action(),
-        Some(ClientAction::OpenShortcutHelp)
-    );
-    enter_prefix(&mut view);
-    let closed = commit(&mut view, plain('?'));
-    assert_eq!(closed.action(), Some(ClientAction::CloseShortcutHelp));
-    assert_eq!(view.overlay(), None);
-    assert!(!view.prefix_active());
-}
-
-#[test]
-fn help_escape_closes_even_after_prefix_and_other_prefix_actions_switch_surfaces() {
-    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
-    enter_prefix(&mut view);
-    commit(&mut view, plain('?'));
-
-    enter_prefix(&mut view);
-    let escaped = commit(&mut view, key(KeyCode::Esc));
-    assert_eq!(escaped.action(), Some(ClientAction::CloseShortcutHelp));
-    assert_eq!(escaped.shell(), ShellCommand::None);
-    assert_eq!(view.overlay(), None);
-    assert!(!view.prefix_active());
-
-    enter_prefix(&mut view);
-    commit(&mut view, plain('?'));
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-
-    enter_prefix(&mut view);
-    let switched = commit(&mut view, plain('w'));
-    assert_eq!(
-        switched.action(),
-        Some(ClientAction::OpenWorkbenchNavigator)
-    );
-    assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
 }
 
 #[test]
@@ -660,47 +592,14 @@ fn unconnected_fallback_reports_the_new_panel_actions_and_keeps_focus_keys_silen
 }
 
 #[test]
-fn prefix_page_keys_scroll_open_help_and_reset_on_close_and_reopen() {
-    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
-    assert_eq!(view.help_page(), 0);
-
-    enter_prefix(&mut view);
-    commit(&mut view, plain('?'));
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-
-    enter_prefix(&mut view);
-    let paged = commit(&mut view, key(KeyCode::PageDown));
-    assert_eq!(paged.action(), Some(ClientAction::PageShortcutHelp));
-    assert_eq!(paged.shell(), ShellCommand::None);
-    assert_eq!(view.help_page(), 8);
-
-    enter_prefix(&mut view);
-    commit(&mut view, key(KeyCode::PageDown));
-    assert_eq!(view.help_page(), 16);
-    enter_prefix(&mut view);
-    commit(&mut view, key(KeyCode::PageUp));
-    assert_eq!(view.help_page(), 8);
-
-    // Closing and reopening starts again at page 0.
-    enter_prefix(&mut view);
-    commit(&mut view, plain('?'));
-    assert_eq!(view.overlay(), None);
-    assert_eq!(view.help_page(), 0);
-    enter_prefix(&mut view);
-    commit(&mut view, plain('?'));
-    assert_eq!(view.help_page(), 0);
-}
-
-#[test]
-fn page_keys_without_help_follow_the_unknown_prefix_rules() {
-    // `Ctrl+B PageUp` with help closed is the retained-history entry
+fn page_keys_follow_the_history_and_unknown_prefix_rules() {
+    // `Ctrl+B PageUp` is the retained-history entry
     // gesture; the session owns admission from there.
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
     let transition = commit(&mut view, key(KeyCode::PageUp));
     assert_eq!(transition.action(), Some(ClientAction::EnterHistory));
     assert_eq!(transition.shell(), ShellCommand::None);
-    assert_eq!(view.help_page(), 0);
 
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
@@ -708,68 +607,14 @@ fn page_keys_without_help_follow_the_unknown_prefix_rules() {
     assert_eq!(transition.action(), Some(ClientAction::UnknownPrefix));
     assert_eq!(transition.shell(), ShellCommand::None);
     assert_eq!(view.notice(), Some(Notice::UnknownPrefix));
-    assert_eq!(view.help_page(), 0);
 
-    // An overlay other than help does not claim the page keys either.
+    // An open overlay does not claim the page keys either.
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
     commit(&mut view, plain('w'));
     enter_prefix(&mut view);
     let transition = commit(&mut view, key(KeyCode::PageDown));
     assert_eq!(transition.action(), Some(ClientAction::UnknownPrefix));
-    assert_eq!(view.help_page(), 0);
-}
-
-#[test]
-fn unprefixed_page_keys_scroll_help_and_reach_the_terminal_without_it() {
-    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
-    for page_key in [KeyCode::PageUp, KeyCode::PageDown] {
-        let transition = commit(&mut view, key(page_key));
-        assert_eq!(transition.action(), None);
-        assert_eq!(transition.shell(), ShellCommand::ForwardTerminal);
-    }
-    enter_prefix(&mut view);
-    commit(&mut view, plain('?'));
-    let transition = commit(&mut view, key(KeyCode::PageDown));
-    assert_eq!(transition.action(), Some(ClientAction::PageShortcutHelp));
-    assert_eq!(transition.shell(), ShellCommand::None);
-    assert_eq!(view.help_page(), 8);
-}
-
-#[test]
-fn help_scroll_requests_clamp_only_after_an_exact_draw_settles() {
-    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
-    enter_prefix(&mut view);
-    commit(&mut view, plain('?'));
-
-    let bound = crate::tui_shortcut_help::entries(
-        crate::localization::Locale::EnUs,
-        &view,
-        true,
-        crate::client_view::KeyLabelGlyphs::Unicode,
-    )
-    .len();
-    // Input may request beyond the current viewport; the exact presented
-    // source settles it after the renderer knows the scroll boundary.
-    for _ in 0..(bound + 8) {
-        enter_prefix(&mut view);
-        commit(&mut view, key(KeyCode::PageDown));
-    }
-    assert_eq!(view.help_page(), (bound + 8) * 8);
-    enter_prefix(&mut view);
-    commit(&mut view, key(KeyCode::PageUp));
-    assert_eq!(view.help_page(), (bound + 8) * 8 - 8);
-
-    // Only a successfully published exact source settles the effective page
-    // after geometry shrinks the real page count.
-    let candidate = view.help_draw_candidate().unwrap();
-    view.settle_help_draw(candidate.presented(3, 3));
-    assert_eq!(view.help_page(), 3);
-    // A scroll request revokes that source and remains pending until the next draw.
-    view.request_help_page(usize::MAX);
-    assert_eq!(view.help_page(), usize::MAX);
-    view.request_help_page(0);
-    assert_eq!(view.help_page(), 0);
 }
 
 #[test]

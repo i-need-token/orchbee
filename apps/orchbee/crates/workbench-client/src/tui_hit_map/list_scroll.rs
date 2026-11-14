@@ -6,7 +6,6 @@ pub enum Target {
     Worktree(crate::workbench_state::worktree_launch::WorktreeToken),
     Copy(crate::terminal_copy_mode::CopyModeToken),
     AgentBoard(crate::agent_board::AgentBoardToken),
-    Help(crate::client_view::help::HelpDrawSource),
     Settings(crate::native_settings::Token),
     Menu(crate::action_menu::MenuToken),
     Navigator(crate::client_view::navigator::Row),

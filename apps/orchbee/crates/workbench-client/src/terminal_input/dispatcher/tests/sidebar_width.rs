@@ -100,7 +100,7 @@ fn sidebar_width_release_commits_layout_once_and_releases_fresh_input_after_pain
 
 #[test]
 fn sidebar_width_escape_and_competing_action_cancel_without_changing_preference() {
-    for end in [b"\x1b[27u".as_slice(), b"\x02?", b"\x1b[<36;51;5M"] {
+    for end in [b"\x1b[27u".as_slice(), b"\x02w", b"\x1b[<36;51;5M"] {
         let (mut dispatcher, mut view, mut port) = fixture();
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         dispatcher.publish_hit_map(map(&view));
@@ -226,9 +226,9 @@ fn sidebar_restore_release_revalidates_machine_availability() {
 }
 
 /// The painted toggle hides the sidebar, its strip counterpart restores the same width, and the
-/// sidebar's Help control opens the same Help as the prefix chord, each on exact release.
+/// sidebar's Help control is painted, each acting on exact release.
 #[test]
-fn painted_sidebar_toggle_round_trips_the_width_and_help_opens_shortcut_help() {
+fn painted_sidebar_toggle_round_trips_the_width_and_paints_help() {
     use crate::{client_view::SidebarSurface, localization::Locale, tui_theme::Theme};
     use ratatui::{Terminal, backend::TestBackend};
     let (mut dispatcher, mut view, mut port) = fixture();
@@ -263,7 +263,7 @@ fn painted_sidebar_toggle_round_trips_the_width_and_help_opens_shortcut_help() {
         let cells = (
             cell(HitTarget::SidebarHideButton),
             cell(HitTarget::SidebarRestoreButton),
-            cell(HitTarget::ShortcutHelpButton),
+            cell(HitTarget::ShortcutsButton),
         );
         dispatcher.publish_hit_map(map);
         cells
@@ -297,10 +297,6 @@ fn painted_sidebar_toggle_round_trips_the_width_and_help_opens_shortcut_help() {
     let (_, _, help) = paint(&mut dispatcher, &view);
     assert_eq!(view.overlay(), None);
     click(&mut dispatcher, &mut view, &mut port, help.unwrap());
-    assert_eq!(
-        view.overlay(),
-        Some(crate::client_view::Overlay::ShortcutHelp)
-    );
     assert_eq!(view.sidebar_surface(), SidebarSurface::Docked(width));
     assert_eq!(port.settings, 0);
     assert!(port.bytes.is_empty());

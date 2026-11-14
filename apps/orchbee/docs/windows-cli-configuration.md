@@ -148,11 +148,13 @@ the current Workspace with its existing [confirmation](native-workspace-close.md
 Rename and Clear terminal on the focused Panel, with their menu outcomes. `last_panel` steps back to the last focused Panel in any Tab or Workspace
 ([Last Panel](native-context-selection.md#last-panel)), default `prefix+;`. `focus_panel_left`,
 `focus_panel_down`, `focus_panel_up` and `focus_panel_right` default to the prefix followed by the
-matching arrow key, then `prefix+h`, `prefix+j`, `prefix+k` and `prefix+l`; help and menus show the
+matching arrow key, then `prefix+h`, `prefix+j`, `prefix+k` and `prefix+l`; menus show the
 arrow first.
 
-`menu` opens the [native action menu](native-action-menus.md), default `prefix+space`.
-The same safe direct chords and explicit disabling apply. Machines keeps `prefix+M`.
+`menu` opens the [native action menu](native-action-menus.md), default `prefix+space` and
+`prefix+?`. The menu is also where keys are found; there is no separate help action, and a former
+`help` key is an unknown action. The same safe direct chords and explicit disabling apply.
+Machines keeps `prefix+M`.
 
 `open_notification_target` opens the Agent of the current Agent notification card, default
 `prefix+o`, as the [notification contract](windows-notifications.md#opening-the-notification-target)
@@ -166,22 +168,21 @@ There is no resize mode, and a former `resize_mode` key is an unknown action. Ex
 pending are consumed, not queued. Profiles opting into these action names require a matching current cohort; remove those
 keys before using an older reader. Other existing profiles retain their defaults. Direct resize bindings require a modifier or a function key; bare editing keys stay with the pane.
 
-The resolved registry supplies dispatch, help rows and principal live hints. Help omits actions with
-no effective binding; a bound action that requires a session stays listed with a connection hint when
-no session is available. Existing native defaults remain for actions without an explicit override;
+The resolved registry supplies dispatch, the keys action-menu rows show and principal live hints. A
+menu row shows no key for an action with no effective binding. Existing native defaults remain for actions without an explicit override;
 unknown fields warn without changing the effective registry. Invalid custom-command configuration disables
 configured commands rather than executing a partial or unvalidated command. Navigation-mode mappings,
 ordinal Agent/indexed Workspace keys and other unsupported actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
 ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
 
 The registry's display projection formats the normalized binding independently of accepted
-configuration spelling. Help rows and live hints keep ASCII letters lowercase unless the binding
+configuration spelling. Menu rows and live hints keep ASCII letters lowercase unless the binding
 contains Shift; shifted letters display uppercase. Unicode glyph mode uses arrow glyphs and, on
 Apple hosts, Apple modifier symbols. Simplified glyph mode spells `Up`, `Down`, `Left`, `Right` and
 `Ctrl`, `Alt`, `Shift`, `Super`, including on Apple hosts. A prefix and its member are separated by
 one space. These display rules do not change TOML spelling, normalization, matching or dispatch.
 
-Supported action fields are `help`, `settings`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `close_workspace`, `workspace_picker`,
+Supported action fields are `settings`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `close_workspace`, `workspace_picker`,
 `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `open_notification_target`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `copy_mode`, `find`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
@@ -194,7 +195,7 @@ view admits, with exact physical target revalidation. The same owning contract d
 ```toml
 [keys]
 prefix = "ctrl+a"
-help = ["prefix+?", "f1"]
+menu = ["prefix+space", "f1"]
 new_tab = "prefix+n"
 switch_tab = "alt+1..9"
 focus_agent = "prefix+alt+1..9"

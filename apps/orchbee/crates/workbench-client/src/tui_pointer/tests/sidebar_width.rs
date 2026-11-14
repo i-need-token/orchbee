@@ -147,7 +147,7 @@ fn sidebar_width_cancellation_cannot_replay_a_late_release() {
             4 => port.captured = true,
             5 => view.resize(70),
             6 => view.commit(
-                view.decide_action(ClientAction::OpenShortcutHelp),
+                view.decide_action(ClientAction::OpenWorkbenchNavigator),
                 ClientActionDisposition::KeepNavigator,
             ),
             7 => pointer.publish(HitMapBuilder::new().finish()),

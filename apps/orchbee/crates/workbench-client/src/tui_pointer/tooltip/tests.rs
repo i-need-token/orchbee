@@ -1,15 +1,26 @@
 use super::*;
 use crate::tui_hit_map::TooltipContent;
 use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
-use crate::tui_pointer::HelpControl;
 use ratatui::layout::Rect;
 
 const ROW: Rect = Rect::new(0, 4, 20, 1);
 const CLOSE: Rect = Rect::new(16, 4, 3, 1);
 const NEXT: Rect = Rect::new(0, 5, 20, 1);
 
-fn target(action: HelpControl) -> HitTarget {
-    HitTarget::Help { page: 1, action }
+/// Three distinct targets: a row's close child, the row, and an unrelated row.
+#[derive(Clone, Copy)]
+enum Probe {
+    Close,
+    Previous,
+    Next,
+}
+
+fn target(probe: Probe) -> HitTarget {
+    match probe {
+        Probe::Close => HitTarget::SidebarHideButton,
+        Probe::Previous => HitTarget::SidebarRestoreButton,
+        Probe::Next => HitTarget::TabListButton,
+    }
 }
 
 fn content(label: &str) -> TooltipContent {
@@ -20,7 +31,7 @@ fn content(label: &str) -> TooltipContent {
 }
 
 /// A row with a close child recorded before it, and an unrelated row below, all with tooltips.
-fn regions(rows: &[(Rect, HelpControl)]) -> FrameHitMap {
+fn regions(rows: &[(Rect, Probe)]) -> FrameHitMap {
     let mut hits = HitMapBuilder::new();
     for (rect, action) in rows {
         hits.record(HitLayer::Chrome, *rect, target(*action));
@@ -31,9 +42,9 @@ fn regions(rows: &[(Rect, HelpControl)]) -> FrameHitMap {
 
 fn sidebar() -> FrameHitMap {
     regions(&[
-        (CLOSE, HelpControl::Close),
-        (ROW, HelpControl::Previous),
-        (NEXT, HelpControl::Next),
+        (CLOSE, Probe::Close),
+        (ROW, Probe::Previous),
+        (NEXT, Probe::Next),
     ])
 }
 
@@ -133,8 +144,8 @@ fn a_published_frame_closes_a_moved_target_but_retargets_what_the_same_arrival_r
 
     // The row moved down a line beneath the still pointer.
     let moved = regions(&[
-        (Rect::new(16, 5, 3, 1), HelpControl::Close),
-        (NEXT, HelpControl::Previous),
+        (Rect::new(16, 5, 3, 1), Probe::Close),
+        (NEXT, Probe::Previous),
     ]);
     state.publish(&moved);
     assert!(state.take_redraw_after_publish());
@@ -142,7 +153,7 @@ fn a_published_frame_closes_a_moved_target_but_retargets_what_the_same_arrival_r
 
     // Arriving on the row reveals its close beneath the pointer in the next frame.
     let mut state = State::default();
-    let unrevealed = regions(&[(ROW, HelpControl::Previous)]);
+    let unrevealed = regions(&[(ROW, Probe::Previous)]);
     state.motion(Some(&unrevealed), (2, 4), start);
     state.tick(Some(&unrevealed), ms(start, 300), true);
     state.motion(Some(&unrevealed), (17, 4), ms(start, 350));
@@ -177,13 +188,13 @@ fn a_pane_title_offers_one_over_its_divider_or_dead_frame_but_never_under_chrome
     let framed = Rect::new(1, 0, 12, 1);
     let chrome = Rect::new(8, 4, 3, 1);
     let mut hits = HitMapBuilder::new();
-    hits.record(HitLayer::Chrome, chrome, target(HelpControl::Close));
+    hits.record(HitLayer::Chrome, chrome, target(Probe::Close));
     hits.record_pane_title_tooltip(title, pane.clone(), content("title"));
     hits.record_pane_title_tooltip(framed, pane.clone(), content("frame"));
-    hits.record(HitLayer::Foreground, divider, target(HelpControl::Next));
+    hits.record(HitLayer::Foreground, divider, target(Probe::Next));
     let map = hits.finish();
     // Pressing a title still reaches the divider beneath it.
-    assert_eq!(map.hit_target_at(2, 4), Some(&target(HelpControl::Next)));
+    assert_eq!(map.hit_target_at(2, 4), Some(&target(Probe::Next)));
     let at = |column, row| map.tooltip_at(column, row);
     assert_eq!(at(2, 4), Some(Key::pane_title(title, pane.clone())));
     assert_eq!(at(2, 0), Some(Key::pane_title(framed, pane)));

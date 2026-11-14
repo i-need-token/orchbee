@@ -8,7 +8,7 @@ use super::modal::{
 use crate::client_view::{
     Binding, Bindings, ClientAction, KeyCode, KeyLabelGlyphs, Modifiers, PrefixAction,
 };
-use crate::localization::{DisplayPhase, FieldError, Locale, ShortcutLabel};
+use crate::localization::{DisplayPhase, FieldError, Locale, MenuLabel};
 use crate::terminal_text::{
     display_width, sanitize_terminal_text, truncate_display, truncate_display_middle,
 };
@@ -25,10 +25,9 @@ use ratatui::{Frame, layout::Rect, text::Text, widgets::Paragraph};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct DirectoryGuidance {
     fact: String,
-    /// The action and its discovery title; a Workspace without a directory has none. Guidance
-    /// appears only for a connected Empty workbench, so it never repeats the help table's
-    /// connection qualifier.
-    hint: Option<(PrefixAction, ShortcutLabel)>,
+    /// The action and its menu title; a Workspace without a directory has none. Guidance
+    /// appears only for a connected Empty workbench.
+    hint: Option<(PrefixAction, MenuLabel)>,
 }
 
 pub(super) fn directory_guidance(
@@ -45,7 +44,7 @@ pub(super) fn directory_guidance(
         fact: locale.setup_directory_ready(&sanitize_terminal_text(path)),
         hint: Some((
             PrefixAction::Client(ClientAction::CreateTab),
-            ShortcutLabel::NewTab,
+            MenuLabel::NewTab,
         )),
     })
     .or_else(|| {
@@ -99,11 +98,11 @@ pub(super) fn render_directory_guidance(
         return;
     };
     let hint_area = Rect::new(area.x, hint_y, area.width, 1);
-    let label = locale.shortcut_label(*label);
+    let label = locale.menu_action(*label);
     let _ = super::controls::render_key_hints(
         frame,
         hint_area,
-        &[super::controls::KeyHint::new(&key, &label)],
+        &[super::controls::KeyHint::new(&key, label)],
         theme,
     );
 }

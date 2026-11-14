@@ -74,39 +74,6 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
     assert_eq!(locale.rename_title(), "重命名标签页");
 }
 
-#[cfg(windows)]
-#[test]
-fn help_page_bindings_follow_the_configured_prefix() {
-    use crate::client_view::{ClientView, KeyLabelGlyphs, PrefixAction};
-    use orchbee_local_runtime::{KeyChord, KeySettings};
-    for (remapped, prefix) in [(false, "Ctrl+b"), (true, "Ctrl+a")] {
-        let mut view = ClientView::new(80);
-        if remapped {
-            view.configure_keys(&KeySettings {
-                commands: Vec::new(),
-                overrides: Vec::new(),
-                prefix: KeyChord {
-                    key: "a".into(),
-                    ctrl: true,
-                    alt: false,
-                    shift: false,
-                    super_key: false,
-                },
-            });
-        }
-        assert_eq!(
-            view.bindings()
-                .action_labels_with_glyphs(PrefixAction::HelpPagePrevious, KeyLabelGlyphs::Unicode),
-            vec![format!("{prefix} PageUp")]
-        );
-        assert_eq!(
-            view.bindings()
-                .action_labels_with_glyphs(PrefixAction::HelpPageNext, KeyLabelGlyphs::Unicode),
-            vec![format!("{prefix} PageDown")]
-        );
-    }
-}
-
 #[test]
 fn uses_locale_precedence_and_skips_empty_values() {
     let empty_override = HashMap::from([
@@ -160,42 +127,10 @@ fn falls_back_to_english_for_absent_other_and_non_unicode_values() {
 }
 
 #[test]
-fn help_page_binding_dispatches_scroll_actions() {
+fn panel_shortcuts_dispatch_their_actions() {
     use crate::client_view::{
-        ClientAction, ClientActionDisposition, ClientTransition, ClientView, KeyCode, KeyEvent,
-        Modifiers, Overlay, PrefixInput,
-    };
-    fn press(view: &mut ClientView, input: KeyCode, mods: Modifiers) -> ClientTransition {
-        let transition = view.decide(PrefixInput::Key(KeyEvent::press(input, mods)));
-        view.commit(transition.clone(), ClientActionDisposition::KeepNavigator);
-        transition
-    }
-
-    let mut view = ClientView::new(120);
-    for (code, expected_page) in [(KeyCode::PageUp, 0), (KeyCode::PageDown, 8)] {
-        press(&mut view, KeyCode::Char('b'), Modifiers::CTRL);
-        press(&mut view, KeyCode::Char('?'), Modifiers::NONE);
-        assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-        press(&mut view, KeyCode::Char('b'), Modifiers::CTRL);
-        let paged = press(&mut view, code, Modifiers::NONE);
-        assert_eq!(
-            paged.action(),
-            Some(ClientAction::PageShortcutHelp),
-            "Ctrl+B {code:?}"
-        );
-        assert_eq!(view.help_page(), expected_page, "Ctrl+B {code:?}");
-        // Close the help again for the next iteration: the page resets.
-        press(&mut view, KeyCode::Char('b'), Modifiers::CTRL);
-        press(&mut view, KeyCode::Char('?'), Modifiers::NONE);
-        assert_eq!(view.help_page(), 0);
-    }
-}
-
-#[test]
-fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
-    use crate::client_view::{
-        ClientAction, ClientActionDisposition, ClientView, KeyCode, KeyEvent, KeyKind,
-        KeyLabelGlyphs, Modifiers, PanelDirection, PrefixAction, PrefixInput,
+        ClientAction, ClientActionDisposition, ClientView, KeyCode, KeyEvent, KeyKind, Modifiers,
+        PanelDirection, PrefixInput,
     };
     fn key(code: KeyCode, mods: Modifiers) -> PrefixInput {
         PrefixInput::Key(KeyEvent {
@@ -209,120 +144,54 @@ fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
         (
             KeyCode::Char('h'),
             ClientAction::MovePanelFocus(PanelDirection::Left),
-            "Focus panel left",
-            "向左聚焦面板",
         ),
         (
             KeyCode::Char('j'),
             ClientAction::MovePanelFocus(PanelDirection::Down),
-            "Focus panel down",
-            "向下聚焦面板",
         ),
         (
             KeyCode::Char('k'),
             ClientAction::MovePanelFocus(PanelDirection::Up),
-            "Focus panel up",
-            "向上聚焦面板",
         ),
         (
             KeyCode::Char('l'),
             ClientAction::MovePanelFocus(PanelDirection::Right),
-            "Focus panel right",
-            "向右聚焦面板",
         ),
         (
             KeyCode::Char('-'),
             ClientAction::SplitPanel(PanelDirection::Down),
-            "Split panel down",
-            "向下分割面板",
         ),
         (
             KeyCode::Char('_'),
             ClientAction::SplitPanel(PanelDirection::Up),
-            "Split panel up",
-            "向上分割面板",
         ),
         (
             KeyCode::Char('\\'),
             ClientAction::SplitPanel(PanelDirection::Left),
-            "Split panel left",
-            "向左分割面板",
         ),
         (
             KeyCode::Char('|'),
             ClientAction::SplitPanel(PanelDirection::Right),
-            "Split panel right",
-            "向右分割面板",
         ),
-        (
-            KeyCode::Char('X'),
-            ClientAction::ClosePanel,
-            "Close panel",
-            "关闭面板",
-        ),
+        (KeyCode::Char('X'), ClientAction::ClosePanel),
         (
             KeyCode::Char('H'),
             ClientAction::MovePanel(PanelDirection::Left),
-            "Move panel left",
-            "向左移动面板",
         ),
         (
             KeyCode::Char('J'),
             ClientAction::MovePanel(PanelDirection::Down),
-            "Move panel down",
-            "向下移动面板",
         ),
         (
             KeyCode::Char('K'),
             ClientAction::MovePanel(PanelDirection::Up),
-            "Move panel up",
-            "向上移动面板",
         ),
         (
             KeyCode::Char('L'),
             ClientAction::MovePanel(PanelDirection::Right),
-            "Move panel right",
-            "向右移动面板",
         ),
     ];
-    let inventory = ClientView::new(120);
-    let owner_entries = inventory
-        .bindings()
-        .discovery_entries(KeyLabelGlyphs::Unicode);
-    let english = crate::tui_shortcut_help::entries(
-        crate::localization::Locale::EnUs,
-        &inventory,
-        true,
-        KeyLabelGlyphs::Unicode,
-    );
-    let chinese = crate::tui_shortcut_help::entries(
-        crate::localization::Locale::ZhCn,
-        &inventory,
-        true,
-        KeyLabelGlyphs::Unicode,
-    );
-    for (code, expected, en_title, zh_title) in cases {
-        let owned_key = owner_entries
-            .iter()
-            .find(|entry| entry.action == PrefixAction::Client(expected.clone()))
-            .expect("panel action remains in the input owner")
-            .key
-            .as_str();
-        assert!(
-            english
-                .iter()
-                .any(|entry| entry.key.split(" / ").any(|key| key == owned_key)
-                    && entry.title == en_title),
-            "English Help should show {en_title:?} for owned key {owned_key:?} ({expected:?})"
-        );
-        assert!(
-            chinese
-                .iter()
-                .any(|entry| entry.key.split(" / ").any(|key| key == owned_key)
-                    && entry.title == zh_title),
-            "Chinese Help should show {zh_title:?} for owned key {owned_key:?} ({expected:?})"
-        );
-
+    for (code, expected) in cases {
         let mut view = ClientView::new(120);
         let prefix = view.decide(key(KeyCode::Char('b'), Modifiers::CTRL));
         view.commit(prefix, ClientActionDisposition::KeepNavigator);

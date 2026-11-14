@@ -247,7 +247,7 @@ fn refused_project_picker_preserves_the_underlay_and_prior_hit_map() {
 fn directory_actions_only_replace_a_live_empty_panel() {
     use crate::client_view::{ClientAction, PrefixAction};
     use crate::localization::DisplayPhase as Phase;
-    use crate::localization::ShortcutLabel;
+    use crate::localization::MenuLabel;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for phase in [
             Phase::Starting,
@@ -279,7 +279,7 @@ fn directory_actions_only_replace_a_live_empty_panel() {
             ready.hint,
             Some((
                 PrefixAction::Client(ClientAction::CreateTab),
-                ShortcutLabel::NewTab
+                MenuLabel::NewTab
             ))
         );
     }

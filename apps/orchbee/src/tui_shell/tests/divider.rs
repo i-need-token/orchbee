@@ -19,7 +19,6 @@ use orchbee_workbench_client::test_support::tui_layout::DrawnDividerFixture;
 use orchbee_workbench_client::test_support::tui_layout::DrawnDividerTestAccess;
 use orchbee_workbench_client::test_support::tui_layout::DrawnSidebarWidthTestAccess;
 use orchbee_workbench_client::test_support::tui_layout::SidebarWidthTestAccess;
-use orchbee_workbench_client::test_support::tui_pointer::HelpControl;
 use orchbee_workbench_client::test_support::tui_pointer::HitLayer;
 use orchbee_workbench_client::test_support::tui_pointer::HitMapBuilderTestAccess;
 use orchbee_workbench_client::test_support::tui_pointer::HitTarget;
@@ -380,10 +379,7 @@ fn divider_rejected_preview_preserves_the_draw_pointer_projection() {
     let viewport = Rect::new(0, 0, 120, 40);
     let drag = DividerDrag::begin(fixture_divider(viewport), 50, 5).unwrap();
     let interaction_area = Rect::new(2, 2, 5, 1);
-    let interaction = InteractionTarget::Fixture(HitTarget::Help {
-        page: 0,
-        action: HelpControl::Close,
-    });
+    let interaction = InteractionTarget::Fixture(HitTarget::OverlaySurface);
     let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
     let theme = crate::tui_theme::Theme::terminal_native();
 

@@ -32,10 +32,8 @@ mod presentation;
 mod tab_menu;
 pub(crate) use presentation::RecoveryVerb;
 pub(crate) use tab_menu::TabMenuScope;
-mod plugins;
-mod shortcut_help;
-pub(crate) use shortcut_help::{ShortcutContext, ShortcutHelpGroup, ShortcutLabel};
 mod capabilities;
+mod plugins;
 mod settings;
 pub(crate) use settings::{
     IntegrationAdapter, IntegrationBlock, IntegrationFactLabel, IntegrationFailure,

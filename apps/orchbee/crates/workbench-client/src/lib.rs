@@ -78,7 +78,6 @@ mod tui_layout;
 mod tui_pointer;
 mod tui_presentation;
 mod tui_render;
-mod tui_shortcut_help;
 mod tui_theme;
 mod ui_wakeup;
 #[cfg(windows)]
@@ -642,7 +641,7 @@ pub mod test_support {
             InteractionSpecTestAccess, InteractionTarget, PrimaryContract, ProjectedPointer,
         };
         pub use crate::tui_pointer::{
-            HelpControl, MotionObservability, PointerOutcome, PointerState, PointerStateTestAccess,
+            MotionObservability, PointerOutcome, PointerState, PointerStateTestAccess,
         };
     }
 

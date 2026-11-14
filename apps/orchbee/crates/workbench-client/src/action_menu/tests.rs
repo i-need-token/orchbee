@@ -6,7 +6,7 @@ fn menu() -> ActionMenu {
     let mut menu = ActionMenu::default();
     assert!(menu.open(
         "Global".into(),
-        vec![MenuAction::Help, MenuAction::Detach],
+        vec![MenuAction::Navigator, MenuAction::Detach],
         None,
     ));
     menu
@@ -60,7 +60,7 @@ fn searchable_escape_cancels_a_confirmed_transfer_and_ignores_modified_or_releas
     assert!(menu.active());
 
     assert!(menu.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE)));
-    assert_eq!(menu.confirmed(), Some(MenuAction::Help));
+    assert_eq!(menu.confirmed(), Some(MenuAction::Navigator));
     menu.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
     assert!(!menu.active());
     assert_eq!(menu.confirmed(), None);
@@ -100,7 +100,7 @@ fn filtered_draw_rows_keep_their_original_action_identity_and_availability() {
     let mut menu = ActionMenu::default();
     assert!(menu.open(
         "Actions".into(),
-        vec![MenuAction::Help, MenuAction::Detach],
+        vec![MenuAction::Navigator, MenuAction::Detach],
         None,
     ));
     present(&mut menu, 0, 2);
@@ -139,7 +139,7 @@ fn filtered_draw_rows_keep_their_original_action_identity_and_availability() {
 fn restored_action_selection_uses_its_filtered_result_position() {
     let mut menu = ActionMenu::default();
     let actions = vec![
-        MenuAction::Help,
+        MenuAction::Navigator,
         MenuAction::RenameTab,
         MenuAction::ClosePane,
         MenuAction::Detach,
@@ -268,7 +268,7 @@ fn wheel_moves_only_the_viewport_and_keyboard_navigation_reveals_selection() {
     assert!(menu.open(
         "Actions".into(),
         vec![
-            MenuAction::Help,
+            MenuAction::Navigator,
             MenuAction::Detach,
             MenuAction::Copy,
             MenuAction::Settings,
@@ -331,7 +331,7 @@ fn wheel_reaches_a_tail_window_using_terminal_rows_and_result_indices() {
     assert!(menu.open(
         "Actions".into(),
         vec![
-            MenuAction::Help,
+            MenuAction::Navigator,
             MenuAction::Detach,
             MenuAction::Machines,
             MenuAction::DuplicateTab,
@@ -377,7 +377,7 @@ fn wheel_reaches_a_tail_window_using_terminal_rows_and_result_indices() {
 fn same_surface_metadata_rekeys_keep_the_continuation_lease() {
     let mut menu = menu();
     let draw = present(&mut menu, 0, 2);
-    menu.set_labels(|action| (action == MenuAction::Help).then(|| "Help target".into()));
+    menu.set_labels(|action| (action == MenuAction::Navigator).then(|| "Help target".into()));
     let context = menu.input_context().unwrap();
     assert_ne!(context.token(), draw.token);
     assert_eq!(context.phase(), PresentationPhase::Admitted);
@@ -477,7 +477,7 @@ fn activation_requires_the_exact_selected_row_and_painted_window() {
     present(&mut menu, 0, 1);
     assert!(!menu.click(token, 1), "a hidden row cannot activate");
     assert!(menu.confirm());
-    assert_eq!(menu.take(), Some(MenuAction::Help));
+    assert_eq!(menu.take(), Some(MenuAction::Navigator));
     assert_eq!(menu.take(), None);
 }
 
@@ -518,13 +518,13 @@ fn an_old_episode_receipt_cannot_arm_a_reopened_menu() {
         result_actions: view.result_actions.to_vec(),
     };
     menu.cancel();
-    assert!(menu.open("Reopened".into(), vec![MenuAction::Help], None));
+    assert!(menu.open("Reopened".into(), vec![MenuAction::Navigator], None));
     assert!(!menu.presented(old));
     assert!(!menu.confirm());
     assert!(menu.active());
     present(&mut menu, 0, 1);
     assert!(menu.confirm());
-    assert_eq!(menu.take(), Some(MenuAction::Help));
+    assert_eq!(menu.take(), Some(MenuAction::Navigator));
 }
 
 #[test]
@@ -616,7 +616,7 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
             6 => {
                 if menu.open(
                     "Reopened".into(),
-                    vec![MenuAction::Help, MenuAction::Detach],
+                    vec![MenuAction::Navigator, MenuAction::Detach],
                     None,
                 ) {
                     expected = None;
@@ -658,8 +658,6 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
 
 #[test]
 fn menu_binding_projection_requires_the_same_typed_target_semantics() {
-    use crate::action_projection::{binding_metadata, menu_metadata};
-
     let global = MenuTarget::Global;
     let cases = [
         (
@@ -718,7 +716,6 @@ fn menu_binding_projection_requires_the_same_typed_target_semantics() {
             MenuAction::Settings,
             PrefixAction::Client(ClientAction::OpenSettings),
         ),
-        (MenuAction::Help, PrefixAction::ShowHelp),
         (MenuAction::Sidebar, PrefixAction::SidebarToggle),
         (MenuAction::Detach, PrefixAction::Client(ClientAction::Exit)),
     ];
@@ -729,10 +726,6 @@ fn menu_binding_projection_requires_the_same_typed_target_semantics() {
     let tab = MenuTarget::Tab(
         orchbee_workbench_protocol::WorkbenchTabId::parse("00000000000000000000000000000001")
             .unwrap(),
-    );
-    assert_eq!(
-        menu_metadata(MenuAction::RenameTab).action,
-        binding_metadata(&PrefixAction::Client(ClientAction::RequestRenameTab)).unwrap()
     );
     assert_eq!(menu_binding_action(&tab, MenuAction::RenameTab), None);
     assert_eq!(

@@ -93,7 +93,7 @@ impl From<(u16, u16)> for MenuAnchor {
     }
 }
 
-pub use crate::client_actions::MenuAction;
+pub use crate::client_actions::{KeyRow, MenuAction};
 
 pub(crate) use crate::localization::{MenuHeading, MenuRowNote, MenuUnavailable};
 
@@ -139,6 +139,8 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::NewTabToRight,
     MenuAction::DuplicateTab,
     MenuAction::RenameTab,
+    MenuAction::NextTab,
+    MenuAction::PreviousTab,
     MenuAction::MoveTabPrevious,
     MenuAction::MoveTabNext,
     MenuAction::MoveTabFirst,
@@ -148,6 +150,10 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::CloseTab,
     MenuAction::CloseTrailingTabs,
     MenuAction::LastPanel,
+    MenuAction::FocusPanel(PanelDirection::Up),
+    MenuAction::FocusPanel(PanelDirection::Down),
+    MenuAction::FocusPanel(PanelDirection::Left),
+    MenuAction::FocusPanel(PanelDirection::Right),
     MenuAction::ClearTerminal,
     MenuAction::RenamePanel,
     MenuAction::SplitPanel(PanelDirection::Up),
@@ -160,22 +166,67 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::MovePanel(PanelDirection::Down),
     MenuAction::MovePanel(PanelDirection::Left),
     MenuAction::MovePanel(PanelDirection::Right),
+    MenuAction::ResizePanel(PanelDirection::Up),
+    MenuAction::ResizePanel(PanelDirection::Down),
+    MenuAction::ResizePanel(PanelDirection::Left),
+    MenuAction::ResizePanel(PanelDirection::Right),
     MenuAction::FindInTerminal,
     MenuAction::Copy,
     MenuAction::NewWorkspace,
     MenuAction::WorkspaceAtDirectory,
     MenuAction::NewWorktree,
     MenuAction::OpenWorktree,
+    MenuAction::NextWorkspace,
+    MenuAction::PreviousWorkspace,
+    MenuAction::RenameWorkspace,
+    MenuAction::CloseWorkspace,
     MenuAction::Detach,
     MenuAction::Settings,
     MenuAction::Machines,
-    MenuAction::Help,
     MenuAction::Sidebar,
+    MenuAction::FocusSidebar,
     MenuAction::Navigator,
     MenuAction::StartAgent,
+    MenuAction::NextAgent,
+    MenuAction::PreviousAgent,
     MenuAction::OpenNotificationTarget,
     MenuAction::ReleasePointer,
 ];
+/// Keys the global menu lists after every runnable row and shows only to a search: each works
+/// only in its mode or picks among targets, so its row runs nothing and says where the key works.
+pub(crate) const KEY_ROWS: &[MenuAction] = {
+    use crate::localization::PrefixDesc as D;
+    use crate::machine_picker::SidebarCommand as S;
+    &[
+        MenuAction::Key(KeyRow::Prefix(D::SelectTabDigit)),
+        MenuAction::Key(KeyRow::Prefix(D::LiteralPrefix)),
+        MenuAction::Key(KeyRow::Prefix(D::DismissPrefix)),
+        MenuAction::Key(KeyRow::Copy(D::CopyMove)),
+        MenuAction::Key(KeyRow::Copy(D::CopyWord)),
+        MenuAction::Key(KeyRow::Copy(D::CopyParagraph)),
+        MenuAction::Key(KeyRow::Copy(D::CopyPage)),
+        MenuAction::Key(KeyRow::Copy(D::CopyEnds)),
+        MenuAction::Key(KeyRow::Copy(D::CopySearch)),
+        MenuAction::Key(KeyRow::Copy(D::CopyRepeatSearch)),
+        MenuAction::Key(KeyRow::Copy(D::CopyReverseSearch)),
+        MenuAction::Key(KeyRow::Copy(D::CopySelection)),
+        MenuAction::Key(KeyRow::Copy(D::CopySubmit)),
+        MenuAction::Key(KeyRow::Copy(D::CopyExit)),
+        MenuAction::Key(KeyRow::Sidebar(S::Previous)),
+        MenuAction::Key(KeyRow::Sidebar(S::Next)),
+        MenuAction::Key(KeyRow::Sidebar(S::First)),
+        MenuAction::Key(KeyRow::Sidebar(S::Last)),
+        MenuAction::Key(KeyRow::Sidebar(S::Expand)),
+        MenuAction::Key(KeyRow::Sidebar(S::Collapse)),
+        MenuAction::Key(KeyRow::Sidebar(S::Activate)),
+        MenuAction::Key(KeyRow::Sidebar(S::OpenMenu)),
+        MenuAction::Key(KeyRow::Sidebar(S::MoveUp)),
+        MenuAction::Key(KeyRow::Sidebar(S::MoveDown)),
+        MenuAction::Key(KeyRow::Sidebar(S::NewWorkspace)),
+        MenuAction::Key(KeyRow::Sidebar(S::Search)),
+        MenuAction::Key(KeyRow::Sidebar(S::Exit)),
+    ]
+};
 
 /// Resolves only bindings whose dispatch target has the same meaning as this menu entry.
 ///
@@ -186,6 +237,7 @@ pub(crate) fn menu_binding_action(
     action: crate::action_menu::MenuAction,
 ) -> Option<PrefixAction> {
     use crate::action_menu::{MenuAction as M, MenuTarget as T};
+    use crate::localization::PrefixDesc as D;
     use ClientAction as A;
 
     if let T::Drawn { target, .. } = target {
@@ -216,13 +268,31 @@ pub(crate) fn menu_binding_action(
         (T::Global, M::Copy) => PrefixAction::Client(A::EnterCopyMode),
         (T::Global, M::Settings) => PrefixAction::Client(A::OpenSettings),
         (T::Global, M::Machines) => PrefixAction::Client(A::OpenMachines),
-        (T::Global, M::Help) => PrefixAction::ShowHelp,
         (T::Global, M::Sidebar) => PrefixAction::SidebarToggle,
         (T::Global, M::Navigator) => PrefixAction::NavigatorToggle,
         (T::Global, M::StartAgent) => PrefixAction::Client(A::StartAgent),
         (T::Global, M::OpenNotificationTarget) => PrefixAction::Client(A::OpenNotificationTarget),
         (T::Global, M::ReleasePointer) => PrefixAction::Client(A::TogglePointerCapture),
         (T::Global, M::Detach) => PrefixAction::Client(A::Exit),
+        (T::Global, M::NextTab) => PrefixAction::Client(A::SelectNextTab),
+        (T::Global, M::PreviousTab) => PrefixAction::Client(A::SelectPreviousTab),
+        (T::Global, M::NextWorkspace) => PrefixAction::Client(A::SelectNextContext),
+        (T::Global, M::PreviousWorkspace) => PrefixAction::Client(A::SelectPreviousContext),
+        (T::Global, M::RenameWorkspace) => PrefixAction::Client(A::RequestWorkspaceRename),
+        (T::Global, M::CloseWorkspace) => PrefixAction::Client(A::RequestWorkspaceClose),
+        (T::Global, M::FocusPanel(direction)) => PrefixAction::Client(A::MovePanelFocus(direction)),
+        (T::Global, M::ResizePanel(direction)) => PrefixAction::Client(A::ResizePane { direction }),
+        (T::Global, M::NextAgent) => PrefixAction::Client(A::NextAgent),
+        (T::Global, M::PreviousAgent) => PrefixAction::Client(A::PreviousAgent),
+        (T::Global, M::FocusSidebar) => PrefixAction::Client(A::FocusBusinessSidebar),
+        (T::Global, M::ConfiguredCommand(id)) => PrefixAction::Client(A::ConfiguredCommand(id)),
+        (T::Global, M::Key(KeyRow::Prefix(D::SelectTabDigit))) => PrefixAction::SelectTabDigit,
+        (T::Global, M::Key(KeyRow::Prefix(D::LiteralPrefix))) => {
+            PrefixAction::Client(A::ForwardLiteralPrefix)
+        }
+        (T::Global, M::Key(KeyRow::Prefix(D::DismissPrefix))) => {
+            PrefixAction::Client(A::DismissPrefix)
+        }
         (T::TabCreate(_), M::NewTab) => PrefixAction::Client(A::CreateTab),
         // The key opens the same picker; only its starting place differs.
         (T::TabProfiles(_), M::MoreAgents) => PrefixAction::Client(A::StartAgent),
@@ -424,6 +494,9 @@ impl MenuView<'_> {
 }
 
 pub(crate) const MAXIMUM_ACTION_MENU_QUERY_BYTES: usize = 128;
+/// The longest menu: a Tab menu with every group of its Workspace, or the global menu with every
+/// built-in row, every key row and up to 64 configured commands.
+const MAXIMUM_MENU_ROWS: usize = orchbee_workbench_protocol::MAXIMUM_TAB_GROUPS_PER_CONTEXT + 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum GlobalMenuGroup {
@@ -440,6 +513,8 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::NewTabToRight
         | MenuAction::DuplicateTab
         | MenuAction::RenameTab
+        | MenuAction::NextTab
+        | MenuAction::PreviousTab
         | MenuAction::MoveTabPrevious
         | MenuAction::MoveTabNext
         | MenuAction::MoveTabFirst
@@ -454,6 +529,8 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::CopySelection
         | MenuAction::ClosePane
         | MenuAction::MovePanel(_)
+        | MenuAction::FocusPanel(_)
+        | MenuAction::ResizePanel(_)
         | MenuAction::RenamePanel => GlobalMenuGroup::Panel,
         MenuAction::FindInTerminal | MenuAction::ClearTerminal | MenuAction::LastPanel => {
             GlobalMenuGroup::Panel
@@ -461,7 +538,11 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         MenuAction::NewWorkspace
         | MenuAction::WorkspaceAtDirectory
         | MenuAction::NewWorktree
-        | MenuAction::OpenWorktree => GlobalMenuGroup::Workspace,
+        | MenuAction::OpenWorktree
+        | MenuAction::NextWorkspace
+        | MenuAction::PreviousWorkspace
+        | MenuAction::RenameWorkspace
+        | MenuAction::CloseWorkspace => GlobalMenuGroup::Workspace,
         MenuAction::Detach => GlobalMenuGroup::Client,
         _ => GlobalMenuGroup::Other,
     }
@@ -832,17 +913,17 @@ impl ActionMenu {
         actions: Vec<MenuAction>,
         anchor: Option<MenuAnchor>,
     ) -> bool {
-        if self.active()
-            || actions.is_empty()
-            || actions.len() > orchbee_workbench_protocol::MAXIMUM_TAB_GROUPS_PER_CONTEXT + 16
-        {
+        if self.active() || actions.is_empty() || actions.len() > MAXIMUM_MENU_ROWS {
             return false;
         }
         let Some(token) = self.allocate() else {
             return false;
         };
         let searchable = matches!(&source, MenuTarget::Global | MenuTarget::TabCreate(_));
-        let result_actions = (0..actions.len()).collect();
+        // Key rows wait for a search, as the renderer shows them.
+        let result_actions = (0..actions.len())
+            .filter(|index| !matches!(actions[*index], MenuAction::Key(_)))
+            .collect();
         self.menu = Some(Menu {
             source,
             title,

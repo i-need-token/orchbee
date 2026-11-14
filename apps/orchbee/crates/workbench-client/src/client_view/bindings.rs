@@ -8,7 +8,6 @@ use super::{
 };
 mod configured;
 pub use configured::Bindings;
-pub(crate) use configured::DiscoveryEntry;
 
 pub(crate) use crate::client_actions::PrefixAction;
 
@@ -74,15 +73,18 @@ const fn shift_key(c: char) -> KeySet {
 
 use super::PanelDirection;
 
-/// Every prefix-layer binding group, in help order. The first member label of
-/// each group joins with `" / "` into the help chord column.
+/// Every prefix-layer binding group, in discovery order.
 pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
     PrefixGroup {
         members: &[member(key(KeyCode::Char(',')), ClientAction::OpenSettings)],
         desc: PrefixDesc::Settings,
     },
     PrefixGroup {
-        members: &[member(key(KeyCode::Space), ClientAction::OpenActionMenu)],
+        // `?` opens the same searchable menu; it holds every shortcut a help list would.
+        members: &[
+            member(key(KeyCode::Space), ClientAction::OpenActionMenu),
+            member(key(KeyCode::Char('?')), ClientAction::OpenActionMenu),
+        ],
         desc: PrefixDesc::ActionMenu,
     },
     PrefixGroup {
@@ -188,7 +190,7 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         }],
         desc: PrefixDesc::SelectTabDigit,
     },
-    // Arrows come first so help and menus show them; h/j/k/l stay as the second set.
+    // Arrows come first so menus show them; h/j/k/l stay as the second set.
     PrefixGroup {
         members: &[
             member(
@@ -344,36 +346,16 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         desc: PrefixDesc::StartAgent,
     },
     PrefixGroup {
-        members: &[PrefixMember {
-            keys: key(KeyCode::Char('?')),
-            action: PrefixAction::ShowHelp,
-            shell: ShellCommand::None,
-        }],
-        desc: PrefixDesc::ShowHelp,
-    },
-    PrefixGroup {
         members: &[member(
             key(KeyCode::Char('m')),
             ClientAction::TogglePointerCapture,
         )],
         desc: PrefixDesc::PointerCapture,
     },
-    // Pages an open help overlay; with help closed the chord is inert
-    // (same unknown-prefix outcome as any unbound member key).
+    // Enters the focused Panel's history a page up, as the wheel does.
     PrefixGroup {
-        members: &[
-            PrefixMember {
-                keys: key(KeyCode::PageUp),
-                action: PrefixAction::HelpPagePrevious,
-                shell: ShellCommand::None,
-            },
-            PrefixMember {
-                keys: key(KeyCode::PageDown),
-                action: PrefixAction::HelpPageNext,
-                shell: ShellCommand::None,
-            },
-        ],
-        desc: PrefixDesc::HelpPage,
+        members: &[member(key(KeyCode::PageUp), ClientAction::EnterHistory)],
+        desc: PrefixDesc::History,
     },
     PrefixGroup {
         members: &[PrefixMember {
@@ -428,7 +410,6 @@ impl Bindings {
                 &self.prefix,
                 crate::terminal_events::keys::LabelStyle::for_host(),
             ),
-            help: label(PrefixDesc::ShowHelp),
             exit: label(PrefixDesc::Exit),
             sidebar: label(PrefixDesc::SidebarToggle),
             zoom: label(PrefixDesc::PanelZoom),

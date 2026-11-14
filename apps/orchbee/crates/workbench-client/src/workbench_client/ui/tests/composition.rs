@@ -3,9 +3,10 @@
 use super::super::*;
 use crate::agent_board::AgentBoardEpisodeToken;
 use crate::client_view::{
-    Binding, ClientView, KeyCode, KeyEvent, LabelStyle, Modifiers, PrefixDesc, format_binding,
+    Binding, ClientView, KeyCode, KeyEvent, LabelStyle, Modifiers, PrefixDesc,
 };
 use crate::localization::{Locale, RecoveryVerb};
+use crate::terminal_events::keys::format_binding;
 use crate::tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget, ListScrollTarget};
 use crate::tui_presentation::PresentationPhase;
 use crate::tui_theme::Role;

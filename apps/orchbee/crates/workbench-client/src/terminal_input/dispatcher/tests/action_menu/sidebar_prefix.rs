@@ -43,7 +43,7 @@ fn painted_sidebar_agent_click_and_enter_capture_packet_tail_without_centered_na
         };
         for split in 0..input.len() {
             let (mut view, _) = sidebar_view_with_agent();
-            let mut port = Port::new(MenuAction::Help);
+            let mut port = Port::new(MenuAction::Machines);
             let mut dispatcher = InputDispatcher::default();
             dispatcher.set_pointer_capture(&mut view, &mut port, true);
             dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
@@ -103,7 +103,7 @@ fn sidebar_workspace_activation_and_pending_escape_capture_tail_without_opening_
         // Split inside each encoded report; its completed packet owns the tail.
         for split in 0..input.len() {
             let mut view = sidebar_view();
-            let mut port = Port::new(MenuAction::Help);
+            let mut port = Port::new(MenuAction::Machines);
             let mut dispatcher = InputDispatcher::default();
             dispatcher.set_pointer_capture(&mut view, &mut port, true);
             dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
@@ -168,7 +168,7 @@ fn sidebar_fixed_creation_and_search_entries_share_keyboard_and_pointer_capture(
         };
         for split in 0..=input.len() {
             let (mut view, _) = sidebar_view_with_agent();
-            let mut port = Port::new(MenuAction::Help);
+            let mut port = Port::new(MenuAction::Machines);
             let mut dispatcher = InputDispatcher::default();
             dispatcher.set_pointer_capture(&mut view, &mut port, true);
             dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
@@ -215,7 +215,7 @@ fn sidebar_global_prefix_dispatches_default_creation_and_preserves_return_marker
             for split in 0..=2 {
                 let mut view = sidebar_view();
                 view.resize(width);
-                let mut port = Port::new(MenuAction::Help);
+                let mut port = Port::new(MenuAction::Machines);
                 let mut dispatcher = InputDispatcher::default();
                 dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
                 assert!(view.machines.sidebar_navigation_active());
@@ -266,7 +266,7 @@ fn sidebar_prefix_respects_configured_chords_and_captures_paste_and_key_releases
         let mut view = sidebar_view();
         view.resize(87);
         view.configure_keys(&settings);
-        let mut port = Port::new(MenuAction::Help);
+        let mut port = Port::new(MenuAction::Machines);
         let mut dispatcher = InputDispatcher::default();
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x01B");
         dispatcher.publish_hit_map(sidebar_menu_map());
@@ -312,7 +312,7 @@ fn sidebar_prefix_respects_configured_chords_and_captures_paste_and_key_releases
 fn sidebar_prefix_decisions_do_not_also_navigate_and_escape_returns_to_sidebar() {
     let mut view = sidebar_view();
     view.resize(87);
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
     dispatcher.publish_hit_map(sidebar_menu_map());
@@ -353,7 +353,7 @@ fn sidebar_prefix_decisions_do_not_also_navigate_and_escape_returns_to_sidebar()
 fn sidebar_toggle_prefix_closes_and_reopens_the_narrow_sidebar_overlay() {
     let mut view = sidebar_view();
     view.resize(87);
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
 
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
@@ -397,7 +397,7 @@ fn sidebar_toggle_prefix_closes_and_reopens_the_narrow_sidebar_overlay() {
 fn sidebar_menu_keeps_exclusive_capture_over_global_prefix_and_closing_packet() {
     let mut view = sidebar_view();
     view.resize(87);
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
     dispatcher.publish_hit_map(sidebar_menu_map());
@@ -425,7 +425,7 @@ fn sidebar_creation_return_yields_to_newer_keyboard_navigation() {
     for key in *b"Na" {
         let mut view = sidebar_view();
         view.resize(87);
-        let mut port = Port::new(MenuAction::Help);
+        let mut port = Port::new(MenuAction::Machines);
         let mut dispatcher = InputDispatcher::default();
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
         dispatcher.publish_hit_map(sidebar_menu_map());

@@ -81,7 +81,7 @@ fn startup_preference_render_proof_rejects_covered_small_and_stale_selection() {
     assert!(ui.view().accepts_position_draw(&proof));
     assert!(draw(&ui, &shell, 2, 2).position().is_none());
     use crate::client_view::{ClientActionDisposition, KeyCode, KeyEvent, Modifiers, PrefixInput};
-    for (character, modifiers) in [('b', Modifiers::CTRL), ('?', Modifiers::NONE)] {
+    for (character, modifiers) in [('b', Modifiers::CTRL), ('w', Modifiers::NONE)] {
         let transition = shell.decide(PrefixInput::Key(KeyEvent::press(
             KeyCode::Char(character),
             modifiers,

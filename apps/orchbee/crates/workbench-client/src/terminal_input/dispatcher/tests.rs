@@ -299,11 +299,9 @@ fn button_free_motion_redraws_only_for_changed_projection_and_never_starves_esca
     let mut view = ClientView::new(80);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     dispatcher.set_pointer_motion_observability(crate::tui_pointer::MotionObservability::AnyMotion);
-    let target =
-        crate::tui_hit_map::InteractionTarget::Fixture(crate::tui_hit_map::HitTarget::Help {
-            page: 1,
-            action: crate::tui_pointer::HelpControl::Close,
-        });
+    let target = crate::tui_hit_map::InteractionTarget::Fixture(
+        crate::tui_hit_map::HitTarget::OverlaySurface,
+    );
     let area = ratatui::layout::Rect::new(10, 5, 8, 2);
     let spec = crate::tui_hit_map::InteractionSpec::enabled(
         crate::tui_hit_map::PrimaryContract::ActivateOnRelease,
@@ -410,7 +408,6 @@ fn button_free_motion_redraws_only_for_changed_projection_and_never_starves_esca
 fn a_key_closes_the_pointer_tooltip_and_still_reaches_its_owner() {
     use crate::tui_hit_map::TooltipContent;
     use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
-    use crate::tui_pointer::HelpControl;
     let calls = Rc::new(RefCell::new(Vec::new()));
     let mut port = UnavailablePort(Rc::clone(&calls));
     let mut dispatcher = InputDispatcher::default();
@@ -418,10 +415,7 @@ fn a_key_closes_the_pointer_tooltip_and_still_reaches_its_owner() {
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     dispatcher.set_pointer_motion_observability(crate::tui_pointer::MotionObservability::AnyMotion);
     let area = ratatui::layout::Rect::new(10, 5, 8, 1);
-    let target = HitTarget::Help {
-        page: 1,
-        action: HelpControl::Close,
-    };
+    let target = HitTarget::OverlaySurface;
     let frame = |dispatcher: &InputDispatcher| {
         let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
         hits.record(HitLayer::Chrome, area, target.clone());
@@ -503,7 +497,6 @@ fn cancelled_generic_press_fences_only_its_exact_late_release_packet() {
     use crate::tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
     };
-    use crate::tui_pointer::HelpControl;
     use ratatui::layout::Rect;
 
     let publish = |dispatcher: &mut InputDispatcher| {
@@ -513,10 +506,7 @@ fn cancelled_generic_press_fences_only_its_exact_late_release_packet() {
             HitLayer::Foreground,
             area,
             area,
-            InteractionTarget::Fixture(HitTarget::Help {
-                page: 1,
-                action: HelpControl::Close,
-            }),
+            InteractionTarget::Fixture(HitTarget::OverlaySurface),
             InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
         );
         dispatcher.publish_hit_map(hits.finish());
@@ -1809,7 +1799,7 @@ impl TerminalInputPort for BoardPort {
         self.action_menu.open_for(
             target,
             "Actions".to_owned(),
-            vec![crate::action_menu::MenuAction::Help],
+            vec![crate::action_menu::MenuAction::Machines],
             anchor,
         )
     }
@@ -2083,74 +2073,34 @@ fn an_open_board_admits_prefix_toggles_and_keeps_paste_captured() {
 }
 
 #[test]
-fn board_prefix_routes_switch_to_navigator_help_and_sidebar() {
-    for (suffix, expected_action, expected_overlay) in [
-        (
-            b'w',
-            ClientAction::OpenWorkbenchNavigator,
-            Some(crate::client_view::Overlay::WorkbenchNavigator),
-        ),
-        (
-            b'?',
-            ClientAction::OpenShortcutHelp,
-            Some(crate::client_view::Overlay::ShortcutHelp),
-        ),
-    ] {
-        let calls = Rc::new(RefCell::new(Vec::new()));
-        let owned = Rc::new(std::cell::Cell::new(true));
-        let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
-        let mut dispatcher = InputDispatcher::default();
-        let mut view = ClientView::new(100);
+fn board_prefix_routes_switch_to_navigator_and_sidebar() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let owned = Rc::new(std::cell::Cell::new(true));
+    let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
 
-        dispatch_all(&mut dispatcher, &mut view, &mut port, &[0x02, suffix]);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, &[0x02, b'w']);
 
-        assert!(!owned.get(), "switching away closes the native Board");
-        assert_eq!(view.overlay(), expected_overlay);
-        assert_eq!(
-            calls.borrow().as_slice(),
-            [Call::Action(expected_action.clone())]
-        );
+    assert!(!owned.get(), "switching away closes the native Board");
+    assert_eq!(
+        view.overlay(),
+        Some(crate::client_view::Overlay::WorkbenchNavigator)
+    );
+    assert_eq!(
+        calls.borrow().as_slice(),
+        [Call::Action(ClientAction::OpenWorkbenchNavigator)]
+    );
 
-        if suffix == b'w' {
-            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02w");
-            assert_eq!(view.overlay(), None, "repeating Navigator closes it");
-            assert_eq!(
-                calls.borrow().as_slice(),
-                [
-                    Call::Action(ClientAction::OpenWorkbenchNavigator),
-                    Call::Action(ClientAction::CloseWorkbenchNavigator),
-                ]
-            );
-        } else {
-            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02?");
-            assert_eq!(view.overlay(), None, "repeating Help toggle closes it");
-            assert_eq!(
-                calls.borrow().as_slice(),
-                [
-                    Call::Action(ClientAction::OpenShortcutHelp),
-                    Call::Action(ClientAction::CloseShortcutHelp),
-                ]
-            );
-            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02?");
-            assert_eq!(
-                view.overlay(),
-                Some(crate::client_view::Overlay::ShortcutHelp),
-                "the same binding opens Help again after the local close"
-            );
-            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
-            assert_eq!(view.overlay(), None, "Escape closes Help");
-            assert_eq!(
-                calls.borrow().as_slice(),
-                [
-                    Call::Action(ClientAction::OpenShortcutHelp),
-                    Call::Action(ClientAction::CloseShortcutHelp),
-                    Call::Action(ClientAction::OpenShortcutHelp),
-                    Call::Action(ClientAction::CloseShortcutHelp),
-                ]
-            );
-            assert!(forwarded_bytes(&calls).is_empty());
-        }
-    }
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02w");
+    assert_eq!(view.overlay(), None, "repeating Navigator closes it");
+    assert_eq!(
+        calls.borrow().as_slice(),
+        [
+            Call::Action(ClientAction::OpenWorkbenchNavigator),
+            Call::Action(ClientAction::CloseWorkbenchNavigator),
+        ]
+    );
 
     let calls = Rc::new(RefCell::new(Vec::new()));
     let owned = Rc::new(std::cell::Cell::new(true));
@@ -2815,7 +2765,6 @@ fn a_chord_typed_after_a_fenced_decision_resolves_and_hover_keeps_the_prefix() {
     use crate::tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
     };
-    use crate::tui_pointer::HelpControl;
     use ratatui::layout::Rect;
 
     let click = b"[<0;13;6M[<0;13;6m".as_slice();
@@ -2838,10 +2787,7 @@ fn a_chord_typed_after_a_fenced_decision_resolves_and_hover_keeps_the_prefix() {
             HitLayer::Foreground,
             area,
             area,
-            InteractionTarget::Fixture(HitTarget::Help {
-                page: 1,
-                action: HelpControl::Close,
-            }),
+            InteractionTarget::Fixture(HitTarget::OverlaySurface),
             InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
         );
         dispatcher.publish_hit_map(hits.finish());

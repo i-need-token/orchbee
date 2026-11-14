@@ -4,7 +4,7 @@ use super::Locale;
 /// Localization keys retained by input owners for mode-specific descriptions
 /// and status hints. Global shortcut discovery uses action metadata instead.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PrefixDesc {
+pub enum PrefixDesc {
     ActionMenu,
     Settings,
     ConfiguredCommand(u8),
@@ -54,8 +54,7 @@ pub(crate) enum PrefixDesc {
     SidebarFocus,
     NavigatorToggle,
     StartAgent,
-    ShowHelp,
-    HelpPage,
+    History,
     PointerCapture,
     Exit,
     LiteralPrefix,
@@ -70,7 +69,7 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::CopyMove => "Move the copy cursor",
         PrefixDesc::CopyWord => "Move by word / whitespace-delimited word",
         PrefixDesc::CopyParagraph => "Move to previous / next paragraph",
-        PrefixDesc::CopyPage => "Page older / newer content (pages help while open)",
+        PrefixDesc::CopyPage => "Page older / newer content",
         PrefixDesc::CopyEnds => "Go to oldest / newest content",
         PrefixDesc::CopySearch => "Search forward / backward; Enter confirms",
         PrefixDesc::CopyRepeatSearch => "Repeat search / reverse direction",
@@ -119,8 +118,7 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::SidebarFocus => "Switch sidebar / terminal focus",
         PrefixDesc::NavigatorToggle => "Toggle Workbench navigator",
         PrefixDesc::StartAgent => "Start an Agent",
-        PrefixDesc::ShowHelp => "Open or close this shortcut help",
-        PrefixDesc::HelpPage => "Page this shortcut help while it is open",
+        PrefixDesc::History => "Scroll back through the focused panel's history",
         PrefixDesc::PointerCapture => "Release or restore mouse capture",
         PrefixDesc::Exit => Locale::EnUs.client_detach_label(),
         PrefixDesc::LiteralPrefix => "Send the literal prefix to the terminal input port",
@@ -136,7 +134,7 @@ pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::CopyMove => "移动复制光标",
         PrefixDesc::CopyWord => "按词 / 空白分隔的大词移动",
         PrefixDesc::CopyParagraph => "移动到上一个 / 下一个段落",
-        PrefixDesc::CopyPage => "翻看更早 / 更新内容（帮助打开时翻页）",
+        PrefixDesc::CopyPage => "翻看更早 / 更新内容",
         PrefixDesc::CopyEnds => "跳到最旧 / 最新内容",
         PrefixDesc::CopySearch => "向前 / 向后搜索；Enter 确认",
         PrefixDesc::CopyRepeatSearch => "重复搜索 / 反向跳转",
@@ -179,8 +177,7 @@ pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::SidebarFocus => "切换边栏／终端焦点",
         PrefixDesc::NavigatorToggle => "切换 Workbench 导航器",
         PrefixDesc::StartAgent => "启动智能体",
-        PrefixDesc::ShowHelp => "打开或关闭此快捷键帮助",
-        PrefixDesc::HelpPage => "在帮助打开时翻看此快捷键帮助的页面",
+        PrefixDesc::History => "回看当前面板的历史输出",
         PrefixDesc::PointerCapture => "释放或恢复鼠标捕获",
         PrefixDesc::Exit => Locale::ZhCn.client_detach_label(),
         PrefixDesc::LiteralPrefix => "向终端输入端口发送字面前缀",

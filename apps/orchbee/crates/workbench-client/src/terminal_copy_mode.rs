@@ -227,7 +227,6 @@ pub enum CopyControl {
     Search,
     RepeatSearch { reverse: bool },
     Exit,
-    Help,
     SubmitSearch,
     CancelSearch,
     ReverseSearch,

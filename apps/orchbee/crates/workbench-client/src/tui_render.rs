@@ -72,7 +72,6 @@ mod divider_resize;
 mod environment_marker;
 mod find_bar;
 mod held_restore;
-mod help;
 mod machine_login;
 mod machine_picker;
 mod machine_waiting;
@@ -273,7 +272,6 @@ pub fn render_terminal_shell_with_resize<'a>(
     let mut setup = None;
     let mut worktree = None;
     let mut overlay_refused = false;
-    let mut help_presented = false;
     let mut board_draw = None;
     let mut graphics_draws = Vec::new();
     let mut copy_crop = None;
@@ -534,26 +532,6 @@ pub fn render_terminal_shell_with_resize<'a>(
             .overlay()
             .filter(|_| client_chrome_overlay_allowed(capture_owner))
         {
-            Some(Overlay::ShortcutHelp) => {
-                let presented = view.help_draw_candidate().and_then(|candidate| {
-                    // Reference surfaces center in the whole window, like every dialog.
-                    help::render(
-                        frame,
-                        frame.area(),
-                        help::RenderContext::new(
-                            text,
-                            locale,
-                            view,
-                            workbench_client.is_some(),
-                            candidate,
-                        ),
-                        theme,
-                        hits,
-                    )
-                });
-                help_presented = presented.is_some();
-                Some(presented)
-            }
             Some(Overlay::WorkbenchNavigator) => Some(navigator::render(
                 frame,
                 frame.area(),
@@ -821,11 +799,6 @@ pub fn render_terminal_shell_with_resize<'a>(
         && workbench_client
             .as_ref()
             .is_some_and(|native| native.copy_mode().is_some());
-    let help_refusal = tier != ViewportTier::TooSmall
-        && client_chrome_overlay_allowed(capture_owner)
-        && view.overlay() == Some(Overlay::ShortcutHelp)
-        && !help_presented
-        && view.help_draw_candidate().is_some();
     let menu_status = native_top(WorkbenchCaptureOwner::ActionMenu)
         && workbench_client
             .as_ref()
@@ -837,7 +810,7 @@ pub fn render_terminal_shell_with_resize<'a>(
     // One owner paints the status cells in a frame: a local owner's feedback replaces the
     // ordinary status instead of stacking a second chip beside it.
     let status_replaced =
-        native_recovery.is_some() || copy_status || help_refusal || menu_status || settings_status;
+        native_recovery.is_some() || copy_status || menu_status || settings_status;
     let painted = if status_visible && !status_replaced {
         render_status(
             frame,
@@ -926,11 +899,6 @@ pub fn render_terminal_shell_with_resize<'a>(
                 .supports(crate::tui_capabilities::Capability::Clipboard),
         );
         hits.record(HitLayer::Status, areas.status, HitTarget::OverlaySurface);
-    }
-    if help_refusal && let Some(candidate) = view.help_draw_candidate() {
-        // The requested page remains owner state for a later resize. Only a
-        // complete fixed-width close publishes refused-surface authority.
-        let _ = help::render_refused(frame, chip_area, text, candidate, theme, hits);
     }
     if capture_owner.is_none()
         && let Some(native) = workbench_client.as_ref()

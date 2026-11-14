@@ -36,7 +36,7 @@ fn present_action_menu(ui: &mut WorkbenchClientUi) -> MenuToken {
         (
             menu.token,
             menu.selected,
-            menu.actions.len(),
+            menu.result_actions.len(),
             menu.result_actions.to_vec(),
             menu.candidate_hidden,
         )
@@ -325,7 +325,7 @@ fn tab_group_toggle_all_clear_and_stale_menu_proof_stay_client_local() {
         candidate_visible: !ui.view().action_menu().unwrap().candidate_hidden,
         token,
         first: 0,
-        visible_rows: ui.view().action_menu().unwrap().actions.len(),
+        visible_rows: result_actions.len(),
         result_actions,
     })));
     ui.state

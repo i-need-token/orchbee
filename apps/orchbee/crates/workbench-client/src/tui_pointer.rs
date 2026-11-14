@@ -29,7 +29,6 @@ use ratatui::layout::Rect;
 
 use orchbee_terminal_protocol::MouseTracking;
 
-pub use crate::client_view::help::HelpControl;
 use crate::client_view::{ClientAction, ClientView, Modifiers};
 use crate::terminal_events::{
     MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PanePointerRoute,
@@ -590,48 +589,6 @@ impl PointerState {
             && !view.navigator_active()
             && !view.machines.sidebar_navigation_active()
             && matches!(self.gesture, Gesture::Idle)
-    }
-
-    pub(crate) fn help_event(
-        &mut self,
-        view: &mut ClientView,
-        event: MouseEvent,
-    ) -> PointerOutcome {
-        if view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp) {
-            return PointerOutcome::Ignored;
-        }
-        if plain_primary_press(event) {
-            self.cancel_list_scroll();
-        }
-        let interaction = self.modal_interaction_event(event, InteractionTarget::is_help);
-        if interaction != PointerOutcome::Ignored {
-            return interaction;
-        }
-        if self.queue_list_scroll(event) {
-            return PointerOutcome::Handled;
-        }
-        if !self.capture || self.host_unfocused || !plain_primary_press(event) {
-            return PointerOutcome::Handled;
-        }
-        let Some(map) = &self.map else {
-            return PointerOutcome::Handled;
-        };
-        if !matches!(
-            map.hit(event.column, event.row),
-            HitResolution::OverlayBackdrop
-        ) {
-            return PointerOutcome::Handled;
-        }
-        let Some(source) = map.help_draw_source().cloned() else {
-            return PointerOutcome::Handled;
-        };
-        let close = crate::client_view::help::DrawnHelpControl::new(source, HelpControl::Close);
-        if view.activate_drawn_help(&close) {
-            self.stale_map();
-            PointerOutcome::RegionsChanged
-        } else {
-            PointerOutcome::Handled
-        }
     }
 
     pub(crate) fn settings_event(&mut self, event: MouseEvent) -> PointerOutcome {
@@ -2027,7 +1984,6 @@ impl PointerState {
         if event.action == MouseAction::Press
             && event.button == MouseButton::Left
             && event.mods == crate::client_view::Modifiers::NONE
-            && view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp)
             && !matches!(map.hit(event.column, event.row),
                 HitResolution::Region(hit) if hit.sidebar_target().is_some()
                     || matches!(hit, HitTarget::MachineWorkspaceSurface(_) | HitTarget::SidebarScrollbar { .. } | HitTarget::SidebarResize(_) | HitTarget::TabCreate(_)))
@@ -2054,7 +2010,7 @@ impl PointerState {
                 HitTarget::CreateMenu(_)
                 | HitTarget::SidebarRestoreButton
                 | HitTarget::SidebarHideButton
-                | HitTarget::ShortcutHelpButton
+                | HitTarget::ShortcutsButton
                 | HitTarget::TabListButton
                 | HitTarget::TabListCloseButton
                 | HitTarget::ActionMenuRow { .. }
@@ -2132,8 +2088,7 @@ impl PointerState {
                 | HitTarget::Rename { .. }
                 | HitTarget::SettingsControl { .. }
                 | HitTarget::AgentBoardControl(_)
-                | HitTarget::ListScroll(_)
-                | HitTarget::Help { .. },
+                | HitTarget::ListScroll(_),
             ) => PointerOutcome::Ignored,
             HitResolution::Region(
                 HitTarget::SidebarMenu(_)

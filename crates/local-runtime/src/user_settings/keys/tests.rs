@@ -39,12 +39,12 @@ fn read(body: &str) -> Result<KeySettings, SettingsError> {
 
 #[test]
 fn key_configuration_accepts_alternatives_disabling_and_ranges() {
-    let keys = read("prefix='ctrl+a'\nhelp=['prefix+?', 'f1']\nnew_tab=[]\nswitch_tab='prefix+alt+1..9'\nzoom='alt+z'").unwrap();
+    let keys = read("prefix='ctrl+a'\nsettings=['prefix+,', 'f1']\nnew_tab=[]\nswitch_tab='prefix+alt+1..9'\nzoom='alt+z'").unwrap();
     assert_eq!(keys.prefix, parse_chord("control+a").unwrap());
     assert_eq!(
         keys.overrides
             .iter()
-            .find(|item| item.action == "help")
+            .find(|item| item.action == "settings")
             .unwrap()
             .triggers
             .len(),
@@ -74,29 +74,29 @@ fn key_configuration_accepts_alternatives_disabling_and_ranges() {
 fn key_configuration_rejects_ambiguous_reserved_unsafe_and_unimplemented_values() {
     for (body, reason) in [
         (
-            "help='prefix+Q'\nnew_tab='prefix+shift+q'",
+            "settings='prefix+Q'\nnew_tab='prefix+shift+q'",
             "duplicate-binding",
         ),
-        ("help='f01'\nnew_tab='f1'", "duplicate-binding"),
+        ("settings='f01'\nnew_tab='f1'", "duplicate-binding"),
         (
-            "prefix='ctrl+a'\nhelp='prefix+control+a'",
+            "prefix='ctrl+a'\nsettings='prefix+control+a'",
             "reserved-binding",
         ),
-        ("help='ctrl+b'", "reserved-binding"),
-        ("help='prefix+esc'", "reserved-binding"),
-        ("help='ctrl+d'", "unsafe-binding"),
-        ("help='enter'", "unsafe-binding"),
-        ("help='Z'", "unsafe-binding"),
-        ("help='tab'", "unsafe-binding"),
-        ("help='backspace'", "unsafe-binding"),
-        ("help='esc'", "unsafe-binding"),
-        ("help='prefix+1..9'", "invalid-binding"),
+        ("settings='ctrl+b'", "reserved-binding"),
+        ("settings='prefix+esc'", "reserved-binding"),
+        ("settings='ctrl+d'", "unsafe-binding"),
+        ("settings='enter'", "unsafe-binding"),
+        ("settings='Z'", "unsafe-binding"),
+        ("settings='tab'", "unsafe-binding"),
+        ("settings='backspace'", "unsafe-binding"),
+        ("settings='esc'", "unsafe-binding"),
+        ("settings='prefix+1..9'", "invalid-binding"),
         ("switch_tab='prefix+q'", "invalid-binding"),
-        ("help='prefix+f25'", "invalid-binding"),
-        ("help='prefix+'", "invalid-binding"),
-        ("help='prefix+hyper+x'", "invalid-binding"),
-        ("help=3", "wrong-type"),
-        ("help=['f1', false]", "wrong-type"),
+        ("settings='prefix+f25'", "invalid-binding"),
+        ("settings='prefix+'", "invalid-binding"),
+        ("settings='prefix+hyper+x'", "invalid-binding"),
+        ("settings=3", "wrong-type"),
+        ("settings=['f1', false]", "wrong-type"),
         ("custom_command=[]", "unknown-key"),
     ] {
         assert_eq!(read(body).unwrap_err().reason, reason, "{body}");
@@ -121,8 +121,8 @@ fn key_configuration_is_bounded_and_preserves_complete_modifiers() {
         parse_chord("ctrl+5").unwrap(),
         parse_chord("ctrl+]").unwrap()
     );
-    assert!(read("help='alt+shift+a'").is_ok());
-    let body = format!("help=[{}]", vec!["'f1'"; 17].join(","));
+    assert!(read("settings='alt+shift+a'").is_ok());
+    let body = format!("settings=[{}]", vec!["'f1'"; 17].join(","));
     assert_eq!(read(&body).unwrap_err().reason, "too-many-bindings");
     assert!(parse_chord(&"x".repeat(129)).is_err());
     assert!(parse_chord("ctrl+\nq").is_err());
@@ -138,7 +138,7 @@ fn key_profile_roundtrip_preserves_expanded_ranges_and_a_configured_action() {
         KeySettings::from_profile(&settings.profile()).unwrap(),
         settings
     );
-    assert!(KeySettings::from_profile("[keys]\nhelp='ctrl+c'").is_err());
+    assert!(KeySettings::from_profile("[keys]\nsettings='ctrl+c'").is_err());
     assert!(KeySettings::from_profile("[keys]\n[terminal]\n").is_err());
     assert!(KeySettings::from_profile(&"x".repeat(65537)).is_err());
 }

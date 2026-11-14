@@ -91,7 +91,6 @@ pub(crate) enum MenuLabel {
     OpenWorktree,
     Settings,
     Machines,
-    Help,
     Sidebar,
     Navigator,
     StartAgent,
@@ -100,6 +99,18 @@ pub(crate) enum MenuLabel {
     OpenNotificationTarget,
     ReleasePointer,
     Detach,
+    NextTab,
+    PreviousTab,
+    NextWorkspace,
+    PreviousWorkspace,
+    FocusPanel(PanelDirection),
+    ResizePanel(PanelDirection),
+    NextAgent,
+    PreviousAgent,
+    FocusSidebar,
+    ConfiguredCommand,
+    /// A key row's generic title; its row names the mode and the key's own words.
+    Key,
 }
 
 /// A labeled group inside a submenu; never a candidate and never an action.
@@ -147,6 +158,12 @@ pub(crate) enum MenuUnavailable {
     NotGitRepository,
     NoOtherWorktrees,
     NoSelection,
+    /// A key row's key works only in keyboard copy mode.
+    KeyInCopyMode,
+    /// A key row's key works only while the sidebar has the keyboard.
+    KeyInSidebar,
+    /// A key row's key picks among targets the menu cannot choose, so only the key runs it.
+    KeyOnly,
 }
 
 impl Locale {
@@ -404,8 +421,32 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::NoSelection, false) => "请先在此面板中选中文本。",
             (Self::EnUs, MenuUnavailable::NoSelection, true) => "No selection",
             (Self::ZhCn, MenuUnavailable::NoSelection, true) => "无选区",
+            (Self::EnUs, MenuUnavailable::KeyInCopyMode, false) => "Works in keyboard copy mode",
+            (Self::ZhCn, MenuUnavailable::KeyInCopyMode, false) => "在键盘复制模式中使用",
+            (Self::EnUs, MenuUnavailable::KeyInCopyMode, true) => "Copy mode key",
+            (Self::ZhCn, MenuUnavailable::KeyInCopyMode, true) => "复制模式按键",
+            (Self::EnUs, MenuUnavailable::KeyInSidebar, false) => {
+                "Works while the sidebar has the keyboard"
+            }
+            (Self::ZhCn, MenuUnavailable::KeyInSidebar, false) => "在边栏获得键盘焦点时使用",
+            (Self::EnUs, MenuUnavailable::KeyInSidebar, true) => "Sidebar key",
+            (Self::ZhCn, MenuUnavailable::KeyInSidebar, true) => "边栏按键",
+            (Self::EnUs, MenuUnavailable::KeyOnly, false) => "Press the key to use it",
+            (Self::ZhCn, MenuUnavailable::KeyOnly, false) => "请直接按键使用",
+            (Self::EnUs, MenuUnavailable::KeyOnly, true) => "Key only",
+            (Self::ZhCn, MenuUnavailable::KeyOnly, true) => "仅限按键",
         }
     }
+    /// The mode a key row's key works in, which leads the row: `Copy mode · Search …`.
+    pub(crate) const fn menu_key_mode(self, sidebar: bool) -> &'static str {
+        match (self, sidebar) {
+            (Self::EnUs, false) => "Copy mode",
+            (Self::ZhCn, false) => "复制模式",
+            (Self::EnUs, true) => "Sidebar",
+            (Self::ZhCn, true) => "边栏",
+        }
+    }
+
     pub(crate) const fn menu_heading(self, heading: MenuHeading) -> &'static str {
         match (self, heading) {
             (Self::EnUs, MenuHeading::Folders) => "Folders",
@@ -577,8 +618,6 @@ impl Locale {
             (Self::ZhCn, Settings) => "设置…",
             (Self::EnUs, Machines) => "Browse machines, Workspaces and Agents",
             (Self::ZhCn, Machines) => "浏览机器、工作区和智能体",
-            (Self::EnUs, Help) => "Shortcut help",
-            (Self::ZhCn, Help) => "快捷键帮助",
             (Self::EnUs, Sidebar) => "Toggle sidebar",
             (Self::ZhCn, Sidebar) => "切换边栏",
             (Self::EnUs, Navigator) => "Workspace navigator",
@@ -595,6 +634,40 @@ impl Locale {
             (Self::EnUs, ReleasePointer) => "Release mouse",
             (Self::ZhCn, ReleasePointer) => "释放鼠标",
             (_, Detach) => self.client_detach_label(),
+            (Self::EnUs, NextTab) => "Select next Tab",
+            (Self::ZhCn, NextTab) => "选择下一个标签页",
+            (Self::EnUs, PreviousTab) => "Select previous Tab",
+            (Self::ZhCn, PreviousTab) => "选择上一个标签页",
+            (Self::EnUs, NextWorkspace) => "Select next Workspace",
+            (Self::ZhCn, NextWorkspace) => "选择下一个工作区",
+            (Self::EnUs, PreviousWorkspace) => "Select previous Workspace",
+            (Self::ZhCn, PreviousWorkspace) => "选择上一个工作区",
+            (Self::EnUs, FocusPanel(PanelDirection::Left)) => "Focus panel left",
+            (Self::ZhCn, FocusPanel(PanelDirection::Left)) => "向左聚焦面板",
+            (Self::EnUs, FocusPanel(PanelDirection::Down)) => "Focus panel down",
+            (Self::ZhCn, FocusPanel(PanelDirection::Down)) => "向下聚焦面板",
+            (Self::EnUs, FocusPanel(PanelDirection::Up)) => "Focus panel up",
+            (Self::ZhCn, FocusPanel(PanelDirection::Up)) => "向上聚焦面板",
+            (Self::EnUs, FocusPanel(PanelDirection::Right)) => "Focus panel right",
+            (Self::ZhCn, FocusPanel(PanelDirection::Right)) => "向右聚焦面板",
+            (Self::EnUs, ResizePanel(PanelDirection::Left)) => "Resize panel left",
+            (Self::ZhCn, ResizePanel(PanelDirection::Left)) => "向左调整面板大小",
+            (Self::EnUs, ResizePanel(PanelDirection::Down)) => "Resize panel down",
+            (Self::ZhCn, ResizePanel(PanelDirection::Down)) => "向下调整面板大小",
+            (Self::EnUs, ResizePanel(PanelDirection::Up)) => "Resize panel up",
+            (Self::ZhCn, ResizePanel(PanelDirection::Up)) => "向上调整面板大小",
+            (Self::EnUs, ResizePanel(PanelDirection::Right)) => "Resize panel right",
+            (Self::ZhCn, ResizePanel(PanelDirection::Right)) => "向右调整面板大小",
+            (Self::EnUs, NextAgent) => "Select next Agent",
+            (Self::ZhCn, NextAgent) => "选择下一个智能体",
+            (Self::EnUs, PreviousAgent) => "Select previous Agent",
+            (Self::ZhCn, PreviousAgent) => "选择上一个智能体",
+            (Self::EnUs, FocusSidebar) => "Focus sidebar",
+            (Self::ZhCn, FocusSidebar) => "聚焦边栏",
+            (Self::EnUs, ConfiguredCommand) => "Run configured command",
+            (Self::ZhCn, ConfiguredCommand) => "运行已配置的命令",
+            (Self::EnUs, Key) => "Shortcut",
+            (Self::ZhCn, Key) => "快捷键",
         }
     }
 

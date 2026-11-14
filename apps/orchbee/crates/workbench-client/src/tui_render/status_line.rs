@@ -67,7 +67,7 @@ pub(super) struct HiddenPanels {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum StatusAction {
-    ShowHelp,
+    ActionMenu,
     Exit,
     CreateTab,
     StartAgent,
@@ -1377,14 +1377,13 @@ fn status_hints(
     hints.into()
 }
 
-/// Sidebar focus keeps its return and Help routes as width shrinks.
+/// Sidebar focus keeps its return route as width shrinks.
 fn sidebar_hints(locale: Locale, glyphs: KeyLabelGlyphs) -> HintSet {
     use crate::machine_picker::{SidebarCommand, sidebar_binding_label};
     let commands = [
         SidebarCommand::Exit,
         SidebarCommand::Activate,
         SidebarCommand::OpenMenu,
-        SidebarCommand::Help,
     ];
     let items = commands
         .into_iter()
@@ -1403,7 +1402,6 @@ fn sidebar_hints(locale: Locale, glyphs: KeyLabelGlyphs) -> HintSet {
     let yield_order = [
         SidebarCommand::OpenMenu,
         SidebarCommand::Activate,
-        SidebarCommand::Help,
         SidebarCommand::Exit,
     ]
     .into_iter()
@@ -1422,12 +1420,6 @@ fn prefix_mode_hints(view: &ClientView, locale: Locale, glyphs: KeyLabelGlyphs) 
         view,
         PrefixAction::Client(ClientAction::DismissPrefix),
         copy.cancel,
-        glyphs,
-    ));
-    hints.extend(prefix_action_hint(
-        view,
-        PrefixAction::ShowHelp,
-        copy.help,
         glyphs,
     ));
     hints.extend(prefix_action_hint(
@@ -1544,7 +1536,10 @@ fn action_hint(
 ) -> Option<OwnedHint> {
     let copy = locale.status();
     let (action, label) = match action {
-        StatusAction::ShowHelp => (PrefixAction::ShowHelp, copy.shortcuts),
+        StatusAction::ActionMenu => (
+            PrefixAction::Client(ClientAction::OpenActionMenu),
+            copy.actions,
+        ),
         StatusAction::Exit => (PrefixAction::Client(ClientAction::Exit), copy.exit),
         StatusAction::CreateTab => (
             PrefixAction::Client(ClientAction::CreateTab),
@@ -1588,7 +1583,7 @@ fn status_actions(
     session: Option<&WorkbenchClientView<'_>>,
 ) -> Vec<StatusAction> {
     if client_notice == Some(Notice::UnknownPrefix) {
-        return vec![StatusAction::ShowHelp];
+        return vec![StatusAction::ActionMenu];
     }
     if client_notice.is_some() {
         return Vec::new();

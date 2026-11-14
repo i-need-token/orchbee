@@ -17,7 +17,6 @@ pub(crate) enum SidebarActionLabel {
     Collapse,
     Activate,
     OpenMenu,
-    Help,
     Exit,
 }
 
@@ -111,8 +110,6 @@ impl Locale {
             (Self::ZhCn, SidebarCommand::Activate) => "打开／展开",
             (Self::EnUs, SidebarCommand::OpenMenu) => "Row menu",
             (Self::ZhCn, SidebarCommand::OpenMenu) => "行菜单",
-            (Self::EnUs, SidebarCommand::Help) => "Help",
-            (Self::ZhCn, SidebarCommand::Help) => "帮助",
             (Self::EnUs, SidebarCommand::Exit) => "Return to terminal",
             (Self::ZhCn, SidebarCommand::Exit) => "返回终端",
         }

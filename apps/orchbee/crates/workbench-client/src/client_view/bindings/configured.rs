@@ -3,16 +3,7 @@ use super::{
     Binding, KeyCode, KeyEvent, KeySet, PREFIX_CHORD, PREFIX_GROUPS, PrefixDesc, PrefixMember,
 };
 use super::{ClientAction, Modifiers, PanelDirection, PrefixAction, ShellCommand};
-use crate::action_projection::{ActionMetadata, binding_metadata};
 use orchbee_local_runtime::DefaultActionBindings;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct DiscoveryEntry<'a> {
-    pub(crate) action: PrefixAction,
-    pub(crate) description: PrefixDesc,
-    pub(crate) metadata: ActionMetadata<'a>,
-    pub(crate) key: String,
-}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Entry {
@@ -22,7 +13,7 @@ pub(crate) struct Entry {
     pub(crate) desc: PrefixDesc,
 }
 
-/// An installed configured command as discovery names it. The name is the Server's text for it,
+/// An installed configured command as the action menu names it. The name is the Server's text for it,
 /// never derived here from the command line, so every Client shows the same words.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ConfiguredName {
@@ -79,28 +70,6 @@ impl Default for Bindings {
 }
 
 impl Bindings {
-    /// Returns only effective, bound actions for keyboard discovery. The
-    /// action metadata is the semantic identity shared by menus and help;
-    /// chord text comes from the exact same resolved entries used by dispatch.
-    pub(crate) fn discovery_entries(
-        &self,
-        glyphs: super::super::KeyLabelGlyphs,
-    ) -> Vec<DiscoveryEntry<'_>> {
-        self.entries
-            .iter()
-            .filter(|entry| entry.enabled)
-            .filter_map(|entry| {
-                let metadata = binding_metadata(&entry.member.action)?;
-                Some(DiscoveryEntry {
-                    action: entry.member.action.clone(),
-                    description: entry.desc,
-                    metadata,
-                    key: self.entry_label(entry, glyphs),
-                })
-            })
-            .collect()
-    }
-
     pub fn default_windows_key_action_bindings() -> Vec<DefaultActionBindings> {
         let defaults = Self::default();
         orchbee_local_runtime::KeySettings::registered_actions()
@@ -121,13 +90,14 @@ impl Bindings {
             .collect()
     }
 
-    /// The Server's name for a configured command's discovery row, shown as sent: the Server
-    /// alone makes it safe to show. `None` leaves the row its localized generic title.
-    pub(crate) fn configured_name(&self, desc: PrefixDesc) -> Option<&str> {
-        let PrefixDesc::ConfiguredCommand(index) = desc else {
-            return None;
-        };
-        self.commands.get(usize::from(index))?.name.as_deref()
+    /// The installed configured commands in configuration order, each with the Server's name for
+    /// it, shown as sent: the Server alone makes it safe to show. A missing name leaves the
+    /// action menu's row its localized generic title.
+    pub(crate) fn configured_commands(&self) -> Vec<(String, Option<String>)> {
+        self.commands
+            .iter()
+            .map(|command| (command.id.clone(), command.name.clone()))
+            .collect()
     }
 
     /// Names installed commands from a Server catalog. An entry names only the command with its
@@ -480,7 +450,6 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
             },
             D::ResizeDown,
         ),
-        "help" => return (PrefixAction::ShowHelp, D::ShowHelp, ShellCommand::None),
         "settings" => (A::OpenSettings, D::Settings),
         "workspace_picker" => {
             return (

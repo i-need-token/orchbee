@@ -1,9 +1,9 @@
-//! The sidebar toggle and Help icon actions around the sidebar's fixed chrome.
+//! The sidebar toggle and Shortcuts icon actions around the sidebar's fixed chrome.
 //!
 //! The toggle ends the sidebar's first fixed-action row while the sidebar is visible and leads the
-//! Tab strip while it is hidden, so it stays on the first row in both states; Help ends the
+//! Tab strip while it is hidden, so it stays on the first row in both states; Shortcuts ends the
 //! Settings row. Each paints only when its complete extent fits beside the content it must not
-//! cover, and publishes the existing sidebar visibility or shortcut-help action through global
+//! cover, and publishes the existing sidebar visibility or action-menu action through global
 //! chrome. On a touch-spaced list both take their five-cell size and a target one cell wider on
 //! each side that spans their row's touch lines; the Mobile bar's toggle takes the same size.
 
@@ -14,7 +14,7 @@ use super::controls::{
     TOUCH_ICON_ACTION_WIDTH, icon_action_rect, render_icon_action, render_touch_icon_action,
 };
 use crate::{
-    client_view::{ClientView, PrefixAction},
+    client_view::{ClientAction, ClientView, PrefixAction},
     localization::{Locale, TooltipLabel},
     tui_hit_map::{
         GlobalChromeAction, HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget,
@@ -51,7 +51,7 @@ impl Control {
         match self {
             Self::Hide => GlobalChromeAction::HideSidebar,
             Self::Show => GlobalChromeAction::RestoreSidebar,
-            Self::Help => GlobalChromeAction::ShortcutHelp,
+            Self::Help => GlobalChromeAction::Shortcuts,
             Self::CloseTabs => GlobalChromeAction::CloseTabList,
         }
     }
@@ -69,7 +69,7 @@ impl Control {
     const fn binding(self) -> Option<PrefixAction> {
         match self {
             Self::Hide | Self::Show => Some(PrefixAction::SidebarToggle),
-            Self::Help => Some(PrefixAction::ShowHelp),
+            Self::Help => Some(PrefixAction::Client(ClientAction::OpenActionMenu)),
             Self::CloseTabs => None,
         }
     }

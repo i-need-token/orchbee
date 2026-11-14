@@ -370,7 +370,6 @@ impl PointerState {
 
     pub(super) fn copy_control_event(
         &mut self,
-        view: &mut crate::client_view::ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
         event: MouseEvent,
     ) -> bool {
@@ -390,19 +389,10 @@ impl PointerState {
             self.modal_projection.clear_transport();
         }
         if let Some(ControlTarget::Copy(token, control)) = target {
-            if control == crate::terminal_copy_mode::CopyControl::Help {
-                let transition =
-                    view.decide_action(crate::client_view::ClientAction::OpenShortcutHelp);
-                view.commit(
-                    transition,
-                    crate::client_view::ClientActionDisposition::KeepNavigator,
-                );
-            } else {
-                port.surface_action(SurfaceAction::CopyMode(CopyAction::Control {
-                    token,
-                    control,
-                }));
-            }
+            port.surface_action(SurfaceAction::CopyMode(CopyAction::Control {
+                token,
+                control,
+            }));
         }
         self.stale_map();
         true

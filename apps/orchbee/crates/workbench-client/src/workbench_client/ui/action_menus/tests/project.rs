@@ -1217,7 +1217,7 @@ fn project_quick_return_consumes_once_and_preserves_newer_surface_intent() {
     for newer in [
         "none",
         "hide_reopen",
-        "help_return",
+        "navigator_return",
         "refused_focus",
         "pointer",
         "machine",
@@ -1231,8 +1231,8 @@ fn project_quick_return_consumes_once_and_preserves_newer_surface_intent() {
                 apply(&mut view, ClientAction::ToggleBusinessSidebar);
                 apply(&mut view, ClientAction::ToggleBusinessSidebar);
             }
-            "help_return" => {
-                apply(&mut view, ClientAction::OpenShortcutHelp);
+            "navigator_return" => {
+                apply(&mut view, ClientAction::OpenWorkbenchNavigator);
                 apply(&mut view, ClientAction::ToggleBusinessSidebar);
             }
             "refused_focus" => {
@@ -1264,15 +1264,13 @@ fn project_quick_return_consumes_once_and_preserves_newer_surface_intent() {
         assert!(!view.complete_project_quick_entry());
         assert_eq!(view.overlay(), Some(Overlay::BusinessSidebar));
     }
-    for surface in ["wide", "hidden", "help", "navigator"] {
+    for surface in ["wide", "hidden", "navigator"] {
         let mut view = ClientView::new(if surface == "wide" { 160 } else { 80 });
-        if surface == "help" || surface == "navigator" {
+        if surface == "navigator" {
             apply(&mut view, ClientAction::ToggleBusinessSidebar);
         }
         apply(&mut view, action.intent());
-        if surface == "help" {
-            apply(&mut view, ClientAction::OpenShortcutHelp);
-        } else if surface == "navigator" {
+        if surface == "navigator" {
             apply(&mut view, ClientAction::OpenWorkbenchNavigator);
         }
         let overlay = view.overlay();

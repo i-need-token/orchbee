@@ -1276,8 +1276,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         // included in the successfully flushed frame.
         crate::notifications::sound(view.notifications.take_sound_after_draw());
     }
-    let help_draw = dispatcher.publish_hit_map_with_help(hits.finish());
-    view.settle_help_draw(help_draw);
+    dispatcher.publish_hit_map(hits.finish());
     let pointer_projection_redraw = dispatcher.take_pointer_projection_redraw();
     if capture_owner == Some(crate::tui_composition::CaptureOwner::Machine) {
         // Covered native content cannot acknowledge successful visible presentation.

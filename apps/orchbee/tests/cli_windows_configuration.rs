@@ -376,13 +376,13 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
             "ignored",
         ),
         (
-            "[keys]\nhelp='ctrl+d'",
-            "keys.help",
+            "[keys]\nsettings='ctrl+d'",
+            "keys.settings",
             "unsafe-binding",
             "disabled",
         ),
         (
-            "[keys]\nhelp='prefix+Q'\nnew_tab='prefix+shift+q'",
+            "[keys]\nsettings='prefix+Q'\nnew_tab='prefix+shift+q'",
             "keys.new_tab",
             "duplicate-binding",
             "disabled",
@@ -468,7 +468,7 @@ fn config_check_validates_current_key_policy() {
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[keys]\nprefix='ctrl+a'\nhelp=['prefix+?', 'f1']\nswitch_tab='alt+1..9'\nnew_tab=[]",
+        "[keys]\nprefix='ctrl+a'\nsettings=['prefix+,', 'f1']\nswitch_tab='alt+1..9'\nnew_tab=[]",
     )
     .unwrap();
     let doc = config_check_document(&fixture);
@@ -476,9 +476,9 @@ fn config_check_validates_current_key_policy() {
     assert_eq!(doc["result"]["checks"][5]["details"]["keyPrefix"], "Ctrl+A");
     assert_eq!(doc["result"]["checks"][5]["details"]["keyOverrides"], 3);
     assert_warning_diagnostic(&doc, "keys.new_tab", "invalid-binding", "disabled");
-    std::fs::write(&config, "[keys]\nhelp='ctrl+c'").unwrap();
+    std::fs::write(&config, "[keys]\nsettings='ctrl+c'").unwrap();
     let doc = config_check_document(&fixture);
-    assert_warning_diagnostic(&doc, "keys.help", "unsafe-binding", "disabled");
+    assert_warning_diagnostic(&doc, "keys.settings", "unsafe-binding", "disabled");
     assert_eq!(doc["result"]["checks"][5]["details"]["keyOverrides"], 1);
 }
 

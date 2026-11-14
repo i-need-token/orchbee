@@ -69,7 +69,7 @@ against the preceding painted rectangle and origin.
 ## Mouse controls
 
 The pane action menu opens the same copy episode. The toolbar uses the shared action grammar for
-Copy, Search and Help, a stable Boolean value for `[ ]` Select / `[x]` Select, and fixed three-cell
+Copy and Search, a stable Boolean value for `[ ]` Select / `[x]` Select, and fixed three-cell
 previous, next and close actions. A search draft exposes Find and Back, then a static direction
 value beside the labeled Reverse action. Controls keep their geometry while disabled, suppress
 activation, and act only on a matching plain-left release with the same painted token and
@@ -84,8 +84,8 @@ Wheel inside the served content contributes three rows per notch, bounded by the
 
 An exclusive editor, confirmation, popup or machine surface has precedence. Copy mode then owns
 the whole decoded input packet before the prefix, Start Agent picker, ordinary history, configured direct
-bindings and terminal passthrough. Entry cancels the preceding pointer gesture,
-help and armed prefix. Modes do not nest. The packet containing entry or exit remains captured;
+bindings and terminal passthrough. Entry cancels the preceding pointer gesture
+and armed prefix. Modes do not nest. The packet containing entry or exit remains captured;
 trailing bytes, releases, unknown sequences and malformed or over-bound paste never reach the pane.
 The pane task and output polling continue.
 
@@ -100,7 +100,6 @@ The pane task and output polling continue.
 | `n N`             | Repeat the last search direction or its reverse                           |
 | `v`, Space        | Start or cancel selection                                                 |
 | `y`, Enter        | Explicitly request selection copy                                         |
-| F1                | Show this mode's registry-derived help                                    |
 | `q`, Esc          | Cancel and return to ordinary input; Esc also exits from the search draft |
 
 While editing a search, printable characters including `q` edit the query. Enter submits it;

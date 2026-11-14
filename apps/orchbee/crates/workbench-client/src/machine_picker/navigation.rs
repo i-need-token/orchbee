@@ -398,7 +398,7 @@ impl SidebarRow<'_> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SidebarCommand {
+pub enum SidebarCommand {
     MoveUp,
     MoveDown,
     NewWorkspace,
@@ -411,7 +411,6 @@ pub(crate) enum SidebarCommand {
     Collapse,
     Activate,
     OpenMenu,
-    Help,
     Exit,
 }
 impl From<SidebarCommand> for crate::localization::SidebarActionLabel {
@@ -429,7 +428,6 @@ impl From<SidebarCommand> for crate::localization::SidebarActionLabel {
             SidebarCommand::Collapse => Self::Collapse,
             SidebarCommand::Activate => Self::Activate,
             SidebarCommand::OpenMenu => Self::OpenMenu,
-            SidebarCommand::Help => Self::Help,
             SidebarCommand::Exit => Self::Exit,
         }
     }
@@ -485,10 +483,6 @@ pub(crate) const SIDEBAR_BINDINGS: &[(Binding, SidebarCommand)] = &[
         SidebarCommand::OpenMenu,
     ),
     (
-        Binding::new(KeyCode::F(1), Modifiers::NONE),
-        SidebarCommand::Help,
-    ),
-    (
         Binding::new(KeyCode::Esc, Modifiers::NONE),
         SidebarCommand::Exit,
     ),
@@ -512,7 +506,6 @@ pub(crate) enum SidebarIntent {
     Activate(Selection),
     OpenMenu(SidebarTarget),
     Reorder { target: SidebarTarget, up: bool },
-    Help,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1266,7 +1259,6 @@ impl Picker {
                 self.leave_sidebar_navigation();
                 return SidebarIntent::None;
             }
-            SidebarCommand::Help => return SidebarIntent::Help,
             _ => {}
         }
         let targets: Vec<_> = self

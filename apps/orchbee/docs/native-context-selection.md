@@ -32,7 +32,7 @@ while preserving these typed location identities.
 
 `Ctrl+b w`, its configured replacement or the action menu opens a capturing navigator. The
 existing entry refresh and known-result recovery remain Session-owned and are requested once.
-Closing does not cancel accepted work. Ordinary shortcut Help remains noncapturing.
+Closing does not cancel accepted work.
 
 The two columns contain canonical locations and the current location's Tabs. ClientView owns a
 volatile episode, exact source and local focused target; it owns no navigation mutation. Focus

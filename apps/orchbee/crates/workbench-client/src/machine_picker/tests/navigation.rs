@@ -1083,7 +1083,6 @@ fn sidebar_reconciles_removed_children_to_parent_and_removed_projects_to_neighbo
         picker.enter_sidebar_navigation(),
         "entry can precede the revealed frame"
     );
-    assert_eq!(key(&mut picker, KeyCode::F(1)), SidebarIntent::Help);
     assert_eq!(key(&mut picker, KeyCode::Esc), SidebarIntent::None);
     assert!(!picker.sidebar_navigation_active());
 }

@@ -1193,7 +1193,7 @@
 									"keyOverrides": {
 										"type": "integer",
 										"minimum": 0,
-										"maximum": 43
+										"maximum": 41
 									},
 									"windowTitle": {
 										"type": "string",

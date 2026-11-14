@@ -13,13 +13,21 @@ pub(crate) enum TooltipLabel {
     HideSidebar,
     /// The sidebar toggle while the sidebar is hidden.
     ShowSidebar,
-    /// The sidebar's control that opens shortcut help.
+    /// The sidebar's control that opens the action menu, where every shortcut is listed.
     Shortcuts,
     /// The Tab list's way back to the terminal.
     HideTabs,
 }
 
 impl Locale {
+    /// The word beside the unread dot in the sidebar's state legend.
+    pub(crate) const fn unread_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Unread activity",
+            Self::ZhCn => "未读动态",
+        }
+    }
+
     pub(crate) const fn tooltip_label(self, label: TooltipLabel) -> &'static str {
         match (self, label) {
             (Self::EnUs, TooltipLabel::HideAgents) => "Hide Agents",

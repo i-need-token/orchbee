@@ -132,7 +132,7 @@ fn divider_decoded_release_is_once_and_every_transport_boundary_cancels() {
         );
         match ending {
             0 => {}
-            1 => dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02?"),
+            1 => dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02w"),
             2 => dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<36;61;6M"),
             3 => dispatcher.invalidate_hit_map(&mut port),
             _ => {

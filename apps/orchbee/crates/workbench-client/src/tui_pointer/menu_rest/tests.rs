@@ -6,7 +6,7 @@ fn token() -> MenuToken {
     assert!(menu.open_for(
         MenuTarget::Global,
         String::new(),
-        vec![MenuAction::Help],
+        vec![MenuAction::Machines],
         None
     ));
     menu.view().unwrap().token
@@ -73,7 +73,7 @@ fn a_row_keeps_its_rest_until_availability_lets_it_open() {
         assert!(menu.open_for(
             MenuTarget::Global,
             String::new(),
-            vec![MenuAction::Help],
+            vec![MenuAction::Machines],
             None
         ));
         menu.view().unwrap().token

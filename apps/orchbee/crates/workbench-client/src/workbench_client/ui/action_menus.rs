@@ -125,6 +125,9 @@ fn action_availability(
     pointer_released: bool,
     facts: RowFacts,
 ) -> ActionAvailability<MenuUnavailable> {
+    if let MenuAction::Key(row) = action {
+        return key_row_availability(capabilities, row);
+    }
     // Open Worktree ▸ needs the same host effect as the global Open Worktree…, and the new-Tab
     // menu's Agent rows the same as Start Agent….
     let effect = match action {
@@ -204,6 +207,8 @@ fn action_availability(
                 | MenuAction::CloseTab
                 | MenuAction::CloseTrailingTabs
                 | MenuAction::LastPanel
+                | MenuAction::FocusPanel(_)
+                | MenuAction::ResizePanel(_)
                 | MenuAction::SplitPanel(_)
                 | MenuAction::Zoom
                 | MenuAction::Copy
@@ -329,6 +334,39 @@ fn action_availability(
         return ActionAvailability::Disabled(MenuUnavailable::PointerReleased);
     }
     ActionAvailability::Enabled
+}
+
+impl WorkbenchClientUi {
+    /// Replaces the configured commands the global menu lists; an open menu keeps its rows.
+    pub(in crate::workbench_client) fn configure_menu_commands(
+        &mut self,
+        commands: Vec<(String, Option<String>)>,
+    ) {
+        self.configured_commands = commands;
+    }
+}
+
+/// A key row runs nothing, so it says where its key works; a key the host cannot use is hidden.
+fn key_row_availability(
+    capabilities: crate::tui_capabilities::Capabilities,
+    row: crate::action_menu::KeyRow,
+) -> ActionAvailability<MenuUnavailable> {
+    use crate::action_menu::KeyRow;
+    match row {
+        KeyRow::Copy(crate::localization::PrefixDesc::CopySubmit)
+            if !capabilities.supports(crate::tui_capabilities::Capability::Clipboard) =>
+        {
+            ActionAvailability::Hidden
+        }
+        KeyRow::Sidebar(crate::machine_picker::SidebarCommand::Search)
+            if !capabilities.offers_search() =>
+        {
+            ActionAvailability::Hidden
+        }
+        KeyRow::Prefix(_) => ActionAvailability::Disabled(MenuUnavailable::KeyOnly),
+        KeyRow::Copy(_) => ActionAvailability::Disabled(MenuUnavailable::KeyInCopyMode),
+        KeyRow::Sidebar(_) => ActionAvailability::Disabled(MenuUnavailable::KeyInSidebar),
+    }
 }
 
 /// A row that leads to a request of the setup owner, whose admission needs the refresh slot.
@@ -597,7 +635,16 @@ impl WorkbenchClientUi {
             MenuTarget::Global => (
                 Target::Global,
                 String::new(),
-                crate::action_menu::GLOBAL_ACTIONS.to_vec(),
+                crate::action_menu::GLOBAL_ACTIONS
+                    .iter()
+                    .cloned()
+                    .chain(
+                        self.configured_commands
+                            .iter()
+                            .map(|(id, _)| MenuAction::ConfiguredCommand(id.clone())),
+                    )
+                    .chain(crate::action_menu::KEY_ROWS.iter().cloned())
+                    .collect(),
             ),
             MenuTarget::Pane(pane) => {
                 if !live {
@@ -803,11 +850,12 @@ impl WorkbenchClientUi {
             actions.retain(|a| {
                 matches!(
                     a,
-                    MenuAction::Help
-                        | MenuAction::Machines
+                    MenuAction::Machines
                         | MenuAction::Sidebar
+                        | MenuAction::FocusSidebar
                         | MenuAction::ReleasePointer
                         | MenuAction::Detach
+                        | MenuAction::Key(_)
                 )
             });
         }
@@ -917,6 +965,11 @@ impl WorkbenchClientUi {
             MenuAction::JoinGroup(index) => state
                 .and_then(|state| state.cache().groups().get(usize::from(index)))
                 .map(|group| group.label.clone()),
+            MenuAction::ConfiguredCommand(id) => self
+                .configured_commands
+                .iter()
+                .find(|(command, _)| *command == id)
+                .and_then(|(_, name)| name.clone()),
             _ => None,
         });
         if tab_profiles {

@@ -205,7 +205,6 @@ fn assert_ready_prefix_client(
     for hint in [
         crate::terminal_events::keys::tests::host_label("PREFIX Ctrl+b").as_str(),
         "Esc cancel",
-        "? help",
         "Tab sidebar",
     ] {
         assert!(

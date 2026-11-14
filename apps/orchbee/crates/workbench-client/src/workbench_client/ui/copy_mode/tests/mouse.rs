@@ -227,7 +227,6 @@ fn too_small_root_compositor_keeps_copy_exit_status_without_copy_targets() {
             for locale in [Locale::EnUs, Locale::ZhCn] {
                 let theme = Theme::orchbee_dark();
                 let (terminal, map) = painted(&port, &view, width, height, locale, &theme);
-                assert_eq!(map.help_draw_source(), None);
                 for row in 0..height {
                     for column in 0..width {
                         if let Some(target) = map.hit_target_at(column, row) {

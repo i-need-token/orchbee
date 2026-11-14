@@ -1536,6 +1536,9 @@ pub(super) struct WorkbenchClientUi {
     /// owner's answer on every automatic-notification tick.
     notification_target: bool,
     menus: action_menus::MenuEpisode,
+    /// The installed configured commands the global menu lists, from the applied key profile,
+    /// each with the Server's name for it.
+    configured_commands: Vec<(String, Option<String>)>,
     mailbox: Option<Arc<CommandMailbox>>,
     clock: LocalOperationClock,
     outer_focused: Option<bool>,
@@ -1689,6 +1692,7 @@ impl WorkbenchClientUi {
             agent_catalog: Default::default(),
             worktrees: worktree_launch::Coordinator::default(),
             menus: action_menus::MenuEpisode::default(),
+            configured_commands: Vec::new(),
             settings: settings::Coordinator::new(capabilities.login_shell),
             duplication: tab_duplication::Duplication::default(),
             held_restore: held_restore::HeldRestore::default(),
@@ -3207,7 +3211,7 @@ impl WorkbenchClientUi {
         }
         // The picker and every other surface are mutually exclusive: any
         // action that is not the picker's own key closes it first —
-        // navigator, help, sidebar, modals, and pane operations all take
+        // navigator, sidebar, modals, and pane operations all take
         // the overlay slot back.
         if action != ClientAction::StartAgent {
             self.board.close();
@@ -3354,9 +3358,6 @@ impl WorkbenchClientUi {
             ClientAction::StartAgent => self.open_agent_picker(),
             ClientAction::FocusBusinessSidebar => ClientActionDisposition::KeepNavigator,
             ClientAction::ToggleBusinessSidebar
-            | ClientAction::OpenShortcutHelp
-            | ClientAction::CloseShortcutHelp
-            | ClientAction::PageShortcutHelp
             | ClientAction::CloseWorkbenchNavigator
             | ClientAction::TogglePointerCapture
             | ClientAction::ForwardLiteralPrefix

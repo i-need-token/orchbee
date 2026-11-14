@@ -232,7 +232,7 @@ fn sidebar_project_pointer_toggles_without_taking_keyboard_input() {
     let mut view = sidebar_view();
     let target = sidebar_project_target();
     let expanded = view.machines.sidebar_group_expanded(&target);
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     let disclosure = revealed_disclosure(&mut dispatcher, &mut view, &mut port, &target);
@@ -273,7 +273,7 @@ fn context_disclosure_is_display_only_preserves_other_focus_and_fences_the_packe
         let before_expanded = view.machines.sidebar_context_agents_expanded(&target);
         assert!(view.machines.sidebar_target_exists(&target));
         assert!(view.machines.sidebar_context_has_agents(&target));
-        let mut port = Port::new(MenuAction::Help);
+        let mut port = Port::new(MenuAction::Machines);
         let mut dispatcher = InputDispatcher::default();
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         // Establish the dispatcher's current keyboard owner before publishing the
@@ -323,7 +323,7 @@ fn context_disclosure_is_display_only_preserves_other_focus_and_fences_the_packe
 #[test]
 fn stale_rendered_context_disclosure_rejects_mutation_but_still_fences_packet_tail() {
     let (mut view, target) = sidebar_view_with_agent();
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     let disclosure = revealed_disclosure(&mut dispatcher, &mut view, &mut port, &target);
@@ -359,7 +359,7 @@ fn stale_rendered_context_disclosure_rejects_mutation_but_still_fences_packet_ta
 #[test]
 fn sidebar_mode_owns_only_explicit_navigation_and_fences_exit_packets() {
     let mut view = sidebar_view();
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[A\t\r");
     assert_eq!(forwarded_bytes(&port.calls), b"\x1b[A\t\r");
@@ -391,7 +391,7 @@ fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navi
     for project in [false, true] {
         for keyboard in [false, true] {
             let mut view = sidebar_view();
-            let mut port = Port::new(MenuAction::Help);
+            let mut port = Port::new(MenuAction::Machines);
             let mut dispatcher = InputDispatcher::default();
             dispatcher.set_pointer_capture(&mut view, &mut port, true);
             dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
@@ -474,7 +474,7 @@ fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navi
 fn sidebar_primary_click_keeps_row_activation_separate_from_context_menus() {
     for project in [false, true] {
         let mut view = sidebar_view();
-        let mut port = Port::new(MenuAction::Help);
+        let mut port = Port::new(MenuAction::Machines);
         let mut dispatcher = InputDispatcher::default();
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         let target = if project {
@@ -499,7 +499,7 @@ fn sidebar_primary_click_keeps_row_activation_separate_from_context_menus() {
 #[test]
 fn workspace_close_is_pointer_revealed_and_requests_the_existing_confirmation() {
     let mut view = sidebar_view();
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     let target = crate::machine_picker::SidebarTarget::Context {
@@ -586,81 +586,10 @@ fn workspace_close_is_pointer_revealed_and_requests_the_existing_confirmation() 
 }
 
 #[test]
-fn sidebar_help_covers_navigation_without_activating_or_losing_its_owner() {
-    for width in [70, 120] {
-        let mut view = sidebar_view();
-        view.resize(width);
-        let mut port = Port::new(MenuAction::Help);
-        let mut dispatcher = InputDispatcher::default();
-        dispatcher.set_pointer_capture(&mut view, &mut port, true);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
-        let before = view.machines.sidebar_focused_target().cloned();
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOP");
-        assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-        let sidebar = crate::tui_layout::project_shell_areas(
-            Rect::new(0, 0, width, 30),
-            view.sidebar_surface(),
-        )
-        .sidebar;
-        view.machines.observe_agent_sidebar(sidebar.is_some());
-        assert!(view.machines.sidebar_navigation_active());
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[B\r");
-        assert_eq!(view.machines.sidebar_focused_target(), before.as_ref());
-        assert!(view.machines.request.is_none());
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[6~");
-        assert_eq!(view.help_page(), 9);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
-        assert_eq!(
-            view.overlay(),
-            if width < 96 {
-                Some(Overlay::BusinessSidebar)
-            } else {
-                None
-            }
-        );
-        assert!(view.machines.sidebar_navigation_active());
-        assert!(forwarded_bytes(&port.calls).is_empty());
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOP");
-        let mut terminal =
-            ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, 30)).unwrap();
-        let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
-        terminal
-            .draw(|frame| {
-                crate::tui_render::render_terminal_shell(
-                    frame,
-                    &view,
-                    crate::localization::Locale::EnUs,
-                    None,
-                    &crate::tui_theme::Theme::terminal_native(),
-                    &mut hits,
-                );
-            })
-            .unwrap();
-        let source = dispatcher.publish_hit_map_with_help(hits.finish());
-        assert!(matches!(
-            source,
-            Some(crate::client_view::help::HelpDrawSource::Presented { .. })
-        ));
-        view.settle_help_draw(source);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;2;2Mtail");
-        assert_eq!(
-            view.overlay(),
-            if width < 96 {
-                Some(Overlay::BusinessSidebar)
-            } else {
-                None
-            }
-        );
-        assert!(view.machines.sidebar_navigation_active());
-        assert!(forwarded_bytes(&port.calls).is_empty());
-    }
-}
-
-#[test]
 fn sidebar_keyboard_menu_requires_a_fresh_draw_and_live_row() {
     for removed in [false, true] {
         let mut view = sidebar_view();
-        let mut port = Port::new(MenuAction::Help);
+        let mut port = Port::new(MenuAction::Machines);
         let mut dispatcher = InputDispatcher::default();
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
         if removed {
@@ -971,10 +900,10 @@ fn paint_menu(dispatcher: &mut InputDispatcher, port: &mut Port) {
 
 #[test]
 fn globally_admitted_menu_hover_tracks_motion_without_activating_or_forwarding() {
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     port.actions = vec![
         MenuAction::SplitPanel(crate::client_view::PanelDirection::Right),
-        MenuAction::Help,
+        MenuAction::Machines,
         MenuAction::Detach,
     ];
     let mut dispatcher = InputDispatcher::default();
@@ -1021,10 +950,9 @@ fn globally_admitted_menu_hover_tracks_motion_without_activating_or_forwarding()
         b"\x1b[<0;12;7M\x1b[<0;12;7mtail",
     );
     assert!(!port.menu.active());
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
     assert_eq!(
         *port.calls.borrow(),
-        [Call::Action(ClientAction::OpenShortcutHelp)]
+        [Call::Action(ClientAction::OpenMachines)]
     );
     dispatcher.publish_hit_map(HitMapBuilder::new().finish());
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;7m");
@@ -1040,7 +968,7 @@ fn menu_motion_is_scoped_and_never_rearms_released_or_replaces_admitted_global_c
     ] {
         let capture = tracking != PointerCaptureRequest::Release;
         for closing in ["escape", "outside", "invalidate", "handoff", "release"] {
-            let mut port = Port::new(MenuAction::Help);
+            let mut port = Port::new(MenuAction::Machines);
             let mut dispatcher = InputDispatcher::default();
             let mut view = ClientView::new(120);
             dispatcher.settle_pointer_capture(&mut view, &mut port, tracking);
@@ -1121,7 +1049,7 @@ fn menu_motion_is_scoped_and_never_rearms_released_or_replaces_admitted_global_c
 #[test]
 fn covered_menu_returns_its_motion_lease_until_it_owns_input_again() {
     for cover in ["settings", "machine"] {
-        let mut port = Port::new(MenuAction::Help);
+        let mut port = Port::new(MenuAction::Machines);
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(120);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
@@ -1171,7 +1099,7 @@ fn covered_menu_returns_its_motion_lease_until_it_owns_input_again() {
 
 #[test]
 fn failed_menu_motion_write_never_publishes_or_retries_the_lease() {
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
@@ -1209,7 +1137,7 @@ fn failed_menu_motion_write_never_publishes_or_retries_the_lease() {
 
 #[test]
 fn a_late_successful_global_probe_supersedes_the_menu_lease_and_survives_menu_exit() {
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     let now = Instant::now();
@@ -1402,7 +1330,7 @@ fn tab_create_focus_loss_cancels_action_and_fences_its_late_release_packet() {
 
 #[test]
 fn capturing_navigator_prefix_switches_to_menu_without_forwarding() {
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02w");
@@ -1417,55 +1345,6 @@ fn capturing_navigator_prefix_switches_to_menu_without_forwarding() {
         "the menu owner captures the complete packet"
     );
     assert!(forwarded_bytes(&port.calls).is_empty());
-}
-
-#[test]
-fn menu_prefix_split_reads_replace_help_and_capture_opening_and_decision_tails() {
-    let opening = b"\x02 tail";
-    for split in 0..=opening.len() - 4 {
-        let mut port = Port::new(MenuAction::Help);
-        let mut dispatcher = InputDispatcher::default();
-        let mut view = ClientView::new(120);
-        view.commit(
-            view.decide_action(ClientAction::OpenShortcutHelp),
-            ClientActionDisposition::KeepNavigator,
-        );
-        dispatch_all(&mut dispatcher, &mut view, &mut port, &opening[..split]);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, &opening[split..]);
-        assert!(port.menu.active(), "split {split}");
-        assert_eq!(
-            view.overlay(),
-            None,
-            "the global menu prefix replaces the Help overlay at split {split}"
-        );
-        assert!(forwarded_bytes(&port.calls).is_empty());
-        port.arm();
-        dispatch_all(
-            &mut dispatcher,
-            &mut view,
-            &mut port,
-            b"\rignored\x1b[200~paste\x1b[201~",
-        );
-        assert!(!port.menu.active());
-        assert_eq!(
-            view.overlay(),
-            Some(Overlay::ShortcutHelp),
-            "choosing Help opens it after the menu has replaced the prior overlay"
-        );
-        assert!(forwarded_bytes(&port.calls).is_empty());
-        assert_eq!(
-            port.calls
-                .borrow()
-                .iter()
-                .filter(|call| matches!(call, Call::Action(ClientAction::OpenShortcutHelp)))
-                .count(),
-            1
-        );
-        dispatcher.publish_hit_map(HitMapBuilder::new().finish());
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"normal");
-        assert_eq!(view.help_filter(), "normal");
-        assert!(forwarded_bytes(&port.calls).is_empty());
-    }
 }
 
 #[test]
@@ -1544,9 +1423,24 @@ fn ux_menu_disabled_decision_packets_stay_captured_until_cancel_and_fresh_draw()
     assert_eq!(forwarded_bytes(&port.calls), b"normal");
 }
 
+/// `Ctrl+b ?` asks where a shortcut is; the answer is the action menu, already searching.
+#[test]
+fn prefix_question_mark_opens_the_menu_with_typing_in_its_search() {
+    let mut port = Port::new(MenuAction::Machines);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02?");
+    assert!(port.menu.active());
+    port.arm();
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"copy");
+    assert_eq!(port.menu.query(), Some("copy"));
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}
+
 #[test]
 fn searchable_menu_escape_after_query_edit_cancels_and_restores_terminal_forwarding() {
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(80);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
@@ -1581,7 +1475,7 @@ fn right_menu_does_not_focus_and_chrome_modifiers_and_release_keep_ownership() {
         (true, 4, false),
         (true, 16, false),
     ] {
-        let mut port = Port::new(MenuAction::Help);
+        let mut port = Port::new(MenuAction::Machines);
         let pane = super::pane_ref();
         port.probe.panes.push(PointerPane {
             record: pane.clone(),
@@ -1649,7 +1543,7 @@ fn right_menu_does_not_focus_and_chrome_modifiers_and_release_keep_ownership() {
 
 #[test]
 fn cancel_and_fragmented_captured_paste_never_reach_the_pane() {
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
@@ -1671,7 +1565,7 @@ fn cancel_and_fragmented_captured_paste_never_reach_the_pane() {
 #[test]
 fn invalidated_painted_menu_captures_input_until_a_fresh_frame_and_host_lease_precedes_mouse_admission()
  {
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
@@ -1682,7 +1576,7 @@ fn invalidated_painted_menu_captures_input_until_a_fresh_frame_and_host_lease_pr
     dispatcher.publish_hit_map(HitMapBuilder::new().finish());
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"normal");
     assert_eq!(forwarded_bytes(&port.calls), b"normal");
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
@@ -1723,7 +1617,7 @@ fn invalidated_painted_menu_captures_input_until_a_fresh_frame_and_host_lease_pr
 
 #[test]
 fn escape_timeout_and_idle_action_completion_keep_the_already_polled_packet_captured() {
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
@@ -1759,37 +1653,6 @@ fn escape_timeout_and_idle_action_completion_keep_the_already_polled_packet_capt
     dispatcher.publish_hit_map(HitMapBuilder::new().finish());
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"normal");
     assert_eq!(forwarded_bytes(&port.calls), b"normal");
-
-    let mut port = Port::new(MenuAction::Help);
-    let mut dispatcher = InputDispatcher::default();
-    let mut view = ClientView::new(120);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
-    port.arm();
-    assert!(port.menu.confirm());
-    assert_eq!(
-        dispatcher
-            .complete_deferred_input(
-                &mut view,
-                &mut port,
-                Instant::now(),
-                &mut |_, _| Ok::<bool, io::Error>(false),
-                &mut |_| Ok(())
-            )
-            .unwrap(),
-        Some(DispatchOutcome::Continue)
-    );
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        b"polled-before-idle-handoff\r",
-    );
-    assert!(forwarded_bytes(&port.calls).is_empty());
-    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
-    dispatcher.publish_hit_map(HitMapBuilder::new().finish());
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"normal");
-    assert_eq!(view.help_filter(), "normal");
-    assert!(forwarded_bytes(&port.calls).is_empty());
 }
 
 #[test]
@@ -1798,7 +1661,7 @@ fn global_menu_respects_existing_pane_selection_pending_link_and_wheel_owners() 
     use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
     for owner in ["pane", "selection", "pending", "link", "wheel"] {
         let pane = super::pane_ref();
-        let mut port = Port::new(MenuAction::Help);
+        let mut port = Port::new(MenuAction::Machines);
         port.probe = PointerProbe {
             focus: (owner != "pending").then_some(pane.clone()),
             desired: Some(pane.pane().clone()),
@@ -1913,7 +1776,7 @@ fn global_menu_respects_existing_pane_selection_pending_link_and_wheel_owners() 
 
 #[test]
 fn prefix_space_opens_the_global_action_menu_without_forwarding() {
-    let mut port = Port::new(MenuAction::Help);
+    let mut port = Port::new(MenuAction::Machines);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");

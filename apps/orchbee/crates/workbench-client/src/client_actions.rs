@@ -54,9 +54,6 @@ pub enum ClientAction {
     MoveNextTab,
     ToggleBusinessSidebar,
     FocusBusinessSidebar,
-    OpenShortcutHelp,
-    CloseShortcutHelp,
-    PageShortcutHelp,
     OpenWorkbenchNavigator,
     OpenMachines,
     PreviousAgent,
@@ -152,9 +149,6 @@ impl ClientAction {
             Self::ToggleBusinessSidebar
             | Self::ConfirmClose
             | Self::CancelClose
-            | Self::OpenShortcutHelp
-            | Self::CloseShortcutHelp
-            | Self::PageShortcutHelp
             | Self::OpenWorkbenchNavigator
             | Self::CloseWorkbenchNavigator
             | Self::StartAgent
@@ -238,7 +232,6 @@ pub enum MenuAction {
     OpenWorktree,
     Settings,
     Machines,
-    Help,
     Sidebar,
     Navigator,
     StartAgent,
@@ -250,6 +243,31 @@ pub enum MenuAction {
     OpenNotificationTarget,
     ReleasePointer,
     Detach,
+    NextTab,
+    PreviousTab,
+    NextWorkspace,
+    PreviousWorkspace,
+    FocusPanel(PanelDirection),
+    ResizePanel(PanelDirection),
+    NextAgent,
+    PreviousAgent,
+    FocusSidebar,
+    /// An installed configured command, by the identity its key runs.
+    ConfiguredCommand(String),
+    /// A key the global menu lists only for search; the menu cannot run it.
+    Key(KeyRow),
+}
+
+/// A key without a runnable menu row: it works only inside its mode, or it picks one of many
+/// targets. Search finds it by its mode, its words and its key.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KeyRow {
+    /// A prefix chord with no single target, such as a Tab by its number.
+    Prefix(crate::localization::PrefixDesc),
+    /// A key of keyboard copy mode.
+    Copy(crate::localization::PrefixDesc),
+    /// A key of the focused sidebar.
+    Sidebar(crate::machine_picker::SidebarCommand),
 }
 
 impl From<&MenuAction> for crate::localization::MenuLabel {
@@ -317,7 +335,6 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::OpenWorktree => Self::OpenWorktree,
             MenuAction::Settings => Self::Settings,
             MenuAction::Machines => Self::Machines,
-            MenuAction::Help => Self::Help,
             MenuAction::Sidebar => Self::Sidebar,
             MenuAction::Navigator => Self::Navigator,
             MenuAction::StartAgent => Self::StartAgent,
@@ -326,6 +343,17 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::OpenNotificationTarget => Self::OpenNotificationTarget,
             MenuAction::ReleasePointer => Self::ReleasePointer,
             MenuAction::Detach => Self::Detach,
+            MenuAction::NextTab => Self::NextTab,
+            MenuAction::PreviousTab => Self::PreviousTab,
+            MenuAction::NextWorkspace => Self::NextWorkspace,
+            MenuAction::PreviousWorkspace => Self::PreviousWorkspace,
+            MenuAction::FocusPanel(direction) => Self::FocusPanel(*direction),
+            MenuAction::ResizePanel(direction) => Self::ResizePanel(*direction),
+            MenuAction::NextAgent => Self::NextAgent,
+            MenuAction::PreviousAgent => Self::PreviousAgent,
+            MenuAction::FocusSidebar => Self::FocusSidebar,
+            MenuAction::ConfiguredCommand(_) => Self::ConfiguredCommand,
+            MenuAction::Key(_) => Self::Key,
         }
     }
 }
@@ -400,13 +428,25 @@ impl MenuAction {
             Self::OpenWorktree => ClientAction::RequestWorktreeOpen,
             Self::Settings => ClientAction::OpenSettings,
             Self::Machines => ClientAction::OpenMachines,
-            Self::Help => ClientAction::OpenShortcutHelp,
             Self::Sidebar => ClientAction::ToggleBusinessSidebar,
             Self::Navigator => ClientAction::OpenWorkbenchNavigator,
             Self::StartAgent => ClientAction::StartAgent,
             Self::OpenNotificationTarget => ClientAction::OpenNotificationTarget,
             Self::ReleasePointer => ClientAction::TogglePointerCapture,
             Self::Detach => ClientAction::Exit,
+            Self::NextTab => ClientAction::SelectNextTab,
+            Self::PreviousTab => ClientAction::SelectPreviousTab,
+            Self::NextWorkspace => ClientAction::SelectNextContext,
+            Self::PreviousWorkspace => ClientAction::SelectPreviousContext,
+            Self::FocusPanel(direction) => ClientAction::MovePanelFocus(*direction),
+            Self::ResizePanel(direction) => ClientAction::ResizePane {
+                direction: *direction,
+            },
+            Self::NextAgent => ClientAction::NextAgent,
+            Self::PreviousAgent => ClientAction::PreviousAgent,
+            Self::FocusSidebar => ClientAction::FocusBusinessSidebar,
+            Self::ConfiguredCommand(id) => ClientAction::ConfiguredCommand(id.clone()),
+            Self::Key(_) => return None,
             Self::WorkspaceProjects
             | Self::WorkspaceCreation
             | Self::WorkspaceWorktrees
@@ -435,7 +475,4 @@ pub(crate) enum PrefixAction {
     SelectAgentDigit,
     SidebarToggle,
     NavigatorToggle,
-    ShowHelp,
-    HelpPagePrevious,
-    HelpPageNext,
 }
