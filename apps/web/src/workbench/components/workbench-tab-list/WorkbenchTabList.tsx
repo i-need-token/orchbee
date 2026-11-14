@@ -10,7 +10,6 @@ import {
 	type TabStatusAdornment,
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
-	type TabStripCloseResume,
 	TabStripNewTabMenuItems,
 	type TabStripMessages,
 	type TabStripNewTabSection,
@@ -35,7 +34,6 @@ import styles from './WorkbenchTabList.module.css';
 
 interface WorkbenchTabListProps {
 	readonly actionRuntime: ActionRuntime;
-	readonly closeResume?: TabStripCloseResume | undefined;
 	readonly focusRequest: number;
 	readonly getTabCreationAvailability: (intent: TabStripTabCreationIntent) => ActionAvailability;
 	readonly identityIcons?: ReadonlyMap<string, ReactNode> | undefined;
@@ -68,7 +66,6 @@ interface WorkbenchTabListProps {
  */
 export function WorkbenchTabList({
 	actionRuntime,
-	closeResume,
 	focusRequest,
 	getTabCreationAvailability,
 	identityIcons,
@@ -199,7 +196,6 @@ export function WorkbenchTabList({
 				)}
 				<WorkbenchTabBar
 					actionRuntime={actionRuntime}
-					closeResume={closeResume}
 					fill
 					focusRequest={focusRequest}
 					getTabCreationAvailability={getTabCreationAvailability}

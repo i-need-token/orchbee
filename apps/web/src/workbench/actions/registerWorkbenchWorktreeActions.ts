@@ -68,8 +68,8 @@ function openingResult(outcome: WorkbenchWorktreeOutcome): ActionResult<Workbenc
  * The Workspace menu's Worktree commands, and the TUI's `Ctrl+B W` and `Ctrl+B O` as Search's
  * commands from the focused Panel. The authority owns Git and the operation, and its notices report
  * progress and outcomes; these Actions own the person's decisions. New Worktree asks for a branch and
- * base in the New Worktree form and creates nothing until it is submitted. Removal asks first, and a
- * removal that stops where it may continue asks again before it continues.
+ * base in the New Worktree form and creates nothing until it is submitted. Removal asks first; a
+ * removal that stops reports its cause, and Remove Worktree… then asks again and continues it.
  */
 export function registerWorkbenchWorktreeActions({
 	projectWorkspaceRuntime,
@@ -124,21 +124,11 @@ export function registerWorkbenchWorktreeActions({
 		...(answer.base === null ? {} : { base: answer.base }),
 		kind: 'create' as const,
 	});
-	const removalResult = (
-		context: ActionExecutionContext,
-		outcome: WorkbenchWorktreeOutcome,
-	): ActionResult<void> => {
-		if (outcome.kind === 'opened' || outcome.kind === 'removed') return { kind: 'completed' };
-		if (outcome.kind === 'failed' && outcome.resumable !== null) {
-			// Continuing is its own question, asked once this removal has stopped.
-			typedRuntime.execute(
-				WORKBENCH_ACTION_IDS.resumeWorktreeRemoval,
-				{ cause: outcome.resumable.cause, operationId: outcome.resumable.operationId },
-				{ scope, source: context.source },
-			);
-		}
-		return failedResult(outcome);
-	};
+	/** A removal that stops reports its cause; Remove Worktree… again continues it. */
+	const removalResult = (outcome: WorkbenchWorktreeOutcome): ActionResult<void> =>
+		outcome.kind === 'opened' || outcome.kind === 'removed'
+			? { kind: 'completed' }
+			: failedResult(outcome);
 
 	return [
 		typedRuntime.register(
@@ -275,7 +265,6 @@ export function registerWorkbenchWorktreeActions({
 				handler: {
 					execute: async (context, input) =>
 						removalResult(
-							context,
 							await send(context, {
 								kind: 'remove',
 								path: input.path,
@@ -292,17 +281,18 @@ export function registerWorkbenchWorktreeActions({
 			scope,
 			defineAction({
 				category,
+				// The removal's own question, with the cause it stopped at in place of the plan.
 				confirmation: (input) => ({
 					cancelLabel: workbenchMessages.panelCancel,
-					confirmLabel: workbenchMessages.worktreeResume,
-					// Resume Removal holds the focus, so Enter resumes, as the TUI's stopped removal does.
+					confirmLabel: workbenchMessages.worktreeRemoveConfirm,
+					// Remove holds the focus, so Enter removes, as the TUI's confirmation does.
 					defaultAnswer: 'confirm',
 					description: workbenchWorktreeFailureDescriptor('remove', input.cause),
 					risk: 'destructive',
-					title: workbenchMessages.worktreeStoppedTitle,
+					title: workbenchMessages.worktreeRemoveTitle,
 				}),
 				execution: {
-					// A Resume that stops again asks again, once its own execution has finished.
+					// A removal that stops again is asked about again only from the menu.
 					concurrency: 'serialize',
 					concurrencyKey: (input) => input.operationId,
 					mode: 'foreground',
@@ -310,14 +300,11 @@ export function registerWorkbenchWorktreeActions({
 				getAvailability: () => ({ kind: 'enabled' }),
 				handler: {
 					execute: async (context, input) =>
-						removalResult(
-							context,
-							await send(context, { kind: 'resume', operationId: input.operationId }),
-						),
+						removalResult(await send(context, { kind: 'resume', operationId: input.operationId })),
 				},
 				id: WORKBENCH_ACTION_IDS.resumeWorktreeRemoval,
 				input: workbenchWorktreeResumeInput,
-				title: workbenchMessages.worktreeResume,
+				title: workbenchMessages.worktreeRemove,
 			}),
 		),
 	];

@@ -216,7 +216,10 @@ export function useWorkspaceWorktrees({
 						},
 					]
 				: checkoutRows(commands, workspaceId, discovery);
-		/** A removal of this Workspace that stopped is offered again in place of a new one. */
+		/**
+		 * Remove Worktree… is the one removal entry. Where a removal of this Workspace stopped, it
+		 * continues that removal, since a new one beside it is not proven safe.
+		 */
 		const removalEntries = (): readonly WorkbenchActionMenuEntry[] => {
 			const stopped = state.kind === 'reading' ? null : state.stoppedRemoval;
 			if (stopped !== null) {
@@ -225,9 +228,9 @@ export function useWorkspaceWorktrees({
 						destructive: true,
 						disabled: pending,
 						icon: 'trash',
-						id: 'resume-worktree-removal',
+						id: 'remove-worktree',
 						kind: 'command',
-						label: intl.formatMessage(workbenchMessages.worktreeResumeRemoval),
+						label: intl.formatMessage(workbenchMessages.worktreeRemove),
 						onSelect: () =>
 							follow(
 								() => commands.resume({ cause: stopped.cause, operationId: stopped.operationId }),

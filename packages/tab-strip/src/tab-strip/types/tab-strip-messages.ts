@@ -66,8 +66,6 @@ export interface TabStripMessages {
 	readonly newTabTitle: string;
 	readonly previewUnavailable: string;
 	readonly rename: string;
-	/** Continues the Tab's close that stopped; it acts on the Tab the menu opened on alone. */
-	readonly resumeTabClose: string;
 	readonly tabGroups: string;
 	readonly tabMoveCanceled: string;
 	readonly tabOptions: string;

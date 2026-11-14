@@ -171,32 +171,17 @@ const FIRST_TAB_ACCEPTED = settled({
 function closeStatus(
 	status: unknown,
 	target: unknown = { kind: 'workspace', workspaceId: WORKSPACE },
+	generation = '1',
 ): ServerWorkbenchAnswer {
 	return {
 		kind: 'answered',
 		response: parseWorkbenchResponse({
 			kind: 'workbench.close-operation.result',
 			operationId: CLOSE_REQUEST,
-			outcome: { generation: '1', kind: 'available', status, target },
+			outcome: { generation, kind: 'available', status, target },
 			protocolVersion: 1,
 			requestId: REQUEST,
 			sessionId: SESSION,
-		}),
-	};
-}
-
-function resumeAnswer(outcome: unknown): ServerWorkbenchAnswer {
-	return {
-		kind: 'answered',
-		response: parseWorkbenchResponse({
-			closeRequestId: CLOSE_REQUEST,
-			kind: 'workbench.tab-close.resume.result',
-			outcome,
-			protocolVersion: 1,
-			requestId: REQUEST,
-			sessionId: SESSION,
-			tabId: FIRST_TAB,
-			terminalContextId: CONTEXT,
 		}),
 	};
 }
@@ -451,18 +436,35 @@ describe('close', () => {
 		});
 	});
 
-	it('stops watching at its budget, with the Server still at work', async () => {
+	it('keeps following while the Server reads it as closing, however often it renews the attempt', async () => {
 		vi.useFakeTimers({ toFake: ['performance', 'setTimeout'] });
-		const { session } = fakeSession([WORKSPACE_ACCEPTED]);
-		session.ask = () => Promise.resolve(CLOSING);
+		const { session } = fakeSession([FIRST_TAB_ACCEPTED]);
+		const tab = { kind: 'tab', tabId: FIRST_TAB, terminalContextId: CONTEXT };
+		// Three attempts of 30 s each, the generation rising by itself at every renewal.
+		const startedAt = performance.now();
+		session.ask = () => {
+			const elapsed = performance.now() - startedAt;
+			if (elapsed >= 90_000) return Promise.resolve(CLOSED);
+			const generation = `${1 + Math.floor(elapsed / 30_000)}`;
+			return Promise.resolve(
+				closeStatus({ kind: 'closing', phase: 'waiting-outcome' }, tab, generation),
+			);
+		};
+		let settledAt: number | null = null;
 
-		const closing = closeWith(session, executionContext().context, CLOSE_WORKSPACE);
-		await vi.advanceTimersByTimeAsync(50_001);
-
-		await expect(closing).resolves.toEqual({
-			failure: { code: 'status-unavailable' },
-			kind: 'failed',
+		const closing = closeWith(session, executionContext().context, {
+			tabIds: [FIRST_TAB],
+			terminalContextId: CONTEXT,
+			type: 'tabs-close',
+		}).then((result) => {
+			settledAt = performance.now() - startedAt;
+			return result;
 		});
+		await vi.advanceTimersByTimeAsync(89_000);
+		expect(settledAt).toBeNull();
+		await vi.advanceTimersByTimeAsync(2000);
+
+		await expect(closing).resolves.toEqual({ kind: 'completed' });
 	});
 
 	it('starts a set of Tabs once and follows it by its operation until the last closed member has been published', async () => {
@@ -559,7 +561,7 @@ describe('close', () => {
 		expect(cancelled.asked).toHaveLength(1);
 	});
 
-	it('follows the close of the last Panel as the close of its Tab, which Resume continues', async () => {
+	it('follows the close of the last Panel as the close of its Tab', async () => {
 		const { asked, session } = fakeSession(
 			[
 				settled({
@@ -590,7 +592,6 @@ describe('close', () => {
 		).resolves.toEqual({ failure: { code: 'cleanup-blocked' }, kind: 'failed' });
 
 		expect(asked).toHaveLength(1);
-		expect(closes.stoppedTabClose(CONTEXT, FIRST_TAB)).toBe('cleanup-blocked');
 	});
 
 	it('calls a cancelled close harmless only until a step has been handed over', async () => {
@@ -648,92 +649,6 @@ describe('close', () => {
 			kind: 'failed',
 		});
 		expect(asked).toHaveLength(1);
-	});
-});
-
-describe('stoppedTabClose', () => {
-	it('continues exactly the Tab close that stopped, and starts no other close', async () => {
-		const tab = { kind: 'tab', tabId: FIRST_TAB, terminalContextId: CONTEXT };
-		const { actions, asked, session } = fakeSession(
-			[FIRST_TAB_ACCEPTED],
-			[
-				closeStatus({ kind: 'cleanup-blocked', reason: 'host-refused', resumable: true }, tab),
-				resumeAnswer({ attemptGeneration: '2', kind: 'resumed' }),
-				CLOSED,
-			],
-		);
-		const closes = createServerWorkbenchClose(session);
-		const resume: WorkbenchAuthorityClosure = {
-			tabId: FIRST_TAB,
-			terminalContextId: CONTEXT,
-			type: 'tab-close-resume',
-		};
-
-		await expect(closes.close(executionContext().context, resume)).resolves.toEqual({
-			code: 'scope-changed',
-			kind: 'blocked',
-		});
-		expect(asked).toHaveLength(0);
-
-		await closes.close(executionContext().context, {
-			tabIds: [FIRST_TAB],
-			terminalContextId: CONTEXT,
-			type: 'tabs-close',
-		});
-		expect(closes.stoppedTabClose(CONTEXT, FIRST_TAB)).toBe('cleanup-blocked');
-
-		await expect(closes.close(executionContext().context, resume)).resolves.toEqual({
-			kind: 'completed',
-		});
-		expect(actions).toHaveLength(1);
-		expect(asked[1]).toMatchObject({
-			closeRequestId: CLOSE_REQUEST,
-			expectedAttemptGeneration: '1',
-			kind: 'workbench.tab-close.resume',
-			tabId: FIRST_TAB,
-			terminalContextId: CONTEXT,
-		});
-		expect(closes.stoppedTabClose(CONTEXT, FIRST_TAB)).toBeNull();
-	});
-});
-
-describe('stoppedTabClose after a set', () => {
-	it('keeps the stop of the member a stopped set left, which Resume continues by its own close', async () => {
-		const blocked = { kind: 'cleanup-blocked', reason: 'host-refused', resumable: true };
-		const { asked, session } = fakeSession(
-			[],
-			[
-				setStatus({ kind: 'pending' }, [null, null]),
-				setStatus({ kind: 'failed', reason: 'child-blocked' }, [blocked, null]),
-				resumeAnswer({ attemptGeneration: '2', kind: 'resumed' }),
-				CLOSED,
-			],
-		);
-		const closes = createServerWorkbenchClose(session);
-
-		const result = await closes.close(executionContext().context, CLOSE_TABS);
-
-		const [start] = asked;
-		expect(result).toEqual({
-			failure: { code: 'close-stopped', details: start?.requestId },
-			kind: 'failed',
-		});
-		expect(closes.stoppedTabClose(CONTEXT, FIRST_TAB)).toBe('cleanup-blocked');
-		expect(closes.stoppedTabClose(CONTEXT, SECOND_TAB)).toBeNull();
-		await expect(
-			closes.close(executionContext().context, {
-				tabId: FIRST_TAB,
-				terminalContextId: CONTEXT,
-				type: 'tab-close-resume',
-			}),
-		).resolves.toEqual({ kind: 'completed' });
-		expect(asked[2]).toMatchObject({
-			closeRequestId: CLOSE_REQUEST,
-			expectedAttemptGeneration: '1',
-			kind: 'workbench.tab-close.resume',
-			tabId: FIRST_TAB,
-			terminalContextId: CONTEXT,
-		});
 	});
 });
 

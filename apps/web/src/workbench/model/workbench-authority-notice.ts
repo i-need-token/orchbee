@@ -1,12 +1,15 @@
 import type { ActionResult } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
 
-import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import {
+	collectPanelLeaves,
+	findPanel,
+	getDisplayedTerminal,
+	getTerminalDisplayTitle,
+} from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type {
-	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
 	WorkbenchAuthorityCreation,
-	WorkbenchTabCloseStop,
 	WorkbenchTabDuplicationStop,
 } from '../types/workbench-authority';
 import type {
@@ -73,14 +76,9 @@ export function workbenchConfiguredCommandNotice(
 
 /** What is closing, read before it closes, since the words outlive the thing they name. */
 type WorkbenchCloseSubject =
-	| { readonly kind: 'panel' }
+	| { readonly kind: 'panel'; readonly label: string }
 	| { readonly kind: 'project'; readonly label: string }
-	| {
-			readonly kind: 'tab';
-			readonly label: string;
-			readonly tabId: string;
-			readonly terminalContextId: string;
-	  }
+	| { readonly kind: 'tab'; readonly label: string }
 	| {
 			readonly kind: 'tabs';
 			readonly tabIds: readonly string[];
@@ -100,8 +98,23 @@ function tabSubject(
 				.getTerminalContext(terminalContextId)
 				?.tabModel.getSnapshot()
 				.tabs.find((tab) => tab.id === tabId)?.title ?? '',
-		tabId,
-		terminalContextId,
+	};
+}
+
+function panelSubject(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	terminalContextId: string,
+	tabId: string,
+	panelId: string,
+): WorkbenchCloseSubject {
+	const tab = runtime
+		.getTerminalContext(terminalContextId)
+		?.panelWorkspaceStore.getSnapshot()
+		.tabs.find((candidate) => candidate.tabId === tabId);
+	const panel = tab === undefined ? null : findPanel(tab.root, panelId);
+	return {
+		kind: 'panel',
+		label: panel === null ? '' : getTerminalDisplayTitle(getDisplayedTerminal(panel)),
 	};
 }
 
@@ -127,9 +140,7 @@ export function readWorkbenchCloseSubject(
 		case 'panel-close-if-idle':
 			return closesTab(runtime, closure.terminalContextId, closure.tabId)
 				? tabSubject(runtime, closure.terminalContextId, closure.tabId)
-				: { kind: 'panel' };
-		case 'tab-close-resume':
-			return tabSubject(runtime, closure.terminalContextId, closure.tabId);
+				: panelSubject(runtime, closure.terminalContextId, closure.tabId, closure.panelId);
 		case 'project-workspaces-close':
 			return {
 				kind: 'project',
@@ -219,7 +230,6 @@ export function workbenchCloseWithdrawnNotice(
 		descriptor:
 			closure.type === 'panel-close' ||
 			closure.type === 'panel-close-if-idle' ||
-			closure.type === 'tab-close-resume' ||
 			closure.type === 'tabs-close' ||
 			closure.type === 'tabs-close-if-idle'
 				? workbenchMessages.tabCloseCancelled
@@ -228,29 +238,17 @@ export function workbenchCloseWithdrawnNotice(
 	};
 }
 
-/** A close that may continue says so, so the person knows Resume is there. */
-function tabCloseFailureDescriptor(
-	code: string,
-	stop: WorkbenchTabCloseStop | null,
-): WorkbenchAuthorityNotice['descriptor'] {
-	switch (stop) {
-		case 'awaiting-removal':
-			return workbenchMessages.tabCloseAwaitingRemovalResumable;
-		case 'cleanup-blocked':
-			return workbenchMessages.tabCloseCleanupBlockedResumable;
-		case null:
-			break;
-	}
-	switch (code) {
-		case 'awaiting-removal':
-			return workbenchMessages.tabCloseAwaitingRemoval;
-		case 'cleanup-blocked':
-			return workbenchMessages.tabCloseCleanupBlocked;
-		case 'outcome-unknown':
-			return workbenchMessages.tabCloseOutcomeUnknown;
-		default:
-			return workbenchMessages.tabCloseStatusUnavailable;
-	}
+/**
+ * A close of one Tab or one Panel that ended any other way than its removal: the Server gave up, its
+ * outcome is unknown, or its status could no longer be read. One sentence says so, without a reason,
+ * until the next press; the Tab or Panel is back, and closing it again asks as usual.
+ */
+function closeFailedNotice(label: string): WorkbenchAuthorityNotice {
+	return {
+		descriptor: workbenchMessages.tabCloseFailed,
+		lifetime: 'until-press',
+		values: { label },
+	};
 }
 
 function refusedOrChanged(
@@ -271,7 +269,6 @@ export function workbenchCloseResultNotice(
 	subject: WorkbenchCloseSubject,
 	result: ActionResult<void>,
 	runtime: WorkbenchProjectWorkspaceRuntime,
-	authority: Pick<WorkbenchAuthority, 'stoppedTabClose'>,
 	sawClosed: boolean,
 ): WorkbenchAuthorityNotice | null {
 	if (
@@ -285,9 +282,9 @@ export function workbenchCloseResultNotice(
 	switch (subject.kind) {
 		case 'panel':
 			if (result.kind === 'completed') return null;
-			return result.kind === 'failed' && result.failure.code === 'outcome-unknown'
-				? { descriptor: workbenchMessages.workspaceSetupOutcomeUnknown, lifetime: 'until-press' }
-				: { descriptor: workbenchMessages.panelCloseNotApplied, lifetime: 'timed' };
+			return result.kind === 'blocked'
+				? { descriptor: workbenchMessages.panelCloseNotApplied, lifetime: 'timed' }
+				: closeFailedNotice(subject.label);
 		case 'project': {
 			const values = { label: subject.label };
 			if (result.kind === 'completed') {
@@ -313,20 +310,11 @@ export function workbenchCloseResultNotice(
 					}
 				: { descriptor: workbenchMessages.projectCloseStopped, lifetime: 'until-press', values };
 		}
-		case 'tab': {
+		case 'tab':
 			if (result.kind === 'completed') return null;
-			const values = { label: subject.label };
 			return result.kind === 'blocked'
 				? { descriptor: workbenchMessages.tabCloseNotApplied, lifetime: 'timed' }
-				: {
-						descriptor: tabCloseFailureDescriptor(
-							result.failure.code,
-							authority.stoppedTabClose(subject.terminalContextId, subject.tabId),
-						),
-						lifetime: 'until-press',
-						values,
-					};
-		}
+				: closeFailedNotice(subject.label);
 		case 'tabs': {
 			// A set the authority did not take closed nothing.
 			if (result.kind === 'blocked') {
@@ -537,8 +525,8 @@ export function workbenchWorktreeProgressNotice(
 
 /**
  * What a settled Worktree command says. An opened Worktree shows as its Workspace. A failure stays
- * until a press, so a removal whose Resume question is declined keeps its receipt. A removal says
- * that the branch stays, which nothing shows.
+ * until a press, so a stopped removal keeps its cause in view. A removal says that the branch
+ * stays, which nothing shows.
  */
 export function workbenchWorktreeOutcomeNotice(
 	command: WorkbenchWorktreeCommand,

@@ -67,7 +67,6 @@ export type {
 	WorkbenchFocusNewPanelSource,
 	WorkbenchHeldRestoreOutcome,
 	WorkbenchHeldRestores,
-	WorkbenchTabCloseStop,
 	WorkbenchTabDuplicationStop,
 } from './types/workbench-authority';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';

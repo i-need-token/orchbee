@@ -295,14 +295,9 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.resize.outcomeUnknown':
 		'Resize outcome unknown; inspect layout before trying again',
 	'workbench.panels.childTerminals.label': 'Child terminals',
-	'workbench.tabs.close.awaitingRemoval': '{label} · Execution ended; awaiting Tab removal',
-	'workbench.tabs.close.awaitingRemovalResumable':
-		'{label} · Execution ended; awaiting Tab removal · Close can be retried',
 	'workbench.tabs.close.cancelled': 'Close confirmation cancelled',
-	'workbench.tabs.close.cleanupBlocked': '{label} · Close cleanup blocked',
-	'workbench.tabs.close.cleanupBlockedResumable':
-		'{label} · Close cleanup blocked · Close can be retried',
 	'workbench.tabs.close.closing': '{label} · Closing',
+	'workbench.tabs.close.failed': "Couldn't close {label}.",
 	'workbench.close.warning':
 		'{impact, select, running {Ends {running, plural, one {# terminal} other {# terminals}}.} ended {Discards the output of {ended, plural, one {# ended terminal} other {# ended terminals}}.} mixed {Ends {running, plural, one {# terminal} other {# terminals}} and discards the output of {ended, plural, one {# ended one} other {# ended ones}}.} other {Ends its terminals.}}',
 	'workbench.tabs.close.description':
@@ -319,16 +314,9 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.duplicate.uncertain':
 		'Duplication stopped: check pending, failed or unknown result; no replay · {created}/{total} tabs created',
 	'workbench.tabs.update.notApplied': 'Tabs not updated · check the target before trying again',
-	'workbench.tabs.close.outcomeUnknown': '{label} · Close outcome unknown',
-	'workbench.tabs.close.resume': 'Resume closing this Tab…',
-	'workbench.tabs.close.resumeDescription':
-		'{label} · {stop, select, awaiting-removal {Execution ended; awaiting Tab removal} other {Close cleanup blocked}}. {warning}',
-	'workbench.tabs.close.resumeTitle': 'Resume closing this Tab?',
 	'workbench.tabs.close.setProgress': 'Closing Tabs: {completed} closed, {remaining} remaining',
 	'workbench.tabs.close.setStopped':
 		'Closing stopped: {completed} closed, {remaining} not confirmed closed. Submitted closes may continue.',
-	'workbench.tabs.close.statusUnavailable':
-		'{label} · Awaiting Close status · Status check unavailable',
 	'workbench.tabs.close.title': '{count, plural, =1 {Close Tab?} other {Close # Tabs?}}',
 	'workbench.tabs.label': 'Terminal tabs',
 	'workbench.tabs.mobile.all': 'Tabs',
@@ -458,9 +446,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.worktrees.removeDescription':
 		'Orchbee closes “{workspace}”{terminals, plural, =0 {} one { and its terminal} other { and its # terminals}}, then deletes the checkout at {path}.{kept, select, true { The branch {branch} is kept.} other {}}',
 	'workbench.worktrees.removeConfirm': 'Remove',
-	'workbench.worktrees.stoppedTitle': 'Worktree Removal Stopped',
-	'workbench.worktrees.resume': 'Resume Removal',
-	'workbench.worktrees.resumeRemoval': 'Resume Worktree Removal…',
 	'workbench.worktrees.creating': 'Creating worktree…',
 	'workbench.worktrees.opening': 'Opening worktree…',
 	'workbench.worktrees.removing': 'Removing worktree…',

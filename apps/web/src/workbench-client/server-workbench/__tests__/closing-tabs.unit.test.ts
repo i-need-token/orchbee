@@ -194,18 +194,6 @@ function closingWindow(
 					if (set === null) throw new Error('No set has started.');
 					return Promise.resolve(readSet(set));
 				}
-				case 'workbench.tab-close.resume':
-					return Promise.resolve({
-						kind: 'answered',
-						response: response({
-							closeRequestId: request.closeRequestId,
-							kind: 'workbench.tab-close.resume.result',
-							outcome: { attemptGeneration: '2', kind: 'resumed' },
-							sessionId: SESSION,
-							tabId: request.tabId,
-							terminalContextId: request.terminalContextId,
-						}),
-					});
 				default:
 					throw new Error(`Nothing asks ${request.kind} here.`);
 			}
@@ -251,8 +239,6 @@ function closingWindow(
 			run({ tabIds: sequences.map(fixtureTabId), terminalContextId: CONTEXT, type: 'tabs-close' }),
 		/** What the strip showed at each leave a close has said since the last call. */
 		lefts: () => lefts.splice(0),
-		resume: (sequence: number) =>
-			run({ tabId: fixtureTabId(sequence), terminalContextId: CONTEXT, type: 'tab-close-resume' }),
 		view,
 		/** What the window showed at each read of Tab `sequence`'s close that answered `answer`. */
 		viewsAt: (sequence: number, answer: CloseStatus) =>
@@ -333,15 +319,12 @@ describe('closing several Tabs', () => {
 });
 
 describe('closing a Tab whose close stopped', () => {
-	it('leaves the strip only once a read finds the close on its way, while a Resume leaves at once', async () => {
+	it('leaves the strip only once a read finds the close on its way', async () => {
 		// A close says its Tab left, for the slow Closing notice and the keyboard, once and only once it has.
 		const strip = closingWindow(
 			2,
 			1,
-			new Map<number, readonly CloseStatus[]>([
-				[1, ['blocked', 'blocked', 'closing', 'closed']],
-				[2, ['blocked', 'closing', 'closed']],
-			]),
+			new Map<number, readonly CloseStatus[]>([[1, ['blocked', 'blocked', 'closing', 'closed']]]),
 		);
 		const shownAt = (sequence: number, answer: CloseStatus) =>
 			strip.viewsAt(sequence, answer).map(({ shown }) => shown.includes(fixtureTabId(sequence)));
@@ -357,11 +340,20 @@ describe('closing a Tab whose close stopped', () => {
 		expect(shownAt(1, 'closing')).toEqual([true]);
 		expect(shownAt(1, 'closed')).toEqual([false]);
 		expect(strip.lefts()).toEqual([[fixtureTabId(2)]]);
+	});
 
-		await strip.close(2);
-		expect(strip.lefts()).toEqual([[]]);
-		await expect(strip.resume(2)).resolves.toEqual({ kind: 'completed' });
-		expect(shownAt(2, 'closing')).toEqual([false]);
-		expect(strip.lefts()).toEqual([[]]);
+	it('shows the Tab again once the Server reads the close as given up', async () => {
+		const strip = closingWindow(
+			2,
+			1,
+			new Map<number, readonly CloseStatus[]>([[1, ['closing', 'closing', 'blocked']]]),
+		);
+
+		await expect(strip.close(1)).resolves.toMatchObject({ kind: 'failed' });
+		expect(strip.viewsAt(1, 'closing').map(({ shown }) => shown)).toEqual([
+			[fixtureTabId(2)],
+			[fixtureTabId(2)],
+		]);
+		expect(strip.view().shown).toEqual([fixtureTabId(1), fixtureTabId(2)]);
 	});
 });

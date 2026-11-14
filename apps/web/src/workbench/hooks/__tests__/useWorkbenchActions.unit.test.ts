@@ -307,8 +307,6 @@ describe('useWorkbenchActions', () => {
 						actionId !== WORKBENCH_ACTION_IDS.closePanelTargetConfirmed &&
 						// Only the authority's answer names the Tab this asks about.
 						actionId !== WORKBENCH_ACTION_IDS.closeTabConfirmed &&
-						// Only an authority's close can stop where Resume continues it.
-						actionId !== WORKBENCH_ACTION_IDS.resumeTabClose &&
 						// Only an authority that reads the Session's Agent catalog starts an Agent.
 						actionId !== WORKBENCH_ACTION_IDS.openAgentStart &&
 						actionId !== WORKBENCH_ACTION_IDS.startAgent &&

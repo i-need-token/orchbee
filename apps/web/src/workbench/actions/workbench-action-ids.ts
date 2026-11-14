@@ -77,7 +77,6 @@ export const WORKBENCH_ACTION_IDS = {
 	moveActivePanelLeft: 'workbench.panel.active.move-left',
 	moveActivePanelRight: 'workbench.panel.active.move-right',
 	moveActivePanelUp: 'workbench.panel.active.move-up',
-	resumeTabClose: 'workbench.tab.close.resume',
 	setTabTitle: 'workbench.tab.title.set',
 	renamePanel: 'workbench.panel.rename',
 	selectNextTab: 'workbench.tab.select-next',
@@ -207,11 +206,6 @@ export interface WorkbenchTabPositionInput {
 	readonly position: WorkbenchTabPosition;
 }
 
-/** A Tab named exactly, or the active Tab when absent. */
-export type WorkbenchTabTargetInput =
-	| undefined
-	| { readonly tabId: string; readonly terminalContextId: string };
-
 /** One or more distinct Tabs of one terminal context, named exactly. */
 export type WorkbenchTabSetTargetInput =
 	| undefined
@@ -330,7 +324,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelLeft]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelUp]: ActionSignature<void>;
-	readonly [WORKBENCH_ACTION_IDS.resumeTabClose]: ActionSignature<WorkbenchTabTargetInput>;
 	readonly [WORKBENCH_ACTION_IDS.setTabTitle]: ActionSignature<WorkbenchTabTitleInput>;
 	readonly [WORKBENCH_ACTION_IDS.renamePanel]: ActionSignature<WorkbenchPanelNameInput>;
 	readonly [WORKBENCH_ACTION_IDS.selectNextTab]: ActionSignature<void>;
@@ -491,23 +484,6 @@ export const workbenchTabPositionInput: ActionInputValidation<WorkbenchTabPositi
 					success: true,
 				}
 			: { code: 'expected-workbench-tab-position-input', success: false },
-};
-
-export const workbenchTabTargetInput: ActionInputValidation<WorkbenchTabTargetInput> = {
-	name: 'WorkbenchTabTargetInput',
-	parse: (input) => {
-		if (input === undefined) return { data: undefined, success: true };
-		return isRecord(input) &&
-			typeof input['tabId'] === 'string' &&
-			input['tabId'].length > 0 &&
-			typeof input['terminalContextId'] === 'string' &&
-			input['terminalContextId'].length > 0
-			? {
-					data: { tabId: input['tabId'], terminalContextId: input['terminalContextId'] },
-					success: true,
-				}
-			: { code: 'expected-workbench-tab-target-input', success: false };
-	},
 };
 
 export const workbenchTabSetTargetInput: ActionInputValidation<WorkbenchTabSetTargetInput> = {

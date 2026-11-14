@@ -55,7 +55,6 @@ export const DEFAULT_TAB_STRIP_MESSAGES = {
 	loadingTabTitle: 'Loading…',
 	previewUnavailable: 'Preview unavailable',
 	rename: 'Rename',
-	resumeTabClose: 'Resume closing this Tab…',
 	tabGroups: 'Tab groups',
 	tabMoveCanceled: 'Tab move canceled',
 	tabOptions: 'Tab options',

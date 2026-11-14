@@ -12,7 +12,6 @@ import type { ResizablePanelHandle } from '@orchbee/ui/components';
 import {
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
-	type TabStripCloseResume,
 	type TabStripNewTabSection,
 	type TabStripNewTabRequest,
 	TabStripOrientation,
@@ -187,8 +186,6 @@ interface WorkbenchView {
 	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly actionScope: ActionScope;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
-	/** Present when an authority may stop a Tab's close where Resume continues it. */
-	readonly closeResume: TabStripCloseResume;
 	readonly confirmProjectWorkspaceAction: () => void;
 	/** Present when an authority decides the Panels, whose new terminals then show as it answers. */
 	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
@@ -762,29 +759,6 @@ export function useWorkbench({
 			}
 		};
 	}, [intl, newFolderAvailable, projectWorkspaceRuntime, worktrees]);
-	const invokeAction = actions.invoke;
-	const closeResume = React.useMemo<TabStripCloseResume>(() => {
-		const decider = authorityNotice.authority;
-		const shownContext = () =>
-			projectWorkspaceRuntime.getActiveTerminalContext()?.terminalContextId ?? null;
-		return {
-			available: (tabId) => {
-				const terminalContextId = shownContext();
-				return (
-					terminalContextId !== null && decider.stoppedTabClose(terminalContextId, tabId) !== null
-				);
-			},
-			resume: (tabId) => {
-				const terminalContextId = shownContext();
-				if (terminalContextId === null) return;
-				invokeAction(
-					WORKBENCH_ACTION_IDS.resumeTabClose,
-					{ tabId, terminalContextId },
-					'context-menu',
-				);
-			},
-		};
-	}, [authorityNotice.authority, invokeAction, projectWorkspaceRuntime]);
 	const createTabWithProfile = useMemoizedFn((profile: UserLaunchProfile) => {
 		actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null, profile }, 'context-menu');
 	});
@@ -948,7 +922,6 @@ export function useWorkbench({
 			activateWorkspace(workspaceId, origin);
 		},
 		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
-		closeResume,
 		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
 		closeAgentPanel: (input) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.closePanelTarget, input, 'menu');

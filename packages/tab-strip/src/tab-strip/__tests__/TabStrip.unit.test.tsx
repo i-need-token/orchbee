@@ -993,30 +993,6 @@ describe('TabStrip', () => {
 		expect(screen.queryByRole('menu')).toBeNull();
 	});
 
-	it('offers Resume only on the Tab whose close stopped, alone and just before Close', () => {
-		const model = createModel();
-		model.setSelection(['research-a', 'loose'], 'loose');
-		const resume = vi.fn<(tabId: string) => void>();
-		render(
-			<TabStrip model={model} closeResume={{ available: (tabId) => tabId === 'loose', resume }} />,
-		);
-
-		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
-			clientX: 50,
-			clientY: 30,
-		});
-		const rows = screen.getAllByRole('menuitem').map((row) => row.textContent);
-		expect(rows[rows.indexOf('Resume closing this Tab…') + 1]).toBe('Close selected 2 Tabs…');
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Resume closing this Tab…' }));
-		expect(resume).toHaveBeenCalledExactlyOnceWith('loose');
-
-		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Pinned/ }), {
-			clientX: 10,
-			clientY: 30,
-		});
-		expect(screen.queryByRole('menuitem', { name: 'Resume closing this Tab…' })).toBeNull();
-	});
-
 	it('runs group membership commands from the tab context menu', () => {
 		const model = createModel();
 		const onNameGroup = vi.fn<(request: TabStripGroupNameRequest) => void>();

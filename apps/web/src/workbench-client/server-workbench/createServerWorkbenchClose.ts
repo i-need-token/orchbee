@@ -3,7 +3,6 @@ import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityCloseContext,
 	WorkbenchAuthorityClosure,
-	WorkbenchTabCloseStop,
 } from '../../workbench';
 import {
 	WORKBENCH_PROTOCOL_VERSION,
@@ -32,10 +31,6 @@ type CloseOperationResult = Extract<
 >;
 type CloseObservation = Extract<CloseOperationResult['outcome'], { readonly kind: 'available' }>;
 type CloseStatus = CloseObservation['status'];
-type ResumeOutcome = Extract<
-	WorkbenchResponse,
-	{ readonly kind: 'workbench.tab-close.resume.result' }
->['outcome'];
 type GroupCloseResult = Extract<
 	WorkbenchResponse,
 	{ readonly kind: 'workbench.workspace-group-close.result' }
@@ -73,53 +68,42 @@ type CloseSubmission =
 			readonly decidedFrom: WorkbenchSnapshot;
 	  }
 	| { readonly kind: 'ended'; readonly result: ActionResult<void> };
-type TabTarget = Pick<
-	Extract<WorkbenchAuthorityClosure, { readonly type: 'tab-close-resume' }>,
-	'tabId' | 'terminalContextId'
->;
+interface TabTarget {
+	readonly tabId: string;
+	readonly terminalContextId: string;
+}
 
 /** The Action's context, which also knows whether any step has been handed over yet. */
 interface CloseContext extends WorkbenchAuthorityCloseContext {
 	readonly handedOver: () => boolean;
 }
 
-/** A Tab close that stopped where an explicit Resume may continue it, with what Resume names. */
-interface StoppedTabClose {
-	readonly closeRequestId: CloseOperationResult['operationId'];
-	readonly generation: CloseObservation['generation'];
-	readonly stop: WorkbenchTabCloseStop;
-	readonly target: Extract<CloseObservation['target'], { readonly kind: 'tab' }>;
-}
+/** The identity of a followed Tab close that ended without closing its Tab, which the Server keeps. */
+type UnsettledTabClose = CloseOperationResult['operationId'];
 
-/** How a followed close settled, and the stop a Resume may continue, if it stopped at one. */
-interface ObservedClose {
-	readonly result: ActionResult<void>;
-	readonly stopped: StoppedTabClose | null;
-}
-
-/** A followed Tab close that ended without closing its Tab, which the Server may still hold open. */
-interface UnsettledTabClose {
-	readonly closeRequestId: CloseOperationResult['operationId'];
-	/** Where an explicit Resume may continue it. */
-	readonly stopped: StoppedTabClose | null;
-}
-
-/** What following a Tab's accepted close tells the window, and keeps for Resume and a later Close. */
+/** What following a Tab's accepted close tells the window, and keeps for a later Close of the Tab. */
 interface TabCloseFollow {
 	readonly leave: ServerLeave;
-	/** Keeps how the Tab's followed close ended without closing it, or forgets that with null. */
+	/** Keeps the Tab's followed close that ended without closing it, or forgets it with null. */
 	keep(terminalContextId: string, tabId: string, unsettled: UnsettledTabClose | null): void;
 	/** The followed close of the Tab that last ended without closing it, while the Tab is there. */
 	unsettled(terminalContextId: string, tabId: string): UnsettledTabClose | null;
 }
 
-/** How long this Client watches a close it started. The Server's work continues past it. */
-const OBSERVATION_BUDGET_MILLISECONDS = 50_000;
+/**
+ * How long this Client follows a close that still reads as running. The Server keeps one close
+ * `closing` across its attempt and two automatic renewals of 30 s each, and a step admitted just
+ * before an attempt's deadline may still settle after it, within the carrier's 20 s response wait
+ * and 2 s frame I/O: at most about 156 s (the Server's terminal-tab-close reference, Automatic
+ * renewal). A Tab set or Project close-all ends itself after 120 s. This bound sits above all of
+ * them, so the window stops following only where the Server can no longer be closing.
+ */
+const OBSERVATION_BUDGET_MILLISECONDS = 180_000;
 /** Physical settlement has no progress notification, so only a pending close is sampled. */
 const OBSERVATION_INTERVAL_MILLISECONDS = 50;
 /** A newer revision that left the target untouched is not a refusal of the target. */
 const STALE_RETRY_LIMIT = 4;
-/** Unsettled Tab closes kept for Resume and a later Close; one person rarely leaves more behind. */
+/** Unsettled Tab closes kept for a later Close; one person rarely leaves more behind. */
 const MAXIMUM_UNSETTLED_TAB_CLOSES = 16;
 
 const NOT_SUBMITTED = { code: 'not-submitted', kind: 'blocked' } as const;
@@ -175,7 +159,6 @@ function closureFacts(closure: WorkbenchAuthorityClosure, snapshot: WorkbenchSna
 			);
 		case 'panel-close':
 		case 'panel-close-if-idle':
-		case 'tab-close-resume':
 			return tabFacts(snapshot, closure.terminalContextId, closure.tabId);
 	}
 }
@@ -239,7 +222,10 @@ function refused(outcome: ServerWorkbenchOutcome): ActionResult<void> {
 	}
 }
 
-/** What a close status means here; null while the close is still under way. */
+/**
+ * What a close status means here; null while the close is still under way. The Server retries and
+ * renews a close by itself while it reads `closing`, so any parked status means it has given up.
+ */
 function settledStatus(status: CloseStatus): ActionResult<void> | null {
 	switch (status.kind) {
 		case 'closing':
@@ -258,41 +244,19 @@ function settledStatus(status: CloseStatus): ActionResult<void> | null {
 	}
 }
 
-/** Where only an explicit Resume continues a close, as the status says. */
-function resumableStop(status: CloseStatus): WorkbenchTabCloseStop | null {
-	switch (status.kind) {
-		case 'cleanup-blocked':
-			return status.resumable ? 'cleanup-blocked' : null;
-		case 'disposed-awaiting-publication':
-			return status.resumable ? 'awaiting-removal' : null;
-		case 'closed':
-		case 'closing':
-		case 'outcome-unknown':
-			return null;
-	}
-}
-
-function stoppedTabClose(
-	operationId: CloseOperationResult['operationId'],
-	{ generation, status, target }: CloseObservation,
-): StoppedTabClose | null {
-	const stop = resumableStop(status);
-	return stop === null || target.kind !== 'tab'
-		? null
-		: { closeRequestId: operationId, generation, stop, target };
-}
-
 /**
- * Reads an accepted close by its original identity, which outlives the target it closed.
- * `onProgressing` hears each read that finds the close still on its way.
+ * Reads an accepted close by its original identity, which outlives the target it closed, for as
+ * long as it reads as running, however often the Server renews its attempt meanwhile. It stops at
+ * a settled status, a read that brings no status, or the deadline. `onProgressing` hears each read
+ * that finds the close still on its way.
  */
 async function observeClose(
 	session: CloseSession,
 	operationId: CloseOperationResult['operationId'],
 	deadline: number,
 	onProgressing?: () => void,
-): Promise<ObservedClose> {
-	const unobserved = { result: failed('status-unavailable'), stopped: null };
+): Promise<ActionResult<void>> {
+	const unobserved = failed('status-unavailable');
 	for (;;) {
 		const remaining = deadline - performance.now();
 		if (remaining <= 0) return unobserved;
@@ -316,9 +280,7 @@ async function observeClose(
 		const observation = answer.response.outcome;
 		if (observation.status.kind === 'closed') await session.published(observation.status.revision);
 		const settled = settledStatus(observation.status);
-		if (settled !== null) {
-			return { result: settled, stopped: stoppedTabClose(operationId, observation) };
-		}
+		if (settled !== null) return settled;
 		onProgressing?.();
 		await delay(Math.min(OBSERVATION_INTERVAL_MILLISECONDS, remaining));
 	}
@@ -381,10 +343,10 @@ function memberLeaving(
 /**
  * Follows a Tab's accepted close to its end. As the TUI leaves a Tab out while its close
  * progresses, the window leaves it out until the close settles: a completed close has removed it
- * by then, and any other end shows it again with its report, keeping a stop Resume may continue.
- * A Close of a Tab whose close ended unsettled joins that close while the Server holds it open, so,
- * as the TUI keeps that close's last status, the Tab leaves only once a read finds the close on its
- * way again; until then it stays and reports the same stop. `markLeft` hears the Tab leave.
+ * by then, and any other end shows it again with its report. A Close of a Tab whose close ended
+ * unsettled joins that close while the Server holds it open, and the Server may renew it or leave
+ * it as it was, so the Tab leaves only once a read finds the close running; until then it stays,
+ * and a close that does not run again reports its end again. `markLeft` hears the Tab leave.
  */
 async function followTabClose(
 	session: CloseSession,
@@ -396,16 +358,12 @@ async function followTabClose(
 ): Promise<ActionResult<void>> {
 	const { tabId, terminalContextId } = target;
 	const leaving = memberLeaving(follow.leave, { kind: 'tab', tabId, terminalContextId }, markLeft);
-	const joined = follow.unsettled(terminalContextId, tabId)?.closeRequestId === closeRequestId;
+	const joined = follow.unsettled(terminalContextId, tabId) === closeRequestId;
 	if (!joined) leaving.leave();
 	try {
-		const observed = await observeClose(session, closeRequestId, deadline, leaving.leave);
-		follow.keep(
-			terminalContextId,
-			tabId,
-			observed.result.kind === 'completed' ? null : { closeRequestId, stopped: observed.stopped },
-		);
-		return observed.result;
+		const result = await observeClose(session, closeRequestId, deadline, leaving.leave);
+		follow.keep(terminalContextId, tabId, result.kind === 'completed' ? null : closeRequestId);
+		return result;
 	} finally {
 		leaving.stay();
 	}
@@ -437,12 +395,11 @@ async function closeWorkspace(
 	const stay = follow.leave.leave([{ kind: 'workspace', workspaceId: closure.workspaceId }]);
 	context.markLeft?.();
 	try {
-		const observed = await observeClose(
+		return await observeClose(
 			session,
 			outcome.closeRequestId,
 			performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
 		);
-		return observed.result;
 	} finally {
 		stay();
 	}
@@ -539,8 +496,8 @@ function heldTabSet(snapshot: WorkbenchSnapshot, closure: TabsClosure) {
 }
 
 /**
- * Keeps how the member a stopped set left ended: the Server leaves that member's own Close
- * retained, so its Resume continues it from the Tab, and a new Close of the Tab joins it.
+ * Keeps the close of the member a stopped set left: the Server leaves that member's own Close
+ * retained, so a new Close of the Tab joins it.
  */
 function keepStoppedMember(
 	follow: TabCloseFollow,
@@ -551,20 +508,7 @@ function keepStoppedMember(
 	);
 	const child = member?.close;
 	if (member === undefined || child === null || child === undefined) return;
-	const { observation, requestId } = child;
-	const stop = observation === null ? null : resumableStop(observation.status);
-	follow.keep(terminalContextId, member.tabId, {
-		closeRequestId: requestId,
-		stopped:
-			observation === null || stop === null
-				? null
-				: {
-						closeRequestId: requestId,
-						generation: observation.attemptGeneration,
-						stop,
-						target: { kind: 'tab', tabId: member.tabId, terminalContextId },
-					},
-	});
+	follow.keep(terminalContextId, member.tabId, child.requestId);
 }
 
 /**
@@ -694,61 +638,6 @@ async function closeTabIfIdle(
 	);
 }
 
-/** What a Resume the Server did not run says; nothing it names has changed. */
-function resumeRefused(
-	outcome: Exclude<ResumeOutcome, { readonly kind: 'resumed' | 'stale' }>,
-): ActionResult<void> {
-	return {
-		code: outcome.kind === 'denied' ? outcome.kind : outcome.reason,
-		kind: 'blocked',
-	};
-}
-
-/**
- * Continues exactly the close that stopped, under the attempt its status named, and never starts
- * another close in its place. A Stale answer means another attempt replaced that one, so this
- * window follows the close as it is now. Either answer puts the close back on its way, so, as in
- * the TUI, the Tab leaves at once.
- */
-async function resumeTabClose(
-	session: CloseSession,
-	context: WorkbenchAuthorityCloseContext,
-	stopped: StoppedTabClose | null,
-	follow: TabCloseFollow,
-): Promise<ActionResult<void>> {
-	if (stopped === null) return SCOPE_CHANGED;
-	if (context.signal.aborted) return { kind: 'cancelled' };
-	const { closeRequestId, generation, target } = stopped;
-	const deadline = performance.now() + OBSERVATION_BUDGET_MILLISECONDS;
-	context.markCommitted();
-	const answer = await session.ask(
-		{
-			closeRequestId,
-			expectedAttemptGeneration: generation,
-			kind: 'workbench.tab-close.resume',
-			protocolVersion: WORKBENCH_PROTOCOL_VERSION,
-			requestId: createWorkbenchRequestId(),
-			sessionId: session.snapshot.sessionId,
-			tabId: target.tabId,
-			terminalContextId: target.terminalContextId,
-		},
-		OBSERVATION_BUDGET_MILLISECONDS,
-	);
-	if (answer.kind === 'not-submitted') return NOT_SUBMITTED;
-	if (answer.kind !== 'answered' || answer.response.kind !== 'workbench.tab-close.resume.result') {
-		// It may have continued the close; a later Resume of the same attempt answers Stale then.
-		return failed('outcome-unknown');
-	}
-	const { outcome } = answer.response;
-	if (outcome.kind !== 'resumed' && outcome.kind !== 'stale') {
-		// Whatever the Server refused here, a new Close finds the close as it is now.
-		if (outcome.kind === 'rejected') follow.keep(target.terminalContextId, target.tabId, null);
-		return resumeRefused(outcome);
-	}
-	follow.keep(target.terminalContextId, target.tabId, null);
-	return followTabClose(session, follow, target, closeRequestId, deadline, context.markLeft);
-}
-
 /**
  * Follows the accepted close of one Panel of several. The Server removes such a Panel only as its
  * close completes, so the window leaves it out from the acceptance until the close settles: a
@@ -763,12 +652,11 @@ async function followPanelClose(
 	const { panelId, tabId, terminalContextId } = target;
 	const stay = leave.leave([{ kind: 'panel', panelId, tabId, terminalContextId }]);
 	try {
-		const observed = await observeClose(
+		return await observeClose(
 			session,
 			closeRequestId,
 			performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
 		);
-		return observed.result;
 	} finally {
 		stay();
 	}
@@ -954,14 +842,14 @@ function tabKey(terminalContextId: string, tabId: string): string {
 
 /**
  * Runs each close until its result is known and never repeats one that may have run. It keeps each
- * Tab close that ended without closing its Tab, with any stop an explicit Resume may continue,
- * while that Tab is still there. `leave` hears each Tab whose progressing close this follows, for
- * as long as it follows it.
+ * Tab close that ended without closing its Tab while that Tab is still there, so a new Close of the
+ * Tab is known to join it. `leave` hears each Tab whose progressing close this follows, for as long
+ * as it follows it.
  */
 export function createServerWorkbenchClose(
 	session: CloseSession,
 	leave: ServerLeave = NO_LEAVE,
-): Pick<WorkbenchAuthority, 'close' | 'stoppedTabClose' | 'watchClose'> {
+): Pick<WorkbenchAuthority, 'close' | 'watchClose'> {
 	const unsettledTabCloses = new Map<string, UnsettledTabClose>();
 	const follow: TabCloseFollow = {
 		keep: (terminalContextId, tabId, unsettled) => {
@@ -990,8 +878,6 @@ export function createServerWorkbenchClose(
 			return unsettled;
 		},
 	};
-	const stoppedClose = (terminalContextId: string, tabId: string): StoppedTabClose | null =>
-		follow.unsettled(terminalContextId, tabId)?.stopped ?? null;
 	return {
 		close: (context, closure) => {
 			switch (closure.type) {
@@ -1006,17 +892,8 @@ export function createServerWorkbenchClose(
 				case 'panel-close':
 				case 'panel-close-if-idle':
 					return closePanel(session, closeContext(context), closure, follow);
-				case 'tab-close-resume':
-					return resumeTabClose(
-						session,
-						context,
-						stoppedClose(closure.terminalContextId, closure.tabId),
-						follow,
-					);
 			}
 		},
-		stoppedTabClose: (terminalContextId, tabId) =>
-			stoppedClose(terminalContextId, tabId)?.stop ?? null,
 		watchClose: (closure, onChanged) => {
 			const expected = closureFacts(closure, session.snapshot);
 			return session.subscribe((snapshot) => {

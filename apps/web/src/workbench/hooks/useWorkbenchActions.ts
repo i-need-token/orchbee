@@ -25,7 +25,6 @@ import { registerWorkbenchConfiguredCommandActions } from '../actions/registerWo
 import { registerWorkbenchActiveTerminalActions } from '../actions/registerWorkbenchActiveTerminalActions';
 import { registerWorkbenchActiveTabActions } from '../actions/registerWorkbenchActiveTabActions';
 import { registerWorkbenchTabCloseConfirmedAction } from '../actions/registerWorkbenchTabCloseConfirmedAction';
-import { registerWorkbenchTabCloseResumeAction } from '../actions/registerWorkbenchTabCloseResumeAction';
 import {
 	registerWorkbenchTabTitleAction,
 	type WorkbenchTabTitleEditorRequest,
@@ -270,19 +269,9 @@ export function useWorkbenchActions({
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
-				stoppedTabClose: authority.stoppedTabClose,
 				typedRuntime,
 			}),
 			registerWorkbenchTabCloseConfirmedAction({
-				authority,
-				beginTerminalHandover: focusRouting.beginTerminalHandover,
-				focusAfterTabClose,
-				formatCloseWarning,
-				projectWorkspaceRuntime,
-				scope,
-				typedRuntime,
-			}),
-			registerWorkbenchTabCloseResumeAction({
 				authority,
 				beginTerminalHandover: focusRouting.beginTerminalHandover,
 				focusAfterTabClose,

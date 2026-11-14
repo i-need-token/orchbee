@@ -257,19 +257,7 @@ export type WorkbenchAuthorityClosure =
 			readonly terminalContextId: string;
 			readonly tabId: string;
 			readonly panelId: string;
-	  }
-	/**
-	 * Continues the Tab's close that {@link WorkbenchAuthority.stoppedTabClose} reports, and never
-	 * starts another one: `blocked` with `scope-changed` when there is none to continue.
-	 */
-	| {
-			readonly type: 'tab-close-resume';
-			readonly terminalContextId: string;
-			readonly tabId: string;
 	  };
-
-/** Where a Tab's close stopped when the authority may continue it, as its status said. */
-export type WorkbenchTabCloseStop = 'awaiting-removal' | 'cleanup-blocked';
 
 /** What an authority takes from the Action asking it: cancellation, and the commit point to mark. */
 export type WorkbenchAuthorityContext = Pick<ActionExecutionContext, 'markCommitted' | 'signal'>;
@@ -278,9 +266,9 @@ export type WorkbenchAuthorityContext = Pick<ActionExecutionContext, 'markCommit
  * What a close takes besides cancellation and the commit point. A Workspace or Project close calls
  * `markLeft` once, when the Server accepts it and its Workspaces leave this Client's view, before
  * the close settles; a later failure or lost outcome shows them again with its result. The close of
- * one Tab, its last Panel's, or its Resume calls it as the Tab leaves the strip: at the acceptance,
- * or, for a close that joins one that stopped, once a read finds it on its way again. A set of Tabs
- * and a Panel of several never call it.
+ * one Tab or its last Panel's calls it as the Tab leaves the strip: at the acceptance, or, for a
+ * close that joins one that ended without closing the Tab, once a read finds it closing. A set of
+ * Tabs and a Panel of several never call it.
  */
 export interface WorkbenchAuthorityCloseContext extends WorkbenchAuthorityContext {
 	readonly markLeft?: (() => void) | undefined;
@@ -392,11 +380,6 @@ export interface WorkbenchAuthority {
 	readonly launchProfiles?: WorkbenchLaunchProfiles | undefined;
 	/** Absent where every new Panel takes the focus, as the default configuration sets it. */
 	readonly focusNewPanel?: WorkbenchFocusNewPanelSource | undefined;
-	/**
-	 * Where the last close of this Tab that this Client followed stopped, while a `tab-close-resume`
-	 * may continue it; null otherwise.
-	 */
-	stoppedTabClose(terminalContextId: string, tabId: string): WorkbenchTabCloseStop | null;
 	/** Reports when what a confirmation of `closure` describes has changed. Returns how to stop. */
 	watchClose(closure: WorkbenchAuthorityClosure, onChanged: () => void): () => void;
 	/** Absent where this authority cannot reach Git for its Workspaces. */

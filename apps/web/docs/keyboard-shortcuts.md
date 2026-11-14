@@ -309,13 +309,13 @@ does not consume the keyboard event.
 
 `workbench.terminal.active.close` resolves exactly one lower-level close operation:
 
-| Active target state                                                             | Prepared operation                             |
-| ------------------------------------------------------------------------------- | ---------------------------------------------- |
-| The authority reports that the active Tab's close stopped where it may continue | Resume closing that Tab                        |
-| A target panel exists, whichever terminal it shows                              | Close that panel and every terminal it holds   |
-| No valid active Tab or target panel exists                                      | Unavailable; preserve state and event defaults |
+| Active target state                                | Prepared operation                             |
+| -------------------------------------------------- | ---------------------------------------------- |
+| A target panel exists, whichever terminal it shows | Close that panel and every terminal it holds   |
+| No valid active Tab or target panel exists         | Unavailable; preserve state and event defaults |
 
-Closing a Tab's last panel also closes that Tab, as the Server does for `panel.close`. The context
+Closing a Tab's last panel also closes that Tab, as the Server does for `panel.close`, and a Tab
+whose earlier close ended without removing it closes the same way. The context
 Action executes the already-registered panel close Action as a prepared
 invocation. Those owners retain availability, running-process confirmation, cancellation,
 serialization, and the authoritative commit. The context Action reports the lower execution's
@@ -323,8 +323,6 @@ result and never mutates panel or Tab state directly. Confirmation cancellation 
 terminal sessions unchanged. Cancelling the context execution cancels its prepared lower execution;
 if the lower operation has already committed, its completed result remains authoritative. A
 missing or stale lower registration blocks the context Action without a direct fallback mutation.
-Resume asks its own question, so the context Action starts it as a separate execution and reports
-no change of its own.
 
 Maximization resolves only when the active Tab has at least two panels. Right and below split
 Actions resolve whenever a valid target panel exists. Each command prepares and executes the
@@ -494,7 +492,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host conne
 
 | Claim                                                                                                         | Deterministic evidence                                                                      |
 | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| One valid target produces exactly one panel close or Tab close resume operation                               | Active-target resolver decision-table tests                                                 |
+| One valid target produces exactly one panel close operation                                                   | Active-target resolver decision-table tests                                                 |
 | Confirmation, cancellation, and commit remain owned by the prepared lower Action                              | Workbench Action integration tests with panel and Tab registrations                         |
 | Active Workbench bindings do not depend on a surviving focused descendant                                     | Document-capture lifecycle and Web application integration tests                            |
 | Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it                                | Web application focus and Settings-scope integration trace                                  |

@@ -192,12 +192,25 @@ describe('useWorkbenchAuthorityNotice', () => {
 		expect(held.notice()).toBeNull();
 		held.leave();
 		expect(held.notice()).toEqual(closing);
-		await held.settle({ failure: { code: 'cleanup-blocked' }, kind: 'failed' });
-		expect(held.notice()).toEqual({
-			message: FIXTURE_INTL.formatMessage(workbenchMessages.tabCloseCleanupBlocked, {
-				label: held.tabLabel,
-			}),
-			persistent: true,
-		});
+		await held.settle({ kind: 'completed' });
 	});
+
+	it.each(['cleanup-blocked', 'awaiting-removal', 'outcome-unknown', 'status-unavailable'])(
+		'says one sentence naming the Tab, until a press, when its close ends at %s',
+		async (code) => {
+			const close = closeShown({
+				tabIds: [fixtureTabId(1)],
+				terminalContextId: fixtureContextId(1),
+				type: 'tabs-close',
+			});
+			close.leave();
+			await close.settle({ failure: { code }, kind: 'failed' });
+			expect(close.notice()).toEqual({
+				message: FIXTURE_INTL.formatMessage(workbenchMessages.tabCloseFailed, {
+					label: close.tabLabel,
+				}),
+				persistent: true,
+			});
+		},
+	);
 });

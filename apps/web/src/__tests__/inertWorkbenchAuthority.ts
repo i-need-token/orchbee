@@ -16,7 +16,6 @@ export function inertWorkbenchAuthority(
 		createTab: unexpected,
 		duplicateTabs: unexpected,
 		minimumSplitPercent: 10,
-		stoppedTabClose: () => null,
 		watchClose: () => () => undefined,
 		...overrides,
 	};

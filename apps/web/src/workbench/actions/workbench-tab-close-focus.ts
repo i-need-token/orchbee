@@ -78,8 +78,6 @@ function closedTabIdsOf(closure: WorkbenchAuthorityClosure): readonly string[] |
 		case 'tabs-close':
 		case 'tabs-close-if-idle':
 			return closure.tabIds;
-		case 'tab-close-resume':
-			return [closure.tabId];
 		default:
 			return null;
 	}

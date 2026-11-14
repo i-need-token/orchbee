@@ -37,7 +37,6 @@ export function TabStripView({
 		onRovingFocusChanged,
 		onRovingFocusExited,
 		rovingFocusKey,
-		closeResume,
 		onSetTabTitle,
 		onNameGroup,
 		newTabSections,
@@ -246,7 +245,6 @@ export function TabStripView({
 					snapshot={snapshot}
 					orientation={orientation}
 					closeAllowed
-					closeResume={closeResume}
 					onSetTabTitle={onSetTabTitle}
 					onNameGroup={onNameGroup}
 					newTabSections={newTabSections}

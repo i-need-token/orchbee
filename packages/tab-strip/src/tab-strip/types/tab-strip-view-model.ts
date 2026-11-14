@@ -41,7 +41,6 @@ export interface TabStripViewModel {
 	readonly onRovingFocusChanged: (key: TabStripRovingItem['key'] | null) => void;
 	readonly onRovingFocusExited: () => void;
 	readonly rovingFocusKey: TabStripRovingItem['key'] | null;
-	readonly closeResume: TabStripOptions['closeResume'];
 	readonly onSetTabTitle: TabStripOptions['onSetTabTitle'];
 	readonly onNameGroup: TabStripOptions['onNameGroup'];
 	readonly newTabSections: TabStripOptions['newTabSections'];

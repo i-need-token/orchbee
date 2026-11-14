@@ -11,7 +11,6 @@ export {
 	type TabStripArrangementChange,
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
-	type TabStripCloseResume,
 	type TabStripGroupNameRequest,
 	type TabCloseInput,
 	type TabSelectionInput,

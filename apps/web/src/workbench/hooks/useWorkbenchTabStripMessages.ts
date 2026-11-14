@@ -1,5 +1,5 @@
 import type { TabData, TabStripMessages } from '@orchbee/tab-strip';
-import { useOrchbeeIntl, workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
+import { useOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
 import * as React from 'react';
 
 const GROUP_ACCESSIBLE_TAB_LIMIT = 5;
@@ -151,7 +151,6 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 			loadingTabTitle: format(workbenchTabMessages.loadingTabTitle),
 			previewUnavailable: format(workbenchTabMessages.previewUnavailable),
 			rename: format(workbenchTabMessages.tabMenuRename),
-			resumeTabClose: format(workbenchMessages.tabCloseResume),
 			tabGroups: format(workbenchTabMessages.tabGroups),
 			tabMoveCanceled: format(workbenchTabMessages.tabMoveCanceled),
 			tabOptions: format(workbenchTabMessages.tabOptions),

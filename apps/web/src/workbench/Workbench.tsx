@@ -359,7 +359,6 @@ export function Workbench({
 		tabChrome = (
 			<WorkbenchTabBar
 				actionRuntime={actionRuntime}
-				closeResume={view.closeResume}
 				newTabSections={view.newTabSections}
 				onNewTerminal={view.newTab}
 				onCloseTabs={view.onCloseTabs}
@@ -449,7 +448,6 @@ export function Workbench({
 			{view.mobileLayout && terminalContext !== null ? (
 				<WorkbenchTabList
 					actionRuntime={actionRuntime}
-					closeResume={view.closeResume}
 					focusRequest={view.tabStripFocusRequest}
 					getTabCreationAvailability={view.getTabCreationAvailability}
 					identityIcons={agentPresentation.tabIdentityIcons}

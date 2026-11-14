@@ -31,8 +31,8 @@ export interface WorkbenchWorktreeDiscovery {
 
 /**
  * `stoppedRemoval` is the latest removal of this Workspace that stopped where it may continue,
- * whatever Git reports now; the menu offers to resume it in place of a new removal, as the TUI
- * reopens a retained removal.
+ * whatever Git reports now; the menu's Remove Worktree… continues it in place of a new removal, as
+ * the TUI reopens a retained removal.
  */
 export type WorkbenchWorktreeDiscoveryResult =
 	| {

@@ -9,7 +9,6 @@ import {
 	type TabModel,
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
-	type TabStripCloseResume,
 	type TabStripMessages,
 	type TabStripNewTabSection,
 	type TabStripNewTabRequest,
@@ -27,7 +26,6 @@ import styles from './WorkbenchTabBar.module.css';
 interface WorkbenchTabBarProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly parentActionScope: ActionScope;
-	readonly closeResume?: TabStripCloseResume | undefined;
 	readonly newTabSections?: readonly TabStripNewTabSection[] | undefined;
 	readonly onNewTerminal: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
@@ -56,7 +54,6 @@ interface WorkbenchTabBarProps {
 
 export function WorkbenchTabBar({
 	actionRuntime,
-	closeResume,
 	fill = false,
 	newTabSections,
 	onNewTerminal,
@@ -110,7 +107,6 @@ export function WorkbenchTabBar({
 					onNewTab={onNewTerminal}
 					onCloseTabs={onCloseTabs}
 					onDraggingChange={onDraggingChange}
-					closeResume={closeResume}
 					getTabCreationAvailability={getTabCreationAvailability}
 					onNameGroup={groupName.open}
 					onSelectTab={onSelectTab}
