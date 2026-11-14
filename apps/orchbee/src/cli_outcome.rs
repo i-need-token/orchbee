@@ -105,7 +105,7 @@ pub(crate) enum FailureDisplay {
     /// order; JSON keeps the identifier `candidates` detail.
     Candidates(Vec<String>),
     /// Exact missing-sibling evidence from a native cohort check. Raw I/O
-    /// details belong to `status client` JSON.
+    /// details belong to `doctor` JSON.
     Io(IoDiagnostic),
     /// What an ended Agent wait was waiting for; the machine document keeps
     /// its own deadline details.

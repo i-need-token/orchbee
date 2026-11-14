@@ -81,10 +81,10 @@ impl super::CliText {
             }
             (Locale::ZhCn, FailureKind::Denied, _) => "本地会话拒绝了智能体投影读取。",
             (Locale::EnUs, _, _) => {
-                "A complete Agent projection is unavailable. Check orchbee status server and run orchbee agent list again."
+                "A complete Agent projection is unavailable. Check orchbee status and run orchbee agent list again."
             }
             (Locale::ZhCn, _, _) => {
-                "当前无法取得完整智能体投影。请检查 orchbee status server 后重新运行 orchbee agent list。"
+                "当前无法取得完整智能体投影。请检查 orchbee status 后重新运行 orchbee agent list。"
             }
         };
         let mut text = format!("{message}\n");

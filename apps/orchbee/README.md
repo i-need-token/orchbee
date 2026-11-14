@@ -1096,7 +1096,7 @@ under `recent-unwrapped`. Detection remains plain text. Original PTY bytes, hype
 are not reproduced. Render requests and prepared output each retain the 8 MiB bound. See the
 [output contract](docs/native-terminal-output.md).
 
-Windows `status server` lists the Session's processes and their versions with one handshake `query`, without a Client Connection; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Session. Bare `status` reads the Workbench and then lists the same processes in one line each. `doctor` folds these reads with the settings, saved data, runtime folder and Agent integration checks into six lines and exits 1 only when a check failed. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
+Bare `status` reads the Workbench and then lists the Session's processes and their versions, one line each, with one handshake `query`. `doctor` checks this executable offline and folds the same Session read with the settings, saved data, runtime folder and Agent integration checks into six lines and exits 1 only when a check failed. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
 
 ## Agent navigation
 

@@ -7,7 +7,7 @@
 	"nonGoals": [
 		"Owning an independent application lifecycle.",
 		"Serving consumers from other applications.",
-		"Owning process entry, command-line grammar and output, Agent doctor diagnostics, release installation, or the terminal shell loop and backend.",
+		"Owning process entry, command-line grammar and output, the doctor checks, release installation, or the terminal shell loop and backend.",
 		"Running Agent integration inspections or mutations, which the Session Worker's jobs own.",
 		"Owning Client Connection transport, which stays in the application-private local-client crate."
 	]

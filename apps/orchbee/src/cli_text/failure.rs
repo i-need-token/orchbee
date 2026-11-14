@@ -710,8 +710,8 @@ impl super::CliText {
     pub(crate) fn cli_cohort_diagnostic(self, missing_artifact: Option<&str>) -> String {
         let io_details = if cfg!(windows) {
             match self.locale {
-                Locale::EnUs => " Run `orchbee status client --format json` for I/O details.",
-                Locale::ZhCn => "运行 `orchbee status client --format json` 查看 I/O 详情。",
+                Locale::EnUs => " Run `orchbee doctor --format json` for I/O details.",
+                Locale::ZhCn => "运行 `orchbee doctor --format json` 查看 I/O 详情。",
             }
         } else {
             ""

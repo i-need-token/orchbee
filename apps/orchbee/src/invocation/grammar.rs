@@ -60,8 +60,14 @@ pub(crate) fn option_listed(command: CommandPath, spelling: &str) -> bool {
 }
 
 /// Commands that stay callable, `--help` included, but that help directories, usage advice and
-/// completion never name: plumbing for Client shells and installers rather than for people.
-const UNLISTED_COMMANDS: &[CommandPath] = &[CommandPath::ServerConnect, CommandPath::Install];
+/// completion never name: plumbing for Client shells, installers and `machine add`, which reads
+/// `status client` and `status server` from a remote computer that may run an older build.
+const UNLISTED_COMMANDS: &[CommandPath] = &[
+    CommandPath::ServerConnect,
+    CommandPath::Install,
+    CommandPath::StatusClient,
+    CommandPath::StatusServer,
+];
 
 /// Whether discovery names this command or family path in this build.
 pub(crate) fn listed(words: &[&str]) -> bool {

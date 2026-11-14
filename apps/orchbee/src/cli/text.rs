@@ -28,14 +28,6 @@ fn command(path: CommandPath, locale: Locale) -> Document {
         heading: CliText::new(locale).cli_help_text(HelpText::Usage).into(),
         lines: details.usage.lines().map(str::to_owned).collect(),
     }];
-    if path == CommandPath::Status {
-        // Only the command list; this page renders its own option table.
-        let options = CliText::new(locale).cli_help_text(HelpText::Options);
-        let children = directory(HelpTopic::Command(path), locale);
-        sections.extend(children.sections.into_iter().filter(
-            |section| matches!(section, Section::Rows { heading, .. } if heading != options),
-        ));
-    }
     let arguments = CliText::new(locale).cli_help_arguments(path);
     if !arguments.is_empty() {
         sections.push(Section::Rows {

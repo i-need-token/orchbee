@@ -169,8 +169,8 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
 }
 
 /// Cohort text names a sibling only when artifact-open evidence proves it is
-/// absent; bounded I/O details remain available through the status client
-/// JSON diagnostic. The failure envelope and exit code remain unchanged.
+/// absent; bounded I/O details remain available through the doctor JSON
+/// diagnostic. The failure envelope and exit code remain unchanged.
 #[test]
 fn cli_cohort_failure_uses_repair_text_without_leaking_raw_io() {
     use crate::cli::{Failure, FailureKind, failure_output, stage_details};
@@ -188,8 +188,8 @@ fn cli_cohort_failure_uses_repair_text_without_leaking_raw_io() {
     };
 
     // The opaque failure itself carries no I/O detail to stdout or stderr; Windows points at the
-    // status client JSON diagnostic instead.
-    let hint = "orchbee status client --format json";
+    // doctor JSON diagnostic instead.
+    let hint = "orchbee doctor --format json";
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let failure = cohort_failure(&std::io::Error::from_raw_os_error(110));
         let text = CliText::new(locale).cli_failure(&failure);

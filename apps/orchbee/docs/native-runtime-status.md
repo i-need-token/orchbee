@@ -5,8 +5,10 @@
 This reference owns `status`, which reads the running Session, and `doctor`, which checks whether
 Orchbee works on this computer, with the two collectors both reuse: `status client` reads this
 executable and its installation files, and `status server` asks the selected Session for its
-processes. `status client` and `status server` stay listed because `machine add` prepares a remote
-computer with them (see [Machines](machines.md)); `doctor` is the command a person runs.
+processes. `status client` and `status server` are unlisted: help, completion and the Agent guide
+never name them, but they stay accepted and answer as described here, because `machine add` runs
+them on a remote computer that may have an older build (see [Machines](machines.md)). `doctor` is
+the command a person runs.
 
 | Path                           | Needs a Session | Contacts                                              | Schema                  |
 | ------------------------------ | --------------- | ----------------------------------------------------- | ----------------------- |

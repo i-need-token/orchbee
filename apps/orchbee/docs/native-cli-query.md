@@ -68,8 +68,9 @@ Agent List uses rows with separate canonical, terminal, placement and Client fac
 ## Current CLI discovery and platform contracts
 
 Unlisted surfaces stay accepted, but help directories, usage advice and completion never name them:
-`server connect` (the byte relay Client shells run) and `install` are unlisted commands whose own
-`--help` still answers, and `machine add --no-install` and `machine remove --stop-session` are
+`server connect` (the byte relay Client shells run), `install`, and `status client` and
+`status server` (which `machine add` runs on a remote computer that may have an older build; see
+[runtime status](native-runtime-status.md)) are unlisted commands whose own `--help` still answers, and `machine add --no-install` and `machine remove --stop-session` are
 unlisted options while they do nothing. The terminal geometry group `--cols`, `--rows`,
 `--cell-width` and `--cell-height` is unlisted on the creation commands (`workspace create`,
 `tab create`, `panel split`, `panel create-terminal`, `worktree create|open`, `plugin panel open`):
@@ -882,7 +883,6 @@ orchbee tui [--mouse on|off]    # TUI
 orchbee -v|-V|--version         # version line
 orchbee -h|--help | orchbee help   # root help
 orchbee status
-orchbee status server | status client
 orchbee project list | project get <target>
 orchbee project create --label <label>
 orchbee project rename <target> --label <label>
@@ -1089,8 +1089,8 @@ sequence on Linux; the first failing stage wins and determines the failure:
    `check-failed` stage `cohort`. Localized stderr gives repair guidance without raw I/O
    details. It names an exact missing executable only when that sibling's open returned
    `NotFound`; otherwise it never guesses which file is missing. Windows
-   `status client --format json` v1 carries bounded `ioKind`/`osError` detail and, when
-   proven, the exact missing sibling. The failure envelope and exit code are unchanged.
+   `doctor --format json` v1 carries bounded `ioKind`/`osError` detail and, when
+   proven, the exact missing sibling, in its installation check. The failure envelope and exit code are unchanged.
 2. **Discovery** — resolve `ORCHBEE_RUNTIME_BASE`/default, then
    `ModeCheckedLocalSessionRendezvous::validate_mode_checked` (`ExistingOnly`, no mkdir, no lock).
    Classification uses the typed `RendezvousError` path compared with the resolved
@@ -1862,8 +1862,8 @@ profileId?,name?}` per
   display string).
 - `orchbee.doctor` → `{ok,checks:{installation,settings,records,runtime,session,integrations}}`:
   each check is `{status,reason,details}` or `{kind:"unsupported"}`; `details` are the
-  `status client` result, the `user-config` and `records` row details, the runtime folder report,
-  the `status server` result or a failed Session check's failure details, and the
+  `orchbee.status.client` result, the `user-config` and `records` row details, the runtime folder
+  report, the `orchbee.status.server` result or a failed Session check's failure details, and the
   `agent integration list` result. A failed check still produces this success schema with
   `ok:false` and exit 1; see [runtime status and doctor](native-runtime-status.md#doctor).
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
@@ -2681,7 +2681,7 @@ Source waits default to 30000 ms and recent80, with `--forever` for explicit unb
 They emit v1, or v1 with `--after`; existing output can match without a cursor. A match alone
 is not command completion. Reads and waits never take terminal control or change Client focus.
 
-Windows `status server` lists the Session's processes and their versions with one handshake `query`, without a Client Connection; `status client` checks this executable offline and its v1 JSON includes bounded I/O diagnostics when cohort admission is unavailable. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. An absent explicitly selected Session names `orchbee --session <name> server start`; without an explicit selection the hint is `orchbee server start`. The [runtime status contract](native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Update-channel management remains unavailable.
+Bare `status` reads the Workbench and then lists the Session's processes and their versions with one handshake `query`; `doctor` checks this executable offline and its v1 JSON includes bounded I/O diagnostics when cohort admission is unavailable. Both accept `--format text|json` and never activate a Session. An absent explicitly selected Session names `orchbee --session <name> server start`; without an explicit selection the hint is `orchbee server start`. The [runtime status contract](native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Update-channel management remains unavailable.
 
 ## Agent navigation
 

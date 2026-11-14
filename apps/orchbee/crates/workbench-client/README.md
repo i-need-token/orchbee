@@ -6,7 +6,7 @@ application consumes this crate.
 ## Boundary
 
 The `orchbee` binary is the entry layer. It owns process entry, command-line grammar, CLI text and
-machine output, Agent doctor diagnostics, startup and release installation, and the terminal shell
+machine output, the `doctor` checks, startup and release installation, and the terminal shell
 loop and backend that hold the host terminal. This crate is the Client runtime those entries
 compose. It never depends on the binary, never parses invocations, and never writes command output.
 
