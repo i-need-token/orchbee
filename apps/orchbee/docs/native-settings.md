@@ -56,6 +56,17 @@ an invalid catalog first focuses the failing field, and leaving again discards i
 unavailable unless Custom is selected and login shells are unavailable on Windows; a focused
 unavailable row names its reason.
 
+New terminal folder (`terminal.new_cwd`) is a choice of Workspace folder, Home folder, Same as the
+current terminal and Custom folder…, in the Desktop's order and words. The first three store
+`workspace`, `home` and `follow`; choosing the entry the row already shows sends nothing, so an
+unset key stays unset. Custom folder… opens the row's text field on the custom folder the row shows,
+or empty, and Enter there stores the typed folder, which the Server validates as before; an empty
+field restores the default and Esc keeps the stored value. Unset, empty and `follow` show as Same as
+the current terminal; any other stored text, `current` included, shows as Custom folder… in the
+list and as the text itself on the row. The row's description says the setting applies to
+terminals the `orchbee` command creates: the TUI's and the Desktop's own new Tab, split and
+Workspace do not read it.
+
 One edit is in flight at a time, and nothing the person does is dropped silently. Every key of one
 input packet applies in order on the state the keys before it left, Enter and Del included; only a
 key that closes the page keeps the rest of its packet. Changes made while one is in flight wait in

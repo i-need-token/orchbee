@@ -326,6 +326,16 @@ impl PageState {
         self.confirmed.text(text_key(row)?)
     }
 
+    /// The choice a finite row shows: its common value, or the folder entry its text gives.
+    pub(super) fn choice(&self, row: Row) -> Option<Choice> {
+        match row {
+            Row::NewTerminalFolder => Some(Choice::NewTerminalFolder(
+                crate::localization::StartFolder::of(self.text_value(row)),
+            )),
+            _ => Choice::from_values(row, &self.values),
+        }
+    }
+
     /// The shown values with `row`'s field back at its default, as a restore asks.
     pub(super) fn restored_values(&self, row: Row) -> UserSettingsValues {
         let restored = self.restore_changes(row);

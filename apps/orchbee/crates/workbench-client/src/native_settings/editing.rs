@@ -4,6 +4,7 @@ use super::{
     AdjustmentStep, Category, Choice, ChoicePicker, Control, Edit, Editor, IntegrationJob, Page,
     Pane, Row, State, Submission, Token, changes::Change, page::text_key, values,
 };
+use crate::localization::StartFolder;
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
 use orchbee_workbench_protocol::{
     SettingChange, SettingPath, SettingValue, UserLaunchField, UserSettingsValues,
@@ -75,6 +76,9 @@ impl Editor {
                 Edit::End => picker.cursor = Choice::options(picker.row).len() - 1,
                 Edit::Activate => {
                     page.picker = None;
+                    if let Choice::NewTerminalFolder(entry) = picker.candidate() {
+                        return self.accept_folder(picker.row, entry, picker.original());
+                    }
                     let mut requested = page.values.clone();
                     picker.candidate().apply(&mut requested);
                     self.redraw();
@@ -357,7 +361,10 @@ impl Editor {
                 }
             }
             _ => {
-                if let Some(picker) = ChoicePicker::open(row, &page.values) {
+                if let Some(picker) = page
+                    .choice(row)
+                    .and_then(|original| ChoicePicker::open(row, original))
+                {
                     page.picker = Some(picker);
                     page.follow_selection = true;
                 } else if let Some(limit) = row.text_limit() {
@@ -374,6 +381,39 @@ impl Editor {
         }
         self.redraw();
         None
+    }
+
+    /// Accepting a folder entry stores its word, unless the row already shows it. Custom folder…
+    /// opens the row's editor on the custom folder the row shows, else empty; Enter there stores
+    /// the typed folder as the text row did.
+    fn accept_folder(
+        &mut self,
+        row: Row,
+        entry: StartFolder,
+        original: Choice,
+    ) -> Option<Submission> {
+        let State::Open(page) = &mut self.state else {
+            return None;
+        };
+        let Some(value) = entry.value() else {
+            let folder = match original {
+                Choice::NewTerminalFolder(StartFolder::Custom) => {
+                    page.text_value(row).unwrap_or_default().to_owned()
+                }
+                _ => String::new(),
+            };
+            page.text = Some(LineEditor::new(
+                folder,
+                LengthLimit::Bytes(row.text_limit()?),
+            ));
+            self.redraw();
+            return None;
+        };
+        self.redraw();
+        if original == Choice::NewTerminalFolder(entry) {
+            return None;
+        }
+        self.commit_text(row, value.to_owned())
     }
 
     /// `Enter` in a row editor: a valid text applies; an invalid one stays open and says so.

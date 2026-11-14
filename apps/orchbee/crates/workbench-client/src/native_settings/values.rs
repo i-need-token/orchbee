@@ -1,6 +1,8 @@
 //! Pure scalar and catalog edits on the page's values; executable paths and arguments remain
 //! literal data.
-use super::{AdjustmentStep, ChoicePicker, Edit, PageState as Draft, Row, SettingControl, setting};
+use super::{
+    AdjustmentStep, Choice, ChoicePicker, Edit, PageState as Draft, Row, SettingControl, setting,
+};
 use crate::localization::SettingsTextRequirement;
 use orchbee_local_runtime::UserSettingsField;
 use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile};
@@ -80,7 +82,8 @@ fn step_integer(current: u64, key: UserSettingsField, forward: bool, step: Adjus
 
 pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
     if step == AdjustmentStep::Small
-        && let Some(mut picker) = ChoicePicker::open(draft.row, &draft.values)
+        && let Some(mut picker) = Choice::from_values(draft.row, &draft.values)
+            .and_then(|original| ChoicePicker::open(draft.row, original))
     {
         picker.navigate(forward);
         picker.candidate().apply(&mut draft.values);

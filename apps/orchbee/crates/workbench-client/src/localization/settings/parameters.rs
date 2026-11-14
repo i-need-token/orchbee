@@ -88,6 +88,20 @@ pub(crate) enum SettingsChoice {
     TerminalTheme(TerminalDisplayAppearance),
     AgentReminders(AgentReminderMode),
     CompletionReminders(CompletionReminderMode),
+    NewTerminalFolder(StartFolder),
+}
+
+/// The entries of the new terminal folder choice (`terminal.new_cwd`), in their order.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StartFolder {
+    /// `workspace`.
+    Workspace,
+    /// `home`.
+    Home,
+    /// `follow`, which unset and empty mean too.
+    Follow,
+    /// A folder the person types; any other stored text shows here.
+    Custom,
 }
 
 /// A settings file the page cannot use, for its file line; the path is the Server's spelling.

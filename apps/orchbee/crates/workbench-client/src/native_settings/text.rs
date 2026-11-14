@@ -2,7 +2,7 @@
 use super::{Category, Choice, FileState, Group, Page, PageView, Row};
 use crate::localization::{
     SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement,
-    SettingsFileFact, SettingsGroup, SettingsProfileLabel, SettingsRow, SettingsValue,
+    SettingsFileFact, SettingsGroup, SettingsProfileLabel, SettingsRow, SettingsValue, StartFolder,
 };
 use orchbee_color_themes::Polarity;
 use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchField};
@@ -98,6 +98,7 @@ impl From<Choice> for SettingsChoice {
             Choice::TerminalTheme(value) => Self::TerminalTheme(value),
             Choice::AgentReminders(value) => Self::AgentReminders(value),
             Choice::CompletionReminders(value) => Self::CompletionReminders(value),
+            Choice::NewTerminalFolder(entry) => Self::NewTerminalFolder(entry),
         }
     }
 }
@@ -220,7 +221,15 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
             Row::Scrollback => {
                 Self::ScrollbackMegabytes(super::scrollback_megabytes(values.scrollback_bytes))
             }
-            Row::NewTerminalFolder | Row::PrefixKey => match page.text_value(row) {
+            // A custom folder shows itself; the other entries show their names.
+            Row::NewTerminalFolder => {
+                let text = page.text_value(row);
+                match StartFolder::of(text) {
+                    StartFolder::Custom => text.map_or(Self::Empty, Self::Text),
+                    entry => Self::Choice(SettingsChoice::NewTerminalFolder(entry)),
+                }
+            }
+            Row::PrefixKey => match page.text_value(row) {
                 Some(text) => Self::Text(text),
                 None => Self::Default,
             },

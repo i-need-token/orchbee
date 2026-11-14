@@ -1,5 +1,6 @@
 //! Finite choices: a list's provisional candidate previews; accepting it applies the value.
 use super::{AppearancePreview, Row};
+use crate::localization::StartFolder;
 use orchbee_color_themes::Polarity;
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
@@ -17,6 +18,31 @@ pub enum Choice {
     TerminalTheme(TerminalDisplayAppearance),
     AgentReminders(AgentReminderMode),
     CompletionReminders(CompletionReminderMode),
+    /// One entry of the new terminal folder list; the common values do not carry its key.
+    NewTerminalFolder(StartFolder),
+}
+
+impl StartFolder {
+    /// The entry a stored `terminal.new_cwd` shows as: unset, empty and `follow` are the default,
+    /// and any other text, `current` included, is a custom folder.
+    pub(crate) fn of(value: Option<&str>) -> Self {
+        match value.unwrap_or_default() {
+            "" | "follow" => Self::Follow,
+            "home" => Self::Home,
+            "workspace" => Self::Workspace,
+            _ => Self::Custom,
+        }
+    }
+
+    /// The word an entry stores; a custom folder is the text the person types.
+    pub(crate) const fn value(self) -> Option<&'static str> {
+        match self {
+            Self::Workspace => Some("workspace"),
+            Self::Home => Some("home"),
+            Self::Follow => Some("follow"),
+            Self::Custom => None,
+        }
+    }
 }
 
 /// One shipped theme by its position in the build's fixed catalog, so a picker episode stays a
@@ -97,10 +123,17 @@ impl Choice {
                 Self::CompletionReminders(CompletionReminderMode::Unfocused),
                 Self::CompletionReminders(CompletionReminderMode::Always),
             ],
+            Row::NewTerminalFolder => &[
+                Self::NewTerminalFolder(StartFolder::Workspace),
+                Self::NewTerminalFolder(StartFolder::Home),
+                Self::NewTerminalFolder(StartFolder::Follow),
+                Self::NewTerminalFolder(StartFolder::Custom),
+            ],
             _ => &[],
         }
     }
 
+    /// The value of a row the common values carry; the page reads the folder row's text itself.
     pub(super) fn from_values(row: Row, values: &UserSettingsValues) -> Option<Self> {
         match row {
             Row::Language => Some(Self::Locale(values.locale)),
@@ -153,6 +186,7 @@ impl Choice {
             Self::TerminalTheme(value) => values.terminal_display_theme = value,
             Self::AgentReminders(value) => values.agent_notification_mode = value,
             Self::CompletionReminders(value) => values.completion_reminder_mode = value,
+            Self::NewTerminalFolder(_) => {}
         }
     }
 
@@ -176,7 +210,8 @@ impl Choice {
                 }
             }
             Self::TerminalTheme(value) => preview.terminal_display_theme = value,
-            Self::AgentReminders(_) | Self::CompletionReminders(_) => {}
+            Self::AgentReminders(_) | Self::CompletionReminders(_) | Self::NewTerminalFolder(_) => {
+            }
         }
     }
 }
@@ -198,8 +233,8 @@ impl ChoicePicker {
     pub(crate) const fn original(self) -> Choice {
         self.original
     }
-    pub(super) fn open(row: Row, values: &UserSettingsValues) -> Option<Self> {
-        let original = Choice::from_values(row, values)?;
+    /// Opens the row's list on `original`, the value the row shows.
+    pub(super) fn open(row: Row, original: Choice) -> Option<Self> {
         let cursor = Choice::options(row)
             .iter()
             .position(|choice| *choice == original)?;

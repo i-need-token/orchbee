@@ -43,7 +43,7 @@ use orchbee_workbench_protocol::{
 pub(crate) use parameters::{
     SettingUnit, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
     SettingsFieldRequirement, SettingsFileFact, SettingsGroup, SettingsHintLabel,
-    SettingsProfileLabel, SettingsRow, SettingsTextRequirement, SettingsValue,
+    SettingsProfileLabel, SettingsRow, SettingsTextRequirement, SettingsValue, StartFolder,
 };
 use parameters::{SettingsChoice as Choice, SettingsGroup as Group, SettingsRow as Row};
 impl Locale {
@@ -307,8 +307,8 @@ impl Locale {
                 "编辑启动配置，并选择新终端使用哪一个。",
             ),
             Row::NewTerminalFolder => self.setting(
-                "A folder, or follow, home, current or workspace. Empty for default.",
-                "起始文件夹：路径，或 follow、home、current、workspace；留空用默认。",
+                "Applies to terminals the orchbee command creates.",
+                "适用于 orchbee 命令新建的终端。",
             ),
             Row::PrefixKey => self.setting(
                 "Press it first, then a command key.",
@@ -360,6 +360,16 @@ impl Locale {
             }
             Choice::CompletionReminders(CompletionReminderMode::Always) => {
                 self.setting("Always", "始终")
+            }
+            Choice::NewTerminalFolder(StartFolder::Workspace) => {
+                self.setting("Workspace folder", "工作区目录")
+            }
+            Choice::NewTerminalFolder(StartFolder::Home) => self.setting("Home folder", "主目录"),
+            Choice::NewTerminalFolder(StartFolder::Follow) => {
+                self.setting("Same as the current terminal", "与当前终端相同")
+            }
+            Choice::NewTerminalFolder(StartFolder::Custom) => {
+                self.setting("Custom folder…", "自定义目录…")
             }
         }
     }

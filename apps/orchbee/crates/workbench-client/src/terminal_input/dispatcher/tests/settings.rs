@@ -564,7 +564,10 @@ fn settings_ctrl_w_edits_the_captured_word_without_applying_or_forwarding() {
     let mut port = Port::ready();
     port.editor.edit(Edit::Select(Row::NewTerminalFolder));
     port.editor.draw(port.editor.view().unwrap().token());
-    port.editor.edit(Edit::Activate);
+    // The folder row's text field is its Custom folder… entry, the list's last.
+    for edit in [Edit::Activate, Edit::End, Edit::Activate] {
+        port.editor.edit(edit);
+    }
     port.editor.edit(Edit::Line(
         crate::terminal_text::line_editor::LineKey::KillToStart,
     ));
@@ -581,5 +584,30 @@ fn settings_ctrl_w_edits_the_captured_word_without_applying_or_forwarding() {
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x05\x17");
     assert_eq!(page(&port).text(), Some(("one  ", 5)));
     assert_eq!(port.edits, 0);
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}
+
+/// Raw keys through the real dispatcher: Enter opens the folder row's list, and its Custom folder…
+/// entry takes a typed folder that Enter applies as one edit.
+#[test]
+fn raw_keys_open_the_folder_list_and_apply_a_typed_custom_folder() {
+    let mut port = Port::ready();
+    port.editor.edit(Edit::Select(Row::NewTerminalFolder));
+    port.editor.draw(port.editor.view().unwrap().token());
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+    dispatcher.publish_hit_map(map);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\r");
+    assert_eq!(
+        page(&port).picker().map(|picker| picker.row()),
+        Some(Row::NewTerminalFolder)
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[F\rD:/w\r");
+    assert_eq!(port.edits, 1);
+    let shown = page(&port);
+    assert!(shown.picker().is_none() && shown.text().is_none());
+    assert_eq!(shown.text_value(Row::NewTerminalFolder), Some("D:/w"));
+    assert!(shown.waits(Row::NewTerminalFolder));
     assert!(forwarded_bytes(&port.calls).is_empty());
 }

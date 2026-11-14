@@ -152,7 +152,10 @@ fn the_text_field_cursor_lands_on_whole_projected_graphemes() {
         present(&mut editor, (120, 36), Locale::EnUs);
         editor.edit(Edit::Select(Row::NewTerminalFolder));
         present(&mut editor, (120, 36), Locale::EnUs);
-        editor.edit(Edit::Activate);
+        // The folder row's text field is its Custom folder… entry, the list's last.
+        for edit in [Edit::Activate, Edit::End, Edit::Activate] {
+            editor.edit(edit);
+        }
         editor.paste(raw);
         for (edit, column) in [
             (Edit::Home, 0),

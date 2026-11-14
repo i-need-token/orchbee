@@ -1085,9 +1085,12 @@ fn control_text(
             text: format!("[-] {value} [+]"),
             adjust: true,
         }),
-        _ if !Choice::options(row).is_empty() => {
-            plain(format!("{value} {}", theme.glyphs.disclosure_open))
-        }
+        // The folder row shows a custom folder, which is user text.
+        _ if !Choice::options(row).is_empty() => plain(format!(
+            "{} {}",
+            sanitize_terminal_text(&value),
+            theme.glyphs.disclosure_open
+        )),
         _ if row.text_limit().is_some() => plain(if value.is_empty() {
             locale.settings_value(crate::localization::SettingsValue::Default)
         } else {
