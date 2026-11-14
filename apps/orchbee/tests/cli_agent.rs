@@ -1157,12 +1157,8 @@ fn get_text_renders_session_fields() -> TestResult {
     assert!(text.contains("sess-alpha"), "{text}");
     assert!(text.contains("acme.agent"), "{text}");
     assert!(
-        text.contains("req-42"),
-        "pending request row renders: {text}"
-    );
-    assert!(
-        text.contains("11111111111111111111111111111111"),
-        "attachment row renders: {text}"
+        text.contains("question"),
+        "pending request kind renders: {text}"
     );
     Ok(())
 }

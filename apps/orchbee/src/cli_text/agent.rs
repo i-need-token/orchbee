@@ -474,21 +474,6 @@ impl super::CliText {
         }
     }
 
-    pub(crate) const fn cli_agent_visibility(
-        self,
-        visibility: orchbee_agent_observation_protocol::AgentPresentationVisibility,
-    ) -> &'static str {
-        use orchbee_agent_observation_protocol::AgentPresentationVisibility;
-        match (self.locale, visibility) {
-            (Locale::EnUs, AgentPresentationVisibility::Visible) => "visible",
-            (Locale::EnUs, AgentPresentationVisibility::Hidden) => "hidden",
-            (Locale::EnUs, AgentPresentationVisibility::Unknown) => "unknown",
-            (Locale::ZhCn, AgentPresentationVisibility::Visible) => "可见",
-            (Locale::ZhCn, AgentPresentationVisibility::Hidden) => "隐藏",
-            (Locale::ZhCn, AgentPresentationVisibility::Unknown) => "未知",
-        }
-    }
-
     pub(crate) const fn cli_agent_source(
         self,
         source: orchbee_agent_observation_protocol::AgentObservationSource,

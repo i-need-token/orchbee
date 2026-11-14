@@ -17,8 +17,8 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use super::output::{Bounded, TooLarge};
 use super::results::{
-    AgentWaitDoc, ContextRef, LaunchProfileCatalogSelection, PanelDoc, PresentationRow, Projection,
-    StatusDoc, TerminalRow, hex_encode,
+    AgentWaitDoc, ContextRef, LaunchProfileCatalogSelection, PanelDoc, Projection, StatusDoc,
+    TerminalRow, hex_encode,
     local_report::{CheckReport, DiagnoseDocument},
 };
 use crate::cli_text::escape::{
@@ -192,21 +192,13 @@ fn field(out: &mut Bounded, name: &str, value: &str) -> Result<(), TooLarge> {
     out.write(format_args!("{name}{}{value}\n", " ".repeat(padding)))
 }
 
-fn context_text(context: &ContextRef) -> String {
-    format!("workspace {}", context.workspace_id)
-}
-
-fn presentation_cells(row: &PresentationRow, text: &CliLabels) -> Vec<String> {
-    vec![
-        row.presentation_id.clone(),
-        table_label(&row.display_label),
-        terminal_cell(
-            row.terminal_id.as_ref(),
-            row.unavailable_directory.as_ref(),
-            text,
-        ),
-        row.worker_id.clone().unwrap_or_else(|| "-".to_owned()),
-    ]
+/// The owning Workspace as a person names it, with its ID for targeting.
+fn workspace_text(context: &ContextRef) -> String {
+    format!(
+        "{} ({})",
+        quoted(&context.workspace_label),
+        context.workspace_id
+    )
 }
 
 /// The bound terminal, or why a restore holds the Presentation without one.
@@ -441,13 +433,7 @@ pub(crate) fn render(
                 out,
                 &text.directory_headers,
                 &doc.directories,
-                |directory| {
-                    vec![
-                        directory.directory_id.clone(),
-                        directory.worker_id.clone(),
-                        quoted(&directory.path),
-                    ]
-                },
+                |directory| vec![directory.directory_id.clone(), quoted(&directory.path)],
             )?;
             out.write(format_args!("{}\n", text.workspaces))?;
             table(
@@ -516,17 +502,8 @@ pub(crate) fn render(
                 text.group,
                 doc.row.group_id.as_deref().unwrap_or("null"),
             )?;
-            out.write(format_args!(
-                "{:<14}{} {}\n",
-                text.context,
-                context_text(&doc.row.context),
-                doc.row.context.terminal_context_id
-            ))?;
-            out.write(format_args!("{}\n", text.root))?;
-            // The subtree re-encode streams straight into the bounded sink;
-            // `Value` cannot fail serialization, so an io error is the quota.
-            serde_json::to_writer_pretty(&mut *out, &doc.root).map_err(|_| TooLarge)?;
-            out.push("\n")
+            // The split tree and the internal context stay in JSON.
+            field(out, text.workspace, &workspace_text(&doc.row.context))
         }
         Projection::PanelList(rows) => table(out, &text.panel_headers, rows, |row| {
             vec![
@@ -534,15 +511,11 @@ pub(crate) fn render(
                 table_label(&row.display_label),
                 row.workspace_id.clone(),
                 row.tab_id.clone(),
-                row.terminal_context_id.clone(),
-                row.primary_presentation_id.clone(),
-                row.presentation_count.to_string(),
                 terminal_cell(
                     row.primary_terminal_id.as_ref(),
                     row.primary_unavailable_directory.as_ref(),
                     text,
                 ),
-                row.right_click.as_str().to_owned(),
             ]
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
@@ -813,9 +786,9 @@ fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(
     Ok(())
 }
 
-/// `agent list`: the SESSION/PROVIDER/STATUS/FRESHNESS/LOCATION table, an
-/// empty notice instead of an empty table, and a pagination hint whenever the
-/// page is not the last one.
+/// `agent list`: the SESSION/AGENT/STATE table, an empty notice instead of an
+/// empty table, and a pagination hint whenever the page is not the last one.
+/// Observation freshness and the execution location stay in JSON.
 fn agent_list(
     out: &mut Bounded,
     outcome: &AgentListOutcome,
@@ -836,13 +809,6 @@ fn agent_list(
                 row.session_id.as_str().to_owned(),
                 row.provider_id.as_str().to_owned(),
                 CliText::new(locale).cli_agent_status(&row.status),
-                CliText::new(locale)
-                    .cli_agent_freshness(row.observation.freshness)
-                    .to_owned(),
-                row.execution_location
-                    .execution_location_id
-                    .as_str()
-                    .to_owned(),
             ]
         })?;
     }
@@ -853,9 +819,9 @@ fn agent_list(
 }
 
 /// `agent get`: labeled fields for the session's own snapshot plus its
-/// derived status — identity, provider, lifecycle, status, freshness,
-/// location, observation coordinates, capabilities, pending requests, and
-/// presentation attachment rows.
+/// derived status — identity, provider, lifecycle, status, the last outcome
+/// and the kinds of pending requests. Observation coordinates, capabilities,
+/// request identities and presentation attachments stay in JSON.
 fn agent_get(
     out: &mut Bounded,
     outcome: &AgentGetOutcome,
@@ -889,85 +855,26 @@ fn agent_session_fields(
     )?;
     field(
         out,
-        text.agent_freshness,
-        CliText::new(locale).cli_agent_freshness(snapshot.observation.freshness),
+        text.agent_last_outcome,
+        snapshot
+            .last_outcome
+            .as_ref()
+            .map_or(text.agent_none, |outcome| {
+                CliText::new(locale).cli_agent_outcome_kind(outcome.kind)
+            }),
     )?;
+    let pending = snapshot
+        .pending_requests
+        .iter()
+        .map(|request| CliText::new(locale).cli_agent_attention_kind(request.kind))
+        .collect::<Vec<_>>();
     field(
         out,
-        text.agent_location,
-        snapshot.execution_location.execution_location_id.as_str(),
-    )?;
-    out.write(format_args!(
-        "{:<14}{} {} · {} {} · {} {}\n",
-        text.agent_observation,
-        text.agent_generation,
-        snapshot.observation.generation.value(),
-        text.agent_sequence,
-        snapshot.observation.sequence.value(),
-        CliText::new(locale).cli_agent_fidelity(snapshot.observation.fidelity),
-        CliText::new(locale).cli_agent_source(snapshot.observation.source),
-    ))?;
-    if snapshot.capabilities.is_empty() {
-        field(out, text.agent_capabilities, text.agent_none)?;
-    } else {
-        out.write(format_args!("{:<14}", text.agent_capabilities))?;
-        for (index, capability) in snapshot.capabilities.iter().enumerate() {
-            if index > 0 {
-                out.push(", ")?;
-            }
-            out.push(CliText::new(locale).cli_agent_capability(*capability))?;
-        }
-        out.push("\n")?;
-    }
-    match &snapshot.last_outcome {
-        Some(outcome) => out.write(format_args!(
-            "{:<14}{} {} {}\n",
-            text.agent_last_outcome,
-            CliText::new(locale).cli_agent_outcome_kind(outcome.kind),
-            outcome.turn_id.as_str(),
-            outcome.event_id.as_str(),
-        ))?,
-        None => field(out, text.agent_last_outcome, text.agent_none)?,
-    }
-    out.write(format_args!(
-        "{:<14}{}\n",
         text.agent_pending_requests,
-        snapshot.pending_requests.len()
-    ))?;
-    table(
-        out,
-        &text.agent_request_headers,
-        &snapshot.pending_requests,
-        |request| {
-            vec![
-                CliText::new(locale)
-                    .cli_agent_attention_kind(request.kind)
-                    .to_owned(),
-                request.request_id.as_str().to_owned(),
-                request
-                    .turn_id
-                    .as_ref()
-                    .map(|turn| turn.as_str().to_owned())
-                    .unwrap_or_else(|| "null".to_owned()),
-            ]
-        },
-    )?;
-    out.write(format_args!("{}\n", text.agent_attachments))?;
-    table(
-        out,
-        &text.agent_attachment_headers,
-        &snapshot.presentation_attachments,
-        |attachment| {
-            vec![
-                attachment.presentation_id.as_str().to_owned(),
-                attachment.generation.as_str().to_owned(),
-                CliText::new(locale)
-                    .cli_agent_bool(attachment.navigable)
-                    .to_owned(),
-                CliText::new(locale)
-                    .cli_agent_visibility(attachment.visibility)
-                    .to_owned(),
-            ]
+        &if pending.is_empty() {
+            text.agent_none.to_owned()
+        } else {
+            pending.join(", ")
         },
     )
 }
@@ -1138,43 +1045,25 @@ fn status(out: &mut Bounded, doc: &StatusDoc, text: &CliLabels) -> Result<(), To
     )
 }
 
+/// `panel get`: the Panel's name, where it sits and its terminal. The split
+/// position and the terminal members stay in JSON; `terminal list --panel`
+/// lists every terminal of the Panel.
 fn panel_doc(out: &mut Bounded, doc: &PanelDoc, text: &CliLabels) -> Result<(), TooLarge> {
+    let primary = &doc.primary_presentation;
     field(out, text.id, &doc.row.panel_id)?;
-    field(out, text.right_click, doc.row.right_click.as_str())?;
-    field(out, text.tab_id, &doc.row.tab_id)?;
-    out.write(format_args!(
-        "{:<14}{} {}\n",
-        text.context,
-        context_text(&doc.context),
-        doc.context.terminal_context_id
-    ))?;
-    // The slot path joins without a whole-field temporary.
-    out.write(format_args!("{:<14}", text.slot_path))?;
-    if doc.slot_path.is_empty() {
-        out.push("-\n")?;
-    } else {
-        for (index, segment) in doc.slot_path.iter().enumerate() {
-            if index > 0 {
-                out.push(" / ")?;
-            }
-            out.push(segment)?;
-        }
-        out.push("\n")?;
-    }
-    out.write(format_args!("{}\n", text.primary_presentation))?;
-    table(
+    field(out, text.name, &quoted(&primary.display_label))?;
+    field(out, text.workspace, &workspace_text(&doc.context))?;
+    field(out, text.tab, &doc.row.tab_id)?;
+    field(
         out,
-        &text.presentation_headers,
-        std::slice::from_ref(&doc.primary_presentation),
-        |row| presentation_cells(row, text),
+        text.terminal,
+        &terminal_cell(
+            primary.terminal_id.as_ref(),
+            primary.unavailable_directory.as_ref(),
+            text,
+        ),
     )?;
-    out.write(format_args!("{}\n", text.child_presentations))?;
-    table(
-        out,
-        &text.presentation_headers,
-        &doc.child_presentations,
-        |row| presentation_cells(row, text),
-    )
+    field(out, text.right_click, doc.row.right_click.as_str())
 }
 
 /// Aligned columns with a heading row and no width degradation, for text

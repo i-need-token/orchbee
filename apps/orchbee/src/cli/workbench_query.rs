@@ -745,14 +745,7 @@ impl Document {
                 selection.panel_id.as_ref().map_or("-", |id| id.as_str())
             ))?;
         }
-        out.write(format_args!("{}\n", labels[3]))?;
-        for context in &self.contexts {
-            out.write(format_args!(
-                "{}  {}\n",
-                context.terminal_context_id,
-                context.active_tab_id.as_ref().map_or("-", |id| id.as_str())
-            ))?;
-        }
+        // Each Workspace's remembered Tab is keyed by an internal context; it stays in JSON.
         if lead {
             return Ok(());
         }

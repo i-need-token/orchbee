@@ -812,7 +812,7 @@ fn renderer_path_lands_exactly_on_and_just_over_the_bound() {
                 panel_count: 1,
                 tab_id: ID.to_owned(),
                 handle: ID.to_owned(),
-                label: "t".to_owned(),
+                label: "t".repeat(1 + blob),
                 pinned: false,
                 group_id: None,
                 context: ContextRef {
@@ -821,7 +821,7 @@ fn renderer_path_lands_exactly_on_and_just_over_the_bound() {
                     workspace_label: "Workspace".to_owned(),
                 },
             },
-            root: json!({"blob": "x".repeat(blob)}),
+            root: json!({}),
         })
     };
     let command = QueryCommand::TabGet(Target::Id(ID.to_owned()));

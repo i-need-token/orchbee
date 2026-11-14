@@ -1688,7 +1688,9 @@ primaryDirectoryId|null,terminalContextId}]}` from global navigation, with requi
 - `orchbee.tab.list` → `{tabs:[{tabId,label,number,panelCount,pinned,groupId|null,
 context:{kind:"workspace",terminalContextId,
 workspaceId}}]}`; `workspaceId` is always required. `tab get` adds `root`, the
-  typed `PanelNode` subtree re-encoded without losing semantic fields.
+  typed `PanelNode` subtree re-encoded without losing semantic fields. `tab get` text output
+  names the Tab, its number, Panel count, ID, pin and group, and its Workspace by name and ID;
+  `root` and the context stay in JSON.
 - `orchbee.panel.list` → `{panels:[{panelId,label,customLabel|null,displayLabel,workspaceId,tabId,terminalContextId,primaryPresentationId,
 presentationCount,primaryTerminalId|null,primaryUnavailableDirectory|null}]}` where `primaryTerminalId` reflects only
   `primaryPresentation.binding` and `primaryUnavailableDirectory` names the saved directory a
@@ -1696,9 +1698,15 @@ presentationCount,primaryTerminalId|null,primaryUnavailableDirectory|null}]}` wh
 primaryPresentation,childPresentations}}` with `slotPath` the `PanelSlot` IDs from root to leaf
   (`[]` when the root itself is the panel) and each presentation `{presentationId,label,
 binding:{terminalId,workerId}|null,unavailableDirectory|null}`. `panel get` text output shows
-  "Directory unavailable" / "目录不可用" in the terminal column of a held member. `panel list`
-  text output is the compact Agent table, which has no terminal column; a held Panel shows `-` in
-  its directory column there, and `--format json` carries `primaryUnavailableDirectory`.
+  the Panel's ID, name, Workspace (name and ID), Tab, primary terminal and right-click target;
+  its Terminal row shows "Directory unavailable" / "目录不可用" for a held Panel. The context, slot
+  path, presentation IDs, Workers and child presentations stay in JSON; `terminal list --panel`
+  lists every terminal of the Panel. Windows `panel list` text output is the compact Agent table,
+  which has no terminal column; a held Panel shows `-` in its directory column there, and
+  `--format json` carries `primaryUnavailableDirectory`. Other platforms print `ID`, `NAME`,
+  `WORKSPACE`, `TAB` and `TERMINAL`. `project get` text lists each directory's ID and path; its
+  Worker stays in JSON. With `--client`, text names the Client and its selected Tab and Panel;
+  each Workspace's remembered Tab stays in JSON.
 - `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
 tabId,terminalContextId},observation}]}`; the rows carry no lifecycle or process members.
   `observation` is what this command observed of the row, tagged by `kind`: `observed`
@@ -2774,7 +2782,7 @@ For canonical session targets, Windows `agent prompt <target> <text> --wait --cl
 
 Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v1. Its `source.kind` is `agent-projection`; the source carries `sessionId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows may also carry placement when a current terminal incarnation is observed with no Agent. `workspaceId` within placement is nullable. `cwd` is a nullable string. When `--include-ended` is used, ended sessions sort after all current live rows, keeping live ordinals stable; ended rows follow canonical ID order and can be inspected by exact `--agent-session`.
 
-Windows rows also carry `name`: the row's live alias, or null when it has none. The list reads the Session's names on its own connection before confirming the projection; a terminal binding names the row with that exact launch binding, a pending launch reservation names its terminal, and a session binding names the row with that `sessionId`. A row's own target wins, so a terminal's name takes precedence over its session's. Other platforms mark `name` unsupported. The text table shows it in a NAME column.
+Windows rows also carry `name`: the row's live alias, or null when it has none. The list reads the Session's names on its own connection before confirming the projection; a terminal binding names the row with that exact launch binding, a pending launch reservation names its terminal, and a session binding names the row with that `sessionId`. A row's own target wins, so a terminal's name takes precedence over its session's. Other platforms mark `name` unsupported. The text table prints `#`, `HANDLE`, `AGENT`, `NAME`, `STATE` and `CWD`; the identity `source` stays in JSON, and `agent get` text names the Agent and its state without it. Elsewhere, `agent list` text prints `SESSION`, `AGENT` and `STATE`, and `agent get` text prints the session, provider, lifecycle, status, last outcome and the kinds of pending requests; freshness, execution location, observation coordinates, capabilities, request IDs and presentation attachments stay in JSON.
 
 `clientId` and every row's `client` are always present, null on Windows when no Client was selected, with canonical and terminal Client facets kept separate. Client unread state never supplies semantic Agent status. Optional cwd enrichment covers at most 64 rows per page and returns null when unavailable. Pages contain 1–100 rows (default 50); the joined output ceiling is 4096 rows and 8 MiB. Source admission can fail earlier: the canonical source is bounded to 512 sessions/six pages of 100, and physical source registration is bounded to 1024 entries. The 4096-row output ceiling does not promise that many physical sources.
 

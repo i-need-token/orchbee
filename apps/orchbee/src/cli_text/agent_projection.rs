@@ -8,20 +8,10 @@ impl super::CliText {
             Locale::ZhCn => ["#", "句柄", "标题", "智能体", "状态", "目录"],
         }
     }
-    pub(crate) fn cli_projection_headers(self) -> [&'static str; 7] {
+    pub(crate) fn cli_projection_headers(self) -> [&'static str; 6] {
         match self.locale {
-            Locale::EnUs => ["#", "HANDLE", "AGENT", "NAME", "STATE", "SOURCE", "CWD"],
-            Locale::ZhCn => ["#", "句柄", "智能体", "名称", "状态", "来源", "目录"],
-        }
-    }
-    pub(crate) fn cli_projection_source(self, value: &str) -> &'static str {
-        match (self.locale, value) {
-            (Locale::EnUs, "canonical") => "Canonical",
-            (Locale::EnUs, "terminal") => "Terminal",
-            (Locale::EnUs, _) => "Both",
-            (Locale::ZhCn, "canonical") => "规范",
-            (Locale::ZhCn, "terminal") => "终端",
-            (Locale::ZhCn, _) => "两者",
+            Locale::EnUs => ["#", "HANDLE", "AGENT", "NAME", "STATE", "CWD"],
+            Locale::ZhCn => ["#", "句柄", "智能体", "名称", "状态", "目录"],
         }
     }
     pub(crate) fn cli_projection_status(self, value: &str) -> &'static str {

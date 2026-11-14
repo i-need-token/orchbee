@@ -46,15 +46,10 @@ impl super::CliText {
         }
     }
 
-    pub(crate) const fn cli_query_client_labels(self) -> [&'static str; 4] {
+    pub(crate) const fn cli_query_client_labels(self) -> [&'static str; 3] {
         match self.locale {
-            Locale::EnUs => [
-                "Client",
-                "Selected Tab",
-                "Selected Panel",
-                "Context / active Tab",
-            ],
-            Locale::ZhCn => ["客户端", "所选标签页", "所选面板", "上下文 / 活动标签页"],
+            Locale::EnUs => ["Client", "Selected Tab", "Selected Panel"],
+            Locale::ZhCn => ["客户端", "所选标签页", "所选面板"],
         }
     }
 
