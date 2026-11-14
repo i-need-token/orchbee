@@ -267,8 +267,12 @@ pnpm desktop:package:test
 an explicit dev/test/release profile. Each command builds Web resources and the Main and preload
 bundles, then stages the whole native cohort with `scripts/stage-local-runtime.mjs`: the Client,
 Server, Worker, Terminal Host, the observation Capsule, and the platform's terminal runtime. The
-window's Session runs that cohort, so the application carries it. The cohort and the Web resources
-stay outside `app.asar` as `resources/cohort` and `resources/dist`.
+application carries it because the window's Session may run it: on Windows the bundled Client of a
+test or release package hands a Session start to the store's active version, which that Client
+installs, and starts this cohort only when the store holds no usable version
+([store start](../orchbee/docs/windows-cli-configuration.md#windows-release-installation)); a
+development package, and macOS and Linux, run this cohort. The cohort and the Web resources stay
+outside `app.asar` as `resources/cohort` and `resources/dist`.
 
 On Windows the test and release commands then make the cohort a signed release directory before
 packaging it: `scripts/package-native-windows.mjs` writes its `release.json` for the `stable`
@@ -333,11 +337,15 @@ An install changes exactly this:
 
 Installing a newer setup over an older one replaces it in place: one Settings entry, one Start menu
 entry, the new window application, and the new version active in the store. Setup never ends
-Orchbee. While the window, or a Session it started from the runtime in `desktop\`, still runs,
-Setup stops before changing anything, asks the person to quit Orchbee and end its terminals, and
-exits with code 7. Sessions the command started run from the store and keep running, because
-installing only adds a version directory; the new window joins them while they are compatible and
-otherwise says they are too old.
+Orchbee. While any program or library below `desktop\` is loaded, Setup stops before changing
+anything and exits with code 7, saying which program to quit. When the bundled cohort's Server,
+Worker or Terminal Host is among them, a Session runs from there, started by an earlier version's
+window or by a start that found no usable store version: Setup asks the person to close those
+terminals or choose Quit All, which is needed only once, because a later window starts its Session
+from the store. Otherwise only the window runs from there, and Setup asks the person to quit it
+while keeping its terminals running. Sessions that run from the store keep running, because
+installing only adds a version directory and replaces `desktop\`; the new window joins them while
+they are compatible and otherwise says they are too old.
 
 Removal from Settings › Apps runs the uninstaller, which asks once and then, in this order:
 

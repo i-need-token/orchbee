@@ -63,8 +63,10 @@ Name: "zh"; MessagesFile: "ChineseSimplified.isl"
 [CustomMessages]
 en.SettingUpCommand=Setting up the %1 command...
 zh.SettingUpCommand=正在设置 %1 命令...
-en.DesktopInUse=%1 is still running from this installation, in its window or in terminals it started. Quit %1 and end those terminals, then run Setup again. Nothing was changed.
-zh.DesktopInUse=%1 仍在从此安装位置运行（窗口或它启动的终端）。请退出 %1 并结束这些终端，然后重新运行安装程序。目前未做任何更改。
+en.SessionInUse=Terminals started by an earlier version of the %1 window are still running from files Setup must replace. Close those terminals, or choose Quit All from the %1 icon in the notification area, then run Setup again. This is needed only once. Nothing was changed.
+zh.SessionInUse=较早版本的 %1 窗口启动的终端仍在运行，占用了安装程序需要替换的文件。请关闭这些终端，或在通知区域的 %1 图标上选择“全部退出”，然后重新运行安装程序。此操作只需一次。目前未做任何更改。
+en.WindowInUse=%1 is still open; it may be in the notification area. Right-click its icon and quit %1, keeping terminals running. Your terminals and Agents continue. Then run Setup again. Nothing was changed.
+zh.WindowInUse=%1 仍在运行，可能在通知区域。请右键单击其图标并退出 %1（终端继续运行），终端和 Agent 不受影响。然后重新运行安装程序。目前未做任何更改。
 en.CommandFailed=The %1 window was installed, but the %2 command could not be set up:%n%n%3%n%nRun Setup again to retry.
 zh.CommandFailed=%1 窗口程序已安装，但无法设置 %2 命令：%n%n%3%n%n请重新运行安装程序重试。
 en.RemovalBlocked=%1 was not removed:%n%n%2
@@ -160,14 +162,30 @@ begin
   Log(Result);
 end;
 
-// True when a program or library below Dir is loaded by a running process. Windows refuses to
-// open such a file for writing; opening it changes nothing. A folder rename would not tell, as
-// Windows lets a folder move while a program runs from it.
+// True when the program or library at Path exists and is loaded by a running process. Windows
+// refuses to open such a file for writing; opening it changes nothing.
+function ProgramInUse(const Path: String): Boolean;
+var
+  Probe: TFileStream;
+begin
+  Result := False;
+  if not FileExists(Path) then
+    Exit;
+  try
+    Probe := TFileStream.Create(Path, fmOpenReadWrite or fmShareDenyNone);
+    Probe.Free;
+  except
+    Log('In use: ' + Path);
+    Result := True;
+  end;
+end;
+
+// True when a program or library below Dir is loaded by a running process. A folder rename would
+// not tell, as Windows lets a folder move while a program runs from it.
 function ProgramRunsFrom(const Dir: String): Boolean;
 var
   Found: TFindRec;
   Path, Extension: String;
-  Probe: TFileStream;
 begin
   Result := False;
   if not FindFirst(Dir + '\*', Found) then
@@ -183,24 +201,32 @@ begin
           Result := ProgramRunsFrom(Path);
       end
       else if (Extension = '.exe') or (Extension = '.dll') or (Extension = '.node') then
-      begin
-        try
-          Probe := TFileStream.Create(Path, fmOpenReadWrite or fmShareDenyNone);
-          Probe.Free;
-        except
-          Log('In use: ' + Path);
-          Result := True;
-        end;
-      end;
+        Result := ProgramInUse(Path);
     until Result or not FindNext(Found);
   finally
     FindClose(Found);
   end;
 end;
 
-// Setup never ends Orchbee: while its window or a Session it started runs from the installed
-// copy, Setup stops before changing anything. Otherwise the previous window application moves
-// aside, so no file of it lingers beside the new one and a failed install can put it back.
+// True when a Session program of the bundled cohort runs. This version's window starts its Session
+// from the store, so such a Session began in an earlier version's window or in a start that found
+// no usable store version.
+function SessionRunsFrom(const Desktop: String): Boolean;
+var
+  Cohort: String;
+begin
+  Cohort := Desktop + '\resources\cohort\{#ClientName}';
+  Result := ProgramInUse(Cohort + '-server.exe');
+  if not Result then
+    Result := ProgramInUse(Cohort + '-worker.exe');
+  if not Result then
+    Result := ProgramInUse(Cohort + '-terminal-host.exe');
+end;
+
+// Setup never ends Orchbee: while its window or a Session an earlier window started runs from the
+// installed copy, Setup stops before changing anything and says which of the two to quit. Otherwise
+// the previous window application moves aside, so no file of it lingers beside the new one and a
+// failed install can put it back.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Desktop, Previous: String;
@@ -212,7 +238,10 @@ begin
     Exit;
   if ProgramRunsFrom(Desktop) then
   begin
-    Result := FmtMessage(CustomMessage('DesktopInUse'), ['{#AppName}']);
+    if SessionRunsFrom(Desktop) then
+      Result := FmtMessage(CustomMessage('SessionInUse'), ['{#AppName}'])
+    else
+      Result := FmtMessage(CustomMessage('WindowInUse'), ['{#AppName}']);
     Exit;
   end;
   if DirExists(Previous) then
@@ -220,7 +249,7 @@ begin
   if RenameFile(Desktop, Previous) then
     PreviousMoved := True
   else
-    Result := FmtMessage(CustomMessage('DesktopInUse'), ['{#AppName}']);
+    Result := FmtMessage(CustomMessage('WindowInUse'), ['{#AppName}']);
 end;
 
 // The bundled Client publishes its signed release directory into the store and activates it; a
