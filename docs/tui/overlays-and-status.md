@@ -212,13 +212,12 @@ fields follow [`components.md`](components.md).
   whose terminals run no program, while no other Client is attached, closes it at once; its leaving
   the screen reports the close.
 - Names, grouping, and order are organization, not content. Renaming a Project, moving a Workspace
-  between Projects, and dissolving a Project end nothing and delete nothing: every Workspace,
-  terminal, program, and file stays. They run without a confirmation, and the status notice states
-  what stays, as in `Project dissolved · Workspaces retained`. When nothing remained to keep, as
-  for an empty Project, the notice states only the result.
+  between Projects, and ungrouping a Project end nothing and delete nothing: every Workspace,
+  terminal, program, and file stays. They run without a confirmation and without a status notice;
+  the changed sidebar shows the result.
 - Progress and waiting stay in the dialog that started the work, in its status row; they never open
   a separate dialog or replace the task with a progress-only stage. Work that continues after the
-  dialog closes reports its result as a status notice.
+  dialog closes reports a failure or an unknown outcome as a status notice; a success adds none.
 - A follow-up step, such as a confirmation that a submitted form needs, replaces the dialog's content
   inside the same frame, and `Esc` returns to the step before it.
 - A dialog that cannot be drawn when requested is refused with a status notice; its effect does not
@@ -469,11 +468,15 @@ pointer through help, menus, or the binding table.
   indicator in the affected region or the status line. This delay suppresses unnecessary progress
   animation, not acceptance feedback. Local acceptance, progress, first useful content, and
   authoritative completion remain separate observations.
-- A completion already visible where the person acted, such as the object they closed leaving the
-  screen, adds no status notice, and work that finishes within its delay leaves the status line
-  untouched. Failure and unknown outcomes are still reported at once.
-- A running count ends with its work. Its last value becomes a brief completed notice stating the
-  result, as in `2 Tabs closed`, never a running form such as `2 closed, 0 remaining`.
+- A success adds no status notice: the result shows where the person acted, such as the object they
+  closed leaving the screen, or the action has no visible result. Work that finishes within its
+  delay leaves the status line untouched. Failure and unknown outcomes are reported at once.
+- A failure notice is one plain sentence naming the action and its object, such as
+  `Couldn't rename the Tab.`, with no reason codes, identifiers, or internal component names;
+  those go to the existing diagnostic log. An unknown outcome always reads
+  `Not sure it finished. Check, then try again.` Both clients use the same sentences
+  (`docs/INTERFACE-DESIGN.md`).
+- A running count ends with its work and leaves no completed notice.
 - A pending indicator is a fixed-width glyph sequence plus a localized verb. It never blocks
   drawing or input for other regions.
 - A surface request carries the surface instance, target identity, and request generation. Only a
