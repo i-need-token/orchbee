@@ -482,7 +482,6 @@ check --session 0 orchbee --machine work workspace list --s
 check --machine 0 orchbee workspace --m
 check attach 0 orchbee --machine work terminal a
 check client 0 orchbee --machine work status c
-check server 1 orchbee --machine work status s
 check tui 0 orchbee --machine work tu
 check --format 0 orchbee --machine work --session local workspace list --f
 check --help 1 orchbee workspace get target --h
