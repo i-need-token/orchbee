@@ -39,15 +39,8 @@ export function projectWorkbenchSearchCatalog({
 			},
 		},
 	);
-	const needsContext = intl.formatMessage(workbenchMessages.searchActionsNeedContext);
 	const actionResults = discovery.map((result) =>
-		projectActionResult(
-			result,
-			intl,
-			shortcutLabelForAction,
-			argumentPickerForAction,
-			needsContext,
-		),
+		projectActionResult(result, intl, shortcutLabelForAction, argumentPickerForAction),
 	);
 	const settingsResults = actionResults
 		.filter((result) => result.actionId === WORKBENCH_ACTION_IDS.openSettings)
@@ -74,7 +67,6 @@ function projectActionResult(
 	intl: IntlShape,
 	shortcutLabelForAction: (actionId: string) => string | undefined,
 	argumentPickerForAction: (actionId: string) => WorkbenchSearchArgumentPicker | undefined,
-	needsContext: string,
 ): WorkbenchSearchResult {
 	const picker =
 		result.kind === 'requires-input' ? argumentPickerForAction(result.descriptor.id) : undefined;
@@ -115,9 +107,7 @@ function projectActionResult(
 		...(shortcutLabelForAction(result.descriptor.id) === undefined
 			? {}
 			: { shortcut: shortcutLabelForAction(result.descriptor.id) }),
-		...(result.kind === 'requires-input' && picker === undefined
-			? { surfaceDisabledReason: needsContext }
-			: {}),
+		...(result.kind === 'requires-input' && picker === undefined ? { surfaceDisabled: true } : {}),
 	};
 }
 

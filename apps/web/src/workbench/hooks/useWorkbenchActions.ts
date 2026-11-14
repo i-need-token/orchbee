@@ -363,14 +363,7 @@ export function useWorkbenchActions({
 					getAvailability: (context) => {
 						if (onNewTerminal === undefined) return { kind: 'hidden' };
 						const resolution = resolveCurrentDirectoryTarget(context);
-						if (resolution.kind === 'ready') return { kind: 'enabled' };
-						return {
-							kind: 'disabled',
-							reason:
-								resolution.reason === 'terminal-current-directory-unavailable'
-									? workbenchMessages.panelUnavailableDirectoryUnreported
-									: workbenchMessages.panelUnavailableFocusedPanelRequired,
-						};
+						return resolution.kind === 'ready' ? { kind: 'enabled' } : { kind: 'disabled' };
 					},
 					handler: {
 						execute: (context) => {

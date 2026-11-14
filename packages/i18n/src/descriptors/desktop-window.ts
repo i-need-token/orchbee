@@ -14,8 +14,6 @@ export const desktopWindowMessages = defineMessages({
 	placementNewer: message('desktop.window.placementNewer'),
 	placementNotUpdated: message('desktop.window.placementNotUpdated'),
 	recordNoticeClose: message('desktop.window.recordNoticeClose'),
-	maximizedUnavailableInFullScreen: message('desktop.window.maximizedUnavailableInFullScreen'),
 	toggleFullScreen: message('desktop.window.action.toggleFullScreen'),
 	toggleMaximized: message('desktop.window.action.toggleMaximized'),
-	unavailable: message('desktop.window.actionUnavailable'),
 });

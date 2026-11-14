@@ -9,7 +9,7 @@ import {
 	type ActionScope,
 	type TypedActionRuntime,
 } from '@orchbee/actions';
-import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
+import { workbenchTabMessages } from '@orchbee/i18n';
 import {
 	getTabCloseTargets,
 	TAB_STRIP_ACTION_IDS,
@@ -20,7 +20,10 @@ import {
 
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { executePreparedDescendantAction } from './executePreparedDescendantAction';
-import { prepareDescendantAction } from './prepareDescendantAction';
+import {
+	prepareDescendantAction,
+	type DescendantActionPreparation,
+} from './prepareDescendantAction';
 import { resolveActiveTabMovement } from './resolveActiveTabMovement';
 import {
 	WORKBENCH_ACTION_IDS,
@@ -51,7 +54,7 @@ type ActiveTabActionId =
  */
 type ActiveTabCommand =
 	| { readonly actionId: string; readonly input: unknown }
-	| { readonly unavailable: ActionMessageDescriptor };
+	| { readonly unavailable: true };
 
 type ActiveTabSnapshot = ReturnType<TabModel['getSnapshot']>;
 
@@ -125,7 +128,7 @@ export function registerWorkbenchActiveTabActions({
 	];
 }
 
-const NO_ACTIVE_TAB = { unavailable: workbenchTabMessages.unavailableNoneSelected } as const;
+const UNAVAILABLE = { unavailable: true } as const;
 
 function movement(
 	snapshot: ActiveTabSnapshot,
@@ -136,22 +139,15 @@ function movement(
 		direction,
 		tabs: snapshot.tabs.map((tab) => ({ id: tab.id, pinned: tab.pinned })),
 	});
-	if (input !== null) return { actionId: TAB_STRIP_ACTION_IDS.moveTab, input };
 	// A Tab moves only among Tabs pinned as it is, so a lone one has nothing to pass.
-	const active = snapshot.tabs.find((tab) => tab.id === snapshot.activeTabId);
-	if (active === undefined) return NO_ACTIVE_TAB;
-	return {
-		unavailable: active.pinned
-			? workbenchTabMessages.unavailableOnlyPinned
-			: workbenchTabMessages.unavailableOnlyUnpinned,
-	};
+	return input === null ? UNAVAILABLE : { actionId: TAB_STRIP_ACTION_IDS.moveTab, input };
 }
 
 /** Joins the active Tab's group; a place inside the pinned Tabs is left to creation to refuse. */
 function creationAfterActive(snapshot: ActiveTabSnapshot): ActiveTabCommand {
 	const index = snapshot.tabs.findIndex((tab) => tab.id === snapshot.activeTabId);
 	const active = snapshot.tabs[index];
-	if (active === undefined) return NO_ACTIVE_TAB;
+	if (active === undefined) return UNAVAILABLE;
 	const input: WorkbenchTerminalCreateInput = { groupId: active.group, index: index + 1 };
 	return { actionId: WORKBENCH_ACTION_IDS.createTerminal, input };
 }
@@ -160,13 +156,13 @@ function creationAfterActive(snapshot: ActiveTabSnapshot): ActiveTabCommand {
 function duplication(snapshot: ActiveTabSnapshot): ActiveTabCommand {
 	const tabIds = closeTargets(snapshot)?.selected ?? [];
 	return tabIds.length === 0
-		? NO_ACTIVE_TAB
+		? UNAVAILABLE
 		: { actionId: TAB_STRIP_ACTION_IDS.duplicateTabs, input: { tabIds } };
 }
 
 /** The TUI's Close Tab…: the active Tab alone, whatever else is selected. */
 function closureOfActive(snapshot: ActiveTabSnapshot): ActiveTabCommand {
-	if (snapshot.activeTabId === null) return NO_ACTIVE_TAB;
+	if (snapshot.activeTabId === null) return UNAVAILABLE;
 	const input: TabCloseInput = { closeSource: 'non-ui', tabIds: [snapshot.activeTabId] };
 	return { actionId: TAB_STRIP_ACTION_IDS.closeTabs, input };
 }
@@ -174,9 +170,9 @@ function closureOfActive(snapshot: ActiveTabSnapshot): ActiveTabCommand {
 /** The Tab menu's own trailing set: pinned and selected Tabs stay, and the selection's last Tab bounds it. */
 function closureAfterActive(snapshot: ActiveTabSnapshot): ActiveTabCommand {
 	const targets = closeTargets(snapshot);
-	if (targets === null) return NO_ACTIVE_TAB;
+	if (targets === null) return UNAVAILABLE;
 	const tabIds = targets.trailing;
-	if (tabIds.length === 0) return { unavailable: workbenchTabMessages.unavailableNoMatchingTabs };
+	if (tabIds.length === 0) return UNAVAILABLE;
 	const input: TabCloseInput = { closeSource: 'non-ui', tabIds };
 	return { actionId: TAB_STRIP_ACTION_IDS.closeTabs, input };
 }
@@ -202,17 +198,14 @@ function activeTabActionDefinition<Id extends ActiveTabActionId>({
 	readonly scope: ActionScope;
 	readonly title: ActionMessageDescriptor;
 }) {
-	const prepare = (context: ActionAvailabilityContext | ActionExecutionContext) => {
+	const prepare = (
+		context: ActionAvailabilityContext | ActionExecutionContext,
+	): DescendantActionPreparation => {
 		const tabModel = projectWorkspaceRuntime.getActiveTerminalContext()?.tabModel;
-		if (tabModel === undefined) {
-			return {
-				kind: 'unavailable' as const,
-				reason: workbenchMessages.workspaceUnavailableRequired,
-			};
-		}
+		if (tabModel === undefined) return { kind: 'unavailable' };
 		const next = command(tabModel.getSnapshot());
 		return 'unavailable' in next
-			? { kind: 'unavailable' as const, reason: next.unavailable }
+			? { kind: 'unavailable' }
 			: prepareDescendantAction({ ...next, context, runtime, scope });
 	};
 	return defineAction({

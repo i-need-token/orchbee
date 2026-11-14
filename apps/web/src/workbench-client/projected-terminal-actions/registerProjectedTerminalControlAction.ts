@@ -41,7 +41,7 @@ export function registerProjectedTerminalControlAction(
 					case 'view-only':
 						return { kind: 'enabled' };
 					case 'taking-control':
-						return { kind: 'disabled', reason: projectedTerminalMessages.controlTaking };
+						return { kind: 'disabled' };
 					case 'none':
 						return { kind: 'hidden' };
 				}

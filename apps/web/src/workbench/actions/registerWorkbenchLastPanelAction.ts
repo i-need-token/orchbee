@@ -49,10 +49,7 @@ export function registerWorkbenchLastPanelAction({
 				concurrencyKey: () => 'last-panel',
 				mode: 'foreground',
 			},
-			getAvailability: () =>
-				trail.target() === null
-					? { kind: 'disabled', reason: workbenchMessages.panelUnavailableLastPanelMissing }
-					: { kind: 'enabled' },
+			getAvailability: () => (trail.target() === null ? { kind: 'disabled' } : { kind: 'enabled' }),
 			handler: {
 				execute: (context) =>
 					executeWorkbenchLastPanel(context, { navigation, projectWorkspaceRuntime, trail }),

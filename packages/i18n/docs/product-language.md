@@ -85,6 +85,8 @@ A person who uses Windows Terminal, iTerm2, Ghostty or the VS Code terminal ever
 
 "Client" never appears in product copy; say window (窗口). In notices, Worker, Terminal Host and Server are Orchbee.
 
+A grey row says why only when the fix is not obvious, in one form each: **Terminal disconnected** (终端已断开), **Not in a Git repository** (不在 Git 仓库里), and **Select text first** (请先选中文本). Every other disabled row is simply grey, with no reason and no short form.
+
 ## Review
 
 For every affected product message:

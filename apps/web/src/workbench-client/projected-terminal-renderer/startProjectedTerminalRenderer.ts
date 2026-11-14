@@ -963,7 +963,6 @@ export async function startProjectedTerminalRenderer(
 								},
 							},
 				conditions: {
-					activeScreen: () => lastMetadata?.activeScreen ?? null,
 					inputBlocker: () => {
 						if (terminalOutcomeKind !== undefined) return terminalOutcomeKind;
 						if (!transportAvailable || statusKind === 'connection-failure') return 'disconnected';

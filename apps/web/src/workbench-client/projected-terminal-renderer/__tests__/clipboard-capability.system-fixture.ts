@@ -1,5 +1,4 @@
 import { ActionRuntime } from '@orchbee/actions';
-import { projectedTerminalMessages } from '@orchbee/i18n';
 import { ProjectedTerminal, type ProjectedTerminalOptions } from '@orchbee/terminal';
 import type { WorkbenchTerminalActionContextProvider } from '../../../workbench';
 import type { ProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
@@ -198,9 +197,7 @@ async function prepareWitness(): Promise<void> {
 		);
 		root.dataset['witnessInitialAvailability'] = copyAvailability();
 		const initialResult = await executeCopy();
-		await until(() => feedbackLabel() === CLIPBOARD_WRITE_UNAVAILABLE);
 		root.dataset['witnessInitialResult'] = resultLabel(initialResult);
-		root.dataset['witnessInitialFeedback'] = feedbackLabel();
 		root.dataset['witnessInitialSelectionCommands'] = String(selectionCopyCommands);
 		root.dataset['witnessInitialWrites'] = String(clipboardWrites.length);
 		root.dataset['witnessReadCapability'] = String('readClipboardText' in platformEffects);
@@ -257,9 +254,7 @@ async function runActivatedWitness(): Promise<void> {
 		const commandsBeforeMissing = selectionCopyCommands;
 		const writesBeforeMissing = clipboardWrites.length;
 		const missing = await executeCopy();
-		await until(() => feedbackLabel() === CLIPBOARD_WRITE_UNAVAILABLE);
 		root.dataset['witnessMissingResult'] = resultLabel(missing);
-		root.dataset['witnessMissingFeedback'] = feedbackLabel();
 		root.dataset['witnessMissingCommandDelta'] = String(
 			selectionCopyCommands - commandsBeforeMissing,
 		);
@@ -274,7 +269,6 @@ async function runActivatedWitness(): Promise<void> {
 		const insecureEffect = await platformEffects.writeClipboardText?.('insecure direct write');
 		root.dataset['witnessInsecureActionResult'] = resultLabel(insecureAction);
 		root.dataset['witnessInsecureEffectResult'] = resultLabel(insecureEffect);
-		root.dataset['witnessInsecureFeedback'] = feedbackLabel();
 		root.dataset['witnessInsecureCommandDelta'] = String(
 			selectionCopyCommands - commandsBeforeInsecure,
 		);
@@ -324,16 +318,6 @@ function resultLabel(
 
 function statusText(): string {
 	return root.querySelector('[data-projected-terminal-status]')?.textContent ?? '';
-}
-
-const CLIPBOARD_WRITE_UNAVAILABLE = 'clipboard-write-unavailable';
-
-/** Names the disabled copy's reason by meaning, so the witness does not pin its wording. */
-function feedbackLabel(): string {
-	const text = statusText();
-	return text === projectedTerminalMessages.unavailableClipboardWrite.defaultMessage
-		? CLIPBOARD_WRITE_UNAVAILABLE
-		: text;
 }
 
 function terminalRows(

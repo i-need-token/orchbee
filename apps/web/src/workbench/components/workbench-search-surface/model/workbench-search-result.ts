@@ -32,7 +32,7 @@ export interface WorkbenchSearchResult {
 	readonly providerPriority?: number | undefined;
 	readonly recommended: boolean;
 	readonly shortcut?: string | undefined;
-	readonly surfaceDisabledReason?: string | undefined;
+	readonly surfaceDisabled?: true | undefined;
 	readonly visibility?: 'always' | 'when-no-results' | undefined;
 }
 

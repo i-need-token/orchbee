@@ -1,6 +1,6 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
+import { useOrchbeeIntl, workbenchMessages, type IntlShape } from '@orchbee/i18n';
 import type { ProductIconName } from '@orchbee/ui/components';
 import * as React from 'react';
 
@@ -201,13 +201,11 @@ export function useWorkbenchSearchSurface({
 	);
 	const listId = `workbench-search-results-${state.sessionId}`;
 	const invokeBrowsingResult = useMemoizedFn((result: WorkbenchSearchResult) => {
-		const disabledReason =
-			result.surfaceDisabledReason ??
-			(result.availability.kind === 'disabled'
-				? formatWorkbenchActionMessage(intl, result.availability.reason)
-				: undefined);
-		if (disabledReason !== undefined) {
-			setLiveMessage(`${result.label}. ${disabledReason}`);
+		if (!isWorkbenchSearchResultEnabled(result)) {
+			const disabledReason = workbenchSearchDisabledReason(intl, result);
+			setLiveMessage(
+				disabledReason === undefined ? result.label : `${result.label}. ${disabledReason}`,
+			);
 			return;
 		}
 		if (result.invocation.kind === 'requires-input') {
@@ -298,11 +296,7 @@ export function useWorkbenchSearchSurface({
 			labelId: `workbench-search-group-${state.sessionId}-${section.id}`,
 			rows: section.results.map((result) => {
 				const selected = highlightedResultId === result.id;
-				const disabledReason =
-					result.surfaceDisabledReason ??
-					(result.availability.kind === 'disabled'
-						? formatWorkbenchActionMessage(intl, result.availability.reason)
-						: undefined);
+				const disabledReason = workbenchSearchDisabledReason(intl, result);
 				return {
 					...(result.description === undefined ? {} : { description: result.description }),
 					disabled: !isWorkbenchSearchResultEnabled(result),
@@ -537,4 +531,14 @@ export function useWorkbenchSearchSurface({
 		showEmpty: sections.length === 0 && providerStatuses.length === 0,
 		showsFilters: state.kind !== 'picking-argument' && filters.length > 1,
 	};
+}
+
+/** A grey row says why only when its Action names a reason. */
+function workbenchSearchDisabledReason(
+	intl: IntlShape,
+	result: WorkbenchSearchResult,
+): string | undefined {
+	return result.availability.kind === 'disabled' && result.availability.reason !== undefined
+		? formatWorkbenchActionMessage(intl, result.availability.reason)
+		: undefined;
 }

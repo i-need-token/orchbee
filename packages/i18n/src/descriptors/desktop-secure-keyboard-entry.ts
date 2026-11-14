@@ -8,5 +8,4 @@ const message = createMessageDescriptorFactory(enUSDesktopSecureKeyboardEntryMes
 export const desktopSecureKeyboardEntryMessages = defineMessages({
 	category: message('desktop.secureKeyboardEntry.category'),
 	toggle: message('desktop.secureKeyboardEntry.action.toggle'),
-	unavailable: message('desktop.secureKeyboardEntry.unavailable'),
 });

@@ -1,4 +1,3 @@
-import { desktopSecureKeyboardEntryMessages } from '@orchbee/i18n';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DesktopSecureKeyboardEntry } from '../DesktopSecureKeyboardEntry';
@@ -40,10 +39,7 @@ describe('DesktopSecureKeyboardEntryActions', () => {
 			setEnabled: () => undefined,
 		});
 		const unavailableActions = new DesktopSecureKeyboardEntryActions(unavailable);
-		expect(unavailableActions.getToggleAvailability()).toEqual({
-			kind: 'disabled',
-			reason: desktopSecureKeyboardEntryMessages.unavailable,
-		});
+		expect(unavailableActions.getToggleAvailability()).toMatchObject({ kind: 'disabled' });
 		expect(unavailableActions.invokeToggle('menu')).toBe(false);
 
 		unsupportedActions.dispose();

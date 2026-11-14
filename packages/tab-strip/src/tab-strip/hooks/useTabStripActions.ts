@@ -127,7 +127,7 @@ export function useTabStripActions({
 	);
 	const getCreationAvailability = useMemoizedFn((intent: TabStripTabCreationIntent) => {
 		if (intent.kind === 'new-tab' && !hasTargetGroup(model, intent.groupId)) {
-			return { kind: 'disabled' as const, reason: workbenchTabMessages.unavailableGroupMissing };
+			return { kind: 'disabled' as const };
 		}
 		return getTabCreationAvailability?.(intent) ?? ({ kind: 'enabled' } as const);
 	});
@@ -183,18 +183,9 @@ export function useTabStripActions({
 		};
 		const tabAvailability = (tabIds: readonly string[]) =>
 			existingTabIds(tabIds).length === 0
-				? {
-						kind: 'disabled' as const,
-						reason: {
-							...workbenchTabMessages.unavailableMissing,
-							values: { count: new Set(tabIds).size },
-						},
-					}
+				? { kind: 'disabled' as const }
 				: { kind: 'enabled' as const };
-		const groupMissing = {
-			kind: 'disabled' as const,
-			reason: workbenchTabMessages.unavailableGroupMissing,
-		};
+		const groupMissing = { kind: 'disabled' as const };
 		const commit = (context: { markCommitted(): void }, operation: () => void) => {
 			const revision = model.getSnapshot().revision;
 			context.markCommitted();

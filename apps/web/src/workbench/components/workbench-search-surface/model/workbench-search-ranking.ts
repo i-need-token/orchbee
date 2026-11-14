@@ -101,7 +101,7 @@ export function filterWorkbenchSearchArgumentOptions(
 }
 
 export function isWorkbenchSearchResultEnabled(result: WorkbenchSearchResult): boolean {
-	return result.availability.kind === 'enabled' && result.surfaceDisabledReason === undefined;
+	return result.availability.kind === 'enabled' && result.surfaceDisabled !== true;
 }
 
 export function resolveWorkbenchSearchHighlight(

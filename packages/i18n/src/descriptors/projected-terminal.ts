@@ -4,18 +4,8 @@ import { enUSProjectedTerminalMessages } from '../locales';
 
 export const projectedTerminalMessages = defineMessages({
 	actionCategory: message('terminal.projected.action.category'),
-	unavailableAlternateScreen: message('terminal.projected.unavailable.alternateScreen'),
-	unavailableClipboardRead: message('terminal.projected.unavailable.clipboardRead'),
-	unavailableClipboardWrite: message('terminal.projected.unavailable.clipboardWrite'),
 	unavailableDisconnected: message('terminal.projected.unavailable.disconnected'),
-	unavailableFindClosed: message('terminal.projected.unavailable.findClosed'),
-	unavailableFindEmpty: message('terminal.projected.unavailable.findEmpty'),
-	unavailableInputClosed: message('terminal.projected.unavailable.inputClosed'),
-	unavailableLinkMissing: message('terminal.projected.unavailable.linkMissing'),
-	unavailableLinkScheme: message('terminal.projected.unavailable.linkScheme'),
-	unavailableLoading: message('terminal.projected.unavailable.loading'),
 	unavailableNoSelection: message('terminal.projected.unavailable.noSelection'),
-	unavailableSelectionEvicted: message('terminal.projected.unavailable.selectionEvicted'),
 	accessibilityDeleted: message('terminal.projected.accessibility.deleted'),
 	accessibilityRow: message('terminal.projected.accessibility.row'),
 	accessibilityScreenCursor: message('terminal.projected.accessibility.screenCursor'),

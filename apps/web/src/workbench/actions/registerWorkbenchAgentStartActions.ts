@@ -76,7 +76,7 @@ export function registerWorkbenchAgentStartActions({
 		switch (place) {
 			case 'new-tab':
 				return projectWorkspaceRuntime.getActiveTerminalContext() === null
-					? { kind: 'disabled', reason: workbenchMessages.workspaceUnavailableRequired }
+					? { kind: 'disabled' }
 					: { kind: 'enabled' };
 			case 'split-down':
 			case 'split-right':

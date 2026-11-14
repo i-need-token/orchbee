@@ -86,7 +86,7 @@ export class DesktopSecureKeyboardEntryActions {
 		const state = this.#target.getState();
 		if (state === 'unsupported') return { kind: 'hidden' };
 		if (state === 'unavailable') {
-			return { kind: 'disabled', reason: desktopSecureKeyboardEntryMessages.unavailable };
+			return { kind: 'disabled' };
 		}
 		return { checked: state === 'active', kind: 'enabled' };
 	}

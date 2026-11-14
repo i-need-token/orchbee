@@ -72,7 +72,8 @@ export type ActionAvailability =
 	| {
 			readonly kind: 'disabled';
 			readonly checked?: boolean | undefined;
-			readonly reason: ActionMessageDescriptor;
+			/** Said only when the fix is not obvious; without it the row is simply grey. */
+			readonly reason?: ActionMessageDescriptor | undefined;
 	  }
 	| { readonly kind: 'hidden' };
 

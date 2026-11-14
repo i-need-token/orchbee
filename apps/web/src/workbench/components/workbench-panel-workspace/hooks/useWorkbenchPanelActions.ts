@@ -5,7 +5,6 @@ import {
 	type ActionExecution,
 	type ActionInputFor,
 	type ActionInvocationSource,
-	type ActionMessageDescriptor,
 	type ActionOutputFor,
 	type ActionRuntime,
 	type ActionScope,
@@ -139,26 +138,16 @@ export function useWorkbenchPanelActions({
 				`${terminalContextId}:${input.tabId}:${input.panelId}`,
 			mode: 'foreground' as const,
 		};
-		const disabled = (reason: ActionMessageDescriptor) => ({ kind: 'disabled' as const, reason });
-		const panelMissing = disabled(workbenchMessages.panelUnavailableMissing);
+		const disabled = { kind: 'disabled' as const };
+
 		// The Server closes a Tab's last Panel together with its Tab.
 		const closeAvailability = (input: PanelCloseInput) =>
-			findCloseTarget(input) === null ? panelMissing : { kind: 'enabled' as const };
-		/** What in the active Tab stops a layout command, in the order the command checks it. */
+			findCloseTarget(input) === null ? disabled : { kind: 'enabled' as const };
+		/** Whether something in the active Tab stops a layout command. */
 		const layoutBlocker = (minimumPanels: number) => {
-			if (activeTab === null)
-				return disabled(workbenchMessages.panelUnavailableFocusedPanelRequired);
-			if (activeTab.maximizedPanelId !== null) {
-				return disabled(workbenchMessages.panelUnavailableMaximized);
-			}
-			if (panelCount < minimumPanels) {
-				return disabled(
-					minimumPanels > 2
-						? workbenchMessages.panelUnavailableThreeRequired
-						: workbenchMessages.panelUnavailableMultipleRequired,
-				);
-			}
-			return null;
+			const blocked =
+				activeTab === null || activeTab.maximizedPanelId !== null || panelCount < minimumPanels;
+			return blocked ? disabled : null;
 		};
 		/** Both Panels must remain, and a Panel never trades places with itself. */
 		const pairAvailability = (input: {
@@ -166,11 +155,9 @@ export function useWorkbenchPanelActions({
 			readonly targetPanelId: string;
 		}) => {
 			if (findTarget(input.panelId) === null || findTarget(input.targetPanelId) === null) {
-				return panelMissing;
+				return disabled;
 			}
-			return input.panelId === input.targetPanelId
-				? disabled(workbenchMessages.panelUnavailableSameTarget)
-				: { kind: 'enabled' as const };
+			return input.panelId === input.targetPanelId ? disabled : { kind: 'enabled' as const };
 		};
 		/** What a shared change names, because it can settle after this Client has moved elsewhere. */
 		const sharedTabTarget =
@@ -181,7 +168,7 @@ export function useWorkbenchPanelActions({
 			return panel === null ? undefined : (getDisplayedTerminal(panel).currentCwd ?? undefined);
 		};
 		const targetAvailability = (panelId: string) =>
-			findTarget(panelId) === null ? panelMissing : { kind: 'enabled' as const };
+			findTarget(panelId) === null ? disabled : { kind: 'enabled' as const };
 		const resultFor = (transition: PanelWorkspaceTransition | null) => {
 			if (transition === null || transition.outcome === 'rejected') {
 				return {
@@ -387,9 +374,7 @@ export function useWorkbenchPanelActions({
 					category,
 					execution,
 					getAvailability: (_context, input) =>
-						panelCount < 2
-							? disabled(workbenchMessages.panelUnavailableMultipleRequired)
-							: pairAvailability(input),
+						panelCount < 2 ? disabled : pairAvailability(input),
 					handler: {
 						execute: (context, input) => {
 							if (sharedTabTarget === null)
@@ -417,10 +402,8 @@ export function useWorkbenchPanelActions({
 					execution,
 					getAvailability: (_context, input) => {
 						const panel = findTarget(input.panelId);
-						if (panel === null) return panelMissing;
-						return panel.activeChildPresentationId === null
-							? disabled(workbenchMessages.panelUnavailablePrimaryShown)
-							: { kind: 'enabled' };
+						if (panel === null) return disabled;
+						return panel.activeChildPresentationId === null ? disabled : { kind: 'enabled' };
 					},
 					handler: {
 						execute: (context, input) => {
@@ -462,9 +445,7 @@ export function useWorkbenchPanelActions({
 					category,
 					execution,
 					getAvailability: (_context, input) =>
-						panelCount < 2
-							? disabled(workbenchMessages.panelUnavailableMultipleRequired)
-							: targetAvailability(input.panelId),
+						panelCount < 2 ? disabled : targetAvailability(input.panelId),
 					handler: {
 						execute: (context, input) => {
 							context.markCommitted();

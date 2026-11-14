@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
-import { workbenchMessages } from '@orchbee/i18n';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import * as React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -256,10 +255,7 @@ describe('useWorkbenchFocusRouting', () => {
 		act(() => screen.getByRole('textbox', { name: 'Search' }).focus());
 		await act(async () => undefined);
 
-		const surfaceOpen = {
-			kind: 'disabled',
-			reason: workbenchMessages.focusUnavailableSurfaceOpen,
-		};
+		const surfaceOpen = { kind: 'disabled' };
 		expect(searchRow()?.availability).toEqual({ kind: 'enabled' });
 		expect(keyboardAvailability()).toEqual(surfaceOpen);
 		// Another dialog still blocks the Search's rows.

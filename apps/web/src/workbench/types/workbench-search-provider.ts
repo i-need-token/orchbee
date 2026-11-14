@@ -72,7 +72,7 @@ export interface WorkbenchSearchProviderResult {
 	readonly label: string;
 	readonly recommended?: boolean | undefined;
 	readonly shortcut?: string | undefined;
-	readonly surfaceDisabledReason?: string | undefined;
+	readonly surfaceDisabled?: true | undefined;
 	readonly visibility?: 'always' | 'when-no-results' | undefined;
 }
 

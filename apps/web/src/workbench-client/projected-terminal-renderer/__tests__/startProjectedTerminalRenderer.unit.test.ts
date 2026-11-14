@@ -1,5 +1,4 @@
 import { ActionRuntime } from '@orchbee/actions';
-import { createOrchbeeIntl } from '@orchbee/i18n';
 import type {
 	WorkbenchTerminalActionContextProvider,
 	WorkbenchTerminalBellEffect,
@@ -526,22 +525,6 @@ describe('startProjectedTerminalRenderer', () => {
 				clientY: 24,
 				shiftKey: true,
 			});
-			const copyAction = actionRuntime
-				.discover({ scope: actionScope, source: 'context-menu' })
-				.find(
-					(result) => result.kind === 'ready' && result.descriptor.id === 'terminal.selection.copy',
-				);
-			if (copyAction?.kind !== 'ready') throw new Error('Expected the terminal Copy action.');
-			const copyAvailability = copyAction.availability;
-			if (copyAvailability.kind !== 'disabled' || copyAvailability.reason.id === undefined) {
-				throw new Error('Expected Copy to be disabled with a reason.');
-			}
-			await contextProvider?.executePrepared(copyAction.invocation).completion;
-			// The status repeats the disabled Action's own reason in the surface's locale.
-			const copyReason = createOrchbeeIntl('zh-CN').formatMessage({
-				id: copyAvailability.reason.id,
-			});
-			await vi.waitFor(() => expect(status.textContent).toBe(copyReason));
 			const clearAction = actionRuntime
 				.discover({ scope: actionScope, source: 'context-menu' })
 				.find((result) => result.kind === 'ready' && result.descriptor.id === 'terminal.clear');

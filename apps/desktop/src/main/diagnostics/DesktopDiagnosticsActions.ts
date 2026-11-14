@@ -117,9 +117,7 @@ export class DesktopDiagnosticsActions {
 
 	#availability(): ActionAvailability {
 		if (this.#platform !== 'win32') return { kind: 'hidden' };
-		return this.#saving
-			? { kind: 'disabled', reason: desktopDiagnosticsMessages.bundlePending }
-			: { kind: 'enabled' };
+		return this.#saving ? { kind: 'disabled' } : { kind: 'enabled' };
 	}
 
 	async #save(markCommitted: () => void): Promise<ActionResult<void>> {

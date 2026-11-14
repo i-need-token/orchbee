@@ -13,14 +13,14 @@ import { WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS } from './workbench-descen
 
 export type DescendantActionPreparation =
 	| { readonly invocation: PreparedActionInvocation; readonly kind: 'ready' }
-	| { readonly kind: 'unavailable'; readonly reason: ActionMessageDescriptor }
+	| { readonly kind: 'unavailable'; readonly reason?: ActionMessageDescriptor | undefined }
 	| { readonly kind: 'hidden' };
 
 type ReadyDiscovery = Extract<ActionDiscoveryResult, { kind: 'ready' }>;
 
 /**
  * Prepares the lower Action a composite runs with this input. A disabled lower Action lends its own
- * reason, so the composite says why as its owner would; a lower Action that no surface offers leaves
+ * reason, when it has one, so the composite says why as its owner would; a lower Action that no surface offers leaves
  * the composite nothing to lend, so it is hidden as well.
  */
 export function prepareDescendantAction({

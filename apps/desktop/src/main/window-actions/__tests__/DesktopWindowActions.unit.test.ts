@@ -1,4 +1,3 @@
-import { desktopWindowMessages } from '@orchbee/i18n';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DesktopWindowActions, type DesktopWindowActionTarget } from '../DesktopWindowActions';
@@ -39,17 +38,11 @@ describe('DesktopWindowActions', () => {
 		const actions = new DesktopWindowActions(target);
 
 		target.getWindowState.mockReturnValue('unavailable');
-		expect(actions.getToggleFullScreenAvailability()).toEqual({
-			kind: 'disabled',
-			reason: desktopWindowMessages.unavailable,
-		});
+		expect(actions.getToggleFullScreenAvailability()).toMatchObject({ kind: 'disabled' });
 		expect(actions.invokeToggleFullScreen('menu')).toBe(false);
 
 		target.getWindowState.mockReturnValue('full-screen');
-		expect(actions.getToggleMaximizedAvailability()).toEqual({
-			kind: 'disabled',
-			reason: desktopWindowMessages.maximizedUnavailableInFullScreen,
-		});
+		expect(actions.getToggleMaximizedAvailability()).toMatchObject({ kind: 'disabled' });
 		expect(actions.invokeToggleMaximized('keyboard')).toBe(false);
 		expect(target.toggleWindowFullScreen).not.toHaveBeenCalled();
 		expect(target.toggleWindowMaximized).not.toHaveBeenCalled();

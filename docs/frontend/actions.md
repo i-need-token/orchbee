@@ -156,11 +156,11 @@ the runtime's last check.
 
 ## Availability and confirmation
 
-| Availability | Meaning                                                                    | Presentation                                                      |
-| ------------ | -------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `enabled`    | The action may run for the current input, scope, and target                | Visible and invocable                                             |
-| `disabled`   | The action is relevant but temporarily cannot run                          | Visible, non-invocable, with a localized reason                   |
-| `hidden`     | The action is irrelevant, unauthorized, unsupported, or unsafe to disclose | Omitted from menus, command surfaces, references, and enumeration |
+| Availability | Meaning                                                                    | Presentation                                                                   |
+| ------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `enabled`    | The action may run for the current input, scope, and target                | Visible and invocable                                                          |
+| `disabled`   | The action is relevant but temporarily cannot run                          | Visible and non-invocable; a localized reason only when the fix is not obvious |
+| `hidden`     | The action is irrelevant, unauthorized, unsupported, or unsafe to disclose | Omitted from menus, command surfaces, references, and enumeration              |
 
 - Evaluate availability synchronously and purely over one context snapshot.
 - Re-evaluate it for presentation, shortcut resolution, and immediately before handler invocation.

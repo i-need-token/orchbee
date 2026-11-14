@@ -1,11 +1,10 @@
 import {
 	defineAction,
 	type ActionDisposable,
-	type ActionMessageDescriptor,
 	type ActionScope,
 	type TypedActionRuntime,
 } from '@orchbee/actions';
-import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
+import { workbenchMessages } from '@orchbee/i18n';
 
 import {
 	findPanel,
@@ -61,9 +60,7 @@ export function registerWorkbenchPanelNameAction({
 			},
 			getAvailability: (_context, input) => {
 				const target = resolve(input);
-				return 'unavailable' in target
-					? { kind: 'disabled', reason: target.unavailable }
-					: { kind: 'enabled' };
+				return 'unavailable' in target ? { kind: 'disabled' } : { kind: 'enabled' };
 			},
 			handler: {
 				execute: (context, input) => {
@@ -91,30 +88,24 @@ export function registerWorkbenchPanelNameAction({
 	/** The Panel to name, or why there is none: a named Panel is gone, or the active one is missing. */
 	function resolve(
 		input: WorkbenchPanelNameInput,
-	): WorkbenchPanelNameEditorRequest | { readonly unavailable: ActionMessageDescriptor } {
-		const missing = { unavailable: workbenchMessages.panelUnavailableMissing };
+	): WorkbenchPanelNameEditorRequest | { readonly unavailable: true } {
+		const missing = { unavailable: true } as const;
 		const terminalContext =
 			input === undefined
 				? projectWorkspaceRuntime.getActiveTerminalContext()
 				: projectWorkspaceRuntime.getTerminalContext(input.terminalContextId);
 		if (terminalContext === null) {
-			return input === undefined
-				? { unavailable: workbenchMessages.workspaceUnavailableRequired }
-				: missing;
+			return input === undefined ? { unavailable: true } : missing;
 		}
 		const store = terminalContext.panelWorkspaceStore;
 		const tabId = input?.tabId ?? store.getActiveTabId();
 		const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
 		if (tab === undefined) {
-			return input === undefined
-				? { unavailable: workbenchTabMessages.unavailableNoneSelected }
-				: missing;
+			return input === undefined ? { unavailable: true } : missing;
 		}
 		const panel = findPanel(tab.root, input?.panelId ?? tab.focusedPanelId);
 		if (panel === null) {
-			return input === undefined
-				? { unavailable: workbenchMessages.panelUnavailableFocusedPanelRequired }
-				: missing;
+			return input === undefined ? { unavailable: true } : missing;
 		}
 		const primary = panel.primaryPresentation;
 		// The name belongs to the primary terminal the editor opened on; another one is not it.

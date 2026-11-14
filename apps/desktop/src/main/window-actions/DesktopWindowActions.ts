@@ -107,7 +107,7 @@ export class DesktopWindowActions {
 	#fullScreenAvailability(): ActionAvailability {
 		const state = this.#target.getWindowState();
 		return state === 'unavailable'
-			? { kind: 'disabled', reason: desktopWindowMessages.unavailable }
+			? { kind: 'disabled' }
 			: { checked: state === 'full-screen', kind: 'enabled' };
 	}
 
@@ -122,13 +122,10 @@ export class DesktopWindowActions {
 	#maximizedAvailability(): ActionAvailability {
 		const state = this.#target.getWindowState();
 		if (state === 'unavailable') {
-			return { kind: 'disabled', reason: desktopWindowMessages.unavailable };
+			return { kind: 'disabled' };
 		}
 		if (state === 'full-screen') {
-			return {
-				kind: 'disabled',
-				reason: desktopWindowMessages.maximizedUnavailableInFullScreen,
-			};
+			return { kind: 'disabled' };
 		}
 		return { checked: state === 'maximized', kind: 'enabled' };
 	}

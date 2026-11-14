@@ -3,7 +3,6 @@ import type { DesktopWindowMessageId } from '../en-US';
 export const zhCNDesktopWindowMessages = {
 	'desktop.window.action.toggleFullScreen': '进入 / 退出全屏',
 	'desktop.window.action.toggleMaximized': '最大化 / 还原窗口',
-	'desktop.window.actionUnavailable': '当前没有可用的桌面窗口。',
 	'desktop.window.category': '窗口',
 	'desktop.window.dataFolderLayoutNewer':
 		'{root} 上次由 Orchbee {version} 使用，该版本更改了文件夹的布局。此版本无法打开它；请使用 Orchbee {version} 或更高版本。',
@@ -17,5 +16,4 @@ export const zhCNDesktopWindowMessages = {
 	'desktop.window.placementNotUpdated':
 		'Orchbee 无法从早期版本更新窗口位置，已保持其原样。窗口会以默认大小打开，不会记住你上次放置的位置。',
 	'desktop.window.recordNoticeClose': '关闭',
-	'desktop.window.maximizedUnavailableInFullScreen': '请先退出全屏，再更改窗口的最大化状态。',
 } as const satisfies Readonly<Record<DesktopWindowMessageId, string>>;

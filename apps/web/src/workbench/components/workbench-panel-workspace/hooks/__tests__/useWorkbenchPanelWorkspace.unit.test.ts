@@ -146,7 +146,7 @@ describe('useWorkbenchPanelWorkspace', () => {
 			),
 		);
 
-		expect(markup).toContain(`${fixtureTabId(1)}:返回主终端:1:false`);
+		expect(markup).toContain(`${fixtureTabId(1)}:回到主终端:1:false`);
 	});
 
 	it('keeps the panel drag entry point stable across workspace updates', () => {

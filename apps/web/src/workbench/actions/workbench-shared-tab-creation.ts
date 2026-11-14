@@ -1,5 +1,4 @@
 import type { ActionAvailability, ActionExecutionContext, ActionResult } from '@orchbee/actions';
-import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
 import type { TabStripTabCreationIntent } from '@orchbee/tab-strip';
 
 import type { WorkbenchTerminalCreateInput } from './workbench-action-ids';
@@ -30,7 +29,6 @@ interface SharedTabDuplicationOptions {
 
 const WORKSPACE_REQUIRED: ActionAvailability = {
 	kind: 'disabled',
-	reason: workbenchMessages.workspaceUnavailableRequired,
 };
 
 const ACTIVE_TAB_UNAVAILABLE = { code: 'active-tab-unavailable', kind: 'blocked' } as const;
@@ -53,7 +51,7 @@ export function getSharedTabCreationAvailability(
 	// A new Tab is never pinned, so the authority refuses one placed among the pinned Tabs.
 	const { tabs } = terminalContext.tabModel.getSnapshot();
 	return intent.index < tabs.filter((tab) => tab.pinned).length
-		? { kind: 'disabled', reason: workbenchTabMessages.unavailableAmongPinned }
+		? { kind: 'disabled' }
 		: { kind: 'enabled' };
 }
 

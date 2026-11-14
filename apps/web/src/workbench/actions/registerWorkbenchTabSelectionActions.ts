@@ -180,16 +180,13 @@ function prepareAdjacentTabSelection({
 	readonly scope: ActionScope;
 }): DescendantActionPreparation {
 	const snapshot = projectWorkspaceRuntime.getActiveTerminalContext()?.tabModel.getSnapshot();
-	if (snapshot === undefined) return WORKSPACE_REQUIRED;
+	if (snapshot === undefined) return UNAVAILABLE;
 	const tabId = resolveAdjacentTabSelection({
 		activeTabId: snapshot.activeTabId,
 		direction,
 		tabIds: snapshot.tabs.map((tab) => tab.id),
 	});
-	if (tabId !== null) return prepareTabIdSelection({ context, runtime, scope, tabId });
-	return snapshot.tabs.some((tab) => tab.id === snapshot.activeTabId)
-		? { kind: 'unavailable', reason: workbenchTabMessages.unavailableOnlyOne }
-		: { kind: 'unavailable', reason: workbenchTabMessages.unavailableNoneSelected };
+	return tabId === null ? UNAVAILABLE : prepareTabIdSelection({ context, runtime, scope, tabId });
 }
 
 function prepareTabPositionSelection({
@@ -206,12 +203,11 @@ function prepareTabPositionSelection({
 	readonly scope: ActionScope;
 }): DescendantActionPreparation {
 	const tabModel = projectWorkspaceRuntime.getActiveTerminalContext()?.tabModel;
-	if (tabModel === undefined) return WORKSPACE_REQUIRED;
+	if (tabModel === undefined) return UNAVAILABLE;
 	const tab = tabModel.getSnapshot().tabs[input.position - 1];
-	if (tab === undefined) {
-		return { kind: 'unavailable', reason: workbenchTabMessages.unavailablePositionEmpty };
-	}
-	return prepareTabIdSelection({ context, runtime, scope, tabId: tab.id });
+	return tab === undefined
+		? UNAVAILABLE
+		: prepareTabIdSelection({ context, runtime, scope, tabId: tab.id });
 }
 
 function prepareTabIdSelection({
@@ -235,10 +231,7 @@ function prepareTabIdSelection({
 	});
 }
 
-const WORKSPACE_REQUIRED = {
-	kind: 'unavailable',
-	reason: workbenchMessages.workspaceUnavailableRequired,
-} as const satisfies DescendantActionPreparation;
+const UNAVAILABLE = { kind: 'unavailable' } as const satisfies DescendantActionPreparation;
 
 function availabilityOf(prepared: DescendantActionPreparation): ActionAvailability {
 	switch (prepared.kind) {

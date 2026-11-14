@@ -24,7 +24,6 @@ import {
 	type ActiveTerminalCommand,
 	type ActiveTerminalCommandResolution,
 } from '../model/resolveActiveTerminalCommand';
-import type { PanelFocusDirection } from '../components/workbench-panel-workspace/model/resolveDirectionalPanelFocus';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { executePreparedDescendantAction } from './executePreparedDescendantAction';
 import { WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS } from './workbench-descendant-action-discovery';
@@ -63,7 +62,7 @@ export function registerWorkbenchActiveTerminalActions({
 			const resolution = resolveForContext(projectWorkspaceRuntime, command, context);
 			return resolution.kind === 'ready'
 				? ({ kind: 'enabled' } as const)
-				: ({ kind: 'disabled', reason: activeTerminalUnavailableReason(resolution) } as const);
+				: ({ kind: 'disabled' } as const);
 		};
 	const execute = (command: ActiveTerminalCommand) => async (context: ActionExecutionContext) =>
 		await executeResolvedCommand({
@@ -108,7 +107,7 @@ export function registerWorkbenchActiveTerminalActions({
 						case 'ready':
 							return { kind: 'enabled' };
 						case 'unavailable':
-							return { kind: 'disabled', reason: panelPositionUnavailableReason(prepared.reason) };
+							return { kind: 'disabled' };
 						case 'lower-disabled':
 							return { kind: 'disabled', reason: prepared.reason };
 						case 'hidden':
@@ -511,51 +510,9 @@ export function registerWorkbenchActiveTerminalActions({
 	];
 }
 
-const NO_PANEL_MESSAGE_BY_DIRECTION = {
-	down: workbenchMessages.panelUnavailableNoneBelow,
-	left: workbenchMessages.panelUnavailableNoneLeft,
-	right: workbenchMessages.panelUnavailableNoneRight,
-	up: workbenchMessages.panelUnavailableNoneAbove,
-} as const satisfies Readonly<Record<PanelFocusDirection, ActionMessageDescriptor>>;
-
-/** Names what in the active Tab stops the command, so a disabled row says why. */
-function activeTerminalUnavailableReason(
-	resolution: Extract<ActiveTerminalCommandResolution, { kind: 'unavailable' }>,
-): ActionMessageDescriptor {
-	switch (resolution.reason) {
-		case 'active-tab-unavailable':
-		case 'panel-unavailable':
-			return workbenchMessages.panelUnavailableFocusedPanelRequired;
-		case 'directional-neighbor-unavailable':
-			return NO_PANEL_MESSAGE_BY_DIRECTION[resolution.direction];
-		case 'divider-unavailable':
-			return workbenchMessages.panelUnavailableNoDivider;
-		case 'panel-maximized':
-			return workbenchMessages.panelUnavailableMaximized;
-		case 'requires-multiple-panels':
-			return workbenchMessages.panelUnavailableMultipleRequired;
-	}
-}
-
-function panelPositionUnavailableReason(
-	reason: Extract<PreparedPanelPositionFocus, { kind: 'unavailable' }>['reason'],
-): ActionMessageDescriptor {
-	switch (reason) {
-		case 'active-tab-unavailable':
-		case 'invalid-panel-order':
-		case 'panel-unavailable':
-		case 'source-panel-unavailable':
-			return workbenchMessages.panelUnavailableFocusedPanelRequired;
-		case 'panel-maximized':
-			return workbenchMessages.panelUnavailableMaximized;
-		case 'panel-position-unavailable':
-			return workbenchMessages.panelUnavailablePositionEmpty;
-	}
-}
-
 /**
- * A position that names no Panel says why; otherwise the Panel's own focus Action decides, lending
- * its reason when it refuses, and no Panel surface offering it hides the Action.
+ * A position that names no Panel is unavailable; otherwise the Panel's own focus Action decides,
+ * lending its reason when it refuses with one, and no Panel surface offering it hides the Action.
  */
 type PreparedPanelPositionFocus =
 	| {
@@ -569,7 +526,7 @@ type PreparedPanelPositionFocus =
 				| 'active-tab-unavailable'
 				| 'panel-unavailable';
 	  }
-	| { readonly kind: 'lower-disabled'; readonly reason: ActionMessageDescriptor }
+	| { readonly kind: 'lower-disabled'; readonly reason?: ActionMessageDescriptor | undefined }
 	| { readonly kind: 'hidden' };
 
 function preparePanelPositionFocus({

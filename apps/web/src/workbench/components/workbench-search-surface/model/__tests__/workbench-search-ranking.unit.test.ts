@@ -170,7 +170,7 @@ describe('Workbench search ranking', () => {
 
 	it('keeps disabled rows searchable and filters nested argument options', () => {
 		const disabled = result('disabled', 'Split panel', {
-			surfaceDisabledReason: 'Open a panel first',
+			surfaceDisabled: true,
 		});
 		expect(isWorkbenchSearchResultEnabled(disabled)).toBe(false);
 		expect(resolveWorkbenchSearchHighlight('stale', ['disabled', 'ready'], ['ready'])).toBe(

@@ -348,9 +348,7 @@ function normalizeProviderResult(
 		providerPriority: provider.priority,
 		recommended: result.recommended ?? false,
 		...(result.shortcut === undefined ? {} : { shortcut: result.shortcut }),
-		...(result.surfaceDisabledReason === undefined
-			? {}
-			: { surfaceDisabledReason: result.surfaceDisabledReason }),
+		...(result.surfaceDisabled === true ? { surfaceDisabled: true } : {}),
 		visibility: result.visibility ?? 'always',
 	};
 }

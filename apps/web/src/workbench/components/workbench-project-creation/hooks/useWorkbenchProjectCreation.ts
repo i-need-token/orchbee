@@ -135,10 +135,7 @@ export function useWorkbenchProjectCreation({
 	const newFolderAvailable = acquisition?.newFolder !== undefined;
 
 	React.useEffect(() => {
-		const busy = {
-			kind: 'disabled',
-			reason: workbenchMessages.projectUnavailableCreationPending,
-		} as const;
+		const busy = { kind: 'disabled' } as const;
 		const registration = createTypedActionRuntime<WorkbenchActionCatalog>(runtime).register(
 			scope,
 			defineAction({

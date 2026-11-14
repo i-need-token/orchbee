@@ -73,15 +73,12 @@ function transitionWithCommit(
 
 const PROJECT_MISSING = {
 	kind: 'disabled',
-	reason: workbenchMessages.projectUnavailableMissing,
 } as const;
 const WORKSPACE_MISSING = {
 	kind: 'disabled',
-	reason: workbenchMessages.workspaceUnavailableMissing,
 } as const;
 const DESTINATION_MISSING = {
 	kind: 'disabled',
-	reason: workbenchMessages.workspaceUnavailableDestinationMissing,
 } as const;
 
 function withoutReceipt(result: ActionResult<WorkbenchProjectCreationReceipt>): ActionResult<void> {
@@ -241,7 +238,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 				},
 				getAvailability: (_context, input) => {
 					if (projectWorkspaceRuntime.getSnapshot().projects.length <= 1) {
-						return { kind: 'disabled', reason: workbenchMessages.projectUnavailableOnlyOne };
+						return { kind: 'disabled' };
 					}
 					if (projectFor(input.projectId) === undefined) return PROJECT_MISSING;
 					return input.beforeProjectId === null || projectFor(input.beforeProjectId) !== undefined
@@ -329,7 +326,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					if (workspaceFor(input) === undefined) return WORKSPACE_MISSING;
 					return input.creationReceipt !== undefined &&
 						!matchesWorkbenchProjectCreation(projectWorkspaceRuntime, input.creationReceipt)
-						? { kind: 'disabled', reason: workbenchMessages.workspaceUnavailableCreationChanged }
+						? { kind: 'disabled' }
 						: {
 								checked:
 									activeLocation.kind === 'workspace' &&
@@ -387,7 +384,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 						.getSnapshot()
 						.workspaces.some((workspace) => workspace.directory?.id === input.directoryId)
 						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: workbenchMessages.workspaceUnavailableFolderUnused };
+						: { kind: 'disabled' };
 				},
 				handler: {
 					execute: (context, input) => {

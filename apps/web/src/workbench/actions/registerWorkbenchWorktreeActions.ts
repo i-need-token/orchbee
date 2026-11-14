@@ -91,14 +91,13 @@ export function registerWorkbenchWorktreeActions({
 			.workspaces.find((workspace) => workspace.id === workspaceId)?.name;
 	const workspaceAvailability = (input: { readonly workspaceId: string }) =>
 		workspaceName(input.workspaceId) === undefined
-			? { kind: 'disabled' as const, reason: workbenchMessages.workspaceUnavailableMissing }
+			? { kind: 'disabled' as const }
 			: { kind: 'enabled' as const };
 	/** Search offers the focused Panel's commands only while a Panel is focused. */
 	const focusedPanelAvailability = () =>
 		resolveFocusedPanel(projectWorkspaceRuntime) === null
 			? {
 					kind: 'disabled' as const,
-					reason: workbenchMessages.panelUnavailableFocusedPanelRequired,
 				}
 			: { kind: 'enabled' as const };
 	const send = (context: ActionExecutionContext, command: WorkbenchWorktreeCommand) => {
