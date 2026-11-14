@@ -113,19 +113,36 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
         selected_session_name(),
         #[cfg(windows)]
         windows_selection::location,
+        #[cfg(windows)]
+        ServerJob::Inherit,
     )
 }
 
 /// [`activate_local_session`] for the Session `name` rather than the invocation's selection, so one
 /// process can start several Sessions: the link helper serves one `ensure-session` per channel.
+/// The helper runs in the Job Win32-OpenSSH ends with the `ssh` connection, so a Server this
+/// starts leaves that Job when the Job allows it and keeps running after the connection ends.
 #[cfg(windows)]
 pub fn activate_named_session(
     name: &orchbee_local_runtime::SessionName,
     deadline: Instant,
 ) -> Result<StartedSession, ActivationFailure> {
-    activate(deadline, Some(name.as_str()), || {
-        windows_selection::location_of(Some(name))
-    })
+    activate(
+        deadline,
+        Some(name.as_str()),
+        || windows_selection::location_of(Some(name)),
+        ServerJob::Leave,
+    )
+}
+
+/// Whether a Server this activation starts stays in the Job the activating process runs in.
+#[cfg(windows)]
+#[derive(Clone, Copy)]
+enum ServerJob {
+    /// It stays, as every local start's Server does.
+    Inherit,
+    /// It leaves when the Job allows it, and writes where it was created to the daily log.
+    Leave,
 }
 
 /// The Client endpoint of the existing Session `name` of this user and environment, found as a
@@ -149,6 +166,7 @@ fn activate(
     deadline: Instant,
     #[cfg(windows)] explicit: Option<&str>,
     #[cfg(windows)] locate: impl FnOnce() -> io::Result<windows_selection::Location>,
+    #[cfg(windows)] server_job: ServerJob,
 ) -> Result<StartedSession, ActivationFailure> {
     let cohort = Cohort::current_with_diagnostic(deadline).map_err(|error| {
         ActivationFailure::caused(
@@ -234,6 +252,8 @@ fn activate(
         deadline,
         #[cfg(windows)]
         &catalog,
+        #[cfg(windows)]
+        server_job,
     )?;
     #[cfg(windows)]
     let spawned = spawned || started_by_store;
@@ -258,6 +278,7 @@ fn connect_or_activate(
     cohort: &Cohort,
     deadline: Instant,
     #[cfg(windows)] catalog: &orchbee_local_runtime::SessionCatalog,
+    #[cfg(windows)] server_job: ServerJob,
 ) -> Result<(LocalClient, bool), ActivationFailure> {
     loop {
         check_deadline(deadline)?;
@@ -354,8 +375,27 @@ fn connect_or_activate(
                     std::ffi::OsStr::new(if settings.explicit { "true" } else { "false" }),
                 ];
                 #[cfg(windows)]
-                let child =
-                    catalog.spawn_server(session, &_activation, &executable, &arguments, deadline);
+                let child = match server_job {
+                    ServerJob::Inherit => catalog.spawn_server(
+                        session,
+                        &_activation,
+                        &executable,
+                        &arguments,
+                        deadline,
+                    ),
+                    ServerJob::Leave => catalog
+                        .spawn_server_outside_job(
+                            session,
+                            &_activation,
+                            &executable,
+                            &arguments,
+                            deadline,
+                        )
+                        .map(|(child, placement)| {
+                            record_server_job(placement);
+                            child
+                        }),
+                };
                 #[cfg(not(windows))]
                 let child = orchbee_local_runtime::spawn_retained(&executable, &arguments);
                 Some(child.map_err(|_| {
@@ -402,6 +442,28 @@ fn connect_or_activate(
             pause(deadline)?;
         }
     }
+}
+
+/// Writes `server-job`: `outcome` `outside` for a Server created outside the activating process's
+/// Job, or `inside` with the refused request's error kind as `reason`, when the Server shares that
+/// Job and ends with it.
+#[cfg(windows)]
+fn record_server_job(placement: orchbee_local_runtime::JobPlacement) {
+    use orchbee_local_runtime::{JobPlacement, LogLevel, LogValue};
+    let (level, fields) = match placement {
+        JobPlacement::Outside => (
+            LogLevel::Info,
+            vec![("outcome", LogValue::Token("outside"))],
+        ),
+        JobPlacement::Inside(kind) => (
+            LogLevel::Warning,
+            vec![
+                ("outcome", LogValue::Token("inside")),
+                ("reason", LogValue::from(kind)),
+            ],
+        ),
+    };
+    orchbee_local_runtime::log_event(level, "server-job", &fields);
 }
 
 fn connect(

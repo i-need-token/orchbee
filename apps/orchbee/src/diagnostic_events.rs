@@ -1,6 +1,7 @@
-//! The Client's diagnostic log records (ORC-397): the TUI's start and end, and the outcomes of the
-//! verbs that start or relay to the local Session. Every other command writes none, so reads and
-//! the offline commands create no directory. Records carry only tokens, counts and exit statuses.
+//! The Client's diagnostic log records (ORC-397): the TUI's start and end, the outcomes of the
+//! verbs that start or relay to the local Session, and the link helper's Session starts. Every
+//! other command writes none, so reads and the offline commands create no directory. Records carry
+//! only tokens, counts and exit statuses.
 use crate::local_activation::StartupFailure;
 use orchbee_local_runtime::{LogLevel, LogRole, LogValue, install_diagnostic_log, log_event};
 
@@ -27,6 +28,14 @@ pub(crate) fn tui_exited(outcome: &Result<(), StartupFailure>) {
 pub(crate) fn activation_started(event: &'static str) {
     install_diagnostic_log(LogRole::Client);
     log_event(LogLevel::Info, event, &[("version", VERSION)]);
+}
+
+/// Lets the link helper's `ensure-session` write what the shared activation records for a start:
+/// `session-start-source` and, for a Server it starts, `server-job`. The helper writes no record
+/// of its own.
+#[cfg(windows)]
+pub(crate) fn link_started() {
+    install_diagnostic_log(LogRole::Client);
 }
 
 /// Records the exit status an activation verb answered.

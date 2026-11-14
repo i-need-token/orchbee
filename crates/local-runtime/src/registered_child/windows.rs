@@ -57,6 +57,29 @@ pub(crate) fn spawn_registered(
     arguments: &[&OsStr],
     deadline: Instant,
 ) -> io::Result<RetainedChild> {
+    spawn_registered_with(
+        directory,
+        scope,
+        role,
+        executable,
+        arguments,
+        deadline,
+        |path, words| RetainedChild::spawn_suspended(path, words).map(|child| (child, ())),
+    )
+    .map(|(child, ())| child)
+}
+
+/// [`spawn_registered`] whose suspended process `create` makes, answering what `create` reports
+/// beside the child.
+pub(crate) fn spawn_registered_with<T>(
+    directory: &Directory,
+    scope: &str,
+    role: ProcessRole,
+    executable: &Path,
+    arguments: &[&OsStr],
+    deadline: Instant,
+    create: impl FnOnce(&Path, &[&OsStr]) -> io::Result<(RetainedChild, T)>,
+) -> io::Result<(RetainedChild, T)> {
     let (_writer, mut record) = (|| -> io::Result<_> {
         let initial = directory.read(scope)?.ok_or(io::ErrorKind::NotFound)?;
         if initial.lifecycle != Lifecycle::Active {
@@ -97,7 +120,7 @@ pub(crate) fn spawn_registered(
         Ok((writer, record))
     })()
     .map_err(|error| at_step(SessionChildStep::Registration, error))?;
-    let mut child = RetainedChild::spawn_suspended(executable, arguments)
+    let (mut child, created) = create(executable, arguments)
         .map_err(|error| at_step(SessionChildStep::Creation, error))?;
     let released = (|| -> io::Result<()> {
         let identity = child.identity()?;
@@ -123,7 +146,7 @@ pub(crate) fn spawn_registered(
             },
         ));
     }
-    Ok(child)
+    Ok((child, created))
 }
 
 pub(super) fn step_of(error: &io::Error) -> Option<SessionChildStep> {

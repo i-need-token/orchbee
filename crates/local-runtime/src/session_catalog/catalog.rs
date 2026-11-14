@@ -313,6 +313,32 @@ impl SessionCatalog {
         )
     }
 
+    /// [`Self::spawn_server`] for a Server that must outlive the Job its activator runs in, such as
+    /// the Job Win32-OpenSSH ends with each `ssh` connection: the Server is created outside that Job
+    /// when the Job lets a process leave, and inside it otherwise. Its Worker, Host and terminals
+    /// follow the Server.
+    #[cfg(windows)]
+    pub fn spawn_server_outside_job(
+        &self,
+        session: &Rendezvous,
+        activation: &crate::ModeCheckedSessionLock,
+        executable: &Path,
+        arguments: &[&std::ffi::OsStr],
+        deadline: Instant,
+    ) -> io::Result<(crate::RetainedChild, crate::JobPlacement)> {
+        session.require_lock(activation, crate::LockKind::Activation)?;
+        let scope = self.scope_of(session.runtime_directory())?;
+        crate::registered_child::spawn_registered_with(
+            &self.durable,
+            scope,
+            crate::process_registration::ProcessRole::Server,
+            executable,
+            arguments,
+            deadline,
+            crate::RetainedChild::spawn_suspended_outside_job,
+        )
+    }
+
     /// Every Session of `root`, `default` first and the rest by name without letter case. A
     /// Session's runtime is the folder its record names; one without a record gets `base`'s.
     pub fn list(

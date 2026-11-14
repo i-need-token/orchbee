@@ -519,6 +519,19 @@ found as a local Client finds it, through the data root's Session catalog spelli
 belong to the same user. `ensure-session` uses the same activation as `server start`; the Server it
 starts outlives the helper. `install` is answered as an unknown kind until its capability ships.
 
+Win32-OpenSSH runs each connection's processes in one Job that ends every member when the
+connection closes and lets a member create a child outside it on request
+(`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` and `JOB_OBJECT_LIMIT_BREAKAWAY_OK`, set in
+`contrib/win32/win32compat/w32-doexec.c` from 7.9 on and in `session.c` in 7.7.2). The helper
+therefore creates the Server with `CREATE_BREAKAWAY_FROM_JOB`: the Server, its Worker, Host and
+terminals run outside that Job, so disconnecting, a killed `ssh` and a dropped connection leave
+them running, and the next link's `ensure-session` joins the same Server. A Job that keeps its
+processes refuses the request, and the Server then starts inside it, as before, and ends with the
+connection. The start itself succeeds either way. Each start writes `session-start-source` and
+`server-job` to the remote's
+[daily log](../../../crates/local-runtime/README.md#windows-diagnostic-log), the latter with
+`outcome` `outside`, or `inside` with the refused request's error kind as `reason`.
+
 A channel is begun once an effect may have started on it: a `session` from its `accept`, once its
 pipe writer runs; a `route` from the opener's `end`, once its command worker runs; an
 `ensure-session` from its `accept`, since its start runs at once. The contract lets a responder's
@@ -575,7 +588,9 @@ Ending a channel never stops a Session, its Server, Worker, Host or terminals: t
 closes its own pipe connection. The exercise in `tests/cli_windows_machine_link.rs` starts the
 helper with pipes against a real scratch Session, two Session streams, a routed `workspace list`
 while another stream is stalled at its window, both `ensure-session` outcomes, `bye`, and pipe
-closure, and the console refusal. It does not start `ssh`.
+closure, and the console refusal. A second case starts the helper inside a Job with
+Win32-OpenSSH's two limits, closes the Job once `ensure-session` started a Session, and requires
+that Server to answer and a second link's `ensure-session` to join it. Neither starts `ssh`.
 
 ## Machine hub
 
@@ -781,7 +796,7 @@ itself.
 | Program        | The system `ssh` (`<system folder>\OpenSSH\ssh.exe`, never found through `PATH`) with the command line `machine_ssh::carrier_command` builds: `-T`, `StrictHostKeyChecking=ask`, `UpdateHostKeys=no`, no forwarding, no multiplexing, then `-- <target> <launch line>`. Batch mode is off                                                                                                                                                                                                                                                                   |
 | Askpass        | Every carrier, the stand-in included, gets `SSH_ASKPASS` set to this program's own path, `SSH_ASKPASS_REQUIRE=force`, a placeholder `DISPLAY`, and `ORCHBEE_MACHINE_ASKPASS` with the hub's askpass endpoint and the carrier's own 16-byte ticket, so `ssh` never reads a console and an [askpass helper](#askpass-helper) is the only way a question reaches anyone                                                                                                                                                                                        |
 | Launch line    | The encoded PowerShell program that resolves the remote store's active version, as [adding a machine](#adding-a-machine) describes, and runs it with `--machine-link-v1`; it exits 125 when it finds none                                                                                                                                                                                                                                                                                                                                                   |
-| Stand-in       | In a development or test build only, `ORCHBEE_MACHINE_HUB_SSH_STAND_IN` in the hub's view names an absolute program that runs with the one argument `--machine-link-v1` in place of `ssh` and the launch line, with everything else unchanged, and with `-V` alone in place of `ssh -V`; any other value fails every attempt with `ssh-unavailable` and never falls back to `ssh`. A release never reads it. A local far end runs inside the carrier's Job, so a Session it starts ends with the carrier, where a remote Session over `ssh` runs outside it |
+| Stand-in       | In a development or test build only, `ORCHBEE_MACHINE_HUB_SSH_STAND_IN` in the hub's view names an absolute program that runs with the one argument `--machine-link-v1` in place of `ssh` and the launch line, with everything else unchanged, and with `-V` alone in place of `ssh -V`; any other value fails every attempt with `ssh-unavailable` and never falls back to `ssh`. A release never reads it. A local far end runs inside the carrier's Job, which lets no process leave, so a Session it starts ends with the carrier, unlike one via `ssh` |
 | Process        | No console window (`CREATE_NO_WINDOW`), the system folder as working directory, standard input and output the link, standard error a pipe the hub reads, the [child environment](#environment)                                                                                                                                                                                                                                                                                                                                                              |
 | Job            | Each carrier starts suspended inside its own Job, which ends every process in it when its last handle closes. Only the hub holds the handle, so the hub's exit, however it happens, a kill or a panic included, ends every carrier and whatever it started                                                                                                                                                                                                                                                                                                  |
 | Standard error | The last 4 KiB are kept only to classify an end and are never copied into a record, an event, a log or product copy                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -1406,6 +1421,11 @@ connection, so nothing changed for the link.
   seconds reads `unknown`, although it may still finish.
 - **A reconnect can start the Session again.** A carrier that ends and reconnects during or after
   a stop sends `ensure-session`, which starts the record's Session again.
+- **A connection Job that keeps its processes ends the Session with the connection.** A remote
+  `sshd` whose Job refuses `CREATE_BREAKAWAY_FROM_JOB`, which none of the Win32-OpenSSH releases
+  read, 7.7.2 to 10.4, does, gets the Server [inside it](#link-helper); the Machine still comes
+  `online` and nothing on screen tells the two apart, only `server-job` `inside` in the remote's
+  daily log.
 - **The `ssh` phrases are one version's.** The classification reads OpenSSH 9.5's standard error
   wording and the prompts M0 recorded; another wording reads `ssh-failed`, and a prompt it does not
   recognize is asked as `other`.

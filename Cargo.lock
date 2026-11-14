@@ -928,6 +928,7 @@ dependencies = [
  "orchbee-terminal-protocol",
  "orchbee-workbench-client",
  "orchbee-workbench-protocol",
+ "process-wrap",
  "ratatui",
  "regex",
  "rustix",

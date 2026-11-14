@@ -18,6 +18,7 @@ pub(crate) fn serve(locale: Locale) -> Output {
     #[cfg(windows)]
     {
         let _ = locale; // The helper writes no text; routed commands carry their own locale.
+        crate::diagnostic_events::link_started();
         Output {
             status: carrier::serve(),
             stdout: Vec::new(),

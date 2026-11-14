@@ -36,9 +36,9 @@ impl SessionChildStep {
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub(crate) use windows::spawn_registered;
-#[cfg(windows)]
 pub use windows::spawn_session_child;
+#[cfg(windows)]
+pub(crate) use windows::{spawn_registered, spawn_registered_with};
 #[cfg(not(windows))]
 pub fn spawn_session_child(
     _root: &crate::DataRoot,

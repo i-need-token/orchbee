@@ -408,7 +408,11 @@ the runtime folder disappears. Publication uses bounded
 private staging, flush and atomic replacement. This is ordinary process/failure recovery, not a
 power-loss guarantee. A per-record writer lock serializes direct-child registration, recovery and
 clean-stop publication. `spawn_server` requires the catalog and matching activation owner;
-`spawn_session_child` requires the exact registered direct parent for Worker or Host. Each
+`spawn_server_outside_job`, on Windows, takes the same owners and creates the Server with
+`CREATE_BREAKAWAY_FROM_JOB`, or inside the activator's Job when that Job refuses, and answers
+which as `JobPlacement`; the remote link helper uses it so a Session outlives the `ssh`
+connection's Job. `spawn_session_child` requires the exact registered direct parent for Worker or
+Host. Each
 child is created suspended and released only after its identity is flushed. A failed start's I/O
 error keeps the failed operation's kind and operating-system code and names its step,
 `SessionChildStep::of`: registration, creation or release. Explicit confirmed

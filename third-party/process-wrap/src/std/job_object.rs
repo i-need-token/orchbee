@@ -67,6 +67,17 @@ pub struct SilentBreakaway;
 
 impl CommandWrapper for SilentBreakaway {}
 
+/// Marker which lets a process in the [`JobObject`] create a child outside it by asking for
+/// `CREATE_BREAKAWAY_FROM_JOB`.
+///
+/// Register this marker and [`JobObject`] on the same command. Registration order does not matter.
+/// This enables Windows' `JOB_OBJECT_LIMIT_BREAKAWAY_OK` policy. Unlike [`SilentBreakaway`], every
+/// child that does not ask stays in the Job, so suspension for assignment is unchanged.
+#[derive(Clone, Copy, Debug)]
+pub struct AllowBreakaway;
+
+impl CommandWrapper for AllowBreakaway {}
+
 fn user_creation_flags(core: &CommandWrap) -> PROCESS_CREATION_FLAGS {
 	#[cfg(feature = "creation-flags")]
 	{
@@ -135,7 +146,12 @@ impl CommandWrapper for JobObject {
 			}
 		};
 
-		let made = make_job_object_with_breakaway(handle, kill_on_close, silent_breakaway);
+		let made = make_job_object_with_breakaway(
+			handle,
+			kill_on_close,
+			core.has_wrap::<AllowBreakaway>(),
+			silent_breakaway,
+		);
 		let job_port = match made {
 			Ok(job_port) => job_port,
 			// A process that was not suspended may end before it could be assigned. Nothing is left

@@ -11,6 +11,15 @@ use winsafe::{co, guard::CloseHandlePiGuard};
 /// Windows reclaims exited processes without a Unix-style reaper. Dropping
 /// this handle releases observation ownership and never terminates the Session.
 pub struct RetainedChild(CloseHandlePiGuard);
+
+/// Where a child asked to leave its creator's Job was created.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum JobPlacement {
+    /// Outside the creator's Job, or the creator ran in none.
+    Outside,
+    /// Inside the creator's Job, which refused the departure with this error.
+    Inside(io::ErrorKind),
+}
 impl RetainedChild {
     /// Terminates this exact process and waits for exit; descendants remain caller-owned.
     pub fn terminate_before(&mut self, deadline: Instant) -> io::Result<ExitStatus> {
@@ -44,6 +53,23 @@ impl RetainedChild {
     }
     pub(crate) fn spawn_suspended(executable: &Path, arguments: &[&OsStr]) -> io::Result<Self> {
         Self::create(executable, arguments, co::CREATE::SUSPENDED)
+    }
+    /// [`Self::spawn_suspended`] outside the Job this process runs in, and outside each Job above
+    /// it that also lets a process leave. A Job that keeps its processes refuses the request; the
+    /// child is then created as [`Self::spawn_suspended`] creates it, inside that Job.
+    pub(crate) fn spawn_suspended_outside_job(
+        executable: &Path,
+        arguments: &[&OsStr],
+    ) -> io::Result<(Self, JobPlacement)> {
+        match Self::create(
+            executable,
+            arguments,
+            co::CREATE::SUSPENDED | co::CREATE::BREAKAWAY_FROM_JOB,
+        ) {
+            Ok(child) => Ok((child, JobPlacement::Outside)),
+            Err(refused) => Self::spawn_suspended(executable, arguments)
+                .map(|child| (child, JobPlacement::Inside(refused.kind()))),
+        }
     }
     pub(crate) fn identity(&self) -> io::Result<crate::process_registration::ProcessIdentity> {
         crate::process_observation::identity(&self.0.hProcess)

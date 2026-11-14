@@ -4,6 +4,8 @@
 //! that floods while its channel is left unread holds no routed command back, `ensure-session`
 //! finds one Session and starts another, and a link ends by `bye` or by its pipe closing while the
 //! Sessions keep running. A console on the helper's standard input or output refuses its start.
+//! Started inside a Job like the one Win32-OpenSSH runs each connection in, the helper starts a
+//! Session that outlives the Job, and the next link joins it.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -21,6 +23,7 @@ use orchbee_machine_protocol::{
     ByeReason, Connection, Delivery, FrameDecoder, INITIAL_CREDIT, Message, ResetReason,
     SessionName, link,
 };
+use process_wrap::std::{AllowBreakaway, ChildWrapper, CommandWrap, JobObject, KillOnJobClose};
 use serde_json::{Value, json};
 use session::Fixture;
 use std::{
@@ -29,7 +32,7 @@ use std::{
     io::{self, BufRead, BufReader, Read, Write},
     net::Shutdown,
     path::{Path, PathBuf},
-    process::{Child, ChildStdin, ChildStdout, Stdio},
+    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -192,6 +195,80 @@ fn one_link_carries_sessions_a_route_past_a_stalled_stream_and_session_starts() 
     console_refuses(&fixture);
 }
 
+/// Win32-OpenSSH runs each connection's processes in one Job that ends every member when the
+/// connection closes and lets a member create a child outside it on request. A Session the helper
+/// starts there keeps its Server once that Job closes, and the next link's `ensure-session` joins
+/// that Server instead of starting another.
+#[test]
+fn a_session_started_inside_a_connection_job_outlives_the_job() {
+    let fixture = Fixture::new("rs1-job-", &[]);
+    let kept = StopOnDrop {
+        fixture: &fixture,
+        session: "kept",
+    };
+    let mut hub = Hub::start_in_connection_job(&fixture);
+    hub.until(WAIT, "facts", |hub| hub.facts.clone());
+    let start = hub.open(link::Channel::EnsureSession {
+        session: SessionName::new(kept.session).unwrap(),
+    });
+    let made = hub.until(START, "the Session start", |hub| hub.lanes[&start].outcome);
+    assert_eq!(made, link::Outcome::Ready { started: true });
+    let server = server_process(&fixture, kept.session);
+
+    // The Job's last handle closes, as when `sshd` ends the connection's shell: the helper ends.
+    hub.close_job(WAIT);
+    thread::sleep(Duration::from_millis(500));
+    assert_eq!(
+        server_process(&fixture, kept.session),
+        server,
+        "the same Server answers after the Job closed"
+    );
+
+    let mut hub = Hub::start_in_connection_job(&fixture);
+    hub.until(WAIT, "facts", |hub| hub.facts.clone());
+    let join = hub.open(link::Channel::EnsureSession {
+        session: SessionName::new(kept.session).unwrap(),
+    });
+    let joined = hub.until(START, "the second start", |hub| hub.lanes[&join].outcome);
+    assert_eq!(joined, link::Outcome::Ready { started: false });
+    assert_eq!(server_process(&fixture, kept.session), server);
+    hub.close_job(WAIT);
+
+    let stopped = fixture.run(&["server", "stop", "--confirm", "--session", kept.session]);
+    assert_eq!(stopped.code, Some(0), "{stopped}");
+}
+
+/// The process ID of the running Server of the Session `session`.
+fn server_process(fixture: &Fixture, session: &str) -> u64 {
+    let status = fixture.run(&["status", "server", "--session", session]);
+    assert_eq!(status.code, Some(0), "{status}");
+    assert_eq!(
+        status.document["result"]["server"]["state"], "running",
+        "{status}"
+    );
+    status.document["result"]["server"]["processes"]
+        .as_array()
+        .and_then(|processes| processes.iter().find(|process| process["role"] == "server"))
+        .and_then(|process| process["processId"].as_u64())
+        .unwrap_or_else(|| panic!("{status}"))
+}
+
+/// Stops a Session a failed test left running: its Server runs outside every Job of the test.
+struct StopOnDrop<'a> {
+    fixture: &'a Fixture,
+    session: &'static str,
+}
+
+impl Drop for StopOnDrop<'_> {
+    fn drop(&mut self) {
+        if thread::panicking() {
+            let _stopped =
+                self.fixture
+                    .run(&["server", "stop", "--confirm", "--session", self.session]);
+        }
+    }
+}
+
 /// A console on standard input, on standard output, or on both refuses the start, writing nothing.
 fn console_refuses(fixture: &Fixture) {
     let client = fixture.path(&format!("cohort/{}", CohortArtifact::Client.file_name()));
@@ -299,7 +376,8 @@ type Shared = Arc<(Mutex<HubState>, Condvar)>;
 
 /// The helper process and the threads that speak the hub's end to it.
 struct Hub {
-    child: Child,
+    /// Gone once [`Hub::close_job`] closed the helper's Job.
+    child: Option<Box<dyn ChildWrapper>>,
     shared: Shared,
     threads: Vec<thread::JoinHandle<()>>,
 }
@@ -307,15 +385,32 @@ struct Hub {
 impl Hub {
     /// Starts the helper and completes the `OBHS` exchange.
     fn start(fixture: &Fixture) -> Self {
-        let mut child = fixture
-            .command(&["--machine-link-v1"])
+        Self::spawn(fixture, CommandWrap::from)
+    }
+
+    /// [`Hub::start`] inside a Job with the limits Win32-OpenSSH gives each connection's Job: it
+    /// ends every member when its last handle closes, and a member may create a child outside it
+    /// by asking for `CREATE_BREAKAWAY_FROM_JOB`. Only this Hub holds the Job's handle.
+    fn start_in_connection_job(fixture: &Fixture) -> Self {
+        Self::spawn(fixture, |command| {
+            let mut wrapped = CommandWrap::from(command);
+            wrapped
+                .wrap(JobObject)
+                .wrap(KillOnJobClose)
+                .wrap(AllowBreakaway);
+            wrapped
+        })
+    }
+
+    fn spawn(fixture: &Fixture, wrap: impl FnOnce(Command) -> CommandWrap) -> Self {
+        let mut command = fixture.command(&["--machine-link-v1"]);
+        command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let mut stdin = child.stdin.take().unwrap();
-        let mut stdout = child.stdout.take().unwrap();
+            .stderr(Stdio::null());
+        let mut child = wrap(command).spawn().unwrap();
+        let mut stdin = child.stdin().take().unwrap();
+        let mut stdout = child.stdout().take().unwrap();
         let offer = Offer::local(
             ConnectionKind::MachineLink,
             ProductVersion::new(env!("CARGO_PKG_VERSION")).unwrap(),
@@ -351,9 +446,24 @@ impl Hub {
             thread::spawn(move || write_link(&shared, stdin))
         };
         Self {
-            child,
+            child: Some(child),
             shared,
             threads: vec![reader, writer],
+        }
+    }
+
+    /// Closes the helper's Job without asking anything of it, as `sshd` does when it ends a
+    /// connection's shell, which holds the Job's last handle: every process in the Job ends. Waits
+    /// for the helper's output to end, which only the helper holds.
+    fn close_job(&mut self, within: Duration) {
+        drop(self.child.take());
+        self.until(within, "the helper's output to end", |hub| {
+            hub.output_closed.then_some(())
+        });
+        self.lock().input_closed = true;
+        self.shared.1.notify_all();
+        for thread in self.threads.drain(..) {
+            thread.join().unwrap();
         }
     }
 
@@ -428,8 +538,9 @@ impl Hub {
 
     fn exit(&mut self, within: Duration) -> Option<i32> {
         let deadline = Instant::now() + within;
+        let child = self.child.as_mut().expect("the helper's Job is open");
         let status = loop {
-            if let Some(status) = self.child.try_wait().unwrap() {
+            if let Some(status) = child.try_wait().unwrap() {
                 break status;
             }
             assert!(Instant::now() < deadline, "the helper did not exit");

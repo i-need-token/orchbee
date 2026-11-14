@@ -6,4 +6,4 @@ mod windows;
 #[cfg(unix)]
 pub use unix::RetainedChild;
 #[cfg(windows)]
-pub use windows::RetainedChild;
+pub use windows::{JobPlacement, RetainedChild};

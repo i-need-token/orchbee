@@ -76,6 +76,9 @@ rustix = { workspace = true, features = ["fs", "termios"] }
 # Default configuration and provider TOML documents are parsed and rendered in Windows tests.
 toml.workspace = true
 toml_edit.workspace = true
+# The workspace's Job wrapper, already admitted, gives the link helper's process test a Job with the
+# limits Win32-OpenSSH gives each connection.
+process-wrap.workspace = true
 
 [lints]
 workspace = true

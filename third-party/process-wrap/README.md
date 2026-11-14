@@ -46,6 +46,12 @@ Windows launcher combines it with `KillOnJobClose`: ending the launcher ends the
 started, while the Server, Worker and Terminal Host that Client starts keep running. Without the
 marker, the Job's limit flags and suspension are unchanged.
 
+The explicit `AllowBreakaway` marker opts one command into `JOB_OBJECT_LIMIT_BREAKAWAY_OK`, in
+either registration order with `JobObject`: a process in the Job may create a child outside it by
+asking for `CREATE_BREAKAWAY_FROM_JOB`, and every other child stays in the Job, so suspension is
+unchanged. With `KillOnJobClose` it reproduces the Job Win32-OpenSSH runs each connection in, which
+the `orchbee` process test of a remote Session start uses.
+
 ## Maintenance and evidence
 
 The shared runtime owns native completion evidence in

@@ -155,6 +155,8 @@ pub use rendezvous::{
     ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock, RendezvousError,
     SessionLifetimeObservation, SessionScope, acquire_past_probes,
 };
+#[cfg(windows)]
+pub use retained_child::JobPlacement;
 pub use retained_child::RetainedChild;
 
 /// Spawns an exact cohort executable with inherited environment, no inherited
