@@ -33,14 +33,10 @@ No new dependency or public protocol is introduced.
 
 ### History search
 
-`/` while the focused pane reads retained history (Entering or Viewing, recovery not decided)
-enters the same episode with a history-search origin instead of typing into the shell. It reuses
-the committed window like any committed-history entry, waits for an Entering window's accepted
-`RowsApplied`, places the cursor at the window's top-left glyph rather than the application
-cursor, and opens a forward search draft. Esc, `q` and the toolbar's close control then return to
-the history at the window the episode left, without recovery to live; the pane is again an
-ordinary history view. A delivered copy keeps the rule below and returns to live, as do pane,
-context and content invalidation. `Ctrl+b Shift+U` entries keep returning to live on every exit.
+`/` while the focused pane reads retained history opens the [Find bar](native-terminal-find.md),
+not copy mode. The Find bar holds the same episode slot with a Find origin, so copy mode and Find
+never run together; copy mode's own `/`, `?`, `n` and `N` keep the search draft described here,
+with smart case. Every copy-mode exit returns to live.
 
 The ordinary PageUp/wheel history gate and return-at-tail behavior remain owned by
 [native terminal history viewport](native-terminal-viewport.md). Copy navigation adds an absolute

@@ -179,6 +179,10 @@ where available, otherwise original bytes, without a hardcoded Ctrl+b fallback.
 
 `copy_mode` enters [keyboard copy mode](native-keyboard-copy.md), default `prefix+U` (capital U). It can use the same safe direct chords or an empty array to disable entry. In-mode motions remain fixed.
 
+`find` opens [Find in terminal](native-terminal-find.md), default `prefix+f`. A safe direct chord
+such as `ctrl+shift+f` works where the host delivers it; an empty array disables the entry. Keys
+inside the bar remain fixed.
+
 `new_worktree` and `open_worktree` enter [Worktree launch](native-worktrees.md), default
 `prefix+W` and `prefix+O`. Safe direct chords and disabling use the same registry.
 
@@ -223,7 +227,7 @@ one space. These display rules do not change TOML spelling, normalization, match
 Supported action fields are `help`, `settings`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `close_workspace`, `workspace_picker`,
 `earlier_layouts`, `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `open_notification_target`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
-`copy_mode`, `resize_mode`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
+`copy_mode`, `find`, `resize_mode`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
 `close_panel`, `rename_panel`, `last_panel`, `clear_terminal`, `edit_scrollback`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 Agent previous/next defaults to prefix `{`/`}` and uses the same ephemeral filtered/sorted

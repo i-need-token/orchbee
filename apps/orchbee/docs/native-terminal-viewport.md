@@ -264,11 +264,11 @@ keeps application input and mouse tracking, except for untracked primary-screen 
 entry. `Ctrl+b PageUp` enters history while help keeps
 `PageUp` precedence when open.
 
-`/` in an Entering or Viewing pane is a search, not shell input: it opens
-[keyboard copy mode](native-keyboard-copy.md#history-search) over the window being read, with a
-forward search draft. Nothing is sent to the pane and the view does not return to live; a refused
-entry shows copy mode's notice and still sends nothing. A pane whose recovery is already decided
-forwards `/` like any other byte. Every other printable key keeps the recover-before-input rule.
+`/` in an Entering or Viewing pane is a search, not shell input: it opens the
+[Find bar](native-terminal-find.md) over the pane. Nothing is sent to the pane and the view does
+not return to live; a refused opening shows Find's notice and still sends nothing. Closing the bar
+leaves the pane in its history. A pane whose recovery is already decided forwards `/` like any
+other byte. Every other printable key keeps the recover-before-input rule.
 
 Every non-wheel pointer event that targets a non-Live pane is consumed by the Client — presses on
 the focused pane, presses that move focus onto it, queued pending-focus replays, gesture
