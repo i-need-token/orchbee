@@ -878,11 +878,7 @@
 							"if": {
 								"properties": {
 									"action": {
-										"enum": [
-											"workspace.close",
-											"workspace.rename",
-											"workspace.accept-directory"
-										]
+										"enum": ["workspace.close", "workspace.rename", "workspace.accept-directory"]
 									}
 								}
 							},
