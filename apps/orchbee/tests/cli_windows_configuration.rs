@@ -81,16 +81,16 @@ fn channel_show_uses_the_effective_channel_and_preserves_warning_input() {
 }
 
 /// Usage errors in `update` and `channel set` refuse before saving a channel or creating an
-/// installation, even with a release source configured.
+/// installation, even with an update feed configured.
 #[test]
 fn update_usage_errors_refuse_before_saving_or_installing() {
     let fixture = Fixture::new();
     let config = fixture.data_root().config_file();
     let install = fixture.0.join("installation");
-    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("src/cli/update/tests/fixtures/release.json");
+    let feed = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/cli/update/tests/fixtures/feed.json.signed");
     let env = [
-        ("ORCHBEE_UPDATE_MANIFEST", manifest.as_os_str()),
+        ("ORCHBEE_UPDATE_FEED", feed.as_os_str()),
         ("ORCHBEE_INSTALL_DIR", install.as_os_str()),
     ];
     for args in [

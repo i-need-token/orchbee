@@ -1,7 +1,7 @@
 //! Bounded explicit release acquisition. Every subprocess belongs to the invocation's Job.
 use super::{
     Context, Error, manifest, platform,
-    signature::{DOCUMENT_LIMIT, MANIFEST_LIMIT},
+    signature::{DOCUMENT_LIMIT, FEED_LIMIT, MANIFEST_LIMIT},
     source_path::LocalPath,
 };
 use orchbee_local_runtime::UpdateChannel;
@@ -12,21 +12,37 @@ use std::{
     process::Command,
 };
 
-/// The signature document lives beside the manifest under this suffix.
+/// The signature document lives beside the signed document under this suffix.
 const SIGNATURE_SUFFIX: &str = ".sig";
+/// curl's exit status when a transfer exceeds `--max-filesize`, which is the signed size.
+/// <https://curl.se/libcurl/c/libcurl-errors.html#CURLEFILESIZEEXCEEDED>
+const CURL_FILESIZE_EXCEEDED: i32 = 63;
 
 pub(super) enum Source {
     Local(LocalPath),
     Https(String),
+    /// `http://127.0.0.1:<port>/…`, which only a test build admits, for a loopback server that
+    /// stands in for the HTTPS host in a rehearsal on one computer.
+    Loopback(String),
 }
 impl Source {
-    /// Admits the configured manifest location after expanding `{channel}`. An HTTPS location
-    /// carries no query, so its signature document is the same URL with [`SIGNATURE_SUFFIX`].
-    pub fn configured(value: Option<&str>, channel: UpdateChannel) -> Result<Self, Error> {
+    /// Admits the configured feed location after expanding `{channel}`. An HTTPS location carries
+    /// no query, so its signature document is the same URL with [`SIGNATURE_SUFFIX`]. `loopback`
+    /// also admits a loopback address; only a test build passes true, and a release build refuses
+    /// one whatever it passes.
+    pub fn configured(
+        value: Option<&str>,
+        channel: UpdateChannel,
+        loopback: bool,
+    ) -> Result<Self, Error> {
         let value = value
             .filter(|value| !value.trim().is_empty())
             .ok_or(Error::SourceUnconfigured)?;
-        let source = Self::parse(&value.replace("{channel}", channel.as_str()))?;
+        let value = value.replace("{channel}", channel.as_str());
+        if loopback && !orchbee_local_runtime::is_release() && valid_loopback(&value) {
+            return Ok(Self::Loopback(value));
+        }
+        let source = Self::parse(&value)?;
         match &source {
             Self::Https(url) if url.contains('?') => Err(Error::SourceInvalid),
             _ => Ok(source),
@@ -71,6 +87,10 @@ impl Source {
                 let (parent, _) = value.rsplit_once('/').ok_or(Error::SourceInvalid)?;
                 Self::parse(&format!("{parent}/{url}"))
             }
+            Self::Loopback(value) => {
+                let (parent, _) = value.rsplit_once('/').ok_or(Error::SourceInvalid)?;
+                Ok(Self::Loopback(format!("{parent}/{url}")))
+            }
         }
     }
     /// Reads at most [`MANIFEST_LIMIT`] manifest bytes; a longer manifest is refused unread.
@@ -78,12 +98,21 @@ impl Source {
         self.read(None, MANIFEST_LIMIT, context)
             .map_err(|error| match error {
                 Fetch::Failed(error) => error,
-                Fetch::Absent => Error::LocalManifestRead,
+                Fetch::Absent => Error::LocalSourceRead,
                 Fetch::Oversized => Error::ManifestInvalid,
             })
     }
-    /// Reads at most [`DOCUMENT_LIMIT`] bytes of the signature document beside the manifest. A
-    /// missing or oversized local document is a signature refusal, not a read failure.
+    /// Reads at most [`FEED_LIMIT`] feed bytes into memory; a longer feed is refused unread.
+    pub fn feed(&self, context: &mut Context) -> Result<Vec<u8>, Error> {
+        self.read(None, FEED_LIMIT, context)
+            .map_err(|error| match error {
+                Fetch::Failed(error) => error,
+                Fetch::Absent => Error::LocalSourceRead,
+                Fetch::Oversized => Error::ManifestInvalid,
+            })
+    }
+    /// Reads at most [`DOCUMENT_LIMIT`] bytes of the signature document beside the manifest or
+    /// feed. A missing or oversized local document is a signature refusal, not a read failure.
     pub fn signature(&self, context: &mut Context) -> Result<Vec<u8>, Error> {
         self.read(Some(SIGNATURE_SUFFIX), DOCUMENT_LIMIT, context)
             .map_err(|error| match error {
@@ -116,22 +145,23 @@ impl Source {
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {
                         return Err(Fetch::Absent);
                     }
-                    Err(_) => return Err(Fetch::Failed(Error::LocalManifestRead)),
+                    Err(_) => return Err(Fetch::Failed(Error::LocalSourceRead)),
                 };
                 let mut bytes = Vec::new();
                 file.take(limit as u64 + 1)
                     .read_to_end(&mut bytes)
-                    .map_err(|_| Fetch::Failed(Error::LocalManifestRead))?;
+                    .map_err(|_| Fetch::Failed(Error::LocalSourceRead))?;
                 if bytes.len() > limit {
                     return Err(Fetch::Oversized);
                 }
                 context.check().map_err(Fetch::Failed)?;
                 Ok(bytes)
             }
-            Self::Https(url) => {
+            Self::Https(url) | Self::Loopback(url) => {
                 require_curl(context).map_err(Fetch::Failed)?;
                 let url = format!("{url}{}", suffix.unwrap_or(""));
-                let mut command = curl(&url, limit as u64).map_err(Fetch::Failed)?;
+                let mut command =
+                    curl(&url, limit as u64, self.loopback()).map_err(Fetch::Failed)?;
                 command.args(["--output", "-"]);
                 // One captured byte beyond the bound proves an oversized document.
                 let result = platform::execute_capturing(command, limit + 1, context)
@@ -178,17 +208,24 @@ impl Source {
                     return Err(Error::Checksum);
                 }
             }
-            Self::Https(url) => {
+            Self::Https(url) | Self::Loopback(url) => {
                 require_curl(context)?;
-                let mut command = curl(url, size.max(1))?;
+                let mut command = curl(url, size.max(1), self.loopback())?;
                 command.arg("--output").arg(path);
                 let result = platform::execute(command, context).map_err(|_| Error::Download)?;
+                // A body longer than the signed size fails the size check, not the transfer.
+                if result.exit_code == Some(CURL_FILESIZE_EXCEEDED) {
+                    return Err(Error::Checksum);
+                }
                 context.command_result(&result)?;
             }
         }
         file.sync_all()
             .map_err(|error| context.storage(path, &error))?;
         Ok(())
+    }
+    fn loopback(&self) -> bool {
+        matches!(self, Self::Loopback(_))
     }
 }
 /// Why a bounded document read produced no bytes.
@@ -199,7 +236,10 @@ enum Fetch {
     /// The document exceeds its bound.
     Oversized,
 }
-fn curl(url: &str, limit: u64) -> Result<Command, Error> {
+/// One bounded transfer: HTTPS only, at most five redirects, each to HTTPS. A loopback source
+/// instead allows plain HTTP to 127.0.0.1 and no proxy; only a test build ever has one.
+fn curl(url: &str, limit: u64, loopback: bool) -> Result<Command, Error> {
+    let protocol = if loopback { "=http" } else { "=https" };
     let mut command = curl_base()?;
     command.args([
         "--disable",
@@ -210,18 +250,40 @@ fn curl(url: &str, limit: u64) -> Result<Command, Error> {
         "--max-redirs",
         "5",
         "--proto",
-        "=https",
+        protocol,
         "--proto-redir",
-        "=https",
+        protocol,
         "--globoff",
         "--connect-timeout",
         "20",
         "--max-time",
         "600",
-        "--max-filesize",
     ]);
-    command.arg(limit.to_string()).arg("--url").arg(url);
+    if loopback {
+        command.args(["--noproxy", "127.0.0.1"]);
+    }
+    command
+        .arg("--max-filesize")
+        .arg(limit.to_string())
+        .arg("--url")
+        .arg(url);
     Ok(command)
+}
+
+/// `http://127.0.0.1:<port>/<path>` with a port from 1 to 65535 and the literal-URL rules of an
+/// HTTPS source.
+fn valid_loopback(value: &str) -> bool {
+    let Some(rest) = value.strip_prefix("http://127.0.0.1:") else {
+        return false;
+    };
+    let Some((port, _)) = rest.split_once('/') else {
+        return false;
+    };
+    port.len() <= 5
+        && port.bytes().all(|b| b.is_ascii_digit())
+        && port.parse::<u16>().is_ok_and(|port| port > 0)
+        && !value.contains('?')
+        && manifest::valid_https(&format!("https://127.0.0.1:{rest}"))
 }
 fn curl_base() -> Result<Command, Error> {
     platform::curl_command().map_err(|_| Error::Download)

@@ -1,6 +1,7 @@
-//! Release manifest trust: the compiled public key tables, the detached signature document, and
-//! Ed25519 verification over the domain-separated manifest bytes. A manifest is parsed only through
-//! the [`TrustedManifest`] this module returns. No I/O; acquisition and installation live elsewhere.
+//! Release trust: the compiled public key tables, the detached signature document, and Ed25519
+//! verification over domain-separated bytes of the two signed documents, the release manifest and
+//! the update feed. Each is parsed only through the trusted wrapper this module returns
+//! ([`TrustedManifest`], [`TrustedFeed`]). No I/O; acquisition and installation live elsewhere.
 use base64::Engine;
 use ed25519_dalek::{Signature, VerifyingKey};
 use orchbee_release_records::{check_extensions, closed_object, parse_object};
@@ -9,13 +10,18 @@ use sha2::{Digest, Sha256};
 
 /// The most manifest bytes an updater reads or verifies. This bound never shrinks.
 pub(super) const MANIFEST_LIMIT: usize = 1024 * 1024;
+/// The most update feed bytes an updater reads or verifies. This bound never shrinks.
+pub(super) const FEED_LIMIT: usize = 64 * 1024;
 /// The most signature document bytes an updater reads. This bound never shrinks.
 pub(super) const DOCUMENT_LIMIT: usize = 4 * 1024;
 const MAXIMUM_SIGNATURES: usize = 4;
-/// Signed bytes are this prefix followed by the exact manifest bytes.
-const DOMAIN: &[u8] = b"orchbee-release-manifest-v2\n";
+/// Signed manifest bytes are this prefix followed by the exact manifest bytes.
+const MANIFEST_DOMAIN: &[u8] = b"orchbee-release-manifest-v2\n";
+/// Signed feed bytes are this prefix followed by the exact feed bytes. A different prefix from the
+/// manifest's, so a signature over one document never verifies as the other.
+const FEED_DOMAIN: &[u8] = b"orchbee-update-feed-v1\n";
 
-/// One compiled Ed25519 public key that may sign release manifests.
+/// One compiled Ed25519 public key that may sign release manifests and update feeds.
 pub(super) struct TrustedKey(pub(super) [u8; 32]);
 
 impl TrustedKey {
@@ -93,13 +99,22 @@ impl<'a> TrustedManifest<'a> {
     }
 }
 
-/// Why a manifest was not trusted.
+/// Update feed bytes that a compiled key verified under the feed domain.
+pub(super) struct TrustedFeed<'a>(&'a [u8]);
+
+impl<'a> TrustedFeed<'a> {
+    pub(super) fn bytes(&self) -> &'a [u8] {
+        self.0
+    }
+}
+
+/// Why a signed document was not trusted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Refusal {
-    /// The build trusts no key, so it refuses every manifest.
+    /// The build trusts no key, so it refuses every document.
     NoTrustedKeys,
-    /// The manifest exceeds [`MANIFEST_LIMIT`].
-    ManifestTooLarge,
+    /// The document exceeds its bound: [`MANIFEST_LIMIT`] or [`FEED_LIMIT`].
+    Oversized,
     /// The signature document is oversized or malformed.
     Malformed,
     /// No signature names a compiled key.
@@ -109,7 +124,7 @@ pub(super) enum Refusal {
 }
 
 /// Admits `manifest` when one signature from a compiled key in `keys` verifies over the
-/// domain-separated bytes. Entries naming other keys are skipped.
+/// manifest-domain bytes. Entries naming other keys are skipped.
 ///
 /// # Errors
 /// Returns the [`Refusal`] a person needs to tell an untrusting build, a malformed document, an
@@ -119,16 +134,39 @@ pub(super) fn verify<'a>(
     manifest: &'a [u8],
     keys: &[TrustedKey],
 ) -> Result<TrustedManifest<'a>, Refusal> {
+    verify_domain(document, manifest, keys, MANIFEST_DOMAIN, MANIFEST_LIMIT).map(TrustedManifest)
+}
+
+/// Admits `feed` as [`verify`] admits a manifest, over the feed-domain bytes and within
+/// [`FEED_LIMIT`].
+///
+/// # Errors
+/// Returns the same [`Refusal`]s as [`verify`].
+pub(super) fn verify_feed<'a>(
+    document: &[u8],
+    feed: &'a [u8],
+    keys: &[TrustedKey],
+) -> Result<TrustedFeed<'a>, Refusal> {
+    verify_domain(document, feed, keys, FEED_DOMAIN, FEED_LIMIT).map(TrustedFeed)
+}
+
+fn verify_domain<'a>(
+    document: &[u8],
+    bytes: &'a [u8],
+    keys: &[TrustedKey],
+    domain: &[u8],
+    limit: usize,
+) -> Result<&'a [u8], Refusal> {
     if keys.is_empty() {
         return Err(Refusal::NoTrustedKeys);
     }
-    if manifest.len() > MANIFEST_LIMIT {
-        return Err(Refusal::ManifestTooLarge);
+    if bytes.len() > limit {
+        return Err(Refusal::Oversized);
     }
     let entries = parse_document(document).ok_or(Refusal::Malformed)?;
-    let mut signed = Vec::with_capacity(DOMAIN.len() + manifest.len());
-    signed.extend_from_slice(DOMAIN);
-    signed.extend_from_slice(manifest);
+    let mut signed = Vec::with_capacity(domain.len() + bytes.len());
+    signed.extend_from_slice(domain);
+    signed.extend_from_slice(bytes);
     let mut named = false;
     for (key_id, signature) in &entries {
         for key in keys.iter().filter(|key| key.key_id() == *key_id) {
@@ -138,7 +176,7 @@ pub(super) fn verify<'a>(
                 continue;
             };
             if public.verify_strict(&signed, signature).is_ok() {
-                return Ok(TrustedManifest(manifest));
+                return Ok(bytes);
             }
         }
     }

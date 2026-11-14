@@ -71,48 +71,48 @@ impl super::CliText {
                 "无法读取或保存配置。请运行 orchbee config check。",
             ),
             "source-unconfigured" => (
-                "This build has no release feed of its own. Set ORCHBEE_UPDATE_MANIFEST to an Orchbee HTTPS release manifest or an absolute local manifest path, then retry orchbee update.",
-                "此构建没有自带的发布源。请将 ORCHBEE_UPDATE_MANIFEST 设置为 Orchbee HTTPS 发布清单或本地清单的绝对路径，再重试 orchbee update。",
+                "This build has no update feed of its own. Set ORCHBEE_UPDATE_FEED to an Orchbee HTTPS update feed or an absolute local feed path, then retry orchbee update.",
+                "此构建没有自带的更新源。请将 ORCHBEE_UPDATE_FEED 设置为 Orchbee HTTPS 更新源或本地更新源文件的绝对路径，再重试 orchbee update。",
             ),
             "source-invalid" => (
-                "Invalid release source. ORCHBEE_UPDATE_MANIFEST must be an HTTPS URL without a query or an absolute local manifest path.",
-                "发布源无效。ORCHBEE_UPDATE_MANIFEST 必须是不带查询参数的 HTTPS URL，或本地清单的绝对路径。",
+                "Invalid update feed. ORCHBEE_UPDATE_FEED must be an HTTPS URL without a query or an absolute local feed path.",
+                "更新源无效。ORCHBEE_UPDATE_FEED 必须是不带查询参数的 HTTPS URL，或本地更新源文件的绝对路径。",
             ),
             "signing-keys-unavailable" => (
                 "This build trusts no release signing key, so it refuses every install and update. Nothing was changed. Install a newer Orchbee manually.",
                 "当前构建没有可信的发布签名密钥，会拒绝所有安装和更新，未做任何改动。请手动安装更新版本的 Orchbee。",
             ),
             "signature-untrusted" => (
-                "The release manifest is not signed by a key this Orchbee trusts. Nothing was installed. If the signing key changed, install a newer Orchbee manually.",
-                "发布清单不是由当前 Orchbee 信任的密钥签名的，未安装任何内容。如果签名密钥已更换，请手动安装更新版本的 Orchbee。",
+                "The update feed or release manifest is not signed by a key this Orchbee trusts. Nothing was installed. If the signing key changed, install a newer Orchbee manually.",
+                "更新源或发布清单不是由当前 Orchbee 信任的密钥签名的，未安装任何内容。如果签名密钥已更换，请手动安装更新版本的 Orchbee。",
             ),
             "signature-invalid" => (
-                "The release signature (release.json.sig beside the manifest) is missing, malformed, or does not match the manifest. Nothing was installed.",
-                "发布签名（清单旁的 release.json.sig）缺失、格式错误或与清单不符，未安装任何内容。",
+                "The signature (the .sig file beside the update feed or release manifest) is missing, malformed, or does not match. Nothing was installed.",
+                "签名（更新源或发布清单旁的 .sig 文件）缺失、格式错误或不匹配，未安装任何内容。",
             ),
-            "local-manifest-read" => (
-                "Cannot read the local release manifest. Check the file path and permissions in ORCHBEE_UPDATE_MANIFEST, then retry orchbee update.",
-                "无法读取本地发布清单。请检查 ORCHBEE_UPDATE_MANIFEST 中的文件路径和读取权限，再重试 orchbee update。",
+            "local-feed-read" => (
+                "Cannot read the local update feed. Check the file path and permissions in ORCHBEE_UPDATE_FEED, then retry orchbee update.",
+                "无法读取本地更新源。请检查 ORCHBEE_UPDATE_FEED 中的文件路径和读取权限，再重试 orchbee update。",
             ),
             "manifest-invalid" => (
-                "Release manifest is invalid, incomplete, or for another channel/platform.",
-                "发布清单无效、不完整，或频道/平台不匹配。",
+                "The update feed or release is invalid, incomplete, or for another channel/platform.",
+                "更新源或发布内容无效、不完整，或频道/平台不匹配。",
             ),
             "download" => (
                 "Release acquisition failed; the installed version is unchanged.",
                 "无法获取发布文件；已安装版本未改变。",
             ),
             "download-unavailable" => (
-                "HTTPS updates require system curl 8.4 or newer for bounded downloads.",
-                "HTTPS 更新需要系统 curl 8.4 或更新版本以限制下载大小。",
+                "Updates need the system tar and, over HTTPS, system curl 8.4 or newer.",
+                "更新需要系统 tar；通过 HTTPS 更新还需要系统 curl 8.4 或更新版本。",
             ),
             "checksum" => (
                 "Release file size or SHA-256 verification failed.",
                 "发布文件大小或 SHA-256 校验失败。",
             ),
             "storage" => (
-                "Cannot stage or publish the release safely.",
-                "无法安全暂存或发布此版本。",
+                "Cannot unpack, stage, or publish the release safely.",
+                "无法安全解包、暂存或发布此版本。",
             ),
             "install-location" => (
                 "Invalid ORCHBEE_INSTALL_DIR or LOCALAPPDATA installation location.",

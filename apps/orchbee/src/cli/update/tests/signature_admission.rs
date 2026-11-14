@@ -158,7 +158,7 @@ fn documents_and_manifests_are_read_only_within_their_bounds() {
     let oversized = vec![b' '; MANIFEST_LIMIT + 1];
     assert_eq!(
         verify(&sign(&oversized), &oversized, TEST_TABLE).err(),
-        Some(Refusal::ManifestTooLarge)
+        Some(Refusal::Oversized)
     );
 }
 

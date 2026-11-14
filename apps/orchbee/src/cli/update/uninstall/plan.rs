@@ -20,11 +20,12 @@ use std::path::{Component, Path, PathBuf};
 /// The store root's entries, as install, update, the PATH step and the platform installer's
 /// Desktop leave them, in removal order; staging folders `.stage-<process>-<number>` and, when the
 /// run removes them, the installer's own files follow. The pointer goes after all of them.
-const STORE_ENTRIES: [&str; 5] = [
+const STORE_ENTRIES: [&str; 6] = [
     "bin",
     "desktop",
     "active.pending",
     "versions",
+    ".download",
     "install.lock",
 ];
 /// The store's mark.

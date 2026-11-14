@@ -8,7 +8,7 @@ use std::{
     process::Command,
 };
 
-pub(super) fn manifest_source() -> Option<String> {
+pub(super) fn feed_source() -> Option<String> {
     None
 }
 
@@ -25,6 +25,10 @@ pub(super) fn open_source_file(_path: &Path) -> io::Result<File> {
 }
 
 pub(super) fn curl_command() -> io::Result<Command> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+pub(super) fn tar_command() -> io::Result<Command> {
     Err(io::ErrorKind::Unsupported.into())
 }
 

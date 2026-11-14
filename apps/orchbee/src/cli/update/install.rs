@@ -6,7 +6,7 @@ use super::{
     acquire::Source,
     manifest::{Artifact, Release, own_platform},
     platform,
-    signature::MANIFEST_LIMIT,
+    signature::{DOCUMENT_LIMIT, MANIFEST_LIMIT},
 };
 use crate::release_store::{ReleaseStore, open_release_file, read_pointer};
 use orchbee_local_runtime::{Cohort, CohortArtifact, CommandFailure, compare_product_versions};
@@ -116,13 +116,15 @@ pub(super) enum Standing {
     Lower,
 }
 
-/// Refuses `release` before anything is written when the store's active version is for another
-/// platform, because the store holds one architecture; otherwise says where `release` stands
-/// against the active version. Records the active version it compared with. Reading the stored
-/// manifest is the only file access: nothing is hashed.
+/// Refuses the release `version`, whose `release.json` has the SHA-256 `identity`, before anything
+/// is written when the store's active version is for another platform, because the store holds one
+/// architecture; otherwise says where the release stands against the active version. Records the
+/// active version it compared with. Reading and hashing the stored manifest is the only file
+/// access, so an update decides from its signed feed alone.
 pub(super) fn admit_store(
     root: &Path,
-    release: &Release,
+    version: &str,
+    identity: &str,
     report: &mut Report,
 ) -> Result<Standing, Error> {
     let active = active_entry(root);
@@ -138,19 +140,69 @@ pub(super) fn admit_store(
     if platform.is_some_and(|platform| platform != own_platform()) {
         return Err(Error::OtherArchitecture);
     }
-    let release_entry = Entry {
-        product: release.version.clone(),
-        manifest: release.identity.clone(),
-    };
     Ok(
-        if active == release_entry && stored.as_deref() == Some(release.encoded.as_slice()) {
+        if active.product == version
+            && active.manifest == identity
+            && stored.as_deref().map(sha256).as_deref() == Some(identity)
+        {
             Standing::Active
-        } else if compare_product_versions(&active.product, &release.version) == Ordering::Greater {
+        } else if compare_product_versions(&active.product, version) == Ordering::Greater {
             Standing::Lower
         } else {
             Standing::Admitted
         },
     )
+}
+
+/// What a store's `versions\<version>` holds against the manifest identity an update was offered.
+pub(super) enum Stored {
+    Absent,
+    /// The directory holds the offered manifest; these are its `release.json` and
+    /// `release.json.sig`.
+    Same {
+        manifest: Vec<u8>,
+        signature: Vec<u8>,
+    },
+    /// The directory holds another manifest under the same version.
+    Other,
+}
+
+/// Reads `versions\<version>` of `root` without the writer lock and compares its `release.json`
+/// with `identity`. A directory whose documents cannot be read is damaged.
+///
+/// # Errors
+/// `cohort-invalid` for an unreadable directory, `storage` when its presence cannot be told.
+pub(super) fn stored_version(
+    root: &Path,
+    version: &str,
+    identity: &str,
+    context: &mut Context,
+) -> Result<Stored, Error> {
+    let directory = root.join("versions").join(version);
+    if !directory
+        .try_exists()
+        .map_err(|error| context.storage(&directory, &error))?
+    {
+        return Ok(Stored::Absent);
+    }
+    let manifest = stored_manifest(root, version).ok_or(Error::CohortInvalid)?;
+    if sha256(&manifest) != identity {
+        return Ok(Stored::Other);
+    }
+    let mut signature = Vec::new();
+    open_release_file(&directory, "release.json.sig")
+        .map_err(|_| Error::CohortInvalid)?
+        .take(DOCUMENT_LIMIT as u64 + 1)
+        .read_to_end(&mut signature)
+        .map_err(|_| Error::CohortInvalid)?;
+    Ok(Stored::Same {
+        manifest,
+        signature,
+    })
+}
+
+fn sha256(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
 }
 
 /// The `release.json` the version directory `version` holds, when it can be read. The pointer

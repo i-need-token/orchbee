@@ -76,7 +76,7 @@ fn own_release(directory: &Path) -> Result<Release, Error> {
         signature::verify(&document, &manifest, signature::TRUSTED_KEYS).map_err(|refusal| {
             match refusal {
                 Refusal::NoTrustedKeys => Error::SigningKeysUnavailable,
-                Refusal::ManifestTooLarge => Error::ManifestInvalid,
+                Refusal::Oversized => Error::ManifestInvalid,
                 Refusal::Untrusted => Error::SignatureUntrusted,
                 Refusal::Malformed | Refusal::Invalid => Error::SignatureInvalid,
             }

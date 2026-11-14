@@ -2,7 +2,7 @@
 //! survives the edit, an unreadable file is never rewritten, and no installation or Session runtime
 //! appears.
 use super::super::{Error, Report, document, engine, signature::TEST_TABLE};
-use super::install_fixture::{Fixture, context, in_process_completion, print_probe};
+use super::install_fixture::{Fixture, context, in_process_completion, never_unpack, print_probe};
 use orchbee_local_runtime::{DataRoot, UpdateChannel, read_user_settings};
 use serde_json::Value;
 use std::{ffi::OsString, fs, path::Path};
@@ -35,17 +35,19 @@ impl Roots {
             .update_channel
     }
 
-    /// One engine run whose manifest source is `source`, rendered as the CLI renders it.
+    /// One engine run whose feed source is `source`, rendered as the CLI renders it.
     fn update(&self, channel: Option<UpdateChannel>, source: Option<&str>) -> (Report, Value) {
         let state = |name: &str| self.state(name);
         let inputs = engine::Inputs {
             channel,
             state: &state,
-            manifest_source: source.map(str::to_owned),
+            feed_source: source.map(str::to_owned),
             keys: TEST_TABLE,
             install_root: Ok(self.install.clone()),
+            loopback: false,
             probe: print_probe,
             activation: in_process_completion,
+            unpack: &never_unpack,
         };
         let mut context = context();
         let mut report = Report::new();

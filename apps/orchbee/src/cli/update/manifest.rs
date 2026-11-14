@@ -73,11 +73,7 @@ impl Release {
         {
             return None;
         }
-        let channel = match token(object.get("channel")?, 32, false)? {
-            "stable" => UpdateChannel::Stable,
-            "preview" => UpdateChannel::Preview,
-            _ => return None,
-        };
+        let channel = channel(object.get("channel")?)?;
         if token(object.get("platform")?, 32, true)? != platform {
             return None;
         }
@@ -226,8 +222,17 @@ fn generation(value: &Value) -> Option<u64> {
         .filter(|generation| (1..=65_535).contains(generation))
 }
 
+/// A channel token this updater knows: `stable` or `preview`.
+pub(super) fn channel(value: &Value) -> Option<UpdateChannel> {
+    match token(value, 32, false)? {
+        "stable" => Some(UpdateChannel::Stable),
+        "preview" => Some(UpdateChannel::Preview),
+        _ => None,
+    }
+}
+
 /// A string of 1 to `limit` bytes of `a`–`z`, `0`–`9` and `-`, plus `_` when `underscore`.
-fn token(value: &Value, limit: usize, underscore: bool) -> Option<&str> {
+pub(super) fn token(value: &Value, limit: usize, underscore: bool) -> Option<&str> {
     let text = value.as_str()?;
     name(text, limit, underscore)?;
     Some(text)
@@ -243,14 +248,15 @@ fn name(text: &str, limit: usize, underscore: bool) -> Option<()> {
 }
 
 /// A SemVer 2.0.0 version of at most 64 bytes, without build metadata.
-fn semantic_version(value: &Value) -> Option<String> {
+pub(super) fn semantic_version(value: &Value) -> Option<String> {
     value
         .as_str()
         .filter(|text| valid_version(text))
         .map(str::to_owned)
 }
 
-fn label(value: &Value) -> Option<String> {
+/// A build label of 1 to 96 bytes of ASCII letters, digits, `.`, `-`, `_` and `+`.
+pub(super) fn label(value: &Value) -> Option<String> {
     let text = value.as_str()?;
     (!text.is_empty()
         && text.len() <= 96

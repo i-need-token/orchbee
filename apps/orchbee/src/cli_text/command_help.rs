@@ -382,19 +382,19 @@ impl super::CliText {
             ),
             (Locale::EnUs, CommandPath::ChannelSet) => crate::cli_text::HelpDetails::new(
                 "orchbee channel set <stable|preview> [--format text|json]",
-                "Save the channel and immediately run update. Update failure retains the saved channel.\nUses ORCHBEE_UPDATE_MANIFEST; see orchbee update --help.",
+                "Save the channel and immediately run update. Update failure retains the saved channel.\nUses ORCHBEE_UPDATE_FEED; see orchbee update --help.",
             ),
             (Locale::ZhCn, CommandPath::ChannelSet) => crate::cli_text::HelpDetails::new(
                 "orchbee channel set <stable|preview> [--format text|json]",
-                "保存频道后立即更新；更新失败仍保留已保存的频道。使用 ORCHBEE_UPDATE_MANIFEST；参见 orchbee update --help。",
+                "保存频道后立即更新；更新失败仍保留已保存的频道。使用 ORCHBEE_UPDATE_FEED；参见 orchbee update --help。",
             ),
             (Locale::EnUs, CommandPath::Update) => crate::cli_text::HelpDetails::new(
                 "orchbee update [--format text|json]",
-                "Install the newest Orchbee of the configured channel beside the running one and make it the version that starts next.\nRunning terminals and Agents keep their version; open Orchbee again to use the new one. Says it is up to date when the channel offers nothing newer.\nReads the Orchbee release feed. ORCHBEE_UPDATE_MANIFEST names another HTTPS URL or an absolute local manifest path; {channel} expands to stable or preview.\nHTTPS_PROXY, ALL_PROXY and NO_PROXY reach the download; no other proxy setting is read.\nORCHBEE_INSTALL_DIR defaults to %LOCALAPPDATA%/Programs/Orchbee. Every file is checked against the signed manifest before versions/<version> is published; the installation's bin folder is added to the user Path.\nTotal deadline: 600 seconds. Ctrl+C cancels; receipts retain published paths and cleanup obligations.",
+                "Install the newest Orchbee of the configured channel beside the running one and make it the version that starts next.\nRunning terminals and Agents keep their version; open Orchbee again to use the new one. Says it is up to date when the channel offers nothing newer.\nReads the signed Orchbee update feed first and downloads one archive only when the channel offers another version. ORCHBEE_UPDATE_FEED names another HTTPS URL or an absolute local feed path; {channel} expands to stable or preview.\nHTTPS_PROXY, ALL_PROXY and NO_PROXY reach the download; no other proxy setting is read.\nORCHBEE_INSTALL_DIR defaults to %LOCALAPPDATA%/Programs/Orchbee. The archive is checked against the feed's signed size and SHA-256 before it is unpacked, and every file against the signed manifest before versions/<version> is published; the installation's bin folder is added to the user Path.\nTotal deadline: 600 seconds. Ctrl+C cancels; receipts retain published paths and cleanup obligations.",
             ),
             (Locale::ZhCn, CommandPath::Update) => crate::cli_text::HelpDetails::new(
                 "orchbee update [--format text|json]",
-                "把所配置频道的最新 Orchbee 安装在当前版本旁边，并设为下次启动的版本。\n运行中的终端和智能体保持原版本；重新打开 Orchbee 即可使用新版本。频道没有更新的版本时提示已是最新。\n读取 Orchbee 发布源。ORCHBEE_UPDATE_MANIFEST 可指定其他 HTTPS URL 或本地清单绝对路径；{channel} 替换为 stable 或 preview。\nHTTPS_PROXY、ALL_PROXY 和 NO_PROXY 会用于下载；不读取其他代理设置。\nORCHBEE_INSTALL_DIR 默认为 %LOCALAPPDATA%/Programs/Orchbee。发布到 versions/<版本> 之前逐文件按已签名清单校验；安装目录的 bin 文件夹会加入用户 Path。\n总时限 600 秒。Ctrl+C 取消；回执保留已发布路径和待清理项。",
+                "把所配置频道的最新 Orchbee 安装在当前版本旁边，并设为下次启动的版本。\n运行中的终端和智能体保持原版本；重新打开 Orchbee 即可使用新版本。频道没有更新的版本时提示已是最新。\n先读取已签名的 Orchbee 更新源，只有频道提供其他版本时才下载一个压缩包。ORCHBEE_UPDATE_FEED 可指定其他 HTTPS URL 或本地更新源文件绝对路径；{channel} 替换为 stable 或 preview。\nHTTPS_PROXY、ALL_PROXY 和 NO_PROXY 会用于下载；不读取其他代理设置。\nORCHBEE_INSTALL_DIR 默认为 %LOCALAPPDATA%/Programs/Orchbee。解包前按更新源签名的大小和 SHA-256 校验压缩包，发布到 versions/<版本> 之前逐文件按已签名清单校验；安装目录的 bin 文件夹会加入用户 Path。\n总时限 600 秒。Ctrl+C 取消；回执保留已发布路径和待清理项。",
             ),
             (Locale::EnUs, CommandPath::Install) => crate::cli_text::HelpDetails::new(
                 "orchbee install [--no-path] [--allow-downgrade] [--format text|json]",

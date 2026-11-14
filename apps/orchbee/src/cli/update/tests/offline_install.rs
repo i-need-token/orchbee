@@ -1,16 +1,19 @@
-//! The install engine on a local feed signed with the test key: synthetic cohort peers, a probe
-//! that prints the staged Client's bytes, and an in-process completion that moves the pointer.
-//! This proves verification, staging, publication, reuse and activation through the pointer, not
-//! Server, Worker or Host behavior, the completion helper's own signature check, or a PATH step.
+//! The install engine on a local release directory signed with the test key: synthetic cohort
+//! peers, a probe that prints the staged Client's bytes, and an in-process completion that moves
+//! the pointer. This proves verification, staging, publication, reuse and activation through the
+//! pointer, not Server, Worker or Host behavior, the completion helper's own signature check, or a
+//! PATH step.
 use super::super::{
-    Context, Error, Report, StorageCause, StorageReason, complete, document, engine,
-    install::{Activation, Completion},
+    Error, Report, StorageCause, StorageReason, complete, engine,
+    install::Completion,
     signature::{TEST_TABLE, TrustedKey},
 };
-use super::install_fixture::{Fixture, context, in_process_completion, pointer, print_probe};
+use super::install_fixture::{
+    Fixture, context, entry_for, in_process_completion, manifest, pointer, print_probe,
+    publish_manifest, stage_cohort,
+};
 use super::{entry, sign, signed_bytes, stranger};
 use orchbee_local_runtime::{Cohort, CohortArtifact, RefusalReason};
-use orchbee_release_records::Entry;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -20,120 +23,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-const PEERS: [CohortArtifact; 3] = [
-    CohortArtifact::Server,
-    CohortArtifact::Worker,
-    CohortArtifact::TerminalHost,
-];
-
-fn copy_tree(source: &Path, target: &Path) {
-    fs::create_dir(target).unwrap();
-    for entry in fs::read_dir(source).unwrap() {
-        let entry = entry.unwrap();
-        if entry.file_type().unwrap().is_dir() {
-            copy_tree(&entry.path(), &target.join(entry.file_name()));
-        } else {
-            fs::copy(entry.path(), target.join(entry.file_name())).unwrap();
-        }
-    }
-}
-
-fn digest(path: &Path) -> String {
-    format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
-}
-
-fn inventory(directory: &Path, base: &Path, files: &mut Vec<Value>) {
-    for entry in fs::read_dir(directory).unwrap() {
-        let entry = entry.unwrap();
-        if entry.file_type().unwrap().is_dir() {
-            inventory(&entry.path(), base, files);
-        } else {
-            let path = entry.path();
-            let relative = path
-                .strip_prefix(base)
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .replace('\\', "/");
-            if relative.starts_with("release.json") {
-                continue;
-            }
-            let size = fs::metadata(&path).unwrap().len();
-            files.push(
-                json!({"path": relative, "url": relative, "size": size, "sha256": digest(&path)}),
-            );
-        }
-    }
-}
-
-/// Stages a complete cohort feed in `source`; the Client is a text file holding the version line
-/// of `version`.
-fn stage_cohort(source: &Path, version: &str) {
-    fs::create_dir(source).unwrap();
-    fs::write(
-        source.join(CohortArtifact::Client.file_name()),
-        format!("orchbee {version}\r\n"),
-    )
-    .unwrap();
-    let mut artifacts = serde_json::Map::new();
-    artifacts.insert(
-        "orchbee".into(),
-        json!(digest(&source.join(CohortArtifact::Client.file_name()))),
-    );
-    for (peer, key) in
-        PEERS
-            .into_iter()
-            .zip(["orchbee-server", "orchbee-worker", "orchbee-terminal-host"])
-    {
-        let path = source.join(peer.file_name());
-        fs::write(&path, format!("synthetic {key}; never executed")).unwrap();
-        artifacts.insert(key.into(), json!(digest(&path)));
-    }
-    let adapters = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../crates/agent-integration-writer/agent-observation-adapters");
-    copy_tree(&adapters, &source.join("agent-observation-adapters"));
-    let capsule: Value = serde_json::from_slice(
-        &fs::read(source.join("agent-observation-adapters/capsule.json")).unwrap(),
-    )
-    .unwrap();
-    artifacts.insert(
-        "agent-observation-adapters".into(),
-        capsule["payloadSha256"].clone(),
-    );
-    fs::write(
-        source.join("cohort.json"),
-        json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
-    )
-    .unwrap();
-}
-
-/// A version 2 manifest for every file in `source`, with `change` applied.
-fn manifest(source: &Path, change: impl FnOnce(&mut Value)) -> Vec<u8> {
-    let mut files = Vec::new();
-    inventory(source, source, &mut files);
-    let client = CohortArtifact::Client.file_name();
-    let mut value = json!({
-        "schemaVersion": 2, "product": "orchbee", "channel": "stable",
-        "platform": "windows-x86_64", "version": "0.1.0", "buildId": "test", "files": files,
-        "components": [{"id": "client", "version": "0.1.0", "files": [client],
-            "connections": {"client-server": {"generations": {"lowest": 1, "highest": 1}}}}],
-    });
-    change(&mut value);
-    serde_json::to_vec(&value).unwrap()
-}
-
-/// Publishes `manifest` and `signature` as the local feed's `release.json` and its document.
-fn publish_feed(source: &Path, manifest: &[u8], signature: Option<&[u8]>) {
-    fs::write(source.join("release.json"), manifest).unwrap();
-    let document = source.join("release.json.sig");
-    match signature {
-        Some(signature) => fs::write(&document, signature).unwrap(),
-        None => {
-            let _ = fs::remove_file(&document);
-        }
-    }
-}
-
 struct Run {
     result: Result<(), Error>,
     report: Report,
@@ -141,43 +30,16 @@ struct Run {
     storage_cause: Option<StorageCause>,
 }
 
-fn run(fixture: &Fixture, keys: &[TrustedKey]) -> Run {
-    update(
-        fixture,
-        &fixture.0.join("source"),
-        keys,
-        in_process_completion,
-    )
-}
-
-/// One update from the local feed `source` into the fixture's store, completing with `activation`.
-fn update(fixture: &Fixture, source: &Path, keys: &[TrustedKey], activation: Activation) -> Run {
-    let data = fixture.0.join("data");
-    let state = move |name: &str| (name == "ORCHBEE_HOME").then(|| data.clone().into_os_string());
-    let inputs = engine::Inputs {
-        channel: None,
-        state: &state,
-        manifest_source: Some(source.join("release.json").to_string_lossy().into_owned()),
-        keys,
-        install_root: Ok(fixture.0.join("install")),
-        probe: print_probe,
-        activation,
-    };
-    let mut context = context();
-    let mut report = Report::new();
-    let result = engine::run(&inputs, &mut context, &mut report);
-    Run {
-        result,
-        report,
-        storage_cause: context.storage_cause.take(),
-    }
-}
-
 /// One `install` of the signed release directory `source`.
 fn install(root: &Path, source: &Path, allow_downgrade: bool) -> Run {
+    install_with(root, source, TEST_TABLE, allow_downgrade)
+}
+
+/// One `install` of `source` that trusts `keys`.
+fn install_with(root: &Path, source: &Path, keys: &[TrustedKey], allow_downgrade: bool) -> Run {
     let inputs = engine::InstallInputs {
         directory: Ok(source.to_path_buf()),
-        keys: TEST_TABLE,
+        keys,
         install_root: Ok(root.to_path_buf()),
         probe: print_probe,
         activation: in_process_completion,
@@ -193,17 +55,6 @@ fn install(root: &Path, source: &Path, allow_downgrade: bool) -> Run {
         result,
         report,
         storage_cause: context.storage_cause.take(),
-    }
-}
-
-fn sha(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
-}
-
-fn entry_for(version: &str, manifest: &[u8]) -> Entry {
-    Entry {
-        product: version.into(),
-        manifest: sha(manifest),
     }
 }
 
@@ -238,29 +89,29 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
 
     // Refusals before parsing: no trusted key, an unsigned feed, or an unknown signer install
     // nothing and never report a release.
-    publish_feed(&source, &bytes, None);
+    publish_manifest(&source, &bytes, None);
     for (keys, expected) in [
         (&[][..], "signing-keys-unavailable"),
         (TEST_TABLE, "signature-invalid"),
     ] {
-        let refused = run(&fixture, keys);
+        let refused = install_with(&root, &source, keys, false);
         assert_eq!(code(&refused), expected);
         assert!(refused.report.version.is_none() && !root.exists());
     }
     let foreign =
         serde_json::to_vec(&json!({"signatures": [entry(&stranger(), &signed_bytes(&bytes))]}))
             .unwrap();
-    publish_feed(&source, &bytes, Some(&foreign));
-    let refused = run(&fixture, TEST_TABLE);
+    publish_manifest(&source, &bytes, Some(&foreign));
+    let refused = install(&root, &source, false);
     assert_eq!(code(&refused), "signature-untrusted");
     assert!(refused.report.version.is_none() && !root.exists());
     // A correctly signed document that is not a manifest is refused after verification.
-    publish_feed(&source, b"{}", Some(&sign(b"{}")));
-    assert_eq!(code(&run(&fixture, TEST_TABLE)), "manifest-invalid");
+    publish_manifest(&source, b"{}", Some(&sign(b"{}")));
+    assert_eq!(code(&install(&root, &source, false)), "manifest-invalid");
     assert!(!root.exists());
 
-    publish_feed(&source, &bytes, Some(&sign(&bytes)));
-    let first = run(&fixture, TEST_TABLE);
+    publish_manifest(&source, &bytes, Some(&sign(&bytes)));
+    let first = install(&root, &source, false);
     assert_eq!(code(&first), "complete");
     let published = first.report.published.clone().unwrap();
     assert_eq!(published, root.join("versions").join("0.1.0"));
@@ -268,7 +119,7 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     assert!(first.report.cleanup_pending.is_none());
     assert_eq!(fs::read(published.join("release.json")).unwrap(), bytes);
     assert_eq!(pointer(&root).unwrap().active, entry_for("0.1.0", &bytes));
-    let second = run(&fixture, TEST_TABLE);
+    let second = install(&root, &source, false);
     assert_eq!(code(&second), "complete");
     assert_eq!(second.report.published.as_ref(), Some(&published));
     assert!(second.report.reused && second.report.activated);
@@ -324,8 +175,8 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
         ),
     ] {
         let changed = manifest(&source, change);
-        publish_feed(&source, &changed, Some(&sign(&changed)));
-        let failed = run(&fixture, TEST_TABLE);
+        publish_manifest(&source, &changed, Some(&sign(&changed)));
+        let failed = install(&root, &source, false);
         assert_eq!(code(&failed), expected);
         assert!(failed.report.published.is_none() && failed.report.cleanup_pending.is_none());
         assert!(!failed.report.activated);
@@ -339,8 +190,8 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     // An existing version directory is never overwritten: another manifest under the same version
     // is a conflict.
     let other = manifest(&source, |value| value["buildId"] = json!("other"));
-    publish_feed(&source, &other, Some(&sign(&other)));
-    assert_eq!(code(&run(&fixture, TEST_TABLE)), "version-conflict");
+    publish_manifest(&source, &other, Some(&sign(&other)));
+    assert_eq!(code(&install(&root, &source, false)), "version-conflict");
     assert_eq!(fs::read(published.join("release.json")).unwrap(), bytes);
     fs::write(published.join("release.json"), b"corrupt metadata").unwrap();
     assert_eq!(
@@ -363,7 +214,7 @@ fn install_refuses_a_lower_version_unless_allowed_and_repairs_an_unreadable_poin
     for (version, source) in &releases {
         stage_cohort(source, version);
         let bytes = manifest(source, |value| value["version"] = json!(version));
-        publish_feed(source, &bytes, Some(&sign(&bytes)));
+        publish_manifest(source, &bytes, Some(&sign(&bytes)));
         manifests.push(bytes);
     }
     let older = entry_for("0.1.0", &manifests[0]);
@@ -435,81 +286,6 @@ fn install_refuses_a_lower_version_unless_allowed_and_repairs_an_unreadable_poin
     }
 }
 
-/// A completion that never activates, for runs that must not complete anything.
-fn refused_completion(
-    _root: &Path,
-    _version: &Path,
-    _completion: Completion,
-    _context: &mut Context,
-) -> Result<(), Error> {
-    Err(Error::Activation)
-}
-
-/// The rendered `orchbee.update` document of a run, checked against its schema.
-fn rendered(run: &Run) -> Value {
-    let rendered = document(None, &run.report, run.result.err(), false);
-    let schema: Value =
-        serde_json::from_str(include_str!("../../schemas/orchbee.update.json")).unwrap();
-    assert!(
-        jsonschema::validator_for(&schema)
-            .unwrap()
-            .is_valid(&rendered),
-        "{rendered}"
-    );
-    rendered
-}
-
-#[test]
-fn update_is_up_to_date_on_the_active_release_and_on_a_lower_feed() {
-    let fixture = Fixture::new();
-    let root = fixture.0.join("install");
-    let mut feeds = Vec::new();
-    for (version, name) in [("0.1.0", "older"), ("0.2.0", "newer")] {
-        let source = fixture.0.join(name);
-        stage_cohort(&source, version);
-        let bytes = manifest(&source, |value| value["version"] = json!(version));
-        publish_feed(&source, &bytes, Some(&sign(&bytes)));
-        feeds.push((source, bytes));
-    }
-    let newer = entry_for("0.2.0", &feeds[1].1);
-    let installed = update(&fixture, &feeds[1].0, TEST_TABLE, in_process_completion);
-    assert_eq!(code(&installed), "complete");
-    assert_eq!(rendered(&installed)["result"]["upToDate"], false);
-
-    // The active release again: nothing is hashed or completed, so a damaged file goes unread and
-    // a completion that would fail never runs.
-    let server = root
-        .join("versions/0.2.0")
-        .join(CohortArtifact::Server.file_name());
-    fs::write(&server, b"damaged").unwrap();
-    let again = update(&fixture, &feeds[1].0, TEST_TABLE, refused_completion);
-    assert_eq!(code(&again), "complete");
-    let result = &rendered(&again)["result"];
-    assert_eq!(
-        (&result["upToDate"], &result["activated"], &result["reused"]),
-        (&json!(true), &json!(true), &json!(true)),
-        "{result}"
-    );
-    assert_eq!(pointer(&root).unwrap().active, newer);
-
-    // A feed pointed back to a lower version is nothing to do rather than a refusal: nothing is
-    // copied and the pointer stays.
-    let lower = update(&fixture, &feeds[0].0, TEST_TABLE, refused_completion);
-    assert_eq!(code(&lower), "complete");
-    let result = &rendered(&lower)["result"];
-    assert_eq!(
-        (
-            &result["upToDate"],
-            &result["activated"],
-            &result["releasePath"]
-        ),
-        (&json!(true), &json!(false), &Value::Null),
-        "{result}"
-    );
-    assert!(!root.join("versions/0.1.0").exists());
-    assert_eq!(pointer(&root).unwrap().active, newer);
-}
-
 /// Lets the built-in Users group change `folder` and everything below it, as a folder another
 /// account shares would.
 fn open_to_users(folder: &Path) {
@@ -527,7 +303,7 @@ fn install_refuses_and_names_a_store_others_can_change_but_reads_an_open_source(
     let source = fixture.0.join("source");
     stage_cohort(&source, "0.1.0");
     let bytes = manifest(&source, |_| {});
-    publish_feed(&source, &bytes, Some(&sign(&bytes)));
+    publish_manifest(&source, &bytes, Some(&sign(&bytes)));
     open_to_users(&source);
 
     // A store root another account can change is refused before anything is written, and the

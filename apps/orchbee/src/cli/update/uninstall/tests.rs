@@ -325,7 +325,7 @@ fn uninstall_removes_only_what_the_layouts_name_and_only_from_a_marked_root() {
         r"internal\cache",
     ];
     type Side = (Option<&'static [&'static str]>, bool);
-    let cases: [(Side, Side, bool, Summary); 15] = [
+    let cases: [(Side, Side, bool, Summary); 16] = [
         // Both layouts complete and marked: everything of them goes, the store root too.
         (
             (Some(STORE_FULL), true),
@@ -354,6 +354,21 @@ fn uninstall_removes_only_what_the_layouts_name_and_only_from_a_marked_root() {
             (Some(DATA_FULL), true),
             false,
             Ok(((2, true), (0, false))),
+        ),
+        // An update's download folder, with what a crashed run left in it, is the store's.
+        (
+            (
+                Some(&[
+                    r".download\download.lock",
+                    r".download\archive.zip",
+                    r".download\unpacked\orchbee.exe",
+                    "active.json",
+                ]),
+                true,
+            ),
+            (Some(DATA_FULL), true),
+            false,
+            Ok(((0, true), (0, false))),
         ),
         (
             (Some(STORE_FULL), true),

@@ -5,8 +5,10 @@
 //! value.
 use crate::cli_text::CliText;
 mod acquire;
+mod archive;
 mod complete;
 mod engine;
+mod feed;
 mod install;
 mod installed;
 mod manifest;
@@ -43,6 +45,9 @@ pub(crate) use uninstall::{installer as installer_uninstall, run as uninstall};
 
 /// The total deadline of one install or update.
 const DEADLINE: Duration = Duration::from_secs(600);
+/// Whether `update` admits a loopback feed address, fixed at compile time: only a test build does,
+/// so a release or development build never reads plain HTTP.
+const LOOPBACK: bool = matches!(environment_kind(), EnvironmentKind::Test);
 
 #[derive(Clone, Copy)]
 enum Error {
@@ -57,7 +62,8 @@ enum Error {
     SignatureInvalid,
     ManifestInvalid,
     Download,
-    LocalManifestRead,
+    /// A local feed, or a manifest of a local release directory, could not be read.
+    LocalSourceRead,
     DownloadUnavailable,
     Checksum,
     Storage,
@@ -92,7 +98,7 @@ impl Error {
             Self::SignatureUntrusted => "signature-untrusted",
             Self::SignatureInvalid => "signature-invalid",
             Self::ManifestInvalid => "manifest-invalid",
-            Self::Download | Self::LocalManifestRead => "download",
+            Self::Download | Self::LocalSourceRead => "download",
             Self::DownloadUnavailable => "download-unavailable",
             Self::Checksum => "checksum",
             Self::Storage => "storage",
@@ -123,10 +129,10 @@ impl Error {
             _ => 1,
         }
     }
-    /// The diagnostic text key; a local manifest that cannot be read has its own fix.
+    /// The diagnostic text key; a local feed that cannot be read has its own fix.
     fn message(self) -> &'static str {
         match self {
-            Self::LocalManifestRead => "local-manifest-read",
+            Self::LocalSourceRead => "local-feed-read",
             _ => self.code(),
         }
     }
@@ -463,11 +469,13 @@ pub(crate) fn run(
         let inputs = engine::Inputs {
             channel,
             state: &environment,
-            manifest_source: platform::manifest_source(),
+            feed_source: platform::feed_source(),
             keys: signature::TRUSTED_KEYS,
             install_root: platform::install_root().map_err(|_| Error::InstallLocation),
+            loopback: LOOPBACK,
             probe: install::version_probe,
             activation: install::run_completion,
+            unpack: &archive::system_unpack,
         };
         engine::run(&inputs, &mut context, &mut report)
     })();

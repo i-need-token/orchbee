@@ -1,11 +1,14 @@
-//! Release feed evidence: signature and manifest admission against the test key table only, and
-//! the install engine driven in process with fixture roots. No test verifies with the release key
-//! table, contacts a feed, runs the release-build check, or changes a user PATH.
+//! Release evidence: feed, signature and manifest admission against the test key table only, and
+//! the install and update engine driven in process with fixture roots. No test verifies with the
+//! release key table, contacts a host, runs the release-build check, or changes a user PATH.
 #[cfg(windows)]
 mod channel_persistence;
+mod feed_admission;
 #[cfg(windows)]
 mod install_fixture;
 mod manifest_admission;
+#[cfg(windows)]
+mod offered_update;
 #[cfg(windows)]
 mod offline_install;
 mod path_value;
@@ -62,5 +65,16 @@ fn entry(key: &SigningKey, signed: &[u8]) -> Value {
 /// A signature document carrying one test-key signature over `manifest`.
 fn sign(manifest: &[u8]) -> Vec<u8> {
     serde_json::to_vec(&json!({"signatures": [entry(&test_key(), &signed_bytes(manifest))]}))
+        .unwrap()
+}
+
+/// The bytes a feed signature covers: the feed domain prefix, then the exact feed.
+fn feed_signed_bytes(feed: &[u8]) -> Vec<u8> {
+    [b"orchbee-update-feed-v1\n".as_slice(), feed].concat()
+}
+
+/// A signature document carrying one test-key signature over the feed `feed`.
+fn sign_feed(feed: &[u8]) -> Vec<u8> {
+    serde_json::to_vec(&json!({"signatures": [entry(&test_key(), &feed_signed_bytes(feed))]}))
         .unwrap()
 }

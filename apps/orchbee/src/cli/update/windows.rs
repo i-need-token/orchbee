@@ -12,10 +12,14 @@ use std::{
 };
 use winsafe::{self as w, co};
 
-/// The release feed a release build updates from when `ORCHBEE_UPDATE_MANIFEST` is unset, before
-/// `{channel}` expansion; `{platform}` is this updater's own platform. The host name is the
-/// owner's to change until the first version that carries it ships, and fixed from then on.
-const RELEASE_FEED: &str = "https://dl.orchbee.com/{channel}/{platform}/release.json";
+/// The update feed a release build reads when `ORCHBEE_UPDATE_FEED` is unset, before `{channel}`
+/// expansion; `{platform}` is this updater's own platform. Its signature document is the same
+/// address with `.sig`. Frozen from the first version that carries it: what the address serves
+/// changes by a website deploy, and it may redirect up to five times to another HTTPS host.
+const RELEASE_FEED: &str = "https://orchbee.com/update/{channel}/{platform}/feed.json";
+/// The public variable that names another feed: an absolute local path or an HTTPS address without
+/// a query. Frozen with the address.
+const FEED_VARIABLE: &str = "ORCHBEE_UPDATE_FEED";
 
 /// The proxy variables curl reads for an HTTPS transfer, the only part of this process's
 /// environment it receives. Windows looks environment names up without regard to case, so each
@@ -23,11 +27,11 @@ const RELEASE_FEED: &str = "https://dl.orchbee.com/{channel}/{platform}/release.
 /// "ENVIRONMENT").
 const PROXY_VARIABLES: [&str; 3] = ["HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"];
 
-/// `ORCHBEE_UPDATE_MANIFEST`; when it is unset or empty, the release feed for a release build and
-/// nothing for a development or test build, so only a release build ever reads the feed. A
+/// [`FEED_VARIABLE`]; when it is unset or empty, [`RELEASE_FEED`] for a release build and nothing
+/// for a development or test build, so only a release build ever reads the public feed. A
 /// non-Unicode value leaves the source unconfigured.
-pub(super) fn manifest_source() -> Option<String> {
-    match std::env::var_os("ORCHBEE_UPDATE_MANIFEST") {
+pub(super) fn feed_source() -> Option<String> {
+    match std::env::var_os(FEED_VARIABLE) {
         Some(value) if !value.is_empty() => value.into_string().ok(),
         _ => orchbee_local_runtime::is_release()
             .then(|| RELEASE_FEED.replace("{platform}", &super::manifest::own_platform())),
@@ -108,6 +112,20 @@ pub(super) fn curl_command_from(
             command.env(name, value);
         }
     }
+    Ok(command)
+}
+
+/// The system `tar.exe` with a cleared environment holding only `SystemRoot`. Its arguments and
+/// working directory are the caller's.
+pub(super) fn tar_command() -> io::Result<Command> {
+    let system = winsafe::GetSystemDirectory().map_err(io::Error::other)?;
+    let mut command = Command::new(PathBuf::from(&system).join("tar.exe"));
+    command.env_clear().env(
+        "SystemRoot",
+        PathBuf::from(&system)
+            .parent()
+            .ok_or(io::ErrorKind::NotFound)?,
+    );
     Ok(command)
 }
 
