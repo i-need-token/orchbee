@@ -72,6 +72,9 @@
 				"activated": {
 					"type": "boolean"
 				},
+				"upToDate": {
+					"type": "boolean"
+				},
 				"releaseVersion": {
 					"type": ["string", "null"]
 				},

@@ -7,17 +7,16 @@
 pub(crate) enum Withheld {
     Plugin,
     Popup,
-    Update,
     Channel,
 }
 
 impl Withheld {
-    /// The stable machine token a refusal reports.
+    /// The stable machine token a refusal reports. The failure schema also keeps `update`, which
+    /// 0.1.0-beta.1 reports and later releases offer.
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Plugin => "plugin",
             Self::Popup => "popup",
-            Self::Update => "update",
             Self::Channel => "channel",
         }
     }
@@ -46,7 +45,6 @@ fn reached(words: &[&str]) -> Option<Withheld> {
     match words {
         ["plugin", ..] => Some(Withheld::Plugin),
         ["popup", ..] => Some(Withheld::Popup),
-        ["update", ..] => Some(Withheld::Update),
         ["channel", ..] => Some(Withheld::Channel),
         _ => None,
     }

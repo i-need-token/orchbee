@@ -62,7 +62,7 @@ const settleDeadline = 180_000;
 const settleInterval = 3_000;
 // The release surfaces a release build withholds (apps/orchbee/src/invocation/grammar/release.rs);
 // a refusal exits 4.
-const withheldCommands = [['plugin'], ['popup'], ['update'], ['channel']];
+const withheldCommands = [['plugin'], ['popup'], ['channel']];
 const withheldStatus = 4;
 const silentSwitches = ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'];
 // Bounds of the name scan below each profile folder.

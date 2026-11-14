@@ -3,8 +3,8 @@
 //! This proves verification, staging, publication, reuse and activation through the pointer, not
 //! Server, Worker or Host behavior, the completion helper's own signature check, or a PATH step.
 use super::super::{
-    Error, Report, StorageCause, StorageReason, complete, engine,
-    install::Completion,
+    Context, Error, Report, StorageCause, StorageReason, complete, document, engine,
+    install::{Activation, Completion},
     signature::{TEST_TABLE, TrustedKey},
 };
 use super::install_fixture::{Fixture, context, in_process_completion, pointer, print_probe};
@@ -142,22 +142,26 @@ struct Run {
 }
 
 fn run(fixture: &Fixture, keys: &[TrustedKey]) -> Run {
+    update(
+        fixture,
+        &fixture.0.join("source"),
+        keys,
+        in_process_completion,
+    )
+}
+
+/// One update from the local feed `source` into the fixture's store, completing with `activation`.
+fn update(fixture: &Fixture, source: &Path, keys: &[TrustedKey], activation: Activation) -> Run {
     let data = fixture.0.join("data");
     let state = move |name: &str| (name == "ORCHBEE_HOME").then(|| data.clone().into_os_string());
     let inputs = engine::Inputs {
         channel: None,
         state: &state,
-        manifest_source: Some(
-            fixture
-                .0
-                .join("source/release.json")
-                .to_string_lossy()
-                .into_owned(),
-        ),
+        manifest_source: Some(source.join("release.json").to_string_lossy().into_owned()),
         keys,
         install_root: Ok(fixture.0.join("install")),
         probe: print_probe,
-        activation: in_process_completion,
+        activation,
     };
     let mut context = context();
     let mut report = Report::new();
@@ -332,20 +336,12 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
         assert_eq!(pointer(&root).unwrap().active, entry_for("0.1.0", &bytes));
     }
 
-    // An existing version directory is verified before reuse and never overwritten: another
-    // manifest under the same version is a conflict, and a damaged copy fails verification.
+    // An existing version directory is never overwritten: another manifest under the same version
+    // is a conflict.
     let other = manifest(&source, |value| value["buildId"] = json!("other"));
     publish_feed(&source, &other, Some(&sign(&other)));
     assert_eq!(code(&run(&fixture, TEST_TABLE)), "version-conflict");
     assert_eq!(fs::read(published.join("release.json")).unwrap(), bytes);
-    publish_feed(&source, &bytes, Some(&sign(&bytes)));
-    let server = published.join(CohortArtifact::Server.file_name());
-    let peer = fs::read(&server).unwrap();
-    fs::write(&server, b"damaged").unwrap();
-    assert_eq!(code(&run(&fixture, TEST_TABLE)), "checksum");
-    assert_eq!(fs::read(&server).unwrap(), b"damaged");
-    assert_eq!(pointer(&root).unwrap().active, entry_for("0.1.0", &bytes));
-    fs::write(&server, peer).unwrap();
     fs::write(published.join("release.json"), b"corrupt metadata").unwrap();
     assert_eq!(
         crate::cli::installation::inspect(&client, Some(&admitted), "0.1.0")
@@ -437,6 +433,81 @@ fn install_refuses_a_lower_version_unless_allowed_and_repairs_an_unreadable_poin
             "native-release"
         );
     }
+}
+
+/// A completion that never activates, for runs that must not complete anything.
+fn refused_completion(
+    _root: &Path,
+    _version: &Path,
+    _completion: Completion,
+    _context: &mut Context,
+) -> Result<(), Error> {
+    Err(Error::Activation)
+}
+
+/// The rendered `orchbee.update` document of a run, checked against its schema.
+fn rendered(run: &Run) -> Value {
+    let rendered = document(None, &run.report, run.result.err(), false);
+    let schema: Value =
+        serde_json::from_str(include_str!("../../schemas/orchbee.update.json")).unwrap();
+    assert!(
+        jsonschema::validator_for(&schema)
+            .unwrap()
+            .is_valid(&rendered),
+        "{rendered}"
+    );
+    rendered
+}
+
+#[test]
+fn update_is_up_to_date_on_the_active_release_and_on_a_lower_feed() {
+    let fixture = Fixture::new();
+    let root = fixture.0.join("install");
+    let mut feeds = Vec::new();
+    for (version, name) in [("0.1.0", "older"), ("0.2.0", "newer")] {
+        let source = fixture.0.join(name);
+        stage_cohort(&source, version);
+        let bytes = manifest(&source, |value| value["version"] = json!(version));
+        publish_feed(&source, &bytes, Some(&sign(&bytes)));
+        feeds.push((source, bytes));
+    }
+    let newer = entry_for("0.2.0", &feeds[1].1);
+    let installed = update(&fixture, &feeds[1].0, TEST_TABLE, in_process_completion);
+    assert_eq!(code(&installed), "complete");
+    assert_eq!(rendered(&installed)["result"]["upToDate"], false);
+
+    // The active release again: nothing is hashed or completed, so a damaged file goes unread and
+    // a completion that would fail never runs.
+    let server = root
+        .join("versions/0.2.0")
+        .join(CohortArtifact::Server.file_name());
+    fs::write(&server, b"damaged").unwrap();
+    let again = update(&fixture, &feeds[1].0, TEST_TABLE, refused_completion);
+    assert_eq!(code(&again), "complete");
+    let result = &rendered(&again)["result"];
+    assert_eq!(
+        (&result["upToDate"], &result["activated"], &result["reused"]),
+        (&json!(true), &json!(true), &json!(true)),
+        "{result}"
+    );
+    assert_eq!(pointer(&root).unwrap().active, newer);
+
+    // A feed pointed back to a lower version is nothing to do rather than a refusal: nothing is
+    // copied and the pointer stays.
+    let lower = update(&fixture, &feeds[0].0, TEST_TABLE, refused_completion);
+    assert_eq!(code(&lower), "complete");
+    let result = &rendered(&lower)["result"];
+    assert_eq!(
+        (
+            &result["upToDate"],
+            &result["activated"],
+            &result["releasePath"]
+        ),
+        (&json!(true), &json!(false), &Value::Null),
+        "{result}"
+    );
+    assert!(!root.join("versions/0.1.0").exists());
+    assert_eq!(pointer(&root).unwrap().active, newer);
 }
 
 /// Lets the built-in Users group change `folder` and everything below it, as a folder another

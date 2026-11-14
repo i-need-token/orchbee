@@ -356,9 +356,10 @@ impl super::CliText {
                 "Save the release channel and update.",
                 "保存更新频道并执行更新。",
             ),
-            HelpTopic::Command(CommandPath::Update) => {
-                ("Install the configured release.", "安装所选频道的版本。")
-            }
+            HelpTopic::Command(CommandPath::Update) => (
+                "Install the newest version of the channel.",
+                "安装所在频道的最新版本。",
+            ),
             HelpTopic::Command(CommandPath::Install) => (
                 "Install this release and make it active.",
                 "安装此版本并设为当前版本。",

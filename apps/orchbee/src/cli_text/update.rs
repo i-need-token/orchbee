@@ -3,10 +3,12 @@ use super::Locale;
 impl super::CliText {
     pub(crate) fn cli_update_message(self, code: &str) -> &'static str {
         let pair = match code {
+            "updated-to" => ("Updated to ", "已更新到 "),
             "complete" => (
-                "Update installed and active. Existing sessions keep their current version.",
-                "更新已安装并启用；现有会话继续运行原版本。",
+                "Running terminals and Agents keep their version; open Orchbee again to use the new one.",
+                "运行中的终端和智能体保持原版本；重新打开 Orchbee 即可使用新版本。",
             ),
+            "up-to-date" => ("Up to date: ", "已是最新版本："),
             "channel-saved" => (
                 "Channel preference saved. It remains saved if the update fails.",
                 "频道偏好已保存；更新失败时也会保留该偏好。",
@@ -61,16 +63,16 @@ impl super::CliText {
                 "安装目录中是另一种处理器架构的 Orchbee，未做任何改动。",
             ),
             "non-release-build" => (
-                "This is a development or test build, so it does not update the release installation. Nothing was changed.",
-                "当前是开发或测试构建，不会更新正式版安装，未做任何改动。",
+                "This is a development build, so it does not update. Nothing was changed. Use a release or test package.",
+                "当前是开发构建，不能更新，未做任何改动。请使用正式版或测试包。",
             ),
             "configuration" => (
                 "Cannot read or save configuration. Run orchbee config check.",
                 "无法读取或保存配置。请运行 orchbee config check。",
             ),
             "source-unconfigured" => (
-                "Set ORCHBEE_UPDATE_MANIFEST to an Orchbee HTTPS release manifest or an absolute local manifest path, then retry orchbee update.",
-                "请将 ORCHBEE_UPDATE_MANIFEST 设置为 Orchbee HTTPS 发布清单或本地清单的绝对路径，再重试 orchbee update。",
+                "This build has no release feed of its own. Set ORCHBEE_UPDATE_MANIFEST to an Orchbee HTTPS release manifest or an absolute local manifest path, then retry orchbee update.",
+                "此构建没有自带的发布源。请将 ORCHBEE_UPDATE_MANIFEST 设置为 Orchbee HTTPS 发布清单或本地清单的绝对路径，再重试 orchbee update。",
             ),
             "source-invalid" => (
                 "Invalid release source. ORCHBEE_UPDATE_MANIFEST must be an HTTPS URL without a query or an absolute local manifest path.",

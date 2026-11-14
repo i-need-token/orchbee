@@ -94,6 +94,46 @@ fn curl_stream_limit_and_https_resolution_do_not_silently_degrade() {
     assert_windows_source_compatibility(&longest, Some(&path));
 }
 
+/// curl receives `SystemRoot` and the three proxy variables that are set, and nothing else of the
+/// environment: no other proxy, credential, curlrc or TLS setting reaches it.
+#[cfg(windows)]
+#[test]
+fn curl_receives_only_the_proxy_variables_of_the_environment() {
+    use std::{collections::BTreeMap, ffi::OsString};
+    let environment = |name: &str| -> Option<OsString> {
+        [
+            ("HTTPS_PROXY", "http://127.0.0.1:9"),
+            ("ALL_PROXY", "socks5h://127.0.0.1:9"),
+            ("NO_PROXY", "localhost"),
+            ("http_proxy", "http://127.0.0.1:9"),
+            ("CURL_HOME", r"C:\elsewhere"),
+            ("SSLKEYLOGFILE", r"C:\keys.log"),
+            ("PATH", r"C:\tools"),
+        ]
+        .into_iter()
+        .find(|(key, _)| *key == name)
+        .map(|(_, value)| value.into())
+    };
+    let names = |command: &Command| -> BTreeMap<String, bool> {
+        command
+            .get_envs()
+            .map(|(name, value)| (name.to_string_lossy().into_owned(), value.is_some()))
+            .collect()
+    };
+    let command = platform::curl_command_from(&environment).unwrap();
+    assert_eq!(
+        names(&command),
+        BTreeMap::from(
+            ["ALL_PROXY", "HTTPS_PROXY", "NO_PROXY", "SystemRoot"].map(|name| (name.into(), true))
+        )
+    );
+    let quiet = platform::curl_command_from(&|_| None).unwrap();
+    assert_eq!(
+        names(&quiet),
+        BTreeMap::from([("SystemRoot".to_owned(), true)])
+    );
+}
+
 /// The previous native implementation is an independent witness for the shared lexical model.
 #[cfg(windows)]
 fn assert_windows_source_compatibility(value: &str, actual: Option<&LocalPath>) {

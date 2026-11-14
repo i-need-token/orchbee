@@ -5,7 +5,7 @@ use super::{
     Context, Error, Report,
     acquire::Source,
     complete,
-    install::{self, Activation, Completion, Probe},
+    install::{self, Activation, Completion, Probe, Standing},
     manifest::{self, Release},
     signature::{self, Refusal, TrustedKey},
 };
@@ -48,6 +48,10 @@ pub(super) struct InstallInputs<'a> {
 /// cannot be saved or read stops the run with its typed reason in `report`. A channel switch is
 /// the person's choice, so it may move to a lower version.
 ///
+/// The run finishes as up to date, with nothing hashed, published or completed, when the pointer
+/// already names the admitted release, and when the feed offers a version lower than the active
+/// one without a channel switch: a channel pointed back after a bad release is nothing to do.
+///
 /// # Errors
 /// Returns the first refusal or failure; `report` keeps the phase and every committed effect.
 pub(super) fn run(
@@ -86,7 +90,22 @@ pub(super) fn run(
         path: complete::PATH_STEP_BUILT,
         allow_downgrade: inputs.channel.is_some(),
     };
-    install::admit_store(&root, &release, completion.allow_downgrade, report)?;
+    match install::admit_store(&root, &release, report)? {
+        Standing::Active => {
+            report.published = Some(root.join("versions").join(&release.version));
+            report.reused = true;
+            report.activated = true;
+            report.up_to_date = true;
+            report.phase = "complete";
+            return Ok(());
+        }
+        Standing::Lower if !completion.allow_downgrade => {
+            report.up_to_date = true;
+            report.phase = "complete";
+            return Ok(());
+        }
+        Standing::Admitted | Standing::Lower => {}
+    }
     report.phase = "download";
     let path = install::publish(
         &root,
@@ -141,7 +160,12 @@ pub(super) fn install(
     report.version = Some(release.version.clone());
     report.build_id = Some(release.build_id.clone());
     let root = inputs.install_root.clone()?;
-    install::admit_store(&root, &release, inputs.completion.allow_downgrade, report)?;
+    // Run from a version directory of the store, install verifies and activates that version again.
+    if install::admit_store(&root, &release, report)? == Standing::Lower
+        && !inputs.completion.allow_downgrade
+    {
+        return Err(Error::DowngradeRefused);
+    }
     report.phase = "copy";
     let path = install::publish(
         &root,

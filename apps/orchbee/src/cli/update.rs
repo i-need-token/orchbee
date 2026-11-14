@@ -235,6 +235,9 @@ struct Report {
     build_id: Option<String>,
     /// The version the pointer named active before this run, once read.
     active_before: Option<String>,
+    /// The update found the channel's release already active, or a lower one on the feed, and
+    /// changed nothing.
+    up_to_date: bool,
     /// Why the settings file could not be saved or read, once that stopped the run.
     configuration_failure: Option<super::configuration::Error>,
 }
@@ -252,6 +255,7 @@ impl Report {
             version: None,
             build_id: None,
             active_before: None,
+            up_to_date: false,
             configuration_failure: None,
         }
     }
@@ -276,6 +280,7 @@ fn document(
             "channel":report.channel.or(channel).map(UpdateChannel::as_str),
             "phase":report.phase, "channelSaved":report.channel_saved, "configPath":report.config_path,
             "releasePath":report.published, "reused":report.reused, "activated":report.activated,
+            "upToDate":report.up_to_date,
             "releaseVersion":report.version, "buildId":report.build_id, "cleanupPending":report.cleanup_pending,
             "error":error.map(Error::code), "interrupted":interrupted,
             "configurationFailure":report.configuration_failure.as_ref()
@@ -449,8 +454,9 @@ pub(crate) fn run(
     let mut report = Report::new();
     let result = (|| {
         context.check()?;
-        // A development or test cohort must never write the release installation or its channel.
-        if !CohortArtifact::has_release_names() {
+        // A development cohort never installs or saves a channel. A test cohort updates as its
+        // `install` does: with the test key its build compiled, into its own store by default.
+        if environment_kind() == EnvironmentKind::Development {
             return Err(Error::NonReleaseBuild);
         }
         let environment = |name: &str| std::env::var_os(name);
@@ -480,6 +486,19 @@ pub(crate) fn run(
             match document["result"]["configurationFailure"].as_object() {
                 // The typed reason and its fix come from the same details the JSON form carries.
                 Some(failure) => text.push_str(&configuration_text(failure, locale)),
+                // One line naming the version that stays active.
+                None if settled.error.is_none() && report.up_to_date => {
+                    text.push_str(CliText::new(locale).cli_update_message("up-to-date"));
+                    text.push_str(report.active_before.as_deref().unwrap_or_default());
+                    text.push('\n');
+                }
+                None if settled.error.is_none() => {
+                    text.push_str(CliText::new(locale).cli_update_message("updated-to"));
+                    text.push_str(report.version.as_deref().unwrap_or_default());
+                    text.push('\n');
+                    text.push_str(CliText::new(locale).cli_update_message("complete"));
+                    text.push('\n');
+                }
                 None => {
                     text.push_str(
                         CliText::new(locale)
@@ -499,7 +518,7 @@ pub(crate) fn run(
                     }
                 }
             }
-            if let Some(line) = client_line(&report) {
+            if let Some(line) = client_line(&report).filter(|_| !report.up_to_date) {
                 text.push_str(&line);
                 text.push('\n');
             }

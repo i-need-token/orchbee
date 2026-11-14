@@ -95,49 +95,74 @@ pub(super) fn run_completion(
     }
 }
 
-/// The active version a store's pointer names, read without the writer lock; a missing root or an
+/// The active entry a store's pointer names, read without the writer lock; a missing root or an
 /// unreadable pointer names none.
-pub(super) fn active_version(root: &Path) -> Option<String> {
+fn active_entry(root: &Path) -> Option<Entry> {
     read_pointer(root)
         .ok()
         .flatten()
         .and_then(|bytes| Pointer::parse(&bytes))
-        .map(|pointer| pointer.active.product)
+        .map(|pointer| pointer.active)
+}
+
+/// Where a release stands against the store's active version.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(super) enum Standing {
+    /// No version is active, or the active one orders at or below the release.
+    Admitted,
+    /// The pointer's active entry is this release and its version directory holds this manifest.
+    Active,
+    /// The active version orders above the release.
+    Lower,
 }
 
 /// Refuses `release` before anything is written when the store's active version is for another
-/// platform, because the store holds one architecture, or when it orders above `release` and the
-/// person did not allow a downgrade. Records the active version it compared with.
+/// platform, because the store holds one architecture; otherwise says where `release` stands
+/// against the active version. Records the active version it compared with. Reading the stored
+/// manifest is the only file access: nothing is hashed.
 pub(super) fn admit_store(
     root: &Path,
     release: &Release,
-    allow_downgrade: bool,
     report: &mut Report,
-) -> Result<(), Error> {
-    report.active_before = active_version(root);
-    let Some(active) = &report.active_before else {
-        return Ok(());
+) -> Result<Standing, Error> {
+    let active = active_entry(root);
+    report.active_before = active.as_ref().map(|entry| entry.product.clone());
+    let Some(active) = active else {
+        return Ok(Standing::Admitted);
     };
-    if active_platform(root, active).is_some_and(|platform| platform != own_platform()) {
+    let stored = stored_manifest(root, &active.product);
+    let platform = stored
+        .as_deref()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(bytes).ok())
+        .and_then(|value| value.get("platform")?.as_str().map(str::to_owned));
+    if platform.is_some_and(|platform| platform != own_platform()) {
         return Err(Error::OtherArchitecture);
     }
-    if !allow_downgrade && compare_product_versions(active, &release.version) == Ordering::Greater {
-        return Err(Error::DowngradeRefused);
-    }
-    Ok(())
+    let release_entry = Entry {
+        product: release.version.clone(),
+        manifest: release.identity.clone(),
+    };
+    Ok(
+        if active == release_entry && stored.as_deref() == Some(release.encoded.as_slice()) {
+            Standing::Active
+        } else if compare_product_versions(&active.product, &release.version) == Ordering::Greater {
+            Standing::Lower
+        } else {
+            Standing::Admitted
+        },
+    )
 }
 
-/// The platform the active version's manifest names, when it can be read. The pointer admitted
-/// `active` as a version name.
-fn active_platform(root: &Path, active: &str) -> Option<String> {
+/// The `release.json` the version directory `version` holds, when it can be read. The pointer
+/// admitted `version` as a version name.
+fn stored_manifest(root: &Path, version: &str) -> Option<Vec<u8>> {
     let mut bytes = Vec::new();
-    open_release_file(&root.join("versions").join(active), "release.json")
+    open_release_file(&root.join("versions").join(version), "release.json")
         .ok()?
         .take(MANIFEST_LIMIT as u64 + 1)
         .read_to_end(&mut bytes)
         .ok()?;
-    let value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-    value.get("platform")?.as_str().map(str::to_owned)
+    Some(bytes)
 }
 
 /// Verifies every file of `release` in a private stage, runs `probe` on the staged Client, and

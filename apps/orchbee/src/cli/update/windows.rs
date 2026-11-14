@@ -3,6 +3,7 @@
 use super::{Context, path_value::Edit};
 use orchbee_local_runtime::CommandOutput;
 use std::{
+    ffi::OsString,
     fs::{File, OpenOptions},
     io,
     os::windows::fs::{MetadataExt, OpenOptionsExt},
@@ -11,9 +12,26 @@ use std::{
 };
 use winsafe::{self as w, co};
 
-/// `ORCHBEE_UPDATE_MANIFEST`; an absent or non-Unicode value leaves the source unconfigured.
+/// The release feed a release build updates from when `ORCHBEE_UPDATE_MANIFEST` is unset, before
+/// `{channel}` expansion; `{platform}` is this updater's own platform. The host name is the
+/// owner's to change until the first version that carries it ships, and fixed from then on.
+const RELEASE_FEED: &str = "https://dl.orchbee.com/{channel}/{platform}/release.json";
+
+/// The proxy variables curl reads for an HTTPS transfer, the only part of this process's
+/// environment it receives. Windows looks environment names up without regard to case, so each
+/// name also finds its lower-case spelling, which curl prefers on other systems (curl(1),
+/// "ENVIRONMENT").
+const PROXY_VARIABLES: [&str; 3] = ["HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"];
+
+/// `ORCHBEE_UPDATE_MANIFEST`; when it is unset or empty, the release feed for a release build and
+/// nothing for a development or test build, so only a release build ever reads the feed. A
+/// non-Unicode value leaves the source unconfigured.
 pub(super) fn manifest_source() -> Option<String> {
-    std::env::var("ORCHBEE_UPDATE_MANIFEST").ok()
+    match std::env::var_os("ORCHBEE_UPDATE_MANIFEST") {
+        Some(value) if !value.is_empty() => value.into_string().ok(),
+        _ => orchbee_local_runtime::is_release()
+            .then(|| RELEASE_FEED.replace("{platform}", &super::manifest::own_platform())),
+    }
 }
 
 /// `ORCHBEE_INSTALL_DIR`, or `%LOCALAPPDATA%\Programs\Orchbee` for release and
@@ -69,6 +87,14 @@ pub(super) fn open_source_file(path: &Path) -> io::Result<File> {
 }
 
 pub(super) fn curl_command() -> io::Result<Command> {
+    curl_command_from(&|name| std::env::var_os(name))
+}
+
+/// The system curl with a cleared environment holding only `SystemRoot` and the [`PROXY_VARIABLES`]
+/// that `environment` sets, so no curlrc location, credential or other proxy setting reaches it.
+pub(super) fn curl_command_from(
+    environment: &dyn Fn(&str) -> Option<OsString>,
+) -> io::Result<Command> {
     let system = winsafe::GetSystemDirectory().map_err(io::Error::other)?;
     let mut command = Command::new(PathBuf::from(&system).join("curl.exe"));
     command.env_clear().env(
@@ -77,6 +103,11 @@ pub(super) fn curl_command() -> io::Result<Command> {
             .parent()
             .ok_or(io::ErrorKind::NotFound)?,
     );
+    for name in PROXY_VARIABLES {
+        if let Some(value) = environment(name) {
+            command.env(name, value);
+        }
+    }
     Ok(command)
 }
 

@@ -145,9 +145,11 @@ orchbee workspace list --format json | ConvertFrom-Json
 ## Further capabilities
 
 Use help for metadata reporting, Agent view filters, attention/acknowledgement, terminal graphics, layout export/apply, notifications, configured commands, manifest maintenance, configuration reload. Some are Windows-only; the installed grammar owns admission and effect details.
+
+`update` installs the newest version of the channel beside the running one; running terminals and Agents keep their version. Its JSON `upToDate` is true when there was nothing newer and nothing changed.
 <!-- unreleased -->
 
-Help also covers update and channel selection. `channel set` saves its selection and starts an update attempt, so inspect both the saved setting and update result.
+Help also covers channel selection. `channel set` saves its selection and starts an update attempt, so inspect both the saved setting and update result.
 <!-- /unreleased -->
 
 Detailed behavior and maintenance contracts are indexed in [the native CLI reference](native-cli-query.md) and [the application README](../README.md). Prefer the installed build's help and schemas for executable discovery.

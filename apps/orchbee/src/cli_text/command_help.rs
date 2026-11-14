@@ -390,11 +390,11 @@ impl super::CliText {
             ),
             (Locale::EnUs, CommandPath::Update) => crate::cli_text::HelpDetails::new(
                 "orchbee update [--format text|json]",
-                "Install the configured channel as a complete immutable Windows cohort.\nORCHBEE_UPDATE_MANIFEST: explicit HTTPS URL or absolute local manifest path; {channel} expands to stable or preview.\nORCHBEE_INSTALL_DIR defaults to %LOCALAPPDATA%/Programs/Orchbee.\nValidates every file, publishes versions/<version>, then makes it the active version. Existing sessions keep their version.\nTotal deadline: 600 seconds. Ctrl+C cancels; receipts retain published paths and cleanup obligations.",
+                "Install the newest Orchbee of the configured channel beside the running one and make it the version that starts next.\nRunning terminals and Agents keep their version; open Orchbee again to use the new one. Says it is up to date when the channel offers nothing newer.\nReads the Orchbee release feed. ORCHBEE_UPDATE_MANIFEST names another HTTPS URL or an absolute local manifest path; {channel} expands to stable or preview.\nHTTPS_PROXY, ALL_PROXY and NO_PROXY reach the download; no other proxy setting is read.\nORCHBEE_INSTALL_DIR defaults to %LOCALAPPDATA%/Programs/Orchbee. Every file is checked against the signed manifest before versions/<version> is published; the installation's bin folder is added to the user Path.\nTotal deadline: 600 seconds. Ctrl+C cancels; receipts retain published paths and cleanup obligations.",
             ),
             (Locale::ZhCn, CommandPath::Update) => crate::cli_text::HelpDetails::new(
                 "orchbee update [--format text|json]",
-                "按配置的频道安装完整、独立的 Windows cohort。\nORCHBEE_UPDATE_MANIFEST：显式 HTTPS URL 或本地清单绝对路径；{channel} 替换为 stable 或 preview。\nORCHBEE_INSTALL_DIR 默认为 %LOCALAPPDATA%/Programs/Orchbee。逐文件校验并发布到 versions/<版本>，再设为当前版本；现有会话保留原版本。总时限 600 秒。Ctrl+C 取消；回执保留已发布路径和待清理项。",
+                "把所配置频道的最新 Orchbee 安装在当前版本旁边，并设为下次启动的版本。\n运行中的终端和智能体保持原版本；重新打开 Orchbee 即可使用新版本。频道没有更新的版本时提示已是最新。\n读取 Orchbee 发布源。ORCHBEE_UPDATE_MANIFEST 可指定其他 HTTPS URL 或本地清单绝对路径；{channel} 替换为 stable 或 preview。\nHTTPS_PROXY、ALL_PROXY 和 NO_PROXY 会用于下载；不读取其他代理设置。\nORCHBEE_INSTALL_DIR 默认为 %LOCALAPPDATA%/Programs/Orchbee。发布到 versions/<版本> 之前逐文件按已签名清单校验；安装目录的 bin 文件夹会加入用户 Path。\n总时限 600 秒。Ctrl+C 取消；回执保留已发布路径和待清理项。",
             ),
             (Locale::EnUs, CommandPath::Install) => crate::cli_text::HelpDetails::new(
                 "orchbee install [--no-path] [--allow-downgrade] [--format text|json]",
