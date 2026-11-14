@@ -182,6 +182,15 @@ impl Picker {
         self.waiting_deferred = None;
     }
 
+    /// Carries the person's choice on the notice the last frame showed to discovery. The shell
+    /// calls it before discovery takes the hub's news, so a login another interface claimed in
+    /// the meantime still counts as accepted here and its notice says why it closed.
+    pub fn carry_waiting(&mut self, discovery: &mut Discovery) {
+        if let Some((login, accept)) = self.waiting.as_mut().and_then(|notice| notice.act.take()) {
+            discovery.login_offer_act(login, accept);
+        }
+    }
+
     /// Carries the person's choice to discovery and shows the offer discovery presents now: as a
     /// notice unless `held`, in which case one not shown yet waits and the status line names its
     /// Machine. True when anything shown changed.
@@ -191,9 +200,7 @@ impl Picker {
         held: bool,
         now: Instant,
     ) -> bool {
-        if let Some((login, accept)) = self.waiting.as_mut().and_then(|notice| notice.act.take()) {
-            discovery.login_offer_act(login, accept);
-        }
+        self.carry_waiting(discovery);
         let before = (self.waiting.clone(), self.waiting_deferred.clone());
         let offered = discovery.login_offered();
         self.waiting = match (self.waiting.take(), offered.clone()) {

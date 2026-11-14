@@ -332,6 +332,9 @@ impl Manager {
         change.redraw |= view
             .machines
             .observe_native_navigation(choice(self.current.as_ref()), navigation);
+        // The person chose on the notice the last frame showed: that choice lands before the
+        // hub's news since, so an Enter that met another interface's claim reads as taken.
+        view.machines.carry_waiting(&mut self.discovery);
         self.discovery.tick(now);
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
         // The login question the hub put to this TUI, and the person's act on the last one.
