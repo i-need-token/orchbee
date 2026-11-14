@@ -175,7 +175,10 @@ impl Picker {
         };
         match proposal {
             // A fresh id each time: a retry never reuses the id of the add it replaces.
-            Ok(proposal) => discovery.add(proposal),
+            Ok(proposal) => {
+                form.adding = Some((proposal.id.clone(), proposal.draft.label.clone()));
+                discovery.add(proposal);
+            }
             Err(problem) => {
                 form.check = None;
                 form.problem = Some(problem.unwrap_or(Problem::Address));

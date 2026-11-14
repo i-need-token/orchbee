@@ -229,6 +229,81 @@ fn after_a_failed_add_and_esc_a_selections_login_asks() {
     assert!(bench.discovery.login_active(&other));
 }
 
+/// Evidence gap: the first real ssh login titled an add's login overlay with the draft's 32-hex
+/// id, which the person never saw, because the machine has no row until it is saved. Rule: while a
+/// machine is being added, its login names it as the form will save it.
+#[test]
+fn an_adds_login_names_the_machine_as_typed_never_by_its_draft_id() {
+    use crate::machine_login::Notice as Login;
+    use orchbee_machine_protocol::{AnswerToken, Id, PathText, Prompt, hub};
+    const PROMPT: &str = "user@devbox2's password: ";
+    let mut bench = Bench::open(None);
+    bench.send(DOWN);
+    bench.send(DOWN);
+    bench.send(b"\r");
+    bench.send(b"user@devbox2\tlabbox\r");
+    // The store is only read, so its folder is never made.
+    let root = std::env::temp_dir().join(format!(
+        "orchbee-machine-test-{}",
+        ProfileId::generate().unwrap().as_str()
+    ));
+    let store = crate::machines::Store::in_data_root(orchbee_local_runtime::DataRoot::at(
+        root.join("machines"),
+    ));
+    bench
+        .view
+        .machines
+        .exchange_manage(&mut bench.discovery, Some(&store), Instant::now());
+    assert!(!root.exists());
+    let Page::Add(form) = &bench.manage().page else {
+        panic!("the form stays open while the add runs");
+    };
+    let (draft, _) = form
+        .adding
+        .clone()
+        .expect("the add started under a draft id");
+
+    let login = Id::new(1).unwrap();
+    bench.discovery.wait_for(Some(&draft));
+    let target = |_: &str| Some("user@devbox2".to_owned());
+    let logins = bench.discovery.logins_mut();
+    logins.notice(
+        Login::Claimed {
+            login,
+            machine: draft.as_str().to_owned(),
+        },
+        target,
+    );
+    logins.notice(
+        Login::Question(hub::Question {
+            login,
+            question: Id::new(1).unwrap(),
+            kind: crate::machine_question::classify(PROMPT),
+            prompt: Prompt::new(PROMPT).unwrap(),
+            repeated: false,
+            remembered_rejected: false,
+            answer: hub::AnswerEndpoint {
+                endpoint: PathText::new("answer").unwrap(),
+                token: AnswerToken::from_bytes([7; 16]),
+            },
+        }),
+        target,
+    );
+    bench.view.machines.exchange_login(&mut bench.discovery);
+    assert!(
+        bench.view.machines.login().is_some(),
+        "the question is shown"
+    );
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let text = bench.paint(locale);
+        assert!(text.contains("labbox"), "{locale:?}: {text}");
+        assert!(!text.contains(draft.as_str()), "{locale:?}: {text}");
+    }
+}
+
 #[test]
 fn the_menu_opens_on_f2_and_its_items_act_on_the_machine() {
     let mut bench = Bench::open(None);

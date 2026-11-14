@@ -179,7 +179,8 @@ impl Picker {
         self.login.is_some()
     }
 
-    /// The name the picker shows for the Machine the login is for.
+    /// The name the picker shows for the Machine the login is for; for the machine being added,
+    /// the name the form will save it with.
     pub(crate) fn login_label(&self) -> Option<&str> {
         let machine = &self.login.as_ref()?.presented.machine;
         self.rows
@@ -190,6 +191,14 @@ impl Picker {
                     && matches!(&row.choice, Choice::Remote(id) if id.as_str() == machine)
             })
             .map(|row| row.label.as_str())
+            .or_else(|| match self.manage.page() {
+                super::Page::Add(form) => form
+                    .adding
+                    .as_ref()
+                    .filter(|(id, _)| id.as_str() == machine)
+                    .map(|(_, label)| label.as_str()),
+                _ => None,
+            })
     }
 
     /// Routes a key to the open login overlay; false when none is open.

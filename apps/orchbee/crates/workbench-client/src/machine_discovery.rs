@@ -635,11 +635,14 @@ impl Discovery {
                     },
                     _,
                 ) => {
+                    // The machine being added has no catalog entry yet: its draft names it.
                     let label = self
                         .entries
                         .iter()
-                        .find(|entry| entry.profile.id.as_str() == machine)
-                        .map_or(machine.as_str(), |entry| entry.profile.draft.label.as_str());
+                        .map(|entry| (&entry.profile.id, &entry.profile.draft))
+                        .chain(self.adding.as_ref().map(|add| (&add.id, &add.draft)))
+                        .find(|(id, _)| id.as_str() == machine)
+                        .map_or(machine.as_str(), |(_, draft)| draft.label.as_str());
                     self.credentials
                         .remember(&machine, kind, answer, label, self.wakeup.clone());
                 }

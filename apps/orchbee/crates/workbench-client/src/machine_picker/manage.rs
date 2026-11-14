@@ -87,7 +87,8 @@ pub(crate) enum Page {
     Confirm {
         machine: ProfileId,
     },
-    Add(AddForm),
+    /// Boxed: the form outweighs every other page.
+    Add(Box<AddForm>),
 }
 
 /// The page kinds a painted target is closed over.
@@ -116,6 +117,9 @@ pub(crate) struct AddForm {
     pub(crate) reading: Option<crate::machine_ssh_config::HostRead>,
     pub(crate) check: Option<Check>,
     pub(crate) problem: Option<Problem>,
+    /// The id the add in progress is checked under and the name it will be saved with, so its
+    /// login names the machine as the person typed it, never by that id.
+    pub(crate) adding: Option<(ProfileId, String)>,
 }
 
 /// How the add in progress stands, as the form shows it.
@@ -421,7 +425,7 @@ impl Picker {
 
     pub(super) fn open_add(&mut self) {
         self.manage.add_focused = true;
-        self.manage.set_page(Page::Add(AddForm {
+        self.manage.set_page(Page::Add(Box::new(AddForm {
             address: LineEditor::new(String::new(), LengthLimit::Scalars(FIELD_LIMIT)),
             name: LineEditor::new(String::new(), LengthLimit::Scalars(NAME_LIMIT)),
             field: Field::Address,
@@ -431,7 +435,8 @@ impl Picker {
             reading: None,
             check: None,
             problem: None,
-        }));
+            adding: None,
+        })));
     }
 
     pub(super) fn open_menu(&mut self, index: usize) -> bool {
