@@ -9,6 +9,7 @@ export const enUSAgentIntegrationMessages = {
 		'This check starts {agent} to read its plugins, and {agent} may create its own files when it starts. Orchbee changes nothing. Choose Explain to start the check.',
 	'agent.integrations.consent.title': 'Check {agent}?',
 	'agent.integrations.diagnosis.close': 'Close',
+	'agent.integrations.diagnosis.details': 'Details',
 	'agent.integrations.diagnosis.pending': 'Checking this integration on this device…',
 	'agent.integrations.diagnosis.readOnly':
 		'Read-only check: nothing was changed and no Agent program was started.',
@@ -37,17 +38,17 @@ export const enUSAgentIntegrationMessages = {
 	'agent.integrations.failure.manualActionRequired':
 		'This step needs manual review in the Agent. No further changes were made automatically.',
 	'agent.integrations.failure.operationFailed':
-		'The integration command did not complete. The detected state is shown below.',
+		"Couldn't change the plugin. Its current state is shown below.",
 	'agent.integrations.failure.verificationFailed':
-		'Orchbee could not verify the requested state. Refresh after checking the Agent configuration.',
-	'agent.integrations.finding.agentMissing': 'Definitely missing: the Agent',
-	'agent.integrations.finding.conflict': 'Blocked by a conflict',
-	'agent.integrations.finding.disabled': 'Turned off',
-	'agent.integrations.finding.manualSetup': 'Manual setup',
-	'agent.integrations.finding.notInstalled': 'Definitely missing: the integration',
-	'agent.integrations.finding.ready': 'Ready',
-	'agent.integrations.finding.unknown': 'Result unknown',
-	'agent.integrations.finding.updateRequired': 'Update needed',
+		"Couldn't confirm the plugin's state. Check the Agent's configuration, then refresh.",
+	'agent.integrations.finding.agentMissing': "{agent} isn't installed.",
+	'agent.integrations.finding.conflict': 'Another plugin or file is in the way.',
+	'agent.integrations.finding.disabled': 'The plugin is off.',
+	'agent.integrations.finding.manualSetup': '{agent} needs manual setup.',
+	'agent.integrations.finding.notInstalled': "The plugin isn't installed.",
+	'agent.integrations.finding.ready': 'The plugin is on.',
+	'agent.integrations.finding.unknown': "Couldn't read the plugin's state.",
+	'agent.integrations.finding.updateRequired': 'The plugin needs an update.',
 	'agent.integrations.findingDetail.disabled':
 		'The integration is installed but turned off. Turn it on to use it.',
 	'agent.integrations.findingDetail.inspectionFailed':

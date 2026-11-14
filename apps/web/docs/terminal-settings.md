@@ -424,12 +424,14 @@ Each row's Explain button runs one `explain` job for that Agent, under the same 
 opens its diagnosis beneath the row until Close. For an Agent read only through its own program,
 the first Explain only opens the question "Check <Agent>?" beneath the row: the check starts that
 program, which may create its own files, and Orchbee changes nothing. Explain again runs it, and
-Explain on an open diagnosis reruns it. Every result closes with what the check did: "Read-only
-check: nothing was changed and no Agent program was started.", or, for those Agents, that Orchbee
-changed nothing and the check starts the Agent when needed. The headline separates a definite
-finding (Ready, Manual setup, "Definitely missing: the Agent", "Definitely missing: the
-integration", Turned off, Update needed, Blocked by a conflict) from "Result unknown", which a
-timed-out, unreadable or undetermined inspection and an unfinished job produce. The facts follow
+Explain on an open diagnosis reruns it. A result is one sentence first, such as "Claude Code isn't
+installed." or "The plugin is off.", and a definite finding (on, manual setup, the Agent or the
+plugin not installed, off, an update needed, a conflict) stays apart from "Couldn't read the
+plugin's state.", which a timed-out, unreadable or undetermined inspection and an unfinished job
+produce. Everything else waits under a Details disclosure that starts closed: the explanation, the
+facts, and what the check did, "Read-only check: nothing was changed and no Agent program was
+started.", or, for those Agents, that Orchbee changed nothing and the check starts the Agent when
+needed. The question before such a check shows its explanation without Details. The facts follow
 `orchbee agent integration explain`: Agent presence, integration status, any issue, the Orchbee
 adapter, the provider's marketplace and plugin or guarded entry and adapter source, and what
 turning it on would do: consecutive commands of one program name its executable file name once and

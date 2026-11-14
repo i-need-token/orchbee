@@ -37,6 +37,7 @@ export interface AgentIntegrationSettingsRowView {
 
 export interface AgentIntegrationSettingsView {
 	readonly closeDiagnosisLabel: string;
+	readonly detailsLabel: string;
 	readonly disclosure: string;
 	readonly explainText: string;
 	readonly failure: string | null;
@@ -159,7 +160,13 @@ interface AgentIntegrationDiagnosisFact {
 
 export interface AgentIntegrationDiagnosisView {
 	readonly detail: string | null;
+	/**
+	 * Whether the detail, the facts and the read-only note wait under Details, so the headline's one
+	 * sentence is all that shows at first. A question shows its detail, since it explains the answer.
+	 */
+	readonly disclosed: boolean;
 	readonly facts: readonly AgentIntegrationDiagnosisFact[];
+	/** One sentence: what the check found, or the question it asks. */
 	readonly headline: string;
 	readonly pending: boolean;
 	/** What the check changed and started, or null while nothing has run. */
@@ -174,6 +181,7 @@ export function resolveAgentIntegrationConsentView(
 ): AgentIntegrationDiagnosisView {
 	return {
 		detail: format(agentIntegrationMessages.consentDetail, { agent: agentName }),
+		disclosed: false,
 		facts: [],
 		headline: format(agentIntegrationMessages.consentTitle, { agent: agentName }),
 		pending: false,
@@ -216,6 +224,7 @@ export function resolveAgentIntegrationDiagnosisView(
 		case 'pending':
 			return {
 				detail: null,
+				disclosed: false,
 				facts: [],
 				headline: format(agentIntegrationMessages.diagnosisPending),
 				pending: true,
@@ -225,6 +234,7 @@ export function resolveAgentIntegrationDiagnosisView(
 		case 'failed':
 			return {
 				detail: format(resolveAgentIntegrationFailureMessage(diagnosis.code)),
+				disclosed: true,
 				facts: [],
 				headline: format(agentIntegrationMessages.findingUnknown),
 				pending: false,
@@ -234,15 +244,15 @@ export function resolveAgentIntegrationDiagnosisView(
 		case 'explained': {
 			const { explanation } = diagnosis;
 			const finding = resolveAgentIntegrationFinding(explanation);
+			const agent = format(AGENT_INTEGRATION_NAME_MESSAGES[diagnosis.integrationId]);
 			return {
 				detail: format(FINDING_DETAILS[finding]),
+				disclosed: true,
 				facts: explanationFacts(explanation, format, formatList),
-				headline: format(FINDING_HEADLINES[finding]),
+				headline: format(FINDING_HEADLINES[finding], { agent }),
 				pending: false,
 				readOnly: explainStartsAgent(explanation.item)
-					? format(agentIntegrationMessages.diagnosisStarted, {
-							agent: format(AGENT_INTEGRATION_NAME_MESSAGES[diagnosis.integrationId]),
-						})
+					? format(agentIntegrationMessages.diagnosisStarted, { agent })
 					: readOnly,
 				tone: FINDING_TONES[finding],
 			};

@@ -20,6 +20,10 @@ export const agentIntegrationMessages = defineMessages({
 	),
 	description: message('agent.integrations.description'),
 	diagnosisClose: message('agent.integrations.diagnosis.close'),
+	diagnosisDetails: message(
+		'agent.integrations.diagnosis.details',
+		'Label of the closed disclosure under the one-sentence check result that holds its facts.',
+	),
 	diagnosisPending: message('agent.integrations.diagnosis.pending'),
 	diagnosisReadOnly: message('agent.integrations.diagnosis.readOnly'),
 	diagnosisStarted: message(
@@ -51,7 +55,10 @@ export const agentIntegrationMessages = defineMessages({
 	failureManualActionRequired: message('agent.integrations.failure.manualActionRequired'),
 	failureOperationFailed: message('agent.integrations.failure.operationFailed'),
 	failureVerificationFailed: message('agent.integrations.failure.verificationFailed'),
-	findingAgentMissing: message('agent.integrations.finding.agentMissing'),
+	findingAgentMissing: message(
+		'agent.integrations.finding.agentMissing',
+		'One-sentence result of a check. agent is a curated product name.',
+	),
 	findingConflict: message('agent.integrations.finding.conflict'),
 	findingDetailDisabled: message('agent.integrations.findingDetail.disabled'),
 	findingDetailInspectionFailed: message('agent.integrations.findingDetail.inspectionFailed'),
@@ -62,7 +69,10 @@ export const agentIntegrationMessages = defineMessages({
 	findingDetailUndetermined: message('agent.integrations.findingDetail.undetermined'),
 	findingDetailUpdateRequired: message('agent.integrations.findingDetail.updateRequired'),
 	findingDisabled: message('agent.integrations.finding.disabled'),
-	findingManualSetup: message('agent.integrations.finding.manualSetup'),
+	findingManualSetup: message(
+		'agent.integrations.finding.manualSetup',
+		'One-sentence result of a check. agent is a curated product name.',
+	),
 	findingNotInstalled: message('agent.integrations.finding.notInstalled'),
 	findingReady: message('agent.integrations.finding.ready'),
 	findingUnknown: message('agent.integrations.finding.unknown'),

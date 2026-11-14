@@ -120,6 +120,7 @@ export function useAgentIntegrationSettings(
 	});
 	return {
 		closeDiagnosisLabel: intl.formatMessage(agentIntegrationMessages.diagnosisClose),
+		detailsLabel: intl.formatMessage(agentIntegrationMessages.diagnosisDetails),
 		disclosure: intl.formatMessage(agentIntegrationMessages.disclosure),
 		explainText: intl.formatMessage(agentIntegrationMessages.actionExplain),
 		failure:

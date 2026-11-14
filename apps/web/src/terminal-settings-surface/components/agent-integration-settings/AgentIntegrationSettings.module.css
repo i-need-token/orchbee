@@ -54,6 +54,21 @@
 	font: var(--ob-sys-typography-body-sm);
 }
 
+.detailsSummary {
+	width: fit-content;
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-sm);
+	cursor: pointer;
+}
+
+.detailsSummary:hover {
+	color: var(--ob-sys-color-text-primary);
+}
+
+.detailsSummary ~ * {
+	margin-block-start: var(--ob-ref-space-2);
+}
+
 .facts {
 	display: grid;
 	grid-template-columns: max-content minmax(var(--ob-ref-space-0), 1fr);

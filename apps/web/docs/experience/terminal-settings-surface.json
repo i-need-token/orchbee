@@ -125,7 +125,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-agents",
 			"states": [
-				"Inspect the resume-on-restore switch and the Agent integrations card: one line per Agent with its status description, Explain on hover, an inspected-state switch and the diagnosis panel under its row, the filter box above more than eight entries, and the Refresh action."
+				"Inspect the resume-on-restore switch and the Agent integrations card: one line per Agent with its status description, Explain on hover, an inspected-state switch and the diagnosis panel under its row with its one-sentence result and its closed Details, the filter box above more than eight entries, and the Refresh action."
 			]
 		},
 		{

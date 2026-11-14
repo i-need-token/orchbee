@@ -11,6 +11,7 @@ import { SettingsListFilterEmpty } from '../settings-list-filter-empty/SettingsL
 import { SettingsRow } from '../settings-row/SettingsRow';
 import { useAgentIntegrationSettings } from './hooks/useAgentIntegrationSettings';
 import type {
+	AgentIntegrationDiagnosisView,
 	AgentIntegrationSettingsRowView,
 	AgentIntegrationSettingsView,
 } from './model/agent-integration-settings-view';
@@ -130,6 +131,26 @@ function AgentIntegrationDiagnosis({ row, view }: AgentIntegrationDiagnosisProps
 			<p aria-live='polite' className={styles['status']} data-tone={diagnosis.tone}>
 				{diagnosis.headline}
 			</p>
+			{diagnosis.disclosed ? (
+				<details>
+					<summary className={styles['detailsSummary']}>{view.detailsLabel}</summary>
+					<AgentIntegrationDiagnosisBody diagnosis={diagnosis} />
+				</details>
+			) : (
+				<AgentIntegrationDiagnosisBody diagnosis={diagnosis} />
+			)}
+		</section>
+	);
+}
+
+/** What the check read beyond its one sentence, and what it changed and started. */
+function AgentIntegrationDiagnosisBody({
+	diagnosis,
+}: {
+	readonly diagnosis: AgentIntegrationDiagnosisView;
+}): React.ReactNode {
+	return (
+		<>
 			{diagnosis.detail === null ? null : (
 				<p className={styles['diagnosisText']}>{diagnosis.detail}</p>
 			)}
@@ -146,6 +167,6 @@ function AgentIntegrationDiagnosis({ row, view }: AgentIntegrationDiagnosisProps
 			{diagnosis.pending || diagnosis.readOnly === null ? null : (
 				<p className={styles['diagnosisText']}>{diagnosis.readOnly}</p>
 			)}
-		</section>
+		</>
 	);
 }
