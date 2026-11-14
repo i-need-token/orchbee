@@ -547,13 +547,23 @@ impl WorkbenchClientState {
             );
             return;
         }
-        // A Panel that already holds a retained close keeps that close and its report; a close that
-        // cannot be retained leaves the Panel drawn until publication removes it.
+        // A Panel whose retained close is still on its way keeps that close and its report; a close
+        // that cannot be retained leaves the Panel drawn until publication removes it. A Panel whose
+        // retained close stopped stays drawn until a read finds the close on its way again.
         if self
             .retain_panel_close(accepted, operation.admitted_at())
             .is_ok()
+            && let Some(terminal_context_id) = self.cache.terminal_context_id()
         {
-            self.begin_panel_leaving(tab_id, operation.panel_id());
+            let target = CloseTarget::panel(
+                self.cache.session_id().clone(),
+                terminal_context_id.clone(),
+                tab_id.clone(),
+                operation.panel_id().clone(),
+            );
+            if self.close.panel_close_stopped(&target) == Some(false) {
+                self.begin_panel_leaving(tab_id, operation.panel_id());
+            }
         }
     }
 
@@ -595,7 +605,11 @@ impl WorkbenchClientState {
     /// confirms the leaf the user already sees. When the Tab draws no other Panel, the Tab leaves
     /// with this one, which keeps the focus as the Tab's last frame. Without a live survivor the
     /// leaf keeps drawing until the publication removes it.
-    fn begin_panel_leaving(&mut self, tab_id: &WorkbenchTabId, panel_id: &WorkbenchPanelId) {
+    pub(super) fn begin_panel_leaving(
+        &mut self,
+        tab_id: &WorkbenchTabId,
+        panel_id: &WorkbenchPanelId,
+    ) {
         let Some(index) = self.cache.tab_index(tab_id) else {
             return;
         };

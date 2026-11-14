@@ -1779,6 +1779,54 @@ fn accepted_panel_close_that_stops_shows_the_panel_again_with_its_report() {
     }
 }
 
+/// A Panel whose accepted close stopped, closed again and accepted again, follows that close again
+/// as a re-closed Tab does: the Panel stays drawn and unreported until the first read, which takes
+/// it out when the close is on its way again and shows the report again when it is still stopped.
+#[test]
+fn a_reclosed_stopped_panel_follows_its_close_again() {
+    let blocked = || WorkbenchTabCloseStatus::CleanupBlocked {
+        reason: WorkbenchTabCloseBlockedReason::HostRefused,
+        resumable: true,
+    };
+    let closing = WorkbenchTabCloseStatus::Closing {
+        phase: WorkbenchTabClosePhase::WaitingGrace,
+    };
+    for (answer, leaves) in [(closing, true), (blocked(), false)] {
+        let now = Instant::now();
+        let mut state = split_ready();
+        super::attach_nonfirst_leaf(&mut state);
+        let operation = plan(&state, 70_170, PanelRequestKind::Close);
+        assert!(state.begin_panel(operation.clone()));
+        let accepted = WorkbenchPanelCloseAccepted {
+            close_request_id: WorkbenchRequestId::parse(&id(70_170)).unwrap(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
+            tab_id: operation.target().tab_id().clone(),
+            panel_id: operation.panel_id().clone(),
+            accepted_revision: WorkbenchRevision::new(1),
+        };
+        let prepared =
+            state.prepare_panel(&operation, PanelResult::CloseAccepted(accepted.clone()));
+        assert_eq!(
+            state.apply_prepared_panel(prepared),
+            PanelDecision::Continue
+        );
+        answer_next_panel_close_read(&mut state, 70_171, now, |_| blocked());
+        assert!(drawn_panels(&state).contains(operation.panel_id()));
+        assert!(state.view().announced_close_status().unwrap().stopped());
+
+        // The Server continues the stopped close under its own operation.
+        state.leave_accepted_panel_close(&operation, &accepted);
+        assert!(drawn_panels(&state).contains(operation.panel_id()));
+        assert!(state.view().announced_close_status().is_none());
+
+        let later = now + CLOSE_READ_SPACING;
+        answer_next_panel_close_read(&mut state, 70_172, later, |_| answer.clone());
+        assert_eq!(drawn_panels(&state).contains(operation.panel_id()), !leaves);
+        let report = state.view().announced_close_status();
+        assert_eq!(report.is_some_and(|report| report.stopped()), !leaves);
+    }
+}
+
 /// Brings `panel` of the selected Tab to a live attachment, which a local focus move onto it needs.
 fn attach_panel(state: &mut WorkbenchClientState, panel: &WorkbenchPanelId) {
     let index = state.active().unwrap().index();

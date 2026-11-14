@@ -267,6 +267,21 @@ impl CloseRecord {
         self.unavailable || self.uncertain || !self.progressing()
     }
 
+    /// Restarts the follow of a stopped close submitted or accepted again: unreported for the
+    /// pending delay from `submitted_at`, what it removes still shown, until its first read finds
+    /// the close on its way again or still stopped.
+    fn restart_follow(&mut self, submitted_at: Instant) {
+        self.submitted_at = submitted_at;
+        self.announced = false;
+        self.initial_read_pending = true;
+        self.displayed = false;
+    }
+
+    /// Whether this is a stopped close closed again that waits for its first read.
+    fn restarted_awaiting_read(&self) -> bool {
+        self.initial_read_pending && self.stopped()
+    }
+
     fn leaving(&self, tab_id: &WorkbenchTabId) -> bool {
         self.selection.target.panel_id.is_none()
             && self.selection.target.tab_id() == tab_id
@@ -559,10 +574,7 @@ impl CloseState {
         if let Some(index) = self.record_index(&selection.target) {
             let record = &mut self.records[index];
             if record.stopped() {
-                record.submitted_at = submitted_at;
-                record.announced = false;
-                record.initial_read_pending = true;
-                record.displayed = false;
+                record.restart_follow(submitted_at);
             }
             return Ok(());
         }
@@ -575,17 +587,24 @@ impl CloseState {
 
     /// Retains a close the Server accepted from a request this Client sent as a Panel action, and
     /// follows it from its first status read as a submitted Tab close is followed: the close of a
-    /// Tab's last Panel as the close of that Tab, any other as the close of its Panel. A target that
-    /// already holds a retained close keeps that record.
+    /// Tab's last Panel as the close of that Tab, any other as the close of its Panel. A target
+    /// whose retained close stopped restarts that record's follow, as a stopped Tab closed again
+    /// does; a target whose retained close is still on its way keeps that record.
     fn retain_accepted(
         &mut self,
         selection: CloseSelection,
         accepted: &WorkbenchTabCloseAccepted,
         submitted_at: Instant,
     ) -> Result<(), CloseStateError> {
-        if self.record_index(&selection.target).is_some()
-            || self.records.len() == MAXIMUM_CLOSE_RECORDS
-        {
+        if let Some(index) = self.record_index(&selection.target) {
+            if !self.records[index].stopped() {
+                return Err(CloseStateError::Busy);
+            }
+            self.record_acceptance(&selection.target, accepted)?;
+            self.records[index].restart_follow(submitted_at);
+            return Ok(());
+        }
+        if self.records.len() == MAXIMUM_CLOSE_RECORDS {
             return Err(CloseStateError::Busy);
         }
         let target = selection.target.clone();
@@ -769,8 +788,8 @@ impl CloseState {
 impl super::WorkbenchClientState {
     /// Follows the accepted close of a Tab's last Panel as the close of that Tab, which it is on the
     /// Server: from this acceptance the Tab leaves the Client's view, the selection follows it, and
-    /// its status reads and report are those of any accepted Tab close. Refused while the
-    /// Tab already holds a retained close, which keeps its own record and report.
+    /// its status reads and report are those of any accepted Tab close. A Tab whose retained close
+    /// stopped restarts that close's follow; one whose close is still on its way keeps its record.
     pub(super) fn retain_last_panel_close(
         &mut self,
         accepted: &WorkbenchTabCloseAccepted,
@@ -786,8 +805,8 @@ impl super::WorkbenchClientState {
 
     /// Follows the accepted close of one Panel of several as the close of that Panel, by its
     /// operation: a read that sees it stop shows the Panel again with its report, and a completed
-    /// close or the publication removing the Panel ends the follow. Refused while the Panel already
-    /// holds a retained close, which keeps its own record and report.
+    /// close or the publication removing the Panel ends the follow. A Panel whose retained close
+    /// stopped restarts that close's follow; one whose close is still on its way keeps its record.
     pub(super) fn retain_panel_close(
         &mut self,
         accepted: &WorkbenchPanelCloseAccepted,

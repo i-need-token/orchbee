@@ -4,7 +4,7 @@
 
 use super::{
     CloseConfirmationToken, CloseFlightKey, CloseIntent, CloseSelection, CloseState,
-    CloseStateError,
+    CloseStateError, CloseTarget,
 };
 use crate::exchange_values::workbench::{WorkbenchTabCloseAccepted, WorkbenchTabClosePrecommit};
 use crate::workbench_state::{AttachmentKey, ClientNotice, ClientPhase, WorkbenchClientState};
@@ -661,10 +661,12 @@ impl WorkbenchClientState {
         if self.close.pending.as_ref() != Some(operation) {
             return Err(CloseStateError::OperationMismatch);
         }
+        let restarted = self.restarted_panel_close(operation);
         self.close.apply_result(operation, result)?;
         self.close.retain_reconciliation_origin(operation, result)?;
         self.close.pending = None;
         self.settle_panel_close_follow();
+        self.rejoin_restarted_panel_close(restarted);
         // The single worker cannot execute a successor before consuming this exact UI reply.
         self.close.completed_handoff =
             Some(PendingCloseResult::new(operation.clone(), result.clone()));
@@ -696,6 +698,7 @@ impl WorkbenchClientState {
                 Err(CloseStateError::FactRegression)
             };
         }
+        let restarted = self.restarted_panel_close(pending.operation());
         let result = self
             .close
             .apply_result(pending.operation(), pending.result())
@@ -707,7 +710,33 @@ impl WorkbenchClientState {
             self.close.pending = None;
         }
         self.settle_panel_close_follow();
+        self.rejoin_restarted_panel_close(restarted);
         result
+    }
+
+    /// The Panel close that `operation` reads when that close stopped and was closed again, so it
+    /// still waits for its first read with its Panel drawn.
+    fn restarted_panel_close(&self, operation: &CloseOperation) -> Option<CloseTarget> {
+        let target = operation.key().target();
+        (target.panel_id().is_some()
+            && matches!(operation.kind(), CloseOperationKind::Read { .. })
+            && self
+                .close
+                .record_index(target)
+                .is_some_and(|index| self.close.records[index].restarted_awaiting_read()))
+        .then(|| target.clone())
+    }
+
+    /// Takes out the Panel of a stopped close closed again once its first read finds the close on
+    /// its way again, as its acceptance would have; a read that finds it still stopped leaves the
+    /// Panel drawn with its report.
+    fn rejoin_restarted_panel_close(&mut self, restarted: Option<CloseTarget>) {
+        if let Some(target) = restarted
+            && let Some(panel_id) = target.panel_id()
+            && self.close.panel_close_stopped(&target) == Some(false)
+        {
+            self.begin_panel_leaving(target.tab_id(), panel_id);
+        }
     }
 
     #[cfg(test)]

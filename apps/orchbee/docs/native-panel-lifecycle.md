@@ -111,17 +111,21 @@ progressing again leaves the Panel drawn. The publication that removes the Panel
 whatever the last read said. Retained Panel closes share the one-at-a-time read pacing, so more of
 them never read more often. Between their reads the follows hold no navigation or structure, and
 their reads never refuse the Tab's other Panels: their input, attachment and effects carry on. A
-Panel that already holds a retained close keeps that record and its report and keeps drawing; a
-close that cannot be retained starts no overlay, and the leaf keeps drawing until publication
-removes it.
+Panel whose retained close is still on its way keeps that record and its report and keeps drawing;
+a close that cannot be retained starts no overlay, and the leaf keeps drawing until publication
+removes it. Closing a Panel whose close stopped behaves as closing a stopped Tab does: once the
+Server accepts it again, the record restarts its follow, unreported for the pending delay, and the
+Panel stays drawn until a read finds the close `closing` again, when it leaves as at its first
+acceptance; a read that still finds it stopped shows the sentence again.
 
 A Tab's last Panel has no sibling to collapse onto. The Server admits its close as the close of the
 whole Tab, so its `Accepted` is retained as an accepted Tab close of that Tab instead of this
 overlay: the Tab leaves the strip and sidebar at once, the selection moves to the next Tab still
 shown, else the previous one, and the close is read and reported as any accepted Tab close is ([close status](native-tab-close-sets.md#close-status)). A close that stops
 or loses its observation shows the Tab again with its report and leaves the selection where it
-moved. A Tab that already holds a retained close keeps that record, and its last Panel keeps
-drawing until publication removes it. Which Panel is last follows the cached canonical tree: while
+moved. A Tab whose retained close is still on its way keeps that record, and its last Panel keeps
+drawing until publication removes it; a Tab whose close stopped restarts that close's follow, as a
+re-closed Tab does. Which Panel is last follows the cached canonical tree: while
 other Panels of the Tab are still leaving, the Server closes the last drawn one as a Panel too, and
 the Tab leaves with all of them as above.
 
