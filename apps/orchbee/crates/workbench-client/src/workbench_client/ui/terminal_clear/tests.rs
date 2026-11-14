@@ -13,10 +13,6 @@ fn clear_admission_never_writes_input_or_canonical_membership_and_stale_feedback
     let lease = mailbox.try_recv().unwrap().unwrap();
     assert!(matches!(lease.record(), QueuedCommand::ClearTerminal(tagged) if tagged.key() == &key));
     assert_eq!(ui.state.as_ref().unwrap().cache(), &original);
-    assert_eq!(
-        ui.view().notice(),
-        Some(WorkbenchClientNotice::TerminalClearing)
-    );
     ui.apply_terminal_clear_outcome(key.clone(), TerminalControlOutcome::OutcomeUnknown {});
     assert_eq!(
         ui.view().notice(),

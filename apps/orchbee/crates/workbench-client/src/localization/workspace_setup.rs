@@ -143,24 +143,18 @@ impl Locale {
 }
 
 impl Locale {
-    pub(crate) const fn setup_tabs_committed_fact(self) -> &'static str {
-        match self {
-            Self::EnUs => "Tabs updated · do not resubmit",
-            Self::ZhCn => "标签页已更新 · 请勿重复提交",
-        }
-    }
-
+    /// After the connection ends, a change that landed says so, so the person does not repeat it.
     pub(crate) const fn setup_committed_fact(self) -> &'static str {
         match self {
-            Self::EnUs => "Setup committed · do not resubmit",
-            Self::ZhCn => "设置已提交 · 请勿重复提交",
+            Self::EnUs => "The change was saved.",
+            Self::ZhCn => "更改已保存。",
         }
     }
 
     pub(crate) const fn setup_workspace_directory_action(self) -> &'static str {
         match self {
-            Self::EnUs => "Workspace created · its first directory is not configured",
-            Self::ZhCn => "工作区已创建 · 尚未配置首个目录",
+            Self::EnUs => "This Workspace has no folder yet.",
+            Self::ZhCn => "这个工作区还没有目录。",
         }
     }
 
@@ -292,71 +286,44 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn setup_status(self, status: SetupStatus) -> &'static str {
-        match (self, status) {
+    /// What a setup outcome says, if anything: a change that landed shows itself.
+    pub(crate) const fn setup_status(self, status: SetupStatus) -> Option<&'static str> {
+        Some(match (self, status) {
             (_, SetupStatus::LaunchRequestTooLarge) => self.launch_request_too_large(),
-            (Self::EnUs, SetupStatus::PresentationUnavailable) => {
-                "Cannot open here: enlarge the terminal."
-            }
-            (Self::ZhCn, SetupStatus::PresentationUnavailable) => "终端尺寸不足，放大后重试。",
-            (Self::EnUs, SetupStatus::WorkspaceOrganized) => "Workspace organization updated",
-            (Self::ZhCn, SetupStatus::WorkspaceOrganized) => "工作区分组已更新",
-            (Self::EnUs, SetupStatus::ProjectDissolved) => {
-                "Project dissolved · Workspaces retained"
-            }
-            (Self::ZhCn, SetupStatus::ProjectDissolved) => "项目已解散 · 工作区已保留",
-            (Self::EnUs, SetupStatus::EmptyProjectDissolved) => "Project dissolved",
-            (Self::ZhCn, SetupStatus::EmptyProjectDissolved) => "项目已解散",
-            (Self::EnUs, SetupStatus::NavigationConfigured) => "Sidebar organization updated",
-            (Self::ZhCn, SetupStatus::NavigationConfigured) => "边栏排序和分组已更新",
-            (Self::EnUs, SetupStatus::TabsConfigured) => "Tabs updated",
-            (Self::ZhCn, SetupStatus::TabsConfigured) => "标签页已更新",
-            (Self::EnUs, SetupStatus::TabsNotApplied) => {
-                "Tabs not updated · check the target before trying again"
-            }
-            (Self::ZhCn, SetupStatus::TabsNotApplied) => "标签页未更新 · 请检查目标后再试",
-            (Self::EnUs, SetupStatus::TabsCommittedNeedRefresh) => {
-                "Tabs updated · recover the snapshot; do not resubmit"
-            }
-            (Self::ZhCn, SetupStatus::TabsCommittedNeedRefresh) => {
-                "标签页已更新 · 恢复快照；请勿重复提交"
-            }
-            (Self::EnUs, SetupStatus::TabsOutcomeUnknown) => {
-                "Tab update outcome unknown · connection retired; do not repeat the mutation"
-            }
-            (Self::ZhCn, SetupStatus::TabsOutcomeUnknown) => {
-                "标签页更新结果未知 · 连接已退役；请勿重复变更"
+            (_, SetupStatus::PresentationUnavailable) => self.presentation_notice(false),
+            (
+                _,
+                SetupStatus::WorkspaceOrganized
+                | SetupStatus::ProjectDissolved
+                | SetupStatus::EmptyProjectDissolved
+                | SetupStatus::NavigationConfigured
+                | SetupStatus::TabsConfigured
+                | SetupStatus::ProjectCreated
+                | SetupStatus::WorkspaceCreated
+                | SetupStatus::DirectoryAccepted,
+            ) => return None,
+            (Self::EnUs, SetupStatus::TabsNotApplied) => "Couldn't update the Tabs.",
+            (Self::ZhCn, SetupStatus::TabsNotApplied) => "没能更新标签页。",
+            // The change landed but this window cannot show it until the person refreshes.
+            (
+                Self::EnUs,
+                SetupStatus::TabsCommittedNeedRefresh | SetupStatus::CommittedNeedRefresh,
+            ) => "Couldn't show the latest change.",
+            (
+                Self::ZhCn,
+                SetupStatus::TabsCommittedNeedRefresh | SetupStatus::CommittedNeedRefresh,
+            ) => "没能显示最新的更改。",
+            (_, SetupStatus::TabsOutcomeUnknown | SetupStatus::OutcomeUnknown) => {
+                self.outcome_unknown()
             }
             (_, SetupStatus::LocationLabel { target, status }) => {
-                self.location_label_status(target, status)
+                return self.location_label_status(target, status);
             }
-            (Self::EnUs, SetupStatus::NotApplied) => {
-                "Workspace setup not applied · check the target and input before trying again"
+            (Self::EnUs, SetupStatus::NotApplied | SetupStatus::Stale) => {
+                "Couldn't apply the change."
             }
-            (Self::ZhCn, SetupStatus::NotApplied) => "工作区设置未应用 · 请检查目标及输入后再试",
-            (Self::EnUs, SetupStatus::Stale) => "Setup not applied · Workbench changed",
-            (Self::ZhCn, SetupStatus::Stale) => "设置未应用 · 工作台已变化",
-            (Self::EnUs, SetupStatus::ProjectCreated) => {
-                "Project created · the committed Project is retained"
-            }
-            (Self::ZhCn, SetupStatus::ProjectCreated) => "项目已创建 · 已提交的项目会保留",
-            (Self::EnUs, SetupStatus::WorkspaceCreated) => "Workspace created",
-            (Self::ZhCn, SetupStatus::WorkspaceCreated) => "工作区已创建",
-            (Self::EnUs, SetupStatus::DirectoryAccepted) => {
-                "Directory configured · ready to launch a terminal"
-            }
-            (Self::ZhCn, SetupStatus::DirectoryAccepted) => "目录已配置 · 可以启动终端",
-            (Self::EnUs, SetupStatus::CommittedNeedRefresh) => {
-                "Setup committed · recover the snapshot; do not resubmit"
-            }
-            (Self::ZhCn, SetupStatus::CommittedNeedRefresh) => {
-                "设置已提交 · 恢复快照；请勿重复提交"
-            }
-            (Self::EnUs, SetupStatus::OutcomeUnknown) => {
-                "Setup outcome unknown · connection retired; do not repeat the mutation"
-            }
-            (Self::ZhCn, SetupStatus::OutcomeUnknown) => "设置结果未知 · 连接已退役；请勿重复变更",
-        }
+            (Self::ZhCn, SetupStatus::NotApplied | SetupStatus::Stale) => "没能应用更改。",
+        })
     }
 
     pub(crate) fn setup_directory_ready(self, path: &str) -> String {

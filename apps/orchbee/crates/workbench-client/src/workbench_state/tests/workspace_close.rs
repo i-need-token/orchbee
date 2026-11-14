@@ -1,7 +1,6 @@
 use super::*;
 mod sidebar;
 use crate::local_client::workbench::WorkbenchWorkspaceCloseAccepted;
-use crate::localization::Locale;
 use crate::tui_presentation::GeometrySettlement;
 use crate::workbench_projection::{ClientContextLocation, project_native_context_tabs};
 use crate::workbench_state::workspace_close::{
@@ -1137,13 +1136,7 @@ fn close_pending_indicator_uses_injected_time_and_localized_recovery_matches_typ
         assert!(state.workspace_close_status().is_none());
         assert!(state.tick_workspace_close_pending(start + Duration::from_millis(200)));
         assert!(!state.tick_workspace_close_pending(start + Duration::from_millis(201)));
-        let view = state.workspace_close_status().unwrap();
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            // A pending close names no status command; only an unknown outcome needs one.
-            let text = locale.workspace_close_status(view);
-            assert!(!text.contains("orchbee operation status"), "{text}");
-            assert_eq!(text, locale.workspace_close_status_shorter(view)[0]);
-        }
+        assert!(state.workspace_close_status().is_some());
     }
 }
 

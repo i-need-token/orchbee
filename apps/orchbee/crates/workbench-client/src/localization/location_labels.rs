@@ -36,88 +36,48 @@ impl Locale {
         }
     }
 
+    /// What a rename says, if anything: a rename that landed, or changed nothing, shows itself.
     pub(crate) const fn location_label_status(
         self,
         target: LocationLabelTarget,
         status: LocationLabelStatus,
-    ) -> &'static str {
+    ) -> Option<&'static str> {
         use LocationLabelStatus as Status;
         use LocationLabelTarget as Target;
-        match (self, target, status) {
-            (Self::EnUs, Target::Project, Status::Unavailable) => {
-                "No current Project to rename · no command was sent"
-            }
-            (Self::ZhCn, Target::Project, Status::Unavailable) => {
-                "当前没有可重命名的项目 · 未发送命令"
-            }
-            (Self::EnUs, Target::Workspace, Status::Unavailable) => {
-                "No current Workspace to rename · no command was sent"
-            }
-            (Self::ZhCn, Target::Workspace, Status::Unavailable) => {
-                "当前没有可重命名的工作区 · 未发送命令"
-            }
-            (Self::EnUs, Target::Project, Status::NotApplied) => "Project rename not applied",
-            (Self::ZhCn, Target::Project, Status::NotApplied) => "项目重命名未应用",
-            (Self::EnUs, Target::Workspace, Status::NotApplied) => "Workspace rename not applied",
-            (Self::ZhCn, Target::Workspace, Status::NotApplied) => "工作区重命名未应用",
-            // Any Workbench revision change refuses the rename, so the fact never claims that
-            // this label changed; it stays short enough for the Compact content status line.
-            (Self::EnUs, Target::Project, Status::Stale) => {
-                "Project not renamed · Workbench changed"
-            }
-            (Self::ZhCn, Target::Project, Status::Stale) => "项目未重命名 · 工作台已变化",
-            (Self::EnUs, Target::Workspace, Status::Stale) => {
-                "Workspace not renamed · Workbench changed"
-            }
-            (Self::ZhCn, Target::Workspace, Status::Stale) => "工作区未重命名 · 工作台已变化",
-            (Self::EnUs, Target::Project, Status::Unchanged) => "Project label unchanged",
-            (Self::ZhCn, Target::Project, Status::Unchanged) => "项目名称未更改",
-            (Self::EnUs, Target::Workspace, Status::Unchanged) => "Workspace label unchanged",
-            (Self::ZhCn, Target::Workspace, Status::Unchanged) => "工作区名称未更改",
-            (Self::EnUs, Target::Project, Status::Renamed) => "Project renamed",
-            (Self::ZhCn, Target::Project, Status::Renamed) => "项目已重命名",
-            (Self::EnUs, Target::Workspace, Status::Renamed) => "Workspace renamed",
-            (Self::ZhCn, Target::Workspace, Status::Renamed) => "工作区已重命名",
-            (Self::EnUs, Target::Project, Status::CommittedNeedRefresh) => {
-                "Project rename result retained · recover the snapshot; do not resubmit"
-            }
-            (Self::ZhCn, Target::Project, Status::CommittedNeedRefresh) => {
-                "项目重命名结果已保留 · 恢复快照；请勿重复提交"
-            }
-            (Self::EnUs, Target::Workspace, Status::CommittedNeedRefresh) => {
-                "Workspace rename result retained · recover the snapshot; do not resubmit"
-            }
-            (Self::ZhCn, Target::Workspace, Status::CommittedNeedRefresh) => {
-                "工作区重命名结果已保留 · 恢复快照；请勿重复提交"
-            }
-            (Self::EnUs, Target::Project, Status::OutcomeUnknown) => {
-                "Project rename outcome unknown · connection retired; do not repeat the mutation"
-            }
-            (Self::ZhCn, Target::Project, Status::OutcomeUnknown) => {
-                "项目重命名结果未知 · 连接已退役；请勿重复变更"
-            }
-            (Self::EnUs, Target::Workspace, Status::OutcomeUnknown) => {
-                "Workspace rename outcome unknown · connection retired; do not repeat the mutation"
-            }
-            (Self::ZhCn, Target::Workspace, Status::OutcomeUnknown) => {
-                "工作区重命名结果未知 · 连接已退役；请勿重复变更"
-            }
-        }
+        Some(match (self, target, status) {
+            (_, _, Status::Unchanged | Status::Renamed) => return None,
+            (_, _, Status::OutcomeUnknown) => self.outcome_unknown(),
+            (
+                Self::EnUs,
+                Target::Project,
+                Status::Unavailable | Status::NotApplied | Status::Stale,
+            ) => "Couldn't rename the Project.",
+            (
+                Self::ZhCn,
+                Target::Project,
+                Status::Unavailable | Status::NotApplied | Status::Stale,
+            ) => "没能重命名项目。",
+            (
+                Self::EnUs,
+                Target::Workspace,
+                Status::Unavailable | Status::NotApplied | Status::Stale,
+            ) => "Couldn't rename the Workspace.",
+            (
+                Self::ZhCn,
+                Target::Workspace,
+                Status::Unavailable | Status::NotApplied | Status::Stale,
+            ) => "没能重命名工作区。",
+            // The rename landed but this window cannot show it until the person refreshes.
+            (Self::EnUs, _, Status::CommittedNeedRefresh) => "Couldn't show the new name.",
+            (Self::ZhCn, _, Status::CommittedNeedRefresh) => "没能显示新名称。",
+        })
     }
 
-    pub(crate) const fn location_rename_committed_fact(
-        self,
-        target: LocationLabelTarget,
-    ) -> &'static str {
-        match (self, target) {
-            (Self::EnUs, LocationLabelTarget::Project) => {
-                "Project rename result retained · do not resubmit"
-            }
-            (Self::ZhCn, LocationLabelTarget::Project) => "项目重命名结果已保留 · 请勿重复提交",
-            (Self::EnUs, LocationLabelTarget::Workspace) => {
-                "Workspace rename result retained · do not resubmit"
-            }
-            (Self::ZhCn, LocationLabelTarget::Workspace) => "工作区重命名结果已保留 · 请勿重复提交",
+    /// After the connection ends, a rename that landed says so, so the person does not repeat it.
+    pub(crate) const fn location_rename_committed_fact(self) -> &'static str {
+        match self {
+            Self::EnUs => "The new name was saved.",
+            Self::ZhCn => "新名称已保存。",
         }
     }
 

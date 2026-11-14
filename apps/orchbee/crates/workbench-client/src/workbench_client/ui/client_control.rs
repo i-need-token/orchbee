@@ -33,29 +33,33 @@ impl WorkbenchClientUi {
                         reason: F::PhysicalUnknown,
                     },
                 ..
-            }) => N::CommandUnknown,
-            Err(C::NotSubmitted) => N::CommandRefused(F::Unavailable),
-            Err(C::Refused(reason)) => N::CommandRefused(reason),
+            }) => Some(N::CommandUnknown),
+            Err(C::NotSubmitted) => Some(N::CommandRefused(F::Unavailable)),
+            Err(C::Refused(reason)) => Some(N::CommandRefused(reason)),
             Ok(orchbee_workbench_protocol::ConfiguredCommandResult {
                 outcome: O::Failed { reason },
                 ..
-            }) => N::CommandRefused(reason),
+            }) => Some(N::CommandRefused(reason)),
             Ok(reply) => match reply.outcome {
                 O::Pane { result, .. } => match result.outcome {
                     W::PanelSplitCreated {
                         terminal_outcome: T::Started { .. },
                         ..
-                    } => N::CommandAccepted,
+                    } => None,
                     W::PanelSplitCreated {
                         terminal_outcome: T::OutcomeUnknown {},
                         ..
-                    } => N::CommandUnknown,
+                    } => Some(N::CommandUnknown),
                     // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
-                    _ => N::CommandFailed,
+                    _ => Some(N::CommandFailed),
                 },
                 O::Plugin { result, .. } => match result.outcome {
-                    orchbee_workbench_protocol::PluginOutcome::Failed { .. } => N::CommandFailed,
-                    orchbee_workbench_protocol::PluginOutcome::Unknown { .. } => N::CommandUnknown,
+                    orchbee_workbench_protocol::PluginOutcome::Failed { .. } => {
+                        Some(N::CommandFailed)
+                    }
+                    orchbee_workbench_protocol::PluginOutcome::Unknown { .. } => {
+                        Some(N::CommandUnknown)
+                    }
                     orchbee_workbench_protocol::PluginOutcome::PopupOpened { .. }
                     | orchbee_workbench_protocol::PluginOutcome::PopupState { .. }
                     | orchbee_workbench_protocol::PluginOutcome::PopupClosed { .. }
@@ -65,48 +69,46 @@ impl WorkbenchClientUi {
                     | orchbee_workbench_protocol::PluginOutcome::PanelFound { .. }
                     | orchbee_workbench_protocol::PluginOutcome::Started { .. }
                     | orchbee_workbench_protocol::PluginOutcome::Logs { .. }
-                    | orchbee_workbench_protocol::PluginOutcome::Cancellation { .. } => {
-                        N::CommandAccepted
-                    }
+                    | orchbee_workbench_protocol::PluginOutcome::Cancellation { .. } => None,
                 },
                 O::PopupControl { result, .. } => {
                     if matches!(
                         result.outcome,
                         orchbee_workbench_protocol::ClientViewOutcome::Operation { ref operation } if matches!(operation.status, orchbee_workbench_protocol::ClientViewControlStatus::Queued {} | orchbee_workbench_protocol::ClientViewControlStatus::Delivered {})
                     ) {
-                        N::CommandAccepted
+                        None
                     } else {
-                        N::CommandFailed
+                        Some(N::CommandFailed)
                     }
                 }
-                O::ShellStarted { .. } => N::CommandAccepted,
+                O::ShellStarted { .. } => None,
                 O::Catalog { .. }
                 | O::PopupOpened { .. }
                 | O::PopupState { .. }
                 | O::PopupClosing { .. }
                 | O::PopupClosed { .. }
                 | O::PopupUnknown { .. }
-                | O::Failed { .. } => N::CommandFailed,
+                | O::Failed { .. } => Some(N::CommandFailed),
             },
         };
         let notice = match completion.focus {
-            Some(Err(true)) => N::CommandUnknown,
-            Some(Err(false)) => N::CommandFailed,
+            Some(Err(true)) => Some(N::CommandUnknown),
+            Some(Err(false)) => Some(N::CommandFailed),
             Some(Ok(result))
                 if !matches!(
                     result.outcome,
                     orchbee_workbench_protocol::ClientViewOutcome::Operation { ref operation } if matches!(operation.status, orchbee_workbench_protocol::ClientViewControlStatus::Queued {} | orchbee_workbench_protocol::ClientViewControlStatus::Delivered {})
                 ) =>
             {
-                N::CommandFailed
+                Some(N::CommandFailed)
             }
             // Only the completion for this requested Client operation can supply the observation consumed here.
             _ => notice,
         };
-        self.command_notice.set(Some((
-            notice,
-            self.clock.now() + std::time::Duration::from_secs(5),
-        )));
+        // A command that did what it asked says nothing more.
+        let until = self.clock.now() + std::time::Duration::from_secs(5);
+        self.command_notice
+            .set(notice.map(|notice| (notice, until)));
     }
     /// Canonical membership is checked before any Panel mode cancellation.
     pub(in crate::workbench_client) fn validate_panel_focus(

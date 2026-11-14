@@ -293,25 +293,10 @@ fn render_task(
             _ => locale.worktree_stage_notice(notice, stage),
         };
         rows.push(DialogRow::Status(text.into(), notice_role(notice)));
-        // An unknown result has one recovery, the status command.
-        if notice == WorktreeNotice::Unknown
-            && let Some(id) = view.operation_id()
-        {
-            rows.push(DialogRow::Command(
-                format!("orchbee operation status {}", sanitize_terminal_text(id)).into(),
-            ));
-        }
     }
     if let Some(progress) = view.removal_progress().filter(|_| !decision) {
-        if let Some(workspace) = view.held_close() {
+        if view.held_close().is_some() {
             rows.push(DialogRow::Prose(locale.worktree_remove_held_close().into()));
-            rows.push(DialogRow::Command(
-                format!(
-                    "orchbee workspace close {} --confirm",
-                    sanitize_terminal_text(workspace)
-                )
-                .into(),
-            ));
         } else {
             rows.push(DialogRow::Prose(
                 locale
@@ -319,10 +304,12 @@ fn render_task(
                     .into(),
             ));
         }
-        if let Some(restoration) = &progress.restoration {
-            rows.push(DialogRow::Prose(
-                locale.worktree_remove_restoration(restoration).into(),
-            ));
+        if let Some(text) = progress
+            .restoration
+            .as_ref()
+            .and_then(|restoration| locale.worktree_remove_restoration(restoration))
+        {
+            rows.push(DialogRow::Prose(text.into()));
         }
     }
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));

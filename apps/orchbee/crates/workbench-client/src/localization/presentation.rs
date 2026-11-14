@@ -23,8 +23,8 @@ impl Locale {
 
     pub(crate) const fn presentation_notice(self, recovery: bool) -> &'static str {
         match (self, recovery) {
-            (Self::EnUs, false) => "Cannot open here: enlarge the terminal.",
-            (Self::ZhCn, false) => "无法在此处打开：请放大终端。",
+            (Self::EnUs, false) => "Couldn't open it here. Enlarge the terminal.",
+            (Self::ZhCn, false) => "没能在这里打开。请放大终端。",
             (Self::EnUs, true) => "Paused: enlarge the terminal.",
             (Self::ZhCn, true) => "已暂停：请放大终端。",
         }

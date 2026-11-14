@@ -37,8 +37,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
         N::MoveOrderConflict,
         N::PanelNotApplied,
         N::RenameNotRenamed,
-        N::TerminalClearing,
-        N::TerminalCleared,
         N::TerminalClearUnconfirmed,
         N::TerminalClearRefused,
         N::TerminalClearUnavailable,
@@ -53,7 +51,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
         N::DraftCancelled,
         N::DialogRefused,
         N::ModalOwnsInput,
-        N::HistoryRecovering,
         N::HistoryUnavailable,
         N::HistoryPositionLost,
         N::CopyModeUnavailable,
@@ -78,16 +75,12 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
         N::PositionLocationChangedEmpty,
         N::PositionUnavailable,
         N::PopupUnavailable,
-        N::CommandAccepted,
         N::CommandFailed,
         N::CommandUnknown,
-        N::LaunchProfileSelected,
         N::LaunchProfileUnavailable,
         N::RestoreDirectoryUnavailable,
         N::RestoreAgentNotResumed,
         N::RestoreNotStarted,
-        N::LinkOpened,
-        N::LinkHandled,
         N::LinkNoLink,
         N::LinkBusy,
         N::LinkFailed,
@@ -217,8 +210,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             | N::MoveOrderConflict
             | N::PanelNotApplied
             | N::RenameNotRenamed
-            | N::TerminalClearing
-            | N::TerminalCleared
             | N::TerminalClearUnconfirmed
             | N::TerminalClearRefused
             | N::TerminalClearUnavailable
@@ -233,7 +224,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             | N::DraftCancelled
             | N::DialogRefused
             | N::ModalOwnsInput
-            | N::HistoryRecovering
             | N::HistoryUnavailable
             | N::HistoryPositionLost
             | N::CopyModeUnavailable
@@ -258,16 +248,12 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             | N::PositionLocationChangedEmpty
             | N::PositionUnavailable
             | N::PopupUnavailable
-            | N::CommandAccepted
             | N::CommandFailed
             | N::CommandUnknown
-            | N::LaunchProfileSelected
             | N::LaunchProfileUnavailable
             | N::RestoreDirectoryUnavailable
             | N::RestoreAgentNotResumed
             | N::RestoreNotStarted
-            | N::LinkOpened
-            | N::LinkHandled
             | N::LinkNoLink
             | N::LinkBusy
             | N::LinkFailed

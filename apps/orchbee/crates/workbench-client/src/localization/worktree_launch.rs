@@ -136,10 +136,10 @@ impl Locale {
     pub(crate) fn worktree_notice(self, notice: WorktreeNotice) -> &'static str {
         use WorktreeNotice as N;
         match (self, notice) {
-            (Self::EnUs, N::PresentationUnavailable) => "Cannot open here: enlarge the terminal.",
-            (Self::ZhCn, N::PresentationUnavailable) => "终端尺寸不足，放大后重试。",
-            (Self::EnUs, N::EntryDeferred) => "Workspace ready; select it in the navigator.",
-            (Self::ZhCn, N::EntryDeferred) => "工作区已就绪，可在导航中选择。",
+            (_, N::PresentationUnavailable) => self.presentation_notice(false),
+            (_, N::Unknown) => self.outcome_unknown(),
+            (Self::EnUs, N::EntryDeferred) => "The Workspace is ready. Select it in the sidebar.",
+            (Self::ZhCn, N::EntryDeferred) => "工作区已就绪。请在侧边栏中选择它。",
             (Self::EnUs, N::Preparing) => "Reading repository…",
             (Self::ZhCn, N::Preparing) => "正在读取仓库…",
             (Self::EnUs, N::InvalidInput) => "Use a valid branch and base.",
@@ -150,38 +150,29 @@ impl Locale {
                 "Source unavailable. Use a Workspace directory or an attached main terminal."
             }
             (Self::ZhCn, N::SourceUnavailable) => "来源不可用。请使用工作区目录或已连接的主终端。",
-            (Self::EnUs, N::ListingUnavailable) => {
-                "Could not list Git checkouts. Inspect with orchbee worktree list."
-            }
-            (Self::ZhCn, N::ListingUnavailable) => {
-                "无法列举 Git 检出目录。请用 orchbee worktree list 检查。"
-            }
+            (Self::EnUs, N::ListingUnavailable) => "Couldn't list the Git checkouts.",
+            (Self::ZhCn, N::ListingUnavailable) => "没能列出 Git 检出目录。",
             (Self::EnUs, N::NotRepository) => {
                 "This directory is not in a Git repository, or Git does not trust its owner. Run git status there to see which."
             }
             (Self::ZhCn, N::NotRepository) => {
                 "这个目录不在 Git 仓库中，或 Git 不信任其所有者。请在该目录运行 git status 查看原因。"
             }
+            // The configuration file is the one place that fixes this, and its check names the line.
             (Self::EnUs, N::ConfigurationUnavailable) => {
-                "Could not read worktree configuration. Run orchbee config check."
+                "Couldn't read the worktree settings. Run orchbee config check."
             }
             (Self::ZhCn, N::ConfigurationUnavailable) => {
-                "无法读取工作树配置。请运行 orchbee config check。"
+                "没能读取工作树设置。请运行 orchbee config check。"
             }
-            (Self::EnUs, N::Busy) => "Source is busy. Wait for the current transition.",
-            (Self::ZhCn, N::Busy) => "来源忙碌。请等待当前切换完成。",
-            (Self::EnUs, N::NotSubmitted) => {
-                "Worktree was not submitted. Existing data is retained."
-            }
-            (Self::ZhCn, N::NotSubmitted) => "工作树操作未提交，已有数据已保留。",
+            (Self::EnUs, N::Busy) => "Wait for the current switch to finish.",
+            (Self::ZhCn, N::Busy) => "请等待当前切换完成。",
+            (Self::EnUs, N::NotSubmitted) => "Couldn't start the worktree action.",
+            (Self::ZhCn, N::NotSubmitted) => "没能开始工作树操作。",
             (Self::EnUs, N::Pending) => "Worktree operation is running…",
             (Self::ZhCn, N::Pending) => "工作树操作正在执行…",
-            (Self::EnUs, N::Unknown) => "Result unknown. Check it with orchbee operation status.",
-            (Self::ZhCn, N::Unknown) => "结果未知。请用 orchbee operation status 查询。",
-            (Self::EnUs, N::Failed) => {
-                "Operation stopped. Checkout and Workspace facts are retained."
-            }
-            (Self::ZhCn, N::Failed) => "操作已停止。检出目录和工作区信息已保留。",
+            (Self::EnUs, N::Failed | N::SourceChanged) => "Couldn't finish the worktree action.",
+            (Self::ZhCn, N::Failed | N::SourceChanged) => "没能完成工作树操作。",
             (Self::EnUs, N::Opened) => "Workspace opened.",
             (Self::ZhCn, N::Opened) => "工作区已打开。",
             (Self::EnUs, N::Removed) => "Worktree removed and Workspace closed. Branch kept.",
@@ -189,13 +180,9 @@ impl Locale {
             (Self::EnUs, N::EntryPending) => "Workspace opened; connecting its terminal…",
             (Self::ZhCn, N::EntryPending) => "工作区已打开，正在连接终端…",
             (Self::EnUs, N::EntryFailed) => {
-                "Workspace opened; terminal entry did not finish. Select it in the navigator."
+                "Couldn't open the terminal. Select the Workspace in the sidebar."
             }
-            (Self::ZhCn, N::EntryFailed) => "工作区已打开，终端进入未完成。请在导航器中选择它。",
-            (Self::EnUs, N::SourceChanged) => {
-                "Source changed. Confirmed operation facts are retained."
-            }
-            (Self::ZhCn, N::SourceChanged) => "来源已变化，已确认操作的信息已保留。",
+            (Self::ZhCn, N::EntryFailed) => "没能打开终端。请在侧边栏中选择工作区。",
             // A dialog gives each sentence at most two lines, so the remedy takes two sentences.
             (Self::EnUs, N::ClientInCheckout) => {
                 "Orchbee was started inside this worktree, so Windows keeps it in use. Quit Orchbee and leave the folder in that shell. Then remove the worktree from elsewhere."

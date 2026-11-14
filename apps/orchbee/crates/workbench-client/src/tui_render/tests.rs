@@ -3,10 +3,7 @@ use std::convert::Infallible;
 use ratatui::{Terminal, backend::TestBackend};
 
 use crate::{
-    client_view::{
-        BackendAction, ClientActionDisposition, ClientView, KeyCode, KeyEvent, Modifiers,
-        PrefixInput,
-    },
+    client_view::{ClientActionDisposition, ClientView, KeyCode, KeyEvent, Modifiers, PrefixInput},
     localization::Locale,
     tui_layout::ViewportTier,
     tui_theme::Role,
@@ -93,10 +90,7 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
                     );
                 }));
                 let text = buffer_rows(&terminal, 120, 1).concat();
-                let needle = match locale {
-                    Locale::EnUs => "Menu action",
-                    Locale::ZhCn => "菜单动作",
-                };
+                let needle = notice.as_str();
                 assert_eq!(
                     without_cell_padding(&text)
                         .matches(&without_cell_padding(needle))
@@ -831,17 +825,6 @@ fn renders_visible_prefix_mode() {
     assert!(without_cell_padding(&prefix_mode).contains(
         &crate::terminal_events::keys::tests::host_label("前缀Ctrl+b")
     ));
-}
-
-#[test]
-fn renders_backend_action_results_as_no_command_sent() {
-    let mut view = ClientView::new(120);
-    view.report_backend_unavailable(BackendAction::CreateTab);
-    let english = rendered_text(120, 40, &view, Locale::EnUs);
-    let chinese = rendered_text(120, 40, &view, Locale::ZhCn);
-
-    assert!(english.contains("Tab creation unavailable · no command was sent"));
-    assert!(without_cell_padding(&chinese).contains("无法创建标签页·未发送命令"));
 }
 
 #[test]

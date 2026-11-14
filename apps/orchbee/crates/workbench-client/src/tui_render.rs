@@ -304,18 +304,22 @@ pub fn render_terminal_shell_with_resize<'a>(
         }
         Some(native) => {
             let phase_status = native.phase_status_text(locale);
-            let close = native.announced_close_status();
-            let status = match (native.workspace_close_status(), close.as_ref()) {
-                (Some(status), _) => {
-                    // The complete status names its executable command, so ordinary widths
-                    // show a documented shorter form instead of dropping the fact.
-                    status_shorter = Vec::from(locale.workspace_close_status_shorter(status));
-                    locale.workspace_close_status(status)
+            let close = native.announced_close_status().and_then(|status| {
+                let label = status.target_label(locale);
+                locale.native_close_status(status.text(&label))
+            });
+            let workspace_close = native.workspace_close_status().and_then(|status| {
+                locale
+                    .workspace_close_status(status)
+                    .map(|text| (text, locale.workspace_close_status_shorter(status)))
+            });
+            let status = match (workspace_close, close) {
+                (Some((text, shorter)), _) => {
+                    // Ordinary widths show a documented shorter form instead of dropping the fact.
+                    status_shorter = shorter;
+                    text
                 }
-                (None, Some(status)) => {
-                    let label = status.target_label(locale);
-                    locale.native_close_status(status.text(&label))
-                }
+                (None, Some(status)) => status,
                 (None, None) => {
                     let selected = native.status(locale, status_chip_area(&areas).width);
                     status_persistent = selected.persistent;
@@ -360,7 +364,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                 secondary_notice.extend(
                     native
                         .close_set_status()
-                        .map(|set| locale.close_set_status(set)),
+                        .and_then(|set| locale.close_set_status(set)),
                 );
             }
             if tier != ViewportTier::TooSmall {
@@ -1486,13 +1490,7 @@ fn render_native_workbench(
         );
     }
     if last_tab_leaving {
-        let empty = locale.native_phase_status_values(
-            DisplayPhase::Empty,
-            None,
-            None,
-            None,
-            None,
-        );
+        let empty = locale.native_phase_status_values(DisplayPhase::Empty, None, None, None, None);
         frame.render_widget(
             Paragraph::new(wrap_text(&Text::from(empty), content_area.width))
                 .style(theme.style(Role::TextSecondary)),
@@ -1880,10 +1878,8 @@ fn render_native_workbench(
                 let panel_status = native
                     .workspace_close_status()
                     .filter(|_| native.retirement().is_some())
-                    .map_or_else(
-                        || panel_status.to_owned(),
-                        |status| locale.workspace_close_status(status),
-                    );
+                    .and_then(|status| locale.workspace_close_status(status))
+                    .unwrap_or_else(|| panel_status.to_owned());
                 frame.render_widget(
                     Paragraph::new(wrap_text(&Text::from(panel_status), content_area.width))
                         .style(theme.style(Role::TextSecondary)),

@@ -250,7 +250,7 @@ fn one_shot_notices_expire_without_discarding_unknown_outcomes() {
     ui.state
         .as_mut()
         .unwrap()
-        .set_notice(ClientNotice::HistoryRecovering);
+        .set_notice(ClientNotice::HistoryUnavailable);
     assert!(!ui.expire_status_notices());
     elapsed.store(4000, Ordering::SeqCst);
     assert!(ui.expire_status_notices());

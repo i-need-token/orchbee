@@ -432,15 +432,6 @@ impl<'a> WorktreeView<'a> {
             orchbee_workbench_protocol::WorktreeOperationStatus::Removed { .. } => None,
         }
     }
-    pub(crate) fn operation_id(&self) -> Option<&'a str> {
-        self.launcher
-            .operation()
-            .map(|op| op.plan.operation_id.as_str())
-            .or_else(|| match &self.launcher.phase {
-                Phase::Starting(p) => Some(p.operation_id.as_str()),
-                _ => None,
-            })
-    }
     /// A Branch or Base value's error, shown as soon as an edit makes it invalid. A rejected
     /// insertion reports the active field's limit or invalid text until that field changes.
     pub(crate) fn field_error(

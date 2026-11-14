@@ -384,7 +384,10 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
         }
     }));
     let after_precommit = render_workbench_client(&workbench_client, &client_view)?;
-    assert!(after_precommit.contains("Tab not created · previous Tab unchanged"));
+    assert!(
+        after_precommit
+            .contains(&Locale::EnUs.native_notice(WorkbenchClientNotice::CreateNotCreated))
+    );
     drop(workbench_client);
     server.finish()?;
     Ok(())
@@ -641,7 +644,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
         };
         if unavailable {
             assert!(
-                rendered.contains("Tab moved · refresh required"),
+                rendered.contains(&workbench_client.view().phase_status_text(Locale::EnUs)),
                 "{rendered}"
             );
             assert!(

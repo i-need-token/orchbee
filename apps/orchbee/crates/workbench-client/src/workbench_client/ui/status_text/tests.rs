@@ -126,13 +126,17 @@ fn location_rename_recovery_preserves_its_target_without_offering_recovery_after
             let live =
                 status_with_setup(locale, "live".to_owned(), false, None, Some(setup), false);
             assert!(
-                live.contains(locale.location_label_status(target, Status::CommittedNeedRefresh))
+                live.contains(
+                    locale
+                        .location_label_status(target, Status::CommittedNeedRefresh)
+                        .unwrap()
+                )
             );
             assert!(!live.contains("Ctrl+B"));
             let retired =
                 status_with_setup(locale, "retired".to_owned(), true, None, Some(setup), false);
             assert!(retired.starts_with("retired"));
-            assert!(retired.contains(locale.location_rename_committed_fact(target)));
+            assert!(retired.contains(locale.location_rename_committed_fact()));
             assert!(!retired.contains("Ctrl+B w"));
             let notice = WorkbenchClientNotice::LocalBusy;
             let busy = status_with_setup(
@@ -145,7 +149,11 @@ fn location_rename_recovery_preserves_its_target_without_offering_recovery_after
             );
             assert!(busy.starts_with(&locale.native_notice(notice)));
             assert!(
-                busy.contains(locale.location_label_status(target, Status::CommittedNeedRefresh))
+                busy.contains(
+                    locale
+                        .location_label_status(target, Status::CommittedNeedRefresh)
+                        .unwrap()
+                )
             );
         }
     }

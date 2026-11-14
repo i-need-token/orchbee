@@ -153,10 +153,13 @@ impl<'a> WorkbenchClientView<'a> {
             || launcher.notice() == WorktreeNotice::PresentationUnavailable)
             .then_some(launcher.notice())
     }
-    /// The worktree notice worth stating; a drawn draft has nothing to report.
+    /// The worktree notice worth stating; a drawn draft has nothing to report, and a worktree
+    /// that opened or was removed shows itself.
     pub(crate) fn worktree_stated_notice(&self) -> Option<WorktreeNotice> {
         let launcher = self.worktree?;
-        self.worktree_notice().and(launcher.stated_notice())
+        self.worktree_notice()
+            .and(launcher.stated_notice())
+            .filter(|notice| !matches!(notice, WorktreeNotice::Opened | WorktreeNotice::Removed))
     }
     pub(crate) fn worktree_failure(
         &self,

@@ -64,14 +64,15 @@ impl WorkbenchClientUi {
             executable: Some(launch.executable().to_owned()),
         };
         let disposition = self.create_tab_launch(None, Some(launch), Some(description), None);
-        self.command_notice.set(Some((
-            if disposition == ClientActionDisposition::DismissNavigator {
-                WorkbenchClientNotice::LaunchProfileSelected
-            } else {
-                WorkbenchClientNotice::LaunchProfileUnavailable
-            },
-            self.clock.now() + Duration::from_secs(5),
-        )));
+        // A terminal that starts with the chosen profile says nothing more.
+        self.command_notice.set(
+            (disposition != ClientActionDisposition::DismissNavigator).then(|| {
+                (
+                    WorkbenchClientNotice::LaunchProfileUnavailable,
+                    self.clock.now() + Duration::from_secs(5),
+                )
+            }),
+        );
         disposition
     }
 }

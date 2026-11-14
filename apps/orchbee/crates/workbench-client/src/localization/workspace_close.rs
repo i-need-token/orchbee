@@ -17,7 +17,6 @@ pub(crate) enum WorkspaceCloseStatus {
 pub(crate) struct WorkspaceCloseText<'a> {
     pub(crate) label: &'a str,
     pub(crate) status: WorkspaceCloseStatus,
-    pub(crate) operation_id: Option<&'a orchbee_workbench_protocol::WorkbenchRequestId>,
     pub(crate) workspace_id: Option<&'a orchbee_workbench_protocol::WorkbenchWorkspaceId>,
 }
 
@@ -64,82 +63,74 @@ impl Locale {
             ],
         }
     }
+    /// One Workspace Close, or a Project's close-all: on its way, waiting for confirmation, or
+    /// stopped short. A finished close shows itself and says nothing.
     pub(crate) fn workspace_close_status<'a>(
         self,
         view: impl Into<WorkspaceCloseText<'a>>,
-    ) -> String {
+    ) -> Option<String> {
         let view = view.into();
-        let mut text = self.workspace_close_scope(view);
-        // The status command is named only where it is the only recovery: an unknown outcome.
-        if view.status == WorkspaceCloseStatus::Unknown
-            && let Some(id) = view.operation_id
-        {
-            text.push_str(&format!(" · orchbee operation status {id}"));
-        }
-        text
+        let label = sanitize_terminal_text(view.label);
+        let project = view.workspace_id.is_none();
+        Some(match (self, view.status, project) {
+            (_, WorkspaceCloseStatus::Closed, _) => return None,
+            (_, WorkspaceCloseStatus::Unknown, _) => self.outcome_unknown().to_owned(),
+            (Self::EnUs, WorkspaceCloseStatus::ConfirmationRequired, _) => {
+                format!("Confirm to close {label}.")
+            }
+            (Self::ZhCn, WorkspaceCloseStatus::ConfirmationRequired, _) => {
+                format!("请确认关闭 {label}。")
+            }
+            (Self::EnUs, WorkspaceCloseStatus::Closing, true) => {
+                format!("Closing Project Workspaces · {label}")
+            }
+            (Self::ZhCn, WorkspaceCloseStatus::Closing, true) => {
+                format!("正在关闭项目工作区 · {label}")
+            }
+            (Self::EnUs, WorkspaceCloseStatus::Closing, false) => {
+                format!("Closing Workspace · {label}")
+            }
+            (Self::ZhCn, WorkspaceCloseStatus::Closing, false) => {
+                format!("正在关闭工作区 · {label}")
+            }
+            (Self::EnUs, WorkspaceCloseStatus::Failed | WorkspaceCloseStatus::Refused, true) => {
+                format!("Couldn't close every Workspace in {label}.")
+            }
+            (Self::ZhCn, WorkspaceCloseStatus::Failed | WorkspaceCloseStatus::Refused, true) => {
+                format!("没能关闭 {label} 中的所有工作区。")
+            }
+            (Self::EnUs, WorkspaceCloseStatus::Failed | WorkspaceCloseStatus::Refused, false) => {
+                format!("Couldn't close {label}.")
+            }
+            (Self::ZhCn, WorkspaceCloseStatus::Failed | WorkspaceCloseStatus::Refused, false) => {
+                format!("没能关闭 {label}。")
+            }
+        })
     }
-    /// The documented shorter forms, longest first, for a status line too narrow for the complete
-    /// status: the phase and scope label without the status command, then the phase alone.
+    /// The documented shorter form, for a status line too narrow for the complete status: the
+    /// outcome without the label.
     pub(crate) fn workspace_close_status_shorter<'a>(
         self,
         view: impl Into<WorkspaceCloseText<'a>>,
-    ) -> [String; 2] {
+    ) -> Vec<String> {
         let view = view.into();
-        [
-            self.workspace_close_scope(view),
-            self.workspace_close_phase(view).to_owned(),
-        ]
-    }
-    fn workspace_close_scope(self, view: WorkspaceCloseText<'_>) -> String {
-        format!(
-            "{} · {}",
-            self.workspace_close_phase(view),
-            sanitize_terminal_text(view.label)
-        )
-    }
-    fn workspace_close_phase(self, view: WorkspaceCloseText<'_>) -> &'static str {
         let project = view.workspace_id.is_none();
-        match (self, view.status, project) {
-            (Self::EnUs, WorkspaceCloseStatus::ConfirmationRequired, _) => {
-                "Confirmation required before closing"
+        let (english, chinese) = match (view.status, project) {
+            (WorkspaceCloseStatus::Closed | WorkspaceCloseStatus::Unknown, _) => return Vec::new(),
+            (WorkspaceCloseStatus::ConfirmationRequired, _) => {
+                ("Confirm to close.", "请确认关闭。")
             }
-            (Self::ZhCn, WorkspaceCloseStatus::ConfirmationRequired, _) => "关闭前需要确认",
-            (Self::EnUs, WorkspaceCloseStatus::Closing, true) => "Closing Project Workspaces",
-            (Self::ZhCn, WorkspaceCloseStatus::Closing, true) => "正在关闭项目工作区",
-            (Self::EnUs, WorkspaceCloseStatus::Closed, true) => "Project Workspaces closed",
-            (Self::ZhCn, WorkspaceCloseStatus::Closed, true) => "项目工作区已关闭",
-            (Self::EnUs, WorkspaceCloseStatus::Failed, true) => {
-                "Project close-all stopped; known results preserved"
+            (WorkspaceCloseStatus::Closing, true) => {
+                ("Closing Project Workspaces", "正在关闭项目工作区")
             }
-            (Self::ZhCn, WorkspaceCloseStatus::Failed, true) => "项目全部关闭已停止；已知结果保留",
-            (Self::EnUs, WorkspaceCloseStatus::Unknown, true) => {
-                "Project close-all outcome unknown; no replay"
+            (WorkspaceCloseStatus::Closing, false) => ("Closing Workspace", "正在关闭工作区"),
+            (WorkspaceCloseStatus::Failed | WorkspaceCloseStatus::Refused, true) => {
+                ("Couldn't close the Workspaces.", "没能关闭这些工作区。")
             }
-            (Self::ZhCn, WorkspaceCloseStatus::Unknown, true) => "项目全部关闭结果未知；不会重放",
-            (Self::EnUs, WorkspaceCloseStatus::Refused, true) => {
-                "Project close-all was not submitted or was refused; refresh and try again"
+            (WorkspaceCloseStatus::Failed | WorkspaceCloseStatus::Refused, false) => {
+                ("Couldn't close the Workspace.", "没能关闭工作区。")
             }
-            (Self::ZhCn, WorkspaceCloseStatus::Refused, true) => {
-                "项目全部关闭未提交或被拒绝；刷新后重试"
-            }
-            (Self::EnUs, WorkspaceCloseStatus::Closing, false) => "Closing Workspace",
-            (Self::ZhCn, WorkspaceCloseStatus::Closing, false) => "正在关闭工作区",
-            (Self::EnUs, WorkspaceCloseStatus::Closed, false) => "Workspace closed",
-            (Self::ZhCn, WorkspaceCloseStatus::Closed, false) => "工作区已关闭",
-            (Self::EnUs, WorkspaceCloseStatus::Failed, false) => {
-                "Workspace Close stopped; known results preserved"
-            }
-            (Self::ZhCn, WorkspaceCloseStatus::Failed, false) => "工作区关闭已停止；已知结果保留",
-            (Self::EnUs, WorkspaceCloseStatus::Unknown, false) => {
-                "Workspace Close outcome unknown; no replay"
-            }
-            (Self::ZhCn, WorkspaceCloseStatus::Unknown, false) => "工作区关闭结果未知；不会重放",
-            (Self::EnUs, WorkspaceCloseStatus::Refused, false) => {
-                "Workspace Close was not submitted or was refused; refresh and try again"
-            }
-            (Self::ZhCn, WorkspaceCloseStatus::Refused, false) => {
-                "工作区关闭未提交或被拒绝；刷新后重试"
-            }
-        }
+        };
+        vec![self.say(english, chinese)]
     }
 }

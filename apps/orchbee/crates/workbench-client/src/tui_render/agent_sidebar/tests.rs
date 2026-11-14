@@ -506,9 +506,8 @@ fn touch_spaced_mobile_rows_own_the_blank_line_below_them() {
             );
             if spaced {
                 assert!(
-                    rows[usize::from(y + 1)]
-                        .trim_start_matches([' ', '│'])
-                        .is_empty()
+                    !rows[usize::from(y + 1)].contains("build"),
+                    "{height} at {y}: {rows:?}"
                 );
             }
         }

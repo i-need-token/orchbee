@@ -59,16 +59,14 @@ impl Locale {
                     error: WorktreeGitError::Dirty,
                     ..
                 },
-            ) => {
-                "Checkout has changes or untracked files. Commit, stash or clean them, then resume."
-            }
+            ) => "Checkout has changes or untracked files. Commit, stash or clean them.",
             (
                 Self::ZhCn,
                 F::Git {
                     error: WorktreeGitError::Dirty,
                     ..
                 },
-            ) => "检出目录含修改或未跟踪文件。请先提交、贮藏或清理，再恢复移除。",
+            ) => "检出目录含修改或未跟踪文件。请先提交、贮藏或清理。",
             (
                 Self::EnUs,
                 F::Git {
@@ -90,31 +88,28 @@ impl Locale {
                 "其他工作区仍在使用此检出目录。请先关闭对应工作区。"
             }
             (Self::EnUs, F::CloseIncomplete { .. }) => {
-                "Terminals could not all close. Check child terminals, pinned Tabs and Tab groups."
+                "Couldn't close every terminal. Check its terminals, pinned Tabs and Tab groups."
             }
             (Self::ZhCn, F::CloseIncomplete { .. }) => {
-                "终端未能全部关闭。请检查子终端、固定标签页和标签页组。"
+                "没能关闭所有终端。请检查其中的终端、固定标签页和标签页组。"
             }
             (Self::EnUs, F::SourceChanged { .. }) => {
                 "The checkout or Workspace changed. Check it before you continue."
             }
             (Self::ZhCn, F::SourceChanged { .. }) => "检出目录或工作区已变化。请检查后再继续。",
-            (Self::EnUs, F::PhysicalUnknown { .. } | F::TransportUnknown { .. }) => {
-                "Removal outcome is unknown. Do not start another removal."
-            }
-            (Self::ZhCn, F::PhysicalUnknown { .. } | F::TransportUnknown { .. }) => {
-                "移除结果未知。请不要重新发起移除。"
-            }
+            (_, F::PhysicalUnknown { .. } | F::TransportUnknown { .. }) => self.outcome_unknown(),
             (
                 Self::EnUs,
                 F::WorkerUnavailable { .. } | F::WorkerBusy { .. } | F::WorkerCapacity { .. },
-            ) => "The Worker is unavailable or busy. Resume when it is offered.",
+            ) => "Orchbee is unavailable or busy. Try again later.",
             (
                 Self::ZhCn,
                 F::WorkerUnavailable { .. } | F::WorkerBusy { .. } | F::WorkerCapacity { .. },
-            ) => "Worker 不可用或忙碌。可以恢复时再恢复移除。",
-            (Self::EnUs, F::Unsupported { .. }) => "This Worker does not support worktree removal.",
-            (Self::ZhCn, F::Unsupported { .. }) => "此 Worker 不支持移除工作树。",
+            ) => "Orchbee 不可用或正忙。请稍后再试。",
+            (Self::EnUs, F::Unsupported { .. }) => {
+                "Orchbee on this machine doesn't support removing worktrees."
+            }
+            (Self::ZhCn, F::Unsupported { .. }) => "这台机器上的 Orchbee 不支持移除工作树。",
             (Self::EnUs, F::SessionStopping { .. }) => {
                 "The Session is stopping. Continue after it restarts."
             }
@@ -141,16 +136,14 @@ impl Locale {
                     error: WorktreeGitError::Io,
                     ..
                 },
-            ) => {
-                "The checkout directory is in use or cannot be deleted. Close programs using it, then resume."
-            }
+            ) => "The checkout directory is in use or cannot be deleted. Close programs using it.",
             (
                 Self::ZhCn,
                 F::Git {
                     error: WorktreeGitError::Io,
                     ..
                 },
-            ) => "检出目录正被占用或无法删除。请关闭占用它的程序，再恢复移除。",
+            ) => "检出目录正被占用或无法删除。请关闭占用它的程序。",
             (
                 Self::EnUs,
                 F::Git {
@@ -158,7 +151,7 @@ impl Locale {
                     ..
                 },
             ) => {
-                "Git could not remove the checkout. If a program is using its directory, close it, then resume."
+                "Git could not remove the checkout. If a program is using its directory, close it."
             }
             (
                 Self::ZhCn,
@@ -166,18 +159,12 @@ impl Locale {
                     error: WorktreeGitError::GitFailed,
                     ..
                 },
-            ) => "Git 未能移除检出目录。如有程序正在使用该目录，请先关闭，再恢复移除。",
-            (Self::EnUs, F::Git { .. }) => {
-                "Git could not complete the removal. Read status; known checkout and Workspace facts are retained."
+            ) => "Git 未能移除检出目录。如有程序正在使用该目录，请先关闭。",
+            (Self::EnUs, F::Git { .. } | F::AssociationFailed { .. } | F::Internal { .. }) => {
+                "Couldn't remove the worktree."
             }
-            (Self::ZhCn, F::Git { .. }) => {
-                "Git 未能完成移除。请查询状态；已知检出目录和工作区信息已保留。"
-            }
-            (Self::EnUs, F::AssociationFailed { .. } | F::Internal { .. }) => {
-                "Removal could not finish. Read status before continuing."
-            }
-            (Self::ZhCn, F::AssociationFailed { .. } | F::Internal { .. }) => {
-                "移除未能完成。请先查询状态。"
+            (Self::ZhCn, F::Git { .. } | F::AssociationFailed { .. } | F::Internal { .. }) => {
+                "没能移除工作树。"
             }
         }
     }
@@ -203,8 +190,8 @@ impl Locale {
     /// A failed removal that cannot resume can still hold its Workspace closing.
     pub(crate) fn worktree_remove_held_close(self) -> &'static str {
         match self {
-            Self::EnUs => "The Workspace is still held closing. Close it with:",
-            Self::ZhCn => "工作区仍保持在关闭中。可用以下命令关闭：",
+            Self::EnUs => "The Workspace is still closing. Close it from its menu in the sidebar.",
+            Self::ZhCn => "工作区仍在关闭中。请在侧边栏中通过它的菜单关闭。",
         }
     }
     pub(crate) fn worktree_remove_workspace_state(
@@ -230,21 +217,18 @@ impl Locale {
             }
         }
     }
-    pub(crate) fn worktree_remove_restoration(self, receipt: &WorktreeShellRestoration) -> String {
-        let WorktreeShellRestoration {
-            total,
-            started,
-            failed,
-            unknown,
-            ..
-        } = receipt;
-        let mut text = match self {
-            Self::EnUs => format!(
-                "Shell recovery: {started}/{total} started, {failed} failed, {unknown} unknown."
-            ),
-            Self::ZhCn => {
-                format!("Shell 恢复：已启动 {started}/{total}，失败 {failed}，未知 {unknown}。")
-            }
+    /// How restarting the checkout's shells went: said only when some did not start; counts stay
+    /// out of the copy.
+    pub(crate) fn worktree_remove_restoration(
+        self,
+        receipt: &WorktreeShellRestoration,
+    ) -> Option<String> {
+        let mut text = if receipt.unknown > 0 {
+            self.outcome_unknown().to_owned()
+        } else if receipt.failed > 0 || receipt.started < receipt.total {
+            self.say("Couldn't restart every shell.", "没能重新启动所有 Shell。")
+        } else {
+            return None;
         };
         if matches!(
             receipt.failure,
@@ -253,6 +237,6 @@ impl Locale {
             text.push(' ');
             text.push_str(self.launch_request_too_large());
         }
-        text
+        Some(text)
     }
 }

@@ -65,8 +65,11 @@ impl WorkbenchClientView<'_> {
         if let Some((status, _)) = view.takeover_status() {
             return NativeStatus::fact(locale.takeover_status(status).to_owned());
         }
-        if let Some(status) = view.workspace_close_status() {
-            return NativeStatus::fact(locale.workspace_close_status(status));
+        if let Some(text) = view
+            .workspace_close_status()
+            .and_then(|status| locale.workspace_close_status(status))
+        {
+            return NativeStatus::fact(text);
         }
         if view.retirement().is_none()
             && (view.phase() == crate::localization::DisplayPhase::Ready
@@ -98,35 +101,41 @@ impl WorkbenchClientView<'_> {
                 notice: false,
             };
         }
-        if view.notice().is_none()
-            && view.retirement().is_none()
-            && view.setup_status().is_none()
-            && let Some(progress) = view.duplicate_progress()
-        {
-            return NativeStatus::fact(locale.duplication_progress(progress));
-        }
-        let phase = view.phase_status_text(locale);
         let directory_unconfigured = view.phase() == crate::localization::DisplayPhase::Empty
             && view.workspace_directory_unconfigured();
+        // A setup outcome that says nothing leaves the line as if there were none.
+        let setup = view.setup_status().filter(|status| {
+            locale.setup_status(*status).is_some()
+                || *status == SetupStatus::WorkspaceCreated && directory_unconfigured
+        });
+        if view.notice().is_none()
+            && view.retirement().is_none()
+            && setup.is_none()
+            && let Some(progress) = view.duplicate_progress()
+            && let Some(text) = locale.duplication_progress(progress)
+        {
+            return NativeStatus::fact(text);
+        }
+        let phase = view.phase_status_text(locale);
         let text = status_with_setup(
             locale,
             phase.clone(),
             view.retirement().is_some(),
             view.notice(),
-            view.setup_status(),
+            setup,
             directory_unconfigured,
         );
         // Only the bare fact has a short form; an appended recovery fact keeps the full text.
         let persistent = if view.retirement().is_none()
             && view.notice().is_none()
-            && view.setup_status() == Some(SetupStatus::WorkspaceCreated)
+            && setup == Some(SetupStatus::WorkspaceCreated)
             && directory_unconfigured
         {
             Some(PersistentStatus::DirectoryMissing)
         } else if text == phase
             && view.retirement().is_none()
             && view.notice().is_none()
-            && view.setup_status().is_none()
+            && setup.is_none()
             && view.phase() == crate::localization::DisplayPhase::SelectedWithoutAttachment
             && view.selected_is_held()
         {
@@ -136,7 +145,7 @@ impl WorkbenchClientView<'_> {
             // pane keeps the full fact, including an unknown outcome that will not replay.
             && (view.retirement().is_some()
                 || (view.notice().is_none()
-                    && view.setup_status().is_none()
+                    && setup.is_none()
                     && view.phase() == crate::localization::DisplayPhase::Retired))
         {
             Some(PersistentStatus::Disconnected)
@@ -146,7 +155,7 @@ impl WorkbenchClientView<'_> {
         let ordinary = text == phase
             && view.retirement().is_none()
             && view.notice().is_none()
-            && view.setup_status().is_none()
+            && setup.is_none()
             && view.quick_workspace_recovery().is_none()
             && view.phase() == crate::localization::DisplayPhase::Ready
             && view.controller() == Some(crate::localization::DisplayController::Controlling)
@@ -155,7 +164,7 @@ impl WorkbenchClientView<'_> {
         // yields first, then the notice's advice, then its context.
         if let Some(notice) = view.notice().filter(|_| view.retirement().is_none()) {
             let forms = locale.native_notice_forms(notice, view.notice_context());
-            return match appended_setup_fact(locale, false, view.setup_status()) {
+            return match appended_setup_fact(locale, false, setup) {
                 Some(fact) => {
                     let stated = forms
                         .first()
@@ -243,7 +252,7 @@ fn status_with_setup(
         (None, Some(SetupStatus::WorkspaceCreated)) if directory_unconfigured => {
             locale.setup_workspace_directory_action().to_owned()
         }
-        (None, Some(status)) => locale.setup_status(status).to_owned(),
+        (None, Some(status)) => locale.setup_status(status).map_or(phase, str::to_owned),
         (None, None) => phase,
     }
 }
@@ -254,25 +263,24 @@ fn appended_setup_fact(
     retired: bool,
     setup: Option<SetupStatus>,
 ) -> Option<&'static str> {
-    Some(match setup? {
+    match setup? {
         SetupStatus::LocationLabel {
-            target,
             status: LocationLabelStatus::CommittedNeedRefresh,
-        } if retired => locale.location_rename_committed_fact(target),
-        SetupStatus::LocationLabel {
-            target,
-            status:
-                status @ (LocationLabelStatus::CommittedNeedRefresh
-                | LocationLabelStatus::OutcomeUnknown),
-        } => locale.location_label_status(target, status),
-        SetupStatus::CommittedNeedRefresh if retired => locale.setup_committed_fact(),
-        SetupStatus::TabsCommittedNeedRefresh if retired => locale.setup_tabs_committed_fact(),
+            ..
+        } if retired => Some(locale.location_rename_committed_fact()),
+        SetupStatus::CommittedNeedRefresh | SetupStatus::TabsCommittedNeedRefresh if retired => {
+            Some(locale.setup_committed_fact())
+        }
         status @ (SetupStatus::CommittedNeedRefresh
         | SetupStatus::OutcomeUnknown
         | SetupStatus::TabsCommittedNeedRefresh
-        | SetupStatus::TabsOutcomeUnknown) => locale.setup_status(status),
-        _ => return None,
-    })
+        | SetupStatus::TabsOutcomeUnknown
+        | SetupStatus::LocationLabel {
+            status: LocationLabelStatus::CommittedNeedRefresh | LocationLabelStatus::OutcomeUnknown,
+            ..
+        }) => locale.setup_status(status),
+        _ => None,
+    }
 }
 
 pub(super) const fn setup_status_transient(status: SetupStatus) -> bool {

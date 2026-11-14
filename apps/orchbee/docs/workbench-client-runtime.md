@@ -1711,25 +1711,25 @@ reveal readiness. Ordinary Move admission refusal preserves
 the existing notice without reacquiring the mailbox; the local-busy row applies to the other
 structural admission paths.
 
-| Semantic state                       | en-US                                             | zh-CN                                 |
-| ------------------------------------ | ------------------------------------------------- | ------------------------------------- |
-| Creating                             | `Creating Tab…`                                   | `正在创建 Tab…`                       |
-| Definite Create precommit refusal    | `Tab not created · previous Tab unchanged`        | `未创建 Tab · 原 Tab 未更改`          |
-| Refreshing                           | `Refreshing Tabs…`                                | `正在刷新 Tab…`                       |
-| Refresh success                      | `Tabs refreshed · revision {R}`                   | `Tab 已刷新 · 修订 {R}`               |
-| Refresh failure                      | `Tab refresh failed · showing revision {R}`       | `Tab 刷新失败 · 正在显示修订 {R}`     |
-| Local admission refusal              | `Client busy · no command sent`                   | `Client 正忙 · 未发送命令`            |
-| Numeric selection out of range       | `No Tab at position {N}`                          | `第 {N} 个 Tab 不存在`                |
-| Switching                            | `Tab {N} · Connecting…`                           | `Tab {N} · 正在连接…`                 |
-| NeedSnapshot before first frame      | `Tab {N} · Connecting · waiting for full frame`   | `Tab {N} · 正在连接 · 等待完整帧`     |
-| ProjectionBlocked before first frame | `Tab {N} · Connecting · display blocked`          | `Tab {N} · 正在连接 · 显示已阻塞`     |
-| Ready Controlling                    | `Tab {N} · Ready · controlling`                   | `Tab {N} · 已就绪 · 可控制`           |
-| Ready ReadOnly                       | `Tab {N} · Ready · view only`                     | `Tab {N} · 已就绪 · 仅查看`           |
-| Committed snapshot unavailable       | `Created Tab committed · refresh required`        | `已提交创建的 Tab · 需要刷新`         |
-| Known terminal pending               | `Tab {N} · terminal creation pending · no replay` | `Tab {N} · 终端创建等待中 · 不会重放` |
-| Known terminal unavailable           | `Tab {N} · terminal unavailable`                  | `Tab {N} · 终端不可用`                |
-| Known terminal failure               | `Tab {N} · terminal creation failed`              | `Tab {N} · 终端创建失败`              |
-| Known terminal outcome unknown       | `Tab {N} · terminal result unknown · no replay`   | `Tab {N} · 终端结果未知 · 不会重放`   |
+| Semantic state                       | en-US                                                    | zh-CN                                          |
+| ------------------------------------ | -------------------------------------------------------- | ---------------------------------------------- |
+| Creating                             | `Creating Tab…`                                          | `正在创建 Tab…`                                |
+| Definite Create precommit refusal    | `Couldn't create the Tab.`                               | `没能创建标签页。`                             |
+| Refreshing                           | `Refreshing Tabs…`                                       | `正在刷新 Tab…`                                |
+| Refresh success                      | no status                                                | no status                                      |
+| Refresh failure                      | `Couldn't refresh the Tabs.`                             | `没能刷新标签页。`                             |
+| Local admission refusal              | `Couldn't run the action.`                               | `没能执行操作。`                               |
+| Numeric selection out of range       | `Couldn't go to Tab {N}.`                                | `没能切换到第 {N} 个标签页。`                  |
+| Switching                            | `Tab {N} · Connecting…`                                  | `Tab {N} · 正在连接…`                          |
+| NeedSnapshot before first frame      | `Tab {N} · Connecting · waiting for full frame`          | `Tab {N} · 正在连接 · 等待完整帧`              |
+| ProjectionBlocked before first frame | `Tab {N} · Connecting · display blocked`                 | `Tab {N} · 正在连接 · 显示已阻塞`              |
+| Ready Controlling                    | `Tab {N} · Ready · controlling`                          | `Tab {N} · 已就绪 · 可控制`                    |
+| Ready ReadOnly                       | `Tab {N} · Ready · view only`                            | `Tab {N} · 已就绪 · 仅查看`                    |
+| Committed snapshot unavailable       | `Couldn't show the latest change.`                       | `没能显示最新的更改。`                         |
+| Known terminal pending               | `Tab {N} · Connecting`                                   | `Tab {N} · 连接中`                             |
+| Known terminal unavailable           | `Tab {N} · terminal unavailable`                         | `Tab {N} · 终端不可用`                         |
+| Known terminal failure               | `Tab {N} · Couldn't start the terminal.`                 | `Tab {N} · 没能启动终端。`                     |
+| Known terminal outcome unknown       | `Tab {N} · Not sure it finished. Check, then try again.` | `Tab {N} · 不确定是否完成，请先看一下再重试。` |
 
 Refresh statuses render inside the open navigator. They are retained but visually silent while it
 is closed. PTY observers read the resting frame: one active Tab token, and for control the absence

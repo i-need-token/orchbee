@@ -38,6 +38,9 @@ pub(crate) struct CloseStatusText<'a> {
     pub(crate) kind: CloseStatusKind,
     /// The close ended without removing its Tab or Panel, which shows again.
     pub(crate) stopped: bool,
+    /// The Tab list is unavailable, so the finished close is the one fact on screen and the
+    /// navigator's refresh restores the list from it.
+    pub(crate) list_unavailable: bool,
 }
 
 impl Locale {
@@ -71,46 +74,24 @@ impl Locale {
             Self::ZhCn => format!("……以及另外 {count} 个标签页"),
         }
     }
-    /// The count of a set of several Tabs the Server closes. The completed form replaces the running
-    /// count, so a finished close never reads as work that continues. A halted count names the Tabs
-    /// left open apart from the one member whose own Close may still finish.
-    pub(crate) fn close_set_status(self, status: crate::localization::CloseSetStatus) -> String {
+    /// A set of several Tabs being closed: on its way, or stopped short. A finished close shows
+    /// itself and says nothing; counts stay out of the copy.
+    pub(crate) fn close_set_status(
+        self,
+        status: crate::localization::CloseSetStatus,
+    ) -> Option<String> {
         let crate::localization::CloseSetStatus {
             completed,
             total,
             halted,
             unconfirmed,
         } = status;
-        let remaining = total.saturating_sub(completed);
-        let open = remaining.saturating_sub(usize::from(unconfirmed));
-        match (self, halted, remaining) {
-            (Self::EnUs, true, _) if unconfirmed && open == 0 => {
-                format!("Closing stopped: {completed} closed, 1 unconfirmed")
-            }
-            (Self::ZhCn, true, _) if unconfirmed && open == 0 => {
-                format!("关闭已停止：{completed} 个已关闭，1 个未确认")
-            }
-            (Self::EnUs, true, _) if unconfirmed => {
-                format!("Closing stopped: {completed} closed, 1 unconfirmed, {open} still open")
-            }
-            (Self::ZhCn, true, _) if unconfirmed => {
-                format!("关闭已停止：{completed} 个已关闭，1 个未确认，{open} 个仍打开")
-            }
-            (Self::EnUs, true, _) => {
-                format!("Closing stopped: {completed} closed, {open} still open")
-            }
-            (Self::ZhCn, true, _) => {
-                format!("关闭已停止：{completed} 个已关闭，{open} 个仍打开")
-            }
-            (Self::EnUs, false, 0) => format!("{total} Tabs closed"),
-            (Self::ZhCn, false, 0) => format!("已关闭 {total} 个标签页"),
-            (Self::EnUs, false, _) => {
-                format!("Closing Tabs: {completed} closed, {remaining} remaining")
-            }
-            (Self::ZhCn, false, _) => {
-                format!("正在关闭标签页：{completed} 个已关闭，剩余 {remaining} 个")
-            }
-        }
+        Some(match (halted, unconfirmed) {
+            (true, true) => self.outcome_unknown().to_owned(),
+            (true, false) => self.say("Couldn't close all the Tabs.", "没能关闭所有标签页。"),
+            (false, _) if completed >= total => return None,
+            (false, _) => self.say("Closing Tabs…", "正在关闭标签页…"),
+        })
     }
     pub(crate) const fn close_title(self) -> &'static str {
         match self {
@@ -144,19 +125,29 @@ impl Locale {
         }
     }
 
-    /// One close of one Tab or one Panel: on its way, done, or, once it ended without removing what
-    /// it closes, one sentence with no reason. The Server retries and renews a close by itself, so
-    /// an ended close needs nothing more from the person than closing it again.
-    pub(crate) fn native_close_status<'a>(self, status: impl Into<CloseStatusText<'a>>) -> String {
+    /// One close of one Tab or one Panel: on its way, or, once it ended without removing what it
+    /// closes, one sentence with no reason. A finished close shows itself and says nothing, unless
+    /// the Tab list is unavailable and the close is the fact the refresh starts from. The
+    /// Server retries and renews a close by itself, so an ended close needs nothing more from the
+    /// person than closing it again.
+    pub(crate) fn native_close_status<'a>(
+        self,
+        status: impl Into<CloseStatusText<'a>>,
+    ) -> Option<String> {
         let status = status.into();
         let label = sanitize_terminal_text(status.label);
-        match (self, status.stopped, status.kind) {
+        Some(match (self, status.stopped, status.kind) {
             (Self::EnUs, true, _) => format!("Couldn't close {label}."),
-            (Self::ZhCn, true, _) => format!("未能关闭 {label}。"),
-            (Self::EnUs, false, CloseStatusKind::Closed) => format!("{label} · Closed"),
-            (Self::ZhCn, false, CloseStatusKind::Closed) => format!("{label} · 已关闭"),
+            (Self::ZhCn, true, _) => format!("没能关闭 {label}。"),
+            (Self::EnUs, false, CloseStatusKind::Closed) if status.list_unavailable => {
+                format!("{label} · Closed")
+            }
+            (Self::ZhCn, false, CloseStatusKind::Closed) if status.list_unavailable => {
+                format!("{label} · 已关闭")
+            }
+            (_, false, CloseStatusKind::Closed) => return None,
             (Self::EnUs, false, _) => format!("{label} · Closing"),
             (Self::ZhCn, false, _) => format!("{label} · 正在关闭"),
-        }
+        })
     }
 }

@@ -154,17 +154,20 @@ pub(crate) use crate::localization::DisplayProvenance;
 
 pub(crate) use crate::localization::WorkbenchClientNotice;
 
-const fn link_notice(notice: crate::terminal_link_activation::Notice) -> WorkbenchClientNotice {
-    match notice {
+/// A link that opened, or that a plugin took, says nothing.
+const fn link_notice(
+    notice: crate::terminal_link_activation::Notice,
+) -> Option<WorkbenchClientNotice> {
+    Some(match notice {
         crate::terminal_link_activation::Notice::Unsupported => {
             WorkbenchClientNotice::Unsupported(crate::tui_capabilities::Capability::Browser)
         }
-        crate::terminal_link_activation::Notice::Opened => WorkbenchClientNotice::LinkOpened,
-        crate::terminal_link_activation::Notice::Handled => WorkbenchClientNotice::LinkHandled,
+        crate::terminal_link_activation::Notice::Opened
+        | crate::terminal_link_activation::Notice::Handled => return None,
         crate::terminal_link_activation::Notice::NoLink => WorkbenchClientNotice::LinkNoLink,
         crate::terminal_link_activation::Notice::Failed => WorkbenchClientNotice::LinkFailed,
         crate::terminal_link_activation::Notice::Unknown => WorkbenchClientNotice::LinkUnknown,
-    }
+    })
 }
 
 /// What one pane's retained-history surface paints right now. `Window`
@@ -306,12 +309,13 @@ pub(crate) fn live_tab_label<'a>(
     })
 }
 
-/// The Client notice that shows a viewport core's notice.
-const fn client_notice(notice: ViewportNotice) -> ClientNotice {
+/// The Client notice that shows a viewport core's notice; returning to the latest output shows
+/// itself and says nothing.
+const fn client_notice(notice: ViewportNotice) -> Option<ClientNotice> {
     match notice {
-        ViewportNotice::Recovering => ClientNotice::HistoryRecovering,
-        ViewportNotice::Unavailable => ClientNotice::HistoryUnavailable,
-        ViewportNotice::PositionLost => ClientNotice::HistoryPositionLost,
+        ViewportNotice::Recovering => None,
+        ViewportNotice::Unavailable => Some(ClientNotice::HistoryUnavailable),
+        ViewportNotice::PositionLost => Some(ClientNotice::HistoryPositionLost),
     }
 }
 
@@ -824,7 +828,6 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::DialogRefused => WorkbenchClientNotice::DialogRefused,
             ClientNotice::ModalOwnsInput => WorkbenchClientNotice::ModalOwnsInput,
             ClientNotice::AgentStart(phase) => WorkbenchClientNotice::AgentStart(phase.into()),
-            ClientNotice::HistoryRecovering => WorkbenchClientNotice::HistoryRecovering,
             ClientNotice::HistoryUnavailable => WorkbenchClientNotice::HistoryUnavailable,
             ClientNotice::HistoryPositionLost => WorkbenchClientNotice::HistoryPositionLost,
             ClientNotice::CopyModeUnavailable => WorkbenchClientNotice::CopyModeUnavailable,
@@ -861,15 +864,13 @@ impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn notice_context(&self) -> Option<&NoticeContext> {
         match (self.notice()?, self.notice_context?) {
             (
-                WorkbenchClientNotice::CommandAccepted
-                | WorkbenchClientNotice::CommandFailed
+                WorkbenchClientNotice::CommandFailed
                 | WorkbenchClientNotice::CommandUnknown
                 | WorkbenchClientNotice::CommandRefused(_),
                 context @ NoticeContext::ConfiguredCommand(_),
             )
             | (
-                WorkbenchClientNotice::LaunchProfileSelected
-                | WorkbenchClientNotice::LaunchProfileUnavailable,
+                WorkbenchClientNotice::LaunchProfileUnavailable,
                 context @ NoticeContext::LaunchProfile(_),
             ) => Some(context),
             _ => None,
@@ -882,12 +883,8 @@ impl<'a> WorkbenchClientView<'a> {
             .refresh_status()
             .map(|status| match status {
                 NavigatorRefreshStatus::Refreshing => RefreshStatus::Refreshing,
-                NavigatorRefreshStatus::Success(revision) => {
-                    RefreshStatus::Success(revision.value())
-                }
-                NavigatorRefreshStatus::Failure(revision) => {
-                    RefreshStatus::Failure(revision.value())
-                }
+                NavigatorRefreshStatus::Success(_) => RefreshStatus::Success,
+                NavigatorRefreshStatus::Failure(_) => RefreshStatus::Failure,
             })
     }
 
@@ -1755,7 +1752,7 @@ impl WorkbenchClientUi {
     pub(super) fn view(&self) -> WorkbenchClientView<'_> {
         let command_notice = self.settings.notice().map(WorkbenchClientNotice::Settings);
         let command_notice = command_notice
-            .or_else(|| self.links.notice().map(link_notice))
+            .or_else(|| self.links.notice().and_then(link_notice))
             .or_else(|| self.command_notice.current(self.clock.now()));
         let state = self.state.as_ref();
         let focus = state.and_then(WorkbenchClientState::focus_panel_id);
@@ -2983,18 +2980,12 @@ impl WorkbenchClientUi {
             self.retire(CarrierFailure::Protocol);
             return;
         }
-        if let Some(notice) = effect.notice
+        if let Some(notice) = effect.notice.and_then(client_notice)
             && let Some(state) = self.state.as_mut()
         {
-            mailbox.apply_local_for(state, |state| state.set_notice(client_notice(notice)));
+            mailbox.apply_local_for(state, |state| state.set_notice(notice));
         }
         if effect.live {
-            if let Some(state) = self.state.as_mut()
-                && state.focus_pane_ref().as_ref() == Some(key)
-                && state.notice() == Some(ClientNotice::HistoryRecovering)
-            {
-                mailbox.apply_local_for(state, WorkbenchClientState::clear_notice);
-            }
             if let Some(projection) = self.projections.iter_mut().find(|p| &p.key == key) {
                 projection.viewport = None;
                 projection.tail = None;

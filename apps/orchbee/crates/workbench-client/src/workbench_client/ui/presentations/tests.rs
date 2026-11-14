@@ -853,13 +853,14 @@ fn unbound_bootstrap_paints_empty_guidance_and_clickable_member_selector_without
     assert_eq!(painted, 0);
     let text: String = buffer.content.iter().map(|cell| cell.symbol()).collect();
     assert!(
-        text.contains("Empty terminal slot") && text.contains("[1/3]"),
+        text.contains(crate::localization::Locale::EnUs.native_unbound_terminal())
+            && text.contains("[1/3]"),
         "{text}"
     );
     assert!(
         ui.view()
             .phase_status_text(crate::localization::Locale::ZhCn)
-            .contains("空终端位")
+            .contains(crate::localization::Locale::ZhCn.native_unbound_terminal())
     );
     let (x, y, target) = (0..40)
         .flat_map(|y| (0..120).map(move |x| (x, y)))

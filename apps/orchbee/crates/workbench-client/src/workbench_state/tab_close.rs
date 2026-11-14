@@ -1059,6 +1059,10 @@ impl super::WorkbenchClientState {
 }
 
 impl<'a> super::WorkbenchClientView<'a> {
+    /// Whether closes are reported without a Tab list, which the navigator's refresh restores.
+    pub(crate) const fn close_status_only(&self) -> bool {
+        self.state.close_status_only()
+    }
     pub(crate) fn close_set_status(&self) -> Option<CloseSetStatus> {
         self.state.close_set_display_status()
     }

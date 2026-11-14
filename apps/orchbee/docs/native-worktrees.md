@@ -62,8 +62,8 @@ After submission, `[x]`, Esc and Close close the dialog without cancelling Serve
 result returns as a status notice. W or O reopens the retained operation. The operation ID and known checkout/Workspace facts survive
 failed reads and entry failure. Unknown Start is never replayed. Resume, deletion, trust override
 and rollback are never implicit. After successful entry completes, a hidden, correlated Opened result
-with retained focus eligibility may yield to a new explicit operation. Its success notice is
-transient: once the notice lifetime ends, that hidden result returns the launcher to Idle, which is
+with retained focus eligibility may yield to a new explicit operation. It shows no status notice,
+since the opened Workspace reports it, and it is transient: once the notice lifetime ends, that hidden result returns the launcher to Idle, which is
 the state such a replacement would have produced. Both ordinary and addressed routes require no
 remaining entry owner. Addressed replacement validates the current exact source,
 mode, listed non-bare checkout and next token before discarding the old receipt; refusal preserves
@@ -128,7 +128,7 @@ is staged for Remove Worktree until the removal status exposes an accepted-close
 The surface shows readable failure reasons and retained Workspace/shell-restoration facts.
 Each reason names its cause, such as a checkout Git no longer lists, a directory still in use or a
 failed Git step, instead of presenting every Git-stage failure as a refusal. A nonresumable failure
-whose Workspace Close is still held names `orchbee workspace close <workspace-id> --confirm`, which
+whose Workspace Close is still held says to close the Workspace from its menu in the sidebar, which
 releases that hold without Git.
 For a known resumable failure, the receipt's **Remove Worktree…** row, worded as the ordinary
 removal row, opens a new confirmation for the original target; cancelling it restores the failure

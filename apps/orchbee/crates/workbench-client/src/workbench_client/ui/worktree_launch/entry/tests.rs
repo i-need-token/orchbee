@@ -391,17 +391,9 @@ fn a_settled_opened_result_states_its_notice_for_the_transient_lifetime_only() {
     ui.worktrees.launcher.entry_started();
     ui.worktrees.launcher.entry_notice(WorktreeNotice::Opened);
     assert!(ui.worktrees.entry.is_none());
-    assert_eq!(
-        ui.view().worktree_stated_notice(),
-        Some(WorktreeNotice::Opened)
-    );
     assert!(!ui.expire_status_notices());
     elapsed.store(3999, Ordering::SeqCst);
     assert!(!ui.expire_status_notices());
-    assert_eq!(
-        ui.view().worktree_stated_notice(),
-        Some(WorktreeNotice::Opened)
-    );
     elapsed.store(4000, Ordering::SeqCst);
     assert!(ui.expire_status_notices(), "expiry schedules a redraw");
     assert_eq!(ui.view().worktree_stated_notice(), None);

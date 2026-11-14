@@ -85,7 +85,7 @@ There is no name field. `Enter` or a row click, against the current successful d
 picker on the same frame and starts the provider; only new Worktree keeps the picker under the form
 it opens. A terminal's Enter arrives as a bare CR, the canonical `Ctrl+M`, and starts the same way.
 A start the picker cannot make leaves it open and says why: the status row on a host or Session that
-cannot start Agents, otherwise "Agent did not start" in the status line.
+cannot start Agents, otherwise "Couldn't start the Agent." in the status line.
 
 The place row names where the Agent opens before `Enter`. The place is automatic and nothing is
 asked: the focused Panel when its shell is idle — no Agent the sidebar shows holds it and none of

@@ -7,13 +7,14 @@ use orchbee_client_server_protocol::TerminalControlOutcome;
 use std::time::Duration;
 
 impl WorkbenchClientUi {
-    fn note_terminal_clear(&mut self, notice: WorkbenchClientNotice) {
-        self.command_notice.set(
+    /// A clear that worked says nothing; it only replaces an earlier clear notice.
+    fn note_terminal_clear(&mut self, notice: Option<WorkbenchClientNotice>) {
+        self.command_notice.set(notice.and_then(|notice| {
             self.clock
                 .now()
                 .checked_add(Duration::from_secs(5))
-                .map(|until| (notice, until)),
-        );
+                .map(|until| (notice, until))
+        }));
     }
 
     pub(super) fn request_terminal_clear(&mut self) -> ClientActionDisposition {
@@ -31,11 +32,9 @@ impl WorkbenchClientUi {
                         .is_ok()
                 })
             });
-        self.note_terminal_clear(if admitted {
-            WorkbenchClientNotice::TerminalClearing
-        } else {
-            WorkbenchClientNotice::TerminalClearUnavailable
-        });
+        self.note_terminal_clear(
+            (!admitted).then_some(WorkbenchClientNotice::TerminalClearUnavailable),
+        );
         ClientActionDisposition::DismissNavigator
     }
 
@@ -57,17 +56,19 @@ impl WorkbenchClientUi {
             TerminalControlOutcome::Cleared {
                 cleanup_confirmed: true,
                 ..
-            } => WorkbenchClientNotice::TerminalCleared,
+            } => None,
             TerminalControlOutcome::Cleared {
                 cleanup_confirmed: false,
                 ..
-            } => WorkbenchClientNotice::TerminalClearUnconfirmed,
-            TerminalControlOutcome::Rejected { .. } => WorkbenchClientNotice::TerminalClearRefused,
+            } => Some(WorkbenchClientNotice::TerminalClearUnconfirmed),
+            TerminalControlOutcome::Rejected { .. } => {
+                Some(WorkbenchClientNotice::TerminalClearRefused)
+            }
             TerminalControlOutcome::Unavailable { .. } => {
-                WorkbenchClientNotice::TerminalClearUnavailable
+                Some(WorkbenchClientNotice::TerminalClearUnavailable)
             }
             TerminalControlOutcome::OutcomeUnknown {} => {
-                WorkbenchClientNotice::TerminalClearUnknown
+                Some(WorkbenchClientNotice::TerminalClearUnknown)
             }
             _ => {
                 self.retire(crate::workbench_state::CarrierFailure::Protocol);

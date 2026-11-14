@@ -452,7 +452,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     elapsed.store(150_000, Ordering::SeqCst);
     ui.tick();
     assert_eq!(ui.view().phase(), DisplayPhase::Empty);
-    assert_eq!(ui.view().refresh_status(), Some(RefreshStatus::Failure(2)));
+    assert_eq!(ui.view().refresh_status(), Some(RefreshStatus::Failure));
     assert!(
         matches!(mailbox.take_deposited_reply(&wait).unwrap(), Some(UiReply::Refresh(settlement)) if settlement.desired().is_none())
     );

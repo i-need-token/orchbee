@@ -544,62 +544,38 @@ impl Locale {
     pub(crate) fn settings_notice(self, notice: SettingsNotice) -> &'static str {
         use SettingsNotice::*;
         match notice {
-            SourceChanged => self.setting(
-                "Settings changed elsewhere; change not applied · try again",
-                "设置已在其他位置更改；未应用 · 请重试",
-            ),
-            FileBusy => self.setting(
-                "Settings file busy; change not applied · try again shortly",
-                "设置文件正忙；未应用 · 请稍后重试",
-            ),
-            InvalidValue => self.setting(
-                "The value was refused; change not applied",
-                "该值被拒绝；未应用",
-            ),
-            Unsupported => self.setting(
-                "This setting isn't supported here; change not applied",
-                "此处不支持该设置；未应用",
-            ),
+            SourceChanged | FileBusy | WriteFailed => {
+                self.setting("Couldn't save the setting.", "没能保存设置。")
+            }
+            InvalidValue => self.setting("Couldn't save that value.", "没能保存这个值。"),
+            Unsupported => self.setting("Couldn't change this setting here.", "没能在这里更改此设置。"),
             SyntaxError => self.setting(
-                "Settings file has a syntax error; change not applied · run orchbee config check",
-                "设置文件有语法错误；未应用 · 请运行 orchbee config check",
+                "Couldn't save the setting. The settings file has a syntax error; run orchbee config check.",
+                "没能保存设置。设置文件有语法错误，请运行 orchbee config check。",
             ),
             ReadOnly => self.setting(
-                "Settings file is read-only; change not applied",
-                "设置文件为只读；未应用",
+                "Couldn't save the setting. The settings file is read-only.",
+                "没能保存设置。设置文件是只读的。",
             ),
             TooLarge => self.setting(
-                "Settings file would be too large; change not applied",
-                "设置文件将超出大小上限；未应用",
+                "Couldn't save the setting. The settings file would be too large.",
+                "没能保存设置。设置文件会超出大小上限。",
             ),
             UnusableFile => self.setting(
-                "Can't use the settings file's location; not applied",
-                "无法使用设置文件位置；未应用",
+                "Couldn't save the setting. The settings file's location can't be used.",
+                "没能保存设置。无法使用设置文件所在的位置。",
             ),
-            Unreadable => self.setting(
-                "Settings file can't be read; change not applied",
-                "无法读取设置文件；未应用",
-            ),
-            WriteFailed => self.setting(
-                "Settings file couldn't be written; change not applied",
-                "无法写入设置文件；未应用",
-            ),
-            Failed => self.setting("Settings operation failed", "设置操作失败"),
-            Unknown => self.setting(
-                "Change result unknown · the page shows the file's values",
-                "更改结果未知 · 页面显示文件中的值",
-            ),
-            Busy => self.setting(
-                "Settings busy · finish the current action first",
-                "设置正忙 · 请先完成当前操作",
-            ),
+            Unreadable => self.setting("Couldn't read the settings file.", "没能读取设置文件。"),
+            Failed => self.setting("Couldn't change the setting.", "没能更改设置。"),
+            Unknown => self.outcome_unknown(),
+            Busy => self.setting("Finish the current action first.", "请先完成当前操作。"),
             PresentationUnavailable => self.setting(
-                "Cannot open Settings here · enlarge the window and try again",
-                "当前窗口无法打开设置 · 放大窗口后重试",
+                "Couldn't open Settings. Enlarge the window.",
+                "没能打开设置。请放大窗口。",
             ),
             TooSmall => self.setting(
-                "Settings hidden: enlarge the window to resume",
-                "窗口太小，设置暂时隐藏；放大窗口后继续",
+                "Enlarge the window to show Settings.",
+                "放大窗口以显示设置。",
             ),
         }
     }
@@ -609,24 +585,14 @@ impl Locale {
     pub(crate) fn settings_notice_shorter(self, notice: SettingsNotice) -> Option<&'static str> {
         use SettingsNotice::*;
         match notice {
-            SourceChanged => Some(self.setting(
-                "Settings changed elsewhere; change not applied",
-                "设置已在其他位置更改；未应用",
-            )),
-            FileBusy => Some(self.setting(
-                "Settings file busy; change not applied",
-                "设置文件正忙；未应用",
-            )),
-            SyntaxError => Some(self.setting(
-                "Settings file has a syntax error; change not applied",
-                "设置文件有语法错误；未应用",
-            )),
-            Unknown => Some(self.setting("Change result unknown", "更改结果未知")),
-            PresentationUnavailable => {
-                Some(self.setting("Cannot open Settings here", "当前窗口无法打开设置"))
+            SyntaxError | ReadOnly | TooLarge | UnusableFile => {
+                Some(self.setting("Couldn't save the setting.", "没能保存设置。"))
             }
-            InvalidValue | Failed | Busy | TooSmall | Unsupported | ReadOnly | TooLarge
-            | UnusableFile | Unreadable | WriteFailed => None,
+            PresentationUnavailable => {
+                Some(self.setting("Couldn't open Settings.", "没能打开设置。"))
+            }
+            SourceChanged | FileBusy | Unknown | InvalidValue | Failed | Busy | TooSmall
+            | Unsupported | Unreadable | WriteFailed => None,
         }
     }
 }

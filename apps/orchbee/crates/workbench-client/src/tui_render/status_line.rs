@@ -1357,9 +1357,10 @@ fn status_hints(
                 PrefixAction::Client(ClientAction::TogglePointerCapture),
                 copy.restore,
             ),
-            ContextIndicator::Zoomed => {
-                (PrefixAction::Client(ClientAction::ToggleZoom), copy.zoom_restore)
-            }
+            ContextIndicator::Zoomed => (
+                PrefixAction::Client(ClientAction::ToggleZoom),
+                copy.zoom_restore,
+            ),
             ContextIndicator::Panels(HiddenPanels {
                 toward: Some(direction),
                 ..

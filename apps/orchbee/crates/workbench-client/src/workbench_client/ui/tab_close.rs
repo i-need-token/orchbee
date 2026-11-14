@@ -216,6 +216,7 @@ impl<'a> CloseConfirmationView<'a> {
 pub(crate) struct CloseStatusView<'a> {
     inner: workbench_state::CloseStatusView<'a>,
     tab: Option<super::ClientTabView<'a>>,
+    list_unavailable: bool,
 }
 
 impl<'a> CloseStatusView<'a> {
@@ -249,6 +250,7 @@ impl<'a> CloseStatusView<'a> {
             label,
             kind: self.status(),
             stopped: self.stopped(),
+            list_unavailable: self.list_unavailable,
         }
     }
 }
@@ -260,6 +262,7 @@ impl<'a> From<&CloseStatusView<'a>> for crate::localization::CloseStatusText<'a>
             label: status.inner.target_label(),
             kind: status.status(),
             stopped: status.stopped(),
+            list_unavailable: status.list_unavailable,
         }
     }
 }
@@ -317,6 +320,10 @@ impl<'a> WorkbenchClientView<'a> {
                 self.tab_by_id(inner.target_tab_id())
             },
             inner,
+            list_unavailable: self
+                .state
+                .as_ref()
+                .is_some_and(|state| state.close_status_only()),
         }
     }
 }

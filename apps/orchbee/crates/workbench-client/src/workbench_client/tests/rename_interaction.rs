@@ -691,7 +691,7 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
     );
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         let view = workbench_client.view();
-        matches!(view.refresh_status(), Some(RefreshStatus::Success(_)))
+        matches!(view.refresh_status(), Some(RefreshStatus::Success))
     }));
     {
         // Reconcile the completed refresh, then publish the actual navigator draw.

@@ -508,8 +508,7 @@ fn unknown_worktree_result_retains_one_operation_and_can_be_hidden_without_repla
         crate::localization::Locale::ZhCn,
     ] {
         let text = draw(&mut ui, locale, 80, 24);
-        assert!(text.contains("orchbeeoperationstatus"));
-        assert!(text.contains(operation.as_str()));
+        assert!(!text.contains(operation.as_str()));
     }
     let token = ui.worktrees.launcher.token().unwrap();
     ui.dismiss_worktree(token);
@@ -616,14 +615,6 @@ fn a_result_without_an_operation_offers_only_close() {
         80,
         24,
         &crate::tui_theme::Theme::rgb_test_dark(),
-    );
-    // The command is complete: it widens the dialog instead of truncating.
-    assert!(
-        drawn
-            .text
-            .contains(&format!("orchbeeoperationstatus{}", operation.as_str())),
-        "{}",
-        drawn.text
     );
     // The outcome is still observed: the primary stays disabled and Cancel reads Close.
     assert_eq!(
@@ -830,12 +821,18 @@ fn removal_failures_name_their_cause_and_a_dead_end_points_to_the_held_close() {
         status: None,
         diagnostics: Vec::new(),
     };
-    let close = format!("orchbeeworkspaceclose{:032x}--confirm", 80);
     for locale in [
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,
     ] {
         let english = locale == crate::localization::Locale::EnUs;
+        // The held close names where to close the Workspace in its first sentence.
+        let close = locale
+            .worktree_remove_held_close()
+            .split_inclusive(['.', '。'])
+            .next()
+            .unwrap()
+            .replace(' ', "");
         for (reason, resumable, expected, guidance) in [
             (
                 git(WorktreeGitStage::Select, WorktreeGitError::CheckoutNotFound),

@@ -67,15 +67,6 @@ fn sidebar_delete_has_a_distinct_conditional_request_and_needs_a_new_draw_to_esc
         status.operation_id().is_none(),
         "no admitted Close exists to recover"
     );
-    for (locale, expected) in [
-        (Locale::EnUs, "Confirmation required before closing"),
-        (Locale::ZhCn, "关闭前需要确认"),
-    ] {
-        assert_eq!(
-            locale.workspace_close_status(status),
-            format!("{expected} · {}", status.label())
-        );
-    }
     let prompt = state.workspace_close_confirmation().unwrap();
     assert!(prompt.destructive());
     assert!(!prompt.interactive());
@@ -147,11 +138,6 @@ fn conditional_delete_refusal_unknown_and_stale_source_never_mint_confirmation_o
             }
         );
         assert_eq!(status.operation_id().is_some(), unknown);
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            let text = locale.workspace_close_status(status);
-            assert!(!text.contains("Confirmation required") && !text.contains("关闭前需要确认"));
-            assert_eq!(text.contains("orchbee operation status"), unknown);
-        }
     }
     let original = background_state(true);
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();

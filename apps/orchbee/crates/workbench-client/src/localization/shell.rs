@@ -257,18 +257,15 @@ impl Locale {
             }
             (Self::ZhCn, Some(Notice::WindowTitleUnsupported)) => "此平台尚不支持设置宿主窗口标题",
 
-            (Self::EnUs, Some(Notice::ResizeBusy)) => "Resize pending; input was not queued",
-            (Self::ZhCn, Some(Notice::ResizeBusy)) => "大小调整待定；输入未排队",
-            (Self::EnUs, Some(Notice::ResizeFailed)) => "Resize failed; inspect the current layout",
-            (Self::ZhCn, Some(Notice::ResizeFailed)) => "大小调整失败；请检查当前布局",
-            (Self::EnUs, Some(Notice::ResizeUnknown)) => {
-                "Resize outcome unknown; inspect layout before trying again"
-            }
-            (Self::ZhCn, Some(Notice::ResizeUnknown)) => "大小调整结果不确定；请先检查布局再操作",
-            (Self::EnUs, Some(Notice::ResizeContended)) => {
-                "Resize not applied; the Workbench kept changing"
-            }
-            (Self::ZhCn, Some(Notice::ResizeContended)) => "大小调整未生效；Workbench 一直在变化",
+            (
+                Self::EnUs,
+                Some(Notice::ResizeBusy | Notice::ResizeFailed | Notice::ResizeContended),
+            ) => "Couldn't resize the Panel.",
+            (
+                Self::ZhCn,
+                Some(Notice::ResizeBusy | Notice::ResizeFailed | Notice::ResizeContended),
+            ) => "没能调整面板大小。",
+            (_, Some(Notice::ResizeUnknown)) => self.outcome_unknown(),
             (Self::EnUs, Some(Notice::ResizeNoSplit)) => "No divider on this axis",
             (Self::ZhCn, Some(Notice::ResizeNoSplit)) => "该方向没有分隔线",
             (Self::EnUs, Some(Notice::ResizeLimit)) => "Divider is at its size limit",
@@ -297,185 +294,165 @@ impl Locale {
             (Self::ZhCn, Some(Notice::ConfigurationWarning)) => {
                 "配置已加载，但有警告；请运行 orchbee config check"
             }
-            (Self::EnUs, Some(Notice::NotificationUnavailable)) => {
-                "Notification transport unavailable; terminal remains usable"
-            }
-            (Self::ZhCn, Some(Notice::NotificationUnavailable)) => {
-                "通知投递方式不可用；终端仍可正常使用"
-            }
-            (Self::EnUs, Some(Notice::WindowTitleUnavailable)) => {
-                "Window title unavailable; terminal remains usable"
-            }
-            (Self::ZhCn, Some(Notice::WindowTitleUnavailable)) => {
-                "窗口标题不可用；终端仍可正常使用"
-            }
-            (Self::EnUs, Some(Notice::ConfigurationFailed)) => {
-                "Reload failed; previous keys retained"
-            }
-            (Self::ZhCn, Some(Notice::ConfigurationFailed)) => "重载失败；保留此前键位",
+            (Self::EnUs, Some(Notice::NotificationUnavailable)) => "Couldn't send notifications.",
+            (Self::ZhCn, Some(Notice::NotificationUnavailable)) => "没能发送通知。",
+            (Self::EnUs, Some(Notice::WindowTitleUnavailable)) => "Couldn't set the window title.",
+            (Self::ZhCn, Some(Notice::WindowTitleUnavailable)) => "没能设置窗口标题。",
+            (Self::EnUs, Some(Notice::ConfigurationFailed)) => "Couldn't reload the key bindings.",
+            (Self::ZhCn, Some(Notice::ConfigurationFailed)) => "没能重新加载键位。",
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameWorkspace))) => {
-                "Workspace rename unavailable · no command was sent"
+                "Couldn't rename the Workspace."
             }
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::RenameWorkspace))) => {
-                "工作区重命名不可用 · 未发送命令"
+                "没能重命名工作区。"
             }
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameProject))) => {
-                "Project rename unavailable · no command was sent"
+                "Couldn't rename the Project."
             }
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::RenameProject))) => {
-                "项目重命名不可用 · 未发送命令"
+                "没能重命名项目。"
             }
             (
                 Self::EnUs,
                 Some(Notice::BackendUnavailable(
                     BackendAction::CreateWorkspace | BackendAction::QuickCreateWorkspace,
                 )),
-            ) => "Workspace setup unavailable · no command was sent",
+            ) => "Couldn't create the Workspace.",
             (
                 Self::ZhCn,
                 Some(Notice::BackendUnavailable(
                     BackendAction::CreateWorkspace | BackendAction::QuickCreateWorkspace,
                 )),
-            ) => "工作区设置不可用 · 未发送命令",
+            ) => "没能创建工作区。",
             (
                 Self::EnUs,
                 Some(Notice::BackendUnavailable(
                     BackendAction::CreateWorktree | BackendAction::OpenWorktree,
                 )),
-            ) => "Worktree unavailable · no command was sent",
+            ) => "Couldn't open the worktree.",
             (
                 Self::ZhCn,
                 Some(Notice::BackendUnavailable(
                     BackendAction::CreateWorktree | BackendAction::OpenWorktree,
                 )),
-            ) => "工作树不可用 · 未发送命令",
+            ) => "没能打开工作树。",
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::CloseWorkspace))) => {
-                "Workspace Close unavailable · no command was sent"
+                "Couldn't close the Workspace."
             }
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::CloseWorkspace))) => {
-                "工作区关闭不可用 · 未发送命令"
+                "没能关闭工作区。"
             }
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameTab))) => {
-                "Rename unavailable · no command has been sent"
+                "Couldn't rename the Tab."
             }
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::RenameTab))) => {
-                "重命名不可用 · 未发送命令"
+                "没能重命名标签页。"
             }
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::CloseTab))) => {
-                "Close unavailable · no command has been sent"
+                "Couldn't close the Tab."
             }
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::CloseTab))) => {
-                "关闭不可用 · 未发送命令"
+                "没能关闭标签页。"
             }
-            (Self::EnUs, None) => "Client connection unavailable · no command has been sent",
-            (Self::ZhCn, None) => "客户端连接不可用 · 未发送任何命令",
-            (Self::EnUs, Some(Notice::TerminalInputUnavailable)) => {
-                "Terminal input unavailable · input was not sent"
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::CreateTab))) => {
+                "Couldn't create the Tab."
             }
-            (Self::ZhCn, Some(Notice::TerminalInputUnavailable)) => "终端输入不可用 · 未发送输入",
-            (Self::EnUs, Some(Notice::NavigationInputHeld)) => "Switching · input was not sent",
-            (Self::ZhCn, Some(Notice::NavigationInputHeld)) => "正在切换 · 未发送输入",
-            (Self::EnUs, Some(Notice::WorkspaceNavigationUnavailable)) => {
-                "Could not switch · select the destination again to retry"
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::CreateTab))) => {
+                "没能创建标签页。"
             }
-            (Self::ZhCn, Some(Notice::WorkspaceNavigationUnavailable)) => {
-                "无法切换 · 请再次选择目标以重试"
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::SplitPanel))) => {
+                "Couldn't split the Panel."
             }
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::SplitPanel))) => {
+                "没能拆分面板。"
+            }
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::ClosePanel))) => {
+                "Couldn't close the Panel."
+            }
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::ClosePanel))) => {
+                "没能关闭面板。"
+            }
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::MovePanel))) => {
+                "Couldn't move the Panel."
+            }
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::MovePanel))) => {
+                "没能移动面板。"
+            }
+            (
+                Self::EnUs,
+                Some(Notice::BackendUnavailable(
+                    BackendAction::MovePreviousTab | BackendAction::MoveNextTab,
+                )),
+            ) => "Couldn't move the Tab.",
+            (
+                Self::ZhCn,
+                Some(Notice::BackendUnavailable(
+                    BackendAction::MovePreviousTab | BackendAction::MoveNextTab,
+                )),
+            ) => "没能移动标签页。",
+            (
+                Self::EnUs,
+                Some(Notice::BackendUnavailable(
+                    BackendAction::SelectNextTab
+                    | BackendAction::SelectPreviousTab
+                    | BackendAction::SelectTab(_),
+                )),
+            ) => "Couldn't switch Tabs.",
+            (
+                Self::ZhCn,
+                Some(Notice::BackendUnavailable(
+                    BackendAction::SelectNextTab
+                    | BackendAction::SelectPreviousTab
+                    | BackendAction::SelectTab(_),
+                )),
+            ) => "没能切换标签页。",
+            (
+                Self::EnUs,
+                Some(Notice::BackendUnavailable(
+                    BackendAction::SelectPreviousContext | BackendAction::SelectNextContext,
+                )),
+            ) => "Couldn't switch the location.",
+            (
+                Self::ZhCn,
+                Some(Notice::BackendUnavailable(
+                    BackendAction::SelectPreviousContext | BackendAction::SelectNextContext,
+                )),
+            ) => "没能切换位置。",
+            (Self::EnUs, None) => "Couldn't connect to Orchbee.",
+            (Self::ZhCn, None) => "没能连接 Orchbee。",
+            (Self::EnUs, Some(Notice::TerminalInputUnavailable | Notice::NavigationInputHeld)) => {
+                "Couldn't send the input."
+            }
+            (Self::ZhCn, Some(Notice::TerminalInputUnavailable | Notice::NavigationInputHeld)) => {
+                "没能发送输入。"
+            }
+            (Self::EnUs, Some(Notice::WorkspaceNavigationUnavailable)) => "Couldn't switch there.",
+            (Self::ZhCn, Some(Notice::WorkspaceNavigationUnavailable)) => "没能切换过去。",
             (Self::EnUs, Some(Notice::MachineRefused(refusal))) => match refusal {
-                Refusal::OtherEnvironment => "Could not switch · remote is another environment",
-                Refusal::ClientTooOld => "Could not switch · update Orchbee on this computer",
-                Refusal::SessionTooOld => "Could not switch · remote Session is too old",
-                Refusal::DevelopmentBuildMismatch => {
-                    "Could not switch · remote runs another development build"
+                Refusal::OtherEnvironment | Refusal::DevelopmentBuildMismatch => {
+                    "Couldn't switch. That machine runs a different installation."
                 }
+                Refusal::ClientTooOld => "Couldn't switch. Update Orchbee on this machine.",
+                Refusal::SessionTooOld => "Couldn't switch. Update Orchbee on that machine.",
             },
             (Self::ZhCn, Some(Notice::MachineRefused(refusal))) => match refusal {
-                Refusal::OtherEnvironment => "无法切换 · 远端属于另一个环境",
-                Refusal::ClientTooOld => "无法切换 · 请更新本机的 Orchbee",
-                Refusal::SessionTooOld => "无法切换 · 远端会话版本过旧",
-                Refusal::DevelopmentBuildMismatch => "无法切换 · 远端运行的是另一个开发构建",
+                Refusal::OtherEnvironment | Refusal::DevelopmentBuildMismatch => {
+                    "没能切换。那台机器运行的是另一个安装。"
+                }
+                Refusal::ClientTooOld => "没能切换。请更新这台机器上的 Orchbee。",
+                Refusal::SessionTooOld => "没能切换。请更新那台机器上的 Orchbee。",
             },
-            (Self::EnUs, Some(Notice::PasswordNotSaved)) => "Password not saved",
-            (Self::ZhCn, Some(Notice::PasswordNotSaved)) => "密码未保存",
+            (Self::EnUs, Some(Notice::PasswordNotSaved)) => "Couldn't save the password.",
+            (Self::ZhCn, Some(Notice::PasswordNotSaved)) => "没能保存密码。",
             (Self::EnUs, Some(Notice::NoNotificationTarget)) => "No Agent notification",
             (Self::ZhCn, Some(Notice::NoNotificationTarget)) => "没有智能体通知",
-            (Self::EnUs, Some(Notice::PointerInputDropped)) => {
-                "Pointer input dropped · focus switch did not settle in time"
-            }
-            (Self::ZhCn, Some(Notice::PointerInputDropped)) => {
-                "指针输入被丢弃 · 焦点切换未及时就绪"
-            }
-            (Self::EnUs, Some(Notice::NavigatorChanged)) => {
-                "Navigator closed · location or target changed"
-            }
-            (Self::ZhCn, Some(Notice::NavigatorChanged)) => "导航器已关闭 · 位置或目标已改变",
+            (Self::EnUs, Some(Notice::PointerInputDropped)) => "Couldn't handle the click.",
+            (Self::ZhCn, Some(Notice::PointerInputDropped)) => "没能处理这次点击。",
+            (Self::EnUs, Some(Notice::NavigatorChanged)) => "Couldn't go there.",
+            (Self::ZhCn, Some(Notice::NavigatorChanged)) => "没能前往那里。",
             (_, Some(Notice::NavigatorTooSmall)) => self.shell().overlay_refused,
             (Self::EnUs, Some(Notice::UnknownPrefix)) => "Unknown prefix key",
             (Self::ZhCn, Some(Notice::UnknownPrefix)) => "未知前缀键",
-            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::CreateTab))) => {
-                "Tab creation unavailable · no command was sent"
-            }
-            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::CreateTab))) => {
-                "无法创建标签页 · 未发送命令"
-            }
-            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::SplitPanel))) => {
-                "Panel split unavailable · no command was sent"
-            }
-            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::SplitPanel))) => {
-                "面板拆分不可用 · 未发送命令"
-            }
-            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::ClosePanel))) => {
-                "Panel close unavailable · no command was sent"
-            }
-            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::ClosePanel))) => {
-                "面板关闭不可用 · 未发送命令"
-            }
-            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::MovePanel))) => {
-                "Panel move unavailable · no command was sent"
-            }
-            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::MovePanel))) => {
-                "面板移动不可用 · 未发送命令"
-            }
-            (
-                Self::EnUs,
-                Some(Notice::BackendUnavailable(
-                    BackendAction::MovePreviousTab | BackendAction::MoveNextTab,
-                )),
-            ) => "Tab move unavailable · no command was sent",
-            (
-                Self::ZhCn,
-                Some(Notice::BackendUnavailable(
-                    BackendAction::MovePreviousTab | BackendAction::MoveNextTab,
-                )),
-            ) => "无法移动标签页 · 未发送命令",
-            (
-                Self::EnUs,
-                Some(Notice::BackendUnavailable(
-                    BackendAction::SelectNextTab
-                    | BackendAction::SelectPreviousTab
-                    | BackendAction::SelectTab(_),
-                )),
-            ) => "Tab navigation unavailable · no command was sent",
-            (
-                Self::ZhCn,
-                Some(Notice::BackendUnavailable(
-                    BackendAction::SelectNextTab
-                    | BackendAction::SelectPreviousTab
-                    | BackendAction::SelectTab(_),
-                )),
-            ) => "标签页导航不可用 · 未发送命令",
-            (
-                Self::EnUs,
-                Some(Notice::BackendUnavailable(
-                    BackendAction::SelectPreviousContext | BackendAction::SelectNextContext,
-                )),
-            ) => "Workbench location navigation unavailable · no command was sent",
-            (
-                Self::ZhCn,
-                Some(Notice::BackendUnavailable(
-                    BackendAction::SelectPreviousContext | BackendAction::SelectNextContext,
-                )),
-            ) => "Workbench 位置导航不可用 · 未发送命令",
         }
     }
 
@@ -483,7 +460,6 @@ impl Locale {
     /// width, for the notices that can be; it keeps the outcome and drops the advice.
     pub(crate) const fn shell_notice_shorter(self, notice: Notice) -> Option<&'static str> {
         let (english, chinese) = match notice {
-            Notice::ResizeUnknown => ("Resize outcome unknown", "大小调整结果不确定"),
             Notice::CheckpointRecovered => (
                 "Workspace snapshot restored; some unreadable",
                 "已使用有效存档恢复；部分工作区存档不可读",
@@ -511,9 +487,6 @@ impl Locale {
                 "Setting the host window title not supported",
                 "不支持设置宿主窗口标题",
             ),
-            Notice::NotificationUnavailable => {
-                ("Notification transport unavailable", "通知投递方式不可用")
-            }
             Notice::NotificationUnsupported
                 if crate::host_capabilities::Capability::SystemNotification.session_dependent() =>
             {
@@ -523,16 +496,20 @@ impl Locale {
                 "Host notification delivery not supported",
                 "不支持宿主通知投递",
             ),
-            Notice::PointerInputDropped => ("Pointer input dropped", "指针输入被丢弃"),
             Notice::NavigatorTooSmall => return Some(self.shell().overlay_refused_short),
-            Notice::BackendUnavailable(
-                BackendAction::SelectPreviousContext | BackendAction::SelectNextContext,
+            Notice::MachineRefused(
+                Refusal::OtherEnvironment | Refusal::DevelopmentBuildMismatch,
             ) => (
-                "Location navigation unavailable · no command was sent",
-                "位置导航不可用 · 未发送命令",
+                "Couldn't switch: another installation.",
+                "没能切换：另一个安装。",
             ),
-            Notice::BackendUnavailable(
-                BackendAction::CreateWorkspace
+            Notice::ResizeUnknown
+            | Notice::NotificationUnavailable
+            | Notice::PointerInputDropped
+            | Notice::BackendUnavailable(
+                BackendAction::SelectPreviousContext
+                | BackendAction::SelectNextContext
+                | BackendAction::CreateWorkspace
                 | BackendAction::QuickCreateWorkspace
                 | BackendAction::CreateWorktree
                 | BackendAction::OpenWorktree

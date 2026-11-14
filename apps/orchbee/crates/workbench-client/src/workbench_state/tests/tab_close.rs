@@ -443,7 +443,6 @@ fn the_follow_continues_across_a_generation_that_rises_by_itself() {
 /// with no reason.
 #[test]
 fn a_finally_failed_close_shows_the_tab_again_with_the_one_sentence() {
-    use crate::localization::{CloseStatusText, Locale};
     let unknown = WorkbenchTabCloseStatus::OutcomeUnknown {
         phase: WorkbenchTabCloseUnknownPhase::Dispose,
         reason: WorkbenchTabCloseUnknownReason::TransportLost,
@@ -461,18 +460,6 @@ fn a_finally_failed_close_shows_the_tab_again_with_the_one_sentence() {
         assert!(!state.close.tab_leaving(&tab));
         let report = state.view().announced_close_status().unwrap();
         assert!(report.stopped());
-        let label = report.target_label();
-        for (locale, sentence) in [
-            (Locale::EnUs, format!("Couldn't close {label}.")),
-            (Locale::ZhCn, format!("未能关闭 {label}。")),
-        ] {
-            let told = locale.native_close_status(CloseStatusText {
-                label,
-                kind: report.status(),
-                stopped: report.stopped(),
-            });
-            assert_eq!(told, sentence);
-        }
     }
 }
 

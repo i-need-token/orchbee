@@ -477,6 +477,7 @@ pub(crate) use crate::localization::WorkspaceCloseStatus;
 #[derive(Clone, Copy)]
 pub(crate) struct WorkspaceCloseStatusView<'a> {
     operation: &'a WorkspaceCloseOperation,
+    #[cfg(test)]
     operation_id: &'a WorkbenchRequestId,
     status: WorkspaceCloseStatus,
 }
@@ -487,6 +488,7 @@ impl<'a> WorkspaceCloseStatusView<'a> {
     pub(crate) const fn status(self) -> WorkspaceCloseStatus {
         self.status
     }
+    #[cfg(test)]
     pub(crate) fn operation_id(self) -> Option<&'a WorkbenchRequestId> {
         (!matches!(
             self.status,
@@ -504,7 +506,6 @@ impl<'a> From<WorkspaceCloseStatusView<'a>> for crate::localization::WorkspaceCl
         Self {
             label: view.label(),
             status: view.status(),
-            operation_id: view.operation_id(),
             workspace_id: view.workspace_id(),
         }
     }
@@ -1173,6 +1174,8 @@ impl WorkbenchClientState {
             {
                 return None;
             }
+            // Only tests read which request a close follows; the copy names no request.
+            #[cfg(test)]
             let operation_id = match &evidence.result {
                 WorkspaceCloseResult::WorkspaceAccepted(accepted)
                 | WorkspaceCloseResult::WorkspaceObserved { accepted, .. } => {
@@ -1204,6 +1207,7 @@ impl WorkbenchClientState {
             };
             return Some(WorkspaceCloseStatusView {
                 operation: &evidence.operation,
+                #[cfg(test)]
                 operation_id,
                 status,
             });
@@ -1215,6 +1219,7 @@ impl WorkbenchClientState {
             .filter(|_| self.workspace_close.show_pending)?;
         Some(WorkspaceCloseStatusView {
             operation: pending,
+            #[cfg(test)]
             operation_id: &pending.request_id,
             status: WorkspaceCloseStatus::Closing,
         })

@@ -550,10 +550,12 @@ fn stale_rename_fact_fits_compact_content_and_retry_is_a_separate_rename_hint() 
     let view = ClientView::new(width);
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let (target, action) = (Target::Workspace, ClientAction::RequestWorkspaceRename);
-        let fact = locale.setup_status(SetupStatus::LocationLabel {
-            target,
-            status: Status::Stale,
-        });
+        let fact = locale
+            .setup_status(SetupStatus::LocationLabel {
+                target,
+                status: Status::Stale,
+            })
+            .unwrap();
         let (terminal, paint) = paint_at_tier_with_locale(
             &view,
             width,

@@ -59,8 +59,6 @@ pub(crate) enum WorkbenchClientNotice {
     MoveOrderConflict,
     PanelNotApplied,
     RenameNotRenamed,
-    TerminalClearing,
-    TerminalCleared,
     TerminalClearUnconfirmed,
     TerminalClearRefused,
     TerminalClearUnavailable,
@@ -76,7 +74,6 @@ pub(crate) enum WorkbenchClientNotice {
     DialogRefused,
     ModalOwnsInput,
     AgentStart(super::super::AgentStartStatus),
-    HistoryRecovering,
     HistoryUnavailable,
     HistoryPositionLost,
     CopyModeUnavailable,
@@ -101,11 +98,9 @@ pub(crate) enum WorkbenchClientNotice {
     PositionLocationChangedEmpty,
     PositionUnavailable,
     PopupUnavailable,
-    CommandAccepted,
     CommandFailed,
     CommandUnknown,
     CommandRefused(orchbee_workbench_protocol::ConfiguredCommandFailure),
-    LaunchProfileSelected,
     LaunchProfileUnavailable,
     /// A held restore's Retry found the saved directory still unavailable.
     RestoreDirectoryUnavailable,
@@ -119,20 +114,18 @@ pub(crate) enum WorkbenchClientNotice {
         Option<crate::agent_provider::IntegrationId>,
         orchbee_workbench_protocol::AgentNotResumedReason,
     ),
-    LinkOpened,
-    LinkHandled,
     LinkNoLink,
     LinkBusy,
     LinkFailed,
     LinkUnknown,
 }
 
-/// Snapshot refresh feedback with the last known revision when one exists.
+/// Snapshot refresh feedback; a finished refresh shows itself and says nothing.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RefreshStatus {
     Refreshing,
-    Success(u64),
-    Failure(u64),
+    Success,
+    Failure,
 }
 
 /// Current availability of retained terminal display data.

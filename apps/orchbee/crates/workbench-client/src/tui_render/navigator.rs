@@ -275,8 +275,8 @@ pub(super) fn render(
     if let Some(refresh) = native.refresh_status() {
         let role = match refresh {
             RefreshStatus::Refreshing => Role::StatusWorking,
-            RefreshStatus::Success(_) => Role::StatusSuccess,
-            RefreshStatus::Failure(_) => Role::StatusError,
+            RefreshStatus::Success => return Some(area),
+            RefreshStatus::Failure => Role::StatusError,
         };
         frame.render_widget(
             Paragraph::new(Line::from(vec![

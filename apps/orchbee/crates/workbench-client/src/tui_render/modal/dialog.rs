@@ -59,9 +59,6 @@ pub(in crate::tui_render) enum DialogRow<'a> {
     Prose(Cow<'a, str>),
     /// A required preview row in `role`, truncated at the end.
     Item(Cow<'a, str>, Role),
-    /// A CLI command that is the only recovery, as code text on its own line in `text-secondary`.
-    /// It stays whole: it widens the dialog past its class, up to the wide maximum.
-    Command(Cow<'a, str>),
     /// Text that must be read whole, such as the sentence a question asks or a host key
     /// fingerprint, in `role`: it wraps at any width, a run longer than a line breaking anywhere,
     /// and is never cut, dropped or shortened; a dialog that cannot hold it cannot be drawn.
@@ -185,10 +182,6 @@ impl DialogRow<'_> {
             Self::Item(text, role) => plain(
                 truncate_display(&sanitize_terminal_text(text), cells, ellipsis),
                 *role,
-            ),
-            Self::Command(text) => plain(
-                truncate_display(&sanitize_terminal_text(text), cells, ellipsis),
-                Role::TextSecondary,
             ),
             Self::Label(text, focused) => plain(
                 truncate_display(&sanitize_terminal_text(text), cells, ellipsis),
@@ -368,14 +361,12 @@ pub(in crate::tui_render) fn dialog_layout(
         .chain([display_width(dialog.title).saturating_add(super::OVERLAY_TITLE_RESERVE - 6)])
         .max()
         .unwrap_or(0);
-    // A command that is the only recovery is useless cut, so it may pass the class maximum; so
-    // may whole text that reads best on one line, such as a fingerprint.
+    // Whole text that reads best on one line, such as a fingerprint, may pass the class maximum.
     let command = dialog
         .rows
         .iter()
         .filter_map(|row| match row {
-            DialogRow::Command(text)
-            | DialogRow::Whole {
+            DialogRow::Whole {
                 text, widen: true, ..
             } => Some(display_width(&sanitize_terminal_text(text))),
             _ => None,

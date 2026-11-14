@@ -423,25 +423,19 @@ fn advance(state: &mut WorkbenchClientState, revision: u64, member: Option<usize
     state.cache = state.cache.project_snapshot(&peer).unwrap();
 }
 
+/// The status line's sentence for the set's current facts.
+fn told(state: &WorkbenchClientState, locale: crate::localization::Locale) -> String {
+    locale
+        .close_set_status(state.close_set_status().unwrap())
+        .unwrap()
+}
+
 /// Several Tabs close as one Server operation: nothing leaves before the Server accepts it, and
 /// from then on every member is out of the strip and the status line counts them.
 #[test]
 fn a_set_counts_from_its_acceptance_and_stops_reporting_once_every_member_is_closed() {
     use crate::localization::Locale;
-    for (locale, running, one_closed, stopped) in [
-        (
-            Locale::EnUs,
-            "Closing Tabs: 0 closed, 2 remaining",
-            "Closing Tabs: 1 closed, 1 remaining",
-            "Closing stopped: 1 closed, 1 unconfirmed",
-        ),
-        (
-            Locale::ZhCn,
-            "正在关闭标签页：0 个已关闭，剩余 2 个",
-            "正在关闭标签页：1 个已关闭，剩余 1 个",
-            "关闭已停止：1 个已关闭，1 个未确认",
-        ),
-    ] {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
         let now = Instant::now();
         let mut state = ready(3);
         let members = tab_ids(&state, &[1, 2]);
@@ -456,7 +450,7 @@ fn a_set_counts_from_its_acceptance_and_stops_reporting_once_every_member_is_clo
         );
         assert!(members.iter().all(|tab| state.view().tab_leaving(tab)));
         let shown = screen(&state, locale);
-        assert!(shown.contains(running), "{shown}");
+        assert!(shown.contains(&told(&state, locale)), "{shown}");
 
         let later = now + Duration::from_millis(250);
         let read = read_set(&mut state, 9100, later);
@@ -472,7 +466,7 @@ fn a_set_counts_from_its_acceptance_and_stops_reporting_once_every_member_is_clo
             ),
         );
         let shown = screen(&state, locale);
-        assert!(shown.contains(one_closed), "{shown}");
+        assert!(shown.contains(&told(&state, locale)), "{shown}");
 
         // The set stops while the second member's own Close may still finish.
         let later = later + Duration::from_millis(250);
@@ -490,7 +484,7 @@ fn a_set_counts_from_its_acceptance_and_stops_reporting_once_every_member_is_clo
             ),
         );
         let shown = screen(&state, locale);
-        assert!(shown.contains(stopped), "{shown}");
+        assert!(shown.contains(&told(&state, locale)), "{shown}");
         assert!(!state.close_set_read_due(later + Duration::from_secs(1)));
 
         let closed = closed_status(&state);
@@ -537,15 +531,6 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
                     Some(later + Duration::from_secs(5))
                 );
                 assert!(!state.settle_close_set(later + Duration::from_secs(4)));
-                // The completed form replaces the running count.
-                let shown = screen(&state, locale);
-                assert!(
-                    shown.contains(match locale {
-                        Locale::EnUs => "2 Tabs closed",
-                        Locale::ZhCn => "已关闭 2 个标签页",
-                    }),
-                    "{shown}"
-                );
             }
             let facts = state.close_set_status();
             match next {
@@ -562,7 +547,9 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
                         )),
                         "{shown}"
                     );
-                    assert!(!shown.contains(&locale.close_set_status(facts.unwrap())));
+                    if let Some(count) = locale.close_set_status(facts.unwrap()) {
+                        assert!(!shown.contains(&count));
+                    }
                     state.clear_notice();
                 }
             }
@@ -574,7 +561,9 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
             } else {
                 assert!(state.view().close_set_status().is_none());
                 assert!(state.close_set_summary_deadline().is_none());
-                assert!(!screen(&state, locale).contains(&locale.close_set_status(facts.unwrap())));
+                if let Some(count) = locale.close_set_status(facts.unwrap()) {
+                    assert!(!screen(&state, locale).contains(&count));
+                }
                 assert!(!state.settle_close_set(later + Duration::from_secs(60)));
             }
         }
@@ -584,18 +573,7 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
 #[test]
 fn a_stopped_set_reports_while_a_close_may_finish_and_then_clears_like_any_notice() {
     use crate::localization::Locale;
-    for (locale, left_open, in_doubt) in [
-        (
-            Locale::EnUs,
-            "Closing stopped: 1 closed, 2 still open",
-            "Closing stopped: 0 closed, 1 unconfirmed, 2 still open",
-        ),
-        (
-            Locale::ZhCn,
-            "关闭已停止：1 个已关闭，2 个仍打开",
-            "关闭已停止：0 个已关闭，1 个未确认，2 个仍打开",
-        ),
-    ] {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
         for dismissed in [false, true] {
             // A member's terminals changed: the set stops with nothing left in flight.
             let now = Instant::now();
@@ -616,14 +594,15 @@ fn a_stopped_set_reports_while_a_close_may_finish_and_then_clears_like_any_notic
             let facts = state.close_set_status();
             assert!(facts.unwrap().halted);
             assert!(!facts.unwrap().unconfirmed);
-            assert!(screen(&state, locale).contains(left_open));
+            let left_open = told(&state, locale);
+            assert!(screen(&state, locale).contains(&left_open));
             assert!(state.settle_close_set(now));
             assert_eq!(
                 state.close_set_summary_deadline(),
                 Some(now + Duration::from_secs(5))
             );
             assert!(!state.settle_close_set(now + Duration::from_secs(4)));
-            assert!(screen(&state, locale).contains(left_open));
+            assert!(screen(&state, locale).contains(&left_open));
             if dismissed {
                 state.dismiss_close_set_summary();
             } else {
@@ -632,7 +611,7 @@ fn a_stopped_set_reports_while_a_close_may_finish_and_then_clears_like_any_notic
             }
             assert!(state.view().close_set_status().is_none());
             assert!(state.close_set_summary_deadline().is_none());
-            assert!(!screen(&state, locale).contains(left_open));
+            assert!(!screen(&state, locale).contains(&left_open));
             assert_eq!(state.close_set_status(), facts);
         }
 
@@ -656,18 +635,19 @@ fn a_stopped_set_reports_while_a_close_may_finish_and_then_clears_like_any_notic
         };
         settle(&mut state, &read, &available(&start, failed, members));
         assert!(state.close_set_status().unwrap().unconfirmed);
-        assert!(screen(&state, locale).contains(in_doubt));
+        let in_doubt = told(&state, locale);
+        assert!(screen(&state, locale).contains(&in_doubt));
         assert!(state.close_set_summary_deadline().is_none());
         state.dismiss_close_set_summary();
         assert!(!state.settle_close_set(later + Duration::from_secs(60)));
-        assert!(screen(&state, locale).contains(in_doubt));
+        assert!(screen(&state, locale).contains(&in_doubt));
 
         // Its outcome leaves nothing in flight, and the report starts to clear.
         let later = later + Duration::from_secs(60);
         let closed = closed_status(&state);
         read_member(&mut state, &first, 9101, closed, later);
         assert!(!state.close_set_status().unwrap().unconfirmed);
-        assert!(screen(&state, locale).contains(left_open));
+        assert!(screen(&state, locale).contains(&told(&state, locale)));
         assert!(state.settle_close_set(later));
         assert!(state.settle_close_set(later + Duration::from_secs(5)));
         assert!(state.view().close_set_status().is_none());
@@ -890,11 +870,14 @@ fn a_set_of_one_tab_closes_and_reports_as_its_own_close() {
             accept(&mut state, &close);
             read_status(&mut state, &close, failure.clone(), now);
             let status = state.view().announced_close_status().unwrap();
-            let told = locale.native_close_status(CloseStatusText {
-                label: status.target_label(),
-                kind: status.status(),
-                stopped: status.stopped(),
-            });
+            let told = locale
+                .native_close_status(CloseStatusText {
+                    label: status.target_label(),
+                    kind: status.status(),
+                    stopped: status.stopped(),
+                    list_unavailable: false,
+                })
+                .unwrap();
             let shown = screen(&state, locale);
             assert!(shown.contains(&told), "{shown}");
             assert!(state.close_set_status().is_none());

@@ -1,7 +1,5 @@
 use std::{collections::HashMap, ffi::OsString};
 
-use crate::client_view::{BackendAction, Notice};
-
 use super::{Locale, select_locale};
 
 #[test]
@@ -189,28 +187,6 @@ fn panel_shortcuts_dispatch_their_actions() {
         view.commit(prefix, ClientActionDisposition::KeepNavigator);
         let transition = view.decide(key(code, Modifiers::NONE));
         assert_eq!(transition.action(), Some(expected), "Ctrl+B {code:?}");
-    }
-
-    for (action, en, zh) in [
-        (
-            BackendAction::SplitPanel,
-            "Panel split unavailable · no command was sent",
-            "面板拆分不可用 · 未发送命令",
-        ),
-        (
-            BackendAction::ClosePanel,
-            "Panel close unavailable · no command was sent",
-            "面板关闭不可用 · 未发送命令",
-        ),
-        (
-            BackendAction::MovePanel,
-            "Panel move unavailable · no command was sent",
-            "面板移动不可用 · 未发送命令",
-        ),
-    ] {
-        let notice = Some(Notice::BackendUnavailable(action));
-        assert_eq!(Locale::EnUs.shell_notice(notice), en);
-        assert_eq!(Locale::ZhCn.shell_notice(notice), zh);
     }
 }
 

@@ -168,7 +168,10 @@ fn status_row(status: Option<SetupStatus>, locale: Locale) -> Option<DialogRow<'
         } => Role::StatusWarning,
         _ => return None,
     };
-    Some(DialogRow::Status(locale.setup_status(status?).into(), role))
+    Some(DialogRow::Status(
+        locale.setup_status(status?)?.into(),
+        role,
+    ))
 }
 
 /// A field's help row: its error once an edit or a refused submission exposed it, otherwise its

@@ -90,8 +90,8 @@ pub(super) fn paint(
     let fixed = 2
         + glyph.map_or(0, |(glyph, _)| display_width(glyph) + 1)
         + unread.as_deref().map_or(0, display_width);
-    let mut badge = (title.zoomed && selector.is_none())
-        .then(|| format!(" {} ", locale.zoomed_panes()));
+    let mut badge =
+        (title.zoomed && selector.is_none()).then(|| format!(" {} ", locale.zoomed_panes()));
     let width = usize::from(line.width);
     let right = |badge: &Option<String>| {
         selector.as_ref().map_or_else(

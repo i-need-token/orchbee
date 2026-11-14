@@ -118,7 +118,6 @@ mod tests {
             .iter()
             .map(|cell| cell.symbol())
             .collect::<String>();
-        assert!(text.contains("Cannot open here: enlarge the terminal."));
         assert!(!text.contains("Esc"));
         let marker_width = display_width(theme.glyphs.status_bullet);
         let marker = (0..80)

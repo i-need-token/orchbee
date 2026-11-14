@@ -142,9 +142,9 @@ fn a_rejected_search_paste_keeps_the_draft_caret_warning_and_exit_path() {
                 let warning = locale
                     .native_notice(crate::localization::WorkbenchClientNotice::CopyModeSearchLimit);
                 let warning_prefix = if locale == Locale::EnUs {
-                    "Rejected"
+                    "Couldn't"
                 } else {
-                    "拒绝搜索"
+                    "没能"
                 };
                 let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
                 terminal

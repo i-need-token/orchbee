@@ -25,10 +25,10 @@ fn synchronous_link_rejection_replaces_an_older_lane_notice() {
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
     let mut ui = WorkbenchClientUi::new(mailbox, clock);
-    ui.links.set_notice_for_test(Notice::Handled);
+    ui.links.set_notice_for_test(Notice::Unknown);
     assert_eq!(
         ui.view().command_notice,
-        Some(WorkbenchClientNotice::LinkHandled)
+        Some(WorkbenchClientNotice::LinkUnknown)
     );
 
     assert_eq!(
@@ -73,10 +73,10 @@ fn accepted_link_retires_an_older_synchronous_link_notice() {
     ));
     let mut ui = WorkbenchClientUi::new(mailbox, clock);
     ui.report_link_notice(WorkbenchClientNotice::LinkBusy);
-    ui.links.set_notice_for_test(Notice::Handled);
+    ui.links.set_notice_for_test(Notice::Unknown);
     assert_eq!(
         ui.view().command_notice,
-        Some(WorkbenchClientNotice::LinkHandled)
+        Some(WorkbenchClientNotice::LinkUnknown)
     );
 
     // A successful admission clears the older lane outcome before returning.

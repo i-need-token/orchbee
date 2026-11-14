@@ -43,7 +43,7 @@ holds the decision and submits it, once, in the first tick that finds the slot f
 further background reads start. Meanwhile the confirmation stays drawn and armed: `Esc` withdraws
 the decision with nothing sent, and a later `Enter` confirms again. A target that drifts meanwhile
 cancels the confirmation with its changed-target notice, as an open one does; a decision still
-waiting after the held-intent bound (5 s) is dropped with `Client busy · no command sent`, and the
+waiting after the held-intent bound (5 s) is dropped with `Couldn't run the action.`, and the
 confirmation stays armed for another `Enter`. The set confirmation and a Panel confirmation follow
 the same rule.
 
@@ -161,7 +161,10 @@ attempt generation: the Client follows a generation that rises by itself and kee
 a falling one is a regression. Any other status is final. A close that finally fails, as blocked,
 unknown, disposed without publication, unavailable or uncertain, shows its Tab or Panel again and
 reports at once, on the status line, one sentence with no reason: `Couldn't close {label}.`,
-`未能关闭 {label}。`. A later validated `Closed` clears the report. A refusal keeps the Tab and reports
+`没能关闭 {label}。`. A later validated `Closed` clears the report. A close that finishes says
+nothing, because its Tab or Panel leaving the screen reports it; only while the Tab list is
+unavailable does the status line read `{label} · Closed`, the fact the navigator's refresh restores
+the list from. A refusal keeps the Tab and reports
 only its notice. `close_status` stays unfiltered because Client control uses it as a busy gate;
 rendering reads `announced_close_status`.
 
@@ -201,10 +204,10 @@ every member's Tab is unchanged in the canonical Snapshot and in the same order.
 or a fifth race gives up with the request-not-applied notice; any other refusal reports at once and
 keeps every member. The hidden confirmation of an `if-idle` set goes again with each resend.
 
-From the Server's acceptance the status line counts the set: `Closing Tabs: 1 closed, 2 remaining`,
-whose last value becomes `N Tabs closed`. A member the Server found already gone counts as closed.
-A set the Server stops reports `Closing stopped`, separating the Tabs left open from the one member
-whose own Close may still finish, as in `Closing stopped: 1 closed, 1 unconfirmed, 1 still open`.
+From the Server's acceptance the status line reads `Closing Tabs…` while the Client counts the set;
+a set that finishes says nothing, because its Tabs have left the strip. A member the Server found
+already gone counts as closed. A set the Server stops reports `Couldn't close all the Tabs.`, or,
+while one member's own Close may still finish, `Not sure it finished. Check, then try again.`
 The Server leaves that member's Close retained; the Client keeps it as an ordinary close record, so
 its status reads and its report continue it, closing its Tab again takes the ordinary path, and its
 confirmed closure joins the count.

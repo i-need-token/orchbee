@@ -344,7 +344,8 @@ fn measure<'v>(
     let reason_rows = usize::from(
         !menu.context_menu
             && result_actions.iter().any(|index| {
-                menu.unavailable[*index].is_some_and(|reason| locale.menu_unavailable(reason).is_some())
+                menu.unavailable[*index]
+                    .is_some_and(|reason| locale.menu_unavailable(reason).is_some())
             }),
     );
     let search_rows = usize::from(menu.query.is_some());
