@@ -191,7 +191,7 @@ impl Locale {
     pub(crate) fn worktree_remove_held_close(self) -> &'static str {
         match self {
             Self::EnUs => "The Workspace is still closing. Close it from its menu in the sidebar.",
-            Self::ZhCn => "工作区仍在关闭中。请在侧边栏中通过它的菜单关闭。",
+            Self::ZhCn => "工作区仍在关闭中。请在边栏中通过它的菜单关闭。",
         }
     }
     pub(crate) fn worktree_remove_workspace_state(

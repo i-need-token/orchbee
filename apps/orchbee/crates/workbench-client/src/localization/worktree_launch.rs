@@ -139,7 +139,7 @@ impl Locale {
             (_, N::PresentationUnavailable) => self.presentation_notice(false),
             (_, N::Unknown) => self.outcome_unknown(),
             (Self::EnUs, N::EntryDeferred) => "The Workspace is ready. Select it in the sidebar.",
-            (Self::ZhCn, N::EntryDeferred) => "工作区已就绪。请在侧边栏中选择它。",
+            (Self::ZhCn, N::EntryDeferred) => "工作区已就绪。请在边栏中选择它。",
             (Self::EnUs, N::Preparing) => "Reading repository…",
             (Self::ZhCn, N::Preparing) => "正在读取仓库…",
             (Self::EnUs, N::InvalidInput) => "Use a valid branch and base.",
@@ -147,9 +147,11 @@ impl Locale {
             (Self::EnUs, N::InputLimit) => "Each field allows at most 1024 UTF-8 bytes.",
             (Self::ZhCn, N::InputLimit) => "每个字段最多允许 1024 个 UTF-8 字节。",
             (Self::EnUs, N::SourceUnavailable) => {
-                "Source unavailable. Use a Workspace directory or an attached main terminal."
+                "Couldn't find a folder to start from. Use a Workspace that has a folder or a Main terminal."
             }
-            (Self::ZhCn, N::SourceUnavailable) => "来源不可用。请使用工作区目录或已连接的主终端。",
+            (Self::ZhCn, N::SourceUnavailable) => {
+                "没能找到起始目录。请使用有目录或主终端的工作区。"
+            }
             (Self::EnUs, N::ListingUnavailable) => "Couldn't list the Git checkouts.",
             (Self::ZhCn, N::ListingUnavailable) => "没能列出 Git 检出目录。",
             (Self::EnUs, N::NotRepository) => {
@@ -182,7 +184,7 @@ impl Locale {
             (Self::EnUs, N::EntryFailed) => {
                 "Couldn't open the terminal. Select the Workspace in the sidebar."
             }
-            (Self::ZhCn, N::EntryFailed) => "没能打开终端。请在侧边栏中选择工作区。",
+            (Self::ZhCn, N::EntryFailed) => "没能打开终端。请在边栏中选择工作区。",
             // A dialog gives each sentence at most two lines, so the remedy takes two sentences.
             (Self::EnUs, N::ClientInCheckout) => {
                 "Orchbee was started inside this worktree, so Windows keeps it in use. Quit Orchbee and leave the folder in that shell. Then remove the worktree from elsewhere."

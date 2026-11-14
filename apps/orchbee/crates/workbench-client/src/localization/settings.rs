@@ -343,7 +343,7 @@ impl Locale {
                 self.setting("Match theme", "跟随主题")
             }
             Choice::TerminalTheme(TerminalDisplayAppearance::Host) => {
-                self.setting("Terminal default", "终端默认")
+                self.setting("Your terminal's colors", "所在终端的颜色")
             }
             Choice::TerminalTheme(TerminalDisplayAppearance::Custom) => {
                 self.setting("Custom", "自定义")
