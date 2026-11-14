@@ -108,7 +108,7 @@ fn remove(
                     profiles: Vec::new(),
                     ..Default::default()
                 }),
-                false,
+                &[],
                 &mut surface,
                 &mut view,
                 dimensions(),

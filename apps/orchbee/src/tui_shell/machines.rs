@@ -7,7 +7,7 @@ use crate::{
     machine_discovery::{Connection, Context, Discovery, display_label, same_endpoint},
     machine_picker::{Choice, SelectionOrigin, SelectionScope},
     machine_refusal::Refusal,
-    machines::{Profile, Store},
+    machines::{Profile, ProfileId, Store},
     terminal_device::WindowDimensions,
     workbench_client::{
         ClientContextTarget, ClientStartupTarget, ContextNavigationAdmission, TerminalStatus,
@@ -302,7 +302,7 @@ impl Manager {
             self.refresh = now + Duration::from_secs(1);
             change = self.refresh_catalog(
                 Store::configured().and_then(|store| store.read()),
-                false,
+                &[],
                 surface,
                 view,
                 dimensions,
@@ -354,10 +354,28 @@ impl Manager {
             .exchange_manage(&mut self.discovery, store.as_ref(), now);
         change.redraw |= managed.redraw;
         if let Some(catalog) = managed.catalog {
-            let refreshed =
-                self.refresh_catalog(Ok(catalog), true, surface, view, dimensions, before_switch);
+            let refreshed = self.refresh_catalog(
+                Ok(catalog),
+                &managed.left,
+                surface,
+                view,
+                dimensions,
+                before_switch,
+            );
             change.redraw |= refreshed.redraw;
             change.switched |= refreshed.switched;
+        }
+        // The person is stopping the remote Session of the Machine on screen: its terminals end
+        // before its record goes, so the view leaves it for Local now, under the picker that says
+        // the stop is running, instead of showing the Session end.
+        if self
+            .current
+            .as_ref()
+            .is_some_and(|current| managed.left.contains(&current.id))
+        {
+            self.leave_current(true, surface, view, dimensions, before_switch);
+            change.redraw = true;
+            change.switched = true;
         }
         // A ticked answer of a login that succeeded, which the store did not keep.
         if self.discovery.unsaved() {
@@ -813,12 +831,12 @@ impl Manager {
         };
         same_machine_endpoint(self.current.as_ref(), profile).then_some(target)
     }
-    /// Takes the catalog `catalog`; `own` when it is the commit of the person's own change in this
-    /// TUI's picker.
+    /// Takes the catalog `catalog`; `left` names the Machines whose record the person's own change
+    /// in this TUI's picker removed or disabled, or whose Session it is stopping.
     fn refresh_catalog(
         &mut self,
         catalog: Result<crate::machines::Catalog, crate::machines::Error>,
-        own: bool,
+        left: &[ProfileId],
         surface: &mut SurfaceSlot<'_>,
         view: &mut ClientView,
         dimensions: WindowDimensions,
@@ -889,24 +907,9 @@ impl Manager {
                 for cached in removed {
                     self.retire(cached.surface);
                 }
-                if self.current.as_ref().is_some_and(|p| !self.valid(p)) {
-                    self.cancel();
-                    self.restore(
-                        &Choice::Local,
-                        surface,
-                        view,
-                        dimensions,
-                        false,
-                        before_switch,
-                    );
-                    if own {
-                        // The person removed or disabled the machine on screen from the picker:
-                        // Local takes its place under the picker, which stays on the change.
-                        view.machines.reopen_after_manage();
-                    } else {
-                        view.machines.error = Some("removed");
-                        view.workspace_navigation_unavailable();
-                    }
+                if let Some(current) = self.current.as_ref().filter(|p| !self.valid(p)) {
+                    let own = left.contains(&current.id);
+                    self.leave_current(own, surface, view, dimensions, before_switch);
                     change.switched = true;
                 } else if let Some(current) = &mut self.current
                     && let Some(profile) = self.profiles.iter().find(|p| p.id == current.id)
@@ -942,6 +945,32 @@ impl Manager {
         }
         change.redraw |= view.machines != before;
         change
+    }
+    /// Leaves the Machine on screen for Local. After the person's `own` remove, disable or Session
+    /// stop of it in the picker, Local takes its place under the picker, which stays on that
+    /// change; otherwise, or when the picker cannot open again, the status line says the switch
+    /// did not happen, as for a Machine another process removed.
+    fn leave_current(
+        &mut self,
+        own: bool,
+        surface: &mut SurfaceSlot<'_>,
+        view: &mut ClientView,
+        dimensions: WindowDimensions,
+        before_switch: &mut dyn FnMut(&mut dyn crate::terminal_input::TerminalInputPort),
+    ) {
+        self.cancel();
+        self.restore(
+            &Choice::Local,
+            surface,
+            view,
+            dimensions,
+            false,
+            before_switch,
+        );
+        if !(own && view.machines.reopen_after_manage()) {
+            view.machines.error = Some("removed");
+            view.workspace_navigation_unavailable();
+        }
     }
     fn local_source(&self, surface: &mut SurfaceSlot<'_>) -> Option<Connection> {
         let (origin, clock) = if self.current.is_none() {

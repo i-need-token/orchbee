@@ -19,6 +19,9 @@ pub struct Managed {
     pub redraw: bool,
     /// The catalog a commit left, for the shell's catalog refresh.
     pub catalog: Option<Catalog>,
+    /// The Machines the view leaves for Local when it shows one of them: those whose record the
+    /// person removed or disabled, and the one whose remote Session the person is stopping.
+    pub left: Vec<ProfileId>,
 }
 
 impl Picker {
@@ -66,6 +69,7 @@ impl Picker {
                 SessionStop::Stopped => {
                     if let Some(catalog) = self.remove(discovery, store, &machine) {
                         managed.catalog = Some(catalog);
+                        managed.left.push(machine.clone());
                         self.manage.notice = Some(Notice::RemovedStopped(label));
                     }
                 }
@@ -88,29 +92,35 @@ impl Picker {
                         .or(managed.catalog);
                 }
                 Work::Enable { machine, enabled } => {
-                    // Disabling also ends the link, so nothing connects it again.
-                    if !enabled {
-                        discovery.disconnect(&machine);
+                    let edit = Edit::Enable {
+                        id: machine.clone(),
+                        enabled,
+                    };
+                    if let Some(catalog) = self.commit(store, &edit) {
+                        managed.catalog = Some(catalog);
+                        // A saved disable also ends the link, so nothing connects it again; one
+                        // that was not saved leaves the Machine as it was, link and all.
+                        if !enabled {
+                            discovery.disconnect(&machine);
+                            managed.left.push(machine);
+                        }
                     }
-                    managed.catalog = self
-                        .commit(
-                            store,
-                            &Edit::Enable {
-                                id: machine,
-                                enabled,
-                            },
-                        )
-                        .or(managed.catalog);
                 }
                 Work::Disconnect(machine) => discovery.disconnect(&machine),
                 Work::Remove(machine) => {
                     let label = self.manage.label(&machine);
                     if let Some(catalog) = self.remove(discovery, store, &machine) {
                         managed.catalog = Some(catalog);
+                        managed.left.push(machine);
                         self.manage.notice = Some(Notice::Removed(label));
                     }
                 }
-                Work::Stop(machine) => discovery.stop_session(&machine),
+                Work::Stop(machine) => {
+                    // Its Session ends before its record goes: the view leaves it now, not when
+                    // the stop is answered.
+                    discovery.stop_session(&machine);
+                    managed.left.push(machine);
+                }
             }
         }
         if let Some(catalog) = self.follow_add(discovery, store) {
