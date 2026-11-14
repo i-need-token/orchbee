@@ -5,10 +5,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[test]
 fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
     let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
-    let settings = read(
-        "[keys]\nprefix='ctrl+a'\n[notifications]\ncli_delivery='off'\n[appearance.sidebar.agents]\nrows=[['$summary']]\nrow_gap=1\n",
-    );
-    assert_eq!(settings.agent_sidebar.row_gap(), 1);
     assert!(
         read("[appearance.sidebar.workspaces]\nrows=[]")
             .space_sidebar
@@ -22,22 +18,15 @@ fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
             .field,
         "appearance.sidebar.workspaces"
     );
-    assert_eq!(
-        settings
-            .agent_sidebar
-            .rows_for_agent("codex", None)
-            .unwrap()[0][0]
-            .name(),
-        "$summary"
-    );
     for text in [
         "[appearance.sidebar]\nother=1",
-        "[appearance.sidebar.agents]\nrows=[['typo']]",
+        "[appearance.sidebar.agents]\nrows=[['agent']]",
         "[appearance]\nsidebar=42",
     ] {
         assert!(!read(text).diagnostics.is_empty());
     }
-    let admitted = read("[appearance.sidebar.agents]\nrows=[['agent']]\n[keys]\nhelp='ctrl+c'");
+    let admitted =
+        read("[appearance.sidebar.workspaces]\nrows=[['workspace']]\n[keys]\nhelp='ctrl+c'");
     assert_eq!(admitted.keys.overrides[0].action, "help");
     assert!(admitted.keys.overrides[0].triggers.is_empty());
     assert_eq!(admitted.diagnostics.items()[0].field, "keys.help");
@@ -586,7 +575,6 @@ fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
     assert!(admitted.diagnostics.is_empty());
     assert_eq!(admitted.keys, defaults.keys);
     assert_eq!(admitted.notifications, defaults.notifications);
-    assert_eq!(admitted.agent_sidebar, defaults.agent_sidebar);
     assert_eq!(admitted.space_sidebar, defaults.space_sidebar);
     assert_eq!(admitted.window_title, defaults.window_title);
     assert_eq!(admitted.update_channel, defaults.update_channel);

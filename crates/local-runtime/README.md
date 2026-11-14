@@ -956,9 +956,8 @@ every key's purpose, allowed values and default.
 | `appearance.terminal_colors`                                                                | `"theme"`                        | Appearance / Terminal colors         |
 | `appearance.custom_foreground`, `custom_background`                                         | `"#141414"`, `"#fcfcfc"`         | Appearance / Terminal colors         |
 | `appearance.window_title`                                                                   | `"{hostname}: {workspace}"`      | file only                            |
-| `appearance.sidebar.agents.rows`, `rows_by_agent`                                           | one-line title row, no overrides | file only                            |
 | `appearance.sidebar.workspaces.rows`                                                        | workspace and Git, then location | file only                            |
-| `appearance.sidebar.agents.row_gap`, `workspaces.row_gap`                                   | `0`                              | file only                            |
+| `appearance.sidebar.workspaces.row_gap`                                                     | `0`                              | file only                            |
 | `terminal.new_cwd`                                                                          | unset (no override)              | General / Basics                     |
 | `terminal.focus_new_panel`                                                                  | `true`                           | file only                            |
 | `terminal.copy_on_select`                                                                   | `false`                          | Terminal / Input                     |
@@ -1172,12 +1171,12 @@ process.
 
 ## Sidebar presentation settings
 
-The shared settings owner admits separate `appearance.sidebar.agents` and
-`appearance.sidebar.workspaces` layouts. Token styling/raw-value first-match rules have one common admission owner;
-family-specific wrappers reject unsupported tokens and non-text rules. Each closed
-canonical profile caps at 32 KiB independently. Workspace layouts use rows/row_gap;
-Agent layouts retain provider overrides. Startup, CLI checks and Session reload all
-consume this owner. See the [user guide](../../apps/orchbee/docs/windows-cli-configuration.md#windows-workspace-sidebar-layouts).
+The shared settings owner admits the `appearance.sidebar.workspaces` layout. Token styling and
+raw-value first-match rules have one admission owner, which rejects unsupported tokens and non-text
+rules on icons and Git counts. The closed canonical profile caps at 32 KiB. Startup, CLI checks and
+Session reload all consume this owner. Agent rows have no layout: `AGENT_SIDEBAR_PROFILE` is the
+fixed profile the configuration snapshot and `config check` still carry, and a file that sets
+`appearance.sidebar.agents` gets an `unknown-key` diagnostic. See the [user guide](../../apps/orchbee/docs/windows-cli-configuration.md#windows-workspace-sidebar-layouts).
 
 ## Windows handoff pipe identity
 

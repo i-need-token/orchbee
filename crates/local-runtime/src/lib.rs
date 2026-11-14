@@ -38,10 +38,9 @@ pub use user_path::{USER_PATH_LIMIT, UserPathError, UserPathOperand, normalize_u
 mod user_settings;
 pub use user_settings::set_update_channel;
 pub use user_settings::{
-    AgentSidebarSettings, AgentSidebarToken, AgentSidebarTokenKind, CommandSize, CustomCommand,
-    CustomCommandAction, CustomCommandEntry, DEFAULT_WINDOW_TITLE, DefaultActionBindings,
-    DesktopTerminalSettings, DirectoryPolicy, KeyChord, KeyOverride, KeySettings, KeyTrigger,
-    MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, MAXIMUM_AGENT_SOUND_OVERRIDES,
+    AGENT_SIDEBAR_PROFILE, CommandSize, CustomCommand, CustomCommandAction, CustomCommandEntry,
+    DEFAULT_WINDOW_TITLE, DefaultActionBindings, DesktopTerminalSettings, DirectoryPolicy,
+    KeyChord, KeyOverride, KeySettings, KeyTrigger, MAXIMUM_AGENT_SOUND_OVERRIDES,
     MAXIMUM_NOTIFICATION_DELAY_SECONDS, MAXIMUM_NOTIFICATION_PROFILE_BYTES,
     MAXIMUM_SETTING_CHANGES, MAXIMUM_SETTINGS_DIAGNOSTICS, MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES,
     MAXIMUM_STRUCTURED_ENTRIES, MAXIMUM_STRUCTURED_VALUE_BYTES, MAXIMUM_USER_SETTINGS_BYTES,

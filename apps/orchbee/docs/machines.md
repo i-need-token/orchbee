@@ -2070,70 +2070,25 @@ sidebar overlays suppress terminal-draw acknowledgements even when short height
 has undocked a Wide Client's sidebar. Live terminal-title tokens and real
 SSH/emulator visual acceptance remain separate obligations.
 
-## Agent sidebar configuration model
+## Agent sidebar row model
 
-Windows users can select sidebar content through `appearance.sidebar.agents.rows`,
-`rows_by_agent` and `row_gap`. The shared Windows settings owner admits the
-bounded whole file and a canonical, closed JSON profile of at most 32 KiB.
-The existing Session configuration owner publishes that profile alongside keys and
-notification policy; only the Client UI owner installs a newer, completely
-validated publication. Fatal source failures retain all previously installed settings. An invalid
-configured sidebar profile uses its safe default, emits a warning and remains part of the complete
-atomic candidate; a malformed private wire profile is rejected before Client installation. No
-renderer reads configuration files or starts background work.
-
-Rows contain `state_icon`, `state_text`, `machine`, `workspace`, `tab`, `panel`,
-`agent`, `terminal_title`, `terminal_title_stripped`, or `$name`. Missing values and tokens hidden by rules disappear; rows
-with no remaining tokens disappear. An entry still retains its focus marker,
-exact target and navigation eligibility. Custom values and custom state
-labels are read from the already-fenced presentation metadata. Text rules match
-the original value; only painting sanitizes controls and truncates graphemes.
-`terminal_title` and `terminal_title_stripped` use the live physical title
-observation below; pane title and `$terminal_title` never substitute for those
-builtins.
-
-Default rows show one line beside the vertical guide and status glyph: what names the Agent,
+An Agent row is one fixed line beside the vertical guide and status glyph: what names the Agent,
 then its provider in secondary text, or the provider alone, as
-[Sidebar display identity](native-agent-navigation.md#sidebar-display-identity) defines.
-Parent Machine/Workspace text stays in the tree rather than each Agent. Status color stays on the
-glyph; the name uses the primary text role. A pointer resting on the glyph names its state in a
-tooltip; configured `state_text` and `agent`
-tokens restore inline state and provider text.
+[Sidebar display identity](native-agent-navigation.md#sidebar-display-identity) defines. Within the
+row's width the title gives way first, so the provider stays whole while the title keeps its first
+few cells; narrower still, the title alone tells sibling Agents apart. Parent Machine/Workspace text
+stays in the tree rather than each Agent. Status color stays on the glyph; the name uses the primary
+text role. A pointer resting on the glyph names its state in a tooltip.
 
-| Input or event                                 | Decision and observable result                                                                                          |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| No rows setting or matching override           | Use the single-line title default                                                                                       |
-| Provider override                              | Exact physical Agent label first, then its canonical report label; displayAgent cannot select an override               |
-| Empty rows, missing custom value, or hide rule | Remove configured text, preserving at least the identity line and exact hit target                                      |
-| Styled text token                              | Apply base foreground/bold/dim, then the first matching rule; `hide=true` removes that token                            |
-| Text rule                                      | Exactly one of equals/contains/starts_with; optional ASCII case folding                                                 |
-| Numeric rule                                   | Exactly one finite gt/lt threshold; strict finite number parsing without trimming or case folding                       |
-| Layout or publication changes                  | Reset follow-focus window and pending scroll; do not alter filters, seen state or physical identity                     |
-| Variable-height viewport                       | Fit whole entries and inter-entry gaps; an oversized single entry is clipped to the actual body                         |
-| Scroll                                         | Move by entries, at most the painted entry count per cadence; clamp against the final page computed from actual heights |
-| Invalid configured sidebar profile             | Use the safe sidebar default, emit a warning and publish it with the complete candidate                                 |
-| Fatal file/TOML or malformed wire profile      | Reject before publication or UI installation; retain previous keys, notification policy and sidebar                     |
-
-At most 16 rows, 16 tokens per row, 16 rules per token and 64 provider overrides
-are admitted. Custom keys use the metadata ASCII grammar; provider keys are
-bounded native IDs. Foreground accepts `#rgb` or `#rrggbb`. The theme owner maps
-explicit user foregrounds and modifiers; default presentation remains semantic
-theme roles. Nonnegative `row_gap` fits u16 and is applied only between entries.
-Empty trailing space and gaps are non-activating sidebar surfaces. Paint geometry
-and input geometry share the same resolved window, including clipped entries.
-
-Core evidence must cover strict admission and canonical profile roundtrips,
-first-match/hide/case/numeric rules, raw-value matching, provider identity,
-missing/empty content, final-page and focus windows, bounded/reversed wheel,
-and exact hit targets. Adapter evidence must cover whole-publication retention,
-real configuration IPC, and both locales/themes at short and full heights.
-No new Agent authority, terminal acknowledgement, persistence migration, network
-acceptance or emulator visual proof follows from configurable painting.
+No setting changes an Agent row: the file has no Agent row keys, and a file that still sets
+`appearance.sidebar.agents` receives an `unknown-key` diagnostic for the table, which is ignored.
+Agent rows have no gap between them. The configuration snapshot still carries a fixed
+`agentSidebarProfile` that the Client does not read. Paint geometry and input geometry share the
+same resolved window; empty trailing space is a non-activating sidebar surface.
 
 ## Live terminal title observation model
 
-An Agent sidebar user may select `terminal_title` or
-`terminal_title_stripped` to follow the OSC title of the exact physical terminal.
+An Agent row's identity title can come from the OSC title of the exact physical terminal.
 The existing Host metadata event is the only title writer. The Windows Worker
 keeps a connection-owned, bounded projection keyed by the complete Host identity
 and metadata revision, independent of Agent report sequence, view filters and

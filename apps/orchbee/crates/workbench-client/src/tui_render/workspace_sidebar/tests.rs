@@ -1762,21 +1762,6 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
         let mut workspace = token("workspace");
         workspace["style"]["bold"] = serde_json::json!(false);
         configure(&mut view, serde_json::json!([[workspace]]), 0);
-        view.machines.configure_agent_sidebar(
-            orchbee_local_runtime::AgentSidebarSettings::from_profile(
-                &serde_json::json!({
-                    "rows": [[{
-                        "name": "panel",
-                        "style": {"fg": null, "bold": false, "dim": null},
-                        "rules": []
-                    }]],
-                    "rows_by_agent": {},
-                    "row_gap": 0
-                })
-                .to_string(),
-            )
-            .unwrap(),
-        );
         let context = view.machines.space_rows()[0].sidebar_target().unwrap();
         let SidebarTarget::Context {
             target: context_target,

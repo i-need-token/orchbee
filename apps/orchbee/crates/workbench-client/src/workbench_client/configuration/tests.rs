@@ -43,7 +43,6 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
     view.settle_pointer_released(true);
     let theme = view.configured_theme();
     let mut published = snapshot(1, "[keys]\nprefix='ctrl+a'\nsettings='prefix+f6'");
-    published.agent_sidebar_profile = r#"{"rows":[],"rows_by_agent":{},"row_gap":2}"#.into();
     published.spaces_sidebar_profile = r#"{"rows":[],"row_gap":3}"#.into();
     published.notification_profile = "[ui.toast]\ndelivery='orchbee'".into();
     watcher.shared.0.lock().unwrap().snapshot = Some(published);
@@ -52,7 +51,6 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
     assert_eq!(view.effective_locale(Locale::EnUs), Locale::ZhCn);
     assert_eq!(view.user_preferences(), Some(&preferences));
     assert!(view.pointer_released());
-    assert_eq!(view.machines.sidebar_settings().row_gap(), 2);
     assert_eq!(view.machines.space_settings().row_gap(), 3);
     assert!(view.notifications.card_delivery());
     let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
@@ -92,7 +90,7 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     let before = view.clone();
     let mut candidate = snapshot(1, "[keys]\nprefix='ctrl+a'");
     candidate.notification_profile = "[ui.toast]\ndelivery='orchbee'".into();
-    candidate.agent_sidebar_profile = "{}".into();
+    candidate.spaces_sidebar_profile = "{}".into();
     watcher.shared.0.lock().unwrap().snapshot = Some(candidate.clone());
     assert!(watcher.tick(&mut view));
     assert_eq!(watcher.revision, None);
@@ -101,14 +99,6 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     assert_eq!(view.notifications, before.notifications);
     assert_eq!(view.machines, before.machines);
     assert_eq!(view.notice(), Some(Notice::ConfigurationFailed));
-    candidate.agent_sidebar_profile = r#"{"rows":[],"rows_by_agent":{},"row_gap":2}"#.into();
-    candidate.spaces_sidebar_profile = "{}".into();
-    watcher.shared.0.lock().unwrap().snapshot = Some(candidate.clone());
-    assert!(watcher.tick(&mut view));
-    assert_eq!(watcher.revision, None);
-    assert_eq!(view.bindings(), before.bindings());
-    assert_eq!(view.notifications, before.notifications);
-    assert_eq!(view.machines, before.machines);
     candidate.spaces_sidebar_profile = r#"{"rows":[],"row_gap":3}"#.into();
     watcher.shared.0.lock().unwrap().snapshot = Some(candidate);
     assert!(watcher.tick(&mut view));
@@ -120,15 +110,7 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
             .matches(KeyEvent::press(KeyCode::Char('a'), Modifiers::CTRL))
     );
     assert_ne!(view.notifications, before.notifications);
-    assert_eq!(view.machines.sidebar_settings().row_gap(), 2);
     assert_eq!(view.machines.space_settings().row_gap(), 3);
-    assert!(
-        view.machines
-            .sidebar_settings()
-            .rows_for_agent("codex", None)
-            .unwrap()
-            .is_empty()
-    );
 }
 
 #[test]

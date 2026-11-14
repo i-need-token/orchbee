@@ -72,53 +72,6 @@ fn sidebar_and_picker_are_independent_agent_read_consumers_and_last_row_prunes_d
 }
 
 #[test]
-fn agent_configuration_resets_the_real_unified_window_without_changing_identity() {
-    let mut picker = sidebar_picker(8);
-    let context = owner(&picker);
-    assert!(picker.sidebar_context_agents_expanded(&context));
-    let targets = picker
-        .sidebar_navigation_rows()
-        .iter()
-        .map(SidebarRow::target)
-        .collect::<Vec<_>>();
-    let window = {
-        let rows = picker.sidebar_navigation_rows();
-        let heights = vec![1; rows.len()];
-        let gaps = vec![0; rows.len()];
-        picker.space_window_for_row_gaps(&rows, &heights, &gaps, 3)
-    };
-    picker.queue_space_scroll(window, false);
-    assert!(picker.settle_sidebar_scroll());
-    let rows = picker.sidebar_navigation_rows();
-    let heights = vec![1; rows.len()];
-    let gaps = vec![0; rows.len()];
-    assert!(
-        picker
-            .space_window_for_row_gaps(&rows, &heights, &gaps, 3)
-            .top
-            > 0
-    );
-
-    picker.configure_agent_sidebar(
-        orchbee_local_runtime::AgentSidebarSettings::from_profile(
-            r#"{"rows":[],"rows_by_agent":{},"row_gap":1}"#,
-        )
-        .unwrap(),
-    );
-    let rows = picker.sidebar_navigation_rows();
-    assert_eq!(
-        picker
-            .space_window_for_row_gaps(&rows, &vec![1; rows.len()], &vec![1; rows.len()], 3,)
-            .top,
-        0
-    );
-    assert_eq!(
-        rows.iter().map(SidebarRow::target).collect::<Vec<_>>(),
-        targets
-    );
-}
-
-#[test]
 fn sidebar_activation_re_resolves_visible_physical_identity_after_reorder() {
     let mut picker = sidebar_picker(2);
     let context = owner(&picker);

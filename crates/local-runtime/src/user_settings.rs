@@ -1,6 +1,5 @@
 //! Shared user settings in `config.toml`: fatal source boundaries, field-local admission, and
 //! edits that change only the keys they name.
-mod agent_sidebar;
 mod diagnostics;
 use diagnostics::{DiagnosticsCollector, unknown_field};
 mod sidebar_tokens;
@@ -11,10 +10,6 @@ pub use space_sidebar::{
     SpaceSidebarTokenKind,
 };
 mod keys;
-pub use agent_sidebar::{
-    AgentSidebarSettings, AgentSidebarToken, AgentSidebarTokenKind,
-    MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES,
-};
 mod notifications;
 pub use diagnostics::{
     MAXIMUM_SETTINGS_DIAGNOSTICS, SettingsDiagnostic, SettingsDiagnosticDisposition,
@@ -70,6 +65,11 @@ pub use values::{UserSettingsField, settings_values, snapshot_values, value_chan
 pub use window_title::{DEFAULT_WINDOW_TITLE, WindowTitleTemplate};
 pub use wire::{setting_changes, settings_refusal};
 
+/// The Agent sidebar profile the configuration snapshot and `config check` carry. An Agent row is
+/// one fixed line with nothing to configure, so the profile is constant: the one an empty file
+/// published while the file could still describe Agent rows.
+pub const AGENT_SIDEBAR_PROFILE: &str = r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#;
+
 /// Largest `config.toml` the reader admits: room for every platform's launch profiles.
 pub const MAXIMUM_USER_SETTINGS_BYTES: u64 = 2 * 1024 * 1024;
 const LIMIT: u64 = MAXIMUM_USER_SETTINGS_BYTES;
@@ -78,7 +78,6 @@ pub use channel::set_update_channel;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserSettings {
     pub window_title: String,
-    pub agent_sidebar: AgentSidebarSettings,
     pub space_sidebar: SpaceSidebarSettings,
     pub notifications: NotificationSettings,
     pub keys: KeySettings,
@@ -195,7 +194,6 @@ impl Default for UserSettings {
     fn default() -> Self {
         Self {
             window_title: DEFAULT_WINDOW_TITLE.into(),
-            agent_sidebar: AgentSidebarSettings::default(),
             space_sidebar: SpaceSidebarSettings::default(),
             notifications: NotificationSettings::default(),
             keys: KeySettings::default(),
@@ -604,12 +602,6 @@ fn parse_appearance(fields: &mut Fields<'_>, settings: &mut UserSettings) {
         match WindowTitleTemplate::parse(&value) {
             Ok(_) => settings.window_title = value,
             Err(reason) => fields.push("appearance.window_title", reason),
-        }
-    }
-    if let Some(value) = fields.value("appearance.sidebar.agents") {
-        match AgentSidebarSettings::parse(&registered_only(value, "appearance.sidebar.agents")) {
-            Ok(profile) => settings.agent_sidebar = profile,
-            Err(error) => fields.push_error(&error),
         }
     }
     if let Some(value) = fields.value("appearance.sidebar.workspaces") {

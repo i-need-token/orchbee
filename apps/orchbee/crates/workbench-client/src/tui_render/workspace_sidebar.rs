@@ -658,7 +658,7 @@ fn entry_height(view: &ClientView, row: &SidebarRow<'_>, locale: Locale) -> u16 
         SidebarRow::Context { row: context, .. } => {
             context_height(view, context, locale, folded(view, row))
         }
-        SidebarRow::Agent { row, .. } => agent_tokens::height(view, row, locale),
+        SidebarRow::Agent { row, .. } => agent_tokens::height(view, row),
     }
 }
 
@@ -1070,18 +1070,12 @@ fn starts_group(rows: &[SidebarRow<'_>], index: usize) -> bool {
     )
 }
 
-/// Blank rows above `index`: Agents use their own gap, groups are always separated, and a
-/// group's first Workspace sits directly under its heading.
-fn gap_before(
-    view: &ClientView,
-    rows: &[SidebarRow<'_>],
-    index: usize,
-    space_gap: u16,
-    agent_gap: u16,
-) -> u16 {
+/// Blank rows above `index`: an Agent row sits directly under the row above it, groups are always
+/// separated, and a group's first Workspace sits directly under its heading.
+fn gap_before(view: &ClientView, rows: &[SidebarRow<'_>], index: usize, space_gap: u16) -> u16 {
     let row = &rows[index];
     if matches!(row, SidebarRow::Agent { .. }) {
-        agent_gap
+        0
     } else if starts_group(rows, index) {
         space_gap.max(1)
     } else if index > 0
@@ -1217,18 +1211,15 @@ pub(super) fn render(
         .iter()
         .map(|row| entry_height(view, row, locale) + touch)
         .collect();
-    let (space_gap, agent_gap) = if touch > 0 {
-        (0, 0)
+    let space_gap = if touch > 0 {
+        0
     } else {
-        (
-            view.machines.space_settings().row_gap(),
-            view.machines.sidebar_settings().row_gap(),
-        )
+        view.machines.space_settings().row_gap()
     };
     let mut gaps: Vec<_> = (0..rows.len())
         .map(|index| {
             if index + 1 < rows.len() {
-                gap_before(view, rows, index + 1, space_gap, agent_gap)
+                gap_before(view, rows, index + 1, space_gap)
             } else {
                 space_gap
             }

@@ -224,15 +224,13 @@ these keys still depends on the terminal host.
 
 ## Live configuration reload
 
-The sidebar profile participates in the same admission/publication transition:
-`appearance.sidebar.agents.rows`, `rows_by_agent` and `row_gap` are validated by the shared
-Windows settings owner, then published as a bounded canonical profile. A Client
-validates keys, notifications and both sidebars before installing any field. A bad
-private wire profile leaves the whole previous Client configuration intact. Startup applies
-the Server's complete admitted baseline after the first snapshot arrives; a local projection shown
-while connecting is provisional. Configuration checking reports the supported layout and its bounds.
-See the [Agent sidebar configuration model](machines.md#agent-sidebar-configuration-model)
-for tokens, provider selection, rules, geometry and evidence obligations.
+The Workspace sidebar profile participates in the same admission/publication transition:
+`appearance.sidebar.workspaces.rows` and `row_gap` are validated by the shared Windows settings
+owner, then published as a bounded canonical profile. A Client validates keys, notifications and
+the Workspace sidebar before installing any field. A bad private wire profile leaves the whole
+previous Client configuration intact. Startup applies the Server's complete admitted baseline after
+the first snapshot arrives; a local projection shown while connecting is provisional.
+Configuration checking reports the supported layout and its bounds.
 
 Windows `config reload` requests a reload in the running Session and does not activate one. Server freezes the startup configuration location,
 serializes reloads, parses the bounded whole file and prepares one admitted candidate containing
@@ -380,36 +378,17 @@ A platform uninstaller runs `orchbee --installer-uninstall-v1 [--delete-data]` a
 
 A test build reads `ORCHBEE_TEST_REGISTRY_KEY`, a key below `HKCU\Software\ob-test-scratch\` with one plain name, and uses its `Environment` and `Uninstall` subkeys instead of the real ones, for uninstall and for the PATH step of `install` and `update`; any other value refuses, with `location` in uninstall and as a failed PATH step before the pointer moves, and no other build reads it. A rehearsal stages, packages and test-signs a cohort as above, then runs every command with its own `USERPROFILE`, `HOME`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, `ORCHBEE_HOME`, `ORCHBEE_INSTALL_DIR`, `ORCHBEE_TEST_REGISTRY_KEY` and a `PATH` holding no Agent program: `install --no-path`, a copy of the version's `<stem>-launcher.exe` to `<store root>\bin\<stem>.exe` and the scratch `Path`, registration and shortcut standing in for the PATH step and the installer, then `<store root>\bin\<stem>.exe uninstall --confirm`. The ignored integration test `cli_windows_uninstall` performs that rehearsal in both modes, with stand-ins for the installer's own files in the store root and one other item in each root under `--delete-data`, and runs the helper from a stand-in uninstaller in the store root beside another program there, when `ORCHBEE_TEST_UNINSTALL_CLIENT` names the packaged Client. Against the same installed package it also starts Sessions from that Client, outside the store: from the store's version folder, beside the Client once the pointer is moved aside, and with two such Clients and the store's own starting at once.
 
-## Windows Agent sidebar layouts
+## Windows Agent sidebar rows
 
-The main Windows TUI applies `appearance.sidebar.agents` at startup and after `config reload`.
-For example:
+An Agent row is one fixed line: what names the Agent, then its provider, or the provider alone.
+The file has no Agent row keys. A file that still sets `appearance.sidebar.agents` receives an
+`unknown-key` diagnostic for that table, which is ignored, and starts normally.
 
-```toml
-[appearance.sidebar.agents]
-rows = [["state_icon", "state_text"], ["machine", "workspace", "tab"], ["panel", "$summary"], ["terminal_title_stripped"]]
-row_gap = 1
-
-[appearance.sidebar.agents.rows_by_agent]
-claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ contains = "fast", ignore_case = true, bold = true }] }]]
-```
-
-An omitted layout uses the one-line title default; an explicit empty layout
-keeps the identity/navigation line. Missing or hidden values do not consume rows.
-The full [sidebar model](machines.md#agent-sidebar-configuration-model) defines
-provider aliases, rules, actual-height windows and unchanged physical authority.
-Live `terminal_title`/`terminal_title_stripped` now read the exact physical OSC title.
-The raw form retains activity glyphs; the stripped form removes one elevation prefix
-and one recognized leading activity glyph. Missing or cleared titles disappear;
-`$terminal_title` remains a separate custom value.
-`appearance.sidebar.workspaces` has its own Workspace layout and profile, described below.
-
-`config check` v1 and Session configuration receipts v1 expose required
-`agentSidebarProfile` and `spacesSidebarProfile` (closed canonical JSON, at most 32 KiB). Configuration failure
-v1 includes the Agent layout field and layout/color/token/rule/provider diagnostics; diagnostics now
-name it `appearance.sidebar.agents`.
-The catalog lists the current documents and command paths. Matched private cohorts carry the new required profile
-together; deployment/rollback is by whole cohort, without persistent migration.
+`config check` v1 and Session configuration receipts v1 still carry the required
+`agentSidebarProfile`; it is always the fixed profile
+`{"rows":null,"rows_by_agent":{},"row_gap":0}`, the one an empty file published while Agent rows
+were configurable, so matched cohorts read it unchanged. The TUI does not read it.
+`spacesSidebarProfile` is closed canonical JSON of at most 32 KiB.
 
 ## Windows Workspace sidebar layouts
 
@@ -419,9 +398,9 @@ their exact Workspace owner, with one shared scroll window. The
 disclosure and keyboard navigation. The Workspace picker remains available by
 opening Machines then pressing Tab.
 Row clicks retain complete machine/Session/context identity even when names coincide.
-`appearance.sidebar.workspaces` controls Workspace rows; `appearance.sidebar.agents` controls their
-Agent children. Agent `row_gap` applies before and between Agent rows; Workspace
-`row_gap` applies before the next Context row and at least one row before each group.
+`appearance.sidebar.workspaces` controls Workspace rows; their Agent children are fixed one-line rows
+with no gap between them. Workspace `row_gap` applies before the next Context row and at least one
+row before each group.
 A Project's first Workspace sits directly under its heading.
 
 ```toml
@@ -435,8 +414,7 @@ Defaults are `[["workspace", "git_status"], ["location"]]`, gap 0.
 directory when Server recorded one, with a local home folder shortened to `~`. An explicit `rows = []` keeps an identity/navigation row. The other builtin is
 `state_text`; `$name` reads Workspace reports and never replaces a builtin. `state_icon` remains
 accepted for compatibility but paints nothing on a Workspace row.
-Styles and first-match rules share Agent admission, but icons/Git counts reject
-text rules and Workspace layouts have no `rows_by_agent`. Limit 16 rows, 16 tokens
+Tokens take a style and first-match rules; icons and Git counts reject text rules. Limit 16 rows, 16 tokens
 per row, 16 rules per text token and `row_gap` 0–65535. Missing/hidden values collapse.
 Git counts right-align at the end of the line that configures them, flush with the row's
 trailing edge on the identity line; other text shares the remaining cells. A folded Workspace
@@ -452,7 +430,7 @@ See the [Workspace sidebar model](machines.md#workspace-sidebar-model) for fence
 aggregation, budgets, exact activation and acceptance limits.
 
 Workspace layout diagnostics name `appearance.sidebar.workspaces`. Session/Client reload validates
-keys, notifications and both sidebar profiles before publishing any of them.
+keys, notifications and the Workspace sidebar profile before publishing any of them.
 Each profile caps at 32 KiB; the matched-cohort configuration frame caps at 256 KiB
 including escaping.
 

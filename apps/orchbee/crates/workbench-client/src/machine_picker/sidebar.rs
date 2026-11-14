@@ -14,10 +14,6 @@ pub(super) struct Sidebar<S> {
     pub(super) scroll: Option<Scroll>,
     pub(super) settings: std::sync::Arc<S>,
 }
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(super) struct AgentSidebar {
-    pub(super) settings: std::sync::Arc<orchbee_local_runtime::AgentSidebarSettings>,
-}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct Scroll {
     up: bool,
@@ -165,18 +161,6 @@ impl Picker {
             self.spaces.visible = visible;
             self.spaces.reset();
         }
-    }
-    pub(crate) fn configure_agent_sidebar(
-        &mut self,
-        settings: orchbee_local_runtime::AgentSidebarSettings,
-    ) {
-        if self.agent_sidebar.settings.as_ref() != &settings {
-            self.agent_sidebar.settings = std::sync::Arc::new(settings);
-            self.spaces.reset();
-        }
-    }
-    pub(crate) fn sidebar_settings(&self) -> &orchbee_local_runtime::AgentSidebarSettings {
-        &self.agent_sidebar.settings
     }
     pub fn cancel_sidebar_scroll(&mut self) {
         self.spaces.scroll = None;

@@ -13,7 +13,6 @@ use std::{ffi::OsString, path::PathBuf};
 #[derive(Debug)]
 pub(super) struct Settings {
     window_title: String,
-    agent_sidebar: orchbee_local_runtime::AgentSidebarSettings,
     space_sidebar: orchbee_local_runtime::SpaceSidebarSettings,
     notifications: orchbee_local_runtime::NotificationSettings,
     keys: orchbee_local_runtime::KeySettings,
@@ -137,7 +136,6 @@ fn project(load: UserSettingsLoad) -> Result<Settings, Error> {
     };
     Ok(Settings {
         window_title: raw.window_title,
-        agent_sidebar: raw.agent_sidebar,
         space_sidebar: raw.space_sidebar,
         notifications: raw.notifications,
         keys: raw.keys,
@@ -179,7 +177,7 @@ impl Settings {
             ),
             (
                 "agentSidebarProfile".into(),
-                self.agent_sidebar.profile().into(),
+                orchbee_local_runtime::AGENT_SIDEBAR_PROFILE.into(),
             ),
             (
                 "notificationDelivery".into(),

@@ -114,48 +114,6 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 
-#[test]
-fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles() {
-    let fixture = Fixture::new();
-    let config = fixture.data_root().config_file();
-    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    let content = "[appearance.sidebar.agents]\nrows=[['state_icon','state_text','terminal_title','terminal_title_stripped'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[appearance.sidebar.agents.rows_by_agent]\nclaude=[['tab','panel']]\n";
-    std::fs::write(&config, content).unwrap();
-    let doc = document(fixture.run(&["config", "check", "--format=json"]));
-    let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
-    validate(&doc, schema);
-    assert_eq!(doc["version"], 1);
-    let profile = orchbee_local_runtime::AgentSidebarSettings::from_profile(
-        doc["result"]["checks"][5]["details"]["agentSidebarProfile"]
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
-    assert_eq!(profile.row_gap(), 1);
-    assert_eq!(
-        profile.rows_for_agent("claude", None).unwrap()[0][0].name(),
-        "tab"
-    );
-    assert_eq!(std::fs::read_to_string(&config).unwrap(), content);
-    for (token, reason) in [
-        ("terminal_title_typo", "invalid-token"),
-        ("unknown", "invalid-token"),
-    ] {
-        let invalid = format!("[appearance.sidebar.agents]\nrows=[['{token}']]");
-        std::fs::write(&config, &invalid).unwrap();
-        let checked = config_check_document(&fixture);
-        assert_warning_diagnostic(&checked, "appearance.sidebar.agents", reason, "defaulted");
-        let profile = orchbee_local_runtime::AgentSidebarSettings::from_profile(
-            checked["result"]["checks"][5]["details"]["agentSidebarProfile"]
-                .as_str()
-                .unwrap(),
-        )
-        .unwrap();
-        assert!(profile.rows_for_agent("codex", None).is_none());
-        assert_creation_reaches_missing_session(&fixture);
-        assert_eq!(std::fs::read_to_string(&config).unwrap(), invalid);
-    }
-}
 fn document(output: std::process::Output) -> Value {
     serde_json::from_slice(&output.stdout).unwrap_or_else(|_| {
         panic!(

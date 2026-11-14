@@ -436,10 +436,6 @@ impl Registry {
                 &configuration.spaces_sidebar_profile,
             )
             .is_err()
-            || orchbee_local_runtime::AgentSidebarSettings::from_profile(
-                &configuration.agent_sidebar_profile,
-            )
-            .is_err()
             || orchbee_local_runtime::NotificationSettings::from_profile(
                 &configuration.notification_profile,
             )
@@ -669,7 +665,7 @@ fn snapshot(
         keys_profile: current.keys.profile(),
         window_title: current.window_title.clone(),
         notification_profile: current.notifications.profile(),
-        agent_sidebar_profile: current.agent_sidebar.profile(),
+        agent_sidebar_profile: orchbee_local_runtime::AGENT_SIDEBAR_PROFILE.into(),
         spaces_sidebar_profile: current.space_sidebar.profile(),
         manifest_check: current.manifest_check,
         focus_new_panel: current.focus_new_panel,

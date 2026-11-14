@@ -4,9 +4,7 @@ use crate::{
     client_view::{ClientView, Notice},
     local_client::{LocalClientOrigin, LocalOperationClock},
 };
-use orchbee_local_runtime::{
-    AgentSidebarSettings, KeySettings, NotificationSettings, SpaceSidebarSettings,
-};
+use orchbee_local_runtime::{KeySettings, NotificationSettings, SpaceSidebarSettings};
 use orchbee_workbench_protocol::{
     ConfigurationAction, ConfigurationOutcome, ConfigurationRequest, ConfigurationSnapshot,
     ConfiguredCommandDescriptor, ConfiguredCommandRequest, ProtocolVersion, SessionId,
@@ -29,7 +27,6 @@ type Shared = Arc<(Mutex<Handoff>, Condvar)>;
 /// Complete profile admission shared by draft extraction and the sole live applier.
 pub(super) struct Admitted {
     keys: KeySettings,
-    agents: AgentSidebarSettings,
     spaces: SpaceSidebarSettings,
     pub(super) notifications: NotificationSettings,
 }
@@ -37,7 +34,6 @@ pub(super) fn admit(snapshot: &ConfigurationSnapshot) -> Option<Admitted> {
     Some(Admitted {
         keys: KeySettings::from_profile(&snapshot.keys_profile).ok()?,
         notifications: NotificationSettings::from_profile(&snapshot.notification_profile).ok()?,
-        agents: AgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile).ok()?,
         spaces: SpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile).ok()?,
     })
 }
@@ -134,11 +130,9 @@ impl Watcher {
                 Some(Admitted {
                     keys,
                     notifications,
-                    agents: sidebar,
                     spaces,
                 }) => {
                     view.machines.configure_space_sidebar(spaces);
-                    view.machines.configure_agent_sidebar(sidebar);
                     view.notifications.configure(notifications);
                     self.notification_update = Some(snapshot.revision.value());
                     self.creation_update = Some(CreationDefaults {

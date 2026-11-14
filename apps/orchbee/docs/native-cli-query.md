@@ -2845,7 +2845,7 @@ Five Windows Panel report commands also accept `--presentation <full-id>` for an
 
 ## Agent sidebar configuration publication
 
-Windows `config check` v1 and `config reload` v1 expose the required bounded `agentSidebarProfile`; configuration failure v1 includes sidebar admission diagnostics. The [Windows configuration owner](windows-cli-configuration.md#windows-agent-sidebar-layouts) defines startup, fatal source boundaries, field-local admission, canonical publication and atomic Client application. The offline catalog lists the current documents and command paths.
+Windows `config check` v1 and `config reload` v1 expose the required bounded `agentSidebarProfile`, now a fixed value; configuration failure v1 includes Workspace sidebar admission diagnostics. The [Windows configuration owner](windows-cli-configuration.md#windows-agent-sidebar-rows) defines startup, fatal source boundaries, field-local admission, canonical publication and atomic Client application. The offline catalog lists the current documents and command paths.
 
 ## Windows CLI process verification
 

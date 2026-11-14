@@ -80,13 +80,20 @@ pub(in crate::local_terminal_service) fn maximum_accepted_source_with_escaped_pr
         .collect::<Vec<_>>()
         .join(",");
     let sidebars = format!(
-        "[appearance.sidebar.agents]\nrows=[[{{token='agent',rules=[{rules}]}}]]\n\
-         [appearance.sidebar.workspaces]\nrows=[[{{token='workspace',rules=[{rules}]}}]]\n"
+        "[appearance.sidebar.workspaces]\nrows=[[{{token='workspace',rules=[{rules}]}}]]\n"
     );
-    let unknown_fields = (0..40)
-        .map(|index| format!("'{index:02}'=1\n"))
+    // Each unknown field's diagnostic escapes every dot, up to the field bound.
+    let unknown_fields = (0..128)
+        .map(|index| format!("'{index:03}{}'=1\n", ".".repeat(60)))
         .collect::<String>();
-    let source = format!("{commands}[appearance]\n{unknown_fields}{sidebars}#x\n");
+    // A control character in the title takes six bytes on the wire.
+    let title = format!("window_title=\"{}\"\n", "\\u0001".repeat(4096));
+    let sounds = (0..64)
+        .map(|index| format!("'{index:02}{}'='off'\n", "a".repeat(62)))
+        .collect::<String>();
+    let source = format!(
+        "{commands}[notifications.sound_by_agent]\n{sounds}[appearance]\n{title}{unknown_fields}{sidebars}#x\n"
+    );
     assert!(source.len() as u64 <= orchbee_local_runtime::MAXIMUM_USER_SETTINGS_BYTES);
     source
 }
@@ -96,17 +103,12 @@ fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_overs
     let fixture = Fixture::new();
     fixture.write(&maximum_accepted_source_with_escaped_profiles());
     let candidate = read_user_settings_at(Some(&fixture.file()), true, |_| None).unwrap();
-    assert_eq!(candidate.diagnostics.items().len(), 40);
+    assert_eq!(candidate.diagnostics.items().len(), 128);
     let keys_profile = candidate.settings.keys.profile();
-    let agent_sidebar_profile = candidate.settings.agent_sidebar.profile();
     let spaces_sidebar_profile = candidate.settings.space_sidebar.profile();
     assert_eq!(keys_profile.len(), 65_534);
-    assert_eq!(agent_sidebar_profile.len(), 32_767);
     assert_eq!(spaces_sidebar_profile.len(), 32_752);
     assert!(orchbee_local_runtime::KeySettings::from_profile(&keys_profile).is_ok());
-    assert!(
-        orchbee_local_runtime::AgentSidebarSettings::from_profile(&agent_sidebar_profile).is_ok()
-    );
     assert!(
         orchbee_local_runtime::SpaceSidebarSettings::from_profile(&spaces_sidebar_profile).is_ok()
     );
@@ -167,42 +169,16 @@ fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_overs
 #[test]
 fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() {
     let fixture = Fixture::new();
-    fixture.write(
-        "[keys]\nprefix='ctrl+a'\n[appearance.sidebar.agents]\nrows=[['state_text','$summary']]\nrow_gap=1\n[appearance.sidebar.workspaces]\nrows=[['workspace','$summary']]\nrow_gap=3",
-    );
+    fixture.write("[keys]\nprefix='ctrl+a'\n[appearance.sidebar.workspaces]\nrows=[['workspace','$summary']]\nrow_gap=3");
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
     let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
     else {
         panic!()
     };
-    let layout =
-        orchbee_local_runtime::AgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile)
-            .unwrap();
-    assert_eq!(layout.row_gap(), 1);
     assert_eq!(
-        layout.rows_for_agent("codex", None).unwrap()[0][1].name(),
-        "$summary"
-    );
-    fixture.write("[keys]\nprefix='ctrl+x'\n[notifications]\ncli_delivery='terminal'\n[appearance.sidebar.agents]\nrows=[['invalid-token']]");
-    let Outcome::Reloaded {
-        snapshot: agent_warning,
-        changed: true,
-    } = registry.execute(&request(Action::Reload), |_| true)
-    else {
-        panic!("field warning remains an admitted publication")
-    };
-    assert!(agent_warning.keys_profile.contains("ctrl+x"));
-    assert_eq!(
-        agent_warning.diagnostics.items[0].field,
-        "appearance.sidebar.agents"
-    );
-    assert_eq!(
-        orchbee_local_runtime::AgentSidebarSettings::from_profile(
-            &agent_warning.agent_sidebar_profile
-        )
-        .unwrap(),
-        orchbee_local_runtime::AgentSidebarSettings::default()
+        snapshot.agent_sidebar_profile,
+        orchbee_local_runtime::AGENT_SIDEBAR_PROFILE
     );
     assert_eq!(
         orchbee_local_runtime::SpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile)
@@ -210,7 +186,7 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
             .row_gap(),
         3
     );
-    fixture.write("[keys]\nprefix='ctrl+x'\n[notifications]\ncli_delivery='terminal'\n[appearance.sidebar.agents]\nrows=[]\n[appearance.sidebar.workspaces]\nrows=[['agent']]");
+    fixture.write("[keys]\nprefix='ctrl+x'\n[notifications]\ncli_delivery='terminal'\n[appearance.sidebar.workspaces]\nrows=[['agent']]");
     let Outcome::Reloaded {
         snapshot: spaces_warning,
         changed: true,
@@ -218,12 +194,13 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
     else {
         panic!("field warning remains an admitted publication")
     };
+    assert!(spaces_warning.keys_profile.contains("ctrl+x"));
     assert_eq!(
         spaces_warning.diagnostics.items[0].field,
         "appearance.sidebar.workspaces"
     );
     assert_eq!(current(&registry), spaces_warning);
-    fixture.write("[keys]\nprefix='ctrl+x'\n[appearance.sidebar.agents]\nrows=[]\nrow_gap=2");
+    fixture.write("[keys]\nprefix='ctrl+x'\n[appearance.sidebar.workspaces]\nrows=[]\nrow_gap=2");
     let Outcome::Reloaded { snapshot: next, .. } =
         registry.execute(&request(Action::Reload), |_| true)
     else {
@@ -234,7 +211,7 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
     assert_eq!(next.diagnostics.omitted_count, 0);
     assert!(next.keys_profile.contains("ctrl+x"));
     assert_eq!(
-        orchbee_local_runtime::AgentSidebarSettings::from_profile(&next.agent_sidebar_profile)
+        orchbee_local_runtime::SpaceSidebarSettings::from_profile(&next.spaces_sidebar_profile)
             .unwrap()
             .row_gap(),
         2

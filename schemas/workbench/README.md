@@ -774,7 +774,7 @@ The same launch options admit `agentStart`, one canonical provider id from the c
 
 Plugin PanelGet/PanelFound reuse OBWP kinds 45/46 with closed membership facts and no new mutation permission. Rust additionally correlates the response Panel with its request; Panel selectors share the launch-option identifier rules.
 
-Agent sidebar publication adds required nonempty `agentSidebarProfile`, capped at 32 KiB of UTF-8. It is a closed canonical JSON profile admitted by the Windows settings owner; transport bindings enforce the string and frame budget, while Client installation validates its token/layout/rule semantics. Keys, notifications and sidebar install atomically; malformed sidebar profiles retain all previous Client settings. Matched cohorts update together. Public configuration check, failure, Session configuration and catalog documents use version 1.
+Agent sidebar publication adds required nonempty `agentSidebarProfile`, capped at 32 KiB of UTF-8. Agent rows are no longer configurable, so the Server always publishes the fixed profile `{"rows":null,"rows_by_agent":{},"row_gap":0}` and the native Client does not read it; transport bindings still enforce the string and frame budget. Keys, notifications and the Workspace sidebar install atomically; a malformed Workspace sidebar profile retains all previous Client settings. Matched cohorts update together. Public configuration check, failure, Session configuration and catalog documents use version 1.
 
 Physical title reads extend the closed Panel Agent contract with `titles`, at most
 four exact physical bindings and one ordered observation per binding. Observations
