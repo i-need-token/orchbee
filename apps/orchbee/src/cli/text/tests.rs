@@ -123,6 +123,7 @@ fn directories_list_direct_children_without_dumping_their_syntax() {
             for child in help_paths().iter().filter(|child| {
                 child.words().len() == path.words().len() + 1
                     && child.words().starts_with(path.words())
+                    && crate::invocation::grammar::listed(child.words())
             }) {
                 assert_eq!(
                     labels
@@ -142,6 +143,7 @@ fn directories_list_direct_children_without_dumping_their_syntax() {
                     .filter(|child| {
                         child.words().len() == path.words().len() + 1
                             && child.words().starts_with(path.words())
+                            && crate::invocation::grammar::listed(child.words())
                     })
                     .count(),
                 "directory labels contain exactly their direct children"
