@@ -750,7 +750,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   a well-formed but absent directory answers `not-found` with `{resource:"directory"}` under
   the worktree failure envelope.
 - `--label <label>`: single-use value flag, required on `project create`, `project rename`, non-Windows `workspace create`, `workspace rename` and `tab rename`. Windows `tab create` and `panel split` allow omission, using the preflight Tab/Panel count plus one. An explicit `panel split` label also becomes the new Panel's custom label in the same creation commit, trimmed as `panel rename` trims it, so it is the visible name; omission keeps automatic naming. Explicit values are nonempty protocol-bounded Workbench labels; empty or oversized values are `invalid-usage`.
-- `--path <path>`: single-use value flag. On `workspace accept-directory` it is required and accepts a `WorkbenchDirectoryPath`: a literal absolute local-platform path
+- `--path <path>`: single-use value flag. On `workspace set-directory` it is required and accepts a `WorkbenchDirectoryPath`: a literal absolute local-platform path
   (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL, without `~` or variable expansion. A missing, relative, NUL-bearing or overlong value is `invalid-usage`.
   Windows Worktree Create/Open instead admit literal absolute, relative and leading-`~` operands under the [Worktree path policy](windows-worktrees.md#commands-and-defaults); the final executing CLI resolves them after complete grammar and machine routing, before configuration or runtime access. Neither form creates, repairs or probes the directory; filesystem facts remain the Server's authority after submission.
 - `--direction left|right|up|down` is the cardinal vocabulary. `tab move` uses
@@ -901,7 +901,7 @@ orchbee project rename <target> --label <label>
 orchbee workspace list [--project <target>] [--worktrees] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
-orchbee workspace accept-directory <target> --path <path>
+orchbee workspace set-directory <target> --path <path>
 orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
 orchbee workspace status <close-request-id>
 orchbee workspace resume <close-request-id> --generation <n> --confirm
@@ -2002,7 +2002,7 @@ session's OBCS `terminal.send` exchange described above and does not touch `expe
 the Workbench command channel, or the TUI's controller/viewer/resize ownership.
 
 Fifteen commands mutate Workbench state through the admitted OBWP `workbench.command` channel:
-`project create`/`rename`, `workspace create`/`rename`/`accept-directory`/`close`,
+`project create`/`rename`, `workspace create`/`rename`/`set-directory`/`close`,
 `tab create`/`rename`/`move`/`close`, `panel split`/`close`/`move`, and
 `launch-profile create`/`delete`. Each invocation runs
 the query state machine's stages 1–5
@@ -2083,7 +2083,7 @@ action carries just the label, the Server allocates the new `projectId` and retu
 labels are legal — the label never uniquely identifies the new Project; the receipt's
 `projectId` does.
 
-`workspace accept-directory` submits `WorkspacePrimaryDirectoryAccept` for the globally resolved Workspace ID, without Project identity. `--path` keeps its literal absolute-path, 4096 UTF-8 byte and no-NUL admission; CLI never creates, repairs or probes directories. Server probes authoritatively and refuses a Workspace that already has a primary Directory. Windows `workspace create` admits the new Workspace's directory within one launch and needs no separate accept-directory command.
+`workspace set-directory` submits `WorkspacePrimaryDirectoryAccept` for the globally resolved Workspace ID, without Project identity; its receipt keeps the action `workspace.accept-directory`. `--path` keeps its literal absolute-path, 4096 UTF-8 byte and no-NUL admission; CLI never creates, repairs or probes directories. Server probes authoritatively and refuses a Workspace that already has a primary Directory. Windows `workspace create` admits the new Workspace's directory within one launch and needs no separate set-directory command.
 
 Geometry is always explicit in the request: a non-TTY invocation cannot inherit terminal
 dimensions, so `tab create` and `panel split` accept the four flags as an all-or-none

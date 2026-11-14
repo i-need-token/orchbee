@@ -1,7 +1,7 @@
 //! Public end-to-end CLI workflow witness: the fixture only starts the
 //! isolated Session's Server — no TUI is spawned anywhere in the scenario — and
 //! every business step is one invocation of the real staged `orchbee` binary:
-//! project create → workspace create → workspace accept-directory → tab
+//! project create → workspace create → workspace set-directory → tab
 //! create → terminal list → terminal send → terminal wait-output → terminal
 //! read → terminal get → tab close --confirm → canonical snapshot. No internal API mutates
 //! business state, no fixture file fakes a command, and no send is retried.
@@ -143,7 +143,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
         .expect("workspace id")
         .to_owned();
 
-    // 3. `workspace accept-directory <id> --path <dir>` — the only directory
+    // 3. `workspace set-directory <id> --path <dir>` — the only directory
     //    path admitted to the workspace; the TUI directory modal is never
     //    touched. Frozen contract (CLI-WORKSPACE-DIRECTORY-ACCEPTED):
     //    action/outcome plus revision/directoryId/workerId and the resolved
@@ -152,7 +152,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
         &fixture,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             workspace_id.as_str(),
             "--path",
             directory,
@@ -163,7 +163,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     assert_eq!(
         output.status.code(),
         Some(0),
-        "workspace accept-directory: {}",
+        "workspace set-directory: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(accepted["result"]["action"], "workspace.accept-directory");
@@ -174,7 +174,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     for field in ["revision", "directoryId", "workerId"] {
         assert!(
             accepted["result"][field].as_str().is_some(),
-            "accept-directory receipt carries {field}: {accepted}"
+            "set-directory receipt carries {field}: {accepted}"
         );
     }
 
@@ -214,7 +214,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     // 5. One `terminal send` per terminal. The command never `cd`s: the shell
     //    writes the proof into its own initial cwd via a relative name, so the
     //    file's landing location — and the `pwd -P` line it records — attest
-    //    the real cwd that accept-directory/tab established instead of masking
+    //    the real cwd that set-directory/tab established instead of masking
     //    a wrong one. The marker is split inside the typed text
     //    (`'WA22-''<nonce>'`), so the contiguous marker never appears in the
     //    echoed command line — only in produced output. The shell first
@@ -790,7 +790,7 @@ fn cli_get_reads_the_retained_failed_launch_without_tui() -> TestResult {
     let validators = validators(&fixture);
 
     // Same public workspace path as the happy workflow: project → workspace →
-    // accept-directory → tab create. The mutation commits the tab and reports
+    // set-directory → tab create. The mutation commits the tab and reports
     // the terminal's typed spawn outcome.
     let directory = fixture.base.join("wf 目录 fail");
     fs::create_dir(&directory)?;
@@ -838,7 +838,7 @@ fn cli_get_reads_the_retained_failed_launch_without_tui() -> TestResult {
         &fixture,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             workspace_id.as_str(),
             "--path",
             directory,
@@ -846,12 +846,7 @@ fn cli_get_reads_the_retained_failed_launch_without_tui() -> TestResult {
             "json",
         ],
     );
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "accept-directory: {:?}",
-        output
-    );
+    assert_eq!(output.status.code(), Some(0), "set-directory: {:?}", output);
 
     let mut args = vec![
         "tab",

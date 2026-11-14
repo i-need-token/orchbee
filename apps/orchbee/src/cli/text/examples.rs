@@ -120,7 +120,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             &["work", "--source", "cli", "--token", "task=review"]
         }
         CommandPath::WorkspaceMove => &["work", "--insert-index", "0"],
-        CommandPath::WorkspaceAcceptDirectory => &["work", "--path", "C:/src/project"],
+        CommandPath::WorkspaceSetDirectory => &["work", "--path", "C:/src/project"],
         CommandPath::WorkspaceClose => &["work", "--confirm"],
         CommandPath::TabList => &["--workspace", "work"],
         CommandPath::TabGet => &["main"],

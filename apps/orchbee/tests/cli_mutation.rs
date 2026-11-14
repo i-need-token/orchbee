@@ -2120,7 +2120,7 @@ fn project_create_wrong_outcome_is_not_success() -> TestResult {
     Ok(())
 }
 
-// ---- workspace accept-directory ---------------------------------------------
+// ---- workspace set-directory ---------------------------------------------
 //
 // The literal path `LITERAL_PATH` deliberately contains '~' and '$'
 // fragments so the wire and receipt assertions prove the CLI never expands,
@@ -2129,18 +2129,12 @@ const LITERAL_PATH: &str = "/srv/$HOME/~/repo";
 const DIRECTORY: &str = "00000000000000000000000000000044";
 const WORKER: &str = "00000000000000000000000000000045";
 
-fn accept_directory_args(target: &str) -> Vec<&str> {
-    vec![
-        "workspace",
-        "accept-directory",
-        target,
-        "--path",
-        LITERAL_PATH,
-    ]
+fn set_directory_args(target: &str) -> Vec<&str> {
+    vec!["workspace", "set-directory", target, "--path", LITERAL_PATH]
 }
 
 #[test]
-fn workspace_accept_directory_commits_under_a_fresh_request() -> TestResult {
+fn workspace_set_directory_commits_under_a_fresh_request() -> TestResult {
     let base = base_dir("accept-dir");
     let scope = stage_scope(&base);
     let submitted = Arc::new(Mutex::new(String::new()));
@@ -2176,7 +2170,7 @@ fn workspace_accept_directory_commits_under_a_fresh_request() -> TestResult {
             },
         );
     });
-    let mut argv = accept_directory_args("main");
+    let mut argv = set_directory_args("main");
     argv.push("--format=json");
     let output = run(&base, &argv);
     assert_eq!(
@@ -2208,7 +2202,7 @@ fn workspace_accept_directory_commits_under_a_fresh_request() -> TestResult {
     assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
 
     // Text output renders the same committed fields, path included.
-    let text = run(&base, &accept_directory_args(WORKSPACE));
+    let text = run(&base, &set_directory_args(WORKSPACE));
     assert_eq!(
         text.status.code(),
         Some(0),
@@ -2223,7 +2217,7 @@ fn workspace_accept_directory_commits_under_a_fresh_request() -> TestResult {
 }
 
 #[test]
-fn workspace_accept_directory_conflict_and_unavailable_map_matrix() -> TestResult {
+fn workspace_set_directory_conflict_and_unavailable_map_matrix() -> TestResult {
     let base = base_dir("accept-dir-matrix");
     let scope = stage_scope(&base);
     // A Workspace that already holds a directory — even the same path — is the
@@ -2247,7 +2241,7 @@ fn workspace_accept_directory_conflict_and_unavailable_map_matrix() -> TestResul
             },
         );
     });
-    let mut argv = accept_directory_args("main");
+    let mut argv = set_directory_args("main");
     argv.push("--format=json");
     let output = run(&base, &argv);
     conflict_peer.join().expect("peer finished");
@@ -2290,7 +2284,7 @@ fn workspace_accept_directory_conflict_and_unavailable_map_matrix() -> TestResul
 }
 
 #[test]
-fn workspace_accept_directory_dropped_response_is_unknown_without_replay() -> TestResult {
+fn workspace_set_directory_dropped_response_is_unknown_without_replay() -> TestResult {
     let base = base_dir("accept-dir-drop");
     let scope = stage_scope(&base);
     // Same mid-flight drop as the other mutation arms: the listener stays
@@ -2336,7 +2330,7 @@ fn workspace_accept_directory_dropped_response_is_unknown_without_replay() -> Te
             Err(error) => panic!("listener accept failed: {error}"),
         }
     });
-    let mut argv = accept_directory_args("main");
+    let mut argv = set_directory_args("main");
     argv.push("--format=json");
     let output = run(&base, &argv);
     peer.join().expect("peer finished");
@@ -2362,7 +2356,7 @@ fn workspace_accept_directory_dropped_response_is_unknown_without_replay() -> Te
 }
 
 #[test]
-fn workspace_accept_directory_wrong_outcome_is_not_success() -> TestResult {
+fn workspace_set_directory_wrong_outcome_is_not_success() -> TestResult {
     let base = base_dir("accept-dir-wrong-outcome");
     let scope = stage_scope(&base);
     let peer = spawn_peer(&scope, |stream| {
@@ -2375,7 +2369,7 @@ fn workspace_accept_directory_wrong_outcome_is_not_success() -> TestResult {
             )
         };
         // A wire-valid but action-incompatible outcome: Renamed for an
-        // accept-directory must never build a committed receipt.
+        // set-directory must never build a committed receipt.
         command_response(
             &stream,
             command.request_id,
@@ -2384,7 +2378,7 @@ fn workspace_accept_directory_wrong_outcome_is_not_success() -> TestResult {
             },
         );
     });
-    let mut argv = accept_directory_args("main");
+    let mut argv = set_directory_args("main");
     argv.push("--format=json");
     let output = run(&base, &argv);
     peer.join().expect("peer finished");
@@ -2399,7 +2393,7 @@ fn workspace_accept_directory_wrong_outcome_is_not_success() -> TestResult {
 }
 
 #[test]
-fn workspace_accept_directory_ambiguous_label_but_id_resolves() -> TestResult {
+fn workspace_set_directory_ambiguous_label_but_id_resolves() -> TestResult {
     let base = base_dir("accept-dir-ambiguous");
     let scope = stage_scope(&base);
     // Two projects each own a workspace labelled "dup": the label is
@@ -2481,7 +2475,7 @@ fn workspace_accept_directory_ambiguous_label_but_id_resolves() -> TestResult {
             },
         );
     });
-    let mut argv = accept_directory_args("dup");
+    let mut argv = set_directory_args("dup");
     argv.push("--format=json");
     let output = run(&base, &argv);
     assert_eq!(output.status.code(), Some(3));
@@ -2490,7 +2484,7 @@ fn workspace_accept_directory_ambiguous_label_but_id_resolves() -> TestResult {
     assert_eq!(document["failure"]["details"]["resource"], "workspace");
 
     let workspace_id = id(0x12);
-    let mut argv = accept_directory_args(&workspace_id);
+    let mut argv = set_directory_args(&workspace_id);
     argv.push("--format=json");
     let output = run(&base, &argv);
     peer.join().expect("peer finished");
@@ -2760,11 +2754,11 @@ fn mutation_usage_failures_precede_runtime_access() -> TestResult {
             "18",
         ],
         &["workspace", "rename", "w", "--label", "x", "--confirm"],
-        &["workspace", "accept-directory", "w"],
-        &["workspace", "accept-directory", "w", "--path", "rel/dir"],
+        &["workspace", "set-directory", "w"],
+        &["workspace", "set-directory", "w", "--path", "rel/dir"],
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             "w",
             "--path",
             "/a",
@@ -2773,7 +2767,7 @@ fn mutation_usage_failures_precede_runtime_access() -> TestResult {
         ],
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             "00000000000000000000000000000000",
             "--path",
             "/a",

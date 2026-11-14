@@ -208,7 +208,7 @@ without changing a global shell profile. This directory-review entry is scoped t
 TUI; GUI creation keeps its existing directory-selection owner and the shared launch contract.
 
 The TUI offers no way to give an existing Workspace its first directory; `orchbee workspace
-accept-directory` remains that route for an Empty, unconfigured Workspace, and New Workspace in
+set-directory` remains that route for an Empty, unconfigured Workspace, and New Workspace in
 directory… covers the need in the TUI. For an Empty Workspace with a directory, the Empty-workbench
 guidance keeps the directory as a localized fact and renders the configured effective Create Tab
 chord through the shared key-hint component only while no capture owner is active. Its label is the

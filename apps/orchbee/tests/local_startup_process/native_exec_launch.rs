@@ -131,7 +131,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
         &fixture,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             workspace_id.as_str(),
             "--path",
             directory_text,
@@ -142,7 +142,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
     assert_eq!(
         output.status.code(),
         Some(0),
-        "accept-directory: {}",
+        "set-directory: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(accepted["result"]["outcome"], "committed");

@@ -48,16 +48,16 @@ pub(super) const HELP_WORKSPACE_RENAME_ZH: crate::cli_text::HelpDetails =
         "重命名一个由精确 ID、@workspace:0x<hex> 或精确 label 选择的工作区。命令先读取一次快照，然后只提交一个命令。committed 结果携带新修订；unchanged 表示\nlabel 本已相同。",
     );
 
-pub(super) const HELP_WORKSPACE_ACCEPT_DIRECTORY_EN: crate::cli_text::HelpDetails =
+pub(super) const HELP_WORKSPACE_SET_DIRECTORY_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
-        "orchbee workspace accept-directory <target> --path <path> [--format text|json]",
-        "Accept a literal absolute local-platform path as the primary directory of the\nWorkspace selected by exact ID, @workspace:0x<hex>, or exact label.\n'--path' is required: a\nliteral absolute path of at most 4,096 UTF-8 bytes without NUL — never\nexpanded ('~', '$'), created, or probed by the CLI. The command reads one\nsnapshot, resolves the target and its owning Project, then submits\nexactly one command under a fresh request id; the Server authoritatively\nprobes the path and rejects a Workspace that already has a directory.\nA committed result carries the new revision, the Server-allocated\ndirectory and worker ids, the resolved project and workspace ids, and the\nrequest's literal path.",
+        "orchbee workspace set-directory <target> --path <path> [--format text|json]",
+        "Set a literal absolute local-platform path as the primary directory of the\nWorkspace selected by exact ID, @workspace:0x<hex>, or exact label.\n'--path' is required: a\nliteral absolute path of at most 4,096 UTF-8 bytes without NUL — never\nexpanded ('~', '$'), created, or probed by the CLI. The command reads one\nsnapshot, resolves the target and its owning Project, then submits\nexactly one command under a fresh request id; the Server authoritatively\nprobes the path and rejects a Workspace that already has a directory.\nA committed result carries the new revision, the Server-allocated\ndirectory and worker ids, the resolved project and workspace ids, and the\nrequest's literal path.",
     );
 
-pub(super) const HELP_WORKSPACE_ACCEPT_DIRECTORY_ZH: crate::cli_text::HelpDetails =
+pub(super) const HELP_WORKSPACE_SET_DIRECTORY_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
-        "orchbee workspace accept-directory <target> --path <path> [--format text|json]",
-        "将一个字面本机绝对路径接受为由精确 ID、@workspace:0x<hex> 或精确 label 选择的\nWorkspace 的主目录。'--path' 为必填：字面绝对路径，至多 4,096 个\nUTF-8 字节且不含 NUL——CLI 不展开（'~'、'$'）、不创建、不探测。命令先读取一次快照、解析目标及其所属项目，然后以全新请求 ID 只提交一个命令；由 Server 权威探测该路径，并拒绝已有目录的\nWorkspace。committed 结果携带新修订、Server 分配的 directory 与\nworker ID、已解析的 project 与 workspace ID，以及请求的字面路径。",
+        "orchbee workspace set-directory <target> --path <path> [--format text|json]",
+        "将一个字面本机绝对路径设为由精确 ID、@workspace:0x<hex> 或精确 label 选择的\nWorkspace 的主目录。'--path' 为必填：字面绝对路径，至多 4,096 个\nUTF-8 字节且不含 NUL——CLI 不展开（'~'、'$'）、不创建、不探测。命令先读取一次快照、解析目标及其所属项目，然后以全新请求 ID 只提交一个命令；由 Server 权威探测该路径，并拒绝已有目录的\nWorkspace。committed 结果携带新修订、Server 分配的 directory 与\nworker ID、已解析的 project 与 workspace ID，以及请求的字面路径。",
     );
 
 pub(super) const HELP_WORKSPACE_CLOSE_EN: crate::cli_text::HelpDetails =

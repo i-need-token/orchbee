@@ -1634,7 +1634,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         string_rule: None,
         commands: &[
             CommandPath::LayoutSetSplitRatio,
-            CommandPath::WorkspaceAcceptDirectory,
+            CommandPath::WorkspaceSetDirectory,
             CommandPath::WorktreeCreate,
             CommandPath::WorktreeOpen,
         ],

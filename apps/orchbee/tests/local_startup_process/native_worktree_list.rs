@@ -1,5 +1,5 @@
 //! Real-Session journey witness for `worktree list`: the staged `orchbee` binary
-//! drives `project create → workspace create → workspace accept-directory →
+//! drives `project create → workspace create → workspace set-directory →
 //! worktree list` against a live Server and the lazily spawned Worker, with a
 //! real private Git repository (committed main worktree plus a detached linked
 //! worktree) as the registered directory. A second registered directory is an
@@ -141,7 +141,7 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
         &fixture,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             workspace_id.as_str(),
             "--path",
             repository_path.as_str(),
@@ -152,7 +152,7 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
     assert_eq!(
         output.status.code(),
         Some(0),
-        "accept-directory: {}",
+        "set-directory: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     let directory_id = accepted["result"]["directoryId"]
@@ -339,7 +339,7 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
         &fixture,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             unborn_workspace.as_str(),
             "--path",
             unborn_path.as_str(),
@@ -350,7 +350,7 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
     assert_eq!(
         output.status.code(),
         Some(0),
-        "accept-directory unborn: {}",
+        "set-directory unborn: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     let unborn_directory = accepted["result"]["directoryId"]

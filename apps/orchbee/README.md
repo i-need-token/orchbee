@@ -127,7 +127,7 @@ receipts and never changes Client focus. See [Panel terminal creation](docs/wind
 
 Mutation commands against the
 running Session include `project create`/`rename`/`dissolve`/`close-all`,
-`workspace create`/`rename`/`set-project`/`accept-directory`/`close`, `tab create`/`rename`/`move`/`close`,
+`workspace create`/`rename`/`set-project`/`set-directory`/`close`, `tab create`/`rename`/`move`/`close`,
 `panel split`/`move`/`close`, and `launch-profile create`/`delete` —
 `workspace close <target> --confirm` closes every terminal in the Workspace's context under
 the same tab-close lifecycle, then removes that Workspace while preserving its checkout, branch,
@@ -146,7 +146,7 @@ keys — to a bound terminal over the same admitted session, without
 taking over TUI controller/viewer ownership; its two-axis receipt reports the Server's input
 verdict and cleanup status separately. `project create` submits the existing `ProjectCreate` action —
 one navigation record, no directory or filesystem effect — and returns the Server-allocated
-project id for the `workspace create`/`tab create` chain; `workspace accept-directory`
+project id for the `workspace create`/`tab create` chain; `workspace set-directory`
 submits the existing `WorkspacePrimaryDirectoryAccept` action — the Server authoritatively
 probes the literal absolute path — which makes a CLI-created Workspace tab-admissible
 without the TUI directory wizard. `project rename <target> --label <label>` submits the
@@ -195,7 +195,7 @@ substitute each `<…>` placeholder with the real id or provider:
 ```sh
 orchbee server start                        # activate the local Session once (no TTY)
 orchbee status                            # is the Workbench reachable?
-orchbee project create --label demo       # then workspace create / accept-directory
+orchbee project create --label demo       # then workspace create / set-directory
 orchbee tab create --workspace <ws> --label shell
 orchbee terminal send <terminal-id> --text 'make test' --enter
 orchbee terminal wait-output <terminal-id> --match 'PASS'

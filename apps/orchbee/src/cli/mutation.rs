@@ -1043,7 +1043,7 @@ mod workflow {
                     label: label.clone(),
                 })
             }
-            MutationCommand::WorkspaceAcceptDirectory { target, path } => {
+            MutationCommand::WorkspaceSetDirectory { target, path } => {
                 let (_, workspace) = resolve_workspace(snapshot, target)?;
                 Ok(WorkbenchAction::WorkspacePrimaryDirectoryAccept {
                     workspace_id: workspace.workspace_id.clone(),

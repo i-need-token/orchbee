@@ -1759,21 +1759,15 @@ fn accepts_every_mutation_path() {
             },
         ),
         (
-            &[
-                "workspace",
-                "accept-directory",
-                "main",
-                "--path",
-                "/srv/repo",
-            ],
-            MutationCommand::WorkspaceAcceptDirectory {
+            &["workspace", "set-directory", "main", "--path", "/srv/repo"],
+            MutationCommand::WorkspaceSetDirectory {
                 target: Target::Label("main".into()),
                 path: directory_path("/srv/repo"),
             },
         ),
         (
-            &["workspace", "accept-directory", ID, "--path", "/srv/repo"],
-            MutationCommand::WorkspaceAcceptDirectory {
+            &["workspace", "set-directory", ID, "--path", "/srv/repo"],
+            MutationCommand::WorkspaceSetDirectory {
                 target: Target::Id(ID.into()),
                 path: directory_path("/srv/repo"),
             },
@@ -2206,8 +2200,8 @@ fn joined_value_spelling_is_equivalent() {
             &["workspace", "rename", "w", "--label=x", "--confirm"][..],
         ),
         (
-            &["workspace", "accept-directory", "w", "--path", "/srv/repo"][..],
-            &["workspace", "accept-directory", "w", "--path=/srv/repo"][..],
+            &["workspace", "set-directory", "w", "--path", "/srv/repo"][..],
+            &["workspace", "set-directory", "w", "--path=/srv/repo"][..],
         ),
         // Geometry values.
         (
@@ -2967,7 +2961,7 @@ fn mutation_required_options_cannot_be_dropped() {
     let cases: &[&[&str]] = &[
         &["project", "create"],
         &["workspace", "rename", "w"],
-        &["workspace", "accept-directory", "w"],
+        &["workspace", "set-directory", "w"],
         &["tab", "rename", "t"],
         &["tab", "move", "t"],
         &["panel", "split", ID, "--label", "p"],
@@ -3039,7 +3033,7 @@ fn mutation_options_stay_inside_their_command_scope() {
         ],
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             "w",
             "--path",
             "/srv/repo",
@@ -3048,7 +3042,7 @@ fn mutation_options_stay_inside_their_command_scope() {
         ],
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             "w",
             "--path",
             "/srv/repo",
@@ -3057,7 +3051,7 @@ fn mutation_options_stay_inside_their_command_scope() {
         ],
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             "w",
             "--path",
             "/srv/repo",
@@ -3065,7 +3059,7 @@ fn mutation_options_stay_inside_their_command_scope() {
         ],
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             "w",
             "--path",
             "/srv/repo",
@@ -3322,19 +3316,19 @@ fn mutation_values_are_bounded() {
 }
 
 #[test]
-fn accept_directory_path_is_a_literal_protocol_value() {
+fn set_directory_path_is_a_literal_protocol_value() {
     // Relative, empty, NUL-bearing, and overlong values are usage failures
     // at the CLI boundary; '~'/'$' lead no special expansion.
     let overlong = format!("/{}", "x".repeat(4096));
     for arguments in [
-        &["workspace", "accept-directory", "w", "--path", ""][..],
-        &["workspace", "accept-directory", "w", "--path", "srv/repo"][..],
-        &["workspace", "accept-directory", "w", "--path", "~/repo"][..],
-        &["workspace", "accept-directory", "w", "--path", "$HOME/repo"][..],
-        &["workspace", "accept-directory", "w", "--path", "/a\0b"][..],
+        &["workspace", "set-directory", "w", "--path", ""][..],
+        &["workspace", "set-directory", "w", "--path", "srv/repo"][..],
+        &["workspace", "set-directory", "w", "--path", "~/repo"][..],
+        &["workspace", "set-directory", "w", "--path", "$HOME/repo"][..],
+        &["workspace", "set-directory", "w", "--path", "/a\0b"][..],
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             "w",
             "--path",
             overlong.as_str(),
@@ -3352,13 +3346,13 @@ fn accept_directory_path_is_a_literal_protocol_value() {
     assert_eq!(
         parse(&[
             "workspace",
-            "accept-directory",
+            "set-directory",
             "w",
             "--path",
             maximum.as_str()
         ]),
         Ok(mutation(
-            MutationCommand::WorkspaceAcceptDirectory {
+            MutationCommand::WorkspaceSetDirectory {
                 target: Target::Label("w".into()),
                 path: directory_path(maximum.as_str()),
             },
@@ -3375,9 +3369,9 @@ fn accept_directory_path_is_a_literal_protocol_value() {
         "D:/repo",
     ] {
         assert_eq!(
-            parse(&["workspace", "accept-directory", "w", "--path", literal]),
+            parse(&["workspace", "set-directory", "w", "--path", literal]),
             Ok(mutation(
-                MutationCommand::WorkspaceAcceptDirectory {
+                MutationCommand::WorkspaceSetDirectory {
                     target: Target::Label("w".into()),
                     path: directory_path(literal),
                 },
@@ -3389,24 +3383,17 @@ fn accept_directory_path_is_a_literal_protocol_value() {
     for arguments in [
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             "w",
             "--path",
             "/a",
             "--path",
             "/b",
         ][..],
-        &["workspace", "accept-directory", "w", "--path"][..],
-        &["workspace", "accept-directory", "w", "--path", "--"][..],
-        &["workspace", "accept-directory"][..],
-        &[
-            "workspace",
-            "accept-directory",
-            "w",
-            "extra",
-            "--path",
-            "/a",
-        ][..],
+        &["workspace", "set-directory", "w", "--path"][..],
+        &["workspace", "set-directory", "w", "--path", "--"][..],
+        &["workspace", "set-directory"][..],
+        &["workspace", "set-directory", "w", "extra", "--path", "/a"][..],
     ] {
         assert_eq!(
             parse(arguments),
@@ -3418,20 +3405,20 @@ fn accept_directory_path_is_a_literal_protocol_value() {
     // label; a zero ID shape is an identifier failure, and a valid
     // --format json selection parses.
     assert_eq!(
-        parse(&["workspace", "accept-directory", ZERO, "--path", "/a"]),
+        parse(&["workspace", "set-directory", ZERO, "--path", "/a"]),
         Err(identifier(Resource::Workspace, ZERO, FailureEnvelope::Text))
     );
     assert_eq!(
         parse(&[
             "--format=json",
             "workspace",
-            "accept-directory",
+            "set-directory",
             "w",
             "--path",
             "/a"
         ]),
         Ok(mutation(
-            MutationCommand::WorkspaceAcceptDirectory {
+            MutationCommand::WorkspaceSetDirectory {
                 target: Target::Label("w".into()),
                 path: directory_path("/a"),
             },
@@ -3552,8 +3539,8 @@ fn mutation_help_paths_resolve_both_forms() {
             HelpTopic::Command(CommandPath::WorkspaceRename),
         ),
         (
-            &["workspace", "accept-directory", "--help"],
-            HelpTopic::Command(CommandPath::WorkspaceAcceptDirectory),
+            &["workspace", "set-directory", "--help"],
+            HelpTopic::Command(CommandPath::WorkspaceSetDirectory),
         ),
         (
             &["tab", "create", "--help"],
@@ -3592,8 +3579,8 @@ fn mutation_help_paths_resolve_both_forms() {
             HelpTopic::Command(CommandPath::WorkspaceRename),
         ),
         (
-            &["help", "workspace", "accept-directory"],
-            HelpTopic::Command(CommandPath::WorkspaceAcceptDirectory),
+            &["help", "workspace", "set-directory"],
+            HelpTopic::Command(CommandPath::WorkspaceSetDirectory),
         ),
         (
             &["help", "tab", "create"],
@@ -3941,22 +3928,16 @@ fn usage_failures_carry_their_concrete_reason() {
             },
         ),
         (
-            &["workspace", "accept-directory", ID],
+            &["workspace", "set-directory", ID],
             UsageReason::MissingRequired {
-                context: path("workspace accept-directory"),
+                context: path("workspace set-directory"),
                 requirement: "'--path'",
             },
         ),
         (
-            &[
-                "workspace",
-                "accept-directory",
-                ID,
-                "--path",
-                "relative/dir",
-            ],
+            &["workspace", "set-directory", ID, "--path", "relative/dir"],
             UsageReason::InvalidValue {
-                context: path("workspace accept-directory"),
+                context: path("workspace set-directory"),
                 option: "--path",
                 value: "relative/dir".to_owned(),
                 expected: ExpectedValue::DirectoryPath,

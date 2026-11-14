@@ -192,11 +192,11 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::WorkspaceReportMetadata) => super::workspace_metadata::HELP_ZH,
             (Locale::EnUs, CommandPath::WorkspaceRename) => super::workspace::HELP_WORKSPACE_RENAME_EN,
             (Locale::ZhCn, CommandPath::WorkspaceRename) => super::workspace::HELP_WORKSPACE_RENAME_ZH,
-            (Locale::EnUs, CommandPath::WorkspaceAcceptDirectory) => {
-                super::workspace::HELP_WORKSPACE_ACCEPT_DIRECTORY_EN
+            (Locale::EnUs, CommandPath::WorkspaceSetDirectory) => {
+                super::workspace::HELP_WORKSPACE_SET_DIRECTORY_EN
             }
-            (Locale::ZhCn, CommandPath::WorkspaceAcceptDirectory) => {
-                super::workspace::HELP_WORKSPACE_ACCEPT_DIRECTORY_ZH
+            (Locale::ZhCn, CommandPath::WorkspaceSetDirectory) => {
+                super::workspace::HELP_WORKSPACE_SET_DIRECTORY_ZH
             }
             (Locale::EnUs, CommandPath::WorkspaceClose) => super::workspace::HELP_WORKSPACE_CLOSE_EN,
             (Locale::ZhCn, CommandPath::WorkspaceClose) => super::workspace::HELP_WORKSPACE_CLOSE_ZH,

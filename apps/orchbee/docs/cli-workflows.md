@@ -127,14 +127,14 @@ field, so `set -e` or per-step checking halts the sequence.
 PROJECT=$(orchbee project create --label demo --format json | jq -er .result.projectId)
 WS=$(orchbee workspace create --project "$PROJECT" --label main --format json | jq -er .result.workspace.result.workspaceId)
 # Replace with an existing absolute project directory on this machine:
-DIR=$(orchbee workspace accept-directory "$WS" --path /absolute/path/to/existing-repo --format json | jq -er .result.directoryId)
+DIR=$(orchbee workspace set-directory "$WS" --path /absolute/path/to/existing-repo --format json | jq -er .result.directoryId)
 ```
 
 A target is an exact 32-hex id or an exact case-sensitive label; ambiguous
 labels are refused with candidates. `--path` is a literal absolute local-platform
 path — the CLI never expands `~`/`$`, creates, or probes it; the Server
 probes authoritatively and rejects a Workspace that already has a
-directory. `accept-directory` returns `result.directoryId` (plus
+directory. `set-directory` returns `result.directoryId` (plus
 `workerId`): a Workbench identity, not the path.
 
 ## 3. Launch a terminal
@@ -200,7 +200,7 @@ orchbee worktree list --directory "$DIR"
 ```
 
 `--directory` takes the strict nonzero 32-lowercase-hex Workbench directory
-id from `accept-directory` or `workspace get` — never a path or label. The
+id from `set-directory` or `workspace get` — never a path or label. The
 listing is read-only: it never creates, moves, locks, or prunes a worktree.
 Branch names keep their full `refs/heads/…` form; an all-zero `head` is an
 unborn repository and `null` marks the bare entry.

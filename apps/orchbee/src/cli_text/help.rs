@@ -407,9 +407,9 @@ impl super::CliText {
                 "Change a workspace's navigation order.",
                 "调整工作区的导航顺序。",
             ),
-            HelpTopic::Command(CommandPath::WorkspaceAcceptDirectory) => (
-                "Accept a workspace's working directory.",
-                "确认工作区的工作目录。",
+            HelpTopic::Command(CommandPath::WorkspaceSetDirectory) => (
+                "Set the working directory of a workspace that has none.",
+                "为没有工作目录的工作区设置工作目录。",
             ),
             HelpTopic::Command(CommandPath::WorkspaceClose) => (
                 "Close a workspace and its terminals.",

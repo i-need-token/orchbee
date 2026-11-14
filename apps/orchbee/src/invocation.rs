@@ -494,7 +494,7 @@ pub(crate) enum MutationCommand {
         target: Target,
         insert_index: orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex,
     },
-    WorkspaceAcceptDirectory {
+    WorkspaceSetDirectory {
         target: Target,
         path: WorkbenchDirectoryPath,
     },

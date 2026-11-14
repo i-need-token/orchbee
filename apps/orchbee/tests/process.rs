@@ -228,7 +228,7 @@ fn help_flag_aliases_match_the_help_command_at_every_recognized_path() -> Result
         &["workspace", "get"],
         &["workspace", "create"],
         &["workspace", "rename"],
-        &["workspace", "accept-directory"],
+        &["workspace", "set-directory"],
         &["tab", "list"],
         &["tab", "get"],
         &["tab", "create"],

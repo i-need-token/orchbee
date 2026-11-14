@@ -1,8 +1,8 @@
-//! Public headless chain witnesses for `workspace accept-directory`: the real
+//! Public headless chain witnesses for `workspace set-directory`: the real
 //! staged `orchbee` binary drives the accepted `WorkspacePrimaryDirectoryAccept`
 //! action against a live isolated Session — with no TUI client and no directory
 //! wizard anywhere in the sequence. `project create → workspace create →
-//! workspace accept-directory → tab create → terminal list/read → tab close
+//! workspace set-directory → tab create → terminal list/read → tab close
 //! → bounded list observation` is the genuinely headless chain the accepted
 //! slice authorizes; the negative matrix proves invalid paths exit at the CLI
 //! boundary or through the Server's own probe (zero mkdir, zero committed
@@ -29,7 +29,7 @@ const GEOMETRY: [&str; 8] = [
     "18",
 ];
 
-/// `project create` → `workspace create` → `workspace accept-directory` →
+/// `project create` → `workspace create` → `workspace set-directory` →
 /// `tab create` → `terminal list`/`terminal read` → `tab close --confirm` →
 /// bounded `tab list`/`terminal list` observation — every step a real CLI
 /// invocation, every id chained out of the previous JSON receipt, zero TUI
@@ -37,7 +37,7 @@ const GEOMETRY: [&str; 8] = [
 /// deletion); the bounded observation is what proves the tabId/terminalId
 /// are gone, and the close is never re-sent.
 #[test]
-fn accept_directory_completes_the_headless_chain() -> TestResult {
+fn set_directory_completes_the_headless_chain() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
     let _server = spawn_real_server(&fixture);
@@ -100,14 +100,14 @@ fn accept_directory_completes_the_headless_chain() -> TestResult {
         .expect("terminal context id")
         .to_owned();
 
-    // 3. `workspace accept-directory` — the committed receipt carries the
+    // 3. `workspace set-directory` — the committed receipt carries the
     //    Server-allocated directory and worker ids, the resolved project and
     //    workspace ids, and the literal request path.
     let (output, accepted) = run_json(
         &fixture,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             workspace_id.as_str(),
             "--path",
             path.as_str(),
@@ -118,7 +118,7 @@ fn accept_directory_completes_the_headless_chain() -> TestResult {
     assert_eq!(
         output.status.code(),
         Some(0),
-        "workspace accept-directory: {}",
+        "workspace set-directory: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     validate(&validators, "orchbee.mutation.result", &output);
@@ -318,7 +318,7 @@ fn accept_directory_completes_the_headless_chain() -> TestResult {
 /// path — is `WorkspaceDirectoryConflict`, and duplicate workspace labels are
 /// `ambiguous` while each typed id still resolves.
 #[test]
-fn accept_directory_negative_matrix_stays_server_owned() -> TestResult {
+fn set_directory_negative_matrix_stays_server_owned() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
     let _server = spawn_real_server(&fixture);
@@ -357,7 +357,7 @@ fn accept_directory_negative_matrix_stays_server_owned() -> TestResult {
         &fixture,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             workspace_id.as_str(),
             "--path",
             missing_path.as_str(),
@@ -401,7 +401,7 @@ fn accept_directory_negative_matrix_stays_server_owned() -> TestResult {
         &fixture,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             workspace_id.as_str(),
             "--path",
             file_path.as_str(),
@@ -436,7 +436,7 @@ fn accept_directory_negative_matrix_stays_server_owned() -> TestResult {
     let path = directory.to_str().ok_or("dir path UTF-8")?.to_owned();
     let accept = [
         "workspace",
-        "accept-directory",
+        "set-directory",
         workspace_id.as_str(),
         "--path",
         path.as_str(),
@@ -490,7 +490,7 @@ fn accept_directory_negative_matrix_stays_server_owned() -> TestResult {
         &fixture,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             "dup",
             "--path",
             path.as_str(),
@@ -504,7 +504,7 @@ fn accept_directory_negative_matrix_stays_server_owned() -> TestResult {
 
     let accept_dup = [
         "workspace",
-        "accept-directory",
+        "set-directory",
         dup_ids[0].as_str(),
         "--path",
         path.as_str(),
@@ -531,7 +531,7 @@ fn accept_directory_negative_matrix_stays_server_owned() -> TestResult {
         &fixture,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             dup_ids[1].as_str(),
             "--path",
             "relative/dir",

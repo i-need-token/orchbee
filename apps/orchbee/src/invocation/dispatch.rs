@@ -612,18 +612,18 @@ pub(super) fn resolve_words(
                 options,
             ))
         }
-        ["workspace", "accept-directory", value] => {
+        ["workspace", "set-directory", value] => {
             check_scope(
                 options,
-                UsageContext::Path("workspace accept-directory"),
+                UsageContext::Path("workspace set-directory"),
                 envelope,
             )?;
             Ok(mutation(
-                MutationCommand::WorkspaceAcceptDirectory {
+                MutationCommand::WorkspaceSetDirectory {
                     target: target((*value).to_owned(), Resource::Workspace, envelope)?,
                     path: path_option(
                         options,
-                        UsageContext::Path("workspace accept-directory"),
+                        UsageContext::Path("workspace set-directory"),
                         envelope,
                     )?,
                 },
@@ -1401,13 +1401,13 @@ pub(super) fn resolve_words(
             extra,
             envelope,
         )),
-        ["workspace", "accept-directory"] => Err(missing_required(
-            UsageContext::Path("workspace accept-directory"),
+        ["workspace", "set-directory"] => Err(missing_required(
+            UsageContext::Path("workspace set-directory"),
             "<workspace>",
             envelope,
         )),
-        ["workspace", "accept-directory", _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("workspace accept-directory"),
+        ["workspace", "set-directory", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace set-directory"),
             extra,
             envelope,
         )),

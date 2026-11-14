@@ -101,7 +101,7 @@ commands! {
     PanelReleaseAgent => ["panel", "release-agent"], 1, Panel, Portable, true, true, false;
     WorkspaceReportMetadata => ["workspace", "report-metadata"], 1, Operand, Portable, true, true, false;
     WorkspaceMove => ["workspace", "move"], 1, Operand, Portable, true, true, false;
-    WorkspaceAcceptDirectory => ["workspace", "accept-directory"], 1, Operand, Portable, true, true, false;
+    WorkspaceSetDirectory => ["workspace", "set-directory"], 1, Operand, Portable, true, true, false;
     WorkspaceClose => ["workspace", "close"], 1, Operand, Portable, true, true, false;
     TabList => ["tab", "list"], 0, Operand, Portable, true, true, false;
     TabGet => ["tab", "get"], 1, Operand, Portable, true, true, false;

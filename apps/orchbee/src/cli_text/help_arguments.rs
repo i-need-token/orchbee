@@ -124,7 +124,7 @@ impl super::CliText {
             CommandPath::PanelReleaseAgent => &[Argument::Panel],
             CommandPath::WorkspaceReportMetadata => &[Argument::Workspace],
             CommandPath::WorkspaceMove => &[Argument::Workspace],
-            CommandPath::WorkspaceAcceptDirectory => &[Argument::Workspace],
+            CommandPath::WorkspaceSetDirectory => &[Argument::Workspace],
             CommandPath::WorkspaceClose => &[Argument::Workspace],
             CommandPath::TabList => &[],
             CommandPath::TabGet => &[Argument::Tab],

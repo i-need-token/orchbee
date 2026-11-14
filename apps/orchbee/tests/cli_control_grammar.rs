@@ -2,7 +2,7 @@
 //! probed with an explicitly unavailable runtime so every outcome is decided
 //! by argv grammar alone. The matrix pins the FINAL-composed bounded command
 //! grammar — `terminal send`, `terminal wait-output`, and
-//! `workspace accept-directory` — against the shared option rules the native
+//! `workspace set-directory` — against the shared option rules the native
 //! parser already enforces.
 //!
 //! Environment discipline: each probe runs a private copy of the just-built
@@ -1008,23 +1008,23 @@ fn terminal_read_usage_failures() -> TestResult {
     Ok(())
 }
 
-// ---- workspace accept-directory --------------------------------------------
+// ---- workspace set-directory --------------------------------------------
 
 /// CLI-WORKSPACE-DIRECTORY-ACCEPTED admits
-/// `workspace accept-directory <target> --path <absolute-path>
+/// `workspace set-directory <target> --path <absolute-path>
 /// [--format text|json]`: the target keeps the Workspace ID-or-exact-label
 /// rule, `--path` is required and must be the literal absolute POSIX path of
 /// at most 4096 bytes without NUL — `~`/`$` are never expanded — and no other
 /// option is admitted, `--confirm` included.
 #[test]
-fn workspace_accept_directory_admitted_forms() -> TestResult {
+fn workspace_set_directory_admitted_forms() -> TestResult {
     let probe = probe();
     let path_at_bound = format!("/{}", "p".repeat(4095));
     for arguments in [
-        ["workspace", "accept-directory", WORKSPACE_ID, "--path", "/"].as_slice(),
+        ["workspace", "set-directory", WORKSPACE_ID, "--path", "/"].as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "/repo",
@@ -1033,7 +1033,7 @@ fn workspace_accept_directory_admitted_forms() -> TestResult {
         // Workspace targets keep the existing label form.
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             "my workspace",
             "--path",
             "/repo",
@@ -1041,7 +1041,7 @@ fn workspace_accept_directory_admitted_forms() -> TestResult {
         .as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             "--path",
             "/repo",
             WORKSPACE_ID,
@@ -1050,7 +1050,7 @@ fn workspace_accept_directory_admitted_forms() -> TestResult {
         // Literal paths keep spaces and non-ASCII bytes verbatim.
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "/dir with spaces/多",
@@ -1058,7 +1058,7 @@ fn workspace_accept_directory_admitted_forms() -> TestResult {
         .as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             path_at_bound.as_str(),
@@ -1066,7 +1066,7 @@ fn workspace_accept_directory_admitted_forms() -> TestResult {
         .as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "/repo",
@@ -1080,7 +1080,7 @@ fn workspace_accept_directory_admitted_forms() -> TestResult {
         &probe,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "/repo",
@@ -1092,43 +1092,29 @@ fn workspace_accept_directory_admitted_forms() -> TestResult {
 }
 
 #[test]
-fn workspace_accept_directory_usage_failures() -> TestResult {
+fn workspace_set_directory_usage_failures() -> TestResult {
     let probe = probe();
     let path_over_bound = format!("/{}", "p".repeat(4096));
     for arguments in [
-        ["workspace", "accept-directory"].as_slice(),
-        ["workspace", "accept-directory", WORKSPACE_ID].as_slice(),
-        ["workspace", "accept-directory", WORKSPACE_ID, "--path"].as_slice(),
-        [
-            "workspace",
-            "accept-directory",
-            WORKSPACE_ID,
-            "--path",
-            "--",
-        ]
-        .as_slice(),
+        ["workspace", "set-directory"].as_slice(),
+        ["workspace", "set-directory", WORKSPACE_ID].as_slice(),
+        ["workspace", "set-directory", WORKSPACE_ID, "--path"].as_slice(),
+        ["workspace", "set-directory", WORKSPACE_ID, "--path", "--"].as_slice(),
         // The path must be a literal absolute POSIX path of at most 4096
         // bytes: relative, tilde, and empty spellings are usage failures.
+        ["workspace", "set-directory", WORKSPACE_ID, "--path", "repo"].as_slice(),
         [
             "workspace",
-            "accept-directory",
-            WORKSPACE_ID,
-            "--path",
-            "repo",
-        ]
-        .as_slice(),
-        [
-            "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "~/repo",
         ]
         .as_slice(),
-        ["workspace", "accept-directory", WORKSPACE_ID, "--path", ""].as_slice(),
+        ["workspace", "set-directory", WORKSPACE_ID, "--path", ""].as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             path_over_bound.as_str(),
@@ -1136,7 +1122,7 @@ fn workspace_accept_directory_usage_failures() -> TestResult {
         .as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "/a",
@@ -1148,7 +1134,7 @@ fn workspace_accept_directory_usage_failures() -> TestResult {
         // scope, including a second directory confirmation path.
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "/repo",
@@ -1157,7 +1143,7 @@ fn workspace_accept_directory_usage_failures() -> TestResult {
         .as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "/repo",
@@ -1167,7 +1153,7 @@ fn workspace_accept_directory_usage_failures() -> TestResult {
         .as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "/repo",
@@ -1176,7 +1162,7 @@ fn workspace_accept_directory_usage_failures() -> TestResult {
         .as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "/repo",
@@ -1186,17 +1172,17 @@ fn workspace_accept_directory_usage_failures() -> TestResult {
         .as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "extra",
             "--path",
             "/repo",
         ]
         .as_slice(),
-        ["workspace", "accept-directory", ZERO_ID, "--path", "/repo"].as_slice(),
+        ["workspace", "set-directory", ZERO_ID, "--path", "/repo"].as_slice(),
         [
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--path",
             "/repo",
@@ -1210,7 +1196,7 @@ fn workspace_accept_directory_usage_failures() -> TestResult {
         &probe,
         &[
             "workspace",
-            "accept-directory",
+            "set-directory",
             WORKSPACE_ID,
             "--frobnicate",
             "--format",
@@ -1248,8 +1234,8 @@ fn help_paths_answer_without_runtime() -> TestResult {
         ["terminal", "send", "-h"].as_slice(),
         ["help", "terminal", "wait-output"].as_slice(),
         ["terminal", "wait-output", "--help"].as_slice(),
-        ["help", "workspace", "accept-directory"].as_slice(),
-        ["workspace", "accept-directory", "--help"].as_slice(),
+        ["help", "workspace", "set-directory"].as_slice(),
+        ["workspace", "set-directory", "--help"].as_slice(),
     ] {
         help_ok(&probe, arguments);
     }
