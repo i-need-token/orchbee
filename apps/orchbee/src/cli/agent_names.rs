@@ -3,8 +3,8 @@
 
 use crate::cli_text::CliText;
 use orchbee_agent_observation_protocol::{
-    AgentNameAssignOutcome, AgentNameReleaseOutcome, AgentNameTarget, AgentNamesListOutcome,
-    AgentNamesResult, AgentResolveOutcome,
+    AgentNameAssignOutcome, AgentNameReleaseOutcome, AgentNameTarget, AgentNamesResult,
+    AgentResolveOutcome,
 };
 use serde_json::{Value, json};
 
@@ -16,7 +16,6 @@ use crate::localization::Locale;
 impl AgentNamesCommand {
     pub(crate) const fn operation(&self) -> &'static str {
         match self {
-            Self::List => "names",
             Self::Resolve(_) => "resolve",
             Self::Assign { .. } => "rename",
             Self::Release(_) => "clear-name",
@@ -63,7 +62,6 @@ fn current_outcome(mut outcome: Value) -> Value {
     }
     let kind = match outcome["kind"].as_str() {
         Some("resolved") => Some("resolved-target"),
-        Some("listed") => Some("listed-targets"),
         Some("assigned") => Some("assigned-target"),
         Some("unchanged") => Some("unchanged-target"),
         Some("released") => Some("released-target"),
@@ -146,56 +144,8 @@ fn project(
             }
             AgentResolveOutcome::Unavailable { .. } => Err(unavailable()),
         },
-        AgentNamesResult::NamesList { result, .. } => match &result.outcome {
-            AgentNamesListOutcome::ListedTargets { bindings, pending } => {
-                let mut text = CliText::new(locale).cli_agent_names_header(true).to_owned();
-                for entry in bindings {
-                    text.push_str(&format!(
-                        "{}\t{}\n",
-                        entry.name,
-                        target_text(&entry.target, locale)
-                    ));
-                }
-                if !pending.is_empty() {
-                    text.push_str(CliText::new(locale).cli_agent_pending_names_header());
-                    for entry in pending {
-                        text.push_str(&format!(
-                            "{}\t{}\t{}\t{}\n",
-                            entry.name,
-                            entry.provider_id,
-                            entry.remaining_ms.value(),
-                            entry.reservation_id
-                        ));
-                    }
-                }
-                Ok(("orchbee.agent.names", json!(result.outcome), text))
-            }
-            AgentNamesListOutcome::Listed { bindings, pending } => {
-                let mut text = CliText::new(locale)
-                    .cli_agent_names_header(false)
-                    .to_owned();
-                for binding in bindings {
-                    text.push_str(&format!("{}\t{}\n", binding.name, binding.session_id));
-                }
-                if !pending.is_empty() {
-                    text.push_str(CliText::new(locale).cli_agent_pending_names_header());
-                    for launch in pending {
-                        text.push_str(&format!(
-                            "{}\t{}\t{}\t{}\n",
-                            launch.name,
-                            launch.provider_id,
-                            launch.remaining_ms.value(),
-                            launch.reservation_id
-                        ));
-                    }
-                }
-                Ok(("orchbee.agent.names", json!(result.outcome), text))
-            }
-            AgentNamesListOutcome::Rejected { reason } => {
-                Err(super::query::agent_names_rejection(json!(reason), None))
-            }
-            AgentNamesListOutcome::Unavailable { .. } => Err(unavailable()),
-        },
+        // No names command lists names; `agent list` reads them on its own connection.
+        AgentNamesResult::NamesList { .. } => Err(Failure::new(FailureKind::ProtocolInvalid)),
         AgentNamesResult::NameAssign { result, .. } => match &result.outcome {
             AgentNameAssignOutcome::AssignedTarget { target, name, .. }
             | AgentNameAssignOutcome::UnchangedTarget { target, name } => Ok((

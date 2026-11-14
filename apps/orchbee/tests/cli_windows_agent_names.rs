@@ -43,13 +43,6 @@ fn names_commands_exchange_correlated_typed_results_on_windows() {
     // Each wire outcome and the public result that names its Session as a target.
     let cases: &[(&[&str], &str, Value, Value, &str)] = &[
         (
-            &["agent", "names"],
-            "names.list",
-            json!({"kind":"listed","pending":[],"bindings":[{"name":"alpha","sessionId":"s1","lifecycle":"live"}]}),
-            json!({"kind":"listed-targets","pending":[],"bindings":[{"name":"alpha","target":{"kind":"session","sessionId":"s1"}}]}),
-            include_str!("../src/cli/schemas/orchbee.agent.names.json"),
-        ),
-        (
             &["agent", "resolve", "--name", "alpha"],
             "resolve",
             json!({"kind":"resolved","sessionId":"s1","resolvedBy":"name"}),
@@ -153,7 +146,6 @@ fn invalid_names_and_conflicting_selectors_fail_before_runtime_creation() {
         vec!["agent", "rename", "s1", "Upper"],
         vec!["agent", "resolve", "s1", "--name", "alpha"],
         vec!["agent", "rename", "--clear"],
-        vec!["agent", "names", "--clear"],
         vec!["agent", "prompt", "alpha", ""],
         vec!["agent", "prompt", "alpha", "text", "--timeout", "100"],
         vec!["agent", "send-keys", "alpha", "enter", "invalid-key"],

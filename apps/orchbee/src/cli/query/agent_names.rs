@@ -61,7 +61,6 @@ fn span(total: Instant, wake: Option<BorrowedFd<'_>>, command: &AgentNamesComman
         Ok(client) => client,
     };
     let prepared = match command {
-        AgentNamesCommand::List => None,
         AgentNamesCommand::Resolve(target)
         | AgentNamesCommand::Release(target)
         | AgentNamesCommand::Assign { target, .. } => {
@@ -83,7 +82,6 @@ fn span(total: Instant, wake: Option<BorrowedFd<'_>>, command: &AgentNamesComman
         Err(failure) => return Attempt::Preparation(failure),
     };
     let request = match (command, prepared) {
-        (AgentNamesCommand::List, _) => AgentNamesRequest::NamesList { request_id },
         (AgentNamesCommand::Resolve(_), Some(prepared)) => AgentNamesRequest::Resolve {
             request_id,
             target: prepared.selector,

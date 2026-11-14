@@ -50,23 +50,6 @@ fn launch_protocol_and_pending_names_match_published_schemas() {
     let listed = json!({"kind":"agent.session.names.list.result","requestId":id,"result":{"outcome":{"kind":"listed","bindings":[],"pending":[reservation]}}});
     assert!(wire.is_valid(&listed));
     assert!(parse_agent_result(&serde_json::to_vec(&listed).unwrap()).is_ok());
-    let result = serde_json::from_value(listed).unwrap();
-    let schema = jsonschema::validator_for(
-        &serde_json::from_str(include_str!("../schemas/orchbee.agent.names.json")).unwrap(),
-    )
-    .unwrap();
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let answer = render(&result, OutputFormat::Json, locale);
-        let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
-        assert!(schema.is_valid(&document), "{document}");
-        assert_eq!(document["version"], 1);
-        let answer = render(&result, OutputFormat::Text, locale);
-        assert!(
-            String::from_utf8(answer.stdout)
-                .unwrap()
-                .contains("alpha\tcodex\t10000")
-        );
-    }
 }
 
 #[test]

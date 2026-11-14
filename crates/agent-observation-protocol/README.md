@@ -30,7 +30,7 @@ the opaque list/change cursor wire shape. Its actual consumers are the native `o
 
 ## Delivery status
 
-All three families are live: native Agent reads, `agent names/resolve/rename` and Windows `agent start` use the
+All three families are live: native Agent reads, `agent list` names, `agent resolve/rename` and Windows `agent start` use the
 Server's `application_session` demux and `AgentService`. The published schema covers
 kinds 1–26. Names are runtime-scoped aliases owned by the Server cell; the protocol
 owns only their bounded DTOs and validation. Get/explain/wait resolve names on the same admitted session, then read or poll the pinned session ID. The CLI owns composition and budgets.

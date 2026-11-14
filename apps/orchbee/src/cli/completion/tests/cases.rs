@@ -956,7 +956,7 @@ pub(crate) const CASES: &[(&str, &str, bool)] = &[
         "--new-tab",
         false,
     ),
-    ("orchbee agent names --p", "--provider", false),
+    ("orchbee agent list --p", "--provider", false),
     ("orchbee panel ", "process-info", true),
     ("orchbee panel process-info --p", "--panel", false),
     ("orchbee panel process-info --current --p", "--panel", false),

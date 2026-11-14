@@ -25,6 +25,7 @@ fn listed(rows: Vec<crate::agent_projection::Row>, with_client: bool) -> Value {
             ordinal: index + 1,
             row,
             panel_handle: None,
+            name: None,
             cwd: None,
             client: with_client.then(|| json!({"canonical":null,"terminal":null})),
         })

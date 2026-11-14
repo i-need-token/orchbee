@@ -679,7 +679,6 @@ impl AgentStartPlace {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AgentNamesCommand {
-    List,
     Resolve(AgentTarget),
     Assign {
         target: AgentTarget,

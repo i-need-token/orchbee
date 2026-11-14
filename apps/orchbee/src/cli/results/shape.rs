@@ -46,7 +46,7 @@ pub(super) fn canonical_list(
             None => item.provider_id.as_str(),
         };
         json!({"ordinal":index+1,"provider":provider,"status":status,"source":"canonical",
-            "canonical":item,"terminal":unsupported(),"placement":unsupported(),"cwd":unsupported(),"client":unsupported()})
+            "canonical":item,"terminal":unsupported(),"placement":unsupported(),"cwd":unsupported(),"client":unsupported(),"name":unsupported()})
     }).collect::<Vec<_>>();
     json!({"kind":"listed","revision":revision,"nextCursor":next_cursor,"items":rows,"clientId":unsupported()})
 }

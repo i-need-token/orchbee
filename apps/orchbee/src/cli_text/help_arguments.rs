@@ -84,7 +84,6 @@ impl super::CliText {
             CommandPath::AgentExplain => &[Argument::Agent],
             CommandPath::AgentWait => &[Argument::Agent],
             CommandPath::AgentDoctor => &[],
-            CommandPath::AgentNames => &[],
             CommandPath::AgentResolve => &[Argument::Agent],
             CommandPath::AgentRename => &[Argument::Agent, Argument::NewName],
             CommandPath::AgentIntegrationList => &[],

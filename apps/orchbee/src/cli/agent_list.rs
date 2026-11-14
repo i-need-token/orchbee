@@ -1,8 +1,9 @@
 //! `agent list` over the unified Agent projection: one complete projection read, cursor
-//! pagination, observed working directories, and optional selected-Client attention per row.
+//! pagination, runtime names, observed working directories, and optional selected-Client
+//! attention per row.
 use super::{
     Failure, FailureKind, Output,
-    agent_projection::{Item, List, classify, confirm, failure, read, source},
+    agent_projection::{Item, List, classify, confirm, failure, name, read, source},
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
     failure_output, query,
     results::{self, Projection},
@@ -17,6 +18,9 @@ use crate::{
     invocation::{OutputFormat, QueryCommand, Target},
     local_client::LocalClient,
     localization::Locale,
+};
+use orchbee_agent_observation_protocol::{
+    AgentNameTarget, AgentNamedTarget, AgentNamesListOutcome, AgentNamesRequest, AgentNamesResult,
 };
 use orchbee_workbench_protocol::{Snapshot, WorkbenchClientId};
 use serde_json::json;
@@ -66,6 +70,7 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
             deadline,
             signals.poll_fd(),
         )?;
+        let names = names(&mut client, deadline, &mut signals)?;
         let offset = cursor
             .as_ref()
             .map(|c| {
@@ -108,6 +113,7 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
                     .as_ref()
                     .and_then(|p| handles.get(&p.panel))
                     .cloned(),
+                name: name(&row, &names),
                 row,
                 cwd: None,
                 client: None,
@@ -209,6 +215,58 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
     };
     output.finalization = finalization;
     output
+}
+
+/// Reads the Session's names on the list's own connection, before the projection is confirmed.
+/// A pending launch already names its terminal; the Server keeps bound and pending targets
+/// disjoint.
+fn names(
+    client: &mut LocalClient,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Vec<AgentNamedTarget>, Failure> {
+    let reply = client.submit_agent_names_before_cancellable(
+        AgentNamesRequest::NamesList {
+            request_id: query::obap_request_id()?,
+        },
+        deadline,
+        signals.poll_fd(),
+    );
+    signals.check_before(deadline)?;
+    let AgentNamesResult::NamesList { result, .. } =
+        reply.map_err(|_| classify(Error::Unavailable))?
+    else {
+        return Err(classify(Error::Invalid));
+    };
+    let pending = |pending: Vec<orchbee_agent_observation_protocol::AgentLaunchReservation>| {
+        pending.into_iter().map(|reservation| AgentNamedTarget {
+            name: reservation.name,
+            target: AgentNameTarget::Terminal {
+                binding: reservation.binding,
+            },
+        })
+    };
+    match result.outcome {
+        AgentNamesListOutcome::ListedTargets {
+            bindings,
+            pending: launches,
+        } => Ok(bindings.into_iter().chain(pending(launches)).collect()),
+        AgentNamesListOutcome::Listed {
+            bindings,
+            pending: launches,
+        } => Ok(bindings
+            .into_iter()
+            .map(|binding| AgentNamedTarget {
+                name: binding.name,
+                target: AgentNameTarget::Session {
+                    session_id: binding.session_id,
+                },
+            })
+            .chain(pending(launches))
+            .collect()),
+        AgentNamesListOutcome::Rejected { .. } => Err(classify(Error::Denied)),
+        AgentNamesListOutcome::Unavailable { .. } => Err(classify(Error::Unavailable)),
+    }
 }
 
 fn client_memory(

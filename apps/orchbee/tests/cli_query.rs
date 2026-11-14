@@ -4934,7 +4934,6 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
         "orchbee.agent.get",
         "orchbee.agent.explain",
         "orchbee.agent.wait",
-        "orchbee.agent.names",
         "orchbee.agent.resolve",
         "orchbee.agent.rename",
         "orchbee.cli.failure.agent-names",

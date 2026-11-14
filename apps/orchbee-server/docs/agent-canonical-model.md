@@ -187,7 +187,7 @@ liveness authority. No socket I/O or outer lock is acquired inside the leaf fold
 The sequential application-session demux routes both OBAP families and writes exactly
 one correlated result. A lost mutation reply is outcome-unknown, without a replay ledger.
 
-`schemas/agent-observation/v1` covers kinds 1–14. Native `agent names`, `agent resolve`,
+`schemas/agent-observation/v1` covers kinds 1–14. Native `agent list`, `agent resolve`,
 and `agent rename` consume the names family; get/explain/wait and terminal control commands resolve names on the same admitted session and pin the resulting session ID. CLI composition and deadlines belong to the [native CLI contract](../../orchbee/docs/native-cli-query.md).
 Deterministic service tests cover collision, atomic rename, exact-ID precedence,
 full capacity, lifecycle cleanup, policy separation, stale preparation, disposal,
@@ -311,7 +311,7 @@ candidates, readiness, or the identity grade.
 Names and reservations share the 512-entry capacity. Each name, reserved presentation
 and committed session alias is unique. Normal name assignment cannot claim a reserved
 name or rename a session on its reserved presentation; release and resolution report
-pending-launch explicitly where applicable. `agent names` exposes committed bindings
+pending-launch explicitly where applicable. The names list exposes committed bindings
 and pending reservations separately. Expired claims cannot block a subsequent request.
 Reservations are runtime-scoped, never durable session restoration data.
 

@@ -61,7 +61,6 @@ commands! {
     AgentExplain => ["agent", "explain"], 1, Operand, Portable, true, true, false;
     AgentWait => ["agent", "wait"], 1, Agent, Portable, true, true, false;
     AgentDoctor => ["agent", "doctor"], 0, Operand, Portable, true, false, false;
-    AgentNames => ["agent", "names"], 0, Operand, Portable, true, true, false;
     AgentResolve => ["agent", "resolve"], 1, Operand, Portable, true, true, false;
     AgentRename => ["agent", "rename"], 2, Operand, Portable, true, true, false;
     AgentIntegrationList => ["agent", "integration", "list"], 0, Operand, Portable, true, false, false;

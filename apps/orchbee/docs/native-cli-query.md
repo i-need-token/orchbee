@@ -462,7 +462,7 @@ screen contents are excluded. Live Host adoption remains separate work.
 
 ## Agent session names
 
-`agent names` lists all live aliases in the running Session. `agent resolve <target>`
+Windows `agent list` shows each row's live alias. `agent resolve <target>`
 returns a canonical session ID or an exact terminal target, testing exact session ID existence before aliases. `agent rename
 <target> <new-name>` assigns or atomically replaces a name; `agent rename <target>
 --clear` releases it without stopping the session. Replace the target operand with
@@ -478,7 +478,7 @@ report changes are reconciled at commit, so A → B → A cannot revive an old a
 observations alone do not clear it. Hook arrival does not silently convert a terminal alias into a
 canonical session alias.
 
-Terminal-target resolve/list use version 1, rename/clear use version 1, and mixed-target name
+Terminal-target resolve uses version 1, rename/clear use version 1, and mixed-target name
 collisions use failure version 1 with `conflictTarget`. Canonical receipts use the same version and target shape. Windows `agent get` keeps `terminal-found` under v1 `inspection`, with its exact
 target, actual frame/process/primary-panel report fields and physical semantic observations.
 Startup management belongs to canonical Agent session inspection. Physical inspection contains no invented
@@ -488,11 +488,10 @@ session ID. Child terminal reads never borrow the primary panel's report. Named 
 use their physical observation/Client contracts without inventing canonical sessions;
 terminal names and pending reservations do not survive a cold restart. Renaming preserves the exact physical binding; clearing releases its current name.
 
-All three commands admit `--format text|json`. The embedded success schemas are
-`orchbee.agent.names` version 1 (with separate pending reservations), and
+Both commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.resolve` and `orchbee.agent.rename`, version 1;
 post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Presentation resolution and ambiguous-target failures use version 1; launch-pending failures use version 1; all outcomes use version 1. Correlated
-semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 1, alongside the prompt contracts. Invalid names or conflicting selectors
+semantic answers carry an `agent-names` source with the OBAP request ID. These three documents are included in schema catalog version 1, alongside the prompt contracts. Invalid names or conflicting selectors
 fail with exit 2 before any runtime access. A collision is exit 3 and identifies the
 incumbent session; it never overwrites that session's name.
 
@@ -2653,7 +2652,7 @@ JSON carries the value verbatim.
 
 ## Windows Agent startup
 
-[Windows Agent startup](windows-agent-start.md) owns `agent start`, its places, first-command start, single submission, early check, reservation and readiness workflow, Windows quoting, budgets and recovery. `agent names` v1 includes separate pending reservations; names failures use v1 for launch-pending. The catalog exposes the current documents and command paths.
+[Windows Agent startup](windows-agent-start.md) owns `agent start`, its places, first-command start, single submission, early check, reservation and readiness workflow, Windows quoting, budgets and recovery. `agent list` shows a pending reservation's name on its terminal row; names failures use v1 for launch-pending. The catalog exposes the current documents and command paths.
 
 ## Windows Session stop
 
@@ -2774,6 +2773,8 @@ For canonical session targets, Windows `agent prompt <target> <text> --wait --cl
 ## Windows unified Agent projection
 
 Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v1. Its `source.kind` is `agent-projection`; the source carries `sessionId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows may also carry placement when a current terminal incarnation is observed with no Agent. `workspaceId` within placement is nullable. `cwd` is a nullable string. When `--include-ended` is used, ended sessions sort after all current live rows, keeping live ordinals stable; ended rows follow canonical ID order and can be inspected by exact `--agent-session`.
+
+Windows rows also carry `name`: the row's live alias, or null when it has none. The list reads the Session's names on its own connection before confirming the projection; a terminal binding names the row with that exact launch binding, a pending launch reservation names its terminal, and a session binding names the row with that `sessionId`. A row's own target wins, so a terminal's name takes precedence over its session's. Other platforms mark `name` unsupported. The text table shows it in a NAME column.
 
 `clientId` and every row's `client` are always present, null on Windows when no Client was selected, with canonical and terminal Client facets kept separate. Client unread state never supplies semantic Agent status. Optional cwd enrichment covers at most 64 rows per page and returns null when unavailable. Pages contain 1–100 rows (default 50); the joined output ceiling is 4096 rows and 8 MiB. Source admission can fail earlier: the canonical source is bounded to 512 sessions/six pages of 100, and physical source registration is bounded to 1024 entries. The 4096-row output ceiling does not promise that many physical sources.
 

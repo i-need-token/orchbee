@@ -6,13 +6,13 @@ use crate::cli_outcome::Failure;
 pub(super) const HELP_AGENT_LIST_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--client <id>] [--format text|json]",
-        "List Agent sessions observed by the running local session. '--include-ended'\nadds ended sessions; '--limit' selects 1-100 rows per page (default 50).\nWindows joins canonical sessions with physical terminal Agents; each row keeps\nits source facets, reconciled status and placement. '--client' adds separate\nClient observations without changing semantic status. Windows JSON uses\norchbee.agent.list v1. Its 'u1.<base64url>' cursor is at most 1024 characters;\nold or stale cursors require restarting the list. All supported platforms use v1 with explicit unsupported facets.",
+        "List Agent sessions observed by the running local session. '--include-ended'\nadds ended sessions; '--limit' selects 1-100 rows per page (default 50).\nWindows joins canonical sessions with physical terminal Agents; each row keeps\nits source facets, reconciled status, placement and runtime name. '--client'\nadds separate Client observations without changing semantic status. Windows\nJSON uses orchbee.agent.list v1. Its 'u1.<base64url>' cursor is at most 1024 characters;\nold or stale cursors require restarting the list. All supported platforms use v1 with explicit unsupported facets.",
     );
 
 pub(super) const HELP_AGENT_LIST_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--client <id>] [--format text|json]",
-        "列出运行中的本地会话观察到的智能体会话。'--include-ended' 包含已结束会话；'--limit' 每页 1-100 条（默认 50）。Windows 会合并规范会话与物理终端智能体；每行保留来源分面、协调后的状态和位置。'--client' 添加独立的客户端观察，不改变语义状态。Windows JSON 使用 orchbee.agent.list v1。其 'u1.<base64url>' 游标最多 1024 个字符；旧游标或过期游标需要重新开始列表。所有支持的平台均使用 v1，并明确不支持的分面。",
+        "列出运行中的本地会话观察到的智能体会话。'--include-ended' 包含已结束会话；'--limit' 每页 1-100 条（默认 50）。Windows 会合并规范会话与物理终端智能体；每行保留来源分面、协调后的状态、位置和运行时名称。'--client' 添加独立的客户端观察，不改变语义状态。Windows JSON 使用 orchbee.agent.list v1。其 'u1.<base64url>' 游标最多 1024 个字符；旧游标或过期游标需要重新开始列表。所有支持的平台均使用 v1，并明确不支持的分面。",
     );
 
 pub(super) const HELP_AGENT_GET_EN: crate::cli_text::HelpDetails =

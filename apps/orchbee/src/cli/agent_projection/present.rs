@@ -24,17 +24,26 @@ pub(in crate::cli) fn render_list(
         .max()
         .unwrap_or(0)
         .max(crate::cli_text::escape::display_width(headers[1]));
-    let cwd_width = 36usize.saturating_sub(handle_width);
+    let name_width = list
+        .items
+        .iter()
+        .filter_map(|i| i.name.as_deref())
+        .map(crate::cli_text::escape::display_width)
+        .max()
+        .unwrap_or(0)
+        .clamp(crate::cli_text::escape::display_width(headers[3]), 12);
+    let cwd_width = 34usize.saturating_sub(handle_width + name_width);
     compact_table(
         out,
         &headers,
-        &[4, handle_width, 12, 9, 9, cwd_width],
+        &[4, handle_width, 12, name_width, 9, 9, cwd_width],
         &list.items,
         |item| {
             vec![
                 item.ordinal.to_string(),
                 item.panel_handle.clone().unwrap_or_else(|| "-".into()),
                 truncate_terminal_cell(item.row.provider(), 12),
+                truncate_terminal_cell(item.name.as_deref().unwrap_or("-"), name_width),
                 CliText::new(locale)
                     .cli_projection_status(item.row.status())
                     .into(),
@@ -61,9 +70,9 @@ pub(in crate::cli) fn render_inspection(
         "{}: {}\n{}: {}\n{}: {}\n",
         headers[2],
         crate::cli_text::escape::unquoted(doc.row.provider()),
-        headers[3],
-        CliText::new(locale).cli_projection_status(doc.row.status()),
         headers[4],
+        CliText::new(locale).cli_projection_status(doc.row.status()),
+        headers[5],
         CliText::new(locale).cli_projection_source(doc.row.source())
     ))?;
     crate::cli::present::render(out, &doc.detail, command, locale)
@@ -85,6 +94,7 @@ mod tests {
                 ordinal: 51,
                 row,
                 panel_handle: Some("@panel:0xb".into()),
+                name: Some("reviewer".into()),
                 cwd: Some("C:\\项目\\very-long-directory-which-is-clipped".into()),
                 client: None,
             }],
@@ -96,6 +106,7 @@ mod tests {
         assert_eq!(json["items"][0]["ordinal"], 51);
         assert_eq!(json["items"][0]["provider"], "grok");
         assert_eq!(json["items"][0]["source"], "terminal");
+        assert_eq!(json["items"][0]["name"], "reviewer");
         assert!(json["items"][0]["canonical"].is_null());
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let text = String::from_utf8(
@@ -104,6 +115,7 @@ mod tests {
             .unwrap();
             assert!(text.contains("@panel:0xb"));
             assert!(text.contains("grok"));
+            assert!(text.contains("reviewer"));
             assert!(text.contains(CliText::new(locale).cli_projection_status("idle")));
             assert!(text.contains(CliText::new(locale).cli_projection_source("terminal")));
             assert_eq!(text.lines().count(), 2);

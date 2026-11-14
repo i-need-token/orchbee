@@ -305,14 +305,6 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::AgentGet) => super::agent::HELP_AGENT_GET_ZH,
             (Locale::EnUs, CommandPath::AgentExplain) => super::agent::HELP_AGENT_EXPLAIN_EN,
             (Locale::ZhCn, CommandPath::AgentExplain) => super::agent::HELP_AGENT_EXPLAIN_ZH,
-            (Locale::EnUs, CommandPath::AgentNames) => crate::cli_text::HelpDetails::new(
-                "orchbee agent names [--format text|json]",
-                "List this session runtime's live Agent names. Names disappear when their session ends or the session stops.",
-            ),
-            (Locale::ZhCn, CommandPath::AgentNames) => crate::cli_text::HelpDetails::new(
-                "orchbee agent names [--format text|json]",
-                "列出当前会话运行时中的智能体名称。会话结束或会话停止后名称会释放。",
-            ),
             (Locale::EnUs, CommandPath::AgentResolve) => crate::cli_text::HelpDetails::new(
                 "orchbee agent resolve <target> [--format text|json]\n       orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>",
                 "Resolve an exact Session ID first, then a runtime name, then a Panel ID.\nA Panel selects its primary terminal and requires one live Agent. Use --name to select an alias that collides with an ID.",

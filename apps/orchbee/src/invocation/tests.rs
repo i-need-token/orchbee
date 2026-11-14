@@ -215,7 +215,7 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
         vec!["agent", "start", "codex", "--split"],
         vec!["agent", "start", "codex", "--split=left"],
         vec!["agent", "start", "codex", "--here", "--here"],
-        vec!["agent", "names", "--provider=codex"],
+        vec!["agent", "list", "--provider=codex"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }
@@ -263,7 +263,6 @@ fn agent_names_admit_one_selector_and_a_bounded_name_before_any_effect() {
     let session = AgentSessionId::parse("s1").unwrap();
     let alias = AgentName::parse("alpha").unwrap();
     for (words, command) in [
-        (vec!["agent", "names"], AgentNamesCommand::List),
         (
             vec!["agent", "resolve", "s1"],
             AgentNamesCommand::Resolve(AgentTarget::Auto {
@@ -313,13 +312,11 @@ fn agent_names_admit_one_selector_and_a_bounded_name_before_any_effect() {
             "--name",
             "alpha",
         ],
-        vec!["agent", "names", "--agent-session", "s1"],
         vec!["status", "--clear"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }
     for (verb, path) in [
-        ("names", CommandPath::AgentNames),
         ("resolve", CommandPath::AgentResolve),
         ("rename", CommandPath::AgentRename),
     ] {

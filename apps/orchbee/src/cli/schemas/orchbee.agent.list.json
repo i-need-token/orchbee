@@ -746,6 +746,20 @@
 						}
 					]
 				},
+				"name": {
+					"oneOf": [
+						{
+							"type": "string",
+							"pattern": "^[a-z][a-z0-9_-]{0,31}$"
+						},
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
 				"client": {
 					"oneOf": [
 						{

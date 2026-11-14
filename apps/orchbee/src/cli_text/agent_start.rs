@@ -222,10 +222,10 @@ impl super::CliText {
         };
         let reservation = match (self.locale, field("reservationState")) {
             (Locale::EnUs, "pending" | "unknown") => {
-                " The name reservation may remain until it expires; if `orchbee agent names` lists it as pending, wait for it to expire before reusing the name."
+                " The name reservation may remain until it expires; wait for it to expire before reusing the name."
             }
             (Locale::ZhCn, "pending" | "unknown") => {
-                " 名称预留可能保留至到期；若 `orchbee agent names` 将其列为待定，请等其到期后再复用该名称。"
+                " 名称预留可能保留至到期；请等其到期后再复用该名称。"
             }
             (Locale::EnUs, "released") => " The name reservation was released.",
             (Locale::ZhCn, "released") => " 名称预留已释放。",
@@ -260,10 +260,10 @@ impl super::CliText {
                 "目标必须是空闲的 cmd、PowerShell 或 pwsh 终端，且没有其他命令正在运行。"
             }
             (Locale::EnUs, "name-in-use" | "presentation-busy") => {
-                "The Agent name or terminal is already in use. Inspect `orchbee agent names`."
+                "The Agent name or terminal is already in use. Inspect `orchbee agent list`."
             }
             (Locale::ZhCn, "name-in-use" | "presentation-busy") => {
-                "智能体名称或终端已被占用。请用 `orchbee agent names` 查看。"
+                "智能体名称或终端已被占用。请用 `orchbee agent list` 查看。"
             }
             (Locale::EnUs, "own-panel") => {
                 "--here cannot type into the Panel this command runs in. Use --new-tab, or pass --panel <id> for another Panel."

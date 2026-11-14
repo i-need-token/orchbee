@@ -176,7 +176,12 @@ fn dropping_an_accepted_peer_settles_the_command_and_joins_its_reader() {
     thread::scope(|scope| {
         let runner = scope.spawn(|| {
             fixture.try_run_command(
-                fixture.command(&["agent", "names", "--format=json"], None, None, &[]),
+                fixture.command(
+                    &["agent", "resolve", "--name", "alpha", "--format=json"],
+                    None,
+                    None,
+                    &[],
+                ),
                 None,
                 Duration::from_secs(20),
                 1024 * 1024,

@@ -68,7 +68,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::AgentExplain => &["review"],
         CommandPath::AgentWait => &["review", "--until", "idle", "--timeout", "30000"],
         CommandPath::AgentDoctor => &["--provider", "codex"],
-        CommandPath::AgentNames => &[],
         CommandPath::AgentResolve => &["--name", "review"],
         CommandPath::AgentRename => &["review", "reviewer"],
         CommandPath::AgentIntegrationList => &[],

@@ -186,8 +186,8 @@ impl super::CliText {
                 == Some("launch-pending")
             {
                 return match self.locale {
-                    Locale::EnUs => "This Agent name or terminal is reserved by a pending launch. Use `orchbee agent names` to inspect its remaining time.\n",
-                    Locale::ZhCn => "此智能体名称或终端正被启动预留占用。可用 `orchbee agent names` 查看剩余时间。\n",
+                    Locale::EnUs => "This Agent name or terminal is reserved by a pending launch. Retry after the reservation expires.\n",
+                    Locale::ZhCn => "此智能体名称或终端正被启动预留占用。请在预留到期后重试。\n",
                 }.to_owned();
             }
         }

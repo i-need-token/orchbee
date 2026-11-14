@@ -183,10 +183,6 @@ fn terminal_name_schemas_accept_current_receipts() {
             json!({"kind":"resolved-target","target":target,"resolvedBy":"name"}),
         ),
         (
-            "orchbee.agent.names",
-            json!({"kind":"listed-targets","bindings":[{"name":"alpha","target":target}],"pending":[]}),
-        ),
-        (
             "orchbee.agent.rename",
             json!({"kind":"assigned-target","target":target,"name":"alpha","previousName":null}),
         ),

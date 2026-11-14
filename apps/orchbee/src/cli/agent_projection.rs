@@ -14,7 +14,7 @@ use crate::{
     local_client::{Cancellation, LocalClient},
     localization::Locale,
 };
-use orchbee_agent_observation_protocol::AgentNameTarget;
+use orchbee_agent_observation_protocol::{AgentNameTarget, AgentNamedTarget};
 use orchbee_workbench_protocol::{Snapshot, WorkbenchClientId};
 use serde_json::{Value, json};
 use std::time::Instant;
@@ -26,6 +26,7 @@ pub(crate) struct Item {
     pub(super) ordinal: usize,
     pub(super) row: model::Row,
     pub(super) panel_handle: Option<String>,
+    pub(super) name: Option<String>,
     pub(super) cwd: Option<String>,
     pub(super) client: Option<Value>,
 }
@@ -44,6 +45,7 @@ impl List {
             .map(|i| {
                 let mut row = i.row.document(i.ordinal, i.cwd.as_deref());
                 row["client"] = i.client.clone().unwrap_or(Value::Null);
+                row["name"] = json!(i.name);
                 row
             })
             .collect::<Vec<_>>();
@@ -245,6 +247,16 @@ pub(super) fn terminal(
         &terminal.terminal_id,
     )
 }
+fn identifies(row: &model::Row, target: &AgentNameTarget) -> bool {
+    match target {
+        AgentNameTarget::Session { session_id } => {
+            row.canonical().is_some_and(|c| &c.session_id == session_id)
+        }
+        AgentNameTarget::Terminal { binding } => {
+            row.terminal().is_some_and(|t| &t.binding == binding)
+        }
+    }
+}
 pub(super) fn inspection_row(
     checkpoint: &Checkpoint,
     target: &AgentNameTarget,
@@ -252,16 +264,18 @@ pub(super) fn inspection_row(
     checkpoint
         .rows
         .iter()
-        .find(|row| match target {
-            AgentNameTarget::Session { session_id } => {
-                row.canonical().is_some_and(|c| &c.session_id == session_id)
-            }
-            AgentNameTarget::Terminal { binding } => {
-                row.terminal().is_some_and(|t| &t.binding == binding)
-            }
-        })
+        .find(|row| identifies(row, target))
         .cloned()
         .ok_or_else(|| failure(FailureKind::NotFound, "target-not-found"))
+}
+/// A row's name: its own target's first, so a terminal's name wins over its Session's.
+pub(super) fn name(row: &model::Row, names: &[AgentNamedTarget]) -> Option<String> {
+    let own = row.target();
+    names
+        .iter()
+        .find(|named| named.target == own)
+        .or_else(|| names.iter().find(|named| identifies(row, &named.target)))
+        .map(|named| named.name.as_str().to_owned())
 }
 
 #[cfg(test)]

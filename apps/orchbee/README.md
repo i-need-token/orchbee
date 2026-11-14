@@ -34,7 +34,7 @@ switching, user configuration, and complete-cohort release installation and upda
 linked below. The emitted `orchbee` participates in root Cargo verification. macOS packaging is an
 unsigned, per-user development cohort for Apple Silicon; it does not include release signing or installation.
 
-Use `agent rename <session-id> <name>` to assign a runtime name, `agent names` to list names,
+Use `agent rename <session-id> <name>` to assign a runtime name, `agent list` to see each Agent's name,
 and `agent resolve <name>` to obtain the full session ID. `agent rename <target> --clear`
 releases a name. `agent get/explain/wait <name>` resolve directly; a wait pins its session
 even if the name is reused. Names are unique and disappear when the session ends or the Session stops.

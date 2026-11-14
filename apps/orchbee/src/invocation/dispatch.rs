@@ -391,13 +391,6 @@ pub(super) fn resolve_words(
                 options,
             ))
         }
-        ["agent", "names"] => {
-            reject_filters(options, UsageContext::Path("agent names"), envelope)?;
-            Ok(Request::AgentNames {
-                command: AgentNamesCommand::List,
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
         ["agent", "resolve", rest @ ..] => {
             let context = UsageContext::Path("agent resolve");
             check_scope(options, context, envelope)?;

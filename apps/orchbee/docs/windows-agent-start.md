@@ -369,9 +369,9 @@ is channel-authoritative even if its worker has already exited, so worker-exit o
 discard a Started result.
 
 Timeout, cancellation and release do not kill the Agent. If release is not confirmed, inspect
-`agent names` and the terminal before retrying. Never replay an uncertain reserve, complete or
-send automatically. `agent names` v1 lists committed bindings and separate pending reservations;
-their combined Server capacity is 512. Resolve/rename/clear refuse reserved names or terminals
+`agent list` and the terminal before retrying. Never replay an uncertain reserve, complete or
+send automatically. `agent list` shows a committed or pending name on its row; committed bindings
+and pending reservations share a Server capacity of 512. Resolve/rename/clear refuse reserved names or terminals
 with `launch-pending` (names failure v1). Cold restart drops all names and pending reservations.
 Closing a terminal retires its pending reservation. A committed name follows the canonical
 session lifecycle: detaching a still-live session keeps its name until end/removal or explicit

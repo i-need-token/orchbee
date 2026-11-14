@@ -218,10 +218,6 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::AgentDoctor) => {
                 ("Check local Agent integrations.", "检查本地智能体集成。")
             }
-            HelpTopic::Command(CommandPath::AgentNames) => (
-                "List saved Agent session names.",
-                "列出已保存的智能体会话名称。",
-            ),
             HelpTopic::Command(CommandPath::AgentResolve) => (
                 "Resolve an Agent name to its session.",
                 "按名称查找智能体会话。",

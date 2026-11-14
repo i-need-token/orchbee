@@ -72,6 +72,15 @@ fn batch(stream: &mut LocalStream, changed: Option<&str>, allowed: bool) {
         write_agent_result(stream,&AgentResult::Changes(serde_json::from_value(json!({"kind":"agent.session.changes.result","requestId":request.request_id(),"result":{"outcome":outcome}})).unwrap())).unwrap();
     }
 }
+/// Answers the list's one names read on the same connection.
+fn names(stream: &mut LocalStream, bindings: Value, pending: Value) {
+    let AgentRequest::Names(request) = read_agent_request(stream).unwrap() else {
+        panic!("one names read after the projection")
+    };
+    assert_eq!(json!(request)["kind"], "agent.session.names.list.request");
+    let outcome = json!({"kind":"listed-targets","bindings":bindings,"pending":pending});
+    write_agent_result(stream,&AgentResult::Names(serde_json::from_value(json!({"kind":"agent.session.names.list.result","requestId":request.request_id(),"result":{"outcome":outcome}})).unwrap())).unwrap();
+}
 #[test]
 fn selected_client_lists_batch_once_and_preserves_truth_across_canonical_changes() {
     for case in ["stable", "changed", "other-change", "empty", "foreign"] {
@@ -91,6 +100,7 @@ fn selected_client_lists_batch_once_and_preserves_truth_across_canonical_changes
             };
             let projection = AgentProjectionFixture::summaries(snapshot(12), revision, summaries);
             projection.read(&mut stream, false);
+            names(&mut stream, json!([]), json!([]));
             client_get::selected_reply(&mut stream, false);
             if case == "empty" {
                 client_get::selected_reply(&mut stream, false);
@@ -204,6 +214,13 @@ fn unified_list_keeps_matched_aliases_and_physical_only_agents_as_distinct_rows(
                 )),
             );
         projection.read(&mut stream, false);
+        // A merged row takes its Session's name; a pending launch names its terminal.
+        let binding = json!({"presentationId":id(108),"generation":id(1),"hostEpoch":id(2),"hostTerminalId":id(208)});
+        names(
+            &mut stream,
+            json!([{"name":"lead","target":{"kind":"session","sessionId":"sess-alpha"}}]),
+            json!([{"reservationId":id(9),"name":"scout","providerId":"pi","binding":binding,"remainingMs":10000,"settleRemainingMs":0}]),
+        );
         super::metadata_peer::unavailable(&mut stream);
         super::metadata_peer::unavailable(&mut stream);
         projection.confirm(&mut stream, false);
@@ -222,9 +239,11 @@ fn unified_list_keeps_matched_aliases_and_physical_only_agents_as_distinct_rows(
     assert_eq!(doc["result"]["items"][0]["provider"], "grok");
     assert_eq!(doc["result"]["items"][0]["source"], "both");
     assert_eq!(doc["result"]["items"][0]["status"], "done");
+    assert_eq!(doc["result"]["items"][0]["name"], "lead");
     assert!(doc["result"]["items"][0]["cwd"].is_null());
     assert_eq!(doc["result"]["items"][1]["ordinal"], 2);
     assert_eq!(doc["result"]["items"][1]["provider"], "pi");
     assert_eq!(doc["result"]["items"][1]["source"], "terminal");
     assert!(doc["result"]["items"][1]["canonical"].is_null());
+    assert_eq!(doc["result"]["items"][1]["name"], "scout");
 }
