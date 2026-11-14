@@ -164,12 +164,6 @@ impl WorkbenchService {
                     self.policy.manage_navigation && self.policy.create_terminal
                 }
             }
-            WorkbenchRequest::LayoutHistory(request) => match request.action {
-                orchbee_workbench_protocol::LayoutHistoryAction::List {} => self.policy.read,
-                orchbee_workbench_protocol::LayoutHistoryAction::Reopen { .. } => {
-                    self.policy.manage_navigation && self.policy.create_terminal
-                }
-            },
             WorkbenchRequest::WorktreeOperation(request) => {
                 if matches!(
                     request.action,
@@ -308,20 +302,6 @@ impl WorkbenchService {
                 return WorkbenchExecution::Response(WorkbenchResponse::TabDuplicate(
                     self.terminals.execute_tab_duplicate(request.clone()),
                 ));
-            }
-            WorkbenchRequest::LayoutHistory(request) => {
-                #[cfg(windows)]
-                let result = self.terminals.execute_layout_history(request.clone());
-                // Earlier layouts are kept only by the Windows checkpoint store.
-                #[cfg(not(windows))]
-                let result = orchbee_workbench_protocol::WorkbenchLayoutHistoryResult {
-                    protocol_version: ProtocolVersion,
-                    request_id: request.request_id.clone(),
-                    outcome: orchbee_workbench_protocol::LayoutHistoryOutcome::Unavailable {
-                        reason: orchbee_workbench_protocol::LayoutHistoryUnavailable::ServiceUnavailable,
-                    },
-                };
-                return WorkbenchExecution::Response(WorkbenchResponse::LayoutHistory(result));
             }
             WorkbenchRequest::WorktreeQuery(query) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorktreeQuery(
@@ -866,20 +846,6 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 },
             })
         }
-        WorkbenchRequest::LayoutHistory(request) => WorkbenchResponse::LayoutHistory(
-            orchbee_workbench_protocol::WorkbenchLayoutHistoryResult {
-                protocol_version: ProtocolVersion,
-                request_id: request.request_id,
-                outcome: if denied {
-                    orchbee_workbench_protocol::LayoutHistoryOutcome::Denied {}
-                } else {
-                    orchbee_workbench_protocol::LayoutHistoryOutcome::Unavailable {
-                        reason:
-                            orchbee_workbench_protocol::LayoutHistoryUnavailable::ServiceUnavailable,
-                    }
-                },
-            },
-        ),
         WorkbenchRequest::WorktreeQuery(request) => WorkbenchResponse::WorktreeQuery(
             orchbee_workbench_protocol::WorkbenchWorktreeQueryResult {
                 protocol_version: ProtocolVersion,

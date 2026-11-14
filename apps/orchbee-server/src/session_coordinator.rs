@@ -26,8 +26,6 @@ mod exit_close;
 #[cfg(windows)]
 mod held_restore;
 mod independent_popup;
-#[cfg(windows)]
-mod layout_reopen;
 mod plugin_popup;
 mod tab_close;
 pub(crate) use tab_close::IdleCloseMember;

@@ -7,7 +7,7 @@ use std::{
     io,
     sync::{Arc, Mutex, mpsc},
     thread,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 
 const DEBOUNCE: Duration = Duration::from_millis(500);
@@ -86,7 +86,6 @@ impl Saver {
         Self::spawn(move |receive| {
             let mut schedule = Schedule::new(Instant::now());
             let mut last_error = None;
-            let mut last_history_error = None;
             loop {
                 // Cancellation also fences a capture that has not begun. A write in progress must
                 // return before join can authorize the final clean-stop capture.
@@ -115,7 +114,6 @@ impl Saver {
                     }
                     suppressed_payload = None;
                     terminals.terminal_output_after_save(&bytes);
-                    record_history(&terminals, &bytes, &mut last_history_error);
                     Ok(true)
                 })();
                 match result {
@@ -176,30 +174,6 @@ impl Saver {
             return Err(io::Error::other("checkpoint saver panicked"));
         }
         Ok(())
-    }
-}
-
-/// Offers a committed save to the earlier-layout history. A failure is a diagnostic, reported
-/// once per kind until a write succeeds; it never fails the save.
-pub(in crate::local_worker_service::managed) fn record_history(
-    terminals: &LocalTerminalService,
-    bytes: &[u8],
-    last_error: &mut Option<io::ErrorKind>,
-) {
-    let Some(history) = terminals.layout_history() else {
-        return;
-    };
-    match history.after_save(bytes, SystemTime::now()) {
-        Ok(_) => *last_error = None,
-        Err(error) => {
-            if *last_error != Some(error.kind()) {
-                eprintln!(
-                    "orchbee-server diagnostic component=checkpoint operation=layout-history stage=record cause=io:{:?}",
-                    error.kind()
-                );
-            }
-            *last_error = Some(error.kind());
-        }
     }
 }
 

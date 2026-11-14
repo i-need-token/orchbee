@@ -20,8 +20,6 @@ mod checkpoint_restore;
 mod exit_close;
 mod failed_launch_close;
 mod launch_read;
-#[cfg(windows)]
-mod layout_reopen;
 mod multileaf_membership;
 mod panel_split;
 mod tab_create;

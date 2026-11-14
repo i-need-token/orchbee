@@ -28,10 +28,9 @@ use crate::workbench_projection::{
 
 mod checkpoint;
 pub use checkpoint::{
-    AgentResumeProvider, LayoutHistorySummary, LayoutReopenError,
-    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, OpenLayout, PreparedWorkbenchRestoreBinding,
-    ReopenedLayout, RetainedAgentSession, RetainedLayout, WorkbenchCheckpoint,
-    WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
+    AgentResumeProvider, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding,
+    RetainedAgentSession, WorkbenchCheckpoint, WorkbenchCheckpointError, WorkbenchRestoreError,
+    WorkbenchRestoreTarget,
 };
 mod agent_reports;
 mod panel_agent;
@@ -176,7 +175,6 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorkspaceGroupClose(_)
             | WorkbenchRequest::TabSetClose(_)
             | WorkbenchRequest::TabDuplicate(_)
-            | WorkbenchRequest::LayoutHistory(_)
             | WorkbenchRequest::SessionStop(_)
             | WorkbenchRequest::Configuration(_)
             | WorkbenchRequest::CloseOperationRead(_)

@@ -1,5 +1,5 @@
-//! Private checkpoint transport in the Session folder: bounded checkpoint payloads, restore facts,
-//! earlier layouts and kept terminal output. The Server owns the retained document's meaning; the
+//! Private checkpoint transport in the Session folder: bounded checkpoint payloads, restore facts
+//! and kept terminal output. The Server owns the retained document's meaning; the
 //! private filesystem adapter owns admission and atomic publication.
 use crate::{
     DataRoot, ModeCheckedLocalSessionRendezvous,
@@ -12,7 +12,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-mod layout_history;
 mod terminal_output;
 
 /// Visible startup recovery facts; filesystem admission errors never become an empty fallback.
@@ -20,14 +19,6 @@ mod terminal_output;
 pub enum CheckpointRestoreNotice {
     Recovered,
     Empty,
-}
-
-/// One kept earlier layout: its save time in Unix milliseconds and its payload, or `None` when the
-/// file is unreadable or its frame does not match its name.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LayoutHistoryEntry {
-    pub saved_at: u64,
-    pub payload: Option<Vec<u8>>,
 }
 
 pub struct CheckpointLoad<T> {

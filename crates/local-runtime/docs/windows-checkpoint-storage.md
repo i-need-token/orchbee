@@ -75,22 +75,13 @@ separately authorized repair removes them. They are not execution logs and must 
 garbage-collected. Deletion recognizes only the fixed store files and the exact owned corrupt-name
 grammar; unknown files, linked entries and living owners retain the existing refusal boundary.
 
-## Earlier layouts
+## Layouts folder from earlier builds
 
-A private `layouts` folder beside the slots keeps earlier layouts for manual reopening. Each entry
-is one complete checkpoint payload framed like a slot, in a file named
-`YYYY-MM-DDTHH-MM-SSZ.json` after the UTC second it was saved, `-2`, `-3` and on when an entry with
-other content already holds that second. The frame generation is the save time in Unix
-milliseconds and must fall in the second the name carries, so a file renamed to another second is
-unreadable. A write flushes one private
-`layout.pending` file, atomically renames it to the entry name and then removes the oldest entries
-beyond the kept count the caller names. A failed write leaves earlier entries intact. Reads list
-entries newest first and report an unreadable entry without its payload, so it still counts toward
-the kept total until newer entries displace it. The store owns only these storage rules; the
-[Server checkpoint contract](../../../apps/orchbee-server/docs/workbench-checkpoint.md#earlier-layouts)
-owns when an entry is written and what reopening does. Session delete removes the folder with the
-other owned checkpoint files; inside it, deletion recognizes only the entry and pending names and
-refuses anything else.
+Earlier builds kept a private `layouts` folder beside the slots, one file per kept layout named
+`YYYY-MM-DDTHH-MM-SSZ.json` after a UTC second (`-2`, `-3` and on when that name is taken), staged
+through `layout.pending`. Nothing reads or writes it now, and start-up neither reads nor removes it.
+Session delete removes the folder with the other owned checkpoint files; inside it, deletion
+recognizes only those entry and pending names and refuses anything else.
 
 ## Kept terminal output
 

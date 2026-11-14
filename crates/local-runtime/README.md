@@ -119,7 +119,7 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | Path                                                 | Owner and use                                                                                                                                |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `config.toml`                                        | Default settings file; `ORCHBEE_CONFIG_FILE` moves only this file                                                                            |
-| `sessions/<session>/`                                | One Session's folder, named by the Session: its catalog record, checkpoints, earlier layouts, kept output and TUI position                   |
+| `sessions/<session>/`                                | One Session's folder, named by the Session: its catalog record, checkpoints, kept output and TUI position                                    |
 | `agent-detection/<provider>.toml`                    | Detection rule overrides a person writes                                                                                                     |
 | `logs/<YYYY-MM-DD>.jsonl`                            | Daily diagnostic log of every process, named by local date                                                                                   |
 | `logs/destructive-commands.jsonl`                    | Destructive request log and its `.1` generation                                                                                              |
@@ -454,12 +454,13 @@ and a name two folders spell. Any spelling of a name deletes the Session created
 admitted stopped receipt (or never-activated runtime), free lifetime, checkpoint and TUI position
 locks, and absent endpoints are required before publishing the durable Deleting record, which fences
 activation and survives partial cleanup. The owner removes only known Session and runtime files,
-including `layouts/` and `terminal-output/` entries, releases their exact handles before removal,
-retains ancestor pins and removes the record and the emptied Session folder last. Retrying resumes
-that deletion; absent state succeeds. It never recursively deletes arbitrary trees or stops a
-process. The shared namespace lock intentionally outlives individual sessions. This covers
-cooperating current-user invocations and ordinary process interruption; power-loss durability and
-inventory recovery after external removal of the runtime base are unclaimed.
+including `terminal-output/` entries and a `layouts/` folder an earlier build kept, releases their
+exact handles before removal, retains ancestor pins and removes the record and the emptied Session
+folder last. Retrying resumes that deletion; absent state succeeds. It never recursively deletes
+arbitrary trees or stops a process. The shared namespace lock intentionally outlives individual
+sessions. This covers cooperating current-user invocations and ordinary process interruption;
+power-loss durability and inventory recovery after external removal of the runtime base are
+unclaimed.
 
 ## Session checkpoint store
 

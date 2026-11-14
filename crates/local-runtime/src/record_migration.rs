@@ -26,7 +26,7 @@ pub(crate) use backup::persist_migration;
 pub(crate) use backup::{KEPT_UPGRADE_FOLDERS, upgrade_folder};
 
 /// A record whose format carries a top-level integer `version`. Checkpoint slots, the restore
-/// notice, earlier layouts and kept terminal output carry theirs in their frame header instead.
+/// notice and kept terminal output carry theirs in their frame header instead.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum VersionedRecord {
     /// `internal/state/machines.json`.

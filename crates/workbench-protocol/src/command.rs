@@ -142,12 +142,6 @@ pub use tab_duplicate::{
     TabDuplicateRejection, TabDuplicateStatus, TabDuplicateUnavailable,
     WorkbenchTabDuplicateRequest, WorkbenchTabDuplicateResult,
 };
-mod layout_history;
-pub use layout_history::{
-    LayoutHistoryAction, LayoutHistoryEntry, LayoutHistoryFocus, LayoutHistoryOutcome,
-    LayoutHistoryRejection, LayoutHistoryUnavailable, MAXIMUM_LAYOUT_HISTORY_ENTRIES,
-    MAXIMUM_LAYOUT_HISTORY_SAVED_AT, WorkbenchLayoutHistoryRequest, WorkbenchLayoutHistoryResult,
-};
 mod session_stop;
 pub use session_stop::{
     SessionStopOutcome, SessionStopRejection, WorkbenchSessionStopRequest,
@@ -1133,8 +1127,6 @@ pub enum WorkbenchRequest {
     TabSetClose(WorkbenchTabSetCloseRequest),
     #[serde(rename = "workbench.tab-duplicate")]
     TabDuplicate(WorkbenchTabDuplicateRequest),
-    #[serde(rename = "workbench.layout-history")]
-    LayoutHistory(WorkbenchLayoutHistoryRequest),
     #[serde(rename = "workbench.session-stop")]
     SessionStop(WorkbenchSessionStopRequest),
     #[serde(rename = "workbench.worktree.query")]
@@ -1580,8 +1572,6 @@ pub enum WorkbenchResponse {
     TabSetClose(WorkbenchTabSetCloseResult),
     #[serde(rename = "workbench.tab-duplicate.result")]
     TabDuplicate(WorkbenchTabDuplicateResult),
-    #[serde(rename = "workbench.layout-history.result")]
-    LayoutHistory(WorkbenchLayoutHistoryResult),
     #[serde(rename = "workbench.session-stop.result")]
     SessionStop(WorkbenchSessionStopResult),
     #[serde(rename = "workbench.worktree.query.result")]
@@ -1672,9 +1662,6 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
         return request.validate();
     }
     if let WorkbenchRequest::TabDuplicate(request) = request {
-        return request.validate();
-    }
-    if let WorkbenchRequest::LayoutHistory(request) = request {
         return request.validate();
     }
     if let WorkbenchRequest::WorktreeOperation(request) = request {
@@ -1968,10 +1955,6 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         }
         WorkbenchResponse::TabDuplicate(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES)?;
-            result.validate()
-        }
-        WorkbenchResponse::LayoutHistory(result) => {
-            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_INTENT_BYTES)?;
             result.validate()
         }
         WorkbenchResponse::SessionStop(_) => {

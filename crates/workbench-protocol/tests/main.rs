@@ -11,7 +11,6 @@ mod configured_commands;
 mod conformance;
 mod current_directory;
 mod events;
-mod layout_history;
 mod multiplex_conformance;
 mod notification;
 mod pane_graphics;

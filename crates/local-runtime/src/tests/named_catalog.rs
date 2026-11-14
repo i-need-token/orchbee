@@ -93,9 +93,6 @@ fn stopped_deletion_removes_only_selected_owned_storage_and_is_idempotent() {
     let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     store.publish(b"second").unwrap();
     store.publish(b"third").unwrap();
-    store
-        .record_layout_history(1_000, b"earlier layout", 3)
-        .unwrap();
     drop(store);
     drop(session);
     for (leaf, bytes) in [
@@ -111,6 +108,13 @@ fn stopped_deletion_removes_only_selected_owned_storage_and_is_idempotent() {
     ] {
         fs::write(state.join(leaf), bytes).unwrap();
     }
+    // Earlier layouts an earlier build kept.
+    fs::create_dir(state.join("layouts")).unwrap();
+    fs::write(
+        state.join("layouts").join("1970-01-01T00-00-01Z.json"),
+        b"earlier layout",
+    )
+    .unwrap();
     fs::create_dir(state.join("terminal-output")).unwrap();
     fs::write(state.join("terminal-output").join("1.bin"), b"output").unwrap();
     let catalog = Catalog::try_lock(&fixture.0, &fixture.root()).unwrap();

@@ -130,9 +130,7 @@ pub use session_catalog::{
 };
 pub use session_name::SessionName;
 pub mod private_filesystem;
-pub use session_store::{
-    CheckpointLoad, CheckpointRestoreNotice, LayoutHistoryEntry, SessionStore,
-};
+pub use session_store::{CheckpointLoad, CheckpointRestoreNotice, SessionStore};
 #[cfg(test)]
 mod tests;
 

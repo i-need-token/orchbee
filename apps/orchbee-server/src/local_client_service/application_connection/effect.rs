@@ -5,9 +5,9 @@ use orchbee_agent_observation_protocol::{AgentNamesRequest, AgentRequest};
 use orchbee_client_server_protocol::{ClientMessage, TerminalControlAction, TerminalViewerAction};
 use orchbee_workbench_protocol::{
     AgentIntegrationAction, AgentManifestsAction, AgentViewAction, ClientViewAction,
-    ConfigurationAction, ConfiguredCommandAction, LayoutHistoryAction, NotificationAction,
-    PaneGraphicsAction, PanelAgentAction, PanelMetadataAction, PluginAction, SemanticEventsAction,
-    SettingsOperation, TabDuplicateAction, TabSetCloseAction, WindowTitleAction, WorkbenchRequest,
+    ConfigurationAction, ConfiguredCommandAction, NotificationAction, PaneGraphicsAction,
+    PanelAgentAction, PanelMetadataAction, PluginAction, SemanticEventsAction, SettingsOperation,
+    TabDuplicateAction, TabSetCloseAction, WindowTitleAction, WorkbenchRequest,
     WorkbenchWorktreeAction, WorkspaceGroupCloseAction, WorkspaceMetadataAction,
 };
 
@@ -203,10 +203,6 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
         WorkbenchRequest::TabDuplicate(request) => match request.action {
             TabDuplicateAction::Read { .. } => Read,
             TabDuplicateAction::Start { .. } => Intent,
-        },
-        WorkbenchRequest::LayoutHistory(request) => match request.action {
-            LayoutHistoryAction::List {} => Read,
-            LayoutHistoryAction::Reopen { .. } => Intent,
         },
         WorkbenchRequest::SessionStop(_) => Intent,
         WorkbenchRequest::WorktreeOperation(request) => match request.action {

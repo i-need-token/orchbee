@@ -105,7 +105,6 @@ impl RenameServer {
                             | WorkbenchRequest::WorkspaceGroupClose(_)
                             | WorkbenchRequest::TabSetClose(_)
                             | WorkbenchRequest::TabDuplicate(_)
-                            | WorkbenchRequest::LayoutHistory(_)
                             | WorkbenchRequest::SessionStop(_)
                             | WorkbenchRequest::LaunchProfileCatalogRead(_) => {
                                 return Err(io::Error::other(

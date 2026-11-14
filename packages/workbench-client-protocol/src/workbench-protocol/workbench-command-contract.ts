@@ -94,10 +94,6 @@ import {
 	WORKBENCH_MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES,
 } from './workbench-tab-duplicate-contract';
 import {
-	WorkbenchLayoutHistoryRequestSchema,
-	WorkbenchLayoutHistoryResultSchema,
-} from './workbench-layout-history-contract';
-import {
 	WorkbenchSessionStopRequestSchema,
 	WorkbenchSessionStopResultSchema,
 } from './workbench-session-stop-contract';
@@ -696,7 +692,6 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorkspaceGroupCloseRequestSchema,
 		WorkbenchTabSetCloseRequestSchema,
 		WorkbenchTabDuplicateRequestSchema,
-		WorkbenchLayoutHistoryRequestSchema,
 		WorkbenchSessionStopRequestSchema,
 		WorkbenchClientViewRequestSchema,
 	])
@@ -835,7 +830,6 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorkspaceGroupCloseResultSchema,
 		WorkbenchTabSetCloseResultSchema,
 		WorkbenchTabDuplicateResultSchema,
-		WorkbenchLayoutHistoryResultSchema,
 		WorkbenchSessionStopResultSchema,
 		WorkbenchClientViewResultSchema,
 	])

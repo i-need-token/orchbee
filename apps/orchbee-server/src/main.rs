@@ -17,9 +17,6 @@ mod client_view_registry;
 #[cfg(any(unix, windows))]
 mod frame_directory;
 #[cfg(any(unix, windows))]
-#[cfg(windows)]
-mod layout_history;
-#[cfg(any(unix, windows))]
 mod local_client_service;
 #[cfg(any(unix, windows))]
 mod local_terminal_service;

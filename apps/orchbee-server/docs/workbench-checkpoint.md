@@ -278,60 +278,24 @@ save.
   which stages it in the Host before the creation; the Host draws it into the new screen as output
   before the program's first byte and pushes it into history, so it is never typed into the PTY.
   Agent resume is unchanged.
-- **Held restore and earlier layouts.** A held Presentation keeps its file while held and replays it
-  on Retry or Start in home folder. Panels reopened from earlier layouts start without replay.
+- **Held restore.** A held Presentation keeps its file while held and replays it on Retry or Start
+  in home folder.
 
-## Earlier layouts
+## Layout lineage
 
-The Server keeps earlier layouts so a person can reopen Workspaces and Tabs they closed. The
-history policy lives in `layout_history.rs`; it sees only committed saves and a narrow store port,
-so the save path above is unchanged. After each committed save (background or clean stop) it
-records the saved checkpoint as an entry when the layout differs from the newest entry and at least
-15 minutes have passed since that entry, or the history is empty. Layout means Workspaces, Tabs
-and Panels by identity, label and order; focus, scroll, split ratios and directories are not part
-of it. The index of kept layouts is read once at startup, so a save never reads entries back. A
-clock behind the newest entry records nothing. A failed history write is one
-`operation=layout-history` diagnostic per failure kind and never fails the save. The newest 48
-entries are kept; the interval is a constant, not a setting. The
-[storage owner](../../../crates/local-runtime/docs/windows-checkpoint-storage.md#earlier-layouts)
-defines files and atomicity.
+The checkpoint carries `layoutLineage`, a list of `reopened` and `saved` rows, both canonical
+identity strings: an open Workspace's or Tab's identity and an earlier identity it stands in for.
+The Server adds no rows. Reconstruction admits the list, and every capture writes back, in order,
+the rows whose `reopened` Workspace or Tab is still open, so closed ones are dropped at save time
+and the list never outgrows what is open. A row whose `reopened` identity is not an open Workspace
+or Tab, exceeds `lastIdentity`, repeats, or equals its saved identity, or a list longer than 4096,
+rejects the entire document. Like `agentSessions`, the writer always emits the list and an omitted
+list reads as no lineage. The lineage never enters the Client-facing Snapshot or the wire.
 
-`workbench.layout-history` lists entries newest first, each with its save time, Workspace and Tab
-counts and how many of them are not open now (`read` permission). `reopen` names an entry by save
-time (navigation and terminal-create permission). In one commit it adds only the Workspaces and
-Tabs that are not open now, with their saved split layout and labels; nothing open is closed, moved
-or relabeled:
-
-- a missing Workspace comes back whole at the end of the Workspace order, reusing an existing
-  Directory with the same path, inside its Project when that Project still admits it, otherwise
-  ungrouped; its Tab groups and pins come back with it;
-- a missing Tab of an open Workspace returns at its saved index, clamped to the current strip after
-  the pinned prefix and outside groups, unpinned and ungrouped; a Close that holds that Workspace
-  answers `unavailable/busy`;
-- a result that would exceed the Workbench bounds is `rejected/resource-limit` and opens nothing;
-  an entry with nothing missing answers `nothing-to-reopen`.
-
-Product identities are never reused, because Close keeps tombstones that fence a
-closed identity, so reopened structure takes fresh identities. The Server records the lineage of
-each reopened Workspace and Tab, the saved identity it stands in for, and both the listing and
-`reopen` count an item as open when it or a reopened item of the same lineage is open. Reopening
-the same entry again, or any entry that names the same Workspaces or Tabs, therefore answers
-`nothing-to-reopen`. The authority keeps the newest 4096 reopened identities.
-
-The checkpoint retains the lineage as `layoutLineage`, a list of `reopened` and `saved` rows in
-recording order, both canonical identity strings. Capture writes only the rows whose reopened
-Workspace or Tab is still open, so closed ones are dropped at save time and the list never outgrows
-what is open. Reconstruction loads it, so the listing and `reopen` give the same answer after a
-Server restart. A row whose reopened identity is not an open Workspace or Tab, exceeds
-`lastIdentity`, repeats, or equals its saved identity, or a list longer than 4096, rejects the
-entire document. Like `agentSessions`, the writer always emits the list and an omitted list reads as
-no lineage. The lineage never enters the Client-facing Snapshot or the wire.
-
-Each reopened Presentation keeps its saved directory as restart intent. After the commit the Server
-probes those directories outside every gate; a missing one gets the [held restore](#held-restore)
-state, and the rest bind and launch through restore's reservation path. No process, Agent or
-screen comes back. The result names the first reopened Tab; the CLI reports it and does not move
-focus.
+A `layouts` folder an earlier build kept in the Session folder is neither read nor removed at
+start-up; the
+[storage owner](../../../crates/local-runtime/docs/windows-checkpoint-storage.md#layouts-folder-from-earlier-builds)
+describes it.
 
 ## Evidence
 
@@ -352,10 +316,6 @@ Sessions: kept output for live terminals, a closed terminal's file gone after th
 checkpoint naming exactly the kept files, the replay above the divider and a new prompt in each
 terminal's own client text, swapped files deleted and never replayed, and the preference off
 removing every file.
-
-Layout history tests drive the record rule under an injected clock (change and interval, the
-48-entry bound, oldest first, reload) and reopen against a Session missing a Tab or a Workspace,
-including the hold of a missing directory; the storage test covers pruning and a renamed frame.
 
 Coordinator tests cover joint physical/graph preparation, grouped/pinned/child membership, binding reattachment and explicit unavailable outcomes without replay. Windows storage/process tests cover private
 replacement, locking and exact-handle termination. Packaged Windows clean-stop/restart acceptance

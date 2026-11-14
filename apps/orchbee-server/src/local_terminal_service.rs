@@ -50,8 +50,6 @@ mod connected_hosts;
 mod controller_connection;
 mod controller_focus;
 mod current_directory;
-#[cfg(windows)]
-mod layout_history;
 mod operation_maintenance;
 mod panel_agent;
 mod panel_create;
@@ -114,8 +112,6 @@ pub(crate) struct LocalTerminalService {
     tab_set_maintenance: operation_maintenance::OperationMaintenance,
     tab_duplicate_maintenance: operation_maintenance::OperationMaintenance,
     worktree_discovery: worktree_list::DiscoveryGate,
-    #[cfg(windows)]
-    layout_history: std::sync::OnceLock<Arc<crate::layout_history::LayoutHistory>>,
     #[cfg(windows)]
     terminal_output: std::sync::OnceLock<Arc<crate::terminal_output::TerminalOutput>>,
     workers: Arc<Mutex<WorkerRegistry>>,
@@ -184,8 +180,6 @@ impl LocalTerminalService {
                 Self::tab_duplicate_turn,
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
-            #[cfg(windows)]
-            layout_history: std::sync::OnceLock::new(),
             #[cfg(windows)]
             terminal_output: std::sync::OnceLock::new(),
             workers,

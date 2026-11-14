@@ -400,9 +400,9 @@ values fail discovery; they never silently select the default Session.
 
 A Session's folder in the data root, `sessions/<name>/`, and its runtime folder,
 `internal/runtime/<name>/` unless `ORCHBEE_RUNTIME_BASE` names another base, both take its name.
-The folder holds its catalog record, checkpoints, earlier layouts, kept terminal output and TUI
-position. `session list [--format text|json]` lists default followed by the named sessions, sorted
-without letter case. It reads at most 256 sessions under one five-second deadline, creates
+The folder holds its catalog record, checkpoints, kept terminal output and TUI position.
+`session list [--format text|json]` lists default followed by the named sessions, sorted without
+letter case. It reads at most 256 sessions under one five-second deadline, creates
 no runtime state and reports running, stopping, stopped, absent, starting, deleting, recoverable or recovery-required
 from authenticated metadata and admitted lifecycle facts. A name two folders spell in different
 letter case is listed as recovery-required while other names list and start normally.

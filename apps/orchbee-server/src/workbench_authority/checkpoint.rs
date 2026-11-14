@@ -25,11 +25,8 @@ use navigation::StoredNavigation;
 mod agent_sessions;
 pub use agent_sessions::{AgentResumeProvider, RetainedAgentSession};
 mod directories;
-mod layout_history;
-pub(super) use layout_history::LayoutLineage;
-pub use layout_history::{
-    LayoutHistorySummary, LayoutReopenError, OpenLayout, ReopenedLayout, RetainedLayout,
-};
+mod lineage;
+pub(super) use lineage::LayoutLineage;
 mod restore;
 pub use restore::{PreparedWorkbenchRestoreBinding, WorkbenchRestoreError, WorkbenchRestoreTarget};
 
@@ -148,7 +145,7 @@ struct Checkpoint {
     agent_sessions: Vec<agent_sessions::StoredAgentSession>,
     /// Always written; an omitted list reads as no lineage, while a present list is strict.
     #[serde(default)]
-    layout_lineage: Vec<layout_history::StoredLineage>,
+    layout_lineage: Vec<lineage::StoredLineage>,
     /// The Session's Recent list, newest first. Always written; an omitted list reads as empty,
     /// while a present list is strict.
     #[serde(default)]
@@ -340,28 +337,6 @@ impl WorkbenchCheckpoint {
             .iter()
             .filter_map(|row| row.output.map(|token| token.0))
             .collect()
-    }
-
-    /// The retained graph with `local_worker` owning its Directories, and each member's retained
-    /// directory. Parsing already validated both, so this only rebuilds them.
-    pub(super) fn retained_graph(
-        &self,
-        local_worker: &WorkerId,
-    ) -> Result<
-        (
-            Snapshot,
-            BTreeMap<TerminalPresentationId, WorkbenchDirectoryPath>,
-        ),
-        WorkbenchCheckpointError,
-    > {
-        let parts = checkpoint_parts(&self.checkpoint, &validation_session(), local_worker)?;
-        let directories = self
-            .checkpoint
-            .terminal_directories
-            .iter()
-            .map(|row| (row.presentation_id.clone(), row.path.clone()))
-            .collect();
-        Ok((parts.projection.snapshot().clone(), directories))
     }
 }
 
