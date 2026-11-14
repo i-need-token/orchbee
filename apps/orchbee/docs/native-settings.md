@@ -154,17 +154,18 @@ program, Explain first opens the page with the question "Check <Agent>?": the ch
 program, which may create its own files, and Orchbee changes nothing. Nothing runs until Explain
 on that page. The line under the title closes every result with what the check did: "Read-only
 check: nothing was changed and no Agent program was started.", or, for those Agents, that Orchbee
-changed nothing and the check starts the Agent when needed. Its headline names a definite
-finding (Ready, Manual setup, "Definitely missing: the Agent", "Definitely missing: the
-integration", Turned off, Update needed, Blocked by a conflict) or "Result unknown" for a timed-out,
-unreadable or undetermined inspection, whose sentence says the state is unknown, not missing. The
-facts below follow `orchbee agent integration explain`: Agent presence, integration status, any
+changed nothing and the check starts the Agent when needed. The page opens with one sentence,
+in the same words as the desktop and web Clients, such as "Claude Code isn't installed." or "The
+integration is off.", or "Couldn't read the plugin's state." for a timed-out, unreadable or
+undetermined inspection, whose explanation says the state is unknown, not missing. The TUI has no
+disclosure control, so the explanation and the facts follow directly below the sentence. The
+facts follow `orchbee agent integration explain`: Agent presence, integration status, any
 issue, the Orchbee adapter, the provider's marketplace and plugin or guarded entry and adapter
 source, and what turning it on would do: consecutive commands of one program name its executable
 file name once and list what they do, such as adding Orchbee's plugin source, installing the
 plugin and turning it on. Paths and command lines are never shown. `e` on the diagnosis page reruns it, and a report also updates
 that Agent's row. Rows narrower than 40 columns beside the action drop it and keep `e`; a short
-diagnosis clips its facts after the headline and sentence.
+diagnosis clips its facts after the sentence and its explanation.
 
 ## Domain and ownership
 

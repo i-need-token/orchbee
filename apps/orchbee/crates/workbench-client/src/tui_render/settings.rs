@@ -1421,9 +1421,12 @@ fn render_diagnosis(
         )),
         Some(Diagnosis::Failed(failure)) => {
             lines.push(super::modal::status_line(
-                locale.integration_finding(IntegrationFinding::Unknown(
-                    crate::localization::IntegrationUnknown::Undetermined,
-                )),
+                locale.integration_finding(
+                    IntegrationFinding::Unknown(
+                        crate::localization::IntegrationUnknown::Undetermined,
+                    ),
+                    locale.agent_integration_name(id),
+                ),
                 Role::StatusWarning,
                 theme,
             ));
@@ -1440,8 +1443,9 @@ fn render_diagnosis(
                 | IntegrationFinding::UpdateRequired
                 | IntegrationFinding::Unknown(_) => Role::StatusWarning,
             };
+            // One sentence first; the explanation and the facts follow below it.
             lines.push(super::modal::status_line(
-                locale.integration_finding(finding),
+                locale.integration_finding(finding, locale.agent_integration_name(id)),
                 role,
                 theme,
             ));

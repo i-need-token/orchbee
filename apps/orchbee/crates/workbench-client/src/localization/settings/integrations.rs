@@ -245,12 +245,12 @@ impl Locale {
                 "此步骤需要你在智能体中手动审阅；Orchbee 没有继续自动更改。",
             ),
             IntegrationFailure::OperationFailed => self.integration(
-                "The integration command did not complete. The list shows the state detected afterward.",
-                "集成命令未能完成；列表中显示的是之后检测到的状态。",
+                "Couldn't change the plugin. Its current state is shown below.",
+                "没能更改插件。下面显示的是它当前的状态。",
             ),
             IntegrationFailure::VerificationFailed => self.integration(
-                "Orchbee could not verify the requested state. Refresh after checking the Agent configuration.",
-                "Orchbee 无法验证请求的状态。请检查智能体配置后刷新。",
+                "Couldn't confirm the plugin's state. Check the Agent's configuration, then refresh.",
+                "没能确认插件状态。请检查智能体配置后刷新。",
             ),
         }
     }
@@ -323,21 +323,29 @@ impl Locale {
         }
     }
 
-    /// The headline: a definite finding is named as such; an unknown result says it is unknown.
-    pub(crate) fn integration_finding(self, finding: IntegrationFinding) -> &'static str {
-        match finding {
-            IntegrationFinding::Ready => self.integration("Ready", "可用"),
-            IntegrationFinding::ManualSetup => self.integration("Manual setup", "手动设置"),
-            IntegrationFinding::AgentMissing => {
-                self.integration("Definitely missing: the Agent", "确定缺失：智能体")
+    /// The one sentence that opens a check: what it found about `agent`, or that it could not
+    /// read the state.
+    pub(crate) fn integration_finding(self, finding: IntegrationFinding, agent: &str) -> String {
+        match (self, finding) {
+            (Self::EnUs, IntegrationFinding::AgentMissing) => format!("{agent} isn't installed."),
+            (Self::ZhCn, IntegrationFinding::AgentMissing) => format!("没有安装 {agent}。"),
+            (Self::EnUs, IntegrationFinding::ManualSetup) => format!("{agent} needs manual setup."),
+            (Self::ZhCn, IntegrationFinding::ManualSetup) => format!("{agent} 需要手动设置。"),
+            (_, IntegrationFinding::Ready) => self.say("The plugin is on.", "插件已开。"),
+            (_, IntegrationFinding::NotInstalled) => {
+                self.say("The plugin isn't installed.", "没有安装插件。")
             }
-            IntegrationFinding::NotInstalled => {
-                self.integration("Definitely missing: the integration", "确定缺失：集成")
+            (_, IntegrationFinding::Disabled) => self.say("The integration is off.", "集成没开。"),
+            (_, IntegrationFinding::UpdateRequired) => {
+                self.say("The plugin needs an update.", "插件需要更新。")
             }
-            IntegrationFinding::Disabled => self.integration("Turned off", "已关闭"),
-            IntegrationFinding::UpdateRequired => self.integration("Update needed", "需要更新"),
-            IntegrationFinding::Conflict => self.integration("Blocked by a conflict", "存在冲突"),
-            IntegrationFinding::Unknown(_) => self.integration("Result unknown", "结果未知"),
+            (_, IntegrationFinding::Conflict) => self.say(
+                "Another plugin or file is in the way.",
+                "有冲突的插件或文件。",
+            ),
+            (_, IntegrationFinding::Unknown(_)) => {
+                self.say("Couldn't read the plugin's state.", "没能读取插件状态。")
+            }
         }
     }
 
