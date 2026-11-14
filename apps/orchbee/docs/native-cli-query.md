@@ -74,7 +74,9 @@ unlisted options while they do nothing. The terminal geometry group `--cols`, `-
 `--cell-width` and `--cell-height` is unlisted on the creation commands (`workspace create`,
 `tab create`, `panel split`, `panel create-terminal`, `worktree create|open`, `plugin panel open`):
 the Client sizes new terminals, and a test harness may still pin the grid. `--cols` and `--rows`
-stay listed on `terminal session observe|control`.
+stay listed on `terminal session observe|control`. `agent integration --adapter-source` and
+`agent doctor --asset-root` are unlisted development and test overrides: the cohort supplies
+the adapter payload, and doctor inspects the roots the provider files record.
 
 `--request-id`, `--retry`, `--detach` and `--generation` belong to stop, close and worktree
 operations and their `status|resume` recovery. Focus, resize, `panel maximize`,
@@ -859,7 +861,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   value is one provider with an Orchbee integration (the spellings `agent integration list`
   reports), selected in flag order and deduplicated under the fixed canonical row order — an
   unknown id is `invalid-usage` before any runtime access. No flag selects them all.
-- `--asset-root <path>`: repeatable value flag, admitted only on `agent doctor`;
+- `--asset-root <path>` (unlisted): repeatable value flag, admitted only on `agent doctor`;
   each value is a nonempty absolute NUL-free path declared as a capsule candidate
   root, kept in flag order. Relative spellings, `~`/`$` forms, empty values, and a
   fifth value are `invalid-usage` before any runtime access — at most four supplied
@@ -871,7 +873,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   Agent that Orchbee can only start (such as `kiro`, `amp`, `maki` or `muse`) is still `invalid-usage`
   (exit 2), but its diagnostic says that Agent has no Orchbee integration to check or manage and
   lists the Agents that have one.
-- `--adapter-source <abs>`: single-use value flag, admitted only on the
+- `--adapter-source <abs>` (unlisted): single-use value flag, admitted only on the
   `agent integration` commands; a literal absolute path to a development/test
   adapter payload that replaces the packaged cohort source for that invocation.
   A relative path or a repeat is `invalid-usage`.
@@ -925,11 +927,11 @@ orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection]
 orchbee agent send-keys <target> <key>...
 orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>] [--forever]
 orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>] [--forever]
-orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
+orchbee agent doctor [--provider <id>]...
 orchbee agent integration list [--provider <id>]
 orchbee agent integration explain --provider <id>
-orchbee agent integration enable --provider <id> [--adapter-source <abs>]
-orchbee agent integration disable --provider <id> [--adapter-source <abs>]
+orchbee agent integration enable --provider <id>
+orchbee agent integration disable --provider <id>
 orchbee client list | client get <client-id> | client status <operation-id>
 orchbee workspace focus <target> [--client <id>]
 orchbee tab focus <target> [--client <id>]

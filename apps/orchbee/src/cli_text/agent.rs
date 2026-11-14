@@ -65,14 +65,14 @@ pub(super) const HELP_AGENT_EXPLAIN_ZH: crate::cli_text::HelpDetails =
 
 pub(super) const HELP_AGENT_DOCTOR_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
-        "orchbee agent doctor [--provider <id>]... [--asset-root <path>]... [--format text|json]",
-        "Explain, from bounded filesystem facts alone, why Agent observations may\nnot arrive: each provider's executable and managed-hook state, declared\nasset roots, the observation endpoint, and the environment override.\n'--provider' selects providers with an Orchbee integration (repeatable);\nstart-only Agents such as kiro have none to check. '--asset-root'\ndeclares absolute capsule roots to inspect (repeatable, at most 4).\nNothing is executed, connected, written, or repaired. '--format json'\nemits the orchbee.agent.doctor envelope (version 1 on supported platforms). Windows\nmarks the endpoint probe unsupported, separately from installation.",
+        "orchbee agent doctor [--provider <id>]... [--format text|json]",
+        "Explain, from bounded filesystem facts alone, why Agent observations may\nnot arrive: each provider's executable and managed-hook state, its asset\nroots, the observation endpoint, and the environment override.\n'--provider' selects providers with an Orchbee integration (repeatable);\nstart-only Agents such as kiro have none to check.\nNothing is executed, connected, written, or repaired. '--format json'\nemits the orchbee.agent.doctor envelope (version 1 on supported platforms). Windows\nmarks the endpoint probe unsupported, separately from installation.",
     );
 
 pub(super) const HELP_AGENT_DOCTOR_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
-        "orchbee agent doctor [--provider <id>]... [--asset-root <path>]... [--format text|json]",
-        "仅凭有界文件系统事实解释智能体观察为何可能未到达：各 provider 的可执行文件与托管 hook 状态、声明的 asset root、观察端点以及环境覆盖。\n'--provider' 选择具有 Orchbee 集成的 provider（可重复），kiro 等只能启动的智能体没有可检查的集成；'--asset-root' 声明要检查的绝对 capsule root（可重复，至多 4 个）。不执行、不连接、不写入、不修复任何内容。'--format json' 输出 orchbee.agent.doctor 封套（受支持平台均为版本 1）。Windows 将端点探测标为不支持，不会把安装状态当成链路可用。",
+        "orchbee agent doctor [--provider <id>]... [--format text|json]",
+        "仅凭有界文件系统事实解释智能体观察为何可能未到达：各 provider 的可执行文件与托管 hook 状态、其 asset root、观察端点以及环境覆盖。\n'--provider' 选择具有 Orchbee 集成的 provider（可重复），kiro 等只能启动的智能体没有可检查的集成。不执行、不连接、不写入、不修复任何内容。'--format json' 输出 orchbee.agent.doctor 封套（受支持平台均为版本 1）。Windows 将端点探测标为不支持，不会把安装状态当成链路可用。",
     );
 
 pub(super) const HELP_AGENT_WAIT_EN: crate::cli_text::HelpDetails =

@@ -34,9 +34,9 @@ fn unknown_option_advice_uses_root_family_and_leaf_grammar_scopes() {
             .any(|candidate| candidate == "--provider")
     );
     assert!(
-        advice(UsageContext::Path("agent integration"), "--adapter-souce")
+        advice(UsageContext::Path("agent integration"), "--outdated-onl")
             .iter()
-            .any(|candidate| candidate == "--adapter-source")
+            .any(|candidate| candidate == "--outdated-only")
     );
     assert!(
         advice(UsageContext::Path("terminal list"), "--formt")

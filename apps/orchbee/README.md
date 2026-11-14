@@ -111,8 +111,7 @@ Server-side with no local pre-read; `agent` offers `list` with
 <session-id>` — a read-only typed view of the Server's canonical Agent sessions over OBAP,
 never inferred from terminal contents — `wait <session-id> [--until <condition>]...
 [--timeout <ms>]`, a held Client Connection waiting for status or freshness; Windows follows
-retained changes and defaults to no total timeout, with every read still bounded — plus `doctor [--provider <id>]... [--asset-root
-<path>]...`, an offline bounded-filesystem diagnostic that explains from local facts alone
+retained changes and defaults to no total timeout, with every read still bounded — plus `doctor [--provider <id>]...`, an offline bounded-filesystem diagnostic that explains from local facts alone
 why Agent observations may not arrive (no provider execution, no socket connect, no writes).
 Windows `agent explain` also resolves names and Panels to exact physical terminal bindings.
 Canonical sessions retain `orchbee.agent.explain` v1; physical terminals use v2 with the effective

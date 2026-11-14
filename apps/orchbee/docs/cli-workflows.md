@@ -62,12 +62,11 @@ Check `result.workspace.result.terminal.outcome` before using the terminal: `sta
 
 ```powershell
 & $cli agent doctor --provider codex --format json
-& $cli agent doctor --provider codex --asset-root 'C:\path\to\cohort\agent-observation-adapters'
 ```
 
-These commands are offline and leave configuration unchanged. They inspect the native user
+This command is offline and leaves configuration unchanged. It inspects the native user
 profile (`CODEX_HOME` when explicitly configured), provider entries on PATH, Node and declared
-capsule integrity. The second command adds an explicit capsule root; it does not install it.
+capsule integrity.
 Version-3 JSON and localized text report `windows-endpoint-not-inspected`. Capsule 0.4.16
 adds Windows Codex hooks, and Windows x64 cohorts include their required pinned ConPTY
 runtime. Doctor does not exercise that transport. An installed hook or `complete:true`

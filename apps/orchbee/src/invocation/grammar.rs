@@ -44,6 +44,9 @@ const UNLISTED_OPTIONS: &[(&str, Unlisted)] = &[
     ("--rows", Unlisted::On(CREATION_GEOMETRY)),
     ("--cell-width", Unlisted::Everywhere),
     ("--cell-height", Unlisted::Everywhere),
+    // Development and test overrides: the product supplies the adapter payload and the roots.
+    ("--adapter-source", Unlisted::Everywhere),
+    ("--asset-root", Unlisted::Everywhere),
 ];
 
 /// Whether discovery names this option on this command.

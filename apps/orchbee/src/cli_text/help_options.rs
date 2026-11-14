@@ -211,11 +211,6 @@ impl super::CliText {
                 "终端行列位置。",
             ),
             _ => match flag {
-                "--adapter-source" => (
-                    "<source>",
-                    "Adapter that owns this update.",
-                    "拥有本次更新的适配器。",
-                ),
                 "--after-cursor" => (
                     "<json>",
                     "Continue after a previously returned event cursor.",
@@ -260,11 +255,6 @@ impl super::CliText {
                     "<value>",
                     "Program argument; repeat for additional arguments.",
                     "程序参数；可重复传入多个参数。",
-                ),
-                "--asset-root" => (
-                    "<path>",
-                    "Integration asset directory to inspect; repeatable.",
-                    "要检查的集成资源目录；可重复。",
                 ),
                 "--base" => (
                     "<ref>",
