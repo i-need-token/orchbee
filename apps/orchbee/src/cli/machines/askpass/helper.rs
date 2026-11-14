@@ -27,9 +27,10 @@ use std::{
 
 /// The bound on reaching the hub and handing it the question.
 const HUB: Duration = Duration::from_secs(5);
-/// The helper's own bound, past the hub's 120-second question bound and 60-second attempt bound,
-/// should the hub stop working.
-const WAIT: Duration = Duration::from_secs(130);
+/// The helper's own bound, should the hub stop working: past the longest a question stays open at
+/// the hub, 120 seconds unclaimed and then 120 seconds after the claim, and past its 60-second
+/// attempt bound.
+const WAIT: Duration = Duration::from_secs(250);
 /// The bound on reading one delivery record.
 const RECORD: Duration = Duration::from_secs(5);
 /// The pause between looks at the endpoint and the hub.

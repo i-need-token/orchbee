@@ -6,7 +6,9 @@
 // end. It ends as OpenSSH does: exit 255 with OpenSSH's refusal on standard error when an answer is
 // wrong too often, the askpass program fails, or the plan names a changed host key, which OpenSSH
 // refuses without asking; a step marked `drop` ends after its first answer, right or wrong, the
-// way a server that closes the connection after too many tries makes OpenSSH end.
+// way a server that closes the connection after too many tries makes OpenSSH end; and a step with
+// `vanish` ends that many milliseconds after it started its helper, the question still open, with
+// OpenSSH's words for a connection the server closed.
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync, readFileSync, writeSync } from 'node:fs';
@@ -24,6 +26,7 @@ const UNVERIFIED = 'Host key verification failed.\r\n';
 const DISCONNECTED =
 	'Received disconnect from 192.0.2.1 port 22:2: Too many authentication failures\r\n' +
 	'Disconnected from 192.0.2.1 port 22\r\n';
+const CLOSED = 'Connection closed by 192.0.2.1 port 22\r\n';
 
 if (process.argv.length === 3 && process.argv[2] === '-V') {
 	writeSync(2, `${plan.version ?? 'OpenSSH_for_Windows_9.5p1, LibreSSL 3.8.2'}\r\n`);
@@ -52,6 +55,12 @@ for (const step of plan.questions) {
 	for (;;) {
 		asked += 1;
 		note(`asked ${asked}`);
+		if (step.vanish) {
+			spawn(process.env.SSH_ASKPASS, [step.prompt], { stdio: 'ignore', windowsHide: true });
+			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, step.vanish);
+			note(`vanished ${asked}`);
+			refuse(CLOSED);
+		}
 		const helper = spawnSync(process.env.SSH_ASKPASS, [step.prompt], {
 			stdio: ['ignore', 'pipe', 'pipe'],
 			windowsHide: true,

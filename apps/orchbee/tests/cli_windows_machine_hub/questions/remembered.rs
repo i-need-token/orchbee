@@ -5,8 +5,9 @@
 //! the claimant's question marked `remembered: rejected`; with nobody to ask the attempt ends
 //! `remembered-rejected`; removing the Machine deletes its items. A server that drops the
 //! connection after the remembered answer receives it once however often the hub retries; an `ssh`
-//! older than OpenSSH 8.5 is never given one; a second key's passphrase question deletes nothing.
-//! The store items are deleted on every path.
+//! older than OpenSSH 8.5 is never given one; a second key's passphrase question deletes nothing;
+//! a connection the server closed while a person had the question ends the login as no refusal
+//! and deletes nothing. The store items are deleted on every path.
 
 use super::*;
 use orchbee_workbench_client::application::machine_credentials::{
@@ -19,6 +20,7 @@ const MINE: &str = "2e4e4be4e4be4e4be4e4be4e4be4e4b2";
 const DROPPED: &str = "2e4e4be4e4be4e4be4e4be4e4be4e4b3";
 const OLD_SSH: &str = "2e4e4be4e4be4e4be4e4be4e4be4e4b4";
 const TWO_KEYS: &str = "2e4e4be4e4be4e4be4e4be4e4be4e4b5";
+const VANISHED: &str = "2e4e4be4e4be4e4be4e4be4e4be4e4b6";
 
 /// One kind's item of a Machine of this module, deleted, with the other kind's item, before and
 /// after the test.
@@ -246,6 +248,50 @@ fn a_second_key_asking_for_its_passphrase_deletes_nothing() {
         .output()
         .unwrap();
     search(&carried, &[&printed.stdout, &printed.stderr]);
+}
+
+#[test]
+fn a_connection_the_server_closed_at_an_open_question_ends_the_login_as_no_refusal() {
+    let mut vanishing = step(PASSWORD, RIGHT_PASSWORD, 1, false);
+    vanishing["vanish"] = json!(3000);
+    // An `ssh` older than 8.5 is never given the remembered answer, so a person has the question.
+    let (carried, fake) = Carried::faking(
+        "mw2-vanish-",
+        &json!({
+            "version": "OpenSSH_for_Windows_8.1p1, LibreSSL 3.0.2",
+            "questions": [vanishing],
+        }),
+        &[],
+    );
+    let remembered = Remembered::of(VANISHED, SecretKind::Password);
+    adopt_as(&carried, VANISHED);
+    remembered.write(RIGHT_PASSWORD);
+    carried.state();
+    let mut person = asker(&carried);
+    let mut command = carried.command(&["machine", "connect", VANISHED, "--format=json"]);
+    thread::scope(|scope| {
+        let ran = scope.spawn(move || {
+            let started = Instant::now();
+            (command.output().unwrap(), started.elapsed())
+        });
+        let login = offered(&mut person, 1).login;
+        assert_eq!(claim(&mut person, login), ClaimOutcome::Claimed);
+        question(&mut person);
+        // The server closed the connection, as after its `LoginGraceTime`, while the person had
+        // the question: the login ended, and nothing reads as a refused answer.
+        phase(
+            &mut person,
+            login,
+            LoginPhase::Ended {
+                end: LoginEnd::Unavailable,
+            },
+        );
+        let ran = finished(ran.join().unwrap());
+        assert_eq!(ran.document["result"]["error"], "ssh-failed", "{ran}");
+        search(&carried, &[ran.stderr.as_bytes()]);
+    });
+    assert_eq!(fake.transcript(), "started\nasked 1\nvanished 1\n");
+    assert!(remembered.held(), "a closed connection deletes nothing");
 }
 
 #[test]

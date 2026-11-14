@@ -35,8 +35,9 @@ pub(super) const ATTEMPT: Duration = Duration::from_secs(60);
 pub(super) const PING_INTERVAL: Duration = Duration::from_secs(30);
 /// A `ping` unanswered this long makes the Machine `unresponsive`.
 pub(super) const PONG_WAIT: Duration = Duration::from_secs(15);
-/// A question nobody answers ends the attempt after this, unless a development or test build
-/// shortens it.
+/// A question nobody answers ends the attempt this long after `ssh` asked it while nobody claimed
+/// it, and this long after the last claim once one did, though never later than twice this after
+/// it was asked, unless a development or test build shortens it.
 pub(super) const QUESTION: Duration = Duration::from_secs(120);
 
 /// How the hub can reach a catalog record.
@@ -152,7 +153,7 @@ pub(super) struct Context<'a> {
     pub(super) closing: bool,
     /// The connections that `asks`, in ascending order.
     pub(super) askers: &'a [u64],
-    /// How long a question put to a claimant stays open unanswered, and how long a `command`
+    /// How long a question stays open unclaimed or after a claim, and how long a `command`
     /// request waits for a person.
     pub(super) question: Duration,
     /// The numbers given out in the hub's life.
@@ -202,7 +203,7 @@ struct Attempt {
 }
 
 impl Attempt {
-    /// When the open question goes unanswered, if one is open and put to a claimant.
+    /// When the open question goes unanswered, if one is open.
     fn question_due(&self) -> Option<Instant> {
         self.episode.as_ref().and_then(Episode::due)
     }
@@ -332,13 +333,8 @@ impl Machine {
         let phase = match &self.phase {
             Phase::Idle => None,
             Phase::Waiting { at, .. } => Some(*at),
-            // A held question stops the attempt's clock and has no bound of its own: only the
-            // waiters' bounds run.
-            Phase::Attempting(attempt) => match attempt.question_due() {
-                Some(due) => Some(due),
-                None if attempt.question_open() => None,
-                None => Some(attempt.deadline),
-            },
+            // An open question stops the attempt's clock and runs its own bound instead.
+            Phase::Attempting(attempt) => Some(attempt.question_due().unwrap_or(attempt.deadline)),
             Phase::Online(link) => match link.pong_by {
                 Some(_) if self.state == MachineState::Unresponsive => None,
                 Some(by) => Some(by),
@@ -440,6 +436,13 @@ impl Machine {
             return Vec::new();
         }
         let now = cx.now.at;
+        // An open question at its bound ends the attempt and every wait on it at once.
+        if let Phase::Attempting(attempt) = &self.phase
+            && attempt.question_due().is_some_and(|due| due <= now)
+        {
+            let carrier = attempt.carrier;
+            return self.went_unanswered(carrier, cx);
+        }
         // A `command` request that waited its bound for a person fails alone; an offered episode
         // it leaves without a waiter ends.
         let expired: Vec<Waiter> = self
@@ -455,25 +458,13 @@ impl Machine {
         effects
     }
 
-    /// The timed transitions of the phase due at `cx.now`.
+    /// The timed transitions of the phase due at `cx.now`, an open question's bound aside.
     fn timed(&mut self, cx: &mut Context<'_>) -> Vec<Effect> {
         let now = cx.now.at;
         match &mut self.phase {
             Phase::Waiting { at, cause } if *at <= now => {
                 let cause = *cause;
                 self.start(true, cause, cx)
-            }
-            // While a question is open only its own bound runs, and only once a claimant was
-            // asked.
-            Phase::Attempting(attempt) if attempt.question_due().is_some_and(|due| due <= now) => {
-                let carrier = attempt.carrier;
-                self.conclude(
-                    carrier,
-                    Failure::NeedsLogin,
-                    LoginEnd::Unavailable,
-                    Some(ConnectFailure::Timeout),
-                    cx,
-                )
             }
             Phase::Attempting(attempt) if !attempt.question_open() && attempt.deadline <= now => {
                 let cause = if attempt.answered.is_some() {
@@ -890,7 +881,10 @@ impl Machine {
         else {
             return self.refuse(carrier, cx);
         };
-        if episode.open(raised, rejected, cx.now.at).is_none() {
+        if episode
+            .open(raised, rejected, cx.now.at, cx.question)
+            .is_none()
+        {
             return self.refuse(carrier, cx);
         }
         put(episode, cx).into_iter().collect()
@@ -911,8 +905,9 @@ impl Machine {
         Vec::new()
     }
 
-    /// The askpass helper of `carrier` left while its question was open: the attempt ends as an
-    /// unanswered question does, so `ssh` never goes on with an empty answer.
+    /// The askpass helper of `carrier` left while its question was open: the attempt ends, so
+    /// `ssh` never goes on with an empty answer, its episode `unavailable`, and its waiters read
+    /// what a question that went unanswered gives them.
     pub(super) fn unanswered(&mut self, carrier: u64, cx: &Context<'_>) -> Vec<Effect> {
         match &self.phase {
             // The helper left while it read the store: `ssh` would go on with an empty answer.
@@ -932,6 +927,23 @@ impl Machine {
             }
             _ => Vec::new(),
         }
+    }
+
+    /// The open question of `carrier` went unanswered within its bound: an episode nobody claimed
+    /// ends `abandoned`, a claimed one `unavailable`. A `command` request reads `auth-required`, as
+    /// nothing was submitted, and a person's own request `timeout`.
+    fn went_unanswered(&mut self, carrier: u64, cx: &Context<'_>) -> Vec<Effect> {
+        let end = match self.episode().map(Episode::claimant) {
+            Some(None) => LoginEnd::Abandoned,
+            _ => LoginEnd::Unavailable,
+        };
+        self.conclude(
+            carrier,
+            Failure::NeedsLogin,
+            end,
+            Some(ConnectFailure::Timeout),
+            cx,
+        )
     }
 
     /// A helper of `carrier` that cannot be asked: one that could not build its question, sent a
@@ -1187,7 +1199,7 @@ impl Machine {
     }
 
     /// `holder` claims the offered episode: the audience reads who holds it and the held question
-    /// goes to the claimant, its bound starting now.
+    /// goes to the claimant, its bound starting again now.
     fn claimed_by(&mut self, holder: Holder, cx: &Context<'_>) -> Vec<Effect> {
         let Phase::Attempting(Attempt {
             episode: Some(episode),
@@ -1255,15 +1267,16 @@ impl Machine {
         self.conclude(carrier, failure, end, None, cx)
     }
 
-    /// Ends the attempt of `carrier` with `failure` and its episode with `end`, and replies
-    /// `outcome`, or the failure's own outcome, to every waiter. The carrier ends before an open
-    /// helper is closed, so `ssh` never reads the empty answer a refused helper leaves.
+    /// Ends the attempt of `carrier` with `failure` and its episode with `end`, and replies the
+    /// failure's own outcome to every waiter, except that a person's own request reads `person`
+    /// when given. The carrier ends before an open helper is closed, so `ssh` never reads the
+    /// empty answer a refused helper leaves.
     fn conclude(
         &mut self,
         carrier: u64,
         failure: Failure,
         end: LoginEnd,
-        outcome: Option<ConnectFailure>,
+        person: Option<ConnectFailure>,
         cx: &Context<'_>,
     ) -> Vec<Effect> {
         self.hold_handed();
@@ -1271,7 +1284,7 @@ impl Machine {
         effects.extend(self.close_episode(end));
         self.last_attempt = Some(time(cx.now.wall));
         let delay = self.backoff.fail(cx.now.at);
-        let outcome = outcome.unwrap_or_else(|| failure.outcome());
+        let outcome = failure.outcome();
         match failure.transient() {
             Some(cause) if !cx.closing && (self.proven || cx.presence) => {
                 let cause = Some(reconnect_cause(cause));
@@ -1298,7 +1311,19 @@ impl Machine {
                 }
             }
         }
-        effects.extend(self.reply_all(not_online(outcome)));
+        let waiters = std::mem::take(&mut self.waiters);
+        let (people, commands): (Vec<Waiter>, Vec<Waiter>) = match person {
+            Some(_) => waiters.into_iter().partition(|waiter| !waiter.command()),
+            None => (Vec::new(), waiters),
+        };
+        if !commands.is_empty() {
+            effects.push(self.reply(commands, not_online(outcome)));
+        }
+        if let Some(person) = person
+            && !people.is_empty()
+        {
+            effects.push(self.reply(people, not_online(person)));
+        }
         effects
     }
 
@@ -1483,10 +1508,10 @@ const fn waiting(waiter: &Waiter) -> Effect {
     }
 }
 
-/// Puts the open question of `episode` to its claimant, unanswered after the question bound.
+/// Puts the open question of `episode` to its claimant now, under the question bound.
 fn put(episode: &mut Episode, cx: &Context<'_>) -> Option<Effect> {
     episode
-        .put(cx.now.at + cx.question)
+        .put(cx.now.at, cx.question)
         .map(|(peer, question)| Effect::Notify {
             peer,
             event: Event::Question(question),

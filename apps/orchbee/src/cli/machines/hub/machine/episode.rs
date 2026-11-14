@@ -7,7 +7,7 @@ use orchbee_machine_protocol::{
     Id,
     hub::{Question, QuestionKind, Trigger},
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// What a question asks, without the offered key.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -52,8 +52,9 @@ struct Open {
     rejected: bool,
     /// When `ssh` asked it: the attempt's clock stops from then until its answer.
     since: Instant,
-    /// When it goes unanswered: only once it was put to a claimant.
-    due: Option<Instant>,
+    /// When it goes unanswered: its bound from `since` while nobody claimed it, from the last
+    /// claim once one did.
+    due: Instant,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -120,14 +121,21 @@ impl Episode {
         self.open.is_some()
     }
 
-    /// When the open question goes unanswered, if one is open and was put to a claimant.
+    /// When the open question goes unanswered, if one is open.
     pub(super) fn due(&self) -> Option<Instant> {
-        self.open.as_ref().and_then(|open| open.due)
+        self.open.as_ref().map(|open| open.due)
     }
 
     /// Opens the next question, `raised` at `now` and marked `rejected` when `ssh` refused the
-    /// remembered answer to it, held until it is put to a claimant. `None` while one is open.
-    pub(super) fn open(&mut self, raised: Raised, rejected: bool, now: Instant) -> Option<()> {
+    /// remembered answer to it, held until it is put to a claimant and unanswered `bound` after
+    /// `now` unless one is. `None` while one is open.
+    pub(super) fn open(
+        &mut self,
+        raised: Raised,
+        rejected: bool,
+        now: Instant,
+        bound: Duration,
+    ) -> Option<()> {
         if self.open.is_some() {
             return None;
         }
@@ -142,17 +150,19 @@ impl Episode {
             repeated: self.answered.contains(&tag),
             rejected,
             since: now,
-            due: None,
+            due: now + bound,
         }));
         Some(())
     }
 
-    /// Puts the open question to the claimant, unanswered at `due`: the `question` event and the
-    /// connection it goes to. `None` while offered or with no question open.
-    pub(super) fn put(&mut self, due: Instant) -> Option<(u64, Question)> {
+    /// Puts the open question to the claimant at `now`, unanswered `bound` later, though never
+    /// later than twice `bound` after `ssh` asked it, so a claim within the unclaimed bound always
+    /// has the whole of it: the `question` event and the connection it goes to. `None` while
+    /// offered or with no question open.
+    pub(super) fn put(&mut self, now: Instant, bound: Duration) -> Option<(u64, Question)> {
         let claimant = self.claimant?;
         let open = self.open.as_mut()?;
-        open.due = Some(due);
+        open.due = (now + bound).min(open.since + bound * 2);
         Some((
             claimant.peer,
             Question {
@@ -175,13 +185,10 @@ impl Episode {
         }
     }
 
-    /// The claimant left: the episode is offered again and an open question is held again, without
-    /// a bound.
+    /// The claimant left: the episode is offered again and an open question is held again, its
+    /// bound still running.
     pub(super) fn release(&mut self) {
         self.claimant = None;
-        if let Some(open) = &mut self.open {
-            open.due = None;
-        }
     }
 
     /// `peer` shows the episode from now on; false when it did already.
