@@ -325,7 +325,6 @@ fn local_action_title(locale: Locale, action: &PrefixAction) -> String {
             return (locale.shell().prefix_desc)(PrefixDesc::SidebarFocus).to_owned();
         }
         PrefixAction::Client(A::OpenSettings) => ShortcutLabel::Settings,
-        PrefixAction::Client(A::ReloadConfiguration) => ShortcutLabel::ReloadSettings,
         PrefixAction::Client(A::OpenActionMenu) => ShortcutLabel::ActionMenu,
         PrefixAction::Client(A::EnterResizeMode | A::ResizePane { .. }) => {
             ShortcutLabel::ResizePanel

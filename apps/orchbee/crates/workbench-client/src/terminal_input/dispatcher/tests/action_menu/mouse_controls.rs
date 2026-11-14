@@ -159,7 +159,7 @@ fn a_click_survives_an_availability_refresh_that_keeps_its_row() {
 #[test]
 fn hover_admission_leave_and_keyboard_navigation_preserve_menu_ownership() {
     let mut port = Port::new(MenuAction::Detach);
-    port.actions = vec![MenuAction::Detach, MenuAction::Help, MenuAction::Reload];
+    port.actions = vec![MenuAction::Detach, MenuAction::Help, MenuAction::Settings];
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(50);
     dispatcher.set_pointer_capture(&mut view, &mut port, false);
@@ -203,12 +203,12 @@ fn hover_admission_leave_and_keyboard_navigation_preserve_menu_ownership() {
             "modified or held motion is inert"
         );
     }
-    let reload_point = painted.row(&MenuAction::Reload);
+    let settings_point = painted.row(&MenuAction::Settings);
     dispatch_all(
         &mut dispatcher,
         &mut view,
         &mut port,
-        format!("{}{}", motion(35, help_point), motion(35, reload_point)).as_bytes(),
+        format!("{}{}", motion(35, help_point), motion(35, settings_point)).as_bytes(),
     );
     assert_eq!(
         port.menu.view().unwrap().selected,
@@ -326,7 +326,7 @@ fn captured_menu_press_loses_authority_on_owner_source_geometry_or_transport_ret
 #[test]
 fn hover_and_keyboard_bursts_require_a_draw_before_their_candidate_can_execute() {
     let mut port = Port::new(MenuAction::Help);
-    port.actions = vec![MenuAction::Detach, MenuAction::Reload, MenuAction::Help];
+    port.actions = vec![MenuAction::Detach, MenuAction::Settings, MenuAction::Help];
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(50);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
@@ -348,12 +348,12 @@ fn hover_and_keyboard_bursts_require_a_draw_before_their_candidate_can_execute()
     );
 
     let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
-    let (reload_x, reload_y) = painted.row(&MenuAction::Reload);
+    let (settings_x, settings_y) = painted.row(&MenuAction::Settings);
     dispatch_all(
         &mut dispatcher,
         &mut view,
         &mut port,
-        format!("\x1b[<35;{reload_x};{reload_y}M\x1b[B\r").as_bytes(),
+        format!("\x1b[<35;{settings_x};{settings_y}M\x1b[B\r").as_bytes(),
     );
     assert_eq!(
         port.menu.view().unwrap().selected,

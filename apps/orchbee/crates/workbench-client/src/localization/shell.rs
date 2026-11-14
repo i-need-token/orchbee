@@ -309,10 +309,6 @@ impl Locale {
             (Self::ZhCn, Some(Notice::CheckpointEmpty)) => {
                 "工作区存档均不可读；已打开空工作区，原始文件已保留"
             }
-            (Self::EnUs, Some(Notice::ConfigurationPublished)) => {
-                "Configuration published; keys updated"
-            }
-            (Self::ZhCn, Some(Notice::ConfigurationPublished)) => "配置已发布；键位已更新",
             (Self::EnUs, Some(Notice::SettingsFileUnusable)) => {
                 "Settings file can't be used · keeping last valid settings · run orchbee config check"
             }
@@ -324,12 +320,6 @@ impl Locale {
             }
             (Self::ZhCn, Some(Notice::ConfigurationWarning)) => {
                 "配置已加载，但有警告；请运行 orchbee config check"
-            }
-            (Self::EnUs, Some(Notice::ConfigurationUnknown)) => {
-                "Reload outcome unknown; run orchbee config reload"
-            }
-            (Self::ZhCn, Some(Notice::ConfigurationUnknown)) => {
-                "重载结果未知；请运行 orchbee config reload"
             }
             (Self::EnUs, Some(Notice::NotificationUnavailable)) => {
                 "Notification transport unavailable; terminal remains usable"
@@ -343,20 +333,10 @@ impl Locale {
             (Self::ZhCn, Some(Notice::WindowTitleUnavailable)) => {
                 "窗口标题不可用；终端仍可正常使用"
             }
-            (
-                Self::EnUs,
-                Some(
-                    Notice::ConfigurationFailed
-                    | Notice::BackendUnavailable(BackendAction::ReloadConfiguration),
-                ),
-            ) => "Reload failed; previous keys retained",
-            (
-                Self::ZhCn,
-                Some(
-                    Notice::ConfigurationFailed
-                    | Notice::BackendUnavailable(BackendAction::ReloadConfiguration),
-                ),
-            ) => "重载失败；保留此前键位",
+            (Self::EnUs, Some(Notice::ConfigurationFailed)) => {
+                "Reload failed; previous keys retained"
+            }
+            (Self::ZhCn, Some(Notice::ConfigurationFailed)) => "重载失败；保留此前键位",
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameWorkspace))) => {
                 "Workspace rename unavailable · no command was sent"
             }
@@ -576,8 +556,7 @@ impl Locale {
                 "位置导航不可用 · 未发送命令",
             ),
             Notice::BackendUnavailable(
-                BackendAction::ReloadConfiguration
-                | BackendAction::CreateWorkspace
+                BackendAction::CreateWorkspace
                 | BackendAction::QuickCreateWorkspace
                 | BackendAction::CreateWorktree
                 | BackendAction::OpenWorktree
@@ -606,9 +585,7 @@ impl Locale {
             | Notice::ResizeContended
             | Notice::ResizeNoSplit
             | Notice::ResizeLimit
-            | Notice::ConfigurationPublished
             | Notice::ConfigurationFailed
-            | Notice::ConfigurationUnknown
             | Notice::WindowTitleUnavailable
             | Notice::TerminalInputUnavailable
             | Notice::NavigationInputHeld

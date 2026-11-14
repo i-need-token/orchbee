@@ -160,11 +160,6 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             built_in("orchbee.native.copy-mode.enter", C::Input, COPY)
         }
         PrefixAction::Client(A::FindInTerminal) => built_in("terminal.search.open", C::Pane, FIND),
-        PrefixAction::Client(A::ReloadConfiguration) => built_in(
-            "orchbee.native.configuration.reload",
-            C::Application,
-            PREFERENCES,
-        ),
         PrefixAction::Client(A::RequestWorkspaceCreate) => {
             built_in("workbench.workspace.create", C::Workspace, WORKSPACE)
         }
@@ -487,11 +482,6 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             built_in("orchbee.native.worktree.open", C::Workspace, WORKTREE)
         }
         A::RemoveWorktree => built_in("orchbee.native.worktree.remove", C::Workspace, WORKTREE),
-        A::Reload => built_in(
-            "orchbee.native.configuration.reload",
-            C::Application,
-            PREFERENCES,
-        ),
         A::Settings => built_in("workbench.settings.open", C::Application, PREFERENCES),
         A::Machines => built_in("orchbee.native.machines.open", C::Navigation, NONE),
         A::Help => built_in("orchbee.native.shortcut-help.toggle", C::Application, HELP),

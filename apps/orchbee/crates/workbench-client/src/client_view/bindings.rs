@@ -368,13 +368,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         members: &[member(key(KeyCode::Esc), ClientAction::DismissPrefix)],
         desc: PrefixDesc::DismissPrefix,
     },
-    PrefixGroup {
-        members: &[member(
-            key(KeyCode::F(5)),
-            ClientAction::ReloadConfiguration,
-        )],
-        desc: PrefixDesc::ReloadConfiguration,
-    },
     // The exit binding stays last, per the keyboard-input standard.
     PrefixGroup {
         members: &[

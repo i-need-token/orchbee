@@ -14,7 +14,6 @@ pub(super) const ACTIONS: &[&str] = &[
     "resize_panel_right",
     "resize_panel_up",
     "resize_panel_down",
-    "reload_config",
     "help",
     "settings",
     "new_workspace",

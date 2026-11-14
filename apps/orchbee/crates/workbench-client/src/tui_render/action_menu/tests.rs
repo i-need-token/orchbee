@@ -105,7 +105,7 @@ fn restored_filtered_selection_is_visible_on_the_first_small_frame() {
             MenuAction::ClosePane,
             MenuAction::Zoom,
             MenuAction::RenameTab,
-            MenuAction::Reload,
+            MenuAction::Machines,
             MenuAction::Settings,
             MenuAction::AgentBoard,
         ],
@@ -460,7 +460,7 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
                             crate::action_menu::MenuTarget::Global
                         },
                         "QZX".into(),
-                        vec![MenuAction::Help, MenuAction::Reload],
+                        vec![MenuAction::Help, MenuAction::Machines],
                         Some((3, 2).into()),
                     ));
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -602,7 +602,7 @@ fn hovered_candidate_uses_the_full_row_selection_and_marker_in_every_usable_tier
                 let mut menu = ActionMenu::default();
                 menu.open(
                     "Actions".into(),
-                    vec![MenuAction::Help, MenuAction::Reload],
+                    vec![MenuAction::Help, MenuAction::Machines],
                     None,
                 );
                 let paint = |menu: &mut ActionMenu| {

@@ -7,7 +7,6 @@ pub use crate::host_capabilities::Capability;
 pub(crate) fn for_action(action: &ClientAction) -> Option<Capability> {
     match action {
         ClientAction::OpenMachines => Some(Capability::SavedMachines),
-        ClientAction::ReloadConfiguration => Some(Capability::ConfigurationFile),
         ClientAction::StartAgent => Some(Capability::AgentLaunch),
         ClientAction::RequestQuickWorkspace
         | ClientAction::RequestWorkspaceCreate

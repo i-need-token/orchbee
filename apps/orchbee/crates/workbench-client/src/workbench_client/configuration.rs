@@ -20,18 +20,10 @@ use std::{
 #[derive(Default)]
 struct Handoff {
     stopped: bool,
-    reload: bool,
     snapshot: Option<ConfigurationSnapshot>,
-    notice: Option<PendingNotice>,
     /// An applied key profile installs configured commands whose names the catalog holds.
     catalog_wanted: bool,
     catalog: Option<Vec<ConfiguredCommandDescriptor>>,
-}
-#[derive(Clone, Copy)]
-struct PendingNotice {
-    revision: Option<u64>,
-    needs_application: bool,
-    notice: Notice,
 }
 type Shared = Arc<(Mutex<Handoff>, Condvar)>;
 /// Complete profile admission shared by draft extraction and the sole live applier.
@@ -62,7 +54,6 @@ pub(super) struct Watcher {
     shared: Shared,
     connection: Mutex<Option<Connection>>,
     revision: Option<u64>,
-    applied_snapshot: Option<ConfigurationSnapshot>,
     /// Revision whose policy this tick wrote into `ClientView.notifications`, its single owner.
     notification_update: Option<u64>,
     creation_update: Option<CreationDefaults>,
@@ -79,10 +70,6 @@ struct Connection {
     current_id: WorkbenchRequestId,
     subscription: crate::local_client::multiplex::Subscription,
     serial: u64,
-    pending: Option<(
-        WorkbenchRequestId,
-        crate::local_client::subscription::Request,
-    )>,
     catalog: Option<(
         ConfiguredCommandRequest,
         crate::local_client::subscription::Request,
@@ -114,26 +101,12 @@ impl Watcher {
                 current_id,
                 subscription,
                 serial: 1,
-                pending: None,
                 catalog: None,
             })),
             revision: None,
-            applied_snapshot: None,
             notification_update: None,
             creation_update: None,
         })
-    }
-    pub(super) fn reload(&self) -> bool {
-        let Ok(mut state) = self.shared.0.lock() else {
-            return false;
-        };
-        if state.stopped {
-            return false;
-        }
-        state.reload = true;
-        drop(state);
-        self.poll_connection();
-        true
     }
     pub(super) fn tick(&mut self, view: &mut ClientView) -> bool {
         self.poll_connection();
@@ -143,7 +116,6 @@ impl Watcher {
             return false;
         };
         let snapshot = state.snapshot.take();
-        let notice = state.notice.take();
         let catalog = state.catalog.take();
         drop(state);
         let mut changed = false;
@@ -153,46 +125,38 @@ impl Watcher {
             changed = true;
         }
         let mut names_wanted = false;
-        let mut applied_revision = None;
-        let mut unchanged_revision = None;
-        if let Some(snapshot) = snapshot {
-            if self.applied_snapshot.as_ref() == Some(&snapshot) {
-                unchanged_revision = Some(snapshot.revision.value());
-            }
-            if self
+        if let Some(snapshot) = snapshot
+            && self
                 .revision
                 .is_none_or(|revision| snapshot.revision.value() > revision)
-            {
-                match admit(&snapshot) {
-                    Some(Admitted {
-                        keys,
-                        notifications,
-                        agents: sidebar,
-                        spaces,
-                    }) => {
-                        view.machines.configure_space_sidebar(spaces);
-                        view.machines.configure_agent_sidebar(sidebar);
-                        view.notifications.configure(notifications);
-                        self.notification_update = Some(snapshot.revision.value());
-                        self.creation_update = Some(CreationDefaults {
-                            focus_new_panel: snapshot.focus_new_panel,
-                            worktrees_directory: snapshot.worktrees_directory.clone(),
-                        });
-                        view.configure_keys(&keys);
-                        names_wanted = !keys.commands.is_empty();
-                        view.configuration_warning(
-                            !snapshot.diagnostics.items.is_empty()
-                                || snapshot.diagnostics.omitted_count > 0,
-                        );
-                        self.revision = Some(snapshot.revision.value());
-                        applied_revision = self.revision;
-                        self.applied_snapshot = Some(snapshot);
-                        changed = true;
-                    }
-                    None => {
-                        view.configuration_notice(Notice::ConfigurationFailed);
-                        return true;
-                    }
+        {
+            match admit(&snapshot) {
+                Some(Admitted {
+                    keys,
+                    notifications,
+                    agents: sidebar,
+                    spaces,
+                }) => {
+                    view.machines.configure_space_sidebar(spaces);
+                    view.machines.configure_agent_sidebar(sidebar);
+                    view.notifications.configure(notifications);
+                    self.notification_update = Some(snapshot.revision.value());
+                    self.creation_update = Some(CreationDefaults {
+                        focus_new_panel: snapshot.focus_new_panel,
+                        worktrees_directory: snapshot.worktrees_directory.clone(),
+                    });
+                    view.configure_keys(&keys);
+                    names_wanted = !keys.commands.is_empty();
+                    view.configuration_warning(
+                        !snapshot.diagnostics.items.is_empty()
+                            || snapshot.diagnostics.omitted_count > 0,
+                    );
+                    self.revision = Some(snapshot.revision.value());
+                    changed = true;
+                }
+                None => {
+                    view.configuration_notice(Notice::ConfigurationFailed);
+                    return true;
                 }
             }
         }
@@ -203,18 +167,6 @@ impl Watcher {
             })
         {
             self.poll_connection();
-        }
-        if let Some(notice) = notice
-            && match notice.revision {
-                None => true,
-                Some(revision) if notice.needs_application => applied_revision == Some(revision),
-                Some(revision) => {
-                    applied_revision == Some(revision) || unchanged_revision == Some(revision)
-                }
-            }
-        {
-            view.configuration_notice(notice.notice);
-            changed = true;
         }
         changed
     }
@@ -235,54 +187,13 @@ impl Watcher {
     }
     fn poll_connection(&self) {
         use crate::local_client::multiplex::StreamEvent;
-        use orchbee_workbench_protocol::{
-            WorkbenchRequest, WorkbenchResponse, read_workbench_response,
-        };
+        use orchbee_workbench_protocol::{WorkbenchResponse, read_workbench_response};
         let Ok(mut connection) = self.connection.lock() else {
             return;
         };
         let Some(c) = connection.as_mut() else {
             return;
         };
-        let reload = self.shared.0.lock().is_ok_and(|mut state| {
-            !state.stopped && c.pending.is_none() && std::mem::take(&mut state.reload)
-        });
-        if reload {
-            let Some(serial) = c.serial.checked_add(1) else {
-                return;
-            };
-            c.serial = serial;
-            let id = WorkbenchRequestId::parse(&format!("{serial:032x}")).expect("nonzero serial");
-            let request = WorkbenchRequest::Configuration(ConfigurationRequest {
-                protocol_version: ProtocolVersion,
-                request_id: id.clone(),
-                session_id: c.session.clone(),
-                action: ConfigurationAction::Reload,
-            });
-            match c.origin.request(
-                &request,
-                c.clock.now() + Duration::from_secs(2),
-                c.clock.clone(),
-            ) {
-                Ok(request) => c.pending = Some((id, request)),
-                Err(_) => publish_outcome(&self.shared, None, true, false),
-            }
-        }
-        if let Some((expected, pending)) = &c.pending
-            && let Some(reply) = pending.poll()
-        {
-            let (outcome, submitted) = match reply {
-                Ok(WorkbenchResponse::Configuration(reply))
-                    if reply.request_id == *expected && reply.session_id == c.session =>
-                {
-                    (Some(reply.outcome), false)
-                }
-                Ok(_) => (None, true),
-                Err(submitted) => (None, submitted),
-            };
-            publish_outcome(&self.shared, outcome, true, submitted);
-            c.pending = None;
-        }
         poll_catalog(&self.shared, c);
         loop {
             match c.subscription.poll() {
@@ -292,7 +203,7 @@ impl Watcher {
                         && reply.request_id == c.current_id
                         && reply.session_id == c.session
                     {
-                        publish_outcome(&self.shared, Some(reply.outcome), false, false);
+                        publish_outcome(&self.shared, reply.outcome);
                     }
                 }
                 Ok(Some(StreamEvent::Gap | StreamEvent::Disconnected)) => {}
@@ -352,12 +263,8 @@ fn poll_catalog(shared: &Shared, c: &mut Connection) {
     }
 }
 
-fn publish_outcome(
-    shared: &Shared,
-    outcome: Option<ConfigurationOutcome>,
-    reload: bool,
-    submitted: bool,
-) {
+/// Queues every published snapshot; the subscription never carries a failure the Client reports.
+fn publish_outcome(shared: &Shared, outcome: ConfigurationOutcome) {
     let Ok(mut state) = shared.0.lock() else {
         return;
     };
@@ -365,34 +272,9 @@ fn publish_outcome(
         return;
     }
     match outcome {
-        Some(ConfigurationOutcome::Current { snapshot }) => {
-            queue_snapshot(&mut state, snapshot);
-        }
-        Some(ConfigurationOutcome::Reloaded { snapshot, changed }) => {
-            if reload {
-                let warning = !snapshot.diagnostics.items.is_empty()
-                    || snapshot.diagnostics.omitted_count > 0;
-                let notice = (!warning).then_some(Notice::ConfigurationPublished);
-                state.notice = notice.map(|notice| PendingNotice {
-                    revision: Some(snapshot.revision.value()),
-                    needs_application: changed,
-                    notice,
-                });
-            }
-            queue_snapshot(&mut state, snapshot);
-        }
-        Some(ConfigurationOutcome::Failed { .. }) | None if reload => {
-            state.notice = Some(PendingNotice {
-                revision: None,
-                needs_application: false,
-                notice: if submitted {
-                    Notice::ConfigurationUnknown
-                } else {
-                    Notice::ConfigurationFailed
-                },
-            });
-        }
-        Some(ConfigurationOutcome::Failed { .. }) | None => {}
+        ConfigurationOutcome::Current { snapshot }
+        | ConfigurationOutcome::Reloaded { snapshot, .. } => queue_snapshot(&mut state, snapshot),
+        ConfigurationOutcome::Failed { .. } => {}
     }
 }
 

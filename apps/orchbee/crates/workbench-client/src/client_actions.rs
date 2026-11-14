@@ -28,7 +28,6 @@ pub enum ClientAction {
         direction: PanelDirection,
         fine: bool,
     },
-    ReloadConfiguration,
     RequestWorkspaceCreate,
     RequestQuickWorkspace,
     RequestWorkspaceAtDirectory,
@@ -124,7 +123,6 @@ impl ClientAction {
             | Self::FocusAgent(_)
             | Self::OpenNotificationTarget => None,
             Self::TabMenu { .. } | Self::ToggleTabGroup(_) => None,
-            Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestQuickWorkspace
             | Self::RequestWorkspaceAtDirectory
@@ -256,7 +254,6 @@ pub enum MenuAction {
     EarlierLayouts,
     /// One picker row: the listed earlier layout it reopens.
     ReopenEarlierLayout(orchbee_workbench_protocol::LayoutHistoryEntry),
-    Reload,
     Settings,
     Machines,
     Help,
@@ -341,7 +338,6 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::OpenWorktree => Self::OpenWorktree,
             MenuAction::EarlierLayouts => Self::EarlierLayouts,
             MenuAction::ReopenEarlierLayout(_) => Self::ReopenEarlierLayout,
-            MenuAction::Reload => Self::Reload,
             MenuAction::Settings => Self::Settings,
             MenuAction::Machines => Self::Machines,
             MenuAction::Help => Self::Help,
@@ -430,7 +426,6 @@ impl MenuAction {
             Self::OpenWorktree => ClientAction::RequestWorktreeOpen,
             Self::EarlierLayouts => ClientAction::RequestEarlierLayouts,
             Self::ReopenEarlierLayout(entry) => ClientAction::ReopenEarlierLayout(entry.saved_at),
-            Self::Reload => ClientAction::ReloadConfiguration,
             Self::Settings => ClientAction::OpenSettings,
             Self::Machines => ClientAction::OpenMachines,
             Self::Help => ClientAction::OpenShortcutHelp,

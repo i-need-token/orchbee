@@ -327,11 +327,9 @@ fn every_client_notice() -> Vec<Notice> {
         Notice::ResizeLimit,
         Notice::CheckpointRecovered,
         Notice::CheckpointEmpty,
-        Notice::ConfigurationPublished,
         Notice::ConfigurationWarning,
         Notice::SettingsFileUnusable,
         Notice::ConfigurationFailed,
-        Notice::ConfigurationUnknown,
         Notice::WindowTitleUnavailable,
         Notice::WindowTitleUnsupported,
         Notice::NotificationUnavailable,
@@ -353,7 +351,6 @@ fn every_client_notice() -> Vec<Notice> {
     );
     all.extend(
         [
-            Action::ReloadConfiguration,
             Action::CreateWorkspace,
             Action::QuickCreateWorkspace,
             Action::CreateWorktree,
@@ -386,8 +383,7 @@ fn every_client_notice() -> Vec<Notice> {
                 | Refusal::DevelopmentBuildMismatch,
             )
             | Notice::BackendUnavailable(
-                Action::ReloadConfiguration
-                | Action::CreateWorkspace
+                Action::CreateWorkspace
                 | Action::QuickCreateWorkspace
                 | Action::CreateWorktree
                 | Action::OpenWorktree
@@ -420,11 +416,9 @@ fn every_client_notice() -> Vec<Notice> {
             | Notice::ResizeLimit
             | Notice::CheckpointRecovered
             | Notice::CheckpointEmpty
-            | Notice::ConfigurationPublished
             | Notice::ConfigurationWarning
             | Notice::SettingsFileUnusable
             | Notice::ConfigurationFailed
-            | Notice::ConfigurationUnknown
             | Notice::WindowTitleUnavailable
             | Notice::WindowTitleUnsupported
             | Notice::NotificationUnavailable

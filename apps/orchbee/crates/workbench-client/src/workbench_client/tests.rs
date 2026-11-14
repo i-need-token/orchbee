@@ -131,54 +131,6 @@ fn attach_binding(stream: &mut UnixStream) -> io::Result<()> {
     .map_err(io::Error::other)
 }
 
-// A missing watcher must not bypass composition's capability refusal and lose its notice.
-#[test]
-fn unsupported_reload_without_a_watcher_reports_before_dispatch() -> TestResult {
-    use crate::tui_capabilities::{Capabilities, Capability};
-    let server = FakeServer::start(|stream| admit(&mut UnixStream::primary_lane(stream)))?;
-    let client = native_client(&server)?;
-    let mailbox = Arc::new(mailbox::CommandMailbox::new(
-        NATIVE_TEST_IDENTITY_SEED,
-        geometry()?,
-    ));
-    let mut workbench_client = WorkbenchClient {
-        position_writer: None,
-        position_startup: None,
-        configuration: None,
-        notifications: None,
-        window_title: None,
-        terminal_titles: None,
-        client_control: None,
-        backend: ClientBackend::Native(Box::new(
-            ui::WorkbenchClientUi::with_capabilities(
-                Arc::clone(&mailbox),
-                client.operation_clock(),
-                Capabilities::none(),
-            )
-            .confirming_every_close(),
-        )),
-        task: None,
-        shutdown: client.shutdown_handle()?,
-        retirement_redraw_pending: false,
-        origin: None,
-        recovery_shutdown: None,
-    };
-    assert_eq!(
-        workbench_client.apply_client_action((ClientAction::ReloadConfiguration).into()),
-        Some(ClientActionDisposition::KeepNavigator)
-    );
-    assert_eq!(
-        workbench_client.view().notice(),
-        Some(WorkbenchClientNotice::Unsupported(
-            Capability::ConfigurationFile
-        ))
-    );
-    assert!(matches!(mailbox.try_recv(), Ok(None)));
-    drop(workbench_client);
-    server.finish()?;
-    Ok(())
-}
-
 fn render_prefix_client(
     workbench_client: &WorkbenchClient,
     view: &ClientView,

@@ -192,10 +192,6 @@ fn menu_and_binding_presenters_share_common_action_identity() {
             PrefixAction::Client(ClientAction::RequestCloseTab),
         ),
         (
-            MenuAction::Reload,
-            PrefixAction::Client(ClientAction::ReloadConfiguration),
-        ),
-        (
             MenuAction::Machines,
             PrefixAction::Client(ClientAction::OpenMachines),
         ),

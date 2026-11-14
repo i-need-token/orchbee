@@ -129,8 +129,11 @@ fn key_configuration_is_bounded_and_preserves_complete_modifiers() {
 }
 
 #[test]
-fn key_profile_roundtrip_preserves_expanded_ranges_and_reload_action() {
-    let settings = read("prefix='ctrl+a'\nreload_config='prefix+R'\nswitch_tab=['alt+1..9','prefix+1..9']\nzoom='' ").unwrap();
+fn key_profile_roundtrip_preserves_expanded_ranges_and_a_configured_action() {
+    let settings = read(
+        "prefix='ctrl+a'\nsettings='prefix+R'\nswitch_tab=['alt+1..9','prefix+1..9']\nzoom='' ",
+    )
+    .unwrap();
     assert_eq!(
         KeySettings::from_profile(&settings.profile()).unwrap(),
         settings

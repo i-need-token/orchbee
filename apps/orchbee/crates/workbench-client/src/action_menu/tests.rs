@@ -270,7 +270,7 @@ fn wheel_moves_only_the_viewport_and_keyboard_navigation_reveals_selection() {
         vec![
             MenuAction::Help,
             MenuAction::Detach,
-            MenuAction::Reload,
+            MenuAction::Copy,
             MenuAction::Settings,
             MenuAction::Machines,
             MenuAction::Sidebar,
@@ -333,7 +333,7 @@ fn wheel_reaches_a_tail_window_using_terminal_rows_and_result_indices() {
         vec![
             MenuAction::Help,
             MenuAction::Detach,
-            MenuAction::Reload,
+            MenuAction::Machines,
             MenuAction::DuplicateTab,
             MenuAction::PinTab,
             MenuAction::Settings,

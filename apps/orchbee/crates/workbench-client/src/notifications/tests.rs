@@ -166,8 +166,8 @@ fn ordinary_status_notice_keeps_admission_open_while_blocking_surfaces_still_ref
     let mut view = ClientView::new(120);
     assert!(available(&view, Some(native())));
 
-    view.configuration_notice(Notice::ConfigurationPublished);
-    assert_eq!(view.notice(), Some(Notice::ConfigurationPublished));
+    view.configuration_notice(Notice::ConfigurationWarning);
+    assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
     assert!(
         available(&view, Some(native())),
         "an ordinary status notice must not hold the listener busy"

@@ -13,7 +13,6 @@ pub enum PanelDirection {
 /// Semantic operation category carried by Client refusal notices.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BackendAction {
-    ReloadConfiguration,
     CreateWorkspace,
     QuickCreateWorkspace,
     CreateWorktree,
@@ -57,12 +56,10 @@ pub enum Notice {
     ResizeLimit,
     CheckpointRecovered,
     CheckpointEmpty,
-    ConfigurationPublished,
     ConfigurationWarning,
     /// The settings file does not parse or cannot be read; the last valid settings stay.
     SettingsFileUnusable,
     ConfigurationFailed,
-    ConfigurationUnknown,
     WindowTitleUnavailable,
     WindowTitleUnsupported,
     NotificationUnavailable,

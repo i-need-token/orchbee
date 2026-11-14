@@ -71,10 +71,7 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
         let notice =
             locale.native_notice(crate::localization::WorkbenchClientNotice::MenuUnavailable);
         for status in [notice.clone(), format!("{notice} · recovery")] {
-            for shell_notice in [
-                None,
-                Some(crate::client_view::Notice::ConfigurationPublished),
-            ] {
+            for shell_notice in [None, Some(crate::client_view::Notice::ConfigurationFailed)] {
                 let mut terminal = infallible(Terminal::new(TestBackend::new(120, 1)));
                 let mut view = ClientView::new(120);
                 if let Some(shell_notice) = shell_notice {

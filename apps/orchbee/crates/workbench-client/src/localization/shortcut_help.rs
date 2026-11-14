@@ -18,7 +18,6 @@ pub(crate) enum ShortcutHelpGroup {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ShortcutLabel {
     Settings,
-    ReloadSettings,
     ActionMenu,
     ResizePanel,
     CopyText,
@@ -209,11 +208,6 @@ impl Locale {
             ShortcutLabel::Settings => match self {
                 Self::EnUs => "Settings",
                 Self::ZhCn => "设置",
-            }
-            .to_owned(),
-            ShortcutLabel::ReloadSettings => match self {
-                Self::EnUs => "Reload settings",
-                Self::ZhCn => "重新加载设置",
             }
             .to_owned(),
             ShortcutLabel::ActionMenu => match self {

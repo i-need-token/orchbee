@@ -1174,13 +1174,6 @@ impl TerminalInputPort for WorkbenchClient {
             }
             return Some(ClientActionDisposition::KeepNavigator);
         }
-        if action == ClientAction::ReloadConfiguration {
-            return self
-                .configuration
-                .as_ref()
-                .filter(|watcher| watcher.reload())
-                .map(|_| ClientActionDisposition::KeepNavigator);
-        }
         if let Some(control) = &mut self.client_control {
             control.interrupt();
         }

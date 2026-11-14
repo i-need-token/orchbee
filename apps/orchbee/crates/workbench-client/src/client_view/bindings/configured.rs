@@ -493,7 +493,6 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
             },
             D::ResizeDown,
         ),
-        "reload_config" => (A::ReloadConfiguration, D::ReloadConfiguration),
         "help" => return (PrefixAction::ShowHelp, D::ShowHelp, ShellCommand::None),
         "settings" => (A::OpenSettings, D::Settings),
         "workspace_picker" => {

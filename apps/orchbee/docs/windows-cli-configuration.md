@@ -195,7 +195,7 @@ Supported action fields are `help`, `settings`, `menu`, `new_worktree`, `open_wo
 `earlier_layouts`, `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `open_notification_target`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `copy_mode`, `find`, `resize_mode`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
-`close_panel`, `rename_panel`, `last_panel`, `clear_terminal`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;
+`close_panel`, `rename_panel`, `last_panel`, `clear_terminal`, `zoom` and `toggle_sidebar`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 Agent previous/next defaults to prefix `{`/`}` and walks every Agent of the stable
 [machine Agent list](machines.md#agent-metadata-view-controls-and-navigation) that the active source
@@ -274,8 +274,8 @@ editor/confirmation ownership and user drafts remain intact. A warning snapshot 
 settings and shows a localized summary directing the user to `orchbee config check`; a later clean
 snapshot clears that warning. Configuration health is retained independently from transient notices:
 a checkpoint-recovery notice wins the first startup display, then the warning returns after that notice
-is dismissed; the warning does not suppress Agent notification cards. Reload failure keeps current settings and warning record and produces a
-localized failure notice. The reload action itself is configurable through `reload_config`. The native default is prefix F5; prefix Shift+R is the existing native Project rename default. A profile such as `reload_config = "prefix+shift+r"` explicitly replaces that conflicting default.
+is dismissed; the warning does not suppress Agent notification cards. A snapshot the Client cannot admit keeps current settings and warning record and produces a
+localized failure notice. The TUI has no reload action: the Server's sampler publishes file edits, and `config reload` confirms one immediately.
 
 CLI creation applies the directory and worktree defaults published when it runs. Other configuration families and Client-specific profile policy remain unfinished. The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of 16 indexed alternatives. A cancellable state subscription uses the shared Client carrier and publishes the latest committed configuration. Reload remains a one-shot request with a two-second exchange limit; an uncertain reload is not replayed, and a fresh subscription recovers the current state. A successful reload is published state, not an acknowledgement that every Client has applied it.
 

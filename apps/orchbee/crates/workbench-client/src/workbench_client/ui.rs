@@ -3433,8 +3433,7 @@ impl WorkbenchClientUi {
             ClientAction::ToggleAgentBoard => self.toggle_agent_board(),
             ClientAction::StartAgent => self.open_agent_picker(),
             ClientAction::FocusBusinessSidebar => ClientActionDisposition::KeepNavigator,
-            ClientAction::ReloadConfiguration
-            | ClientAction::ToggleBusinessSidebar
+            ClientAction::ToggleBusinessSidebar
             | ClientAction::OpenShortcutHelp
             | ClientAction::CloseShortcutHelp
             | ClientAction::PageShortcutHelp
