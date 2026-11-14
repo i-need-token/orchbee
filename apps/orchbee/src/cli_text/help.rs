@@ -389,14 +389,6 @@ impl super::CliText {
                 "Move a workspace into a project group.",
                 "将工作区归入指定项目。",
             ),
-            HelpTopic::Command(CommandPath::WorkspaceCreateProject) => (
-                "Create a project and group this workspace in it.",
-                "创建项目并将当前工作区归入其中。",
-            ),
-            HelpTopic::Command(CommandPath::WorkspaceUngroup) => (
-                "Keep a workspace outside project groups.",
-                "将工作区移出项目分组。",
-            ),
             HelpTopic::Command(CommandPath::ProjectCreate) => {
                 ("Create a project group.", "创建项目分组。")
             }
@@ -440,9 +432,6 @@ impl super::CliText {
                 "Change a workspace's navigation order.",
                 "调整工作区的导航顺序。",
             ),
-            HelpTopic::Command(CommandPath::WorkspaceMoveBlock) => {
-                ("Move several workspaces together.", "一起移动多个工作区。")
-            }
             HelpTopic::Command(CommandPath::WorkspaceAcceptDirectory) => (
                 "Accept a workspace's working directory.",
                 "确认工作区的工作目录。",

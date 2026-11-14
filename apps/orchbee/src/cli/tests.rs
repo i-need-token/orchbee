@@ -1013,8 +1013,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ProjectDissolve,
         CommandPath::ProjectCloseAll,
         CommandPath::WorkspaceSetProject,
-        CommandPath::WorkspaceCreateProject,
-        CommandPath::WorkspaceUngroup,
         CommandPath::ProjectGet,
         CommandPath::ProjectList,
         CommandPath::ProjectRename,
@@ -1071,7 +1069,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::PanelClearAgentAuthority,
         CommandPath::PanelReleaseAgent,
         CommandPath::WorkspaceMove,
-        CommandPath::WorkspaceMoveBlock,
         CommandPath::WorktreeList,
         CommandPath::WorktreeCreate,
         CommandPath::WorktreeOpen,
@@ -1129,8 +1126,6 @@ fn fixed_outputs_are_far_below_the_bound() {
     ];
     let verbs = [
         "set-project",
-        "create-project",
-        "ungroup",
         "dissolve",
         "close-all",
         "invoke",
@@ -1157,7 +1152,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         "update-agent-manifests",
         "apply",
         "export",
-        "move-block",
         "server",
         "client",
         "input",

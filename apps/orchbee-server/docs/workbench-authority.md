@@ -133,9 +133,9 @@ Workspace/Project membership, Directory references, terminal bindings, worktree 
 Client-local selected IDs unchanged. New Workspace creation appends to an explicit order; Close
 removes the committed closed ID. Checkpoint capture/restore retains and validates ordering.
 
-Moves use original insertion boundaries, caller-ordered noncontiguous blocks, atomic validation and preserved logical selection. Native public operations
-are `workspace move <target> --insert-index N` and `workspace move-block <targets...> [--before target]`.
-Their Windows CLI and TUI consumers use this shared order, including filtered-list subsequences.
+Moves use original insertion boundaries, caller-ordered noncontiguous blocks, atomic validation and preserved logical selection. The Windows CLI exposes
+`workspace move <target> --insert-index N`; block moves come from GUI and TUI Clients. All of them
+use this shared order, including filtered-list subsequences.
 Generic moved/reordered event delivery belongs to the separate event-stream owner and remains an
 explicit integration obligation; an ordering receipt is not event-delivery evidence.
 

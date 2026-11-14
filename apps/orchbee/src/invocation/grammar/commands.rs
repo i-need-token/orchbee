@@ -95,8 +95,6 @@ commands! {
     ProjectDissolve => ["project", "dissolve"], 1, Operand, Portable, true, true, false;
     ProjectCloseAll => ["project", "close-all"], 1, Operand, Portable, true, true, false;
     WorkspaceSetProject => ["workspace", "set-project"], 1, Operand, Portable, true, true, false;
-    WorkspaceCreateProject => ["workspace", "create-project"], 1, Operand, Portable, true, true, false;
-    WorkspaceUngroup => ["workspace", "ungroup"], 1, Operand, Portable, true, true, false;
     ProjectCreate => ["project", "create"], 0, Operand, Portable, true, true, false;
     ProjectRename => ["project", "rename"], 1, Operand, Portable, true, true, false;
     WorkspaceList => ["workspace", "list"], 0, Operand, Portable, true, true, false;
@@ -109,7 +107,6 @@ commands! {
     PanelReleaseAgent => ["panel", "release-agent"], 1, Panel, Portable, true, true, false;
     WorkspaceReportMetadata => ["workspace", "report-metadata"], 1, Operand, Portable, true, true, false;
     WorkspaceMove => ["workspace", "move"], 1, Operand, Portable, true, true, false;
-    WorkspaceMoveBlock => ["workspace", "move-block"], orchbee_workbench_protocol::MAXIMUM_WORKSPACE_ORDER_LENGTH, Operand, Portable, true, true, false;
     WorkspaceAcceptDirectory => ["workspace", "accept-directory"], 1, Operand, Portable, true, true, false;
     WorkspaceClose => ["workspace", "close"], 1, Operand, Portable, true, true, false;
     TabList => ["tab", "list"], 0, Operand, Portable, true, true, false;

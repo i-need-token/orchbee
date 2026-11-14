@@ -591,11 +591,7 @@ mod workflow {
         });
         match result {
             Err(failure) => {
-                let failure = if matches!(
-                    command,
-                    MutationCommand::WorkspaceMove { .. }
-                        | MutationCommand::WorkspaceMoveBlock { .. }
-                ) {
+                let failure = if matches!(command, MutationCommand::WorkspaceMove { .. }) {
                     failure.failure_schema(super::super::schema::WORKSPACE_MOVE_FAILURE_ID)
                 } else if matches!(command, MutationCommand::TabMoveIndex { .. })
                     || (matches!(command, MutationCommand::TabMove { .. })
@@ -666,9 +662,7 @@ mod workflow {
     fn execute(command: &MutationCommand) -> Result<Receipt, Failure> {
         if matches!(
             command,
-            MutationCommand::TabMoveIndex { .. }
-                | MutationCommand::WorkspaceMove { .. }
-                | MutationCommand::WorkspaceMoveBlock { .. }
+            MutationCommand::TabMoveIndex { .. } | MutationCommand::WorkspaceMove { .. }
         ) {
             crate::cli::execution::admit(
                 crate::cli::execution::Capability::ExtendedWorkbenchMutation,
@@ -1000,14 +994,6 @@ mod workflow {
                         .transpose()?,
                 })
             }
-            MutationCommand::WorkspaceCreateProject { target, label } => {
-                Ok(WorkbenchAction::WorkspaceCreateProject {
-                    workspace_id: results::resolve_workspace(snapshot, target)?
-                        .workspace_id
-                        .clone(),
-                    label: label.clone(),
-                })
-            }
             MutationCommand::ProjectRename { target, label } => {
                 let project = resolve_project(snapshot, target)?;
                 Ok(WorkbenchAction::ProjectRename {
@@ -1048,34 +1034,6 @@ mod workflow {
                 Ok(WorkbenchAction::WorkspaceMove {
                     workspace_id: workspace.workspace_id.clone(),
                     insert_index: *insert_index,
-                })
-            }
-            MutationCommand::WorkspaceMoveBlock { targets, before } => {
-                let ids = targets
-                    .iter()
-                    .map(|target| {
-                        resolve_workspace(snapshot, target)
-                            .map(|(_, workspace)| workspace.workspace_id.clone())
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let before_workspace_id = before
-                    .as_ref()
-                    .map(|target| {
-                        resolve_workspace(snapshot, target)
-                            .map(|(_, workspace)| workspace.workspace_id.clone())
-                    })
-                    .transpose()?;
-                let workspace_ids = orchbee_workbench_protocol::WorkbenchWorkspaceList::new(ids)
-                    .map_err(|_| {
-                        Failure::new(FailureKind::Rejected).details(Map::from_iter([
-                            ("stage".to_owned(), json!("command")),
-                            ("reason".to_owned(), json!("duplicate-workspace")),
-                            ("revision".to_owned(), json!(snapshot.revision)),
-                        ]))
-                    })?;
-                Ok(WorkbenchAction::WorkspaceMoveBlock {
-                    workspace_ids,
-                    before_workspace_id,
                 })
             }
             MutationCommand::WorkspaceRename { target, label } => {
@@ -1608,7 +1566,6 @@ mod workflow {
                         let unchanged = workspace_order.is_none();
                         let action = match &resolved.action {
                             WorkbenchAction::WorkspaceMove { .. } => "workspace.move",
-                            WorkbenchAction::WorkspaceMoveBlock { .. } => "workspace.move-block",
                             // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
                             _ => return Err(internal()),
                         };
@@ -1627,15 +1584,6 @@ mod workflow {
                             } => {
                                 result = result.id("workspaceId", workspace_id.as_str());
                                 result.workspace_insert_index = Some(*insert_index);
-                            }
-                            WorkbenchAction::WorkspaceMoveBlock {
-                                workspace_ids,
-                                before_workspace_id,
-                            } => {
-                                result.workspace_sources = Some(workspace_ids.clone());
-                                if let Some(before) = before_workspace_id {
-                                    result = result.id("beforeWorkspaceId", before.as_str());
-                                }
                             }
                             // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
                             _ => return Err(internal()),

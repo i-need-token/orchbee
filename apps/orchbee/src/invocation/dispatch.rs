@@ -3,18 +3,18 @@
 
 use super::{
     AgentIntegrationCommand, AgentNamesCommand, AgentPromptWait, AgentStartCommand,
-    AgentStartPlace, CommandPath, CompletionShell, ExpectedValue, FailureEnvelope,
-    MAXIMUM_SEND_RECORDS, ManifestCommand, MutationCommand, Options, OutputFormat, OutputTarget,
-    PanelQueryTarget, ParseFailure, QueryCommand, Request, Resource, RuntimeStatusScope, Target,
-    TerminalListFilter, UsageContext, UsageReason, adapter_source_option,
-    agent_after_revision_option, agent_limit_option, agent_name, agent_selector,
-    agent_until_option, agent_view_spec, agent_wait_timeout_option, business_options, check_scope,
-    client_control, close_wait, configured_commands, confirm_option_required, creation,
-    diagnostics, doctor_asset_roots_option, doctor_providers_option, events, grammar, label_option,
-    layouts, machines, manifest_operation_id, missing_command, missing_required, mutation,
-    named_sessions, operation, pane_graphics, panel_agent, panel_input, panel_metadata,
-    panel_move_destination, panel_relocation, panel_terminal_creation, parse_send_key, path_option,
-    plugins, profile_name_option, profile_selector, provider_option, query, reject_extras,
+    AgentStartPlace, CompletionShell, ExpectedValue, FailureEnvelope, MAXIMUM_SEND_RECORDS,
+    ManifestCommand, MutationCommand, Options, OutputFormat, OutputTarget, PanelQueryTarget,
+    ParseFailure, QueryCommand, Request, Resource, RuntimeStatusScope, Target, TerminalListFilter,
+    UsageContext, UsageReason, adapter_source_option, agent_after_revision_option,
+    agent_limit_option, agent_name, agent_selector, agent_until_option, agent_view_spec,
+    agent_wait_timeout_option, business_options, check_scope, client_control, close_wait,
+    configured_commands, confirm_option_required, creation, diagnostics, doctor_asset_roots_option,
+    doctor_providers_option, events, grammar, label_option, layouts, machines,
+    manifest_operation_id, missing_command, missing_required, mutation, named_sessions, operation,
+    pane_graphics, panel_agent, panel_input, panel_metadata, panel_move_destination,
+    panel_relocation, panel_terminal_creation, parse_send_key, path_option, plugins,
+    profile_name_option, profile_selector, provider_option, query, reject_extras,
     reject_extras_scope, reject_filters, required, required_launch_option, required_provider,
     resolve_help_path, schema_export, send_input, stop_command, tab_move_command, target,
     terminal_output, terminal_run, terminal_stream, terminal_target, unexpected_argument,
@@ -555,27 +555,6 @@ pub(super) fn resolve_words(
                 options,
             ))
         }
-        ["workspace", "create-project", value] => {
-            let context = UsageContext::Path("workspace create-project");
-            check_scope(options, context, envelope)?;
-            Ok(mutation(
-                MutationCommand::WorkspaceCreateProject {
-                    target: target((*value).to_owned(), Resource::Workspace, envelope)?,
-                    label: label_option(options, context, envelope)?,
-                },
-                options,
-            ))
-        }
-        ["workspace", "ungroup", value] => {
-            check_scope(options, UsageContext::Path("workspace ungroup"), envelope)?;
-            Ok(mutation(
-                MutationCommand::WorkspaceSetProject {
-                    target: target((*value).to_owned(), Resource::Workspace, envelope)?,
-                    project: None,
-                },
-                options,
-            ))
-        }
         ["project", "create"] => {
             check_scope(options, UsageContext::Path("project create"), envelope)?;
             Ok(mutation(
@@ -652,37 +631,6 @@ pub(super) fn resolve_words(
                     target: target((*value).to_owned(), Resource::Workspace, envelope)?,
                     insert_index,
                 },
-                options,
-            ))
-        }
-        ["workspace", "move-block", values @ ..] => {
-            let context = UsageContext::Path("workspace move-block");
-            check_scope(options, context, envelope)?;
-            if values.is_empty()
-                || values.len()
-                    > grammar::specification(CommandPath::WorkspaceMoveBlock).maximum_operands
-            {
-                return Err(usage_with(
-                    UsageReason::InvalidValue {
-                        context,
-                        option: "targets",
-                        value: values.len().to_string(),
-                        expected: ExpectedValue::WorkspaceBlockSize,
-                    },
-                    envelope,
-                ));
-            }
-            let targets = values
-                .iter()
-                .map(|value| target((*value).to_owned(), Resource::Workspace, envelope))
-                .collect::<Result<Vec<_>, _>>()?;
-            let before = options
-                .before
-                .as_ref()
-                .map(|value| target(value.clone(), Resource::Workspace, envelope))
-                .transpose()?;
-            Ok(mutation(
-                MutationCommand::WorkspaceMoveBlock { targets, before },
                 options,
             ))
         }
@@ -1524,30 +1472,13 @@ pub(super) fn resolve_words(
             extra,
             envelope,
         )),
-        [
-            "workspace",
-            verb @ ("set-project" | "create-project" | "ungroup"),
-        ] => Err(missing_required(
-            UsageContext::Path(match *verb {
-                "set-project" => "workspace set-project",
-                "create-project" => "workspace create-project",
-                _ => "workspace ungroup",
-            }),
+        ["workspace", "set-project"] => Err(missing_required(
+            UsageContext::Path("workspace set-project"),
             "<workspace>",
             envelope,
         )),
-        [
-            "workspace",
-            verb @ ("set-project" | "create-project" | "ungroup"),
-            _,
-            extra,
-            ..,
-        ] => Err(unexpected_argument(
-            UsageContext::Path(match *verb {
-                "set-project" => "workspace set-project",
-                "create-project" => "workspace create-project",
-                _ => "workspace ungroup",
-            }),
+        ["workspace", "set-project", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace set-project"),
             extra,
             envelope,
         )),

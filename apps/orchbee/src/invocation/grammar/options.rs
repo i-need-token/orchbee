@@ -1211,7 +1211,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::MachineRename,
             CommandPath::LayoutApply,
             CommandPath::ProjectCreate,
-            CommandPath::WorkspaceCreateProject,
             CommandPath::ProjectRename,
             CommandPath::WorkspaceCreate,
             CommandPath::WorkspaceRename,
@@ -1315,22 +1314,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         help: None,
         apply: |options, value, _| {
             options.insert_index = Some(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
-        spelling: "--before",
-        values: &[],
-        closed_values: false,
-        string_rule: None,
-        commands: &[CommandPath::WorkspaceMoveBlock],
-        role: OptionRole::Business,
-        value: Some("filter"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.before = Some(value);
             Ok(())
         },
     },

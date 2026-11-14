@@ -477,10 +477,6 @@ pub(crate) enum MutationCommand {
         target: Target,
         project: Option<Target>,
     },
-    WorkspaceCreateProject {
-        target: Target,
-        label: WorkbenchLabel,
-    },
     ProjectRename {
         target: Target,
         label: WorkbenchLabel,
@@ -502,10 +498,6 @@ pub(crate) enum MutationCommand {
     WorkspaceMove {
         target: Target,
         insert_index: orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex,
-    },
-    WorkspaceMoveBlock {
-        targets: Vec<Target>,
-        before: Option<Target>,
     },
     WorkspaceAcceptDirectory {
         target: Target,
@@ -1047,7 +1039,6 @@ struct Options {
     order: Option<String>,
     terminal: Option<String>,
     insert_index: Option<String>,
-    before: Option<String>,
     amount: Option<String>,
     ratio: Option<String>,
     right_click: Option<String>,

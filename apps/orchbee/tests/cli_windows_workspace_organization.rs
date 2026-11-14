@@ -75,31 +75,13 @@ fn organization_actions_preserve_exact_scope_and_never_submit_terminal_or_filesy
             true,
         ),
         (
-            vec!["workspace", "ungroup", "work", "--format=json"],
-            json!({"kind":"workspace.set-project","workspaceId":id(4),"projectId":null}),
-            json!({"kind":"workspace-project-changed","revision":"8","workspaceId":id(4),"projectId":null}),
-            false,
-        ),
-        (
-            vec![
-                "workspace",
-                "create-project",
-                "work",
-                "--label=two repos",
-                "--format=json",
-            ],
-            json!({"kind":"workspace.create-project","workspaceId":id(4),"label":"two repos"}),
-            json!({"kind":"workspace-project-changed","revision":"8","workspaceId":id(4),"projectId":id(8)}),
-            false,
-        ),
-        (
             vec!["project", "dissolve", "multi-repo", "--format=json"],
             json!({"kind":"project.dissolve","projectId":id(3)}),
             json!({"kind":"project-dissolved","revision":"8","projectId":id(3)}),
             false,
         ),
     ] {
-        let grouped = unchanged || words[1] == "ungroup" || words[0] == "project";
+        let grouped = unchanged || words[0] == "project";
         let (status, doc) = run(&words, move |mut stream| {
             snapshot(&mut stream, grouped);
             let WorkbenchRequest::Command(command) = read_workbench_request(&mut stream).unwrap()
@@ -140,7 +122,13 @@ fn unknown_organization_mutation_retains_the_original_request_and_is_not_replaye
     let captured = Arc::new(Mutex::new(None));
     let peer_request = Arc::clone(&captured);
     let (status, doc) = run(
-        &["workspace", "ungroup", "work", "--format=json"],
+        &[
+            "workspace",
+            "set-project",
+            "work",
+            "--project=multi-repo",
+            "--format=json",
+        ],
         move |mut stream| {
             snapshot(&mut stream, true);
             let WorkbenchRequest::Command(command) = read_workbench_request(&mut stream).unwrap()
@@ -150,7 +138,7 @@ fn unknown_organization_mutation_retains_the_original_request_and_is_not_replaye
             assert!(matches!(
                 command.action,
                 WorkbenchAction::WorkspaceSetProject {
-                    project_id: None,
+                    project_id: Some(_),
                     ..
                 }
             ));

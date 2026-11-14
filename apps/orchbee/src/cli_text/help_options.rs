@@ -283,11 +283,6 @@ impl super::CliText {
                     "Git starting reference; default: HEAD.",
                     "Git 起始引用；默认 HEAD。",
                 ),
-                "--before" => (
-                    "<target>",
-                    "Insert before the selected item.",
-                    "插入到指定项之前。",
-                ),
                 "--body" => ("<text>", "Notification body text.", "通知正文。"),
                 "--branch" => ("<name>", "Git branch name.", "Git 分支名称。"),
                 "--cell-height" => (

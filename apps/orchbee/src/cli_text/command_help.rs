@@ -165,10 +165,6 @@ impl super::CliText {
             (_, CommandPath::WorkspaceSetProject) => {
                 super::organization::Help::WorkspaceSetProject.text(self.locale)
             }
-            (_, CommandPath::WorkspaceCreateProject) => {
-                super::organization::Help::WorkspaceCreateProject.text(self.locale)
-            }
-            (_, CommandPath::WorkspaceUngroup) => super::organization::Help::WorkspaceUngroup.text(self.locale),
             (Locale::EnUs, CommandPath::ProjectCreate) => super::project::HELP_PROJECT_CREATE_EN,
             (Locale::ZhCn, CommandPath::ProjectCreate) => super::project::HELP_PROJECT_CREATE_ZH,
             (Locale::EnUs, CommandPath::ProjectRename) => super::project::HELP_PROJECT_RENAME_EN,
@@ -195,8 +191,6 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::PanelReportMetadata) => super::panel_metadata::HELP_ZH,
             (Locale::EnUs, CommandPath::WorkspaceReportMetadata) => super::workspace_metadata::HELP_EN,
             (Locale::ZhCn, CommandPath::WorkspaceReportMetadata) => super::workspace_metadata::HELP_ZH,
-            (Locale::EnUs, CommandPath::WorkspaceMoveBlock) => super::workspace::HELP_WORKSPACE_MOVE_BLOCK_EN,
-            (Locale::ZhCn, CommandPath::WorkspaceMoveBlock) => super::workspace::HELP_WORKSPACE_MOVE_BLOCK_ZH,
             (Locale::EnUs, CommandPath::WorkspaceRename) => super::workspace::HELP_WORKSPACE_RENAME_EN,
             (Locale::ZhCn, CommandPath::WorkspaceRename) => super::workspace::HELP_WORKSPACE_RENAME_ZH,
             (Locale::EnUs, CommandPath::WorkspaceAcceptDirectory) => {

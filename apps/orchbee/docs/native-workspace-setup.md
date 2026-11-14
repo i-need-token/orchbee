@@ -222,7 +222,7 @@ editable presentation, never selection or execution identity. Bare Windows
 
 ## Global Workspace ordering
 
-`workspace move` and `workspace move-block` change global display order without changing Project
+`workspace move` and the Clients' block moves change global display order without changing Project
 membership or terminal identity. The ordered IDs remain a complete permutation of canonical
 Workspaces. Insertion boundaries and caller-ordered blocks retain the existing CLI semantics;
 no-op preserves the revision. Grouping derives presentation from membership and does not redefine

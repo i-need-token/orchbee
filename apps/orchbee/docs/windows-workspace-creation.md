@@ -46,13 +46,12 @@ All Windows creation forms emit `orchbee.workspace.creation` v1. `workspace.resu
 Existing Workspaces can be organized without PTY, cwd, Git or filesystem effects:
 
 ```powershell
+orchbee project create --label <label>
 orchbee workspace set-project <workspace> --project <project>
-orchbee workspace create-project <workspace> --label <label>
-orchbee workspace ungroup <workspace>
 orchbee project dissolve <project>
 ```
 
-Create-project atomically creates a Project and moves the selected Workspace. Dissolve removes only the grouping and retains all Workspaces. IDs, terminal bindings, primary Directories and global order remain stable. `workspace move` and `workspace move-block` separately reorder navigation.
+Dissolve removes only the grouping and retains all Workspaces. IDs, terminal bindings, primary Directories and global order remain stable. `workspace move` separately reorders navigation.
 
 `workspace close <workspace> --confirm` closes only that Workspace, preserving checkout and branch. Explicit `project close-all <project> --confirm` closes captured members while retaining the Project; see [Project closure](windows-worktrees.md#project-close-all).
 

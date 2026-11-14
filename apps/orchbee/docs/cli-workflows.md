@@ -6,9 +6,8 @@
 orchbee server start
 orchbee workspace create
 orchbee workspace create --cwd C:/code/demo --label main --format json
-orchbee workspace create-project main --label demo
+orchbee project create --label demo
 orchbee workspace set-project <workspace> --project demo
-orchbee workspace ungroup <workspace>
 orchbee project dissolve demo
 ```
 

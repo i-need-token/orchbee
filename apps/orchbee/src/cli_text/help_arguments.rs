@@ -6,7 +6,6 @@ use crate::invocation::CommandPath;
 enum Argument {
     Project,
     Workspace,
-    Workspaces,
     Tab,
     Panel,
     Terminal,
@@ -119,8 +118,6 @@ impl super::CliText {
             CommandPath::ProjectDissolve => &[Argument::Project],
             CommandPath::ProjectCloseAll => &[Argument::Project],
             CommandPath::WorkspaceSetProject => &[Argument::Workspace],
-            CommandPath::WorkspaceCreateProject => &[Argument::Workspace],
-            CommandPath::WorkspaceUngroup => &[Argument::Workspace],
             CommandPath::ProjectCreate => &[],
             CommandPath::ProjectRename => &[Argument::Project],
             CommandPath::WorkspaceList => &[],
@@ -133,7 +130,6 @@ impl super::CliText {
             CommandPath::PanelReleaseAgent => &[Argument::Panel],
             CommandPath::WorkspaceReportMetadata => &[Argument::Workspace],
             CommandPath::WorkspaceMove => &[Argument::Workspace],
-            CommandPath::WorkspaceMoveBlock => &[Argument::Workspaces],
             CommandPath::WorkspaceAcceptDirectory => &[Argument::Workspace],
             CommandPath::WorkspaceClose => &[Argument::Workspace],
             CommandPath::TabList => &[],
@@ -215,7 +211,6 @@ impl super::CliText {
             let (label, english, chinese) = match *role {
                 Argument::Project => ("<target>", "Project ID, @project:0x<hex>, or exact label; ID/selector syntax takes priority. Use the real ID for labels with that syntax.", "项目 ID、@project:0x<hex> 或精确名称；优先解析 ID 和选择器。名称形似 ID 或选择器时，请使用实际 ID。"),
                 Argument::Workspace => ("<target>", "Workspace ID, @workspace:0x<hex>, or exact label; ID/selector syntax takes priority. Use the real ID for labels with that syntax.", "工作区 ID、@workspace:0x<hex> 或精确名称；优先解析 ID 和选择器。名称形似 ID 或选择器时，请使用实际 ID。"),
-                Argument::Workspaces => ("<target> ...", "One or more workspaces in the desired order; use IDs, @workspace:0x<hex>, or exact labels.", "按期望顺序列出一个或多个工作区；使用 ID、@workspace:0x<hex> 或精确名称。"),
                 Argument::Tab => ("<target>", "Tab ID, @tab:0x<hex>, or exact label; ID/selector syntax takes priority. Use the real ID for labels with that syntax.", "标签页 ID、@tab:0x<hex> 或精确名称；优先解析 ID 和选择器。名称形似 ID 或选择器时，请使用实际 ID。"),
                 Argument::Panel => ("<panel>", "Panel ID or @panel:0x<hex>; list panels with orchbee panel list.", "面板 ID 或 @panel:0x<hex>；使用 orchbee panel list 列出面板。"),
                 Argument::TerminalOrPanel => ("<target>", "Terminal or Panel ID; typed @terminal:0x<hex> and @panel:0x<hex> remove ambiguity. A Panel selects its primary Terminal.", "终端或面板 ID；使用 @terminal:0x<hex> 与 @panel:0x<hex> 消除歧义。面板选择其主终端。"),

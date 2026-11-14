@@ -210,8 +210,6 @@ impl super::CliText {
                 "an integer insertion boundary from 0 to 1023"
             }
             (Locale::ZhCn, ExpectedValue::WorkspaceInsertIndex) => "0 到 1023 的整数插入边界",
-            (Locale::EnUs, ExpectedValue::WorkspaceBlockSize) => "1 to 1023 Workspace targets",
-            (Locale::ZhCn, ExpectedValue::WorkspaceBlockSize) => "1 到 1023 个工作区目标",
             (Locale::EnUs, ExpectedValue::TabInsertIndex) => {
                 "an integer from 0 to 256 (boundary in the original Tab order)"
             }

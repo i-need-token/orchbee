@@ -5,8 +5,6 @@ pub(super) enum Help {
     ProjectDissolve,
     ProjectCloseAll,
     WorkspaceSetProject,
-    WorkspaceCreateProject,
-    WorkspaceUngroup,
 }
 
 impl super::CliText {
@@ -32,15 +30,7 @@ impl Help {
                 ),
                 Self::WorkspaceSetProject => crate::cli_text::HelpDetails::new(
                     "orchbee workspace set-project <target> --project <target> [--format text|json]",
-                    "Move one globally resolved Workspace into an existing Project with one metadata command.\nTargets are exact IDs, @workspace:0x<hex>/@project:0x<hex> selectors, or exact labels.\nAll scope IDs, terminals, cwd and filesystem data remain unchanged.\nUse workspace move or move-block for navigation reordering.",
-                ),
-                Self::WorkspaceCreateProject => crate::cli_text::HelpDetails::new(
-                    "orchbee workspace create-project <target> --label <label> [--format text|json]",
-                    "Atomically create a Project and move one globally resolved Workspace into it.\nThis is one metadata command, with no terminal, cwd, Git or filesystem effect.",
-                ),
-                Self::WorkspaceUngroup => crate::cli_text::HelpDetails::new(
-                    "orchbee workspace ungroup <target> [--format text|json]",
-                    "Remove one Workspace's optional Project membership with one metadata command.\nThe Workspace and all its scope IDs, terminals, cwd and checkout remain.",
+                    "Move one globally resolved Workspace into an existing Project with one metadata command.\nTargets are exact IDs, @workspace:0x<hex>/@project:0x<hex> selectors, or exact labels.\nAll scope IDs, terminals, cwd and filesystem data remain unchanged.\nUse workspace move for navigation reordering.",
                 ),
             },
             Locale::ZhCn => match self {
@@ -54,15 +44,7 @@ impl Help {
                 ),
                 Self::WorkspaceSetProject => crate::cli_text::HelpDetails::new(
                     "orchbee workspace set-project <target> --project <target> [--format text|json]",
-                    "通过一次元数据命令，将全局解析的工作区移入现有项目。目标接受精确 ID、@workspace:0x<hex>/@project:0x<hex> 选择器或精确名称。所有作用域 ID、终端、cwd 与文件系统数据保持不变。导航排序使用 workspace move 或 move-block。",
-                ),
-                Self::WorkspaceCreateProject => crate::cli_text::HelpDetails::new(
-                    "orchbee workspace create-project <target> --label <label> [--format text|json]",
-                    "原子创建一个项目，并将全局解析的工作区移入其中。仅一次元数据命令，不改变终端、cwd、Git 或文件系统。",
-                ),
-                Self::WorkspaceUngroup => crate::cli_text::HelpDetails::new(
-                    "orchbee workspace ungroup <target> [--format text|json]",
-                    "通过一次元数据命令移除工作区的可选项目归属。\nWorkspace 及其所有作用域 ID、终端、cwd 与 checkout 保留。",
+                    "通过一次元数据命令，将全局解析的工作区移入现有项目。目标接受精确 ID、@workspace:0x<hex>/@project:0x<hex> 选择器或精确名称。所有作用域 ID、终端、cwd 与文件系统数据保持不变。导航排序使用 workspace move。",
                 ),
             },
         }

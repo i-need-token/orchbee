@@ -91,7 +91,6 @@ pub(crate) enum ExpectedValue {
     TabInsertIndex,
     WorkspaceInsertIndex,
     LayoutSavedAt,
-    WorkspaceBlockSize,
     PanelDirection,
     LayoutDirection,
     FiniteNumber,

@@ -83,15 +83,3 @@ pub(super) const HELP_WORKSPACE_MOVE_ZH: crate::cli_text::HelpDetails =
         "orchbee workspace move <target> --insert-index <n> [--format text|json]",
         "在 Windows 上全局重排一个工作区，保留项目归属、运行中的终端及各客户端的选择。\n\n--insert-index 选择原顺序的插入边界，从 0 到当前工作区数量，最多 1023。选择来源边界或其下一边界时，顺序保持不变。\n\n变更前先解析目标；无效输入不产生变更，无变化时保留修订。使用 workspace list 查看顺序；结果未知时不自动重试。",
     );
-
-pub(super) const HELP_WORKSPACE_MOVE_BLOCK_EN: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee workspace move-block <target> ... [--before <workspace>] [--format text|json]",
-        "Move 1..1023 distinct workspaces together in caller-supplied order on Windows. Omit --before to append; otherwise select an existing workspace outside the block. Project membership, running terminals and client selections remain unchanged.\n\nAll targets resolve before one atomic change. Invalid input has no effect; a no-op keeps the revision. Use workspace list to inspect order. An unknown outcome is never retried automatically.",
-    );
-
-pub(super) const HELP_WORKSPACE_MOVE_BLOCK_ZH: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee workspace move-block <target> ... [--before <workspace>] [--format text|json]",
-        "在 Windows 上按调用者给出的顺序整体移动 1..1023 个不同工作区。省略 --before 时追加到末尾，否则须选择块外已有工作区。保留项目归属、运行中的终端和客户端选择。\n\n全部目标在一次原子变更前解析。无效输入不产生变更；无变化时保留修订。使用 workspace list 查看顺序；结果未知时不自动重试。",
-    );

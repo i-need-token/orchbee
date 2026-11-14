@@ -105,8 +105,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ProjectDissolve => &["app"],
         CommandPath::ProjectCloseAll => &["app", "--confirm"],
         CommandPath::WorkspaceSetProject => &["work", "--project", "app"],
-        CommandPath::WorkspaceCreateProject => &["work", "--label", "app"],
-        CommandPath::WorkspaceUngroup => &["work"],
         CommandPath::ProjectCreate => &["--label", "app"],
         CommandPath::ProjectRename => &["app", "--label", "product"],
         CommandPath::WorkspaceList => &[],
@@ -131,7 +129,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             &["work", "--source", "cli", "--token", "task=review"]
         }
         CommandPath::WorkspaceMove => &["work", "--insert-index", "0"],
-        CommandPath::WorkspaceMoveBlock => &["work", "review", "--before", "main"],
         CommandPath::WorkspaceAcceptDirectory => &["work", "--path", "C:/src/project"],
         CommandPath::WorkspaceClose => &["work", "--confirm"],
         CommandPath::TabList => &["--workspace", "work"],

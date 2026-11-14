@@ -7210,16 +7210,6 @@ fn workspace_move_grammar_covers_boundaries_blocks_and_scope() {
             ))
         );
     }
-    assert_eq!(
-        parse(&["--before=third", "workspace", "move-block", "second", ID]),
-        Ok(mutation(
-            MutationCommand::WorkspaceMoveBlock {
-                targets: vec![Target::Label("second".into()), Target::Id(ID.into())],
-                before: Some(Target::Label("third".into()))
-            },
-            OutputFormat::Text
-        ))
-    );
     for value in ["-1", "1025", "1.5", "+1", "1e1", ""] {
         assert!(
             parse(&["workspace", "move", ID, "--insert-index", value]).is_err(),
@@ -7235,18 +7225,9 @@ fn workspace_move_grammar_covers_boundaries_blocks_and_scope() {
             "--insert-index=1",
             "--before=other",
         ],
-        vec!["workspace", "move-block"],
-        vec!["workspace", "move-block", ID, "--insert-index=1"],
-        vec!["workspace", "move-block", ID, "--before=a", "--before=b"],
-        vec!["workspace", "list", "--before=a"],
     ] {
         assert!(parse(&args).is_err(), "{args:?}");
     }
-    let mut maximum = vec!["workspace", "move-block"];
-    maximum.extend(std::iter::repeat_n(ID, 1024));
-    assert!(parse(&maximum).is_ok());
-    maximum.push(ID);
-    assert!(parse(&maximum).is_err());
 }
 
 #[cfg(windows)]

@@ -128,7 +128,7 @@ receipts and never changes Client focus. See [Panel terminal creation](docs/wind
 
 Mutation commands against the
 running Session include `project create`/`rename`/`dissolve`/`close-all`,
-`workspace create`/`rename`/`set-project`/`create-project`/`ungroup`/`accept-directory`/`close`, `tab create`/`rename`/`move`/`close`,
+`workspace create`/`rename`/`set-project`/`accept-directory`/`close`, `tab create`/`rename`/`move`/`close`,
 `panel split`/`move`/`close`, and `launch-profile create`/`delete` —
 `workspace close <target> --confirm` closes every terminal in the Workspace's context under
 the same tab-close lifecycle, then removes that Workspace while preserving its checkout, branch,

@@ -146,10 +146,7 @@ fn organization_grammar_is_complete_before_effects_and_discoverable_in_both_loca
         assert!(output.stderr.is_empty());
         let text = String::from_utf8(output.stdout).unwrap();
         for (family, verbs) in [
-            (
-                "workspace",
-                &["set-project", "create-project", "ungroup", "move-block"][..],
-            ),
+            ("workspace", &["set-project"][..]),
             (
                 "project",
                 &["dissolve", "close-all", "status", "resume"][..],
@@ -173,15 +170,6 @@ fn organization_grammar_is_complete_before_effects_and_discoverable_in_both_loca
                 "--project=p",
                 "--cwd=C:/repo",
             ],
-            vec!["workspace", "create-project", "work"],
-            vec![
-                "workspace",
-                "create-project",
-                "work",
-                "--label=p",
-                "--project=p",
-            ],
-            vec!["workspace", "ungroup", "work", "--project=p"],
             vec!["project", "dissolve"],
             vec!["project", "dissolve", "p", "--confirm"],
             vec!["project", "close-all", "p"],
@@ -205,8 +193,6 @@ fn organization_grammar_is_complete_before_effects_and_discoverable_in_both_loca
         }
         for (family, verb) in [
             ("workspace", "set-project"),
-            ("workspace", "create-project"),
-            ("workspace", "ungroup"),
             ("project", "dissolve"),
             ("project", "close-all"),
             ("project", "status"),
