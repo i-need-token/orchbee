@@ -173,6 +173,16 @@ impl super::CliText {
         }
     }
 
+    /// The one line `update` writes on standard error before it downloads the archive of `version`,
+    /// whose signed size is `bytes`, given in whole megabytes (10^6 bytes), at least 1.
+    pub(crate) fn cli_update_downloading(self, version: &str, bytes: u64) -> String {
+        let megabytes = (bytes.saturating_add(500_000) / 1_000_000).max(1);
+        match self.locale {
+            Locale::EnUs => format!("Downloading Orchbee {version} ({megabytes} MB)…\n"),
+            Locale::ZhCn => format!("正在下载 Orchbee {version}（{megabytes} MB）…\n"),
+        }
+    }
+
     /// The line after a `storage` diagnostic: the folder or file the store refused or failed on,
     /// then the reason `key` names, and the system error code for `storage-system`.
     pub(crate) fn cli_storage_cause(self, path: &str, key: &str, code: Option<i32>) -> String {

@@ -48,6 +48,7 @@ impl Roots {
             probe: print_probe,
             activation: in_process_completion,
             unpack: &never_unpack,
+            announce: &|_, _| {},
         };
         let mut context = context();
         let mut report = Report::new();

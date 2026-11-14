@@ -30,6 +30,8 @@ struct Run {
     result: Result<(), Error>,
     report: Report,
     rendered: Value,
+    /// Each version and size announced before an archive transfer.
+    announced: Vec<(String, u64)>,
 }
 
 impl Run {
@@ -83,6 +85,9 @@ fn serve(fixture: &Fixture, bytes: &[u8]) {
 fn update(fixture: &Fixture, channel: Option<UpdateChannel>, unpack: Unpack<'_>) -> Run {
     let data = fixture.0.join("data");
     let state = move |name: &str| (name == "ORCHBEE_HOME").then(|| data.clone().into_os_string());
+    let announced = std::cell::RefCell::new(Vec::new());
+    let announce =
+        |version: &str, size: u64| announced.borrow_mut().push((version.to_owned(), size));
     let inputs = engine::Inputs {
         channel,
         state: &state,
@@ -100,6 +105,7 @@ fn update(fixture: &Fixture, channel: Option<UpdateChannel>, unpack: Unpack<'_>)
         probe: print_probe,
         activation: in_process_completion,
         unpack,
+        announce: &announce,
     };
     let mut context = context();
     let mut report = Report::new();
@@ -117,6 +123,7 @@ fn update(fixture: &Fixture, channel: Option<UpdateChannel>, unpack: Unpack<'_>)
         result,
         report,
         rendered,
+        announced: announced.into_inner(),
     }
 }
 
@@ -177,6 +184,8 @@ fn update_decides_from_the_signed_feed_before_any_archive_request() {
     offer(&fixture, "0.2.0", &newer_manifest, b"never fetched", |_| {});
     let equal = update(&fixture, None, &never_unpack);
     assert_eq!(equal.code(), "complete");
+    // Nothing is downloaded, so no download line is announced.
+    assert!(equal.announced.is_empty());
     let result = &equal.rendered["result"];
     assert_eq!(
         (&result["upToDate"], &result["activated"], &result["reused"]),
@@ -191,6 +200,7 @@ fn update_decides_from_the_signed_feed_before_any_archive_request() {
     offer(&fixture, "0.1.0", &older_manifest, b"never fetched", |_| {});
     let lower = update(&fixture, None, &never_unpack);
     assert_eq!(lower.code(), "complete");
+    assert!(lower.announced.is_empty());
     let result = &lower.rendered["result"];
     assert_eq!(
         (
@@ -255,6 +265,11 @@ fn update_installs_one_verified_archive_and_leaves_only_the_lock() {
     let updated = update(&fixture, None, &copying(&tree, &calls));
     assert_eq!(updated.code(), "complete", "{}", updated.rendered);
     assert_eq!(calls.get(), 1);
+    // One announcement, naming the offered version and the signed size, for the one transfer.
+    assert_eq!(
+        updated.announced,
+        [("0.2.0".to_owned(), archive.len() as u64)]
+    );
     assert!(updated.report.activated && !updated.report.reused);
     assert!(updated.report.cleanup_pending.is_none());
     assert_eq!(updated.rendered["result"]["upToDate"], false);
@@ -271,6 +286,7 @@ fn update_installs_one_verified_archive_and_leaves_only_the_lock() {
     let stored = update(&fixture, None, &never_unpack);
     assert_eq!(stored.code(), "complete", "{}", stored.rendered);
     assert!(stored.report.reused && stored.report.activated);
+    assert!(stored.announced.is_empty());
     assert_eq!(
         pointer(&root).unwrap().active,
         entry_for("0.2.0", &newer_manifest)
@@ -426,6 +442,7 @@ fn a_refused_archive_changes_no_version_and_leaves_only_the_lock() {
     let held = PrivateCache::acquire(&folder, "download").unwrap();
     let busy = update(&fixture, None, &never_unpack);
     assert_eq!(busy.code(), "busy");
+    assert!(busy.announced.is_empty());
     drop(held);
     assert_eq!(names(&root.join("versions")), ["0.1.0"]);
     assert_eq!(pointer(&root).unwrap().active, active);

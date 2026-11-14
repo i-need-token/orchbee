@@ -37,7 +37,7 @@ use orchbee_local_runtime::{
 };
 use serde_json::json;
 use std::{
-    io,
+    io::{self, Write},
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
@@ -467,6 +467,9 @@ pub(crate) fn run(
             return Err(Error::NonReleaseBuild);
         }
         let environment = |name: &str| std::env::var_os(name);
+        let announce = |version: &str, size: u64| {
+            say(&CliText::new(locale).cli_update_downloading(version, size));
+        };
         let inputs = engine::Inputs {
             channel,
             state: &environment,
@@ -477,6 +480,7 @@ pub(crate) fn run(
             probe: install::version_probe,
             activation: install::run_completion,
             unpack: &archive::system_unpack,
+            announce: &announce,
         };
         engine::run(&inputs, &mut context, &mut report)
     })();
@@ -540,6 +544,15 @@ pub(crate) fn run(
         }
     };
     answer(encoded, String::new(), settled, format, locale)
+}
+
+/// Writes `text` on standard error at once, in every output format, while the run goes on; a
+/// failed write changes nothing.
+fn say(text: &str) {
+    let mut stderr = io::stderr().lock();
+    let _ = stderr
+        .write_all(text.as_bytes())
+        .and_then(|()| stderr.flush());
 }
 
 /// The signed release directory this executable sits in.

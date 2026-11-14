@@ -33,6 +33,9 @@ pub(super) struct Inputs<'a> {
     pub(super) activation: Activation,
     /// Unpacks the verified archive into its private folder.
     pub(super) unpack: Unpack<'a>,
+    /// Told the offered version and the archive's signed size once, just before the archive
+    /// transfer starts; never when the run ends without one.
+    pub(super) announce: &'a dyn Fn(&str, u64),
 }
 
 /// Everything one `install` reads.
@@ -64,11 +67,12 @@ enum Next {
 /// Saves the channel, then reads and verifies the signed feed and decides from it and the store
 /// alone, so "up to date", a lower feed and a version conflict end before any archive request.
 /// Otherwise, under the download lock and after deciding again, it activates a stored copy of the
-/// offered version, or downloads the one archive bounded by its signed size, checks its size and
-/// SHA-256, unpacks it and installs the unpacked release directory exactly as `install` does, which
-/// verifies the release's own signature and every file again. Each reached phase is recorded in
-/// `report`. A settings file that cannot be saved or read stops the run with its typed reason in
-/// `report`. A channel switch is the person's choice, so it may move to a lower version.
+/// offered version, or announces the one archive, downloads it bounded by its signed size, checks
+/// its size and SHA-256, unpacks it and installs the unpacked release directory exactly as
+/// `install` does, which verifies the release's own signature and every file again. Each reached
+/// phase is recorded in `report`. A settings file that cannot be saved or read stops the run with
+/// its typed reason in `report`. A channel switch is the person's choice, so it may move to a lower
+/// version.
 ///
 /// # Errors
 /// Returns the first refusal or failure; `report` keeps the phase and every committed effect. The
@@ -140,8 +144,9 @@ pub(super) fn run(
                 )
             }
             Next::Download => {
-                let verified =
-                    download.fetch(&source.artifact(&feed.archive.url)?, &feed.archive, context)?;
+                let archive = source.artifact(&feed.archive.url)?;
+                (inputs.announce)(&feed.version, feed.archive.size);
+                let verified = download.fetch(&archive, &feed.archive, context)?;
                 let unpacked = download.unpack(verified, inputs.unpack, context)?;
                 report.phase = "verify";
                 let (release, signature) =

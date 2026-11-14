@@ -20,7 +20,10 @@ owned by its application guide and must satisfy the shapes below.
 A caller can therefore automate on standard output and the exit code alone and read standard error
 only when a person is present. A declared
 [release confirmation](command-surface.md#destructive-and-interactive-commands) writes its prompt
-to standard error before reading the typed name.
+to standard error before reading the typed name. A command that waits on a person elsewhere or on
+a long transfer may write one localized line on standard error when the wait starts, naming what it
+waits for, in every format and at most once per invocation; it never repeats the line or shows
+progress.
 
 ## Formats
 
