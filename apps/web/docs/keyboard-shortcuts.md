@@ -76,7 +76,7 @@ New Workspace and the shortcut reference carry the TUI's `Ctrl+B Shift+N` and `C
 
 Prompt navigation uses `Mod+Up` and `Mod+Down`, as VS Code's terminal does. Line, page, top and bottom history navigation uses `Ctrl+Shift+Arrow/Page/Home/End`, with one row of page overlap. Each Action has one customizable effective binding. The terminal package owns [Prompt navigation](../../../packages/terminal/docs/prompt-navigation.md) and [Keyboard scrollback](../../../packages/terminal/docs/keyboard-scrollback.md).
 
-Application font increase, decrease and reset use `Mod+=`, `Mod+-` and `Mod+0`; Mod is Command on Apple and Control on Standard. Visible keyboard hints use `Mod+Shift+O`, leaving Standard `Ctrl+Shift+E` for Split Below. [Keyboard hints](../../../packages/terminal/docs/keyboard-hints.md) owns targets, effects and cancellation.
+Application font increase, decrease and reset use `Mod+=`, `Mod+-` and `Mod+0`; Mod is Command on Apple and Control on Standard. Quick Select, the visible keyboard hints, uses `Mod+Shift+O`, leaving Standard `Ctrl+Shift+E` for Split Below. [Keyboard hints](../../../packages/terminal/docs/keyboard-hints.md) owns targets, effects and cancellation.
 
 Start Agent uses `Cmd+Shift+G` on Apple and `Ctrl+Shift+G` on Standard, G for Agent. It opens the dialog only while the Session can start an Agent.
 
