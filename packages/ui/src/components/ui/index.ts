@@ -15,7 +15,6 @@ export { Checkbox } from './checkbox';
 
 export {
 	ContextMenu,
-	ContextMenuCheckboxItem,
 	ContextMenuContent,
 	ContextMenuGroup,
 	ContextMenuItem,

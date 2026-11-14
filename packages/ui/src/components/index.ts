@@ -14,7 +14,6 @@ export {
 	Button,
 	Checkbox,
 	ContextMenu,
-	ContextMenuCheckboxItem,
 	ContextMenuContent,
 	ContextMenuGroup,
 	ContextMenuItem,

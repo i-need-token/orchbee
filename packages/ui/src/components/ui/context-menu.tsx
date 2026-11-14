@@ -137,36 +137,6 @@ function ContextMenuSubContent({ ...props }: React.ComponentProps<typeof Context
 	);
 }
 
-function ContextMenuCheckboxItem({
-	className,
-	children,
-	checked,
-	inset,
-	...props
-}: ContextMenuPrimitive.CheckboxItem.Props & {
-	inset?: boolean;
-}) {
-	return (
-		<ContextMenuPrimitive.CheckboxItem
-			data-slot='context-menu-checkbox-item'
-			data-inset={inset}
-			className={cn(
-				"relative flex cursor-default items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-7 data-disabled:pointer-events-none data-disabled:opacity-50 [&_[data-icon]]:text-muted-foreground focus:[&_[data-icon]]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
-				className,
-			)}
-			checked={checked}
-			{...props}
-		>
-			<span className='pointer-events-none absolute right-2'>
-				<ContextMenuPrimitive.CheckboxItemIndicator>
-					<CheckIcon />
-				</ContextMenuPrimitive.CheckboxItemIndicator>
-			</span>
-			{children}
-		</ContextMenuPrimitive.CheckboxItem>
-	);
-}
-
 function ContextMenuRadioGroup({ ...props }: ContextMenuPrimitive.RadioGroup.Props) {
 	return <ContextMenuPrimitive.RadioGroup data-slot='context-menu-radio-group' {...props} />;
 }
@@ -227,7 +197,6 @@ export {
 	ContextMenuTrigger,
 	ContextMenuContent,
 	ContextMenuItem,
-	ContextMenuCheckboxItem,
 	ContextMenuRadioItem,
 	ContextMenuLabel,
 	ContextMenuSeparator,
