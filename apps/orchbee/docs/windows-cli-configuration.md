@@ -156,7 +156,10 @@ the current Workspace with its existing [confirmation](native-workspace-close.md
 (capital D). `rename_panel` and `clear_terminal` are unbound by default and run the Panel menu's
 Rename and Clear terminal on the focused Panel, with their menu outcomes. `earlier_layouts` opens the [Earlier layouts picker](native-action-menus.md) and is unbound
 by default. `last_panel` steps back to the last focused Panel in any Tab or Workspace
-([Last Panel](native-context-selection.md#last-panel)), default `prefix+;`.
+([Last Panel](native-context-selection.md#last-panel)), default `prefix+;`. `focus_panel_left`,
+`focus_panel_down`, `focus_panel_up` and `focus_panel_right` default to the prefix followed by the
+matching arrow key, then `prefix+h`, `prefix+j`, `prefix+k` and `prefix+l`; help and menus show the
+arrow first.
 
 `menu` opens the [native action menu](native-action-menus.md), default `prefix+f2`.
 The same safe direct chords and explicit disabling apply. Machines keeps `prefix+M`.

@@ -318,13 +318,15 @@ fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
         assert!(
             english
                 .iter()
-                .any(|entry| { entry.key == owned_key && entry.title == en_title }),
+                .any(|entry| entry.key.split(" / ").any(|key| key == owned_key)
+                    && entry.title == en_title),
             "English Help should show {en_title:?} for owned key {owned_key:?} ({expected:?})"
         );
         assert!(
             chinese
                 .iter()
-                .any(|entry| { entry.key == owned_key && entry.title == zh_title }),
+                .any(|entry| entry.key.split(" / ").any(|key| key == owned_key)
+                    && entry.title == zh_title),
             "Chinese Help should show {zh_title:?} for owned key {owned_key:?} ({expected:?})"
         );
 

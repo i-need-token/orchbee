@@ -199,6 +199,32 @@ fn context_prefix_across_reads_consumes_only_the_navigation_keys() {
     assert!(!view.prefix_active());
 }
 
+#[test]
+fn prefix_then_arrow_focuses_the_panel_in_that_direction_and_bare_arrows_reach_the_pane() {
+    use crate::localization::PanelDirection;
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x02\x1b[D\x02\x1b[B\x02\x1b[A\x02\x1b[C\x1b[D",
+    );
+    assert_eq!(
+        *calls.borrow(),
+        [
+            Call::Action(ClientAction::MovePanelFocus(PanelDirection::Left)),
+            Call::Action(ClientAction::MovePanelFocus(PanelDirection::Down)),
+            Call::Action(ClientAction::MovePanelFocus(PanelDirection::Up)),
+            Call::Action(ClientAction::MovePanelFocus(PanelDirection::Right)),
+            Call::Forward(b"\x1b[D".to_vec()),
+        ],
+    );
+    assert!(!view.prefix_active());
+}
+
 impl TerminalInputPort for UnavailablePort {
     fn observe_terminal(&mut self, observation: crate::terminal_input::TerminalObservation) {
         if let crate::terminal_input::TerminalObservation::Focus(focused) = observation {
@@ -594,7 +620,7 @@ fn prefix_then_arrow_sequence_is_one_unbound_event_without_tail_leak() {
         dispatcher
             .dispatch(
                 &mut view,
-                b"\x02\x1b[D",
+                b"\x02\x1b[F",
                 &mut port,
                 Instant::now(),
                 |_, _| Ok::<bool, io::Error>(false),
@@ -614,9 +640,9 @@ fn prefix_then_arrow_sequence_is_one_unbound_event_without_tail_leak() {
 #[test]
 fn prefix_then_csi_split_across_reads_is_still_one_event() {
     let patterns: [&[&[u8]]; 3] = [
-        &[b"\x02\x1b", b"[D"],
-        &[b"\x02", b"\x1b", b"[", b"D"],
-        &[b"\x02\x1b[", b"D"],
+        &[b"\x02\x1b", b"[F"],
+        &[b"\x02", b"\x1b", b"[", b"F"],
+        &[b"\x02\x1b[", b"F"],
     ];
     for packets in patterns {
         let calls = Rc::new(RefCell::new(Vec::new()));

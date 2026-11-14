@@ -208,8 +208,25 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         }],
         desc: PrefixDesc::SelectTabDigit,
     },
+    // Arrows come first so help and menus show them; h/j/k/l stay as the second set.
     PrefixGroup {
         members: &[
+            member(
+                key(KeyCode::Left),
+                ClientAction::MovePanelFocus(PanelDirection::Left),
+            ),
+            member(
+                key(KeyCode::Down),
+                ClientAction::MovePanelFocus(PanelDirection::Down),
+            ),
+            member(
+                key(KeyCode::Up),
+                ClientAction::MovePanelFocus(PanelDirection::Up),
+            ),
+            member(
+                key(KeyCode::Right),
+                ClientAction::MovePanelFocus(PanelDirection::Right),
+            ),
             member(
                 key(KeyCode::Char('h')),
                 ClientAction::MovePanelFocus(PanelDirection::Left),

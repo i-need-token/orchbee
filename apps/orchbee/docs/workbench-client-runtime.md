@@ -836,7 +836,8 @@ when its attach target was issued. Polls continue for every admitted pane incarn
 leaves keep rendering their own live frames. Input admits only the focused pane; resize admits
 each visible controlling pane's exact incarnation. Read-only panes never acquire control for resize.
 
-In a connected Workbench Client, `Ctrl+b h`, `j`, `k`, and `l` are Client-local focus actions. When a
+In a connected Workbench Client, `Ctrl+b` followed by an arrow key, or by `h`, `j`, `k`, or `l`,
+is a Client-local focus action; help and menus show the arrows first. When a
 direction has a neighboring leaf, the Client moves the focused-pane selection to that leaf's
 existing record without detaching, re-attaching, or re-tagging any already accepted work — no
 switch cleanup, snapshot, or attach chain runs for a same-Tab move. A focus action never writes a
