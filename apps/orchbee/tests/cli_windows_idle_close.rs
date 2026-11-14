@@ -22,6 +22,9 @@ const TAB_DIALOG: &str = "Close Tab?";
 const PANEL_DIALOG: &str = "Close Panel?";
 const SET_DIALOG: &str = "Close 3 Tabs?";
 const CLOSE_OTHERS: &str = "Close 3 other Tabs";
+/// The notices of a set that stopped short: a definite failure, or an unknown outcome.
+const SET_STOPPED: &str = "Couldn't close all the Tabs.";
+const OUTCOME_UNKNOWN: &str = "Not sure it finished.";
 /// How long a pointer button stays down.
 const HOLD: Duration = Duration::from_millis(80);
 /// Bounds how long a shell, a program's output or a close may take to show.
@@ -400,9 +403,10 @@ impl Driver {
         self.await_set_finished();
     }
 
-    /// Requires the running set to close every other Tab of `second` through its completed form,
-    /// without presenting a confirmation or ever reporting that it stopped, and the selection to
-    /// land on `second`, the one Tab left outside the set.
+    /// Requires the running set to close every other Tab of `second` without presenting a
+    /// confirmation or ever reporting that it stopped, and the selection to land on `second`, the
+    /// one Tab left outside the set. A finished set adds no notice: its Tabs leaving the strip and
+    /// the Server's Workspace show it.
     fn await_set_finished(&self) {
         let deadline = Instant::now() + LANDING;
         loop {
@@ -413,11 +417,17 @@ impl Driver {
                     "the set presented {dialog}:\n{screen}"
                 );
             }
-            assert!(
-                !screen.contains("Closing stopped"),
-                "the set stopped partway:\n{screen}"
-            );
-            if screen.contains("3 Tabs closed") {
+            for stopped in [SET_STOPPED, OUTCOME_UNKNOWN] {
+                assert!(
+                    !screen.contains(stopped),
+                    "the set stopped partway:\n{screen}"
+                );
+            }
+            let strip = screen.lines().next().unwrap_or_default();
+            if !strip.contains("third")
+                && !strip.contains("fourth")
+                && self.tab_labels(FOLLOWED) == ["second"]
+            {
                 break;
             }
             assert!(
@@ -426,11 +436,7 @@ impl Driver {
             );
             thread::sleep(POLL);
         }
-        assert_eq!(self.tab_labels(FOLLOWED), ["second"]);
         self.await_selected(FOLLOWED, "second");
-        self.await_screen("the completed form to clear", |screen| {
-            !screen.contains("3 Tabs closed")
-        });
     }
 
     fn finish(self) {
