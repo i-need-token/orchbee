@@ -7,7 +7,7 @@
 // anonymously with the system curl, never with `gh`, so a draft release, whose assets answer 404 to
 // anyone signed out, cannot pass, and a proxy variable works as it does for curl. It verifies the
 // feed signature with RELEASE_KEYS of apps/orchbee/src/cli/update/signature.rs before reading the
-// feed, checks the feed against the reader's rules and the requested version, confirms the
+// feed, checks the feed against the reader's rules, its written form and the requested version, confirms the
 // installer is public, downloads the archive the feed names, bounded by its signed size, and checks
 // its size and SHA-256. Only then does it write, in one step:
 //
@@ -45,7 +45,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { absoluteArchive, FEED_LIMIT, feedName, readFeed, validVersion } from './release-feed.mjs';
+import {
+	absoluteArchive,
+	FEED_LIMIT,
+	feedName,
+	readFeed,
+	validVersion,
+	writtenForm,
+} from './release-feed.mjs';
 import { FEED_DOMAIN, keyTable, verifySignature } from './sign-release-manifest.mjs';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
@@ -100,6 +107,13 @@ export function admitFeed({ version, feed, signature, table, standIn }) {
 	if (admitted.problems.length > 0)
 		return {
 			problems: admitted.problems.map((problem) => `The feed breaks a reader rule: ${problem}.`),
+		};
+	// The updater's reader refuses some spellings JSON.parse admits; the written form has none.
+	if (!writtenForm(feed, admitted.feed))
+		return {
+			problems: [
+				'The feed is not in its written form, so the updater may refuse it. Do not move the channel to this release.',
+			],
 		};
 	const problems = [];
 	if (admitted.feed.version !== version)

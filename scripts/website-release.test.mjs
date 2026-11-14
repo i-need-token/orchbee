@@ -1,8 +1,23 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
-import { keyTable } from './sign-release-manifest.mjs';
+import {
+	FEED_DOMAIN,
+	keyTable,
+	loadKey,
+	signatureDocument,
+	signFeed,
+} from './sign-release-manifest.mjs';
 import { planWebsiteRelease } from './website-release.mjs';
 
 // The shared feed fixture, signed with the public test key; TEST_KEYS stands in for RELEASE_KEYS.
@@ -63,5 +78,36 @@ test('nothing is written when the signature or the archive check fails', () => {
 		const plan = planWebsiteRelease({ ...good, ...change });
 		assert.deepEqual(plan.writes, [], JSON.stringify(Object.keys(change)));
 		assert.match(plan.problems.join('\n'), expected);
+	}
+});
+
+// JSON.parse admits these spellings and the updater's reader refuses them, so neither the signing
+// tool nor the website command may let one through.
+test('a feed not in its written form is neither signed nor moves the channel', (t) => {
+	const parent = realpathSync(tmpdir());
+	const root = mkdtempSync(path.join(parent, 'orchbee-website-release-test-'));
+	t.after(() => rmSync(root, { recursive: true }));
+	const key = loadKey(readFileSync(new URL('test-only-signing-key.pem', fixtures), 'utf8'));
+	const text = feed.toString('utf8');
+	const spellings = {
+		'byte-order mark': Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), feed]),
+		'repeated member': Buffer.from(
+			text.replace('"product":"orchbee",', '"product":"orchbee","product":"orchbee",'),
+		),
+		'1.0 for a number': Buffer.from(text.replace('"schemaVersion":1,', '"schemaVersion":1.0,')),
+	};
+	for (const [name, bytes] of Object.entries(spellings)) {
+		assert.notDeepEqual(bytes, feed, name);
+		const document = path.join(root, `${name.replaceAll(/\W/gu, '-')}.feed.json`);
+		writeFileSync(document, bytes);
+		assert.throws(() => signFeed(document, [key]), /written form/u, name);
+		assert.equal(existsSync(document + '.sig'), false, name);
+		const plan = planWebsiteRelease({
+			...good,
+			feed: bytes,
+			signature: Buffer.from(signatureDocument(bytes, [key], FEED_DOMAIN)),
+		});
+		assert.deepEqual(plan.writes, [], name);
+		assert.match(plan.problems.join('\n'), /written form/u, name);
 	}
 });

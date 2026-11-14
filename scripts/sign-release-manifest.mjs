@@ -20,7 +20,7 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { FEED_LIMIT, readFeed } from './release-feed.mjs';
+import { FEED_LIMIT, readFeed, writtenForm } from './release-feed.mjs';
 
 /** What one kind of signed document is signed under, and the reader's bound on its size. */
 export const MANIFEST_DOMAIN = Object.freeze({
@@ -205,9 +205,13 @@ export function signFeed(feedPath, keys) {
 	if (!path.isAbsolute(feedPath) || !path.basename(feedPath).endsWith('.feed.json'))
 		throw new Error('Expected an absolute path to a <stem>-<version>-<platform>.feed.json');
 	const feed = readRegular(feedPath, FEED_LIMIT, 'Update feed');
-	// A signature must never bless a document the updater refuses.
-	const { problems } = readFeed(feed);
+	// A signature must never bless a document the updater refuses. The written form also excludes
+	// what JSON.parse admits and the updater's reader does not: a byte-order mark, a repeated
+	// member, `1.0` for a number.
+	const { feed: parsed, problems } = readFeed(feed);
 	if (problems.length > 0) throw new Error(problems.join('\n'));
+	if (!writtenForm(feed, parsed))
+		throw new Error('The feed document is not in its written form; write it with release-feed.mjs');
 	const destination = feedPath + '.sig';
 	createFile(destination, signatureDocument(feed, keys, FEED_DOMAIN));
 	return destination;
