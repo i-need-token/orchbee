@@ -229,4 +229,9 @@ export const terminalSettingsMessages = defineMessages({
 	fileUnreadable: message('terminal.settings.file.unreadable'),
 	pageNewTerminalFolderLabel: message('terminal.settings.page.newTerminalFolder.label'),
 	pageNewTerminalFolderDescription: message('terminal.settings.page.newTerminalFolder.description'),
+	pageNewTerminalFolderWorkspace: message('terminal.settings.page.newTerminalFolder.workspace'),
+	pageNewTerminalFolderHome: message('terminal.settings.page.newTerminalFolder.home'),
+	pageNewTerminalFolderFollow: message('terminal.settings.page.newTerminalFolder.follow'),
+	pageNewTerminalFolderCustom: message('terminal.settings.page.newTerminalFolder.custom'),
+	pageNewTerminalFolderPath: message('terminal.settings.page.newTerminalFolder.path'),
 });

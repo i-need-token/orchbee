@@ -1,5 +1,5 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { Input, Switch } from '@orchbee/ui/components';
+import { Input, NativeSelect, NativeSelectOption, Switch } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { MacosTerminalInputSettingsController } from '../../../macos-terminal-input-settings';
@@ -12,6 +12,7 @@ import type { TerminalLaunchProfileControl } from '../../../terminal-launch-prof
 import type { UserSettingsControl } from '../../../user-settings';
 import { useSetting } from '../../hooks/useSetting';
 import { useSettingDraft } from '../../hooks/useSettingDraft';
+import type { TerminalSettingsFolderPicker } from '../../types/terminal-settings-surface';
 import {
 	formatScrollbackMegabytes,
 	parseScrollbackMegabytes,
@@ -26,6 +27,7 @@ import styles from './TerminalBehaviorSettings.module.css';
 
 interface TerminalBehaviorSettingsProps {
 	readonly defaultSettingsControl?: TerminalDefaultSettingsControl | undefined;
+	readonly folderPicker?: TerminalSettingsFolderPicker | undefined;
 	readonly interactionController?: TerminalInteractionSettingsController | undefined;
 	readonly launchProfileClient?: TerminalLaunchProfileControl | undefined;
 	readonly macosInputController?: MacosTerminalInputSettingsController | undefined;
@@ -36,6 +38,7 @@ interface TerminalBehaviorSettingsProps {
 /** Selection and keys, new terminals, and launch profiles; each part needs its host control. */
 export function TerminalBehaviorSettings({
 	defaultSettingsControl,
+	folderPicker,
 	interactionController,
 	launchProfileClient,
 	macosInputController,
@@ -83,7 +86,11 @@ export function TerminalBehaviorSettings({
 			)}
 			{defaultSettingsControl === undefined ? null : (
 				<SettingsGroup label={intl.formatMessage(terminalSettingsMessages.pageGroupOutput)}>
-					<NewTerminalFolderRow query={query} userSettings={userSettings} />
+					<NewTerminalFolderRow
+						folderPicker={folderPicker}
+						query={query}
+						userSettings={userSettings}
+					/>
 					<TerminalHistoryRow
 						control={defaultSettingsControl}
 						query={query}
@@ -103,16 +110,67 @@ interface SettingRowProps {
 	readonly userSettings: UserSettingsControl;
 }
 
-/** Where a new terminal starts; an empty field restores the default. */
-function NewTerminalFolderRow({ query, userSettings }: SettingRowProps): React.ReactNode {
+/** The new terminal folder entries, in their order; each but `custom` is the word it stores. */
+const START_FOLDER_ENTRIES = ['workspace', 'home', 'follow', 'custom'] as const;
+
+type StartFolderEntry = (typeof START_FOLDER_ENTRIES)[number];
+
+/** Custom folder… chosen and not yet stored, while `terminal.new_cwd` still holds `over`. */
+interface PendingCustomFolder {
+	readonly over: string | null;
+	readonly via: 'field' | 'picker';
+}
+
+interface NewTerminalFolderRowProps extends SettingRowProps {
+	readonly folderPicker?: TerminalSettingsFolderPicker | undefined;
+}
+
+/**
+ * Where a terminal the orchbee command creates starts. Custom folder… asks the folder picker when
+ * there is one, and otherwise, or when the picker fails, opens the folder field; a stored custom
+ * folder keeps that field under the choice, and emptying it restores the default.
+ */
+function NewTerminalFolderRow({
+	folderPicker,
+	query,
+	userSettings,
+}: NewTerminalFolderRowProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const setting = useSetting(userSettings, 'terminal.new_cwd');
-	const draft = useSettingDraft(setting.value ?? '', setting.failure);
+	const stored = startFolderEntry(setting.value);
+	const [pending, setPending] = React.useState<PendingCustomFolder | null>(null);
+	// A change of the stored value settles a pending Custom folder…, landed or not.
+	const custom = pending !== null && pending.over === setting.value ? pending.via : null;
+	const draft = useSettingDraft(stored === 'custom' ? (setting.value ?? '') : '', setting.failure);
+	const choose = (entry: StartFolderEntry): void => {
+		if (entry !== 'custom') {
+			setPending(null);
+			if (entry !== stored) setting.set(entry);
+			return;
+		}
+		const over = setting.value;
+		if (folderPicker === undefined) {
+			setPending({ over, via: 'field' });
+			return;
+		}
+		setPending({ over, via: 'picker' });
+		folderPicker.selectExistingFolder().then(
+			(result) => {
+				if (result.kind === 'failed') setPending({ over, via: 'field' });
+				else if (result.kind === 'cancelled' || result.path === over) setPending(null);
+				else setting.set(result.path);
+			},
+			() => setPending({ over, via: 'field' }),
+		);
+	};
 	const commit = (): void => {
 		const value = draft.draft.trim();
-		if (value === (setting.value ?? '')) return;
-		if (value === '') setting.restore();
-		else setting.set(value);
+		if (value !== '' && value !== setting.value) {
+			setting.set(value);
+			return;
+		}
+		setPending(null);
+		if (value === '' && stored === 'custom') setting.restore();
 	};
 	const label = intl.formatMessage(terminalSettingsMessages.pageNewTerminalFolderLabel);
 	return (
@@ -125,20 +183,74 @@ function NewTerminalFolderRow({ query, userSettings }: SettingRowProps): React.R
 			searchTerms={['new_cwd', 'cwd', 'folder', 'directory']}
 			settingId='terminal.new-cwd'
 			status={<SettingFailure message={setting.failureMessage} />}
-			onRestore={setting.readOnly ? undefined : setting.restore}
+			onRestore={
+				setting.readOnly
+					? undefined
+					: (): void => {
+							setPending(null);
+							setting.restore();
+						}
+			}
 		>
-			<Input
-				aria-label={label}
-				className={styles['pathInput']}
-				readOnly={setting.readOnly}
-				spellCheck={false}
-				value={draft.draft}
-				onBlur={commit}
-				onChange={(event) => draft.change(event.currentTarget.value)}
-				onKeyDown={commitOnEnter(commit)}
-			/>
+			<span className={styles['folderChoice']}>
+				<NativeSelect
+					aria-label={label}
+					disabled={setting.readOnly}
+					size='sm'
+					value={custom === null ? stored : 'custom'}
+					onChange={(event): void => {
+						const entry = START_FOLDER_ENTRIES.find(
+							(candidate) => candidate === event.currentTarget.value,
+						);
+						if (entry !== undefined) choose(entry);
+					}}
+				>
+					{START_FOLDER_ENTRIES.map((entry) => (
+						<NativeSelectOption key={entry} value={entry}>
+							{intl.formatMessage(startFolderMessage(entry))}
+						</NativeSelectOption>
+					))}
+				</NativeSelect>
+				{stored === 'custom' || custom === 'field' ? (
+					<Input
+						aria-label={intl.formatMessage(terminalSettingsMessages.pageNewTerminalFolderPath)}
+						className={styles['pathInput']}
+						readOnly={setting.readOnly}
+						spellCheck={false}
+						value={draft.draft}
+						onBlur={commit}
+						onChange={(event) => draft.change(event.currentTarget.value)}
+						onKeyDown={commitOnEnter(commit)}
+					/>
+				) : null}
+			</span>
 		</SettingsRow>
 	);
+}
+
+/**
+ * The entry a stored value shows as: unset, empty and `follow` are Same as the current terminal,
+ * and any other text but `home` and `workspace`, `current` included, is a custom folder.
+ */
+function startFolderEntry(value: string | null): StartFolderEntry {
+	if (value === null || value === '' || value === 'follow') return 'follow';
+	if (value === 'home' || value === 'workspace') return value;
+	return 'custom';
+}
+
+function startFolderMessage(
+	entry: StartFolderEntry,
+): (typeof terminalSettingsMessages)['pageNewTerminalFolderFollow'] {
+	switch (entry) {
+		case 'workspace':
+			return terminalSettingsMessages.pageNewTerminalFolderWorkspace;
+		case 'home':
+			return terminalSettingsMessages.pageNewTerminalFolderHome;
+		case 'follow':
+			return terminalSettingsMessages.pageNewTerminalFolderFollow;
+		case 'custom':
+			return terminalSettingsMessages.pageNewTerminalFolderCustom;
+	}
 }
 
 interface TerminalHistoryRowProps extends SettingRowProps {

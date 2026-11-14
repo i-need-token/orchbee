@@ -189,10 +189,22 @@ Only the Desktop composition injects `TerminalDefaultSettingsControl`, filled fr
 `terminal.scrollback_bytes` key. The Terminal category's Output group exposes
 `terminal.history` as Terminal history in decimal megabytes from `0` through `1000`, stored as
 bytes up to `1_000_000_000`, and notes that it applies to new terminals. The row commits one edit,
-and the TUI shows the same value in megabytes. The group's New terminal folder row edits
-`terminal.new_cwd`, the folder a new terminal starts in; clearing the field restores the default.
-The Worker gives both values to each terminal it launches after the save, so no Host
-application step can fail, and existing terminals are unchanged. The control only reads; the page
+and the TUI shows the same value in megabytes. The Worker gives that value to each terminal it
+launches after the save, so no Host application step can fail, and existing terminals are
+unchanged.
+
+The group's New terminal folder row edits `terminal.new_cwd` with a select of Workspace folder,
+Home folder, Same as the current terminal and Custom folder…, in the TUI's order and words. The
+first three store `workspace`, `home` and `follow`, and choosing the entry already shown stores
+nothing, so an unset key stays unset. Custom folder… asks the composition's folder picker, which
+only Desktop supplies through its native folder dialog; a cancelled dialog keeps the stored value,
+and without a picker, or when the dialog fails, the row opens its folder field instead. A stored
+custom folder keeps that field under the select, where Enter or leaving the field stores the typed
+folder and an emptied field restores the default. Unset, empty and `follow` show as Same as the
+current terminal; any other stored text, `current` included, shows as Custom folder… with the text
+in the field. The row's description says the setting applies to terminals the `orchbee` command
+creates, because the Desktop's and the TUI's own new Tab, split and Workspace do not read it.
+The control only reads; the page
 warns that scrollback is unavailable until the first snapshot arrives. A composition without the
 control omits this group. The Terminal category remains visible only when that
 composition supplies another current Terminal setting.

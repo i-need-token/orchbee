@@ -328,6 +328,82 @@ describe('TerminalSettingsSurface', () => {
 		).toBe(25_000_000);
 	});
 
+	it('writes each new terminal folder entry and shows a stored value as its entry', async () => {
+		const folderRow = async (
+			stored: string | undefined,
+			folderPicker?: TerminalSettingsSurfaceProps['folderPicker'],
+		) => {
+			const settings = memoryUserSettings({
+				values: stored === undefined ? {} : { 'terminal.new_cwd': stored },
+			});
+			const { container, openCategory } = await renderSurface({
+				props: {
+					folderPicker,
+					terminalDefaultSettingsControl: createTerminalDefaultSettingsControl(),
+				},
+				settings,
+			});
+			await openCategory('terminal');
+			const choice = requiredElement<HTMLSelectElement>(
+				container.querySelector("select[aria-label='New terminal folder']"),
+			);
+			const field = (): HTMLInputElement | null =>
+				container.querySelector("input[aria-label='Custom folder path']");
+			const choose = async (entry: string): Promise<void> => {
+				await act(async () => {
+					setSelectValue(choice, entry);
+					choice.dispatchEvent(new Event('change', { bubbles: true }));
+				});
+			};
+			const file = (): { set: boolean; value: unknown } => {
+				const snapshot = settings.getSnapshot().snapshot;
+				return {
+					set: snapshot?.set.includes('terminal.new_cwd') ?? false,
+					value: snapshot?.values['terminal.new_cwd'],
+				};
+			};
+			return { choice, choose, field, file };
+		};
+
+		for (const [stored, entry, folder] of [
+			[undefined, 'follow', null],
+			['', 'follow', null],
+			['follow', 'follow', null],
+			['home', 'home', null],
+			['workspace', 'workspace', null],
+			['current', 'custom', 'current'],
+			['~/项目', 'custom', '~/项目'],
+		] as const) {
+			const row = await folderRow(stored);
+			expect([stored, row.choice.value, row.field()?.value ?? null]).toEqual([
+				stored,
+				entry,
+				folder,
+			]);
+		}
+
+		for (const entry of ['workspace', 'home', 'follow']) {
+			const row = await folderRow('C:\\old');
+			await row.choose(entry);
+			expect(row.file()).toEqual({ set: true, value: entry });
+		}
+		const unset = await folderRow(undefined);
+		await unset.choose('follow');
+		expect(unset.file().set).toBe(false);
+
+		const picked = await folderRow(undefined, {
+			selectExistingFolder: async () => ({ kind: 'selected', path: 'D:\\picked' }),
+		});
+		await picked.choose('custom');
+		expect(picked.file()).toEqual({ set: true, value: 'D:\\picked' });
+		expect(picked.field()?.value).toBe('D:\\picked');
+
+		const typed = await folderRow(undefined);
+		await typed.choose('custom');
+		await commitInput(requiredElement(typed.field()), 'D:\\typed');
+		expect(typed.file()).toEqual({ set: true, value: 'D:\\typed' });
+	});
+
 	it('shows Option as Alt only with its controller and applies it live', async () => {
 		const settings = memoryUserSettings();
 		const macosController = trackDisposable(new MacosTerminalInputSettingsController(settings));

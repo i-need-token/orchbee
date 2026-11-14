@@ -237,7 +237,12 @@ export const enUSTerminalSettingsMessages = {
 		"{path} can't be read · showing the last valid settings, read-only, until it can",
 	'terminal.settings.page.newTerminalFolder.label': 'New terminal folder',
 	'terminal.settings.page.newTerminalFolder.description':
-		'Where a new terminal starts: follow, home, current, workspace, or a folder. Leave empty for the default.',
+		'Applies to terminals the orchbee command creates.',
+	'terminal.settings.page.newTerminalFolder.workspace': 'Workspace folder',
+	'terminal.settings.page.newTerminalFolder.home': 'Home folder',
+	'terminal.settings.page.newTerminalFolder.follow': 'Same as the current terminal',
+	'terminal.settings.page.newTerminalFolder.custom': 'Custom folder…',
+	'terminal.settings.page.newTerminalFolder.path': 'Custom folder path',
 } as const;
 
 export type TerminalSettingsMessageId = keyof typeof enUSTerminalSettingsMessages;

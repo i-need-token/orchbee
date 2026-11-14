@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns full-page Settings: a navigation column with Back, search and seven categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents) in the app sidebar's place, and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme lists with in-place preview, copy-on-select, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices and local Agent integrations, with per-setting restore default, a per-row reason when the settings file refuses a change, a read-only page while the file cannot be parsed or read, dismissible page notices, global search and the settings file's real path for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns full-page Settings: a navigation column with Back, search and seven categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents) in the app sidebar's place, and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme lists with in-place preview, copy-on-select, the new terminal folder, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices and local Agent integrations, with per-setting restore default, a per-row reason when the settings file refuses a change, a read-only page while the file cannot be parsed or read, dismissible page notices, global search and the settings file's real path for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -101,7 +101,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-terminal",
 			"states": [
-				"Inspect Selection and keys with copy on select and the macOS Option-as-Alt row, Output with the new terminal folder and terminal history in megabytes with their new-terminals notes, and the Launch profiles card: Default label or Use as default per profile, inline editing that saves on Done, Add profile, and the confirmed restore of the default catalog."
+				"Inspect Selection and keys with copy on select and the macOS Option-as-Alt row, Output with the new terminal folder select and terminal history in megabytes with their new-terminals notes, and the Launch profiles card: Default label or Use as default per profile, inline editing that saves on Done, Add profile, and the confirmed restore of the default catalog."
 			]
 		},
 		{
@@ -197,7 +197,7 @@
 	],
 	"invariants": [
 		"Opening Settings shows one full page over the Workbench content: the settings navigation takes the app sidebar's place, the Workbench and projected terminal attachments stay mounted, and Back returns exactly where the user was. Escape clears a non-empty search first and otherwise returns, unless a control consumes it. Below the medium breakpoint the navigation stacks above the content.",
-		"Each category shows its title, then groups of a small muted heading and one card; a category with three or fewer settings may use one unnamed card. Each row carries a name, an always-visible description of at most two lines, and exactly one control aligned to the row's end.",
+		"Each category shows its title, then groups of a small muted heading and one card; a category with three or fewer settings may use one unnamed card. Each row carries a name, an always-visible description of at most two lines, and exactly one control aligned to the row's end; only the new terminal folder row adds its folder field under its select, while that select shows Custom folder….",
 		"Every change is one edit of the settings file and shows once the file answers; the page has no Save, Discard, or footer. A setting the file sets shows a dot and a Restore default action that removes only that key. A refused change leaves the control at the file's value with one short reason under the row.",
 		"While the settings file has a syntax error or cannot be read, the page shows the last valid values with read-only controls and one notice naming the file path, with line and column for a syntax error.",
 		"Long lists are one card with one entry per line, and a list of more than eight entries shows a filter box with the shown count.",
@@ -212,7 +212,8 @@
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
 		"Option-as-Alt defaults to off, lives in the settings file, resolves the selected physical Option side per key event, and updates every mounted projected terminal without replacing its attachment.",
 		"Desktop shell profiles live in the settings file under the Server platform's keys, change only executable and literal ordered arguments, and affect only terminals launched after the Server commits the catalog; running and restored terminals retain their captured launch.",
-		"Terminal history and the new terminal folder commit to the settings file, and the Worker gives them to each terminal it launches after the save, so existing history never changes; a composition without that control omits the row.",
+		"Terminal history commits to the settings file, and the Worker gives it to each terminal it launches after the save, so existing history never changes; a composition without that control omits the Output group.",
+		"The new terminal folder row offers Workspace folder, Home folder, Same as the current terminal and Custom folder… in the TUI's order and words, stores `workspace`, `home`, `follow` or the folder in `terminal.new_cwd`, shows unset, empty and `follow` as Same as the current terminal and any other text, `current` included, as Custom folder… with its text, and says it applies to terminals the orchbee command creates. Custom folder… asks the composition's folder picker when it has one and otherwise opens the folder field; a cancelled picker keeps the stored value.",
 		"Agent integration inventory is read-only on startup and refresh, and entering the Agents category is the explicit request to inspect it; Agent-specific details stay behind Desktop adapters while the renderer receives only the canonical Agent labels, bounded states, and privacy-safe failures.",
 		"Agent integration mutation begins only from an explicit switch change, serializes one operation, re-inspects after every attempt, keeps the switch at its last inspected position until that result arrives, never overwrites a conflict, and reports the observed state instead of assuming command success. Disabling removes or disables only Orchbee's exact owned entry.",
 		"The surface never reads or edits a shell startup file, executes a source command, or requests notification permission except from the notification banner's Allow button.",

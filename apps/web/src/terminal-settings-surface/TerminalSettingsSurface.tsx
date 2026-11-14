@@ -211,6 +211,7 @@ function CategoryContent({ category, props, query }: CategoryContentProps): Reac
 			return (
 				<TerminalBehaviorSettings
 					defaultSettingsControl={props.terminalDefaultSettingsControl}
+					folderPicker={props.folderPicker}
 					interactionController={props.terminalInteractionSettingsController}
 					launchProfileClient={props.terminalLaunchProfileClient}
 					macosInputController={props.macosTerminalInputSettingsController}

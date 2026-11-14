@@ -183,6 +183,7 @@ export function WebApplication({
 				agentIntegrationManagementControl={agentIntegrationManagementControl}
 				applicationLocaleController={applicationLocaleController}
 				controller={terminalSettingsController}
+				folderPicker={projectFolderAcquisition}
 				terminalInteractionSettingsController={terminalInteractionSettingsController}
 				keyboardShortcutController={keyboardShortcutSettingsController}
 				keyboardShortcutsTakenByConfiguredCommands={configuredCommandKeys.takenBy}
