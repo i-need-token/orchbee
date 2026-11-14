@@ -133,13 +133,9 @@ pub(crate) enum ExpectedValue {
     /// The `agent wait --after-revision` operand: a nonnegative
     /// safe-integer global runtime revision.
     AgentAfterRevision,
-    /// The `agent doctor --provider` value: one provider with an Orchbee integration.
-    ProviderId,
     /// An integration-scoped `--provider` named a canonical Agent that Orchbee
     /// can only start: it has no integration to check or manage.
     StartOnlyProvider,
-    /// The `agent doctor --asset-root` value: a nonempty absolute path.
-    AssetRootPath,
     /// The `launch-profile create --name` value: a required non-unique
     /// catalog name, 1..=512 UTF-8 bytes.
     ProfileName,

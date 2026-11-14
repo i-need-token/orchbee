@@ -324,16 +324,6 @@
 				}
 			}
 		},
-		"doctorStageDetails": {
-			"type": "object",
-			"required": ["stage"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"const": "agent-doctor"
-				}
-			}
-		},
 		"unavailableReason": {
 			"enum": [
 				"directory-unavailable",
@@ -458,9 +448,6 @@
 				},
 				"reason": {
 					"const": "unsupported-platform"
-				},
-				"command": {
-					"enum": ["agent doctor", "config check"]
 				}
 			}
 		},
@@ -1030,9 +1017,6 @@
 								"oneOf": [
 									{
 										"$ref": "#/$defs/waitCancelledDetails"
-									},
-									{
-										"$ref": "#/$defs/doctorStageDetails"
 									}
 								]
 							}

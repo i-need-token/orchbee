@@ -44,10 +44,10 @@ impl super::CliText {
             }
             (Locale::ZhCn, Some(Reason::InUse)) => "会话资源正在使用；请先停止会话再删除。",
             (Locale::EnUs, Some(Reason::RecoveryRequired)) => {
-                "The session has no proven stopped state; inspect it with server diagnose."
+                "The session has no proven stopped state; inspect it with orchbee doctor."
             }
             (Locale::ZhCn, Some(Reason::RecoveryRequired)) => {
-                "无法证明会话已停止；请使用 server diagnose 检查。"
+                "无法证明会话已停止；请使用 orchbee doctor 检查。"
             }
             (Locale::EnUs, Some(Reason::Filesystem)) => {
                 "Session storage could not be admitted or removed; check ownership and file sharing."

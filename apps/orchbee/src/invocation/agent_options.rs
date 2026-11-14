@@ -1,10 +1,10 @@
 //! Agent options: list limits, provider and adapter sources, session identities, wait conditions
-//! and fences, doctor filters, Agent names, and Agent selectors.
+//! and fences, Agent names, and Agent selectors.
 
 use super::{
     AgentSelector, AgentTarget, AgentWaitCondition, AgentWaitTimeout, ExpectedValue,
-    FailureEnvelope, Options, ParseFailure, Resource, UsageContext, UsageReason, grammar,
-    missing_required, target, usage_with, user_path,
+    FailureEnvelope, Options, ParseFailure, Resource, UsageContext, UsageReason, missing_required,
+    target, usage_with, user_path,
 };
 use orchbee_agent_observation_protocol::{
     AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT,
@@ -44,16 +44,6 @@ pub(super) fn provider_option(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<Option<crate::agent_integrations::IntegrationId>, ParseFailure> {
-    // Single-use on this family: the shared repeatable arm records every
-    // `--provider` into `providers`; a second occurrence is a duplicate here.
-    if options.providers.len() > 1 {
-        return Err(usage_with(
-            UsageReason::DuplicateOption {
-                option: "--provider",
-            },
-            envelope,
-        ));
-    }
     match &options.provider {
         Some(value) => crate::agent_integrations::IntegrationId::parse_provider(value)
             .map(Some)
@@ -228,84 +218,6 @@ pub(super) fn agent_wait_timeout_option(
             envelope,
         )),
     }
-}
-
-/// `agent doctor --provider <id>`: each repeatable value must be one
-/// canonical provider id — an unknown id is a typed parse failure, never a
-/// silently empty selection. A canonical Agent that Orchbee can only start
-/// gets the start-only refusal, which names the Agents with an integration.
-pub(super) fn doctor_providers_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<Vec<String>, ParseFailure> {
-    options
-        .providers
-        .iter()
-        .map(|value| {
-            if let Some(provider) = crate::agent_integrations::IntegrationId::parse_provider(value)
-                && grammar::values::DOCTOR_PROVIDER_IDS.contains(&provider.as_str())
-            {
-                Ok(provider.as_str().to_owned())
-            } else {
-                let expected = if grammar::values::start_only_provider(value) {
-                    ExpectedValue::StartOnlyProvider
-                } else {
-                    ExpectedValue::ProviderId
-                };
-                Err(usage_with(
-                    UsageReason::InvalidValue {
-                        context,
-                        option: "--provider",
-                        value: value.clone(),
-                        expected,
-                    },
-                    envelope,
-                ))
-            }
-        })
-        .collect()
-}
-
-/// `agent doctor --asset-root <path>`: each repeatable value must be a
-/// nonempty absolute NUL-free path — relative spellings are usage failures
-/// at this boundary, never `~`/`$`-expanded and never probed as guesses.
-/// At most four supplied roots may be declared.
-pub(super) fn doctor_asset_roots_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<Vec<String>, ParseFailure> {
-    for value in &options.asset_roots {
-        // Doctor never routes to another machine, so a root must also be absolute on this host.
-        if value.is_empty()
-            || !user_path::absolute(value)
-            || !std::path::Path::new(value).is_absolute()
-            || value.as_bytes().contains(&0)
-        {
-            return Err(usage_with(
-                UsageReason::InvalidValue {
-                    context,
-                    option: "--asset-root",
-                    value: value.clone(),
-                    expected: ExpectedValue::AssetRootPath,
-                },
-                envelope,
-            ));
-        }
-    }
-    if options.asset_roots.len() > 4 {
-        return Err(usage_with(
-            UsageReason::InvalidValue {
-                context,
-                option: "--asset-root",
-                value: options.asset_roots.join(" "),
-                expected: ExpectedValue::AssetRootPath,
-            },
-            envelope,
-        ));
-    }
-    Ok(options.asset_roots.clone())
 }
 
 pub(super) fn agent_name(

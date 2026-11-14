@@ -76,8 +76,8 @@ mod workbench_options;
 mod worktree;
 use agent_options::{
     adapter_source_option, agent_after_revision_option, agent_limit_option, agent_name,
-    agent_selector, agent_until_option, agent_wait_timeout_option, doctor_asset_roots_option,
-    doctor_providers_option, provider_option, required_provider,
+    agent_selector, agent_until_option, agent_wait_timeout_option, provider_option,
+    required_provider,
 };
 #[cfg(test)]
 pub(crate) use argv::parse_request;
@@ -318,13 +318,6 @@ pub(crate) enum QueryCommand {
         after_revision: Option<AgentSafeInteger>,
         /// None preserves the execution owner's existing total timeout.
         timeout_ms: Option<AgentWaitTimeout>,
-    },
-    /// `agent doctor`: the offline provider-diagnostics read — validated
-    /// provider selectors in flag order and supplied asset roots in flag
-    /// order; it never opens a session.
-    AgentDoctor {
-        providers: Vec<String>,
-        asset_roots: Vec<String>,
     },
     ProjectList,
     ProjectGet(Target),
@@ -928,7 +921,8 @@ pub(crate) enum Request {
         command: ManifestCommand,
         format: OutputFormat,
     },
-    ServerDiagnose {
+    /// `doctor`: six local checks of whether Orchbee works here; never connects as a Client.
+    Doctor {
         format: OutputFormat,
     },
     AgentStart {
@@ -1076,10 +1070,6 @@ struct Options {
     /// `agent wait --after-revision <n>`: the revision-fence value option.
     after_revision: Option<String>,
     output_after: Option<String>,
-    /// `agent doctor --provider <id>`: repeatable, append-ordered.
-    providers: Vec<String>,
-    /// `agent doctor --asset-root <path>`: repeatable, append-ordered.
-    asset_roots: Vec<String>,
     name: Option<String>,
     agent_session: Option<String>,
     clear: bool,

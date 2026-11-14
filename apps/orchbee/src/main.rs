@@ -2,7 +2,6 @@
 //! TUI sessions. Feature owners define command and interaction semantics; Server and Worker
 //! retain shared Workbench authority and physical terminal execution.
 
-mod agent_doctor;
 mod agent_integrations;
 mod agent_projection;
 mod cli;
@@ -308,9 +307,7 @@ fn main() -> ExitCode {
             Ok(invocation::Request::AgentManifests { command, format }) => {
                 cli::agent_manifests::run(&command, format, locale)
             }
-            Ok(invocation::Request::ServerDiagnose { format }) => {
-                cli::server_diagnose(format, locale)
-            }
+            Ok(invocation::Request::Doctor { format }) => cli::doctor::run(format, locale),
             Ok(invocation::Request::AgentStart { command, format }) => {
                 cli::run_agent_start(&command, format, locale)
             }

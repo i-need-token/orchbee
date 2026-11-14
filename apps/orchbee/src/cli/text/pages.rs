@@ -37,7 +37,7 @@ const ROOT_GROUPS: &[(HelpText, &[&str])] = &[
     ),
     (
         HelpText::Sessions,
-        &["status", "server", "session", "machine"],
+        &["status", "doctor", "server", "session", "machine"],
     ),
     (
         HelpText::Setup,

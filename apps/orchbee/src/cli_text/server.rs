@@ -6,13 +6,13 @@ use crate::cli_outcome::Failure;
 pub(super) const HELP_SERVER_START_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee server start [--format text|json]",
-        "Ensure the selected local session is running within one 20-second budget.\nTUI startup uses the same activation and recovery path. Complete current catalog\nregistration permits automatic cold recovery only after all exact PID/creation\nidentities are gone, locks are free and endpoints absent. Background and\nclean-stop checkpoints restore layouts, Launch Profiles, sampled per-terminal\ncwd. Unreadable snapshots are retained;\nstartup falls back to an older valid copy or opens an empty workspace and warns\non stderr. Live Host, unknown/incomplete identity and unreadable records\nrefuse without deleting data. Run server diagnose with the same --session selection\nor use orchbee --session recovery-work server start for another name. New activation\npublishes the current version 1 catalog before checkpoint storage. Other record\nversions and shapes remain unreadable without migration. Live Host adoption remains separate.\n\nJSON uses orchbee.server.start: started means this invocation spawned Server;\nalready-running means an existing session admitted it. Live Agent state, terminal history and screen contents are not restored.",
+        "Ensure the selected local session is running within one 20-second budget.\nTUI startup uses the same activation and recovery path. Complete current catalog\nregistration permits automatic cold recovery only after all exact PID/creation\nidentities are gone, locks are free and endpoints absent. Background and\nclean-stop checkpoints restore layouts, Launch Profiles, sampled per-terminal\ncwd. Unreadable snapshots are retained;\nstartup falls back to an older valid copy or opens an empty workspace and warns\non stderr. Live Host, unknown/incomplete identity and unreadable records\nrefuse without deleting data. Run orchbee doctor with the same --session selection\nor use orchbee --session recovery-work server start for another name. New activation\npublishes the current version 1 catalog before checkpoint storage. Other record\nversions and shapes remain unreadable without migration. Live Host adoption remains separate.\n\nJSON uses orchbee.server.start: started means this invocation spawned Server;\nalready-running means an existing session admitted it. Live Agent state, terminal history and screen contents are not restored.",
     );
 
 pub(super) const HELP_SERVER_START_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee server start [--format text|json]",
-        "在一个 20 秒总预算内确保选中的本地会话正在运行。TUI 使用相同激活和恢复路径。仅当当前清单登记完整、所有确切 PID／创建时间身份消失、锁空闲且端点缺席时，才自动冷恢复。后台及正常停止 checkpoint 会恢复布局、Launch Profile、采样所得的逐终端 cwd。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。活 Host、未知／不完整身份和不可读记录均拒绝且不删除数据。请用相同 --session 选择执行 server diagnose，或用\norchbee --session recovery-work server start 另开命名会话。新激活会先发布当前版本 1 catalog\n再使用检查点存储；其他记录版本和形状保持不可读，不迁移。活 Host 接管仍另行实现。\n\nJSON 使用 orchbee.server.start：started 表示本次拉起了 Server；\nalready-running 表示既有会话准入了本次调用。不恢复存活智能体状态、终端历史或屏幕内容。",
+        "在一个 20 秒总预算内确保选中的本地会话正在运行。TUI 使用相同激活和恢复路径。仅当当前清单登记完整、所有确切 PID／创建时间身份消失、锁空闲且端点缺席时，才自动冷恢复。后台及正常停止 checkpoint 会恢复布局、Launch Profile、采样所得的逐终端 cwd。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。活 Host、未知／不完整身份和不可读记录均拒绝且不删除数据。请用相同 --session 选择执行 orchbee doctor，或用\norchbee --session recovery-work server start 另开命名会话。新激活会先发布当前版本 1 catalog\n再使用检查点存储；其他记录版本和形状保持不可读，不迁移。活 Host 接管仍另行实现。\n\nJSON 使用 orchbee.server.start：started 表示本次拉起了 Server；\nalready-running 表示既有会话准入了本次调用。不恢复存活智能体状态、终端历史或屏幕内容。",
     );
 
 pub(super) const HELP_SERVER_CONNECT_EN: crate::cli_text::HelpDetails =
@@ -25,18 +25,6 @@ pub(super) const HELP_SERVER_CONNECT_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee server connect",
         "需要时启动选中的本地会话，把当前进程接入为 Client，并通过标准输入和输出转发这条连接，直到任意一端结束。\n两个流都必须是管道。供会说 Client 协议的父进程使用，例如 Desktop 外壳。",
-    );
-
-pub(super) const HELP_SERVER_DIAGNOSE_EN: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee server diagnose [--format text|json]",
-        "Report bounded facts about the implicit per-user local session runtime —\nits base and scope directory, the activation marker and locks, and the\nfinite client/worker/pending/observation/host endpoint paths. Every row\nis a pathname or descriptor fact at its own observation instant: 'held'\nmeans some owner held the lifetime lock then — never that a session or any\nprocess is alive — and 'absent' is a pathname fact, never proof that an\nexecution ended. A 'known' marker or a valid client/worker socket leaf\nadds a conditional advisory: if no existing session can be joined, fresh\nactivation is blocked by current recovery policy.\n\nThe command never connects to an endpoint, never creates or deletes a\npath, never acquires the activation lock, and never repairs, stops, or\npredicts a later start. A cooperative five-second budget is checked\nbetween bounded filesystem operations; rows it cannot reach close as\n'uninspectable'. '--format json' emits the orchbee.server.diagnose\nenvelope on Linux and Windows. Windows reports private-DACL and bounded\npipe-name observations; unsupported members are explicit.\n\nOn Windows, unrecognizedRecords lists retained records that refuse the\nselected session: its catalog record when it cannot be admitted, and each\nfolder when two folders spell its name in different letter case. Other\nsession names are unaffected. Records are never migrated or\nmoved; an advisory names the next step.",
-    );
-
-pub(super) const HELP_SERVER_DIAGNOSE_ZH: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee server diagnose [--format text|json]",
-        "报告隐式每用户本地会话运行时的有界事实——基目录与 scope 目录、激活标记与锁，以及有限的 client/worker/pending/observation/host 端点路径。每一行都是其各自观察瞬间的路径名或描述符事实：'held' 表示某个属主在那一刻持有生命周期锁——绝不表示某个会话或进程存活；\n'absent' 是路径名事实，绝不证明某个执行已结束。观察到 'known' 标记或合法的 client/worker 套接字叶时附加一条条件通告：若无可加入的现有会话，按当前恢复策略新的激活将被阻止。\n\n本命令绝不连接任何端点，绝不创建或删除路径，绝不获取激活锁，也绝不修复、停止或预测后续启动。协作式五秒预算在有界的文件系统操作之间检查；无法到达的行以 'uninspectable' 闭合。'--format json'\n在 Linux 与 Windows 均输出 orchbee.server.diagnose 封套。Windows 使用私有 DACL\n和有界管道名称观察；不支持的成员明确标记。\n\n在 Windows 上，unrecognizedRecords 列出使选中会话被拒绝的保留记录：无法接纳的会话清单记录，以及两个文件夹以不同大小写拼写同一名称时的每个文件夹。其他会话名称不受影响。记录绝不迁移或移动；通告会给出下一步。",
     );
 
 pub(super) const HELP_SERVER_STOP_EN: crate::cli_text::HelpDetails =
@@ -102,40 +90,6 @@ impl super::CliText {
     }
 
     // ---- help topics ---------------------------------------------------------
-    /// A localized note line for one `server diagnose` advisory token; an
-    /// unrecognized token renders itself verbatim — the token is the
-    /// machine field, the line is only its human gloss.
-    pub(crate) fn cli_server_diagnose_advisory(self, advisory: &str) -> &'static str {
-        match (self.locale, advisory) {
-            (Locale::EnUs, "activation-recorded") => {
-                "note: activation recorded; if no existing session can be joined, fresh activation is blocked by current recovery policy.\n"
-            }
-            (Locale::ZhCn, "activation-recorded") => {
-                "注：已记录一次激活；若无可加入的现有会话，按当前恢复策略新的激活将被阻止。\n"
-            }
-            (Locale::EnUs, "socket-residue") => {
-                "note: client/worker socket residue observed; if no existing session can be joined, fresh activation is blocked by current recovery policy.\n"
-            }
-            (Locale::ZhCn, "socket-residue") => {
-                "注：观察到 client/worker 套接字残留；若无可加入的现有会话，按当前恢复策略新的激活将被阻止。\n"
-            }
-            (Locale::EnUs, "pipe-name-present") => {
-                "note: a client/worker pipe name was observed without connecting or authenticating its owner; if no session can be joined, current recovery policy blocks fresh activation.\n"
-            }
-            (Locale::ZhCn, "pipe-name-present") => {
-                "注：观察到 client/worker 管道名称，未连接或认证其属主；若无可加入的会话，当前恢复策略将阻止重新激活。\n"
-            }
-            (Locale::EnUs, "unrecognized-records") => {
-                "note: the listed records refuse this session; they cannot be admitted for it and are kept as found, never migrated. Start another name, for example orchbee --session recovery-work server start, or move the listed paths elsewhere once no older Orchbee build uses them, then rerun server diagnose.\n"
-            }
-            (Locale::ZhCn, "unrecognized-records") => {
-                "注：所列记录使此会话被拒绝；它们无法被此会话接纳，已原样保留且绝不迁移。可改用其他名称，例如 orchbee --session recovery-work server start；或确认没有旧版 Orchbee 仍在使用后，把所列路径移到别处，再重新运行 server diagnose。\n"
-            }
-            (Locale::EnUs, _) => "note: unrecognized advisory.\n",
-            (Locale::ZhCn, _) => "注：未识别的通告。\n",
-        }
-    }
-
     /// Localizes a closed stop outcome and prints its identity for later status recovery.
     pub(crate) fn cli_server_stop_result(
         self,

@@ -338,7 +338,7 @@ same rule when it creates a missing root whose parent exists, in every environme
 parent is missing is created by the private recursive creation used for any other directory.
 Activation creates the
 default runtime base before admitting it, while an explicit `ORCHBEE_RUNTIME_BASE` must already
-exist. Until then, read-only `session list`, `server diagnose` and `config check` report
+exist. Until then, read-only `session list`, `doctor` and `config check` report
 nothing started.
 Pipe names keep the `orchbee-` prefix in every environment because each runtime directory derives
 its own endpoint id. `machine_hub_endpoint` names the machine hub's pipe the same way from the
@@ -417,7 +417,7 @@ existing owner, endpoint and storage guards pass; ordinary publication cannot ov
 Live Host adoption remains separate.
 
 An instant's hold never fails a Session's start, stop, deletion or read. A reader of the catalog
-(`SessionCatalog::list`, `session list`, `server diagnose`, `server stop` waiting for the release,
+(`SessionCatalog::list`, `session list`, `doctor`, `server stop` waiting for the release,
 the machine hub, a Client reading its restore notice) holds a record, a folder or a Session lock
 only for one read or probe, and a writer holds a record only while it moves it into place. On
 Windows such a hold refuses the other side: a file another handle holds open cannot be replaced,

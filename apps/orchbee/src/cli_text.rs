@@ -10,6 +10,7 @@ pub(crate) use help::{HelpDetails, HelpText};
 mod destructive_request;
 mod details;
 mod diagnostics;
+mod doctor;
 pub(crate) mod escape;
 mod layouts;
 mod named_sessions;

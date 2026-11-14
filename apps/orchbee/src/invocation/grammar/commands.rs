@@ -49,6 +49,7 @@ commands! {
     Status => ["status"], 0, Operand, Portable, true, true, false;
     StatusServer => ["status", "server"], 0, Operand, Portable, true, true, false;
     StatusClient => ["status", "client"], 0, Operand, Portable, true, false, false;
+    Doctor => ["doctor"], 0, Operand, Portable, true, false, false;
     AgentList => ["agent", "list"], 0, Operand, Portable, true, true, false;
     AgentGet => ["agent", "get"], 1, Agent, Portable, true, true, false;
     AgentFocus => ["agent", "focus"], 1, Agent, Portable, true, true, false;
@@ -58,7 +59,6 @@ commands! {
     AgentSendKeys => ["agent", "send-keys"], super::super::MAXIMUM_SEND_RECORDS + 1, Agent, Portable, true, true, false;
     AgentExplain => ["agent", "explain"], 1, Operand, Portable, true, true, false;
     AgentWait => ["agent", "wait"], 1, Agent, Portable, true, true, false;
-    AgentDoctor => ["agent", "doctor"], 0, Operand, Portable, true, false, false;
     AgentResolve => ["agent", "resolve"], 1, Operand, Portable, true, true, false;
     AgentRename => ["agent", "rename"], 2, Operand, Portable, true, true, false;
     AgentIntegrationList => ["agent", "integration", "list"], 0, Operand, Portable, true, false, false;
@@ -147,7 +147,6 @@ commands! {
     SessionAttach => ["session", "attach"], 1, Session, Windows, false, false, false;
     SessionStop => ["session", "stop"], 1, Session, Windows, true, false, false;
     SessionDelete => ["session", "delete"], 1, Session, Windows, true, false, false;
-    ServerDiagnose => ["server", "diagnose"], 0, Operand, Portable, true, false, false;
     ServerUpdateAgentManifests => ["server", "update-agent-manifests"], 0, Operand, Portable, true, true, false;
     TerminalTitleSet => ["terminal", "title", "set"], 1, Operand, Portable, true, true, false;
     TerminalTitleClear => ["terminal", "title", "clear"], 0, Operand, Portable, true, true, false;

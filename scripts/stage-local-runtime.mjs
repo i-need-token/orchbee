@@ -54,8 +54,8 @@ function readCapsuleManifest(filePath) {
 	}
 }
 const CAPSULE_OWNER_RECORD = 'bundle/scripts/environment.json';
-// Exported as the independent digest oracle the CLI's Windows doctor test checks Rust against.
-export function capsulePayloadDigest(rootPath) {
+// The payload digest computed here, independently of the Rust writer, for `verifiedCapsuleDigest`.
+function capsulePayloadDigest(rootPath) {
 	try {
 		if (!lstatSync(rootPath).isDirectory()) return null;
 	} catch {

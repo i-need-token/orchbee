@@ -12,6 +12,21 @@ mod workflow;
 
 pub(in crate::cli) use projection::{process_lines, processes_document};
 
+/// `doctor`'s installation facts: what `status client` reports, as its result object.
+pub(in crate::cli) fn client_facts(
+    deadline: std::time::Instant,
+) -> Result<serde_json::Value, Failure> {
+    workflow::client(deadline).map(|report| report.result())
+}
+
+/// `doctor`'s Session facts: what `status server` reports, as its result object.
+pub(in crate::cli) fn server_facts(
+    deadline: std::time::Instant,
+    signals: &super::console_interrupt::ArmedSignals,
+) -> Result<serde_json::Value, Failure> {
+    workflow::server(deadline, signals).map(|report| report.result())
+}
+
 pub(crate) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Locale) -> Output {
     if let Err(failure) = super::execution::admit(super::execution::Capability::RuntimeStatus) {
         return failure_output(failure, Some(format), locale);

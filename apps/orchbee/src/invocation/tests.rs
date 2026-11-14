@@ -727,7 +727,6 @@ fn session_stop_requires_confirmation_and_preserves_explicit_recovery_identity()
         vec!["server", "status", "short"],
         vec!["server", "status"],
         vec!["server", "start", "--detach"],
-        vec!["server", "diagnose", "--request-id", id],
         vec!["--retry", "status"],
     ] {
         assert!(parse(&args).is_err(), "{args:?}");
@@ -735,33 +734,33 @@ fn session_stop_requires_confirmation_and_preserves_explicit_recovery_identity()
 }
 
 #[test]
-fn session_diagnose_admits_only_format() {
+fn doctor_admits_only_format() {
     // The bare path defaults to text; `--format` is the sole option.
     assert_eq!(
-        parse(&["server", "diagnose"]),
-        Ok(Request::ServerDiagnose {
+        parse(&["doctor"]),
+        Ok(Request::Doctor {
             format: OutputFormat::Text
         })
     );
     assert_eq!(
-        parse(&["server", "diagnose", "--format", "json"]),
-        Ok(Request::ServerDiagnose {
+        parse(&["doctor", "--format", "json"]),
+        Ok(Request::Doctor {
             format: OutputFormat::Json
         })
     );
     assert_eq!(
-        parse(&["--format=json", "server", "diagnose"]),
-        Ok(Request::ServerDiagnose {
+        parse(&["--format=json", "doctor"]),
+        Ok(Request::Doctor {
             format: OutputFormat::Json
         })
     );
     let cases: &[&[&str]] = &[
         // Operands, filters, and business flags are all out of scope —
         // the command needs no `--confirm`: it performs no effect.
-        &["server", "diagnose", "extra"],
-        &["server", "diagnose", "--project", "x"],
-        &["server", "diagnose", "--confirm"],
-        &["server", "diagnose", "--mouse", "off"],
+        &["doctor", "extra"],
+        &["doctor", "--project", "x"],
+        &["doctor", "--confirm"],
+        &["doctor", "--mouse", "off"],
     ];
     for arguments in cases {
         assert_eq!(
@@ -772,28 +771,24 @@ fn session_diagnose_admits_only_format() {
     }
     // A json envelope selection survives into the usage failure.
     assert_eq!(
-        parse(&["server", "diagnose", "extra", "--format", "json"]),
+        parse(&["doctor", "extra", "--format", "json"]),
         Err(ParseFailure {
             kind: ParseFailureKind::InvalidUsage,
             envelope: FailureEnvelope::Json,
             usage: Some(UsageReason::UnexpectedArgument {
-                context: UsageContext::Path("server diagnose"),
+                context: UsageContext::Path("doctor"),
                 value: "extra".to_owned(),
             }),
         })
     );
     // Help-path resolution: command help is its own topic.
     assert_eq!(
-        parse(&["server", "diagnose", "--help"]),
-        Ok(Request::Help(HelpTopic::Command(
-            CommandPath::ServerDiagnose
-        )))
+        parse(&["doctor", "--help"]),
+        Ok(Request::Help(HelpTopic::Command(CommandPath::Doctor)))
     );
     assert_eq!(
-        parse(&["help", "server", "diagnose"]),
-        Ok(Request::Help(HelpTopic::Command(
-            CommandPath::ServerDiagnose
-        )))
+        parse(&["help", "doctor"]),
+        Ok(Request::Help(HelpTopic::Command(CommandPath::Doctor)))
     );
 }
 
@@ -2274,8 +2269,7 @@ fn joined_value_spelling_is_equivalent() {
             &["terminal", "read", ID, "--lines", "10"][..],
             &["terminal", "read", ID, "--lines=10"][..],
         ),
-        // Agent families: paging, wait conditions, doctor selectors,
-        // integration flags.
+        // Agent families: paging, wait conditions, integration flags.
         (
             &["agent", "list", "--limit", "10", "--cursor", "c"][..],
             &["agent", "list", "--limit=10", "--cursor=c"][..],
@@ -2287,22 +2281,6 @@ fn joined_value_spelling_is_equivalent() {
         (
             &["agent", "wait", "a", "--after-revision", "7"][..],
             &["agent", "wait", "a", "--after-revision=7"][..],
-        ),
-        (
-            &[
-                "agent",
-                "doctor",
-                "--provider",
-                "codex",
-                "--asset-root",
-                &doctor_test_root("/r"),
-            ][..],
-            &[
-                "agent",
-                "doctor",
-                "--provider=codex",
-                &format!("--asset-root={}", doctor_test_root("/r")),
-            ][..],
         ),
         (
             &[
@@ -5453,243 +5431,6 @@ fn agent_help_paths_resolve() {
     }
 }
 
-/// `agent doctor` grammar: provider and asset-root selectors are repeatable
-/// and order-preserving, `--format` stays orthogonal, and no flag selects a
-/// network path — the query variant is the whole result.
-#[test]
-fn agent_doctor_grammar() {
-    // Defaults: all providers, no supplied roots, text output.
-    assert_eq!(
-        parse(&["agent", "doctor"]),
-        Ok(query(
-            QueryCommand::AgentDoctor {
-                providers: Vec::new(),
-                asset_roots: Vec::new(),
-            },
-            OutputFormat::Text
-        ))
-    );
-    // Both selectors repeat and keep flag order; duplicates pass through the
-    // grammar layer untouched (canonical-order dedup lives in the probe).
-    assert_eq!(
-        parse(&[
-            "agent",
-            "doctor",
-            "--provider",
-            "qwen-code",
-            "--asset-root",
-            &doctor_test_root("/opt/capsule-a"),
-            "--provider",
-            "codex",
-            "--provider",
-            "codex",
-            "--asset-root",
-            &doctor_test_root("/opt/capsule-b"),
-        ]),
-        Ok(query(
-            QueryCommand::AgentDoctor {
-                providers: vec![
-                    "qwen-code".to_owned(),
-                    "codex".to_owned(),
-                    "codex".to_owned(),
-                ],
-                asset_roots: vec![
-                    doctor_test_root("/opt/capsule-a"),
-                    doctor_test_root("/opt/capsule-b")
-                ],
-            },
-            OutputFormat::Text
-        ))
-    );
-    // Every canonical provider id admits.
-    for id in [
-        "claude-code",
-        "codex",
-        "gemini",
-        "github-copilot",
-        "grok",
-        "cline",
-        "opencode",
-        "pi",
-        "omp",
-        "qwen-code",
-    ] {
-        assert_eq!(
-            parse(&["agent", "doctor", "--provider", id]),
-            Ok(query(
-                QueryCommand::AgentDoctor {
-                    providers: vec![id.to_owned()],
-                    asset_roots: Vec::new(),
-                },
-                OutputFormat::Text
-            )),
-            "--provider {id}"
-        );
-    }
-    // Exactly four supplied roots is the admitted ceiling.
-    assert_eq!(
-        parse(&[
-            "agent",
-            "doctor",
-            "--asset-root",
-            &doctor_test_root("/a"),
-            "--asset-root",
-            &doctor_test_root("/b"),
-            "--asset-root",
-            &doctor_test_root("/c"),
-            "--asset-root",
-            &doctor_test_root("/d"),
-        ]),
-        Ok(query(
-            QueryCommand::AgentDoctor {
-                providers: Vec::new(),
-                asset_roots: vec![
-                    doctor_test_root("/a"),
-                    doctor_test_root("/b"),
-                    doctor_test_root("/c"),
-                    doctor_test_root("/d")
-                ],
-            },
-            OutputFormat::Text
-        ))
-    );
-    // Format selection applies like every other query.
-    assert_eq!(
-        parse(&["agent", "doctor", "--format", "json"]),
-        Ok(query(
-            QueryCommand::AgentDoctor {
-                providers: Vec::new(),
-                asset_roots: Vec::new(),
-            },
-            OutputFormat::Json
-        ))
-    );
-}
-
-/// `agent doctor` usage failures: unknown provider ids, non-absolute or
-/// over-limit asset roots, missing option values, and out-of-scope options
-/// are all typed usage failures — nothing reaches the probe layer.
-#[test]
-fn agent_doctor_usage_failures() {
-    let usage_reason = |arguments: &[&str]| {
-        let Err(failure) = parse(arguments) else {
-            panic!("{arguments:?} must fail");
-        };
-        assert_eq!(
-            failure.kind,
-            ParseFailureKind::InvalidUsage,
-            "{arguments:?}"
-        );
-        failure.usage.expect("usage reason recorded")
-    };
-    let path = |spelling: &'static str| UsageContext::Path(spelling);
-
-    for value in ["claude", "CODEX", "codex ", "", "gpt-5"] {
-        assert_eq!(
-            usage_reason(&["agent", "doctor", "--provider", value]),
-            UsageReason::InvalidValue {
-                context: path("agent doctor"),
-                option: "--provider",
-                value: value.to_owned(),
-                expected: ExpectedValue::ProviderId,
-            },
-            "--provider {value:?}"
-        );
-    }
-    // Relative spellings, empties, and ~/$ forms are usage failures at the
-    // grammar boundary — never expanded and never probed as guesses.
-    for value in ["", "rel/path", "./x", "../x", "~/x", "$HOME/x", "x/"] {
-        assert_eq!(
-            usage_reason(&["agent", "doctor", "--asset-root", value]),
-            UsageReason::InvalidValue {
-                context: path("agent doctor"),
-                option: "--asset-root",
-                value: value.to_owned(),
-                expected: ExpectedValue::AssetRootPath,
-            },
-            "--asset-root {value:?}"
-        );
-    }
-    // A fifth supplied root overruns the declared ceiling.
-    assert_eq!(
-        usage_reason(&[
-            "agent",
-            "doctor",
-            "--asset-root",
-            &doctor_test_root("/a"),
-            "--asset-root",
-            &doctor_test_root("/b"),
-            "--asset-root",
-            &doctor_test_root("/c"),
-            "--asset-root",
-            &doctor_test_root("/d"),
-            "--asset-root",
-            &doctor_test_root("/e"),
-        ]),
-        UsageReason::InvalidValue {
-            context: path("agent doctor"),
-            option: "--asset-root",
-            value: ["/a", "/b", "/c", "/d", "/e"]
-                .map(doctor_test_root)
-                .join(" "),
-            expected: ExpectedValue::AssetRootPath,
-        }
-    );
-    for option in ["--provider", "--asset-root"] {
-        assert_eq!(
-            usage_reason(&["agent", "doctor", option]),
-            UsageReason::MissingValue { option },
-            "{option} alone"
-        );
-    }
-    // Out-of-scope options and stray operands stay usage failures.
-    for (arguments, reason) in [
-        (
-            &["agent", "doctor", "--include-ended"][..],
-            UsageReason::UnknownOption {
-                context: path("agent doctor"),
-                option: "--include-ended".to_owned(),
-            },
-        ),
-        (
-            &["agent", "doctor", "--cursor", AGENT_CURSOR][..],
-            UsageReason::UnknownOption {
-                context: path("agent doctor"),
-                option: "--cursor".to_owned(),
-            },
-        ),
-        (
-            &["agent", "doctor", "--label", "x"][..],
-            UsageReason::UnknownOption {
-                context: path("agent doctor"),
-                option: "--label".to_owned(),
-            },
-        ),
-        (
-            &["agent", "doctor", "extra"][..],
-            UsageReason::UnexpectedArgument {
-                context: path("agent doctor"),
-                value: "extra".to_owned(),
-            },
-        ),
-    ] {
-        assert_eq!(usage_reason(arguments), reason, "{arguments:?}");
-    }
-}
-
-/// `agent doctor` help resolves on both surfaces to the pinned command topic.
-#[test]
-fn agent_doctor_help_paths_resolve() {
-    assert_eq!(
-        parse(&["agent", "doctor", "--help"]),
-        Ok(Request::Help(HelpTopic::Command(CommandPath::AgentDoctor)))
-    );
-    assert_eq!(
-        parse(&["help", "agent", "doctor"]),
-        Ok(Request::Help(HelpTopic::Command(CommandPath::AgentDoctor)))
-    );
-}
-
 /// `agent integration` parses the four local provider-onboarding commands;
 /// `explain`/`enable`/`disable` owe `--provider`, `list` accepts it as a
 /// filter, and `--adapter-source` must be a literal absolute path.
@@ -6266,14 +6007,6 @@ fn workspace_launch_preserves_launch_values_in_the_platform_workflow() {
         let mut words = vec!["workspace", "create", "--project", "P", "--label", "W"];
         words.extend(tail);
         assert!(parse(&words).is_err(), "{words:?}");
-    }
-}
-
-fn doctor_test_root(posix: &str) -> String {
-    if cfg!(windows) {
-        format!("C:{posix}")
-    } else {
-        posix.to_owned()
     }
 }
 

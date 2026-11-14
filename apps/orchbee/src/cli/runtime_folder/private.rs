@@ -1,5 +1,5 @@
 //! Private-runtime report workflow over admitted file and unauthenticated endpoint-name facts.
-use super::{DiagnoseDocument, Failure, FailureKind};
+use super::{Failure, FailureKind, RuntimeFolder};
 use orchbee_local_runtime::{
     ActivationState, DataRoot, ModeCheckedLocalSessionRendezvous as Rendezvous, RendezvousError,
     SessionCatalog, SessionLifetimeObservation, SessionScope, UnrecognizedRecord,
@@ -62,7 +62,7 @@ fn step(deadline: Instant, complete: &mut bool, observe: impl FnOnce() -> Row) -
     result
 }
 
-pub(super) fn collect() -> Result<DiagnoseDocument, Failure> {
+pub(super) fn collect() -> Result<RuntimeFolder, Failure> {
     let deadline = Instant::now() + Duration::from_secs(5);
     let (base, scope) = crate::local_activation::runtime_location()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
@@ -122,7 +122,7 @@ fn collect_at(
     root: Option<&DataRoot>,
     scope: &str,
     deadline: Instant,
-) -> Result<DiagnoseDocument, Failure> {
+) -> Result<RuntimeFolder, Failure> {
     let scope_id =
         SessionScope::parse(scope).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let mut complete = true;
@@ -286,20 +286,19 @@ fn collect_at(
         ("hostScope".to_owned(), json!({"kind":"unsupported"})),
     ]);
     result.extend(
-        rows.iter()
-            .map(|(key, value)| (key.clone(), Value::Object(value.clone()))),
+        rows.into_iter()
+            .map(|(key, value)| (key, Value::Object(value))),
     );
     let mut result = Value::Object(result);
     super::complete_rows(&mut result);
-    // A list member rather than a row: it is completed here, and text gives each record a row.
-    let mut member = summary.clone();
+    // A list member rather than a row: it is completed here.
+    let mut member = summary;
     member.entry("reason").or_insert(Value::Null);
     member.insert(
         "records".to_owned(),
         records
-            .iter()
-            .map(|record| {
-                let mut record = record.clone();
+            .into_iter()
+            .map(|mut record| {
                 for key in ["path", "pathUtf16"] {
                     record.entry(key).or_insert(Value::Null);
                 }
@@ -308,19 +307,7 @@ fn collect_at(
             .collect(),
     );
     result["unrecognizedRecords"] = Value::Object(member);
-    rows.push(("unrecognizedRecords".to_owned(), summary));
-    rows.extend(
-        records
-            .into_iter()
-            .enumerate()
-            .map(|(index, record)| (format!("unrecognizedRecords.{}", index + 1), record)),
-    );
-    Ok(DiagnoseDocument {
-        envelope: json!({"schema":"orchbee.server.diagnose", "version":1,
-            "source":crate::cli_outcome::local_runtime_source(), "result":result}),
-        rows,
-        advisories,
-    })
+    Ok(RuntimeFolder { result, advisories })
 }
 
 #[cfg(all(test, windows))]

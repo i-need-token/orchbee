@@ -50,7 +50,6 @@ mod creation;
 mod creation_defaults;
 mod current_panel;
 mod current_presentation;
-mod doctor_document;
 mod launch_receipt;
 mod source_context;
 pub(crate) mod workspace_creation;
@@ -64,6 +63,7 @@ mod terminal_list;
 pub(crate) use terminal_clear::run as clear_terminal;
 pub(crate) mod config;
 mod configuration;
+pub(crate) mod doctor;
 pub(crate) mod integration;
 mod layout_topology;
 pub(crate) mod layouts;
@@ -75,13 +75,13 @@ pub(crate) mod present;
 pub(crate) use crate::agent_runtime::processes;
 mod query;
 pub(crate) mod results;
+mod runtime_folder;
 pub(crate) mod runtime_status;
 pub(crate) mod schema;
 pub(crate) mod send;
 
 mod server;
 mod server_connect;
-mod server_diagnose;
 mod server_query;
 mod server_stop;
 mod stale_retry;
@@ -452,13 +452,6 @@ pub(crate) fn session_start(format: OutputFormat, locale: Locale) -> Output {
     server::start(format, locale)
 }
 
-/// `server diagnose` is neither a query nor a mutation: it reports bounded
-/// local runtime facts and the limits of those observations — it never
-/// connects, creates, repairs, or predicts a later start.
-pub(crate) fn server_diagnose(format: OutputFormat, locale: Locale) -> Output {
-    server_diagnose::run(format, locale)
-}
-
 /// `agent integration` is provider onboarding through the local Session: each verb declares
 /// activation, and the Session's Worker owns every provider command.
 pub(crate) fn agent_integration(
@@ -491,13 +484,6 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
     match &command {
         QueryCommand::ApiSchema { schema_id } => schema::read(schema_id.as_deref(), format, locale),
         QueryCommand::ConfigCheck => config::check(format, locale),
-        // `agent doctor` is fully offline: it answers bounded filesystem
-        // facts itself and never opens a session or touches the network
-        // query path.
-        QueryCommand::AgentDoctor {
-            providers,
-            asset_roots,
-        } => doctor_document::run(providers, asset_roots, format, locale),
         // `terminal get` answers the Server's own launch-read join on the
         // admitted session; the snapshot supplies only the typed target id.
         QueryCommand::TerminalGet(target) => match query::terminal_get(target) {

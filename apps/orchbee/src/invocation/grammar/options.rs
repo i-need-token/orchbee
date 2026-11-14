@@ -2189,7 +2189,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         closed_values: true,
         string_rule: None,
         commands: &[
-            CommandPath::AgentDoctor,
             CommandPath::AgentIntegrationList,
             CommandPath::AgentIntegrationExplain,
             CommandPath::AgentIntegrationEnable,
@@ -2197,28 +2196,11 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         ],
         role: OptionRole::Business,
         value: Some("provider"),
-        repeatable: true,
+        repeatable: false,
         joined: true,
         help: None,
         apply: |options, value, _| {
-            options.provider = Some(value.clone());
-            options.providers.push(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
-        spelling: "--asset-root",
-        values: &[],
-        closed_values: false,
-        string_rule: None,
-        commands: &[CommandPath::AgentDoctor],
-        role: OptionRole::Business,
-        value: Some("filter"),
-        repeatable: true,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.asset_roots.push(value);
+            options.provider = Some(value);
             Ok(())
         },
     },

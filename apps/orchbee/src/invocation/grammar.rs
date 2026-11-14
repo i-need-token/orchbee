@@ -247,9 +247,6 @@ impl CommandSpec {
     }
 
     pub(crate) fn repeats(&self, spelling: &str) -> bool {
-        if let Some(rule) = REPETITION.iter().find(|rule| rule.flag == spelling) {
-            return rule.commands.contains(&self.id);
-        }
         option(spelling).is_some_and(|option| option.repeatable)
     }
 }
@@ -281,15 +278,6 @@ const VALUE_OVERRIDES: &[ValueOverride] = &[
         closed: false,
     },
 ];
-
-struct Repetition {
-    flag: &'static str,
-    commands: &'static [CommandPath],
-}
-const REPETITION: &[Repetition] = &[Repetition {
-    flag: "--provider",
-    commands: &[CommandPath::AgentDoctor],
-}];
 
 /// Discovered children follow what this build offers; a withheld path has none.
 static CHILDREN: LazyLock<Vec<(&'static str, Vec<&'static str>)>> = LazyLock::new(|| {

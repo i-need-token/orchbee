@@ -14,12 +14,22 @@ const HELP_TUI_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::
 
 const HELP_STATUS_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee status [--format text|json]",
-    "Read the running session's reachability, resource counts and processes: the Server, its Worker and each Terminal Host with version, PID, state and terminal count, and whether Restart Session keeps terminals. This command does not create or start a session. Use status client to inspect this executable offline.",
+    "Read the running session's reachability, resource counts and processes: the Server, its Worker and each Terminal Host with version, PID, state and terminal count, and whether Restart Session keeps terminals. This command does not create or start a session. Use orchbee doctor to check this installation without a running session.",
 );
 
 const HELP_STATUS_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee status [--format text|json]",
-    "读取正在运行的会话的可达性、资源数量和进程：Server、其 Worker 及每个 Terminal Host 的版本、PID、状态和终端数，以及重启会话是否保留终端。本命令不创建或启动会话。使用 status client 离线检查当前程序。",
+    "读取正在运行的会话的可达性、资源数量和进程：Server、其 Worker 及每个 Terminal Host 的版本、PID、状态和终端数，以及重启会话是否保留终端。本命令不创建或启动会话。使用 orchbee doctor 在没有运行会话时检查本机安装。",
+);
+
+const HELP_DOCTOR_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
+    "orchbee doctor [--format text|json]",
+    "Check whether Orchbee works here with six fixed checks, one line each: Installation (this executable and its installation files), Settings (config.toml), Saved data (records this version cannot use), Runtime folder (the Session's folder, locks and endpoints), Session (whether one runs and answers this version) and Agent integrations (a provider that needs an update). Each line starts with ok, warn, fail or - (does not apply); a warn or fail line gives the reason and may add the command to run. Never connects as a Client, starts nothing and writes nothing; each check keeps its own five-second budget. A Session that is not running is not a failure. Exits 1 when a check failed, still writing the whole report; otherwise 0.\nJSON schema: orchbee.doctor (v1).",
+);
+
+const HELP_DOCTOR_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
+    "orchbee doctor [--format text|json]",
+    "用六项固定检查确认 Orchbee 能否在本机正常工作，每项一行：安装（当前程序及其安装文件）、设置（config.toml）、已保存数据（本版本无法使用的记录）、运行时目录（会话的文件夹、锁和端点）、会话（是否运行、能否应答本版本）和智能体集成（需要更新的提供方）。每行以通过、警告、失败或 -（不适用）开头；警告或失败行给出原因，并可附上要运行的命令。不以客户端身份连接，不启动、不写入任何内容；每项检查各有五秒时限。会话未运行不算失败。有检查失败时退出 1，仍输出完整报告；否则退出 0。\nJSON schema：orchbee.doctor（v1）。",
 );
 
 const HELP_API_SNAPSHOT_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
@@ -155,6 +165,8 @@ impl super::CliText {
             (_, CommandPath::StatusServer) => super::runtime_status::help(self.locale, true),
             (Locale::EnUs, CommandPath::Status) => HELP_STATUS_EN,
             (Locale::ZhCn, CommandPath::Status) => HELP_STATUS_ZH,
+            (Locale::EnUs, CommandPath::Doctor) => HELP_DOCTOR_EN,
+            (Locale::ZhCn, CommandPath::Doctor) => HELP_DOCTOR_ZH,
             (Locale::EnUs, CommandPath::ProjectList) => super::project::HELP_PROJECT_LIST_EN,
             (Locale::ZhCn, CommandPath::ProjectList) => super::project::HELP_PROJECT_LIST_ZH,
             (Locale::EnUs, CommandPath::ProjectGet) => super::project::HELP_PROJECT_GET_EN,
@@ -279,11 +291,11 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::AgentList) => super::agent::HELP_AGENT_LIST_ZH,
             (Locale::EnUs, CommandPath::AgentStart) => crate::cli_text::HelpDetails::new(
                 "orchbee agent start <provider> [--new-tab|--here|--split right|down] [--name <name>] [--panel <id|@panel:0x<hex>>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
-                "Windows: start an interactive Agent in a new Tab (the default), in a new Panel split right or\ndown (--split), or at the prompt of an existing idle terminal (--here). The reference Panel is\n--panel, --current or the caller's own Panel: a new Tab joins its Workspace, a split divides it,\nand --here types into it; --here is refused for the caller's own Panel.\nWith no arguments and no --name, a new Tab or split runs the Agent as its shell's first command\nand returns once the Panel exists. Otherwise the command is typed once at the confirmed prompt.\nWithout --name it returns after a 3-second check: a shell back at its prompt reports the command\nnot found or the Agent exited. With --name it also waits until the Agent is ready: an enabled\nintegration's session confirms it and receives the name; otherwise the Agent seen waiting\nconfirms it, and the name stays unbound. A new Tab or Panel stays when a later step fails.\nTimeout: 3001–300000 ms, default 30000. Use --arg=<value> repeatedly as an alternative to\ntrailing arguments. Cancellation or timeout releases a name when confirmed; it never kills the Agent.\n<provider> is the id integration and doctor take with --provider, for example antigravity.",
+                "Windows: start an interactive Agent in a new Tab (the default), in a new Panel split right or\ndown (--split), or at the prompt of an existing idle terminal (--here). The reference Panel is\n--panel, --current or the caller's own Panel: a new Tab joins its Workspace, a split divides it,\nand --here types into it; --here is refused for the caller's own Panel.\nWith no arguments and no --name, a new Tab or split runs the Agent as its shell's first command\nand returns once the Panel exists. Otherwise the command is typed once at the confirmed prompt.\nWithout --name it returns after a 3-second check: a shell back at its prompt reports the command\nnot found or the Agent exited. With --name it also waits until the Agent is ready: an enabled\nintegration's session confirms it and receives the name; otherwise the Agent seen waiting\nconfirms it, and the name stays unbound. A new Tab or Panel stays when a later step fails.\nTimeout: 3001–300000 ms, default 30000. Use --arg=<value> repeatedly as an alternative to\ntrailing arguments. Cancellation or timeout releases a name when confirmed; it never kills the Agent.\n<provider> is the id integration takes with --provider, for example antigravity.",
             ),
             (Locale::ZhCn, CommandPath::AgentStart) => crate::cli_text::HelpDetails::new(
                 "orchbee agent start <provider> [--new-tab|--here|--split right|down] [--name <name>] [--panel <id|@panel:0x<hex>>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
-                "Windows：在新标签页（默认）、向右或向下拆分出的新面板（--split）中启动交互式智能体，或在现有空闲终端的提示符处启动（--here）。参照面板为 --panel、--current 或调用者自己的面板：新标签页加入其工作区，拆分会分割它，--here 在其中输入；--here 不能用于调用者自己的面板。不带参数也不带 --name 时，新标签页或拆分面板的 shell 把智能体作为第一条命令运行，面板出现后即返回。否则在已确认的提示符处输入一次启动命令。不带 --name 时，命令在 3 秒检查后返回：shell 回到提示符则报告找不到命令或智能体已退出。带 --name 时还会等待智能体就绪：已启用集成时，由其会话确认就绪并获得名称；否则以终端中观察到智能体等待输入作为就绪，名称不绑定。之后的步骤失败时，新标签页或面板会保留。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。取消或超时在确认后释放名称，但不会终止智能体。\n<provider> 与 integration 和 doctor 的 --provider 取值相同，例如 antigravity。",
+                "Windows：在新标签页（默认）、向右或向下拆分出的新面板（--split）中启动交互式智能体，或在现有空闲终端的提示符处启动（--here）。参照面板为 --panel、--current 或调用者自己的面板：新标签页加入其工作区，拆分会分割它，--here 在其中输入；--here 不能用于调用者自己的面板。不带参数也不带 --name 时，新标签页或拆分面板的 shell 把智能体作为第一条命令运行，面板出现后即返回。否则在已确认的提示符处输入一次启动命令。不带 --name 时，命令在 3 秒检查后返回：shell 回到提示符则报告找不到命令或智能体已退出。带 --name 时还会等待智能体就绪：已启用集成时，由其会话确认就绪并获得名称；否则以终端中观察到智能体等待输入作为就绪，名称不绑定。之后的步骤失败时，新标签页或面板会保留。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。取消或超时在确认后释放名称，但不会终止智能体。\n<provider> 与 integration 的 --provider 取值相同，例如 antigravity。",
             ),
             (Locale::EnUs, CommandPath::AgentPrompt) => super::agent::HELP_AGENT_PROMPT_WINDOWS_EN,
             (Locale::ZhCn, CommandPath::AgentPrompt) => super::agent::HELP_AGENT_PROMPT_WINDOWS_ZH,
@@ -319,8 +331,6 @@ impl super::CliText {
             ),
             (Locale::EnUs, CommandPath::AgentWait) => super::agent::HELP_AGENT_WAIT_EN,
             (Locale::ZhCn, CommandPath::AgentWait) => super::agent::HELP_AGENT_WAIT_ZH,
-            (Locale::EnUs, CommandPath::AgentDoctor) => super::agent::HELP_AGENT_DOCTOR_EN,
-            (Locale::ZhCn, CommandPath::AgentDoctor) => super::agent::HELP_AGENT_DOCTOR_ZH,
             (Locale::EnUs, CommandPath::AgentIntegrationList) => super::integration::HELP_AGENT_INTEGRATION_LIST_EN,
             (Locale::ZhCn, CommandPath::AgentIntegrationList) => super::integration::HELP_AGENT_INTEGRATION_LIST_ZH,
             (Locale::EnUs, CommandPath::AgentIntegrationExplain) => super::integration::HELP_AGENT_INTEGRATION_EXPLAIN_EN,
@@ -410,8 +420,6 @@ Windows 正式版要求在控制台中输入 orchbee；开发和测试构建需�
                 | CommandPath::ServerUpdateAgentManifests
                 | CommandPath::ServerReloadAgentManifests,
             ) => self.cli_agent_manifests_help(path),
-            (Locale::EnUs, CommandPath::ServerDiagnose) => super::server::HELP_SERVER_DIAGNOSE_EN,
-            (Locale::ZhCn, CommandPath::ServerDiagnose) => super::server::HELP_SERVER_DIAGNOSE_ZH,
             (Locale::EnUs, CommandPath::ServerStop) => super::server::HELP_SERVER_STOP_EN,
             (Locale::ZhCn, CommandPath::ServerStop) => super::server::HELP_SERVER_STOP_ZH,
         }

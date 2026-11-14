@@ -91,8 +91,8 @@ an omitted surface is not permission to add it.
 | Terminal / Presentation / Attachment | `TerminalId`, `TerminalPresentationId`, `AttachmentId`, `terminal`                                            | `terminalId`, `presentationId`, `attachmentId`, `terminal`, `--terminal`, `ORCHBEE_TERMINAL_ID` where declared                                                                                          |
 | Cohort                               | `Cohort`, `CohortArtifact`, `CohortError`, `cohort`                                                           | Existing cohort fields retain their artifact-admission meaning                                                                                                                                          |
 
-The five service document identifiers are `orchbee.server.start`, `orchbee.server.stop`,
-`orchbee.server.diagnose`, `orchbee.server.configuration`, and `orchbee.server.agent-manifests`.
+The four service document identifiers are `orchbee.server.start`, `orchbee.server.stop`,
+`orchbee.server.configuration`, and `orchbee.server.agent-manifests`.
 Their producer is the `server` command family; replacing `orchbee.site.*` with
 `orchbee.session.*` would misname that boundary. Document versions follow
 [Architecture](ARCHITECTURE.md#data-boundaries), independently of terminology.

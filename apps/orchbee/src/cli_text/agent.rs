@@ -63,18 +63,6 @@ pub(super) const HELP_AGENT_EXPLAIN_ZH: crate::cli_text::HelpDetails =
         "解释规范智能体会话或 Windows 物理终端。物理目标返回当前有效状态及一次新鲜规则评估：清单来源/版本、胜出规则、每条规则的匹配与有界区域证据。不发送输入或改变焦点。规范会话保留推导视图：规范状态依据、新鲜度含义、能力上限、观察来源与保真度，以及仅限导航的操作边界。'--format json' 输出\norchbee.agent.explain 版本 1 封套，包含规范或物理目标证据。目标：一个位置参数会话 ID/名称/面板 ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:0x<hex>>。会话 ID、名称优先于面板。\nPanel 选择主终端，多智能体匹配时拒绝；等待固定到首次解析的会话。",
     );
 
-pub(super) const HELP_AGENT_DOCTOR_EN: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee agent doctor [--provider <id>]... [--format text|json]",
-        "Explain, from bounded filesystem facts alone, why Agent observations may\nnot arrive: each provider's executable and managed-hook state, its asset\nroots, the observation endpoint, and the environment override.\n'--provider' selects providers with an Orchbee integration (repeatable);\nstart-only Agents such as kiro have none to check.\nNothing is executed, connected, written, or repaired. '--format json'\nemits the orchbee.agent.doctor envelope (version 1 on supported platforms). Windows\nmarks the endpoint probe unsupported, separately from installation.",
-    );
-
-pub(super) const HELP_AGENT_DOCTOR_ZH: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee agent doctor [--provider <id>]... [--format text|json]",
-        "仅凭有界文件系统事实解释智能体观察为何可能未到达：各 provider 的可执行文件与托管 hook 状态、其 asset root、观察端点以及环境覆盖。\n'--provider' 选择具有 Orchbee 集成的 provider（可重复），kiro 等只能启动的智能体没有可检查的集成。不执行、不连接、不写入、不修复任何内容。'--format json' 输出 orchbee.agent.doctor 封套（受支持平台均为版本 1）。Windows 将端点探测标为不支持，不会把安装状态当成链路可用。",
-    );
-
 pub(super) const HELP_AGENT_WAIT_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent wait (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--client <id>] [--until <condition>]... [--after-revision <n>] [--timeout <ms> | --forever] [--format text|json]",

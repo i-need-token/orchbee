@@ -57,20 +57,6 @@ impl super::CliText {
         }
     }
 
-    pub(crate) const fn cli_doctor_headers(self) -> [&'static str; 4] {
-        match self.locale {
-            Locale::EnUs => ["PROVIDER", "EXECUTABLE", "NODE", "HOOK"],
-            Locale::ZhCn => ["提供方", "可执行文件", "NODE", "钩子"],
-        }
-    }
-
-    pub(crate) const fn cli_doctor_json_hint(self) -> &'static str {
-        match self.locale {
-            Locale::EnUs => "Raw evidence: orchbee agent doctor --format json\n",
-            Locale::ZhCn => "原始证据：orchbee agent doctor --format json\n",
-        }
-    }
-
     pub(crate) const fn cli_session_headers(self) -> [&'static str; 3] {
         match self.locale {
             Locale::EnUs => ["SESSION", "STATE", "RUNTIME DIRECTORY"],

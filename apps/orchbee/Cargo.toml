@@ -17,9 +17,9 @@ orchbee-local-runtime = { path = "../../crates/local-runtime" }
 crossterm.workspace = true
 # Integration requests and reports exchanged with the Session Worker.
 orchbee-agent-integration = { path = "../../crates/agent-integration" }
-# Read-only provider configuration helpers for offline `agent doctor` and update verification,
-# the files-only inspection of `agent integration list`, and the disable `uninstall` runs after
-# every Session has stopped.
+# Read-only provider configuration helpers for update verification, the files-only inspection
+# of `agent integration list` and `doctor`, and the disable `uninstall` runs after every Session
+# has stopped.
 orchbee-agent-integration-writer = { path = "../../crates/agent-integration-writer" }
 orchbee-agent-observation-protocol = { path = "../../crates/agent-observation-protocol" }
 orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }
@@ -33,7 +33,7 @@ orchbee-connection-handshake = { path = "../../crates/connection-handshake" }
 orchbee-machine-protocol = { path = "../../crates/machine-protocol" }
 orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 ratatui.workspace = true
-# Release installation and `agent doctor` digests are canonical sha256.
+# Release installation digests are canonical sha256.
 sha2.workspace = true
 # Release manifest signatures: Ed25519 verification only, without precomputed tables or zeroizing
 # key types, since the updater holds no private key.

@@ -206,20 +206,30 @@ fn role_label(role: ProcessRole) -> &'static str {
 }
 impl Report {
     pub(super) fn document(&self) -> Value {
-        let (schema, result) = match self {
+        json!({"schema":self.schema(),"version":1,"source":crate::cli_outcome::local_runtime_source(),"result":self.result()})
+    }
+
+    fn schema(&self) -> &'static str {
+        match self {
+            Self::Client { .. } => "orchbee.status.client",
+            Self::Server(_) => "orchbee.status.server",
+        }
+    }
+
+    /// The facts themselves, without the document envelope: `doctor` reports them as its
+    /// installation and Session details.
+    pub(super) fn result(&self) -> Value {
+        match self {
             Self::Client {
                 executable,
                 cohort,
                 installation,
-            } => (
-                "orchbee.status.client",
-                json!({
-                    "version":env!("CARGO_PKG_VERSION"),"platform":std::env::consts::OS,"architecture":std::env::consts::ARCH,
-                    "buildProfile":if cfg!(debug_assertions) {"debug"} else {"release"},
-                    "delivery":installation.delivery(),"updateChannel":installation.channel(),"installation":installation.json(),"executable":path(executable),
-                    "protocols":protocols(orchbee_client_server_protocol::PROTOCOL_VERSION),"cohort":cohort.json(true),
-                }),
-            ),
+            } => json!({
+                "version":env!("CARGO_PKG_VERSION"),"platform":std::env::consts::OS,"architecture":std::env::consts::ARCH,
+                "buildProfile":if cfg!(debug_assertions) {"debug"} else {"release"},
+                "delivery":installation.delivery(),"updateChannel":installation.channel(),"installation":installation.json(),"executable":path(executable),
+                "protocols":protocols(orchbee_client_server_protocol::PROTOCOL_VERSION),"cohort":cohort.json(true),
+            }),
             Self::Server(report) => {
                 let server = match &report.server {
                     Server::Absent(reason) => json!({"state":"not-running","reason":match reason {
@@ -230,15 +240,11 @@ impl Report {
                         "restartKeepsTerminals":result.restart_keeps_terminals(),
                         "processes":result.processes().iter().map(|entry| process(entry, true)).collect::<Vec<_>>()}),
                 };
-                (
-                    "orchbee.status.server",
-                    json!({"scope":report.scope,"runtimeDirectory":path(&report.runtime),
-                    "endpoint":report.endpoint.as_deref().map(path),"server":server,
-                    "clientVersion":crate::local_client::CLIENT_VERSION}),
-                )
+                json!({"scope":report.scope,"runtimeDirectory":path(&report.runtime),
+                "endpoint":report.endpoint.as_deref().map(path),"server":server,
+                "clientVersion":crate::local_client::CLIENT_VERSION})
             }
-        };
-        json!({"schema":schema,"version":1,"source":crate::cli_outcome::local_runtime_source(),"result":result})
+        }
     }
 }
 

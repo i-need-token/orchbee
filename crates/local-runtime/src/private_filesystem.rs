@@ -36,8 +36,8 @@ pub use windows::{
 pub(crate) use windows::{move_aside, open_ancestors, replace, require_exact_absolute};
 
 /// How long an operation keeps trying while a cooperating process holds what it needs for an
-/// instant. A reader of a record, a folder or a lock (a catalog listing, `session list`, `server
-/// diagnose`, a stop waiting for a release, the machine hub) holds it for one read or probe, and a
+/// instant. A reader of a record, a folder or a lock (a catalog listing, `session list`,
+/// `doctor`, a stop waiting for a release, the machine hub) holds it for one read or probe, and a
 /// writer holds a record it moves into place for that move: well under a millisecond, at most tens
 /// of milliseconds on a loaded machine. Half a second outlasts that many times over and keeps a
 /// refusal prompt when the holder is a real owner; it is spent only while held.

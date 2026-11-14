@@ -193,8 +193,8 @@ impl super::CliText {
         }
         match failure.kind {
             FailureKind::Timeout if local_runtime => match self.locale {
-                Locale::EnUs if cfg!(windows) => "Local startup reached its time limit before readiness was confirmed. Run orchbee server diagnose with the same --session selection before retrying.\n".to_owned(),
-                Locale::ZhCn if cfg!(windows) => "本地启动达到时限，尚未确认就绪。请用相同 --session 选择运行 orchbee server diagnose，再决定是否重试。\n".to_owned(),
+                Locale::EnUs if cfg!(windows) => "Local startup reached its time limit before readiness was confirmed. Run orchbee doctor with the same --session selection before retrying.\n".to_owned(),
+                Locale::ZhCn if cfg!(windows) => "本地启动达到时限，尚未确认就绪。请用相同 --session 选择运行 orchbee doctor，再决定是否重试。\n".to_owned(),
                 Locale::EnUs => {
                     "The local session did not become ready within the time limit; a Server may still be starting, or activation state may have been left behind. No recovery was attempted.\n"
                         .to_owned()
@@ -635,24 +635,8 @@ impl super::CliText {
         match (self.locale, stage) {
             (Locale::EnUs, "cohort") => self.cli_cohort_diagnostic(failure.missing_artifact()),
             (Locale::ZhCn, "cohort") => self.cli_cohort_diagnostic(failure.missing_artifact()),
-            (Locale::EnUs, "platform") => {
-                let command = failure
-                    .details
-                    .as_ref()
-                    .and_then(|details| details.get("command"))
-                    .and_then(|value| value.as_str())
-                    .unwrap_or("config check");
-                format!("{command} is supported on Linux only.\n")
-            }
-            (Locale::ZhCn, "platform") => {
-                let command = failure
-                    .details
-                    .as_ref()
-                    .and_then(|details| details.get("command"))
-                    .and_then(|value| value.as_str())
-                    .unwrap_or("config check");
-                format!("{command} 仅在 Linux 上受支持。\n")
-            }
+            (Locale::EnUs, "platform") => "config check is supported on Linux only.\n".to_owned(),
+            (Locale::ZhCn, "platform") => "config check 仅在 Linux 上受支持。\n".to_owned(),
             (Locale::EnUs, "socket") => {
                 "A local session socket failed its safety checks.\n".to_owned()
             }

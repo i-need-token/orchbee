@@ -6,9 +6,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(in crate::cli::server_diagnose) const PRIVATE_RUNTIME: bool = false;
+pub(in crate::cli::runtime_folder) const PRIVATE_RUNTIME: bool = false;
 
-pub(in crate::cli::server_diagnose) fn unsupported_field(key: &str) -> bool {
+pub(in crate::cli::runtime_folder) fn unsupported_field(key: &str) -> bool {
     matches!(
         key,
         "pathUtf16" | "private" | "activation" | "stopRequestId"
@@ -16,16 +16,16 @@ pub(in crate::cli::server_diagnose) fn unsupported_field(key: &str) -> bool {
 }
 
 /// The selected runtime base, as activation names it.
-pub(in crate::cli::server_diagnose) fn metadata_base() -> io::Result<PathBuf> {
+pub(in crate::cli::runtime_folder) fn metadata_base() -> io::Result<PathBuf> {
     crate::local_activation::runtime_location().map(|(base, _)| base)
 }
 
 /// The selected Session scope, as activation names it.
-pub(in crate::cli::server_diagnose) fn metadata_scope() -> io::Result<String> {
+pub(in crate::cli::runtime_folder) fn metadata_scope() -> io::Result<String> {
     crate::local_activation::runtime_location().map(|(_, scope)| scope)
 }
 
-pub(in crate::cli::server_diagnose) fn observe_entry(
+pub(in crate::cli::runtime_folder) fn observe_entry(
     session: &ModeCheckedLocalSessionRendezvous,
     entry: Entry,
 ) -> io::Result<EntryObservation> {
@@ -41,26 +41,26 @@ pub(in crate::cli::server_diagnose) fn observe_entry(
     }
 }
 
-pub(in crate::cli::server_diagnose) fn activation_state(
+pub(in crate::cli::runtime_folder) fn activation_state(
     _session: &ModeCheckedLocalSessionRendezvous,
 ) -> io::Result<ActivationState> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
-pub(in crate::cli::server_diagnose) fn activation_lock_exists(
+pub(in crate::cli::runtime_folder) fn activation_lock_exists(
     _session: &ModeCheckedLocalSessionRendezvous,
 ) -> io::Result<bool> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
-pub(in crate::cli::server_diagnose) fn endpoint_exists_before(
+pub(in crate::cli::runtime_folder) fn endpoint_exists_before(
     _path: &std::path::Path,
     _deadline: std::time::Instant,
 ) -> io::Result<Option<bool>> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
-pub(in crate::cli::server_diagnose) fn observation_endpoint_path(
+pub(in crate::cli::runtime_folder) fn observation_endpoint_path(
     _runtime: &Path,
 ) -> Result<PathBuf, Unsupported> {
     Err(Unsupported)

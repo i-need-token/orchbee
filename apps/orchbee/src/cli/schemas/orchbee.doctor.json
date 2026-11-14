@@ -1,0 +1,2065 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.doctor",
+	"title": "orchbee doctor envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.doctor"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "local-runtime"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": ["ok", "checks"],
+			"additionalProperties": false,
+			"properties": {
+				"ok": {
+					"type": "boolean"
+				},
+				"checks": {
+					"type": "object",
+					"required": ["installation", "settings", "records", "runtime", "session", "integrations"],
+					"additionalProperties": false,
+					"properties": {
+						"installation": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/installationCheck"
+								},
+								{
+									"$ref": "#/$defs/unsupported"
+								}
+							]
+						},
+						"settings": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/settingsCheck"
+								},
+								{
+									"$ref": "#/$defs/unsupported"
+								}
+							]
+						},
+						"records": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/recordsCheck"
+								},
+								{
+									"$ref": "#/$defs/unsupported"
+								}
+							]
+						},
+						"runtime": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/runtimeCheck"
+								},
+								{
+									"$ref": "#/$defs/unsupported"
+								}
+							]
+						},
+						"session": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/sessionCheck"
+								},
+								{
+									"$ref": "#/$defs/unsupported"
+								}
+							]
+						},
+						"integrations": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/integrationsCheck"
+								},
+								{
+									"$ref": "#/$defs/unsupported"
+								}
+							]
+						}
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"installation_path": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["path"],
+					"additionalProperties": false,
+					"properties": {
+						"path": {
+							"type": "string",
+							"minLength": 1
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["pathUtf16"],
+					"additionalProperties": false,
+					"properties": {
+						"pathUtf16": {
+							"type": "array",
+							"minItems": 1,
+							"items": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 65535
+							}
+						}
+					}
+				}
+			]
+		},
+		"installation_protocols": {
+			"type": "object",
+			"required": ["admission", "terminal"],
+			"additionalProperties": false,
+			"properties": {
+				"admission": {
+					"const": 1
+				},
+				"terminal": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 255
+				}
+			}
+		},
+		"installation_cohort": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["state", "identity"],
+					"additionalProperties": false,
+					"properties": {
+						"state": {
+							"const": "available"
+						},
+						"identity": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{64}$"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["state", "reason", "diagnostic"],
+					"additionalProperties": false,
+					"properties": {
+						"state": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["missing", "invalid", "denied", "timed-out", "io-error"]
+						},
+						"diagnostic": {
+							"$ref": "#/$defs/installation_cohortDiagnostic"
+						}
+					}
+				}
+			]
+		},
+		"installation_cohortDiagnostic": {
+			"type": "object",
+			"required": ["ioKind", "osError"],
+			"additionalProperties": false,
+			"properties": {
+				"ioKind": {
+					"enum": [
+						"not-found",
+						"permission-denied",
+						"invalid-input",
+						"invalid-data",
+						"timed-out",
+						"unsupported",
+						"interrupted",
+						"unexpected-eof",
+						"would-block",
+						"out-of-memory",
+						"other"
+					]
+				},
+				"osError": {
+					"oneOf": [
+						{
+							"type": "integer",
+							"minimum": -2147483648,
+							"maximum": 2147483647
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"missingArtifact": {
+					"type": "string",
+					"pattern": "^(?:orchbee|ob-(?:dev|test)-[0-9a-f]{16})(?:\\.exe|-server\\.exe|-worker\\.exe|-terminal-host\\.exe)$"
+				}
+			}
+		},
+		"installation_client": {
+			"type": "object",
+			"required": [
+				"version",
+				"platform",
+				"architecture",
+				"buildProfile",
+				"delivery",
+				"updateChannel",
+				"executable",
+				"protocols",
+				"cohort",
+				"installation"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"version": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[!-~]+$"
+				},
+				"platform": {
+					"const": "windows"
+				},
+				"architecture": {
+					"type": "string",
+					"minLength": 1
+				},
+				"buildProfile": {
+					"enum": ["debug", "release"]
+				},
+				"delivery": {
+					"enum": ["development-cohort", "native-release", "unknown"]
+				},
+				"updateChannel": {
+					"enum": ["stable", "preview", null]
+				},
+				"executable": {
+					"$ref": "#/$defs/installation_path"
+				},
+				"protocols": {
+					"$ref": "#/$defs/installation_protocols"
+				},
+				"cohort": {
+					"$ref": "#/$defs/installation_cohort"
+				},
+				"installation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["state"],
+							"properties": {
+								"state": {
+									"enum": ["development", "unavailable"]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["state", "channel", "version", "buildId", "manifestSha256"],
+							"properties": {
+								"state": {
+									"const": "verified"
+								},
+								"channel": {
+									"enum": ["stable", "preview"]
+								},
+								"version": {
+									"type": "string",
+									"pattern": "^[A-Za-z0-9._+-]{1,96}$"
+								},
+								"buildId": {
+									"type": "string",
+									"pattern": "^[A-Za-z0-9._+-]{1,96}$"
+								},
+								"manifestSha256": {
+									"type": "string",
+									"pattern": "^[a-f0-9]{64}$"
+								}
+							}
+						}
+					]
+				}
+			},
+			"if": {
+				"properties": {
+					"installation": {
+						"properties": {
+							"state": {
+								"const": "development"
+							}
+						}
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"delivery": {
+						"const": "development-cohort"
+					},
+					"updateChannel": {
+						"const": null
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"installation": {
+								"properties": {
+									"state": {
+										"const": "unavailable"
+									}
+								}
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"delivery": {
+								"const": "unknown"
+							},
+							"updateChannel": {
+								"const": null
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"installation": {
+								"required": ["channel"],
+								"properties": {
+									"state": {
+										"const": "verified"
+									},
+									"channel": {
+										"const": "stable"
+									}
+								}
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"delivery": {
+								"const": "native-release"
+							},
+							"updateChannel": {
+								"const": "stable"
+							},
+							"cohort": {
+								"properties": {
+									"state": {
+										"const": "available"
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"installation": {
+								"required": ["channel"],
+								"properties": {
+									"state": {
+										"const": "verified"
+									},
+									"channel": {
+										"const": "preview"
+									}
+								}
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"delivery": {
+								"const": "native-release"
+							},
+							"updateChannel": {
+								"const": "preview"
+							},
+							"cohort": {
+								"properties": {
+									"state": {
+										"const": "available"
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		"session_path": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["path"],
+					"additionalProperties": false,
+					"properties": {
+						"path": {
+							"type": "string",
+							"minLength": 1
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["pathUtf16"],
+					"additionalProperties": false,
+					"properties": {
+						"pathUtf16": {
+							"type": "array",
+							"minItems": 1,
+							"items": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 65535
+							}
+						}
+					}
+				}
+			]
+		},
+		"session_version": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 64,
+			"pattern": "^[!-~]+$"
+		},
+		"session_process": {
+			"type": "object",
+			"required": ["role", "version", "processId", "state", "terminals"],
+			"additionalProperties": false,
+			"properties": {
+				"role": {
+					"enum": ["server", "worker", "terminal-host", "unknown"]
+				},
+				"version": {
+					"$ref": "#/$defs/session_version"
+				},
+				"processId": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4294967295
+				},
+				"state": {
+					"enum": ["ready", "draining", "stopping", "unknown"]
+				},
+				"terminals": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				}
+			}
+		},
+		"runtime_unrecognizedRecords": {
+			"type": "object",
+			"required": ["state", "reason", "records"],
+			"additionalProperties": false,
+			"properties": {
+				"state": {
+					"enum": ["known", "uninspectable"]
+				},
+				"reason": {
+					"anyOf": [
+						{
+							"enum": [
+								"denied",
+								"io-error",
+								"invalid-path",
+								"parent-unavailable",
+								"deadline",
+								"observation-limit"
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"records": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/runtime_unrecognizedRecord"
+					}
+				}
+			},
+			"if": {
+				"properties": {
+					"state": {
+						"const": "known"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"reason": {
+						"type": "null"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"reason": {
+						"type": "string"
+					},
+					"records": {
+						"maxItems": 0
+					}
+				}
+			}
+		},
+		"runtime_unrecognizedRecord": {
+			"type": "object",
+			"required": ["record", "reason", "path", "pathUtf16"],
+			"additionalProperties": false,
+			"properties": {
+				"record": {
+					"enum": ["catalog-record"]
+				},
+				"reason": {
+					"enum": ["unreadable", "letter-case"]
+				},
+				"path": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"pathUtf16": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 65535
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"runtime_row": {
+			"type": "object",
+			"required": [
+				"state",
+				"reason",
+				"kind",
+				"ownerMatch",
+				"mode",
+				"size",
+				"linkCount",
+				"path",
+				"pathBytesHex",
+				"private",
+				"pathUtf16",
+				"activation",
+				"stopRequestId"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"state": {
+					"anyOf": [
+						{
+							"enum": ["known", "absent", "unsafe", "uninspectable", "free", "held"]
+						},
+						{
+							"enum": ["known", "absent", "uninspectable", "free", "held", "unsafe"]
+						}
+					]
+				},
+				"reason": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"anyOf": [
+										{
+											"enum": [
+												"symlink",
+												"invalid-kind",
+												"foreign-owner",
+												"invalid-mode",
+												"invalid-size",
+												"invalid-link-count",
+												"invalid-lock",
+												"denied",
+												"io-error",
+												"invalid-path",
+												"identity-changed",
+												"unsafe-parent",
+												"parent-unavailable",
+												"deadline"
+											]
+										},
+										{
+											"enum": [
+												"denied",
+												"io-error",
+												"invalid-path",
+												"parent-unavailable",
+												"deadline",
+												"observation-limit"
+											]
+										}
+									]
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"kind": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"enum": ["socket", "regular", "directory", "symlink", "other"]
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"ownerMatch": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "boolean"
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"mode": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "string",
+									"pattern": "^[0-7]{4,}$"
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"size": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "integer",
+									"minimum": 0
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"linkCount": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "integer",
+									"minimum": 0
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"path": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"anyOf": [
+										{
+											"type": "string",
+											"minLength": 1
+										},
+										{
+											"type": "string"
+										}
+									]
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"pathBytesHex": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "string",
+									"pattern": "^([0-9a-f]{2})+$"
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"private": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"const": true
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"pathUtf16": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "array",
+									"items": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 65535
+									}
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"activation": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"enum": ["active", "stopped"]
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"stopRequestId": {
+					"oneOf": [
+						{
+							"anyOf": [
+								{
+									"type": "string",
+									"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+								},
+								{
+									"type": "null"
+								},
+								{
+									"const": "unknown"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"activation": {
+								"const": "stopped"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"stopRequestId": {
+								"type": "string",
+								"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+							}
+						}
+					}
+				}
+			]
+		},
+		"integrations_publicProvider_item": {
+			"type": "object",
+			"required": ["integrationId", "availability", "managementMode", "state", "issue"],
+			"additionalProperties": false,
+			"properties": {
+				"integrationId": {
+					"enum": [
+						"claude-code",
+						"codex",
+						"grok",
+						"opencode",
+						"kilo",
+						"cursor",
+						"qodercli",
+						"antigravity",
+						"mastracode",
+						"droid",
+						"kimi",
+						"letta",
+						"devin",
+						"hermes",
+						"pi",
+						"omp",
+						"gemini",
+						"github-copilot",
+						"cline",
+						"qwen-code"
+					]
+				},
+				"availability": {
+					"enum": ["available", "not-found", "unknown"]
+				},
+				"managementMode": {
+					"enum": ["managed-local", "manual-only"]
+				},
+				"state": {
+					"enum": ["conflict", "disabled", "enabled", "not-installed", "update-required", "unknown"]
+				},
+				"issue": {
+					"enum": [
+						"inspection-failed",
+						"manual-action-required",
+						"unsupported-platform",
+						"unsupported-version",
+						null
+					]
+				}
+			}
+		},
+		"integrations_publicProvider_capsule": {
+			"type": "object",
+			"required": ["state", "source", "payloadSha256"],
+			"additionalProperties": false,
+			"properties": {
+				"state": {
+					"enum": ["ready", "not-ready", "source-absent", "binding-failed"]
+				},
+				"source": {
+					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
+				},
+				"bindingFailure": {
+					"const": true
+				},
+				"rootPath": {
+					"type": "string",
+					"minLength": 1
+				},
+				"rootPathBytesHex": {
+					"type": "string",
+					"pattern": "^([0-9a-f]{2})+$"
+				},
+				"payloadSha256": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{64}$"
+				}
+			}
+		},
+		"installationFacts": {
+			"$ref": "#/$defs/installation_client"
+		},
+		"installationCheck": {
+			"type": "object",
+			"required": ["status", "reason", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"status": {
+					"enum": ["pass", "warning", "fail"]
+				},
+				"reason": true,
+				"details": {
+					"$ref": "#/$defs/installationFacts"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "warning"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"const": "delivery-unknown"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "fail"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"enum": ["missing", "invalid", "denied", "timed-out", "io-error"]
+							}
+						}
+					}
+				}
+			]
+		},
+		"settingsCheck": {
+			"type": "object",
+			"required": ["status", "reason", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"status": {
+					"enum": ["pass", "warning", "fail"]
+				},
+				"reason": true,
+				"details": {
+					"type": "object"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "warning"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+								"maxLength": 64
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "fail"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+								"maxLength": 64
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"enum": ["pass", "warning"]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": [
+									"path",
+									"exists",
+									"newCwd",
+									"worktreeDirectory",
+									"manifestCheck",
+									"manifestCheckSource",
+									"keyPrefix",
+									"keyOverrides",
+									"windowTitle",
+									"windowTitleDiagnostic",
+									"notificationDelivery",
+									"notificationPosition",
+									"agentSidebarProfile",
+									"spacesSidebarProfile",
+									"notificationAgentDelivery",
+									"notificationDelaySeconds",
+									"notificationSoundEnabled",
+									"notificationAgentSounds",
+									"diagnostics",
+									"diagnosticsOmitted"
+								],
+								"additionalProperties": false,
+								"properties": {
+									"path": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"exists": {
+										"type": "boolean"
+									},
+									"newCwd": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"worktreeDirectory": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"manifestCheck": {
+										"type": "boolean"
+									},
+									"manifestCheckSource": {
+										"enum": ["default", "file"]
+									},
+									"keyPrefix": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128
+									},
+									"keyOverrides": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 43
+									},
+									"windowTitle": {
+										"type": "string",
+										"maxLength": 4096
+									},
+									"windowTitleDiagnostic": {
+										"const": null
+									},
+									"notificationDelivery": {
+										"enum": ["off", "orchbee", "terminal", "system"]
+									},
+									"notificationPosition": {
+										"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
+									},
+									"agentSidebarProfile": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 32768
+									},
+									"spacesSidebarProfile": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 32768
+									},
+									"notificationAgentDelivery": {
+										"enum": ["off", "orchbee", "terminal", "system"]
+									},
+									"notificationDelaySeconds": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 3600
+									},
+									"notificationSoundEnabled": {
+										"type": "boolean"
+									},
+									"notificationAgentSounds": {
+										"type": "object",
+										"maxProperties": 64,
+										"propertyNames": {
+											"pattern": "^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
+										},
+										"additionalProperties": {
+											"enum": ["default", "on", "off"]
+										}
+									},
+									"diagnostics": {
+										"type": "array",
+										"maxItems": 128,
+										"uniqueItems": true,
+										"items": {
+											"type": "object",
+											"required": ["field", "reason", "disposition"],
+											"additionalProperties": false,
+											"properties": {
+												"field": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 256,
+													"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+												},
+												"reason": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 64,
+													"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+												},
+												"disposition": {
+													"enum": ["defaulted", "disabled", "ignored"]
+												}
+											}
+										}
+									},
+									"diagnosticsOmitted": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 65536
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["field", "reason"],
+								"additionalProperties": false,
+								"properties": {
+									"field": {
+										"enum": ["file", "ORCHBEE_CONFIG_FILE", "ORCHBEE_HOME", "USERPROFILE", "HOME"]
+									},
+									"reason": {
+										"enum": [
+											"invalid-path",
+											"missing",
+											"io-error",
+											"not-file",
+											"too-large",
+											"invalid-utf8",
+											"invalid-toml"
+										]
+									},
+									"path": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"line": {
+										"type": "integer",
+										"minimum": 1
+									},
+									"column": {
+										"type": "integer",
+										"minimum": 1
+									}
+								},
+								"if": {
+									"properties": {
+										"reason": {
+											"enum": ["invalid-toml", "invalid-utf8"]
+										}
+									},
+									"required": ["reason"]
+								},
+								"then": {
+									"required": ["path", "line", "column"]
+								},
+								"else": {
+									"not": {
+										"anyOf": [
+											{
+												"required": ["path"]
+											},
+											{
+												"required": ["line"]
+											},
+											{
+												"required": ["column"]
+											}
+										]
+									}
+								},
+								"oneOf": [
+									{
+										"properties": {
+											"field": {
+												"const": "file"
+											},
+											"reason": {
+												"enum": [
+													"invalid-path",
+													"missing",
+													"io-error",
+													"not-file",
+													"too-large",
+													"invalid-utf8",
+													"invalid-toml"
+												]
+											}
+										}
+									},
+									{
+										"properties": {
+											"field": {
+												"enum": ["ORCHBEE_CONFIG_FILE", "ORCHBEE_HOME", "USERPROFILE", "HOME"]
+											},
+											"reason": {
+												"const": "invalid-path"
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"properties": {
+									"diagnostics": {
+										"maxItems": 0
+									},
+									"diagnosticsOmitted": {
+										"const": 0
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "warning"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"anyOf": [
+									{
+										"properties": {
+											"diagnostics": {
+												"minItems": 1
+											}
+										}
+									},
+									{
+										"properties": {
+											"diagnosticsOmitted": {
+												"minimum": 1
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			]
+		},
+		"recordsCheck": {
+			"type": "object",
+			"required": ["status", "reason", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"status": {
+					"enum": ["pass", "warning"]
+				},
+				"reason": true,
+				"details": {
+					"type": "object",
+					"required": ["records"],
+					"additionalProperties": false,
+					"properties": {
+						"records": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"required": ["record", "problem", "version", "path"],
+								"additionalProperties": false,
+								"properties": {
+									"record": {
+										"enum": ["machines", "plugin-registry", "session", "tui-position"]
+									},
+									"problem": {
+										"enum": ["newer-format", "not-updated"]
+									},
+									"version": {
+										"type": "integer",
+										"minimum": 0
+									},
+									"path": {
+										"type": "string",
+										"minLength": 1
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "warning"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"enum": ["newer-format", "not-updated"]
+							}
+						}
+					}
+				}
+			]
+		},
+		"runtimeFacts": {
+			"type": "object",
+			"required": [
+				"complete",
+				"scope",
+				"runtimeBase",
+				"runtimeDirectory",
+				"marker",
+				"locks",
+				"endpoints",
+				"hostScope",
+				"unrecognizedRecords",
+				"advisories"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"complete": {
+					"type": "boolean"
+				},
+				"scope": {
+					"anyOf": [
+						{
+							"type": "string",
+							"pattern": "^orchbee-native-[0-9]+$"
+						},
+						{
+							"type": "string",
+							"pattern": "^(?!\\.)(?!.*\\.$)[A-Za-z0-9._-]{1,64}$"
+						}
+					]
+				},
+				"runtimeBase": {
+					"$ref": "#/$defs/runtime_row"
+				},
+				"runtimeDirectory": {
+					"$ref": "#/$defs/runtime_row"
+				},
+				"marker": {
+					"$ref": "#/$defs/runtime_row"
+				},
+				"locks": {
+					"type": "object",
+					"required": ["activation", "sessionLifetime"],
+					"additionalProperties": false,
+					"properties": {
+						"activation": {
+							"$ref": "#/$defs/runtime_row"
+						},
+						"sessionLifetime": {
+							"$ref": "#/$defs/runtime_row"
+						}
+					}
+				},
+				"endpoints": {
+					"type": "object",
+					"required": ["client", "worker", "clientPending", "agentObservation", "hostEndpoint"],
+					"additionalProperties": false,
+					"properties": {
+						"client": {
+							"$ref": "#/$defs/runtime_row"
+						},
+						"worker": {
+							"$ref": "#/$defs/runtime_row"
+						},
+						"clientPending": {
+							"$ref": "#/$defs/runtime_row"
+						},
+						"agentObservation": {
+							"$ref": "#/$defs/runtime_row"
+						},
+						"hostEndpoint": {
+							"$ref": "#/$defs/runtime_row"
+						}
+					}
+				},
+				"hostScope": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/runtime_row"
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"unrecognizedRecords": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/runtime_unrecognizedRecords"
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				},
+				"advisories": {
+					"type": "array",
+					"items": {
+						"enum": [
+							"activation-recorded",
+							"socket-residue",
+							"pipe-name-present",
+							"unrecognized-records"
+						]
+					}
+				}
+			}
+		},
+		"runtimeCheck": {
+			"type": "object",
+			"required": ["status", "reason", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"status": {
+					"enum": ["pass", "warning", "fail"]
+				},
+				"reason": true,
+				"details": {
+					"$ref": "#/$defs/runtimeFacts"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "warning"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"enum": [
+									"activation-recorded",
+									"socket-residue",
+									"pipe-name-present",
+									"unrecognized-records"
+								]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "fail"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"enum": ["absent", "invalid-path", "io-error", "unsafe", "address-too-long"]
+							}
+						}
+					}
+				}
+			]
+		},
+		"sessionFacts": {
+			"type": "object",
+			"required": ["scope", "runtimeDirectory", "endpoint", "server", "clientVersion"],
+			"additionalProperties": false,
+			"properties": {
+				"scope": {
+					"type": "string",
+					"pattern": "^(?!\\.)(?!.*\\.$)[A-Za-z0-9._-]{1,64}$"
+				},
+				"runtimeDirectory": {
+					"$ref": "#/$defs/session_path"
+				},
+				"endpoint": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/session_path"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"server": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["state", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"state": {
+									"const": "not-running"
+								},
+								"reason": {
+									"enum": ["runtime-absent", "endpoint-absent"]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["state", "restartKeepsTerminals", "processes"],
+							"additionalProperties": false,
+							"properties": {
+								"state": {
+									"const": "running"
+								},
+								"restartKeepsTerminals": {
+									"type": ["boolean", "null"]
+								},
+								"processes": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 258,
+									"items": {
+										"$ref": "#/$defs/session_process"
+									}
+								}
+							}
+						}
+					]
+				},
+				"clientVersion": {
+					"$ref": "#/$defs/session_version"
+				}
+			}
+		},
+		"sessionRefusal": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["admission", "discovery", "runtime-base", "runtime-directory"]
+				},
+				"reason": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+					"maxLength": 64
+				},
+				"clientVersion": {
+					"$ref": "#/$defs/session_version"
+				},
+				"sessionVersion": {
+					"$ref": "#/$defs/session_version"
+				}
+			}
+		},
+		"sessionCheck": {
+			"type": "object",
+			"required": ["status", "reason", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"status": {
+					"enum": ["pass", "warning", "fail", "not-applicable"]
+				},
+				"reason": true,
+				"details": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/sessionFacts"
+						},
+						{
+							"$ref": "#/$defs/sessionRefusal"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "not-applicable"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "warning"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"enum": ["draining", "stopping"]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "fail"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"enum": [
+									"session-too-old",
+									"client-too-old",
+									"environment-mismatch",
+									"fingerprint-mismatch",
+									"incompatible",
+									"timed-out",
+									"denied",
+									"protocol-invalid",
+									"transport-loss",
+									"service-unavailable",
+									"connection-capacity",
+									"check-failed",
+									"internal-failure"
+								]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "fail"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/sessionRefusal"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"enum": ["pass", "not-applicable"]
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/sessionFacts"
+							}
+						}
+					}
+				}
+			]
+		},
+		"integrationsFacts": {
+			"type": "object",
+			"required": [
+				"complete",
+				"capsule",
+				"integrations",
+				"outdatedOnly",
+				"inspectedCount",
+				"unresolvedProviderIds",
+				"blockedProviderIds"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"complete": {
+					"type": "boolean"
+				},
+				"capsule": {
+					"$ref": "#/$defs/integrations_publicProvider_capsule"
+				},
+				"integrations": {
+					"type": "array",
+					"maxItems": 20,
+					"items": {
+						"$ref": "#/$defs/integrations_publicProvider_item"
+					}
+				},
+				"outdatedOnly": {
+					"type": "boolean"
+				},
+				"inspectedCount": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 20
+				},
+				"unresolvedProviderIds": {
+					"type": "array",
+					"maxItems": 20,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/integrations_publicProvider_item/properties/integrationId"
+					}
+				},
+				"blockedProviderIds": {
+					"type": "array",
+					"maxItems": 20,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/integrations_publicProvider_item/properties/integrationId"
+					}
+				}
+			}
+		},
+		"integrationsCheck": {
+			"type": "object",
+			"required": ["status", "reason", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"status": {
+					"enum": ["pass", "warning"]
+				},
+				"reason": true,
+				"details": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/integrationsFacts"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "warning"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"reason": {
+								"enum": ["update-required", "home-unavailable"]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"reason": {
+								"const": "home-unavailable"
+							}
+						},
+						"required": ["reason"]
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/integrationsFacts"
+							}
+						}
+					}
+				}
+			]
+		},
+		"unsupported": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "unsupported"
+				}
+			}
+		}
+	}
+}

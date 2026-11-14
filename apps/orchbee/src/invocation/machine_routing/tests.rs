@@ -58,7 +58,7 @@ fn prefix_preserves_sources_and_rejects_local_and_conflicting_modes() {
         vec!["--machine=work", "update"],
         vec!["--machine=work", "--machine=x", "status"],
         vec!["workspace", "list", "--machine=work", "--machine", "x"],
-        vec!["--machine=work", "agent", "doctor"],
+        vec!["--machine=work", "doctor"],
         vec!["--machine=work", "terminal", "attach", "@terminal:0x22"],
     ] {
         assert!(

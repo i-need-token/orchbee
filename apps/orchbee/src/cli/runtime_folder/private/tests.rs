@@ -1,9 +1,9 @@
 use super::*;
 
 #[test]
-fn named_session_diagnosis_uses_the_shared_schema() {
+fn named_session_report_uses_the_shared_schema() {
     let scope = "work".to_owned();
-    let mut document = collect_at(
+    let mut result = collect_at(
         Path::new("never-created-relative-path"),
         false,
         None,
@@ -11,17 +11,17 @@ fn named_session_diagnosis_uses_the_shared_schema() {
         Instant::now(),
     )
     .unwrap()
-    .envelope;
-    let schema: Value =
-        serde_json::from_str(include_str!("../../schemas/orchbee.server.diagnose.json")).unwrap();
+    .result;
+    let doctor: Value =
+        serde_json::from_str(include_str!("../../schemas/orchbee.doctor.json")).unwrap();
+    let schema = json!({"$ref": "#/$defs/runtimeFacts", "$defs": doctor["$defs"]});
     let validator = jsonschema::validator_for(&schema).unwrap();
-    validator.validate(&document).unwrap();
-    assert_eq!(document["version"], 1);
-    document["result"]["scope"] = json!("a".repeat(64));
-    assert!(validator.is_valid(&document));
+    validator.validate(&result).unwrap();
+    result["scope"] = json!("a".repeat(64));
+    assert!(validator.is_valid(&result));
     // A Windows scope is its Session's name, so one no Session name spells is refused.
-    document["result"]["scope"] = json!("a".repeat(65));
-    assert!(!validator.is_valid(&document));
+    result["scope"] = json!("a".repeat(65));
+    assert!(!validator.is_valid(&result));
 }
 
 #[test]
@@ -52,13 +52,7 @@ fn spent_budget_and_namespace_limit_do_not_manufacture_absence() {
         Instant::now(),
     )
     .unwrap();
-    assert_eq!(result.envelope["result"]["complete"], false);
-    assert_eq!(
-        result.envelope["result"]["runtimeDirectory"]["reason"],
-        "deadline"
-    );
-    assert_eq!(
-        result.envelope["result"]["marker"]["reason"],
-        "parent-unavailable"
-    );
+    assert_eq!(result.result["complete"], false);
+    assert_eq!(result.result["runtimeDirectory"]["reason"], "deadline");
+    assert_eq!(result.result["marker"]["reason"], "parent-unavailable");
 }

@@ -58,9 +58,6 @@ OpenCode uses its ESM entry; the Pi/OMP installed CommonJS bootstrap dynamically
 the capsule's **ESM** entry and calls its named registration function. Importing their
 CommonJS wrapper and looking for that named export would silently skip registration.
 The deterministic bootstrap bytes and file URL establish ownership. A different identity under the same managed parent requires explicit repair; changed bodies and foreign roots remain refused.
-Windows doctor derives the capsule root from the full `bundle/<provider>/<entry>` suffix,
-so a healthy installed module is inspected against its capsule manifest instead of the
-bundle directory. This is an offline file check and does not establish a live connection.
 
 Public CLI witnesses use an isolated Unicode profile to install, inspect and remove all
 four modules. Real Node loads each installed bootstrap and reports ordered provider
@@ -134,21 +131,21 @@ Grok 1.0.77 starts every command hook, in the shell form and in the `args` form,
 
 ## OpenCode automatic discovery
 
-Windows installs the guarded OpenCode bootstrap as `plugins/orchbee-agent-observation.js`. The provider's directory loader scans .js/.ts, so direct Node loading of the previous .mjs target did not establish automatic discovery. The capsule source stays .mjs. A shared Windows path owner resolves nonempty absolute XDG_CONFIG_HOME/opencode, otherwise USERPROFILE/.config/opencode, for integration and doctor. Invalid explicit roots never fall back.
+Windows installs the guarded OpenCode bootstrap as `plugins/orchbee-agent-observation.js`. The provider's directory loader scans .js/.ts, so direct Node loading of the previous .mjs target did not establish automatic discovery. The capsule source stays .mjs. A shared Windows path owner resolves nonempty absolute XDG_CONFIG_HOME/opencode, otherwise USERPROFILE/.config/opencode, for integration. Invalid explicit roots never fall back.
 
 Windows also manages the `plugins/orchbee-agent-observation-tui` client directory beside the .js entry for OpenCode 2.x. Its `server.js` and `tui.js` hold the same fixed client bootstrap, and nothing else may sit in it. The .js entry and the directory read as one current target: current only when both are, absent only when both are, a missing member or directory requires repair, and a foreign or edited member, a link or any other entry blocks mutation in both directions. A directory whose bootstraps all name another environment's Capsule is that environment's and is left as it is, under the writer's [whole-file rule](../../../crates/agent-integration-writer/README.md#whole-file-entries).
 
-Inspection combines that current target with the obsolete .mjs target. Foreign, modified or unreadable entries block mutation; an owned obsolete entry requires repair. Enable publishes/verifies the .js entry, then the client directory through the same staged, no-replace publication, before reinspecting and removing the obsolete owned entry. Failure or cancellation preserves committed effects and reports their receipts; it never deletes a usable current entry as compensation. Disable applies the same guards to every target and removes the directory through the owned no-follow walk. Explain reports the guarded writes/removal from its existing inspection, without another read; it names both current members because the combined state cannot tell which one is stale. Doctor checks the discovered .js entry only: an old-only installation reads as absent there and a missing client directory goes unnoticed, and the integration query reports both as requiring repair. Existing bounds and no-replace primitives remain. An isolated official OpenCode 1.18.30 debug-config witness confirms automatic discovery; authentication and paid Agent tasks are outside this evidence.
+Inspection combines that current target with the obsolete .mjs target. Foreign, modified or unreadable entries block mutation; an owned obsolete entry requires repair. Enable publishes/verifies the .js entry, then the client directory through the same staged, no-replace publication, before reinspecting and removing the obsolete owned entry. Failure or cancellation preserves committed effects and reports their receipts; it never deletes a usable current entry as compensation. Disable applies the same guards to every target and removes the directory through the owned no-follow walk. Explain reports the guarded writes/removal from its existing inspection, without another read; it names both current members because the combined state cannot tell which one is stale. The integration query reports an old-only installation and a missing client directory as requiring repair. Existing bounds and no-replace primitives remain. An isolated official OpenCode 1.18.30 debug-config witness confirms automatic discovery; authentication and paid Agent tasks are outside this evidence.
 
 Windows regular-module inspection validates the entire fixed bootstrap against its decoded absolute file URL, then classifies the exact capsule root and payload-relative suffix. Old owned modules can be repaired; malformed or unverifiable entries refuse replacement; edited bodies and roots outside every Capsule folder remain conflicts. An exact bootstrap naming another environment's Capsule reads `conflict` too, but disable leaves it as that environment's, under the writer's [whole-file rule](../../../crates/agent-integration-writer/README.md#whole-file-entries). The 16 KiB reader never imports the referenced module. This applies to the existing OpenCode, Kilo, Pi and OMP module owner; Unix inspection is unchanged.
 
-The OpenCode and Kilo bootstrap default-exports one definition: an `id`, a `server` factory for OpenCode 1.3.4+ and Kilo, and a `setup` that OpenCode 2.x validates. Each entry delegates to the same entry of the capsule module's `orchbeeAgentObservationPlugin` export and returns no hooks when the import fails. The capsule module keeps named exports only, which OpenCode 1.3.4+ also admits when configured directly. OpenCode 2.x rejected the earlier bootstrap, which had only the named `OrchbeeAgentObservation` export, with `PluginModule.LoadError: Plugin must export a default definition with an id and an effect or setup function` ([loader schema](https://github.com/anomalyco/opencode/blob/v2.2.5/packages/core/src/plugin/module.ts)). Inspection and doctor recognize that exact earlier body under a current or older capsule root as owned and update-required, so enable replaces it; a foreign root stays a conflict. OpenCode 1.0–1.3.3 call every module export as a plugin function and cannot load a default object, so they leave the supported range.
+The OpenCode and Kilo bootstrap default-exports one definition: an `id`, a `server` factory for OpenCode 1.3.4+ and Kilo, and a `setup` that OpenCode 2.x validates. Each entry delegates to the same entry of the capsule module's `orchbeeAgentObservationPlugin` export and returns no hooks when the import fails. The capsule module keeps named exports only, which OpenCode 1.3.4+ also admits when configured directly. OpenCode 2.x rejected the earlier bootstrap, which had only the named `OrchbeeAgentObservation` export, with `PluginModule.LoadError: Plugin must export a default definition with an id and an effect or setup function` ([loader schema](https://github.com/anomalyco/opencode/blob/v2.2.5/packages/core/src/plugin/module.ts)). Inspection recognizes that exact earlier body under a current or older capsule root as owned and update-required, so enable replaces it; a foreign root stays a conflict. OpenCode 1.0–1.3.3 call every module export as a plugin function and cannot load a default object, so they leave the supported range.
 
 OpenCode 2.x runs server plugins, the .js entry included, in a server process: by default a shared service spawned detached with no console ([service spawn](https://github.com/anomalyco/opencode/blob/v2.2.5/packages/client/src/service-contender.ts)), and with `--standalone` a child spawned with `windowsHide` and no inherited standard handle ([standalone server](https://github.com/anomalyco/opencode/blob/v2.2.5/packages/cli/src/services/standalone.ts), [spawner](https://github.com/anomalyco/opencode/blob/v2.2.5/packages/util/src/cross-spawn-spawner.ts)), which libuv starts with `CREATE_NO_WINDOW`, a console of its own. Neither can open the Agent's `\\.\CONOUT$`, so the correlation half of the [transport](../../../crates/agent-integration-writer/agent-observation-adapters/README.md) cannot reach the Agent's terminal from there, and the module's `setup` subscribes to no event. 2.x also loads TUI plugins from each plugin directory's `tui` entry inside the TUI process, which is the process the Agent's terminal runs and owns its console ([TUI discovery](https://github.com/anomalyco/opencode/blob/v2.2.5/packages/tui/src/plugin/discovery.ts)), so the client directory's TUI entry carries the correlation to the Panel. The server loader requires a `server` entry of every plugin directory and raises a plugin error without one ([source directory](https://github.com/anomalyco/opencode/blob/v2.2.5/packages/core/src/plugin/source-directory.ts)), so the directory's `server.js` is the same bootstrap and observes nothing there; its id, `orchbee-agent-observation-tui`, differs from the .js entry's because 2.x refuses duplicate plugin ids. All OpenCode clients share one session service, so the TUI entry ignores the event stream and reads its own TUI's route and session data ([TUI plugin API](https://github.com/anomalyco/opencode/blob/v2.2.5/packages/plugin/src/tui/context.ts)), reporting only the root session that TUI displays, as the [resume model](../../orchbee-server/docs/agent-session-resume.md#rows) describes. OpenCode 1.x scans only plugin files, so it ignores the directory.
 
 ## Kilo Windows integration and shared event model
 
-Kilo is a Windows-managed native integration with the same guarded module ownership, payload-identity, deadline, cancellation and receipt rules as OpenCode. Its discovered entry is plugin/orchbee-agent-observation.js under a nonempty absolute KILO_CONFIG_DIR, otherwise XDG_CONFIG_HOME/kilo, otherwise USERPROFILE/.config/kilo. Invalid explicit roots refuse without fallback; doctor shares this resolution. Enable publishes the immutable capsule and exact marked bootstrap; disable removes only the proven entry. No provider command, project configuration or authentication is changed. Other platforms remain manual-only for Kilo. Local installation does not override KILO_PURE or establish an authenticated task.
+Kilo is a Windows-managed native integration with the same guarded module ownership, payload-identity, deadline, cancellation and receipt rules as OpenCode. Its discovered entry is plugin/orchbee-agent-observation.js under a nonempty absolute KILO_CONFIG_DIR, otherwise XDG_CONFIG_HOME/kilo, otherwise USERPROFILE/.config/kilo. Invalid explicit roots refuse without fallback. Enable publishes the immutable capsule and exact marked bootstrap; disable removes only the proven entry. No provider command, project configuration or authentication is changed. Other platforms remain manual-only for Kilo. Local installation does not override KILO_PURE or establish an authenticated task.
 
 The shared OpenCode-family normalizer consumes untrusted event/callback objects and returns only canonical observation identities and enums. Created/deleted events accept sessionID or legacy info.id; supplied IDs must be valid and agree. Other events require sessionID. Current status objects map busy/retry/idle; Kilo also accepts legacy status strings and maps its offline request to a question. Chat and tool callbacks never inspect or alter their output/arguments. Unknown shapes are silent. No content, path, prompt, output or permission decision crosses this boundary.
 
@@ -160,7 +157,7 @@ References: [Kilo plugin API](https://github.com/Kilo-Org/kilocode/blob/cb67014f
 
 ## Gemini and Qwen Windows extensions
 
-Windows manages self-contained Gemini and Qwen extension directories using the existing guarded publication and removal workflow. Gemini resolves an absolute nonempty GEMINI_CLI_HOME as a home parent and installs under .gemini/extensions/orchbee-agent-observation; Qwen resolves QWEN_HOME as the configuration root and installs under extensions/orchbee-agent-observation. Missing overrides use USERPROFILE/.gemini and USERPROFILE/.qwen respectively. Invalid explicit roots refuse without fallback. Doctor shares these paths. Global/project activation policies and already-running sessions remain provider-owned; the local artifact state does not establish effective delivery.
+Windows manages self-contained Gemini and Qwen extension directories using the existing guarded publication and removal workflow. Gemini resolves an absolute nonempty GEMINI_CLI_HOME as a home parent and installs under .gemini/extensions/orchbee-agent-observation; Qwen resolves QWEN_HOME as the configuration root and installs under extensions/orchbee-agent-observation. Missing overrides use USERPROFILE/.gemini and USERPROFILE/.qwen respectively. Invalid explicit roots refuse without fallback. Global/project activation policies and already-running sessions remain provider-owned; the local artifact state does not establish effective delivery.
 
 After proving the directory marker and complete file fingerprint, Windows also requires the exact extension name and declared provider version metadata. Positive non-current owned contracts require reinstall; missing metadata is unknown and modified or foreign content conflicts. A proven extension whose owner record names another environment is that environment's: it reads `conflict` and disable leaves it. Existing cancellation, backup restoration, committed-prefix receipts and residual ownership remain. Enable copies the source and shared scripts into one self-contained directory; disable removes only a reverified owned directory.
 
@@ -183,7 +180,7 @@ only a valid `session_id` from `hook_event_name: SessionStart` as `session-ident
 `{}`. Paths remain encoded data. Resume/compaction may repeat the identity without changing turn
 state. Node remains a prerequisite. Local artifact ownership does not prove effective project or
 organization policy, process liveness or authenticated work. Tests exercise public setup, override
-resolution, repair/refusal, foreign preservation, doctor agreement and installed commands through
+resolution, repair/refusal, foreign preservation and installed commands through
 PowerShell 5.1/7 and cmd. Source contracts: [Qoder hooks](https://docs.qoder.com/cli/hooks),
 [configuration paths](https://docs.qoder.com/cli/settings-reference), and
 [native Windows installation](https://docs.qoder.com/cli/installation).
@@ -199,7 +196,7 @@ launcher plus single `PreInvocation` handler must prove ownership. Other named b
 raw JSON; commands copied under another name are not owned. Optional boolean `enabled` defaults to
 true. Explicit false reports disabled; malformed flags or edited owned content refuse mutation.
 Enable writes the current enabled block; disable removes an active owned block. An already-disabled
-block retains the existing no-op behavior. Source ownership guards still prevent replacement of foreign or modified entries. Doctor reports the disabled fact with the separately inspected capsule root.
+block retains the existing no-op behavior. Source ownership guards still prevent replacement of foreign or modified entries.
 
 The encoded PowerShell command returns `{}` and observes only valid `conversationId` as
 `session-identified`; a supplied event name must be `PreInvocation`. It never forwards transcript
@@ -223,7 +220,7 @@ Cursor supports the native Windows `agent` executable. The [Hook reference](http
 
 ## Mastracode Windows lifecycle hooks
 
-The native manager edits `USERPROFILE/.mastracode/hooks.json`, whose root maps events to flat command arrays. It preserves foreign entries and opaque values. Each selected event owns exactly one generated command with `timeout: 10000` milliseconds. All owned commands must name the same capsule root; duplicates, altered entries and misplaced commands conflict. Missing entries in an otherwise exact owned set require repair. Exact root ownership governs repair and refusal. Disable removes only proven owned entries. The shared bounded publication preserves Windows metadata. Doctor records the root and reports an incomplete set as update-required after checking that root. Project hooks remain provider-owned.
+The native manager edits `USERPROFILE/.mastracode/hooks.json`, whose root maps events to flat command arrays. It preserves foreign entries and opaque values. Each selected event owns exactly one generated command with `timeout: 10000` milliseconds. All owned commands must name the same capsule root; duplicates, altered entries and misplaced commands conflict. Missing entries in an otherwise exact owned set require repair. Exact root ownership governs repair and refusal. Disable removes only proven owned entries. The shared bounded publication preserves Windows metadata. Project hooks remain provider-owned.
 
 SessionStart identifies the session without inferring idle; SessionEnd ends it. AgentStart starts a run keyed by `run_id`. AgentEnd is the sole terminal signal: complete succeeds, aborted cancels, error fails, and suspended emits nothing, preserving pending attention. Tool events carry activity; permission request/result events create and resolve attention without making permission decisions. Subagent events use `tool_call_id` as child identity. Invalid identifiers and unknown reasons are rejected; content, tool arguments, paths and results never leave the sanitizer.
 
@@ -235,7 +232,7 @@ The upstream [event types](https://github.com/mastra-ai/mastra/blob/3d2534080417
 
 Droid uses the first existing supported user hook source: `.factory/hooks.json`, legacy `.factory/hooks/hooks.json`, then the `hooks` field of `.factory/settings.json`, all under USERPROFILE. An unreadable or unsafe higher-priority path prevents fallback. If all are absent, onboarding creates the preferred hooks.json. The selected source is edited in place; other sources are not copied, archived or migrated. Thus enabling preserves existing fallback hooks without creating a file that shadows them. External changes to source precedence can change which configuration is effective; unselected files remain provider-owned.
 
-The shared path authority returns typed candidates, including whether the document is a standalone event map or nested settings. Onboarding and doctor read those candidates through their own bounded filesystem adapters. Mutation resolves its source again and performs the existing guarded publication; fresh inspection observes the resulting active configuration. This does not make several files atomic or reload an already-running Droid session.
+The shared path authority returns typed candidates, including whether the document is a standalone event map or nested settings. Onboarding reads those candidates through its own bounded filesystem adapter. Mutation resolves its source again and performs the existing guarded publication; fresh inspection observes the resulting active configuration. This does not make several files atomic or reload an already-running Droid session.
 
 One exact generated SessionStart matcher group is owned, with a command timeout of ten seconds. Foreign groups and raw settings remain intact. The adapter requires exact SessionStart and a valid session_id, then emits only session-identified. Startup, resume and compaction do not infer idle or readiness. The encoded Windows launcher returns `{}`; it never supplies context or permission decisions. Managed-only and disabled-hook policy are not changed, and installed configuration alone does not prove effective policy or delivery.
 
@@ -256,9 +253,9 @@ duplicated, modified, misplaced, mixed-root or foreign entries refuse.
 Other rules and settings retain their TOML values, comments and formatting through
 a syntax-preserving editor. Newline spelling can normalize. The existing bounded
 Windows publication, metadata preservation, recovery and residual rules apply to
-both JSON and TOML; path selection is shared with offline doctor.
+both JSON and TOML.
 
-The pure JSON, Kimi and event-set scanners share the original six ownership states with doctor.
+The pure JSON, Kimi and event-set scanners share the original six ownership states.
 They preserve the raw parsed document for Windows mutation and use explicit Windows root-admission
 and equality policies. Candidate location, bounded reads, resource-root observation and publication
 remain Windows-owned; common parsing does not enable configuration observation on unsupported hosts.
@@ -282,7 +279,7 @@ Shared Kimi inspection and existing configuration witnesses use the same depende
 editing. Remove it when the last inspection, editing and fixture consumer disappears.
 
 Evidence includes lossless foreign-rule fixtures, both TOML representations,
-partial repair and refusal, isolated public lifecycle/doctor/override checks,
+partial repair and refusal, isolated public lifecycle/override checks,
 installed PowerShell 5.1/7 and cmd delivery, and shared JSON regression. No paid
 provider session is needed. The capsule and matching receivers roll out together;
 older receivers reject the new adapter. Disable removes only proven owned rules.
@@ -312,7 +309,7 @@ merging. Only `session-identified` is emitted; no prompt, idle, readiness or out
 is inferred. Missing/invalid payloads remain silent. Resume preserves turn state.
 
 Pure ownership and identity tests plus isolated public setup/repair/refusal/disable,
-HOME override, doctor and installed PowerShell 5.1/7/cmd pipe witnesses cover this
+HOME override and installed PowerShell 5.1/7/cmd pipe witnesses cover this
 contract. They do not establish authenticated Letta work. The capsule and its
 receivers form one cohort; rollback selects the previous cohort, and disable removes
 only proven owned declarations. No new dependency or other-platform workflow is added.
@@ -342,8 +339,8 @@ identity preserves turn state. No prompt_id, content, cwd-based session search,
 idle, permission decision or completion is inferred. Local
 artifact inspection does not establish effective policy or a live Agent task.
 
-Pure set-ownership tests, isolated public installation/repair/refusal/removal and
-doctor checks, plus six installed commands through PowerShell 5.1/7 and cmd/private
+Pure set-ownership tests, isolated public installation/repair/refusal/removal
+checks, plus six installed commands through PowerShell 5.1/7 and cmd/private
 pipe establish the controlled boundary. They do not independently establish the
 real Devin hook dispatcher. Discovery used only the installed CLI's help/version;
 no Devin Agent task or orchestration runs.
@@ -384,8 +381,7 @@ Only cli/tui/desktop/acp platforms are admitted, and pre_llm_call is CLI-only.
 Strict session identity crosses a bounded, hidden, shell-free Node subprocess to
 the existing observation transport. Callbacks return no context or decisions;
 only session-identified is emitted. Content, working/idle and completion are not
-inferred. Offline doctor reports provider-command-inspection-required rather than
-claiming that an existing plugin is enabled.
+inferred.
 
 Pure file/list classification, isolated public activation/repair/refusal/disable,
 and Python import plus real Windows pipe witnesses cover these boundaries. They
@@ -399,7 +395,7 @@ and [native Windows](https://hermes-agent.nousresearch.com/docs/user-guide/windo
 
 Managed PowerShell exports `ORCHBEE_RUN_TOKEN` to each command it runs, including Agent start and [typed commands](native-terminal-run.md#typed-run-boundaries), and the Agent's hooks inherit it. The shared transport adds it to the envelope as the optional `runToken` only when it is 32 lowercase hex digits and nonzero; any other value is omitted, so the observation is still delivered. The Server and Desktop envelope parsers admit envelopes with and without the field and refuse a present malformed token. The Server binds a token-carrying session exactly to its run and keeps the newest-run fallback for tokenless sessions, as the [canonical model](../../orchbee-server/docs/agent-canonical-model.md#managed-launch-reservations) describes.
 
-Integrations installed before this field keep sending tokenless envelopes and keep the fallback. The field changes the Capsule payload, so doctor reports them as `update-required`; `orchbee agent integration enable --provider codex` (select the provider) installs the forwarding transport. No envelope version changes, and no negotiation is needed.
+Integrations installed before this field keep sending tokenless envelopes and keep the fallback. The field changes the Capsule payload, so `agent integration list` reports them as `update-required`; `orchbee agent integration enable --provider codex` (select the provider) installs the forwarding transport. No envelope version changes, and no negotiation is needed.
 
 Gemini and Qwen extensions copy the scripts into their own directory, and their currency follows the entry contract version, not the Capsule digest. An existing extension therefore stays `enabled` with the tokenless transport and keeps the fallback; `agent integration disable` followed by `enable` reinstalls it with forwarding.
 
@@ -407,8 +403,6 @@ Gemini and Qwen extensions copy the scripts into their own directory, and their 
 
 The Capsule contract is 1 and its identity is `payloadSha256`, with the exact manifest and canonical digest rules in the [adapter guide](../../../crates/agent-integration-writer/agent-observation-adapters/README.md#packaged-payload-identity). CLI capsule objects expose that digest; the directory is `internal/integrations/agent-observation/<version>` in the environment's own data root, and the [writer](../../../crates/agent-integration-writer/README.md#capsule-location-and-ownership) owns the naming and the rule that an entry belongs to the environment whose Capsule it names. No semver ceiling or automatic migration is retained. Any final payload-byte change produces a different identity, including documentation and formatting.
 
-Doctor checks installed bytes against their own manifest and the current sidecar identity. A self-consistent older identity is `update-required`. Non-current capsule metadata also requires reinstall only after verifying the actual digest, required runtime files and named Orchbee package marker. Corrupt, unsafe or unreadable inputs retain their protected outcomes; this read-only diagnosis never admits a non-current source as ready. Explicit repair uses `orchbee agent integration enable --provider codex` (select the provider). Conflicting or uninspectable entries still require manual review. A completed change removes the environment's own Capsule versions that no entry names; disable follows the existing provider-entry removal rules.
+Integration inspection reads an entry that names an older version of the environment's own Capsule as `update-required`. Explicit repair uses `orchbee agent integration enable --provider codex` (select the provider). Conflicting or uninspectable entries still require manual review. A completed change removes the environment's own Capsule versions that no entry names; disable follows the existing provider-entry removal rules.
 
-Entries written before each environment kept its own Capsules name `~/.orchbee/agent-observation-adapters/<digest>`. Doctor reports their root as `stale`. Every build other than release counts them as release's and leaves them, as the writer's [ownership rule](../../../crates/agent-integration-writer/README.md#capsule-location-and-ownership) says, and release reports them as `conflict`. Nothing deletes that folder; once no entry names it, a person may delete it. Gemini and Qwen copies made then carry no owner record, so they read as release's and keep their earlier transport until release disables and enables them again. Rollback selects a complete retained cohort.
-
-The Windows public doctor witness copies the executable, current sidecar and installed tree into an isolated profile, changes runtime and documentation bytes, refreshes the source manifest with Desktop's digest implementation, and checks for the update state and localized reinstall command without modifying the installed tree. The Unicode digest vector distinguishes UTF-16 path order from UTF-8 byte order.
+Entries written before each environment kept its own Capsules name `~/.orchbee/agent-observation-adapters/<digest>`. Every build other than release counts them as release's and leaves them, as the writer's [ownership rule](../../../crates/agent-integration-writer/README.md#capsule-location-and-ownership) says, and release reports them as `conflict`. Nothing deletes that folder; once no entry names it, a person may delete it. Gemini and Qwen copies made then carry no owner record, so they read as release's and keep their earlier transport until release disables and enables them again. Rollback selects a complete retained cohort.

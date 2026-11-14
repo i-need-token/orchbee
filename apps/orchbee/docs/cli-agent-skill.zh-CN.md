@@ -8,7 +8,7 @@
 
 `--version`、`--skill`、`completion <shell>`、`api schema` 和 Windows `config default` 均可离线使用。补全支持 Bash、Zsh、Fish、PowerShell 和 Elvish。`api schema` 列出 schema ID；用 `api schema <schema-id>` 查看同一构建的机器契约，或添加 `--output <path>` 导出。读取输出中的 `schema` 与 `version`；本指南不固定目录数量或历史版本。
 
-所有 CLI JSON 文档均使用版本 `1`，每种只有一个当前 schema。不同平台及参数下字段均保留：`{kind:"unsupported"}` 表示平台无此能力，`null` 表示来源说没有，`"unknown"` 表示来源说不清。整条命令不支持时返回 `stage: "platform"`、`reason: "unsupported-platform"`，退出码为 `4`；当前发布版本暂不提供的命令返回 `stage: "release"`、`reason: "withheld-in-release"`，退出码为 `4`。Linux 与 Windows 的 `server diagnose` 均使用 `orchbee.server.diagnose`。
+所有 CLI JSON 文档均使用版本 `1`，每种只有一个当前 schema。不同平台及参数下字段均保留：`{kind:"unsupported"}` 表示平台无此能力，`null` 表示来源说没有，`"unknown"` 表示来源说不清。整条命令不支持时返回 `stage: "platform"`、`reason: "unsupported-platform"`，退出码为 `4`；当前发布版本暂不提供的命令返回 `stage: "release"`、`reason: "withheld-in-release"`，退出码为 `4`。`doctor` 在所有平台上都在 `orchbee.doctor` 中保留全部六项检查；平台无法执行的检查为 `{kind:"unsupported"}`。
 
 PowerShell 用户可用 `orchbee completion powershell` 输出补全脚本。
 
@@ -16,7 +16,7 @@ PowerShell 用户可用 `orchbee completion powershell` 输出补全脚本。
 
 ## 选择并启动 Session
 
-用 `config check` 检查本地配置，`status` 读取正在运行的 Session 的数量和进程，`status client` 检查本可执行文件，`status server` 检查所选 Server（未运行时同样可用）。这些命令不启动 Session。`server diagnose` 提供只读运行时事实，`server start` 执行无界面启动。
+用 `doctor` 检查 Orchbee 在本机能否正常工作：安装、设置、已保存数据、运行时目录、会话和智能体集成，每项为 `pass`、`warning`、`fail` 或 `not-applicable`，只有检查失败时退出码才为 `1`。用 `config check` 检查本地配置，`status` 读取正在运行的 Session 的数量和进程。`doctor` 与 `config check` 不启动 Session；`status` 需要正在运行的 Session。`server start` 执行无界面启动。
 
 `--session <name>` 选择本地命名 Session，可位于命令之前或之后，默认值为 `default`。后续操作与诊断应保持相同选择。`session list` 显示本地清单；`session attach <name>` 进入其 TUI。退出 TUI 不会停止 Session。
 
@@ -63,7 +63,7 @@ orchbee panel split <panel-id> --direction right
 
 ## 安装并操作 Agent
 
-`agent doctor` 离线检查本地接入。适配器 Capsule 的契约版本为 1，以内容摘要 `capsule.payloadSha256` 为身份；每个环境把它安装在自己数据根的 `internal/integrations/agent-observation/<version>` 下（正式版为 `~/.orchbee`）。智能体条目属于其所指 Capsule 所在的环境，接入命令只修改本环境的条目，钩子也只向本环境的终端上报。Doctor 把其他环境的条目报告为 `conflict`，原因 `other-environment`；把指向各环境以前共用的 `~/.orchbee/agent-observation-adapters/<digest>` 的条目报告为根状态 `stale`、hook 状态 `conflict`：任何版本都不会替换或删除这类条目，该文件夹也不会被自动删除。Doctor 将校验后发现的旧载荷报告为 `update-required`；使用 `orchbee agent integration enable --provider codex` 显式重装（选择实际提供方）。修改完成后会删除本环境中没有条目引用的 Capsule 版本；此外不执行迁移。先用 `agent integration list`，再用 `explain --provider <id>` 发现每个提供方的实际可用性与管理模式。`list` 只读取文件，不启动任何智能体程序，因此 `claude-code`、`grok`、`github-copilot` 和 Windows 上的 `hermes` 保持 `unknown` 且无问题，即未检查；对它们执行 `explain` 会启动该智能体自己的程序，该程序可能会创建自己的文件。`enable`/`disable --provider <id>` 执行显式受保护修改。`list --outdated-only` 显示自有修复候选，并分别报告被阻止或未能确认的提供方；空列表不代表检查完整。
+智能体集成需要更新时，`doctor` 给出警告。适配器 Capsule 的契约版本为 1，以内容摘要 `capsule.payloadSha256` 为身份；每个环境把它安装在自己数据根的 `internal/integrations/agent-observation/<version>` 下（正式版为 `~/.orchbee`）。智能体条目属于其所指 Capsule 所在的环境，接入命令只修改本环境的条目，钩子也只向本环境的终端上报。任何版本都不会替换或删除其他环境的条目，也不会替换或删除指向各环境以前共用的 `~/.orchbee/agent-observation-adapters/<digest>` 的条目，该文件夹也不会被自动删除。`agent integration list` 将校验后发现的旧载荷报告为 `update-required`；使用 `orchbee agent integration enable --provider codex` 显式重装（选择实际提供方）。修改完成后会删除本环境中没有条目引用的 Capsule 版本；此外不执行迁移。先用 `agent integration list`，再用 `explain --provider <id>` 发现每个提供方的实际可用性与管理模式。`list` 只读取文件，不启动任何智能体程序，因此 `claude-code`、`grok`、`github-copilot` 和 Windows 上的 `hermes` 保持 `unknown` 且无问题，即未检查；对它们执行 `explain` 会启动该智能体自己的程序，该程序可能会创建自己的文件。`enable`/`disable --provider <id>` 执行显式受保护修改。`list --outdated-only` 显示自有修复候选，并分别报告被阻止或未能确认的提供方；空列表不代表检查完整。
 
 Windows Codex 的检查与安装使用同一配置根：非空 `CODEX_HOME`，否则为原生用户目录中的 `.codex`。无效覆盖值拒绝且不回退。提供方退出成功不证明安装成功；应读取修改回执中的观察状态。
 
@@ -175,7 +175,7 @@ channel 选择也可通过帮助发现。`channel set` 保存选择并发起更�
 Panel 命令族使用位置目标或 `--current`；Agent 使用 `--panel` 或 `--terminal`，终端可为子终端。
 四向方向为 `left|right|up|down`，Tab 顺序使用 `--order previous|next|first|last`。
 显示标签的创建／重命名使用 `--label`。Provider 统一
-使用 `--provider`，start／integration／doctor 中均为 `antigravity`。事件使用 `panel.*`，
+使用 `--provider`，start 与 integration 中均为 `antigravity`。事件使用 `panel.*`，
 按键使用 `ctrl+c` 等规范加号修饰符。close 结束活动资源，delete 销毁存储记录，remove 移除
 成员关系，dissolve 保留分组中的子项。
 <!-- unreleased -->

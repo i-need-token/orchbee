@@ -56,7 +56,6 @@
 				"schemas": {
 					"type": "object",
 					"required": [
-						"orchbee.agent.doctor",
 						"orchbee.agent.explain",
 						"orchbee.agent.get",
 						"orchbee.agent.integration.mutation",
@@ -102,6 +101,7 @@
 						"orchbee.config.check",
 						"orchbee.creation.result",
 						"orchbee.diagnostics.create",
+						"orchbee.doctor",
 						"orchbee.events.stream",
 						"orchbee.events.wait",
 						"orchbee.install",
@@ -143,7 +143,6 @@
 						"orchbee.session.list",
 						"orchbee.server.agent-manifests",
 						"orchbee.server.configuration",
-						"orchbee.server.diagnose",
 						"orchbee.server.start",
 						"orchbee.server.stop",
 						"orchbee.status",
@@ -188,7 +187,6 @@
 	"$defs": {
 		"schemaId": {
 			"enum": [
-				"orchbee.agent.doctor",
 				"orchbee.agent.explain",
 				"orchbee.agent.get",
 				"orchbee.agent.integration.mutation",
@@ -234,6 +232,7 @@
 				"orchbee.config.check",
 				"orchbee.creation.result",
 				"orchbee.diagnostics.create",
+				"orchbee.doctor",
 				"orchbee.events.stream",
 				"orchbee.events.wait",
 				"orchbee.install",
@@ -275,7 +274,6 @@
 				"orchbee.session.list",
 				"orchbee.server.agent-manifests",
 				"orchbee.server.configuration",
-				"orchbee.server.diagnose",
 				"orchbee.server.start",
 				"orchbee.server.stop",
 				"orchbee.status",

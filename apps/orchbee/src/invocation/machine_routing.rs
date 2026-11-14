@@ -220,9 +220,7 @@ pub(crate) fn admit(request: &Request) -> Option<(OutputFormat, Option<TerminalS
     let format = match request {
         Request::Query {
             command:
-                QueryCommand::AgentDoctor { .. }
-                | QueryCommand::ApiSchema { .. }
-                | QueryCommand::ConfigCheck,
+                QueryCommand::ApiSchema { .. } | QueryCommand::ConfigCheck,
             ..
         } => return None,
         Request::Query { format, .. }

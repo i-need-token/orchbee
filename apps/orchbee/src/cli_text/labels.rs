@@ -73,12 +73,6 @@ pub(crate) struct CliLabels {
     pub(crate) agent_navigate_only: &'static str,
     pub(crate) agent_none: &'static str,
     pub(crate) agent_headers: [&'static str; 3],
-    // `agent doctor` text section headers.
-    pub(crate) agent_doctor_providers: &'static str,
-    pub(crate) agent_doctor_endpoint: &'static str,
-    pub(crate) agent_doctor_environment: &'static str,
-    pub(crate) agent_doctor_asset_roots: &'static str,
-    pub(crate) agent_doctor_hints: &'static str,
     // `agent integration list` columns — provider, its PATH availability,
     // the management mode, the observed state, and the issue when present.
     pub(crate) integration_headers: [&'static str; 5],
@@ -157,11 +151,6 @@ const EN_US_LABELS: CliLabels = CliLabels {
     agent_navigate_only: "Facts",
     agent_none: "none",
     agent_headers: ["SESSION", "AGENT", "STATE"],
-    agent_doctor_providers: "Providers",
-    agent_doctor_endpoint: "Observation endpoint",
-    agent_doctor_environment: "Environment",
-    agent_doctor_asset_roots: "Asset roots",
-    agent_doctor_hints: "Hints",
     integration_headers: ["PROVIDER", "AVAILABILITY", "MANAGEMENT", "STATE", "ISSUE"],
 };
 
@@ -230,11 +219,6 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     agent_navigate_only: "事实",
     agent_none: "无",
     agent_headers: ["会话", "智能体", "状态"],
-    agent_doctor_providers: "提供方",
-    agent_doctor_endpoint: "观察端点",
-    agent_doctor_environment: "环境",
-    agent_doctor_asset_roots: "资产根",
-    agent_doctor_hints: "提示",
     integration_headers: ["提供方", "可用性", "管理方式", "状态", "问题"],
 };
 

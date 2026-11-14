@@ -140,18 +140,9 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
 
 fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     super::execution::admit(super::execution::Capability::RuntimeInspection)?;
-    let (base, scope_text) = crate::local_activation::runtime_location()
-        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    let scope =
-        SessionScope::parse(&scope_text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    let scope_directory = base.join(&scope_text);
-    let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(&base, scope);
-    let unstarted = crate::local_activation::runtime_base_unstarted()
-        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let [base_check, directory_check, sockets_check] = runtime_checks()?;
 
     let mut checks = Vec::with_capacity(5);
-    let (base_check, directory_check) =
-        classify_paths(&session, &base, &scope_directory, unstarted);
     checks.push(base_check);
     checks.push(directory_check);
 
@@ -163,30 +154,53 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     checks.push(cohort_report(Cohort::current(deadline)));
 
     checks.push(locale_check());
-    checks.push(socket_checks(&session, &scope_directory));
-    if crate::tui_capabilities::Capability::ConfigurationFile
-        .require()
-        .is_ok()
-    {
-        checks.push(match super::configuration::load() {
-            Ok(settings) => {
-                let status = if settings.diagnostics.is_empty() {
-                    pass
-                } else {
-                    warning
-                };
-                status("user-config", settings.check_details())
-            }
-            Err(error) => fail("user-config", error.check_details()),
-        });
-    }
+    checks.push(sockets_check);
+    checks.extend(settings_check());
     checks.push(records_check());
     Ok(checks)
 }
 
+/// The `runtime-base`, `runtime-directory` and `sockets` rows, read without creating anything;
+/// `doctor` folds them into its runtime check. The caller admits runtime inspection.
+pub(super) fn runtime_checks() -> Result<[CheckReport; 3], Failure> {
+    let (base, scope_text) = crate::local_activation::runtime_location()
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let scope =
+        SessionScope::parse(&scope_text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let scope_directory = base.join(&scope_text);
+    let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(&base, scope);
+    let unstarted = crate::local_activation::runtime_base_unstarted()
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let (base_check, directory_check) =
+        classify_paths(&session, &base, &scope_directory, unstarted);
+    Ok([
+        base_check,
+        directory_check,
+        socket_checks(&session, &scope_directory),
+    ])
+}
+
+/// The `user-config` row; none where this platform reads no configuration file.
+pub(super) fn settings_check() -> Option<CheckReport> {
+    crate::tui_capabilities::Capability::ConfigurationFile
+        .require()
+        .ok()?;
+    Some(match super::configuration::load() {
+        Ok(settings) => {
+            let status = if settings.diagnostics.is_empty() {
+                pass
+            } else {
+                warning
+            };
+            status("user-config", settings.check_details())
+        }
+        Err(error) => fail("user-config", error.check_details()),
+    })
+}
+
 /// Every record whose version this build cannot use, read without creating anything; each store
 /// works without such a record, so it warns rather than fails.
-fn records_check() -> CheckReport {
+pub(super) fn records_check() -> CheckReport {
     let notices = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
         .map(|root| orchbee_local_runtime::inspect_records(&root, None))
         .unwrap_or_default();
@@ -335,8 +349,8 @@ fn classify_paths(
     }
 }
 
-/// The path one `RendezvousError` names, when it names one — shared with
-/// `server diagnose`, which classifies the same error family onto rows.
+/// The path one `RendezvousError` names, when it names one — shared with the
+/// runtime folder report, which classifies the same error family onto rows.
 pub(crate) fn rendezvous_error_path(error: &RendezvousError) -> Option<&Path> {
     match error {
         RendezvousError::InvalidSessionScope => None,

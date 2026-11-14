@@ -203,14 +203,14 @@ impl Locale {
             (_, StartupFailure::SocketPathTooLong) => self.socket_path_too_long(),
             (Self::EnUs, StartupFailure::RecoveryRequired) => {
                 if crate::host_capabilities::startup_recovery_checkpoint() {
-                    "Local startup could not confirm existing ownership or startup completion. The checkpoint is retained. Run orchbee server diagnose with the same --session selection; use orchbee --session recovery-work server start for another session. Live tasks require Host adoption; incomplete or legacy records need diagnosis.\n"
+                    "Local startup could not confirm existing ownership or startup completion. The checkpoint is retained. Run orchbee doctor with the same --session selection; use orchbee --session recovery-work server start for another session. Live tasks require Host adoption; incomplete or legacy records need diagnosis.\n"
                 } else {
                     "The local session requires explicit recovery. No replacement process was started.\n"
                 }
             }
             (Self::ZhCn, StartupFailure::RecoveryRequired) => {
                 if crate::host_capabilities::startup_recovery_checkpoint() {
-                    "无法确认既有进程归属或启动完成情况，已保留检查点。请用相同 --session 选择运行 orchbee server diagnose；可执行 orchbee --session recovery-work server start 另开会话。存活任务仍需 Host 接管；不完整或旧版记录需要诊断。\n"
+                    "无法确认既有进程归属或启动完成情况，已保留检查点。请用相同 --session 选择运行 orchbee doctor；可执行 orchbee --session recovery-work server start 另开会话。存活任务仍需 Host 接管；不完整或旧版记录需要诊断。\n"
                 } else {
                     "本地会话需要显式恢复。未启动替代进程。\n"
                 }

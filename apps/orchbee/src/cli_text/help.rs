@@ -172,6 +172,10 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::StatusClient) => {
                 ("Show terminal client status.", "显示终端客户端状态。")
             }
+            HelpTopic::Command(CommandPath::Doctor) => (
+                "Check whether Orchbee works here.",
+                "检查 Orchbee 能否正常工作。",
+            ),
             HelpTopic::Family(Family::Agent) => (
                 "Find, run and interact with AI Agents.",
                 "查找、启动并操作 AI 智能体。",
@@ -207,9 +211,6 @@ impl super::CliText {
                 "Wait for an Agent to match a condition.",
                 "等待智能体满足指定条件。",
             ),
-            HelpTopic::Command(CommandPath::AgentDoctor) => {
-                ("Check local Agent integrations.", "检查本地智能体集成。")
-            }
             HelpTopic::Command(CommandPath::AgentResolve) => (
                 "Resolve an Agent name to its session.",
                 "按名称查找智能体会话。",
@@ -581,10 +582,6 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::SessionDelete) => {
                 ("Delete a stopped local session.", "删除已停止的本地会话。")
             }
-            HelpTopic::Command(CommandPath::ServerDiagnose) => (
-                "Inspect a local session without changing it.",
-                "检查本地会话，不作修改。",
-            ),
             HelpTopic::Command(CommandPath::ServerUpdateAgentManifests) => (
                 "Download and apply Agent detection rules.",
                 "下载并应用智能体识别规则。",
@@ -805,8 +802,8 @@ impl super::CliText {
                 "支持时可使用 --format text|json；输出形式见具体命令帮助。",
             ),
             HelpText::ConfigLocation => (
-                "Configuration: {config-file}. ORCHBEE_HOME moves the whole data folder; ORCHBEE_CONFIG_FILE moves only the configuration file. Use orchbee config check to inspect it and orchbee server diagnose for runtime facts.",
-                "配置：{config-file}。ORCHBEE_HOME 移动整个数据文件夹；ORCHBEE_CONFIG_FILE 只移动配置文件。使用 orchbee config check 检查配置，使用 orchbee server diagnose 查看运行时事实。",
+                "Configuration: {config-file}. ORCHBEE_HOME moves the whole data folder; ORCHBEE_CONFIG_FILE moves only the configuration file. Use orchbee config check to inspect it and orchbee doctor to check the whole installation.",
+                "配置：{config-file}。ORCHBEE_HOME 移动整个数据文件夹；ORCHBEE_CONFIG_FILE 只移动配置文件。使用 orchbee config check 检查配置，使用 orchbee doctor 检查整个安装。",
             ),
             HelpText::Reference => (
                 "Offline guide: orchbee --skill. Command help: orchbee help <command>.",

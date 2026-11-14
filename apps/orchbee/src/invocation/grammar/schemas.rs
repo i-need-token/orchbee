@@ -314,10 +314,6 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.cli.failure.process-info.json"),
     ),
     (
-        "orchbee.agent.doctor",
-        include_str!("../../cli/schemas/orchbee.agent.doctor.json"),
-    ),
-    (
         "orchbee.agent.explain",
         include_str!("../../cli/schemas/orchbee.agent.explain.json"),
     ),
@@ -402,6 +398,10 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.config.check.json"),
     ),
     (
+        "orchbee.doctor",
+        include_str!("../../cli/schemas/orchbee.doctor.json"),
+    ),
+    (
         "orchbee.launch-profile.get",
         include_str!("../../cli/schemas/orchbee.launch-profile.get.json"),
     ),
@@ -436,10 +436,6 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
     (
         PROJECT_RENAME_RESULT_ID,
         include_str!("../../cli/schemas/orchbee.project.rename.json"),
-    ),
-    (
-        "orchbee.server.diagnose",
-        include_str!("../../cli/schemas/orchbee.server.diagnose.json"),
     ),
     (
         "orchbee.server.start",

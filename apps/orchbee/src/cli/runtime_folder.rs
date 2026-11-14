@@ -1,7 +1,7 @@
-//! `server diagnose`: bounded read-only metadata and private-runtime reports.
-//! Native ports preserve the host scope and the finite pathname/descriptor observations.
-//! The shared workflows only interpret those observed facts — no endpoint is
-//! connected, no lock file is created, no marker or socket is touched, and
+//! The runtime folder report behind `doctor`'s runtime check: bounded read-only metadata and
+//! private-runtime facts. Native ports preserve the host scope and the finite
+//! pathname/descriptor observations. The shared workflows only interpret those observed facts —
+//! no endpoint is connected, no lock file is created, no marker or socket is touched, and
 //! no repair is attempted or implied. Every row is a pathname or descriptor
 //! fact at its own observation instant: `held` means some owner held the
 //! lifetime lock then, never that a Session or any process is alive; `absent`
@@ -14,10 +14,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value, json};
 
-use super::results::local_report::DiagnoseDocument;
-use super::{Failure, FailureKind, Output, failure_output, output};
-use crate::invocation::OutputFormat;
-use crate::localization::Locale;
+use super::{Failure, FailureKind};
 
 mod native;
 mod private;
@@ -83,54 +80,11 @@ fn complete_rows(value: &mut Value) {
     }
 }
 
-pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
-    match collect() {
-        // Like `server start`, every `server diagnose` answer — failure
-        // included — comes from the local runtime authority.
-        Err(failure) => failure_output(
-            failure.source(crate::cli_outcome::local_runtime_source()),
-            Some(format),
-            locale,
-        ),
-        Ok(document) => {
-            // A preparation overflow answers in the caller's format, never
-            // with a second stdout document.
-            let too_large = || {
-                failure_output(
-                    Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
-                        "limitBytes".to_owned(),
-                        json!(output::LIMIT),
-                    )])),
-                    Some(format),
-                    locale,
-                )
-            };
-            match format {
-                OutputFormat::Json => match output::encode_document(&document.envelope) {
-                    Ok(stdout) => Output {
-                        status: 0,
-                        stdout,
-                        stderr: String::new(),
-                        finalization: None,
-                    },
-                    Err(output::TooLarge) => too_large(),
-                },
-                OutputFormat::Text => {
-                    match output::render_text(|out| {
-                        super::present::server_diagnose(out, &document, locale)
-                    }) {
-                        Ok(stdout) => Output {
-                            status: 0,
-                            stdout,
-                            stderr: String::new(),
-                            finalization: None,
-                        },
-                        Err(output::TooLarge) => too_large(),
-                    }
-                }
-            }
-        }
-    }
+/// The collected report: the facts `doctor` carries as its runtime details, and the advisory
+/// tokens among them.
+pub(super) struct RuntimeFolder {
+    pub(super) result: Value,
+    pub(super) advisories: Vec<&'static str>,
 }
 
 /// The expected shape of one finite entry — the caller's verdict table over
@@ -332,7 +286,7 @@ fn advisories(marker: &str, client: &str, worker: &str) -> Vec<&'static str> {
     advisories
 }
 
-fn collect() -> Result<DiagnoseDocument, Failure> {
+pub(super) fn collect() -> Result<RuntimeFolder, Failure> {
     super::execution::admit(super::execution::Capability::RuntimeInspection)?;
     if native::PRIVATE_RUNTIME {
         private::collect()
@@ -341,7 +295,7 @@ fn collect() -> Result<DiagnoseDocument, Failure> {
     }
 }
 
-fn collect_metadata() -> Result<DiagnoseDocument, Failure> {
+fn collect_metadata() -> Result<RuntimeFolder, Failure> {
     let base = native::metadata_base().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let deadline = Instant::now()
         .checked_add(DIAGNOSE_BUDGET)
@@ -351,7 +305,7 @@ fn collect_metadata() -> Result<DiagnoseDocument, Failure> {
 
 /// The bounded collection itself, split from environment reads so tests can
 /// drive every row class against a scratch runtime base and a past deadline.
-fn collect_at(base: &Path, deadline: Instant) -> Result<DiagnoseDocument, Failure> {
+fn collect_at(base: &Path, deadline: Instant) -> Result<RuntimeFolder, Failure> {
     let scope_text =
         native::metadata_scope().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope =
@@ -502,14 +456,14 @@ fn collect_at(base: &Path, deadline: Instant) -> Result<DiagnoseDocument, Failur
     }
 }
 
-/// Assemble the `orchbee.server.diagnose` v1 envelope: `complete` is the
-/// attempted-or-classified coverage fact, never a health verdict.
+/// Assemble the report: `complete` is the attempted-or-classified coverage fact, never a health
+/// verdict.
 fn envelope(
     complete: bool,
     rows: Vec<(String, Map<String, Value>)>,
     advisories: Vec<&'static str>,
     scope: &str,
-) -> DiagnoseDocument {
+) -> RuntimeFolder {
     let mut result = Map::from_iter([
         ("complete".to_owned(), json!(complete)),
         ("scope".to_owned(), json!(scope)),
@@ -519,8 +473,8 @@ fn envelope(
             json!({"kind":"unsupported"}),
         ),
     ]);
-    for (name, row) in &rows {
-        result.insert(name.clone(), Value::Object(row.clone()));
+    for (name, row) in rows {
+        result.insert(name, Value::Object(row));
     }
     result.insert(
         "advisories".to_owned(),
@@ -528,16 +482,7 @@ fn envelope(
     );
     let mut result = Value::Object(result);
     complete_rows(&mut result);
-    DiagnoseDocument {
-        envelope: json!({
-            "schema": "orchbee.server.diagnose",
-            "version": 1,
-            "source": crate::cli_outcome::local_runtime_source(),
-            "result": result,
-        }),
-        rows,
-        advisories,
-    }
+    RuntimeFolder { result, advisories }
 }
 
 #[cfg(all(test, target_os = "linux"))]

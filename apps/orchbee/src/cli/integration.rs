@@ -71,6 +71,27 @@ fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
     run_job(command, started + ACTIVATION_BUDGET + JOB_BUDGET)
 }
 
+/// `doctor`'s integration facts: what `agent integration list` reports for every provider, as
+/// its result object. The outer `None` means this platform has no integrations to inspect; the
+/// inner one, that the home folder could not be read.
+pub(super) fn list_facts() -> Option<Option<Value>> {
+    #[cfg(any(unix, windows))]
+    {
+        let command = AgentIntegrationCommand::List {
+            outdated_only: false,
+            provider: None,
+            adapter_source: None,
+        };
+        Some(
+            list_here(None, None, &command)
+                .ok()
+                .map(|prepared| prepared.split(Locale::EnUs).1["result"].take()),
+        )
+    }
+    #[cfg(not(any(unix, windows)))]
+    None
+}
+
 /// `list` runs the Worker job's files-only inspection in this process, under the writer's own
 /// budget. A Session this command once started inherited this process's environment, so the
 /// answer is the one its Worker gave. No handler is armed: the read has no effect to settle, so a

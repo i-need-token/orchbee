@@ -26,7 +26,7 @@ pub use windows::{
 };
 
 /// Tries `acquire` until it takes the lock or `MOMENTARY_HOLD` passes. An observer (`session list`,
-/// `server diagnose`, `server stop` waiting for a release, the machine hub) takes a Session lock
+/// `doctor`, `server stop` waiting for a release, the machine hub) takes a Session lock
 /// only for the instant of one probe, so a lock still contended after that has an owner. Lock order
 /// and who may take each lock are the caller's, as for one attempt.
 pub fn acquire_past_probes(

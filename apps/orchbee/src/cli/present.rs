@@ -18,8 +18,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use super::output::{Bounded, TooLarge};
 use super::results::{
     AgentWaitDoc, ContextRef, LaunchProfileCatalogSelection, PanelDoc, Projection, StatusDoc,
-    TerminalRow, hex_encode,
-    local_report::{CheckReport, DiagnoseDocument},
+    TerminalRow, hex_encode, local_report::CheckReport,
 };
 use crate::cli_text::escape::{
     display_width, escape, quoted, table_label, table_label_width, unquoted,
@@ -1288,49 +1287,6 @@ fn check_summary(check: &CheckReport) -> String {
     }
 }
 
-/// `server diagnose` rows stream in the same `name  state  k=v` shape as
-/// `config check`: one line per leaf row whose name is the machine
-/// document's own dotted field path (`locks.activation`,
-/// `endpoints.client`), and advisory tokens append their localized note
-/// lines after the rows.
-pub(crate) fn server_diagnose(
-    out: &mut Bounded,
-    document: &DiagnoseDocument,
-    locale: Locale,
-) -> Result<(), TooLarge> {
-    for (name, row) in &document.rows {
-        let nested = row.values().all(|value| matches!(value, Value::Object(_)));
-        if nested && !row.is_empty() {
-            for (inner_key, inner) in row {
-                if let Value::Object(inner_row) = inner {
-                    diagnose_row(out, &format!("{name}.{inner_key}"), inner_row)?;
-                }
-            }
-        } else {
-            diagnose_row(out, name, row)?;
-        }
-    }
-    for advisory in &document.advisories {
-        out.push(CliText::new(locale).cli_server_diagnose_advisory(advisory))?;
-    }
-    Ok(())
-}
-
-/// One `server diagnose` leaf row: `name  key=value …` on its own line.
-fn diagnose_row(
-    out: &mut Bounded,
-    name: &str,
-    row: &serde_json::Map<String, Value>,
-) -> Result<(), TooLarge> {
-    out.write(format_args!("{name:<28}"))?;
-    for (key, value) in row {
-        out.write(format_args!("{key}="))?;
-        detail(out, value)?;
-        out.push(" ")?;
-    }
-    out.push("\n")
-}
-
 /// A detail value written recursively: strings are quoted and objects nest —
 /// the pieces stream into the sink, no joined intermediate per level.
 fn detail(out: &mut Bounded, value: &Value) -> Result<(), TooLarge> {
@@ -1382,159 +1338,6 @@ fn name_value_block(out: &mut Bounded, result: &Value) -> Result<(), TooLarge> {
         out.push("\n")?;
     }
     Ok(())
-}
-
-/// `agent doctor` text rendering: one block per provider (executable, node,
-/// hook rows), then the endpoint, environment, asset-root, and hint
-/// sections. Field names render verbatim like `config check`; hint text
-/// comes from the locale, and every fact streams through the shared detail
-/// writer into the bounded sink.
-pub(crate) fn agent_doctor(
-    out: &mut Bounded,
-    result: &Value,
-    locale: Locale,
-) -> Result<(), TooLarge> {
-    let text = CliText::new(locale).cli_labels();
-    out.push(&doctor_summary(result, locale))?;
-    out.push("\n")?;
-    let providers = result["providers"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|provider| {
-            vec![
-                provider["id"].as_str().unwrap_or("?").to_owned(),
-                doctor_fact(&provider["executable"]),
-                doctor_fact(&provider["runtime"]["node"]),
-                doctor_fact(&provider["hook"]),
-            ]
-        })
-        .collect::<Vec<_>>();
-    table(
-        out,
-        &CliText::new(locale).cli_doctor_headers(),
-        &providers,
-        Vec::clone,
-    )?;
-    out.push("\n")?;
-    aligned(
-        out,
-        &[
-            (
-                text.agent_doctor_endpoint,
-                doctor_fact(&result["endpoint"]["socket"]),
-            ),
-            (
-                text.agent_doctor_environment,
-                format!(
-                    "ORCHBEE_AGENT_OBSERVATION_SOCKET {}",
-                    doctor_fact(&result["environment"]["observationSocketEnv"])
-                ),
-            ),
-        ],
-    )?;
-    if let Some(roots) = result["asset"]["roots"].as_array()
-        && !roots.is_empty()
-    {
-        out.push(text.agent_doctor_asset_roots)?;
-        out.push("\n")?;
-        for root in roots {
-            let path = root["path"]
-                .as_str()
-                .map_or_else(|| "-".to_owned(), crate::native_path::display);
-            out.write(format_args!(
-                "  {path}  {}  {}\n",
-                root["origin"].as_str().unwrap_or("?"),
-                root["state"].as_str().unwrap_or("?"),
-            ))?;
-        }
-    }
-    if let Some(hints) = result["hints"].as_array()
-        && !hints.is_empty()
-    {
-        out.push(text.agent_doctor_hints)?;
-        out.push("\n")?;
-        for hint in hints {
-            out.push("  ")?;
-            let id = hint["id"].as_str().unwrap_or_default();
-            out.push(
-                &CliText::new(locale)
-                    .cli_agent_doctor_hint_text(id, &doctor_hint_subjects(result, hint)),
-            )?;
-            out.push("\n")?;
-        }
-    }
-    out.push(CliText::new(locale).cli_doctor_json_hint())
-}
-
-/// The closing conclusion: a provider is ready with both its executable and
-/// hook present; an installed provider whose hook is absent, disabled or
-/// outdated needs `enable`; any other hook state needs `explain`.
-fn doctor_summary(result: &Value, locale: Locale) -> String {
-    let mut counts = [0; 4];
-    let mut enable = None;
-    let mut explain = None;
-    for provider in result["providers"].as_array().into_iter().flatten() {
-        let id = provider["id"].as_str().unwrap_or_default();
-        let slot = match (
-            provider["executable"]["state"].as_str(),
-            provider["hook"]["state"].as_str(),
-        ) {
-            (Some("present"), Some("present")) => 0,
-            (Some("present"), Some("absent" | "disabled" | "update-required")) => {
-                enable.get_or_insert(id);
-                1
-            }
-            (Some("present"), _) => {
-                explain.get_or_insert(id);
-                2
-            }
-            _ => 3,
-        };
-        counts[slot] += 1;
-    }
-    let next = enable
-        .map(|id| ("enable", id))
-        .or_else(|| explain.map(|id| ("explain", id)));
-    CliText::new(locale).cli_integration_summary(counts, 0, next)
-}
-
-/// Re-derives a hint's subject list from its `evidence` rows for localized
-/// text rendering — `providers.<id>.<field>` rows name their provider and
-/// `asset.roots[<i>]` rows name their root path (or `origin` when the path
-/// is not UTF-8). Mirrors the subjects the emitter cited.
-fn doctor_hint_subjects(result: &Value, hint: &Value) -> Vec<String> {
-    let mut subjects = Vec::new();
-    for row in hint["evidence"].as_array().into_iter().flatten() {
-        let Some(row) = row.as_str() else { continue };
-        if let Some(rest) = row.strip_prefix("providers.") {
-            if let Some(id) = rest.split('.').next() {
-                subjects.push(id.to_owned());
-            }
-        } else if let Some(index) = row
-            .strip_prefix("asset.roots[")
-            .and_then(|rest| rest.strip_suffix(']'))
-            .and_then(|rest| rest.parse::<usize>().ok())
-        {
-            let root = &result["asset"]["roots"][index];
-            subjects.push(
-                root["path"]
-                    .as_str()
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| root["origin"].as_str().unwrap_or_default().to_owned()),
-            );
-        }
-    }
-    subjects
-}
-
-/// One doctor fact cell: `state`, with its `reason` when present. Detail
-/// fields stay in the JSON document.
-fn doctor_fact(fact: &Value) -> String {
-    let state = fact["state"].as_str().unwrap_or("unknown");
-    fact["reason"]
-        .as_str()
-        .map_or_else(|| state.to_owned(), |reason| format!("{state} ({reason})"))
 }
 
 fn panel_process(
@@ -1621,34 +1424,5 @@ mod terminal_list_tests {
             truncate_terminal_cell("1234567\u{001b}x", 16),
             "1234567\\u{001b}x"
         );
-    }
-}
-
-#[cfg(test)]
-mod doctor_summary_tests {
-    use super::doctor_summary;
-    use crate::localization::Locale;
-    use serde_json::json;
-
-    #[test]
-    fn summary_counts_providers_and_names_the_first_enable_step() {
-        let row = |id: &str, executable: &str, hook: &str| json!({"id": id, "executable": {"state": executable}, "hook": {"state": hook}});
-        let result = json!({"providers": [
-            row("claude-code", "present", "present"),
-            row("codex", "present", "absent"),
-            row("grok", "present", "conflict"),
-            row("kilo", "absent", "absent"),
-        ]});
-        assert_eq!(
-            doctor_summary(&result, Locale::EnUs),
-            "Summary: 1 ready, 1 need setup, 1 need attention, 1 not installed.\nNext: orchbee agent integration enable --provider codex\n"
-        );
-        let result = json!({"providers": [row("grok", "present", "unknown")]});
-        assert!(
-            doctor_summary(&result, Locale::ZhCn)
-                .ends_with("下一步：orchbee agent integration explain --provider grok\n")
-        );
-        let result = json!({"providers": [row("codex", "present", "present")]});
-        assert!(!doctor_summary(&result, Locale::EnUs).contains("Next:"));
     }
 }

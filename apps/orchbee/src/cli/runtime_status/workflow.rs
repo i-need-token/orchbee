@@ -24,7 +24,10 @@ pub(super) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Local
         Ok(signals) => signals,
         Err(_) => return failed(Failure::new(FailureKind::InternalFailure), format, locale),
     };
-    let result = collect(scope, deadline, &signals);
+    let result = match scope {
+        RuntimeStatusScope::Client => client(deadline),
+        RuntimeStatusScope::Server => server(deadline, &signals),
+    };
     let mut finalization = None;
     let result = match signals.finish() {
         Ok(Finish::Clear) => result,
@@ -44,33 +47,33 @@ pub(super) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Local
     output
 }
 
-fn collect(
-    scope: RuntimeStatusScope,
-    deadline: Instant,
-    signals: &ArmedSignals,
-) -> Result<Report, Failure> {
-    if scope == RuntimeStatusScope::Client {
-        let executable =
-            std::env::current_exe().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-        let admitted = admitted_cohort(deadline);
-        let installation = crate::cli::installation::inspect(
-            &executable,
-            admitted.as_ref().ok(),
-            env!("CARGO_PKG_VERSION"),
-        )
-        .map_err(|_| {
-            Failure::new(FailureKind::ServiceUnavailable).details(crate::cli::stage_reason_details(
-                "platform",
-                "unsupported-platform",
-            ))
-        })?;
-        let cohort = project_cohort(admitted);
-        return Ok(Report::Client {
-            executable,
-            cohort,
-            installation,
-        });
-    }
+/// This executable and its installation files, without contacting a Server.
+pub(super) fn client(deadline: Instant) -> Result<Report, Failure> {
+    let executable =
+        std::env::current_exe().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let admitted = admitted_cohort(deadline);
+    let installation = crate::cli::installation::inspect(
+        &executable,
+        admitted.as_ref().ok(),
+        env!("CARGO_PKG_VERSION"),
+    )
+    .map_err(|_| {
+        Failure::new(FailureKind::ServiceUnavailable).details(crate::cli::stage_reason_details(
+            "platform",
+            "unsupported-platform",
+        ))
+    })?;
+    let cohort = project_cohort(admitted);
+    Ok(Report::Client {
+        executable,
+        cohort,
+        installation,
+    })
+}
+
+/// The selected Session's processes from one handshake `query`; no Session is a report, not a
+/// failure.
+pub(super) fn server(deadline: Instant, signals: &ArmedSignals) -> Result<Report, Failure> {
     let (base, scope) = crate::local_activation::runtime_location().map_err(|_| {
         Failure::new(FailureKind::CheckFailed).details(crate::cli::stage_details("runtime-base"))
     })?;

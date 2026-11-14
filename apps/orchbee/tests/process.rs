@@ -460,7 +460,6 @@ check attach 0 orchbee --format json session a
 check --format 0 orchbee session attach audit --format json --f
 check enable 0 orchbee agent integration --provider codex --provider gemini e
 check --format 0 orchbee agent integration enable --provider codex --provider gemini --f
-check doctor 1 orchbee --provider codex --provider gemini agent d
 check --format 1 orchbee --session work workspace create --label example --f
 check --help 1 orchbee workspace create --session work --label example --h
 check --session 1 orchbee workspace create --s

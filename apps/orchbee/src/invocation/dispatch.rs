@@ -9,16 +9,16 @@ use super::{
     UsageContext, UsageReason, adapter_source_option, agent_after_revision_option,
     agent_limit_option, agent_name, agent_selector, agent_until_option, agent_wait_timeout_option,
     business_options, check_scope, client_control, close_wait, configured_commands,
-    confirm_option_required, creation, diagnostics, doctor_asset_roots_option,
-    doctor_providers_option, events, grammar, label_option, layouts, machines, missing_command,
-    missing_required, mutation, named_sessions, operation, pane_graphics, panel_agent, panel_input,
-    panel_metadata, panel_move_destination, panel_relocation, panel_terminal_creation,
-    parse_send_key, path_option, plugins, profile_name_option, profile_selector, provider_option,
-    query, reject_extras, reject_extras_scope, reject_filters, required, required_launch_option,
-    required_provider, resolve_help_path, schema_export, send_input, stop_command,
-    tab_move_command, target, terminal_output, terminal_run, terminal_stream, terminal_target,
-    unexpected_argument, unknown_command, usage_with, workspace_creation, workspace_group_close,
-    workspace_metadata, worktree,
+    confirm_option_required, creation, diagnostics, events, grammar, label_option, layouts,
+    machines, missing_command, missing_required, mutation, named_sessions, operation,
+    pane_graphics, panel_agent, panel_input, panel_metadata, panel_move_destination,
+    panel_relocation, panel_terminal_creation, parse_send_key, path_option, plugins,
+    profile_name_option, profile_selector, provider_option, query, reject_extras,
+    reject_extras_scope, reject_filters, required, required_launch_option, required_provider,
+    resolve_help_path, schema_export, send_input, stop_command, tab_move_command, target,
+    terminal_output, terminal_run, terminal_stream, terminal_target, unexpected_argument,
+    unknown_command, usage_with, workspace_creation, workspace_group_close, workspace_metadata,
+    worktree,
 };
 
 pub(super) fn resolve_words(
@@ -80,6 +80,12 @@ pub(super) fn resolve_words(
         ["status"] => {
             reject_filters(options, UsageContext::Path("status"), envelope)?;
             Ok(query(QueryCommand::Status, options))
+        }
+        ["doctor"] => {
+            reject_filters(options, UsageContext::Path("doctor"), envelope)?;
+            Ok(Request::Doctor {
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
         }
         ["status", scope @ ("server" | "client")] => {
             let (scope, path) = if *scope == "server" {
@@ -393,17 +399,6 @@ pub(super) fn resolve_words(
                 command,
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
-        }
-        ["agent", "doctor"] => {
-            let context = UsageContext::Path("agent doctor");
-            check_scope(options, context, envelope)?;
-            Ok(query(
-                QueryCommand::AgentDoctor {
-                    providers: doctor_providers_option(options, context, envelope)?,
-                    asset_roots: doctor_asset_roots_option(options, context, envelope)?,
-                },
-                options,
-            ))
         }
         ["agent", "integration", "list"] => {
             let context = UsageContext::Path("agent integration list");
@@ -1198,12 +1193,6 @@ pub(super) fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["server", "diagnose"] => {
-            reject_filters(options, UsageContext::Path("server diagnose"), envelope)?;
-            Ok(Request::ServerDiagnose {
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
         ["server", "stop"] => Ok(Request::ServerStop {
             command: stop_command(options, UsageContext::Path("server stop"), envelope)?,
             format: options.format.unwrap_or(OutputFormat::Text),
@@ -1243,14 +1232,14 @@ pub(super) fn resolve_words(
             extra,
             envelope,
         )),
-        ["agent"] => Err(missing_command(UsageContext::Path("agent"), envelope)),
-        ["agent", "list", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("agent list"),
+        ["doctor", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("doctor"),
             extra,
             envelope,
         )),
-        ["agent", "doctor", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("agent doctor"),
+        ["agent"] => Err(missing_command(UsageContext::Path("agent"), envelope)),
+        ["agent", "list", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("agent list"),
             extra,
             envelope,
         )),
@@ -1664,11 +1653,6 @@ pub(super) fn resolve_words(
         ["server"] => Err(missing_command(UsageContext::Path("server"), envelope)),
         ["server", "start", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("server start"),
-            extra,
-            envelope,
-        )),
-        ["server", "diagnose", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("server diagnose"),
             extra,
             envelope,
         )),

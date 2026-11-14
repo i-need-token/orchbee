@@ -569,7 +569,7 @@ impl ModeCheckedLocalSessionRendezvous {
         )
     }
 
-    /// `server diagnose` observations: finite named facts through the same
+    /// `doctor` runtime folder observations: finite named facts through the same
     /// validated directory descriptor and owner policy the rendezvous
     /// enforces everywhere else. Nothing here creates, writes, connects,
     /// or follows an unadmitted object; every answer is a pathname or

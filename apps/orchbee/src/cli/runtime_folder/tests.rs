@@ -1,4 +1,4 @@
-//! `server diagnose` coverage at the function boundary: every row
+//! Runtime folder report coverage at the function boundary: every row
 //! mapping, the conditional advisories, the directory-failure
 //! classification, and real scratch-runtime collections — including
 //! the no-creation invariant and a spent budget.
@@ -10,7 +10,7 @@ use std::os::unix::net::UnixListener;
 
 fn scratch(tag: &str) -> PathBuf {
     let directory = std::env::temp_dir().join(format!(
-        "obcli-session-diagnose-{}-{tag}-{}",
+        "obcli-runtime-folder-{}-{tag}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -148,7 +148,7 @@ fn lifetime_row_reports_lock_facts_not_liveness() {
 
 #[test]
 fn directory_failures_classify_without_becoming_engine_failures() {
-    let path = PathBuf::from("/ob-diagnose-test");
+    let path = PathBuf::from("/ob-runtime-folder-test");
     let cases: &[(RendezvousError, &str, Option<&str>, bool)] = &[
         (
             RendezvousError::System {
@@ -302,13 +302,7 @@ fn collect_at_reports_every_row_and_creates_nothing() {
 
     let document =
         collect_at(&base, Instant::now() + Duration::from_secs(5)).expect("collect populated");
-    let result = &document.envelope["result"];
-    assert_eq!(
-        document.envelope["schema"],
-        json!("orchbee.server.diagnose")
-    );
-    assert_eq!(document.envelope["version"], json!(1));
-    assert_eq!(document.envelope["source"]["kind"], json!("local-runtime"));
+    let result = &document.result;
     assert_eq!(result["complete"], json!(true));
     assert_eq!(result["scope"], json!(scope_text));
     assert_eq!(result["runtimeBase"]["state"], json!("known"));
@@ -346,7 +340,7 @@ fn collect_at_closes_missing_and_unsafe_directories_without_creating() {
     let base = scratch("missing");
     let document =
         collect_at(&base, Instant::now() + Duration::from_secs(5)).expect("collect missing");
-    let result = &document.envelope["result"];
+    let result = &document.result;
     assert_eq!(result["complete"], json!(true));
     assert_eq!(result["runtimeDirectory"]["state"], json!("absent"));
     assert_eq!(result["marker"]["state"], json!("uninspectable"));
@@ -373,7 +367,7 @@ fn collect_at_closes_missing_and_unsafe_directories_without_creating() {
     std::os::unix::fs::symlink(&real_dir, linked_base.join(&scope_text)).expect("link scope");
     let document =
         collect_at(&linked_base, Instant::now() + Duration::from_secs(5)).expect("collect unsafe");
-    let result = &document.envelope["result"];
+    let result = &document.result;
     assert_eq!(result["runtimeDirectory"]["state"], json!("unsafe"));
     assert_eq!(result["runtimeDirectory"]["reason"], json!("symlink"));
     assert_eq!(result["marker"]["state"], json!("uninspectable"));
@@ -406,14 +400,14 @@ fn collect_at_marks_a_held_lifetime_lock_without_acquiring_it() {
     let document =
         collect_at(&base, Instant::now() + Duration::from_secs(5)).expect("collect held");
     assert_eq!(
-        document.envelope["result"]["locks"]["sessionLifetime"]["state"],
+        document.result["locks"]["sessionLifetime"]["state"],
         json!("held")
     );
     drop(held);
     let document =
         collect_at(&base, Instant::now() + Duration::from_secs(5)).expect("collect free");
     assert_eq!(
-        document.envelope["result"]["locks"]["sessionLifetime"]["state"],
+        document.result["locks"]["sessionLifetime"]["state"],
         json!("free")
     );
     fs::remove_dir_all(&base).ok();
@@ -430,31 +424,37 @@ fn collect_at_with_a_spent_budget_closes_every_later_row() {
     .expect("prepare scratch runtime");
     let past = Instant::now() - Duration::from_secs(1);
     let document = collect_at(&base, past).expect("collect deadline");
-    let result = &document.envelope["result"];
+    let result = &document.result;
     assert_eq!(result["complete"], json!(false));
-    for (name, row) in &document.rows {
+    for (name, row) in result.as_object().expect("report object") {
+        if matches!(name.as_str(), "complete" | "scope" | "advisories") {
+            continue;
+        }
+        if row == &json!({"kind":"unsupported"}) {
+            continue;
+        }
         if name == "runtimeBase" || name == "runtimeDirectory" {
-            assert_eq!(row.get("state"), Some(&json!("known")), "{name}");
+            assert_eq!(row["state"], json!("known"), "{name}");
             continue;
         }
         if name == "locks" || name == "endpoints" {
-            for (_inner, nested) in row {
+            for nested in row.as_object().expect("nested rows").values() {
                 assert_eq!(nested["state"], json!("uninspectable"), "{name}");
                 assert_eq!(nested["reason"], json!("deadline"), "{name}");
             }
             continue;
         }
-        assert_eq!(row.get("state"), Some(&json!("uninspectable")), "{name}");
-        assert_eq!(row.get("reason"), Some(&json!("deadline")), "{name}");
+        assert_eq!(row["state"], json!("uninspectable"), "{name}");
+        assert_eq!(row["reason"], json!("deadline"), "{name}");
     }
     fs::remove_dir_all(&base).ok();
 }
 
 #[test]
-fn emitted_documents_validate_against_the_embedded_schema() {
-    let schema: Value =
-        serde_json::from_str(include_str!("../schemas/orchbee.server.diagnose.json"))
-            .expect("schema parses");
+fn emitted_reports_validate_against_the_embedded_schema() {
+    let doctor: Value = serde_json::from_str(include_str!("../schemas/orchbee.doctor.json"))
+        .expect("schema parses");
+    let schema = json!({"$ref": "#/$defs/runtimeFacts", "$defs": doctor["$defs"]});
     let validator = jsonschema::draft202012::new(&schema).expect("schema compiles");
 
     let populated = scratch("schema-populated");
@@ -468,15 +468,15 @@ fn emitted_documents_validate_against_the_embedded_schema() {
     let document =
         collect_at(&populated, Instant::now() + Duration::from_secs(5)).expect("collect");
     assert!(
-        validator.validate(&document.envelope).is_ok(),
-        "populated document conforms"
+        validator.validate(&document.result).is_ok(),
+        "populated report conforms"
     );
 
     let missing = scratch("schema-missing");
     let document = collect_at(&missing, Instant::now() + Duration::from_secs(5)).expect("collect");
     assert!(
-        validator.validate(&document.envelope).is_ok(),
-        "absent-runtime document conforms"
+        validator.validate(&document.result).is_ok(),
+        "absent-runtime report conforms"
     );
     fs::remove_dir_all(&populated).ok();
     fs::remove_dir_all(&missing).ok();

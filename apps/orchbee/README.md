@@ -90,9 +90,9 @@ orchbee status                   # the running Session's counts and processes
 orchbee <family> <command>       # queries and Workbench mutations
 orchbee api snapshot|schema      # machine snapshot and embedded schemas
 orchbee server start               # ensure the local Session is running (no TTY)
-orchbee server diagnose            # read-only local Session runtime facts
 orchbee server stop --confirm      # stop the Windows Session (release: type its name instead)
 orchbee server status <id>         # inspect a retained stop attempt/receipt
+orchbee doctor                   # check whether Orchbee works here
 orchbee config check             # local runtime inspection
 orchbee diagnostics create --output <path>  # Windows diagnostic bundle to send for help
 orchbee help [<family>|<command>]
@@ -111,8 +111,7 @@ Server-side with no local pre-read; `agent` offers `list` with
 <session-id>` — a read-only typed view of the Server's canonical Agent sessions over OBAP,
 never inferred from terminal contents — `wait <session-id> [--until <condition>]...
 [--timeout <ms>]`, a held Client Connection waiting for status or freshness; Windows follows
-retained changes and defaults to no total timeout, with every read still bounded — plus `doctor [--provider <id>]...`, an offline bounded-filesystem diagnostic that explains from local facts alone
-why Agent observations may not arrive (no provider execution, no socket connect, no writes).
+retained changes and defaults to no total timeout, with every read still bounded).
 Windows `agent explain` also resolves names and Panels to exact physical terminal bindings.
 Canonical sessions retain `orchbee.agent.explain` v1; physical terminals use v2 with the effective
 report view and a separate fresh screen-rule evaluation. The result includes manifest source/version,
@@ -166,10 +165,10 @@ records remain `rejected`/`recovery-required`. Recovery preserves checkpoint dat
 old processes. A fresh activation publishes catalog v5 before marker, Server or checkpoint-store
 publication; readers limited to v1–v4 refuse v5 without changing its bytes. The
 [Windows recovery contract](../../crates/local-runtime/docs/windows-crash-recovery.md)
-owns those boundaries. `server diagnose` is the read-only complement: it reports
+owns those boundaries. `doctor` is the read-only complement: its runtime folder check reports
 bounded facts about the runtime directory, marker, locks, and finite endpoint paths — each
 a closed-state row at its own observation instant — under one cooperative 5-second budget,
-and it never connects, creates, locks, repairs, or claims any process is alive or gone.
+and it never creates, locks, repairs, or claims any process is alive or gone.
 `server connect` is the byte relay for a Client that cannot own local IPC, such as the Desktop
 shell: it runs the same connect-or-activate sequence, admits this process through OBLC, then copies
 the connection's bytes between its standard streams until either side ends. Both streams must be
@@ -280,12 +279,7 @@ and Git worktree discovery. Console records feed the existing key and SGR mouse 
 mode guard restores the inherited input/output modes when leaving the TUI. Large byte records use
 bounded writes, and cancelled exchanges close their shared pipe without a detached flush thread.
 
-Windows `agent doctor --provider codex --format json` now inspects local configuration, PATH,
-Node and capsule integrity without starting a Session or changing provider setup. Its version-3
-document reports endpoint delivery as uninspected; installed configuration is not proof of
-a working Agent connection.
-
-Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Windows `server diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.server.diagnose.windows` v2. Capsule 0.4.16 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
+Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Capsule 0.4.16 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
 Other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
@@ -497,8 +491,8 @@ the input-vocabulary draft, while `Shift+H`/`Shift+J`/`Shift+K`/`Shift+L` are in
 
 ## Application crates
 
-The `orchbee` binary is the entry layer: process entry, command-line grammar and output, Agent
-doctor diagnostics, startup and release installation, and the terminal shell loop and backend.
+The `orchbee` binary is the entry layer: process entry, command-line grammar and output, the
+`doctor` checks, startup and release installation, and the terminal shell loop and backend.
 Two application-private crates sit below it and never depend on it:
 
 - [Workbench Client](crates/workbench-client/README.md) is the Client runtime: Session activation,
@@ -1102,7 +1096,7 @@ under `recent-unwrapped`. Detection remains plain text. Original PTY bytes, hype
 are not reproduced. Render requests and prepared output each retain the 8 MiB bound. See the
 [output contract](docs/native-terminal-output.md).
 
-Windows `status server` lists the Session's processes and their versions with one handshake `query`, without a Client Connection; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Session. Bare `status` reads the Workbench and then lists the same processes in one line each. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
+Windows `status server` lists the Session's processes and their versions with one handshake `query`, without a Client Connection; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Session. Bare `status` reads the Workbench and then lists the same processes in one line each. `doctor` folds these reads with the settings, saved data, runtime folder and Agent integration checks into six lines and exits 1 only when a check failed. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
 
 ## Agent navigation
 

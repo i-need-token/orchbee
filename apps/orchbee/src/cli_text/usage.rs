@@ -377,16 +377,10 @@ impl super::CliText {
                 "a decimal integer from 0 to 9007199254740991"
             }
             (Locale::ZhCn, ExpectedValue::AgentAfterRevision) => "0–9007199254740991 的十进制整数",
-            (Locale::EnUs, ExpectedValue::ProviderId | ExpectedValue::StartOnlyProvider) => {
+            (Locale::EnUs, ExpectedValue::StartOnlyProvider) => {
                 "a provider with an Orchbee integration"
             }
-            (Locale::ZhCn, ExpectedValue::ProviderId | ExpectedValue::StartOnlyProvider) => {
-                "具有 Orchbee 集成的 provider"
-            }
-            (Locale::EnUs, ExpectedValue::AssetRootPath) => {
-                "a nonempty absolute path; at most 4 may be given"
-            }
-            (Locale::ZhCn, ExpectedValue::AssetRootPath) => "非空绝对路径；至多可给出 4 个",
+            (Locale::ZhCn, ExpectedValue::StartOnlyProvider) => "具有 Orchbee 集成的 provider",
             (Locale::EnUs, ExpectedValue::ProfileName) => {
                 "a nonempty launch profile name of at most 512 UTF-8 bytes"
             }

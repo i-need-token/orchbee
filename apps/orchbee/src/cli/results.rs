@@ -36,7 +36,6 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::AgentGet(_) | QueryCommand::AgentClientGet { .. } => "orchbee.agent.get",
         QueryCommand::AgentExplain(_) => "orchbee.agent.explain",
         QueryCommand::AgentWait { .. } => "orchbee.agent.wait",
-        QueryCommand::AgentDoctor { .. } => "orchbee.agent.doctor",
         QueryCommand::ProjectList => "orchbee.project.list",
         QueryCommand::ProjectGet(_) => "orchbee.project.get",
         QueryCommand::WorkspaceList { .. } => "orchbee.workspace.list",
@@ -2486,7 +2485,6 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         | QueryCommand::AgentClientGet { .. }
         | QueryCommand::AgentExplain(_)
         | QueryCommand::AgentWait { .. }
-        | QueryCommand::AgentDoctor { .. }
         | QueryCommand::TerminalGet(_)
         | QueryCommand::TerminalOutput { .. }
         | QueryCommand::TerminalSourceWait { .. }

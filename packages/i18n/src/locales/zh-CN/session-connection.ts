@@ -13,7 +13,7 @@ export const zhCNSessionConnectionMessages = {
 	'session.connection.unavailable.otherEnvironment':
 		'此 Orchbee Desktop 属于另一个环境，无法加入正在运行的会话。',
 	'session.connection.unavailable.recoveryRequired':
-		'该会话需要恢复后才能启动。如需检查，请在终端中运行 <command>orchbee server diagnose</command>。',
+		'该会话需要恢复后才能启动。如需检查，请在终端中运行 <command>orchbee doctor</command>。',
 	'session.connection.unavailable.sessionTooOld':
 		'{hasSessionVersion, select, true {正在运行的会话（{sessionVersion}）版本过旧，无法与 Orchbee Desktop {desktopVersion} 配合。请运行 <command>orchbee server stop</command>，然后重试。} other {正在运行的会话由早于版本检查的 Orchbee 启动。请用启动它的那个 Orchbee 运行 <command>server stop</command>，然后重试。}}',
 	'session.connection.unavailable.title': 'Orchbee 会话不可用',

@@ -97,30 +97,6 @@ pub(crate) const PROVIDER_VALUES: &[&str] = &{
 pub(crate) fn start_only_provider(value: &str) -> bool {
     crate::agent_provider::CANONICAL_IDS.contains(&value) && !PROVIDER_VALUES.contains(&value)
 }
-/// Agent doctor probe-table identities in canonical probe order. CLI provider spellings map
-/// through `IntegrationId` before this check; `agent_doctor` proves its probe table matches.
-pub(crate) const DOCTOR_PROVIDER_IDS: &[&str] = &[
-    "claude-code",
-    "codex",
-    "gemini",
-    "github-copilot",
-    "grok",
-    "cline",
-    "opencode",
-    "kilo",
-    "mastracode",
-    "droid",
-    "kimi",
-    "letta",
-    "devin",
-    "hermes",
-    "antigravity-cli",
-    "qodercli",
-    "cursor",
-    "pi",
-    "omp",
-    "qwen-code",
-];
 macro_rules! mapped_values {
     ($values:ident, $parse:ident, $type:ty, {$($word:literal => $value:expr),+ $(,)?}) => {
         pub(crate) const $values: &[&str] = &[$($word),+];

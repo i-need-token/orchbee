@@ -56,21 +56,21 @@ $stopped = Invoke-OrchbeeJson -Words @('server', 'stop', '--confirm')
 & $cli server status $stopped.result.requestId --format json
 ```
 
-Check `result.workspace.result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Codex onboarding uses `agent integration enable --provider codex`; `server diagnose` reports local Windows runtime facts without activating the Session. The numbered POSIX examples below describe the existing Linux path.
+Check `result.workspace.result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Codex onboarding uses `agent integration enable --provider codex`; `doctor` checks the installation, settings, runtime folder, Session and Agent integrations without activating the Session. The numbered POSIX examples below describe the existing Linux path.
 
-## Windows Agent diagnostics
+## Windows checks
 
 ```powershell
-& $cli agent doctor --provider codex --format json
+& $cli doctor
+& $cli doctor --format json
 ```
 
-This command is offline and leaves configuration unchanged. It inspects the native user
-profile (`CODEX_HOME` when explicitly configured), provider entries on PATH, Node and declared
-capsule integrity.
-Version-3 JSON and localized text report `windows-endpoint-not-inspected`. Capsule 0.4.16
-adds Windows Codex hooks, and Windows x64 cohorts include their required pinned ConPTY
-runtime. Doctor does not exercise that transport. An installed hook or `complete:true`
-does not establish Agent readiness. Managed enable/disable and `agent start`/`prompt` are available; see [Windows onboarding](windows-agent-integrations.md) and [startup](windows-agent-start.md).
+`doctor` is local and leaves everything unchanged: it prints a verdict, one line per check and a
+command to run for a warning or failure, and exits 1 only when a check failed. A provider that
+needs an update warns with its `agent integration enable --provider <id>` command; an enabled
+integration does not establish Agent readiness. Managed enable/disable and `agent start`/`prompt`
+are available; see [runtime status and doctor](native-runtime-status.md#doctor),
+[Windows onboarding](windows-agent-integrations.md) and [startup](windows-agent-start.md).
 
 ## Prerequisites
 
@@ -90,8 +90,8 @@ does not establish Agent readiness. Managed enable/disable and `agent start`/`pr
 
 - `jq` on `PATH` if you follow the id-extraction snippets below; otherwise
   read the same fields from `--format json` output manually.
-- Role split: `config check`, `server diagnose`, `api schema`, and
-  `agent doctor` are purely local (no connection, lock, or Session effect);
+- Role split: `config check` and `api schema` are purely local (no connection, lock, or Session
+  effect), and `doctor` adds only the Session check's handshake `query`;
   `help`, `completion`, and `--version` print fixed text without touching
   runtime state; `server start` and the `agent integration` family declare
   activation; every other command — and the bare/`tui` entry's
@@ -294,4 +294,4 @@ stop the Session, and nothing in this guide deletes runtime state.
   authoritative reference is [native CLI query](native-cli-query.md) and
   `orchbee help <family> <command>`.
 
-For native Windows Cursor, use `agent integration enable --provider cursor`, then `agent doctor --provider cursor`. This configures a session identity hook; working/idle recognition is a separate capability.
+For native Windows Cursor, use `agent integration enable --provider cursor`, then `agent integration list --provider cursor`. This configures a session identity hook; working/idle recognition is a separate capability.

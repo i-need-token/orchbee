@@ -124,6 +124,7 @@ fn document(output: Output, status: i32, schema: &str) -> Value {
         "orchbee.status.server" => include_str!("../src/cli/schemas/orchbee.status.server.json"),
         "orchbee.cli.failure" => include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
         "orchbee.config.check" => include_str!("../src/cli/schemas/orchbee.config.check.json"),
+        "orchbee.doctor" => include_str!("../src/cli/schemas/orchbee.doctor.json"),
         _ => panic!("unexpected status schema: {schema}"),
     };
     support::validate(&doc, source);
@@ -268,6 +269,29 @@ fn offline_client_and_absent_server_do_not_create_runtime_or_locks() {
         "orchbee.cli.failure",
     );
     assert_eq!(status["failure"]["kind"], "service-unavailable");
+    // `doctor` passes without a running Session; a configuration file it cannot read fails it.
+    let doctor = document(
+        fixture.run(&["doctor", "--format=json"]),
+        0,
+        "orchbee.doctor",
+    );
+    assert_eq!(
+        doctor["result"]["checks"]["session"]["status"],
+        "not-applicable"
+    );
+    let config = fixture.0.join("broken-config.toml");
+    fs::write(&config, b"[general\n").unwrap();
+    let doctor = document(
+        fixture.run_with_env(
+            &["doctor", "--format=json"],
+            None,
+            None,
+            &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+        ),
+        1,
+        "orchbee.doctor",
+    );
+    assert_eq!(doctor["result"]["checks"]["settings"]["status"], "fail");
     assert!(
         fs::read_dir(session.runtime_directory())
             .unwrap()

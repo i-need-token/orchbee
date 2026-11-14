@@ -327,24 +327,6 @@ fn hermes_plugin_activation_repairs_members_and_preserves_python_cache() {
         .output()
         .unwrap();
     assert_ne!(invalid.status.code(), Some(0));
-    let doctor = crate::staged_client::isolated()
-        .args([
-            "agent",
-            "doctor",
-            "--provider",
-            "hermes",
-            "--format",
-            "json",
-        ])
-        .env("USERPROFILE", fixture.home())
-        .env("HERMES_HOME", &custom)
-        .output()
-        .unwrap();
-    let doc: Value = serde_json::from_slice(&doctor.stdout).unwrap();
-    assert_eq!(
-        doc["result"]["providers"][0]["hook"]["reason"],
-        "provider-command-inspection-required"
-    );
     invoke("disable");
 }
 
@@ -362,7 +344,7 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
     fixture.provider_document("enable", "devin", 0);
     assert_eq!(fs::read_to_string(&target).unwrap(), installed);
     exercise_installed_json_hooks("devin", &target);
-    let mut partial: Value = serde_json::from_slice(
+    let partial: Value = serde_json::from_slice(
         &fixture
             .command("explain", "devin", &fixture.config_home(), &[])
             .output()
@@ -380,15 +362,8 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
         fixture.provider_document("explain", "devin", 0)["result"]["state"],
         "update-required"
     );
-    let doctor = crate::staged_client::isolated()
-        .args(["agent", "doctor", "--provider", "devin", "--format", "json"])
-        .env("USERPROFILE", fixture.home())
-        .env("APPDATA", fixture.0.join("roaming"))
-        .output()
-        .unwrap();
-    partial = serde_json::from_slice(&doctor.stdout).unwrap();
     assert_eq!(
-        partial["result"]["providers"][0]["hook"]["state"],
+        fixture.provider_document("list", "devin", 0)["result"]["integrations"][0]["state"],
         "update-required"
     );
     fixture.provider_document("enable", "devin", 0);
@@ -450,16 +425,9 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
         }
     }
     fs::write(&target, &installed).unwrap();
-    let doctor = crate::staged_client::isolated()
-        .args(["agent", "doctor", "--provider", "devin", "--format", "json"])
-        .env("USERPROFILE", fixture.home())
-        .env("APPDATA", fixture.0.join("roaming"))
-        .output()
-        .unwrap();
     assert_eq!(
-        serde_json::from_slice::<Value>(&doctor.stdout).unwrap()["result"]["providers"][0]["hook"]
-            ["state"],
-        "present"
+        fixture.provider_document("list", "devin", 0)["result"]["integrations"][0]["state"],
+        "enabled"
     );
     let changed = installed.replace("\"timeout\":10", "\"timeout\":11");
     assert_ne!(changed, installed);
@@ -562,16 +530,9 @@ fn letta_silent_hooks_preserve_settings_and_use_provider_home() {
         }
     }
     fs::write(&target, &installed).unwrap();
-    let doctor = crate::staged_client::isolated()
-        .args(["agent", "doctor", "--provider", "letta", "--format", "json"])
-        .env("USERPROFILE", fixture.home())
-        .env_remove("HOME")
-        .output()
-        .unwrap();
     assert_eq!(
-        serde_json::from_slice::<Value>(&doctor.stdout).unwrap()["result"]["providers"][0]["hook"]
-            ["state"],
-        "present"
+        fixture.provider_document("list", "letta", 0)["result"]["integrations"][0]["state"],
+        "enabled"
     );
     let changed = installed.replace("\"quiet\":true", "\"quiet\":false");
     assert_ne!(changed, installed);
@@ -674,27 +635,13 @@ fn kimi_toml_hooks_preserve_user_settings_and_execute_on_windows() {
         let delivery: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(delivery["events"], 2);
     }
-    let doctor = || {
-        let output = crate::staged_client::isolated()
-            .args(["agent", "doctor", "--provider", "kimi", "--format", "json"])
-            .env("USERPROFILE", fixture.home())
-            .env_remove("KIMI_CODE_HOME")
-            .creation_flags(0x0800_0000)
-            .output()
-            .unwrap();
-        serde_json::from_slice::<Value>(&output.stdout).unwrap()
-    };
-    assert_eq!(
-        doctor()["result"]["providers"][0]["hook"]["state"],
-        "present"
-    );
+    let listed =
+        || fixture.provider_document("list", "kimi", 0)["result"]["integrations"][0].clone();
+    assert_eq!(listed()["state"], "enabled");
     let mut partial = installed.parse::<toml_edit::DocumentMut>().unwrap();
     partial["hooks"].as_array_mut().unwrap().remove(2);
     fs::write(&target, partial.to_string()).unwrap();
-    assert_eq!(
-        doctor()["result"]["providers"][0]["hook"]["state"],
-        "update-required"
-    );
+    assert_eq!(listed()["state"], "update-required");
     fixture.provider_document("enable", "kimi", 0);
     assert_eq!(fs::read_to_string(&target).unwrap(), installed);
     for changed in [
@@ -886,28 +833,19 @@ fn check_json_hooks(provider: &str) {
     );
     assert!(configured.join(target.file_name().unwrap()).is_file());
     assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
-    let doctor = crate::staged_client::isolated()
-        .args([
-            "agent",
-            "doctor",
-            "--provider",
-            provider,
-            "--format",
-            "json",
-        ])
-        .env("USERPROFILE", fixture.home())
+    let listed = fixture
+        .command("list", provider, &fixture.config_home(), &[])
         .env(variable, &configured)
         .output()
         .unwrap();
     assert!(
-        doctor.status.success(),
+        listed.status.success(),
         "{}",
-        String::from_utf8_lossy(&doctor.stdout)
+        String::from_utf8_lossy(&listed.stdout)
     );
     assert_eq!(
-        serde_json::from_slice::<Value>(&doctor.stdout).unwrap()["result"]["providers"][0]["hook"]
-            ["state"],
-        "present"
+        serde_json::from_slice::<Value>(&listed.stdout).unwrap()["result"]["integrations"][0]["state"],
+        "enabled"
     );
     let invalid = fixture
         .command("enable", provider, &fixture.config_home(), &[])
@@ -995,19 +933,8 @@ fn antigravity_named_hooks_preserve_foreign_blocks_and_execute_on_windows() {
     );
     fixture.provider_document("disable", id, 0);
     assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
-    let doctor = crate::staged_client::isolated()
-        .args(["agent", "doctor", "--provider", id, "--format", "json"])
-        .env("USERPROFILE", fixture.home())
-        .output()
-        .unwrap();
-    assert!(
-        doctor.status.success(),
-        "{}",
-        String::from_utf8_lossy(&doctor.stdout)
-    );
     assert_eq!(
-        serde_json::from_slice::<Value>(&doctor.stdout).unwrap()["result"]["providers"][0]["hook"]
-            ["state"],
+        fixture.provider_document("list", id, 0)["result"]["integrations"][0]["state"],
         "disabled"
     );
     fixture.provider_document("enable", id, 0);
@@ -1138,24 +1065,14 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
     let installed = xdg.join("opencode/plugins/orchbee-agent-observation.js");
     assert!(installed.is_file());
     assert!(!current.exists());
-    let doctor = crate::staged_client::isolated()
-        .args([
-            "agent",
-            "doctor",
-            "--provider",
-            "opencode",
-            "--format",
-            "json",
-        ])
-        .env("USERPROFILE", fixture.home())
+    let listed = fixture
+        .command("list", "opencode", &fixture.config_home(), &[])
         .env("XDG_CONFIG_HOME", &xdg)
-        .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
-        .stdin(Stdio::null())
         .output()
         .unwrap();
-    let document: Value = serde_json::from_slice(&doctor.stdout).unwrap();
+    let document: Value = serde_json::from_slice(&listed.stdout).unwrap();
     assert_eq!(
-        document["result"]["providers"][0]["hook"]["state"], "present",
+        document["result"]["integrations"][0]["state"], "enabled",
         "{document}"
     );
     let output = fixture
@@ -1336,24 +1253,14 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
                 .is_file()
         );
         assert!(!target.exists());
-        let doctor = crate::staged_client::isolated()
-            .args([
-                "agent",
-                "doctor",
-                "--provider",
-                provider,
-                "--format",
-                "json",
-            ])
-            .env("USERPROFILE", fixture.home())
+        let listed = fixture
+            .command("list", provider, &fixture.config_home(), &[])
             .env(variable, &configured)
-            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
-            .stdin(Stdio::null())
             .output()
             .unwrap();
-        let document: Value = serde_json::from_slice(&doctor.stdout).unwrap();
+        let document: Value = serde_json::from_slice(&listed.stdout).unwrap();
         assert_eq!(
-            document["result"]["providers"][0]["hook"]["state"], "present",
+            document["result"]["integrations"][0]["state"], "enabled",
             "{document}"
         );
         let output = fixture
@@ -1409,22 +1316,11 @@ fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
                 .exists()
         );
         let bytes = fs::read(&target).unwrap();
-        let mut doctor = crate::staged_client::isolated();
-        doctor
-            .args(["agent", "doctor", "--provider", "kilo", "--format", "json"])
-            .env("USERPROFILE", fixture.home())
-            .env_remove("KILO_CONFIG_DIR")
-            .env_remove("GEMINI_CLI_HOME")
-            .env_remove("QWEN_HOME")
-            .env_remove("QODER_CONFIG_DIR")
-            .env_remove("CURSOR_CONFIG_DIR")
-            .env_remove("KIMI_CODE_HOME")
-            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
-            .stdin(Stdio::null());
-        configure(&mut doctor);
-        let document: Value = serde_json::from_slice(&doctor.output().unwrap().stdout).unwrap();
+        let mut listed = fixture.command("list", "kilo", &fixture.config_home(), &[]);
+        configure(&mut listed);
+        let document: Value = serde_json::from_slice(&listed.output().unwrap().stdout).unwrap();
         assert_eq!(
-            document["result"]["providers"][0]["hook"]["state"], "present",
+            document["result"]["integrations"][0]["state"], "enabled",
             "{document}"
         );
         let output = fixture
@@ -2240,41 +2136,10 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             );
             fs::remove_file(client.join("index.js")).unwrap();
         }
-        let doctor_hook = || {
-            let doctor = crate::staged_client::isolated()
-                .args([
-                    "agent",
-                    "doctor",
-                    "--provider",
-                    provider,
-                    "--format",
-                    "json",
-                ])
-                .env("USERPROFILE", fixture.home())
-                .env_remove("XDG_CONFIG_HOME")
-                .env_remove("KILO_CONFIG_DIR")
-                .env_remove("GEMINI_CLI_HOME")
-                .env_remove("QWEN_HOME")
-                .env_remove("QODER_CONFIG_DIR")
-                .env_remove("CURSOR_CONFIG_DIR")
-                .env_remove("KIMI_CODE_HOME")
-                .env(
-                    "PATH",
-                    std::env::join_paths([
-                        fixture.0.join("bin"),
-                        node.parent().unwrap().to_path_buf(),
-                    ])
-                    .unwrap(),
-                )
-                .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
-                .stdin(Stdio::null())
-                .output()
-                .unwrap();
-            let inspection: Value = serde_json::from_slice(&doctor.stdout).unwrap();
-            inspection["result"]["providers"][0]["hook"].clone()
-        };
-        let hook = doctor_hook();
-        assert_eq!(hook["state"], "present", "{hook}");
+        let listed =
+            || fixture.provider_document("list", provider, 0)["result"]["integrations"][0].clone();
+        let item = listed();
+        assert_eq!(item["state"], "enabled", "{item}");
         if matches!(provider, "opencode" | "kilo") {
             // The named-export-only body earlier releases wrote, which OpenCode
             // 2.x rejects for lacking a default definition, stays owned: both
@@ -2291,8 +2156,8 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
                 fixture.provider_document("explain", provider, 0)["result"]["state"],
                 "update-required"
             );
-            let hook = doctor_hook();
-            assert_eq!(hook["state"], "update-required", "{hook}");
+            let item = listed();
+            assert_eq!(item["state"], "update-required", "{item}");
             fixture.provider_document("enable", provider, 0);
             assert_eq!(fs::read(&target).unwrap(), original);
         }
@@ -2523,19 +2388,8 @@ fn mastracode_flat_hooks_repair_missing_entries_and_execute_on_windows() {
         fixture.provider_document("explain", id, 0)["result"]["state"],
         "update-required"
     );
-    let doctor = crate::staged_client::isolated()
-        .env("USERPROFILE", fixture.home())
-        .args(["agent", "doctor", "--provider", id, "--format", "json"])
-        .output()
-        .unwrap();
-    assert!(
-        doctor.status.success(),
-        "{}",
-        String::from_utf8_lossy(&doctor.stdout)
-    );
-    let result: Value = serde_json::from_slice(&doctor.stdout).unwrap();
     assert_eq!(
-        result["result"]["providers"][0]["hook"]["state"],
+        fixture.provider_document("list", id, 0)["result"]["integrations"][0]["state"],
         "update-required"
     );
     fixture.provider_document("enable", id, 0);
@@ -2614,16 +2468,9 @@ fn droid_uses_the_effective_configuration_without_shadowing_fallback_hooks() {
         if origin == "new" {
             exercise_installed_json_hooks("droid", target);
         }
-        let doctor = crate::staged_client::isolated()
-            .env("USERPROFILE", fixture.home())
-            .args(["agent", "doctor", "--provider", "droid", "--format", "json"])
-            .output()
-            .unwrap();
-        assert!(doctor.status.success());
-        let doc: Value = serde_json::from_slice(&doctor.stdout).unwrap();
         assert_eq!(
-            doc["result"]["providers"][0]["hook"]["state"], "present",
-            "{doc}"
+            fixture.provider_document("list", "droid", 0)["result"]["integrations"][0]["state"],
+            "enabled"
         );
         if origin == "legacy" || origin == "settings" {
             // An unsafe higher-priority path also stops source selection.

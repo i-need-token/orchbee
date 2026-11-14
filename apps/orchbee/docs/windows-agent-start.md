@@ -19,7 +19,7 @@ orchbee agent start <provider> [--new-tab | --here | --split right|down] [--name
 ```
 
 The positional `<provider>` is a canonical provider ID from the runtime recognition registry, the
-same ID `agent integration` and `agent doctor` take with `--provider`; executable aliases do not
+same ID `agent integration` takes with `--provider`; executable aliases do not
 become additional kinds. `--provider` is not an `agent start` option, and any other word before
 `--` is refused, so it never reaches the Agent. Help and the invalid-value diagnostic list the
 complete provider set. The optional name uses `[a-z][a-z0-9_-]{0,31}`.
