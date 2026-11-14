@@ -124,6 +124,16 @@ const fn refused(refusal: Refusal) -> MachineStateName {
         Refusal::SessionTooOld | Refusal::DevelopmentBuildMismatch => MachineStateName::NeedsUpdate,
     }
 }
+/// The `ssh` target of the Machine the catalog names `machine`.
+fn ssh_target(entries: &[Entry], machine: &str) -> Option<String> {
+    entries
+        .iter()
+        .find(|entry| entry.profile.id.as_str() == machine)
+        .and_then(|entry| match &entry.profile.draft.connection {
+            MachineConnection::Ssh { target } => Some(target.clone()),
+            MachineConnection::Unsupported(_) => None,
+        })
+}
 pub fn same_endpoint(a: &Profile, b: &Profile) -> bool {
     a.id == b.id && a.draft.connection == b.draft.connection && a.draft.session == b.draft.session
 }
@@ -221,17 +231,14 @@ impl Discovery {
                 self.remembering();
             }
             let entries = &self.entries;
-            let effects = self.logins.notice(notice, |machine| {
-                entries
-                    .iter()
-                    .find(|e| e.profile.id.as_str() == machine)
-                    .and_then(|e| match &e.profile.draft.connection {
-                        MachineConnection::Ssh { target } => Some(target.clone()),
-                        MachineConnection::Unsupported(_) => None,
-                    })
-            });
+            let effects = self
+                .logins
+                .notice(notice, |machine| ssh_target(entries, machine));
             self.carry(effects);
         }
+        // An offer that arrived before the catalog named its Machine shows once it does.
+        let entries = &self.entries;
+        self.logins.resolve(|machine| ssh_target(entries, machine));
         // The probe answered after the question arrived: the box shows now.
         if self.credentials.probing() {
             self.remembering();

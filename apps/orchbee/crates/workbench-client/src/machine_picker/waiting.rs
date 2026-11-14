@@ -1,8 +1,10 @@
 //! The notice the picker owns while the hub offers a command login to this TUI: which Machine, how
 //! many commands wait, and whether to log in now. Shown, it holds the keyboard and takes no key
-//! but Enter and Esc, so typing meant for a Panel never reaches a login field; those two act only
-//! once frames have shown the whole notice for a second. While anything else holds the keyboard
-//! the notice waits and the status line names the Machine. `machine_login` owns the offers; this
+//! but Enter and Esc, so typing meant for a Panel never reaches a login field; those two and the
+//! buttons act only once frames have shown the whole notice for a second in which no key or paste
+//! was dropped. Once the person accepted it, only the person closes it: a login that ends before
+//! its question says so and closes on Enter or Esc. While anything else holds the keyboard the
+//! notice waits and the status line names the Machine. `machine_login` owns the offers; this
 //! module keeps only what the notice needs.
 
 use super::{Choice, Picker};
@@ -16,8 +18,8 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 mod tests;
 
-/// How long frames show a notice whole before Enter or Esc acts on it, so a key meant for a Panel
-/// at the moment it opened does nothing.
+/// How long frames show a notice whole, with no key or paste dropped, before Enter, Esc or a button
+/// acts on it, so a typist's Enter meant for a Panel or a login field never does.
 const ARMING: Duration = Duration::from_secs(1);
 const ACCEPT: Binding = Binding::new(KeyCode::Enter, Modifiers::NONE);
 const DECLINE: Binding = Binding::new(KeyCode::Esc, Modifiers::NONE);
@@ -35,7 +37,7 @@ pub(crate) struct WaitingNotice {
     pub(crate) offered: Offered,
     /// The last frame showed the whole notice.
     drawn: bool,
-    /// The first tick that found it drawn, since it last was not.
+    /// The first tick that found it drawn, since it last was not or last dropped a key or paste.
     since: Option<Instant>,
     armed: bool,
     /// The person's choice until the shell carries it to discovery: accept or decline.
@@ -53,15 +55,21 @@ impl WaitingNotice {
         }
     }
 
-    /// Whether a choice counts now: armed, not chosen yet, and not already accepted.
+    /// Whether a choice counts now: armed, not chosen yet, and not accepted unless it ended.
     const fn choosable(&self) -> bool {
-        self.armed && self.act.is_none() && !self.offered.accepted
+        self.armed && self.act.is_none() && (self.offered.ended.is_some() || !self.offered.accepted)
     }
 
     fn choose(&mut self, accept: bool) {
         if self.choosable() {
             self.act = Some((self.offered.login, accept));
         }
+    }
+
+    /// The notice dropped a key or paste, or changed what it asks: its second starts again.
+    const fn disarm(&mut self) {
+        self.since = None;
+        self.armed = false;
     }
 }
 
@@ -108,25 +116,38 @@ impl Picker {
             .map_or(machine, |row| row.label.as_str())
     }
 
-    /// Routes a key to the shown notice, which discards every key but an armed Enter or Esc;
-    /// false when none is shown.
+    /// Routes a key to the shown notice, which discards every key but an armed Enter or Esc, and
+    /// starts its second again for each one it discards; false when none is shown.
     pub(crate) fn waiting_key(&mut self, key: KeyEvent) -> bool {
         let Some(notice) = self.waiting.as_mut() else {
             return false;
         };
         if key.kind != KeyKind::Release {
-            if ACCEPT.matches(key) {
-                notice.choose(true);
+            let choice = if ACCEPT.matches(key) {
+                Some(true)
             } else if DECLINE.matches(key) {
-                notice.choose(false);
+                Some(false)
+            } else {
+                None
+            };
+            match choice {
+                Some(accept) if notice.choosable() => notice.choose(accept),
+                _ => notice.disarm(),
             }
         }
         true
     }
 
-    /// A paste while a notice is shown goes nowhere; otherwise it is given back.
-    pub(crate) fn waiting_paste(&self, text: String) -> Option<String> {
-        self.waiting.is_none().then_some(text)
+    /// A paste while a notice is shown goes nowhere and starts its second again; otherwise it is
+    /// given back.
+    pub(crate) fn waiting_paste(&mut self, text: String) -> Option<String> {
+        match self.waiting.as_mut() {
+            Some(notice) => {
+                notice.disarm();
+                None
+            }
+            None => Some(text),
+        }
     }
 
     /// A painted control of the notice for `login`; a stale one changes nothing.
@@ -176,7 +197,11 @@ impl Picker {
         let before = (self.waiting.clone(), self.waiting_deferred.clone());
         let offered = discovery.login_offered();
         self.waiting = match (self.waiting.take(), offered.clone()) {
+            // Shown, the notice stays whatever holds the keyboard; one that ended arms anew.
             (Some(mut notice), Some(offered)) if notice.offered.login == offered.login => {
+                if notice.offered.ended != offered.ended {
+                    notice.disarm();
+                }
                 notice.offered = offered;
                 Some(notice)
             }

@@ -11,7 +11,7 @@ mod secret;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use offers::Offered;
+pub(crate) use offers::{Offered, Withdrawn};
 pub(crate) use remember::RememberBox;
 pub(crate) use secret::{Answer, SecretField};
 
@@ -247,14 +247,15 @@ impl Logins {
                 machine,
                 waiters,
             } => {
-                // A Machine this client cannot name is not offered here.
-                if let Some(target) = target(&machine).filter(|_| !self.holds(login)) {
+                // A Machine this client has not read yet waits unseen until it is known.
+                if !self.holds(login) {
+                    let target = target(&machine);
                     self.offers.offer(login, machine, target, waiters);
                 }
                 Vec::new()
             }
             Notice::Taken { login } => {
-                self.offers.withdraw(login);
+                self.offers.withdraw(login, Withdrawn::Taken);
                 Vec::new()
             }
             // The hub counted the waiters again: the episode is already this client's.
@@ -265,7 +266,7 @@ impl Logins {
                 // go before it asks anything here.
                 let accepted = self.offers.accepted(login);
                 if !accepted {
-                    self.offers.withdraw(login);
+                    self.offers.remove(login);
                 }
                 let admitted = (accepted || self.waiting.as_deref() == Some(machine.as_str()))
                     && self.concluded.is_none()
@@ -275,7 +276,8 @@ impl Logins {
                         .is_none_or(|episode| episode.open.is_none());
                 // A Machine this client cannot name is not shown as anyone's: let it go too.
                 let Some(target) = target(&machine).filter(|_| admitted) else {
-                    self.offers.withdraw(login);
+                    self.offers
+                        .withdraw(login, Withdrawn::Ended(Ending::Dismissed));
                     return vec![Effect::Dismiss(login)];
                 };
                 let mut effects = Vec::new();
@@ -301,7 +303,7 @@ impl Logins {
                     return Vec::new();
                 };
                 // An accepted login's notice gives way to its question.
-                self.offers.withdraw(question.login);
+                self.offers.remove(question.login);
                 // The client reads the kind again: only `ssh`'s own sentence naming the Machine's
                 // host is a password or a new host; anything else is asked as `other`.
                 let kind = attributed(question.kind, question.prompt.as_str(), &episode.target);
@@ -327,7 +329,8 @@ impl Logins {
                 Vec::new()
             }
             Notice::Ended { login, end } => {
-                self.offers.withdraw(login);
+                self.offers
+                    .withdraw(login, Withdrawn::Ended(Ending::Hub(end)));
                 let Some(mut episode) = self.episode.take_if(|episode| episode.login == login)
                 else {
                     return Vec::new();
@@ -373,7 +376,7 @@ impl Logins {
                 }
             }
             Notice::Lost => {
-                self.offers.clear();
+                self.offers.clear(Withdrawn::Ended(Ending::Lost));
                 if let Some(episode) = self.episode.take() {
                     self.conclude(episode, Ending::Lost);
                 }
@@ -533,8 +536,14 @@ impl Logins {
         })
     }
 
+    /// Shows every offered login whose Machine `target` now names; the holder asks on every tick.
+    pub(crate) fn resolve(&mut self, target: impl Fn(&str) -> Option<String>) {
+        self.offers.resolve(target);
+    }
+
     /// The notice of a command login offered here, while no question or ended login's overlay is
-    /// shown and no other login is this client's: the accepted login until its question opens,
+    /// shown: an accepted login that ended before its question until the person closes it, then,
+    /// while no other login is this client's, the accepted login until its question opens,
     /// otherwise the lowest one offered.
     pub(crate) fn offered(&self) -> Option<Offered> {
         if self.concluded.is_some() {
@@ -544,29 +553,41 @@ impl Logins {
             Some(episode) if episode.open.is_some() => None,
             Some(episode) => self
                 .offers
-                .get(episode.login)
-                .filter(|offer| offer.accepted)
+                .ended()
+                .or_else(|| {
+                    self.offers
+                        .get(episode.login)
+                        .filter(|offer| offer.accepted)
+                })
                 .cloned(),
             None => self.offers.first().cloned(),
         }
     }
 
     /// The person accepts the notice of `login`: this client claims it, and its question follows.
+    /// Either choice on an ended notice closes it.
     pub(crate) fn accept(&mut self, login: Id) -> Vec<Effect> {
-        if self.offered().is_some_and(|offer| offer.login == login) && self.offers.accept(login) {
-            vec![Effect::Claim(login)]
-        } else {
-            Vec::new()
+        match self.offered().filter(|offer| offer.login == login) {
+            Some(offer) if offer.ended.is_some() => {
+                self.offers.close(login);
+                Vec::new()
+            }
+            Some(_) if self.offers.accept(login) => vec![Effect::Claim(login)],
+            _ => Vec::new(),
         }
     }
 
     /// The person declines the notice of `login`: the hub ends it for every client, fails its
-    /// commands and stops offering that Machine's command logins.
+    /// commands and stops offering that Machine's command logins. An ended notice only closes.
     pub(crate) fn decline(&mut self, login: Id) -> Vec<Effect> {
-        if self.offered().is_none_or(|offer| offer.login != login) {
+        let Some(offer) = self.offered().filter(|offer| offer.login == login) else {
+            return Vec::new();
+        };
+        if offer.ended.is_some() {
+            self.offers.close(login);
             return Vec::new();
         }
-        self.offers.withdraw(login);
+        self.offers.remove(login);
         if self.holds(login) {
             return self.dismiss();
         }

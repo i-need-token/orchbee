@@ -1,11 +1,12 @@
-//! Scripted runs of a login notice through the real input path: keys and a paste meant for a Panel
-//! while it opens, Enter (`CR`) and Esc once it is armed, and a notice that waits while the picker
-//! holds the keyboard.
+//! Scripted runs of a login notice through the real input path: a typist's keys and a paste,
+//! however long they run, Enter (`CR`) and Esc once a second passed without a dropped key, a notice
+//! that waits while the picker holds the keyboard, and an accepted login that ends before its
+//! question.
 
 use super::*;
 use crate::client_view::{ClientActionDisposition, ClientView};
 use crate::localization::Locale;
-use crate::machine_login::Notice;
+use crate::machine_login::{Notice, Withdrawn};
 use crate::terminal_input::{
     CopyAction, InputDispatcher, MenuAction, PaneAdmission, PaneInput, SurfaceAction, SurfaceInput,
     TerminalInputPort, TerminalInputUnavailable,
@@ -198,9 +199,12 @@ fn a_notice_takes_only_an_armed_enter_or_esc_from_the_real_input_path() {
         assert!(chinese.contains(&squeezed(line)), "{line}\n{chinese}");
     }
 
-    // Typing meant for a Panel as the notice opens, its Enter included, and a paste go nowhere.
-    bench.tick(Duration::from_millis(50));
-    bench.send(b"ls -la\r");
+    // A typist's keys, every Enter among them, and a paste go nowhere and accept nothing however
+    // long the typing runs past the first second: each dropped key starts the second again.
+    for _ in 0..12 {
+        bench.tick(Duration::from_millis(400));
+        bench.send(b"ls -la\r");
+    }
     bench.send(b"\x1b[200~pasted\x1b[201~");
     bench.tick(Duration::from_millis(900));
     bench.send(b"\r");
@@ -208,8 +212,9 @@ fn a_notice_takes_only_an_armed_enter_or_esc_from_the_real_input_path() {
     assert!(!bench.notice_shown().offered.accepted);
     bench.untouched();
 
-    // A second on screen arms it: `CR` is Enter, which accepts; later keys change nothing.
-    bench.tick(Duration::from_millis(100));
+    // A second with no key dropped arms it: `CR` is Enter, which accepts; later keys change
+    // nothing.
+    bench.tick(Duration::from_secs(1));
     bench.send(b"\r");
     bench.tick(Duration::ZERO);
     assert!(bench.notice_shown().offered.accepted);
@@ -256,6 +261,47 @@ fn a_notice_takes_only_an_armed_enter_or_esc_from_the_real_input_path() {
     bench.tick(Duration::ZERO);
     assert!(!bench.view.machines.waiting_shown());
     assert!(bench.discovery.login_offered().is_none());
+    assert!(!bench.view.machines.captures());
+    bench.untouched();
+}
+
+#[test]
+fn an_accepted_login_that_ends_first_holds_the_keys_until_the_person_closes_it() {
+    let squeezed = |text: &str| text.replace(' ', "");
+    let mut bench = Bench::offered();
+    bench.tick(Duration::ZERO);
+    bench.paint(Locale::EnUs);
+    bench.tick(Duration::ZERO);
+    bench.tick(Duration::from_secs(1));
+    bench.send(b"\r");
+    bench.tick(Duration::ZERO);
+    assert!(bench.notice_shown().offered.accepted);
+
+    // Another window wins the claim while the person types the answer they expect to be asked
+    // for: the notice says so, and the typing and its Enter reach nothing and close nothing.
+    bench.send(b"pass");
+    bench.notice(Notice::Taken { login: id(1) });
+    bench.tick(Duration::ZERO);
+    for _ in 0..4 {
+        bench.send(b"word\r");
+        bench.tick(Duration::from_millis(600));
+    }
+    assert!(bench.view.machines.captures());
+    assert_eq!(bench.notice_shown().offered.ended, Some(Withdrawn::Taken));
+    bench.untouched();
+    let english = bench.paint(Locale::EnUs);
+    for line in ["Another Orchbee window took this login.", "Close"] {
+        assert!(english.contains(&squeezed(line)), "{line}\n{english}");
+    }
+    let chinese = bench.paint(Locale::ZhCn);
+    let line = "另一个 Orchbee 窗口接手了这次登录。";
+    assert!(chinese.contains(&squeezed(line)), "{line}\n{chinese}");
+
+    // A second with no key dropped arms it, and Enter closes it: nothing holds the keys.
+    bench.tick(Duration::from_secs(1));
+    bench.send(b"\r");
+    bench.tick(Duration::ZERO);
+    assert!(!bench.view.machines.waiting_shown());
     assert!(!bench.view.machines.captures());
     bench.untouched();
 }

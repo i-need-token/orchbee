@@ -360,11 +360,9 @@ pub fn render_terminal_shell_with_resize<'a>(
                 .unwrap_or_default();
             // A command's login notice waits while something else holds the keyboard.
             if secondary_notice.is_empty()
-                && let Some(label) = view.machines.waiting_deferred()
+                && let Some(sign) = login_deferred(view, locale)
             {
-                secondary_notice = vec![locale.machine_waiting_deferred(
-                    &crate::terminal_text::sanitize_terminal_text(label),
-                )];
+                secondary_notice = vec![sign];
             }
             sidebar_status = phase_status.to_owned();
             if native.phase() == DisplayPhase::Ready
@@ -1131,6 +1129,9 @@ pub fn render_terminal_shell_with_resize<'a>(
             .map(|hint| locale.settings_hint_label(hint.label()));
         let retained = native.settings_presentation()
             != Some(crate::tui_presentation::PresentationPhase::Pending);
+        // A command's login notice waits while the page holds the keyboard; the page's status
+        // line names the Machine, as a notice, while no notice of its own leads.
+        let deferred = login_deferred(view, locale);
         let draw = if tier == ViewportTier::TooSmall {
             ModalPresentation::NotPresented
         } else {
@@ -1141,7 +1142,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                 area,
                 settings,
                 native.settings_pending(),
-                native.settings_notice().is_some(),
+                native.settings_notice().is_some() || deferred.is_some(),
                 locale,
                 theme,
                 hits,
@@ -1164,7 +1165,7 @@ pub fn render_terminal_shell_with_resize<'a>(
         };
         // Settings owns its complete local return and shortcut hint inside the
         // surface. The status chip carries only a distinct notice or recovery.
-        let line = notice.map(|notice| {
+        let line: Option<(&str, Vec<String>, Role)> = notice.map(|notice| {
             let role = match notice {
                 crate::localization::SettingsNotice::Failed
                 | crate::localization::SettingsNotice::InvalidValue
@@ -1184,6 +1185,11 @@ pub fn render_terminal_shell_with_resize<'a>(
             };
             let shorter = Vec::from_iter(locale.settings_notice_shorter(notice).map(str::to_owned));
             (locale.settings_notice(notice), shorter, role)
+        });
+        let line = line.or_else(|| {
+            deferred
+                .as_deref()
+                .map(|sign| (sign, Vec::new(), Role::StatusWarning))
         });
         let surface = if matches!(draw, ModalPresentation::NotPresented) {
             recovery::render(
@@ -2697,6 +2703,13 @@ fn status_overlay_visible(
                 || native.close_set_status().is_some();
             visible || native.duplicate_progress().is_some()
         })
+}
+
+/// The status sign naming the Machine whose command login notice waits for the keyboard.
+fn login_deferred(view: &ClientView, locale: Locale) -> Option<String> {
+    view.machines.waiting_deferred().map(|label| {
+        locale.machine_waiting_deferred(&crate::terminal_text::sanitize_terminal_text(label))
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

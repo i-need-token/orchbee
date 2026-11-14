@@ -1,7 +1,9 @@
-//! The TUI's notice of a command login offered to it, and the status that names the Machine while
-//! another overlay holds the keyboard.
+//! The TUI's notice of a command login offered to it, why an accepted one ended before its
+//! question, and the status that names the Machine while another overlay holds the keyboard.
 
 use super::Locale;
+use crate::machine_login::{Ending, Withdrawn};
+use orchbee_machine_protocol::hub::LoginEnd;
 
 /// The notice's own words, beside the login overlay's title.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -43,6 +45,29 @@ impl Locale {
             (Self::EnUs, true) => "If you don't log in now, these commands will fail.",
             (Self::ZhCn, false) => "暂不登录的话，这条命令会失败。",
             (Self::ZhCn, true) => "暂不登录的话，这些命令会失败。",
+        }
+    }
+
+    /// Why a login the person accepted ended before its question, in a few words.
+    pub(crate) const fn machine_waiting_ended(self, why: Withdrawn) -> &'static str {
+        match (self, why) {
+            (Self::EnUs, Withdrawn::Taken) => "Another Orchbee window took this login.",
+            (Self::ZhCn, Withdrawn::Taken) => "另一个 Orchbee 窗口接手了这次登录。",
+            (Self::EnUs, Withdrawn::Ended(Ending::Hub(LoginEnd::Succeeded))) => "Logged in.",
+            (Self::ZhCn, Withdrawn::Ended(Ending::Hub(LoginEnd::Succeeded))) => "已登录。",
+            (Self::EnUs, Withdrawn::Ended(Ending::Hub(LoginEnd::Failed))) => "Login failed.",
+            (Self::ZhCn, Withdrawn::Ended(Ending::Hub(LoginEnd::Failed))) => "登录失败。",
+            (Self::EnUs, Withdrawn::Ended(Ending::Hub(LoginEnd::Dismissed))) => "Login cancelled.",
+            (Self::ZhCn, Withdrawn::Ended(Ending::Hub(LoginEnd::Dismissed))) => "登录已取消。",
+            (Self::EnUs, Withdrawn::Ended(Ending::Hub(LoginEnd::Unavailable))) => {
+                "Connection failed."
+            }
+            (Self::ZhCn, Withdrawn::Ended(Ending::Hub(LoginEnd::Unavailable))) => "连接失败。",
+            (Self::EnUs, Withdrawn::Ended(Ending::Lost)) => "Machine connections stopped.",
+            (Self::ZhCn, Withdrawn::Ended(Ending::Lost)) => "机器连接已中断。",
+            // Nobody remained to answer, this client let it go, or an end this build does not know.
+            (Self::EnUs, Withdrawn::Ended(_)) => "Login ended.",
+            (Self::ZhCn, Withdrawn::Ended(_)) => "登录已结束。",
         }
     }
 
