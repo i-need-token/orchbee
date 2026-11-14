@@ -329,6 +329,83 @@ fn choosing_the_machine_on_screen_reuses_its_surface_only_while_the_hub_reads_it
         }
     }
 }
+/// Evidence gap: after `ssh` dropped and the hub linked the Machine again by itself, the open
+/// remote pane read "Terminal disconnected" until the person pressed Enter, though its remote
+/// Session kept running; no test followed a retired remote surface past the hub's next `online`.
+/// Rule: a remote surface whose link was lost without a Disconnect reconnects by itself, asking
+/// and showing nothing, once the hub reads its Machine online again; after a Disconnect it waits
+/// for the person to choose the Machine.
+#[test]
+fn a_remote_surface_whose_link_was_lost_reconnects_by_itself_but_not_after_a_disconnect() {
+    use orchbee_machine_protocol::hub::{MachineState, ReconnectCause};
+    // The Client of the remote surface on screen retired when its link was lost.
+    struct Retired;
+    impl crate::terminal_input::TerminalInputPort for Retired {
+        fn forward(
+            &mut self,
+            _bytes: &[u8],
+        ) -> Result<
+            (),
+            orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavailable,
+        > {
+            Ok(())
+        }
+    }
+    impl TerminalSurface for Retired {
+        fn reusable_machine(&self) -> bool {
+            false
+        }
+    }
+    for disconnected in [false, true] {
+        let (mut manager, mut view, mut surface) = setup();
+        manager.install(
+            Cached {
+                profile: Some(profile()),
+                surface: Box::new(Retired),
+                view: ClientView::new(100),
+            },
+            &mut surface,
+            &mut view,
+            dimensions(),
+            true,
+            &mut |_| {},
+        );
+        // The hub retries a lost link by itself; a Disconnect leaves the Machine offline until
+        // something asks for it, here another interface.
+        let lost = if disconnected {
+            MachineState::Offline {
+                cause: None,
+                next_attempt: None,
+            }
+        } else {
+            MachineState::Reconnecting {
+                cause: Some(ReconnectCause::LinkLost),
+                stage: None,
+                next_attempt: None,
+            }
+        };
+        for (state, reconnects) in [(lost, false), (MachineState::Online, !disconnected)] {
+            manager.discovery.report(&profile().id, state);
+            manager.tick(
+                &mut surface,
+                &mut view,
+                dimensions(),
+                Instant::now(),
+                &mut |_| {},
+            );
+            assert_eq!(
+                manager
+                    .queued
+                    .as_ref()
+                    .and_then(|queued| queued.profile.as_ref()),
+                reconnects.then(profile).as_ref(),
+                "only a link the hub restored without a Disconnect reconnects the surface"
+            );
+            assert!(!view.machines.open, "nothing asks the person");
+            assert!(!view.machines.busy, "nothing shows a selection running");
+        }
+    }
+}
 #[test]
 fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_completion() {
     let (mut manager, mut view, mut surface) = setup();

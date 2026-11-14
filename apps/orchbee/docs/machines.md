@@ -1454,10 +1454,6 @@ connection, so nothing changed for the link.
   passphrase: it is deleted and the person is told the saved password no longer works.
 - **A question's prompt is `ssh`'s.** A one-time code's prompt comes from the server and is shown
   as `ssh` passed it, its control characters stripped; it may name an account or a host.
-- **A remote surface stays disconnected after the TUI's owner ended.** A Session carrier serves the
-  owner it was created with. When the TUI holder's owner ends and the holder opens a new one, an
-  open remote surface keeps reading disconnected until the Machine is selected again. A loss the
-  owner re-attaches heals by itself, since the carrier keeps its owner.
 
 ### Client owner
 
@@ -1731,9 +1727,25 @@ Machine and copies bytes both ways on two threads of its own:
 
 Losing the link or the hub closes every channel, which closes every carried pipe: the remote surface
 ends as a lost Session connection ends, with a definite state, and the Client's reconnects find the
-endpoint closed until the Machine is `online` again. Local Panels use their own connection and are
-untouched. Each connection's threads, credit and pipe are its own, and the UI loop never reads a
-channel, so one slow remote never stalls input or drawing for local work or another Machine.
+endpoint closed until the Machine is `online` again. A reconnect admitted then is a new Session
+connection that holds none of the viewers the lost one attached, so the remote Session answers the
+Client's next poll that the terminal is unavailable, and the Client retires.
+
+An open remote surface whose link was lost without a Disconnect reattaches by itself to the
+Workspace it showed once the hub reads its Machine `online` again; after a Disconnect it waits for
+the Machine to be chosen again. The hub's state tells the two apart: a lost link reads
+`reconnecting` until the hub restores it by itself, an owner that ends reads no state at all, and a
+Disconnect reads `offline` without a cause, or `needs-login` with cause `disconnected`, until
+something asks for the Machine. The reattachment is the connection the person's Enter would start,
+targeted at that Workspace: it asks nothing, shows no selection running, starts once while the
+Machine reads `online`, and replaces the surface only once nothing else holds the keyboard; a
+selection the person makes ends it, and one that fails leaves the surface disconnected for Enter. A
+cached remote surface whose Client has not noticed the loss comes back the same way once it is
+shown again; one whose Client retired while hidden is replaced by the selection's own connection.
+
+Local Panels use their own connection and are untouched. Each connection's threads, credit and pipe
+are its own, and the UI loop never reads a channel, so one slow remote never stalls input or drawing
+for local work or another Machine.
 
 The Client connection actor owns replacement admission after EOF and never replays submitted
 frames. Each Workbench Client surface holds one claim on its carrier, and only the last released

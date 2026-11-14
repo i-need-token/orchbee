@@ -22,7 +22,7 @@ pub(crate) use credentials::Forgotten;
 use hub::{Ask, Holder, Reach, Settled, View};
 use orchbee_machine_protocol::{
     Id,
-    hub::{ConnectFailure, MachineState, MachineStateName, StopSessionOutcome},
+    hub::{ConnectFailure, MachineState, MachineStateName, NeedsLoginCause, StopSessionOutcome},
 };
 #[cfg(any(test, feature = "test-support"))]
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
@@ -728,6 +728,21 @@ impl Discovery {
     /// otherwise asks the hub to connect.
     pub fn linked(&self, profile: &Profile) -> bool {
         self.hub_status().is_none() && self.online(&profile.id)
+    }
+    /// Whether the hub, through a live attachment, reads `profile` as a Disconnect leaves it:
+    /// `offline` without a cause, or `needs-login` because the Disconnect ended a login. A lost
+    /// link reads `reconnecting` instead, and only an ask brings a disconnected Machine back.
+    pub fn disconnected(&self, profile: &Profile) -> bool {
+        self.hub_status().is_none()
+            && matches!(
+                self.hub.facts(&profile.id),
+                Some(
+                    MachineState::Offline { cause: None, .. }
+                        | MachineState::NeedsLogin {
+                            cause: Some(NeedsLoginCause::Disconnected)
+                        }
+                )
+            )
     }
     /// Whether the hub says `profile` waits for a login the person can give: a remote pane of it
     /// has no live link, and choosing it logs in.

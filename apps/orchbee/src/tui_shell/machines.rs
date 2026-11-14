@@ -120,6 +120,15 @@ pub(super) struct Manager {
     candidate: Option<Candidate>,
     queued: Option<Queued>,
     selection_scope: Option<SelectionScope>,
+    /// The hub read the remote Machine on screen as a Disconnect leaves it: its surface waits for
+    /// the person to choose the Machine again instead of reconnecting by itself.
+    held: bool,
+    /// The queued connection, attempt or candidate is the reconnect of the remote surface on
+    /// screen, not a selection: it shows nothing and never asks the person.
+    reattach: bool,
+    /// The remote surface on screen started its one reconnect while the hub reads its Machine
+    /// online; the hub reading it not online, or another Machine on screen, renews it.
+    reattach_spent: bool,
     discovery: Discovery,
     agents: crate::machine_agents::Collector,
     spaces: crate::machine_spaces::Collector,
@@ -217,6 +226,9 @@ impl Manager {
             candidate: None,
             queued: None,
             selection_scope: None,
+            held: false,
+            reattach: false,
+            reattach_spent: false,
             discovery: Discovery::new(wakeup.clone()),
             // Host process titles have no publication source; canonical Agent facts also push.
             agents: crate::machine_agents::Collector::new(wakeup.clone(), true),
@@ -240,19 +252,67 @@ impl Manager {
         if let Some(candidate) = self.candidate.take() {
             self.retire(Box::new(candidate.session));
         }
-        // A selection that ends before its login dismisses the login.
+        // A selection that ends before its login dismisses the login; a reconnect claims none.
         if let Some(Queued {
             profile: Some(profile),
             ..
         }) = self.queued.take()
+            && !self.reattach
         {
             self.discovery.abandon_login(&profile.id);
         }
         self.selection_scope = None;
+        self.reattach = false;
     }
     fn selection_current(&self, view: &ClientView) -> bool {
         self.selection_scope
             .is_some_and(|scope| view.machines.selection_current(scope))
+    }
+    fn reattaching(&self) -> bool {
+        self.reattach
+            && (self.queued.is_some() || self.attempt.is_some() || self.candidate.is_some())
+    }
+    /// The remote surface on screen lost its link without a Disconnect, so its Client retired,
+    /// while the remote Session kept its terminals. Once the hub reads the Machine online again
+    /// the surface reconnects to the Workspace it showed, once per online spell, as the person's
+    /// Enter would but without one and showing nothing while it runs. After a Disconnect it waits
+    /// for the person to choose the Machine again.
+    fn reattach(&mut self, surface: &dyn TerminalSurface, now: Instant) {
+        let Some(profile) = self.current.clone() else {
+            return;
+        };
+        self.held |= self.discovery.disconnected(&profile);
+        let linked = self.discovery.linked(&profile);
+        if !linked {
+            self.reattach_spent = false;
+        }
+        if self.reattaching() {
+            if self.held || !linked {
+                self.cancel();
+            }
+            return;
+        }
+        if self.held
+            || !linked
+            || self.reattach_spent
+            || surface.reusable_machine()
+            || self.selection_scope.is_some()
+            || self.queued.is_some()
+            || self.attempt.is_some()
+            || self.candidate.is_some()
+        {
+            return;
+        }
+        self.reattach = true;
+        self.reattach_spent = true;
+        self.queued = Some(Queued {
+            profile: Some(profile),
+            destination: Destination::Startup(
+                active_context(surface).map(ClientStartupTarget::Context),
+            ),
+            deadline: now + Duration::from_secs(60),
+            paused: None,
+        });
     }
     fn finish_selection(&mut self, view: &mut ClientView) {
         if self
@@ -491,7 +551,7 @@ impl Manager {
             change.redraw |= view.machines.observe_agent_attention(&snapshots);
         }
         change.redraw |= view.machines.drive_agent_navigation(now);
-        if !self.selection_current(view) {
+        if !self.selection_current(view) && !self.reattaching() {
             self.cancel();
         }
         if let Some(request) = view.machines.request.take()
@@ -500,6 +560,10 @@ impl Manager {
             self.cancel();
             self.selection_scope = Some(scope);
             view.clear_workspace_navigation_notice();
+            // Choosing the Machine on screen is what a Disconnect of it waits for.
+            if request.machine == choice(self.current.as_ref()) {
+                self.held = false;
+            }
             // The Machine on screen is chosen again: its surface stays only while the hub reads it
             // online. After a Disconnect or a lost link the surface still looks usable until its
             // Client's next request runs out its deadline, so the selection connects instead.
@@ -550,10 +614,11 @@ impl Manager {
             }
             change.redraw = true;
         }
+        self.reattach(surface.active(), now);
         if let Some(result) = self.attempt.as_ref().and_then(Attempt::settled) {
             let attempt = self.attempt.take().expect("settled attempt");
             if !attempt.cancel.is_cancelled()
-                && self.selection_current(view)
+                && (self.reattach || self.selection_current(view))
                 && attempt.profile.as_ref().is_none_or(|p| self.valid(p))
             {
                 match result {
@@ -743,19 +808,23 @@ impl Manager {
         let waiting = self
             .queued
             .as_ref()
+            .filter(|_| !self.reattach)
             .and_then(|queued| queued.profile.as_ref())
             .map(|profile| profile.id.clone());
         self.discovery.wait_for(waiting.as_ref());
         if let Some(mut candidate) = self.candidate.take() {
             candidate.session.tick();
             let drawable = candidate.session.startup_draw_ready();
-            let failed = now >= candidate.deadline
+            // A reconnect nobody asked for replaces the surface only once nothing else holds the
+            // keyboard, so a picker, overlay or menu the person has open stays.
+            let waits = self.reattach && view.login_notice_held(surface.active());
+            let failed = (now >= candidate.deadline && !(drawable && waits))
                 || (!drawable
                     && matches!(
                         candidate.session.status(),
                         TerminalStatus::Unavailable | TerminalStatus::OutcomeUnknown
                     ));
-            if !self.selection_current(view)
+            if !(self.reattach || self.selection_current(view))
                 || candidate.profile.as_ref().is_some_and(|p| !self.valid(p))
             {
                 self.fail_selection(view, "removed");
@@ -765,7 +834,7 @@ impl Manager {
                 self.fail_selection(view, "failed");
                 change.redraw = true;
                 self.retire(Box::new(candidate.session));
-            } else if drawable {
+            } else if drawable && !waits {
                 if let Some(bank) = retained_frames_for_target(
                     self.current.as_ref(),
                     surface.active(),
@@ -1058,6 +1127,10 @@ impl Manager {
         picker.error = None;
         picker.cancel_selection();
         self.selection_scope = None;
+        self.held = false;
+        if machine != choice(self.current.as_ref()) {
+            self.reattach_spent = false;
+        }
 
         next.view.resize(dimensions.columns);
         let mut old_view = std::mem::replace(view, next.view);
