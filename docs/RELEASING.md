@@ -59,7 +59,14 @@ repository>`. Print each public half with the command in
    needs no credentials; it refuses, writing nothing, while the release is a draft or lacks a file,
    and when the feed signature or the archive does not check out. The update channel has moved
    when the deploy finishes, and the download button names the same version.
-7. Move `main` to the next version in a new commit, for example
+7. Check what clients read, after the deploy and from a computer signed in nowhere: run
+   `%SystemRoot%\System32\curl.exe --disable --fail --silent --show-error --output feed.json https://orchbee.com/update/stable/windows-x86_64/feed.json`,
+   the same for `feed.json.sig`, and compare both byte for byte with the tracked
+   `feed.json.signed` and `feed.json.sig` (`fc.exe /b`). Clients send exactly such a request:
+   curl's own user agent, no cookie, no script. A challenge page, a 403 or other bytes make every
+   client report `download` or `signature-invalid`, so keep Cloudflare's challenge features (Bot
+   Fight Mode, Browser Integrity Check, challenge rules) off for `/update/*`, then check again.
+8. Move `main` to the next version in a new commit, for example
    `node scripts/release-version.mjs set 0.1.0-beta.2`.
 
 ## When a step fails
@@ -80,12 +87,37 @@ repository>`. Print each public half with the command in
 - An npm refusal to publish over an existing version just after a failed attempt can come from the
   registry's cache: wait five minutes and re-run the failed job.
 - A published version that must not be offered any more: run
-  `pnpm website:release <last good version>`, commit, build and deploy the website. The update
-  channel and the download button move back at once; installations already above that version see
-  a lower feed and stay as they are, so the fix is the next version. A published release is never changed or signed again.
+  `pnpm website:release <last good version>`, commit, build and deploy the website, then delete
+  the withdrawn release's archive:
+  `gh release delete-asset v<version> orchbee-<version>-windows-x86_64.zip`. The update channel
+  and the download button move back at once; installations already above that version see a lower
+  feed and stay as they are, so the fix is the next version. The archive must go because a signed
+  feed never expires and stays a public asset: whoever can answer for the feed address to one
+  client could replay it to a client below that version, and only a missing archive turns that
+  replay into `download` with nothing installed. Apart from that asset, a published release is
+  never changed or signed again.
 - `pnpm website:release` refusing a published release whose signature or archive does not check
   out means the channel must not move to it: leave the website as it is and release the next
   version.
+
+## What clients rely on
+
+- A published archive stays at its address for as long as a channel's feed names it. A feed is
+  signed with a key every client still in use trusts; while rotating keys, sign with the old and
+  the new one.
+- What `orchbee update` reports, for reading a person's report:
+  - A 404 for the feed or the archive: `download`.
+  - An archive longer or shorter than the feed's signed size, or other bytes: `checksum`. A body
+    cut short while the server had sent its length: `download`. Either way nothing is installed.
+  - Another update holding the download lock: `busy`, before any archive request.
+  - No `System32\tar.exe` or `System32\curl.exe`, or curl older than 8.4 for HTTPS:
+    `download-unavailable`.
+  - An archive transfer below 4 KiB/s for 60 seconds, or past the signed size at that rate plus
+    600 seconds (at most six hours): `timeout`. The rest of the run has its own 600 seconds.
+- `<store root>\.download\` is an entry of the store: `download.lock` always, and `archive.zip` and
+  `unpacked\` during an update. `orchbee uninstall` removes it with the store's other entries.
+- Only a test build admits a loopback feed address, `http://127.0.0.1:<port>/…`, for rehearsals; a
+  release build reads HTTPS or a local path.
 
 ## Moving npm to trusted publishing
 

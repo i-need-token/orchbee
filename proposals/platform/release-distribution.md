@@ -171,9 +171,16 @@ new name, as with [`--machine-link-v1`](../../apps/orchbee/docs/machines.md#link
 ├── versions/<version>/     one immutable signed release directory per installed version
 ├── active.json             the pointer
 ├── install.lock            the writer lock
+├── .download/              Windows only: the update's download folder
 ├── bin/orchbee.exe         Windows only: the launcher
 └── desktop/                Windows and Linux only: the window application
 ```
+
+- `.download/` holds `download.lock` and, during an update, `archive.zip` and `unpacked/`. The
+  update takes `download.lock` before `install.lock`, and `install` never takes it. Whoever holds
+  it removes the archive and the unpacked tree when it takes the lock and on every return, never
+  following a link; the folder and its lock stay. The store's other readers never open it, and
+  `orchbee uninstall` removes it with the other entries.
 
 - A version directory is named by its manifest `version` and holds that release directory
   unchanged, `release.json` and `release.json.sig` included. Publication stages inside the root and
@@ -318,8 +325,42 @@ check` and `release-publish.mjs github` admit it only when it verifies under the
   `apps/website/src/website/release.ts`. The first failed check writes nothing. So the channel
   never points at an archive that is not public, and the download button and the update channel
   always name the same version.
-- Withdrawing a version: the same command with the last good version, then a deploy. Clients
-  already above it see a lower feed and report up to date; the fix is the next version.
+- After each deploy the owner fetches `feed.json` and `feed.json.sig` with
+  `%SystemRoot%\System32\curl.exe --disable` from a computer signed in nowhere and compares them
+  byte for byte with the tracked pair, because clients send exactly such a request: curl's user
+  agent, no cookie, no script. Cloudflare's challenge features stay off for `/update/*`; a
+  challenge page or a 403 would make every client report `download` or `signature-invalid`.
+- Withdrawing a version: the same command with the last good version, then a deploy, then the
+  withdrawn release's `.zip` asset is deleted. Clients already above it see a lower feed and report
+  up to date; the fix is the next version. The archive goes because a signed feed never expires and
+  stays a public asset: a replay of it to a client below that version then ends in `download`, and
+  nothing is installed.
+- A published archive stays at its address for as long as a channel's feed names it, and a feed is
+  signed with a key every client still in use trusts, with the old and the new key while rotating.
+
+### What the client does
+
+- Time: the archive transfer has its own limit, apart from the run's 600 seconds, which cover the
+  feed, the decision, unpacking, verification and activation and stand still during the transfer.
+  curl ends a transfer that averages below 4 KiB/s over 60 seconds, and at the latest after the
+  signed size at that rate plus 600 seconds, never more than six hours; either reports `timeout`.
+  A 25 MB archive may take about 113 minutes on a link that stays above the rate. The feed and its
+  signature keep curl's 600-second limit. There is no resume or retry; neither is frozen.
+- Answers: a 404 for the feed or the archive reads `download`; an archive longer or shorter than
+  signed, or other bytes, reads `checksum`; a body cut short while the server had sent its length
+  reads `download`, because curl ends that transfer itself; another update holding the lock reads
+  `busy` before any archive request; a missing `System32\tar.exe` or `System32\curl.exe`, or curl
+  older than 8.4 for HTTPS, reads `download-unavailable`. A loopback feed address,
+  `http://127.0.0.1:<port>/…`, exists only in test builds.
+- curl and `tar.exe` run in a Job that only the Client holds, so they end with it however it ends,
+  and the next update removes what they left.
+- `orchbee.update` keeps its `phase` values: `manifest` covers reading, verifying and deciding from
+  the feed, `download` taking the folder and fetching, checking and unpacking the archive, and
+  `verify` admitting the unpacked or stored release. `upToDate` is true when the feed names the
+  active version, or a lower one without a channel switch, and nothing was downloaded.
+- `update` answers whether something newer exists; it is not a repair. A damaged active version
+  still reads up to date. Every start checks the active cohort, and `orchbee config check` reports
+  a damaged one; installing again or the next version repairs it.
 
 ### What is frozen
 
