@@ -17,9 +17,9 @@ use super::{
     plugins, profile_name_option, profile_selector, provider_option, query, reject_extras,
     reject_extras_scope, reject_filters, required, required_launch_option, required_provider,
     resolve_help_path, schema_export, send_input, stop_command, tab_move_command, target,
-    terminal_copy, terminal_links, terminal_output, terminal_run, terminal_selection,
-    terminal_stream, terminal_target, unexpected_argument, unknown_command, usage_with,
-    workspace_creation, workspace_group_close, workspace_metadata, worktree,
+    terminal_output, terminal_run, terminal_stream, terminal_target, unexpected_argument,
+    unknown_command, usage_with, workspace_creation, workspace_group_close, workspace_metadata,
+    worktree,
 };
 
 pub(super) fn resolve_words(
@@ -1011,17 +1011,6 @@ pub(super) fn resolve_words(
                 target: target((*value).to_owned(), Resource::Terminal, envelope)?,
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
-        }
-        ["terminal", "link-resolve", value] => {
-            terminal_links::parse(value, options, envelope, false)
-        }
-        ["terminal", "link-activate", value] => {
-            terminal_links::parse(value, options, envelope, true)
-        }
-        ["terminal", "copy-motion", value] => terminal_copy::parse(value, options, false, envelope),
-        ["terminal", "copy-search", value] => terminal_copy::parse(value, options, true, envelope),
-        ["terminal", "selection-read", value] => {
-            terminal_selection::parse(value, options, envelope)
         }
         ["terminal", "read", operands @ ..] => {
             let context = UsageContext::Path("terminal read");

@@ -17,12 +17,6 @@ const ID: &str = "33333333333333333333333333333333";
 mod ansi;
 #[path = "cli_windows_terminal_output/clear.rs"]
 mod clear;
-#[path = "cli_windows_terminal_output/copy.rs"]
-mod copy;
-#[path = "cli_windows_terminal_output/links.rs"]
-mod links;
-#[path = "cli_windows_terminal_output/selection.rs"]
-mod selection;
 
 fn request(stream: &mut LocalStream) -> TerminalViewerRequest {
     let ClientMessage::TerminalViewer(request) = read_client_message(stream).unwrap() else {

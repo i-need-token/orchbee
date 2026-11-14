@@ -511,25 +511,6 @@ impl super::CliText {
                 "Read visible output or retained history.",
                 "读取可见输出或保留的历史。",
             ),
-            HelpTopic::Command(CommandPath::TerminalSelectionRead) => {
-                ("Read the terminal's selected text.", "读取终端选中的文本。")
-            }
-            HelpTopic::Command(CommandPath::TerminalCopyMotion) => (
-                "Move or extend the terminal selection.",
-                "移动或扩展终端选区。",
-            ),
-            HelpTopic::Command(CommandPath::TerminalCopySearch) => (
-                "Search output and move the selection.",
-                "搜索输出并移动选区。",
-            ),
-            HelpTopic::Command(CommandPath::TerminalLinkResolve) => (
-                "Resolve a link from terminal output.",
-                "识别终端输出中的链接。",
-            ),
-            HelpTopic::Command(CommandPath::TerminalLinkActivate) => (
-                "Open a link from terminal output.",
-                "打开终端输出中的链接。",
-            ),
             HelpTopic::Command(CommandPath::TerminalClear) => (
                 "Clear output, keeping the cursor's row on Windows and its whole line elsewhere.",
                 "清除输出；在 Windows 上保留光标所在的屏幕行，在其他平台上保留光标所在的整行。",

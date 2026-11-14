@@ -65,7 +65,7 @@ captured host epoch, generation, revision, geometry, and total row count before 
 metadata or a verified soft-wrapped lowercase HTTP(S) token. Stale, rebound, malformed, busy, or
 unavailable observations have no external effect and are never replayed.
 
-The TUI and public `terminal link-activate` share one application-private ordered-handler
+The TUI link click uses one application-private ordered-handler
 preflight and outcome boundary. The first enabled Windows handler whose manifest pattern matches
 is fixed from the persisted registered catalog, the exact clicked terminal context is observed,
 and the complete ordered catalog fingerprint, registry entry, handler, and action are re-read
@@ -97,7 +97,7 @@ a later surface and does not enable any-motion capture.
 
 ## Delivery and evidence
 
-Catalog, action invocation, retained logs, startup and event hooks, and managed source install/update/uninstall have native integration. Plugin Panel lifecycle is specified below. Public `terminal link-activate` and the native TUI click route invoke ordered enabled Windows link handlers with the exact clicked terminal context through the shared boundary; CLI read fences, no-match/refusal/unknown receipts and bounds belong to [Native CLI Query](native-cli-query.md#activate-a-terminal-link), while pointer/source ownership belongs to [Native mouse input](native-mouse-input.md#link-activation). Catalog acceptance is not an execution receipt.
+Catalog, action invocation, retained logs, startup and event hooks, and managed source install/update/uninstall have native integration. Plugin Panel lifecycle is specified below. The native TUI click route invokes ordered enabled Windows link handlers with the exact clicked terminal context through the shared boundary; pointer/source ownership belongs to [Native mouse input](native-mouse-input.md#link-activation). Catalog acceptance is not an execution receipt.
 
 Focused evidence covers parser limits, identity/path collisions, unavailable-source retention, read-only absence, atomic catalog transitions and actual Windows CLI receipts. Test fixtures own and remove their temporary paths. Full Windows visual/provider/multi-Client and aggregate regression acceptance remain separate.
 

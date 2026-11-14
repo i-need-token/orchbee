@@ -173,7 +173,7 @@ accept `--request-id` or `--detach`. Inspect unknown mutation receipts before an
 
 Use positional Panel targets and `--current` in the Panel family. Use `--panel` or `--terminal`
 when targeting an Agent; a terminal can be a child. Cardinal directions are `left|right|up|down`;
-Tab order uses `--order previous|next|first|last` and copy search uses `--search-direction`.
+Tab order uses `--order previous|next|first|last`.
 Create and rename display labels with `--label`. Provider selection uses `--provider`, including
 `antigravity` for start/integration/doctor. Events use `panel.*`; keys use `ctrl+c` and other
 canonical plus-separated modifiers. Close ends a live resource, delete destroys a stored record,

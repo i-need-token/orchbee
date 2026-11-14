@@ -160,29 +160,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::TerminalList => &[],
         CommandPath::TerminalGet => &["@terminal:0xabcd"],
         CommandPath::TerminalRead => &["@terminal:0xabcd", "--source", "recent", "--lines", "40"],
-        CommandPath::TerminalSelectionRead => {
-            &["@terminal:0xabcd", "--anchor", "0:0", "--cursor", "0:10"]
-        }
-        CommandPath::TerminalCopyMotion => &[
-            "@terminal:0xabcd",
-            "--cursor",
-            "0:0",
-            "--motion",
-            "line-end",
-        ],
-        CommandPath::TerminalCopySearch => &[
-            "@terminal:0xabcd",
-            "--cursor",
-            "0:0",
-            "--query",
-            "ready",
-            "--search-direction",
-            "forward",
-            "--content-revision",
-            "1",
-        ],
-        CommandPath::TerminalLinkResolve => &["@terminal:0xabcd", "--cursor", "0:0"],
-        CommandPath::TerminalLinkActivate => &["@terminal:0xabcd", "--cursor", "0:0"],
         CommandPath::TerminalClear => &["@terminal:0xabcd"],
         CommandPath::TerminalWaitOutput => {
             &["@terminal:0xabcd", "--match", "ready", "--timeout", "30000"]

@@ -37,15 +37,12 @@ use orchbee_workbench_client::application::machine_ssh;
 use orchbee_workbench_client::application::machines;
 use orchbee_workbench_client::application::notifications;
 use orchbee_workbench_client::application::onboarding;
-use orchbee_workbench_client::application::terminal_content;
 use orchbee_workbench_client::application::terminal_copy;
 use orchbee_workbench_client::application::terminal_device;
 use orchbee_workbench_client::application::terminal_graphics;
 use orchbee_workbench_client::application::terminal_host_appearance;
 use orchbee_workbench_client::application::terminal_input;
 use orchbee_workbench_client::application::terminal_lifecycle;
-use orchbee_workbench_client::application::terminal_link_activation;
-use orchbee_workbench_client::application::terminal_links;
 use orchbee_workbench_client::application::terminal_projection;
 use orchbee_workbench_client::application::terminal_text;
 use orchbee_workbench_client::application::terminal_title;
@@ -174,15 +171,6 @@ fn main() -> ExitCode {
             }
             Ok(invocation::Request::LayoutReopen { saved_at, format }) => {
                 cli::layout_reopen(saved_at, format, locale)
-            }
-            Ok(invocation::Request::TerminalLink { command, format }) => {
-                cli::resolve_terminal_link(&command, format, locale)
-            }
-            Ok(invocation::Request::TerminalCopy { command, format }) => {
-                cli::copy_terminal(&command, format, locale)
-            }
-            Ok(invocation::Request::TerminalSelection { command, format }) => {
-                cli::read_terminal_selection(&command, format, locale)
             }
             Ok(invocation::Request::TerminalAttach { command }) => {
                 cli::terminal_attach(&command, locale)

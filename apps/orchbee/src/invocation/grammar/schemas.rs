@@ -498,28 +498,8 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.terminal.read.json"),
     ),
     (
-        "orchbee.terminal.selection",
-        include_str!("../../cli/schemas/orchbee.terminal.selection.json"),
-    ),
-    (
-        "orchbee.terminal.link-resolve",
-        include_str!("../../cli/schemas/orchbee.terminal.link-resolve.json"),
-    ),
-    (
         "orchbee.terminal.clear",
         include_str!("../../cli/schemas/orchbee.terminal.clear.json"),
-    ),
-    (
-        "orchbee.terminal.link-activate",
-        include_str!("../../cli/schemas/orchbee.terminal.link-activate.json"),
-    ),
-    (
-        "orchbee.terminal.copy-motion",
-        include_str!("../../cli/schemas/orchbee.terminal.copy-motion.json"),
-    ),
-    (
-        "orchbee.terminal.copy-search",
-        include_str!("../../cli/schemas/orchbee.terminal.copy-search.json"),
     ),
     (
         "orchbee.terminal.send",

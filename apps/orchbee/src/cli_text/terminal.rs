@@ -110,18 +110,6 @@ pub(super) const HELP_TERMINAL_WAIT_OUTPUT_ZH: crate::cli_text::HelpDetails =
         "目标：终端 ID／@terminal:，或面板 ID／@panel:／--panel。面板选择主终端，子终端需终端身份。裸 ID 指向不同资源时拒绝，请使用带类型的句柄。\n等待所选输出，默认总期限 30000 ms。--timeout 接受 1..3600000 毫秒；--forever 显式取消总期限，与 --timeout 互斥。每次 I/O 仍有界，Ctrl+C 释放只读 viewer。默认来源 recent、80 个物理行。--lines 钳制到 1000，零行永不匹配。--match 是区分大小写的 1..4096 UTF-8 字节字面值；--regex 最多 1024 字节，连接前编译。除非 --after 指定读取游标或 now，否则既有内容也可匹配。新输出等待排除捕获边界及提示符／输入行；重置、逐出或选定窗口丢失会明确失败。不输入、不改尺寸或焦点。匹配退出 0，超时退出 7，取消退出 130。JSON 使用 orchbee.terminal.wait-output v1，after 成员始终存在且可空。",
     );
 
-pub(super) const HELP_TERMINAL_SELECTION_EN: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL [--content-revision N] [--generation N] [--format text|json]",
-        "Windows: read one inclusive screen-buffer selection, independent of Client viewport.\nUse a complete terminal ID or @terminal:0x<hex>. Coordinates are zero-based;\nrow 0..4294967295, column 0..65535, at most 4096 selected rows and an 8 MiB\nrow window. Reversed endpoints are ordered. Wide/combining glyphs remain whole;\nverified soft wraps join, hard-line padding is trimmed.\nContent revision is optional full-u64; generation is optional positive full-u64.\nBoth pin expected content before reading. Changed/evicted content fails whole.\nOne cancellable five-second existing-session read; no input, clipboard or user\nselection changes. JSON: orchbee.terminal.selection v1; text escapes controls.",
-    );
-
-pub(super) const HELP_TERMINAL_SELECTION_ZH: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL [--content-revision N] [--generation N] [--format text|json]",
-        "Windows：读取包含两个端点的屏幕缓冲区选区，与客户端视口无关。使用完整终端 ID 或 @terminal:0x<hex>。坐标以零开始；行 0..4294967295、列 0..65535，最多选 4096 行及一个 8 MiB 行窗口。反向端点先排序；保留完整宽字／组合字形，连接已验证软换行并移除硬行尾填充。可选内容修订为完整 u64，generation 为正 u64；先检查预期内容，变化或已回收内容整体失败。一次可取消的五秒既有会话读取；不发送输入、不改用户选区／剪贴板。JSON 为 orchbee.terminal.selection v1，文本转义控制字符。",
-    );
-
 impl super::CliText {
     pub(crate) fn cli_terminal_run_result(self, terminal: &str, completed: bool) -> String {
         match (self.locale, completed) {
@@ -135,21 +123,6 @@ impl super::CliText {
             (Locale::ZhCn, false) => format!(
                 "终端 {terminal} 中的命令未成功完成。提交和完成证据须在原调用前选择 --format json；不要重放已接受或结果未知的输入。等待功能需要处于空闲状态的受管 PowerShell。\n"
             ),
-        }
-    }
-
-    pub(crate) fn cli_terminal_selection(
-        self,
-        terminal: &str,
-        revision: u64,
-        text: &str,
-    ) -> String {
-        let text = crate::cli_text::escape::quoted(text);
-        match self.locale {
-            Locale::EnUs => {
-                format!("Terminal {terminal}, content revision {revision}\nSelection: {text}\n")
-            }
-            Locale::ZhCn => format!("终端 {terminal}，内容修订 {revision}\n选区：{text}\n"),
         }
     }
 

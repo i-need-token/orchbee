@@ -1,7 +1,6 @@
 //! Declared closed values and discoverable key examples.
 
 pub(crate) const ORDER_VALUES: &[&str] = &["previous", "next", "first", "last"];
-pub(crate) const SEARCH_DIRECTION_VALUES: &[&str] = &["forward", "backward"];
 pub(crate) const CWD_VALUES: &[&str] = &["follow", "home", "current", "workspace"];
 pub(crate) const OUTPUT_SOURCES: &[&str] = &["visible", "recent", "recent-unwrapped", "detection"];
 pub(crate) const RIGHT_CLICK_VALUES: &[&str] = &["orchbee", "panel"];
@@ -122,16 +121,6 @@ pub(crate) const DOCTOR_PROVIDER_IDS: &[&str] = &[
     "omp",
     "qwen-code",
 ];
-pub(crate) const COPY_MOTION_VALUES: &[&str] = &{
-    use crate::terminal_copy::CopyMotion;
-    let mut values = [""; CopyMotion::ALL.len()];
-    let mut index = 0;
-    while index < values.len() {
-        values[index] = CopyMotion::ALL[index].token();
-        index += 1;
-    }
-    values
-};
 macro_rules! mapped_values {
     ($values:ident, $parse:ident, $type:ty, {$($word:literal => $value:expr),+ $(,)?}) => {
         pub(crate) const $values: &[&str] = &[$($word),+];

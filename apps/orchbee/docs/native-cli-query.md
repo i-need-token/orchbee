@@ -151,189 +151,6 @@ whole repository gate remain final-stage work under the User's standing authoriz
 
 The operation identity is a request correlation, not a retained idempotent receipt; no status lookup or automatic retry is advertised.
 
-## Read a terminal selection
-
-Windows `terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL`
-reads an inclusive, nonrectangular range from an existing terminal. Coordinates
-are zero-based physical rows in the complete retained screen buffer, independent
-of any Client viewport; rows are unsigned 32-bit and columns unsigned 16-bit.
-Reversed endpoints are ordered before reading. The selected span admits at most
-4096 rows and one existing 8 MiB row-window budget. Invalid points, duplicate or
-foreign options, and a larger span fail before Session discovery.
-
-Optional `--content-revision <u64>` pins the expected content revision;
-`--generation <positive-u64>` additionally pins its geometry/store generation.
-Without these, the command captures a fresh frame. Every row read still uses the
-same exact frame revision, generation, attachment, Host epoch, dimensions and
-retained row count. Stale or evicted data fails whole without retry or partial text.
-Rows/columns outside that frame fail rather than selecting a nearby cell.
-
-The command owns one cancellable five-second existing-Session budget and one
-temporary read-only viewer, released after the last consumer on every outcome.
-It never takes a controller, changes selection/viewport, sends input, writes the
-clipboard, acknowledges a user's attention, starts a Session or navigates a Client.
-Cell byte mappings preserve complete wide and combining glyphs. Hard-line padding
-is trimmed; adjacent verified soft-wrap rows join without a newline. The result
-contains the original endpoints, exact terminal binding and captured content
-revision/generation/Host epoch. `orchbee.terminal.selection` v1 is a closed JSON
-receipt; text output escapes controls through the existing CLI presentation owner.
-Existing typed viewer/read-history failures retain stale-revision,
-stale-generation and history-evicted reasons. Cancellation exits 130; no replay
-or durable state is introduced.
-
-Evidence covers reversed/single-cell and blank ranges, wide/combining mappings,
-soft/hard wraps, geometry and span limits, parse/help/completion/schema admission,
-and real Windows CLI pipe traces for a successful read, stale expected content,
-wrong row routing and typed Host refusal with deterministic viewer release.
-External scrollback editing and final Host/emulator acceptance remain separate
-obligations; copy motion/search are specified below.
-
-## Resolve a terminal link
-
-Windows `terminal link-resolve <terminal> --cursor ROW:COL` resolves the cell in
-an explicit native viewport without opening a browser or invoking a plugin.
-Viewport coordinates are unsigned 16-bit, zero-based; optional
-`--offset-from-bottom <u64>` defaults to zero and defines the viewport's first
-physical row as captured scrollback rows minus offset. An offset past retained
-history or a cursor outside captured dimensions fails. This CLI-owned viewport
-is independent of a TUI Client's focus and scroll; no Client viewport is changed.
-Exact bound primary/child terminal targets, optional full-u64 `--content-revision`
-and positive-u64 `--generation` use the same existing-Session read-only five-second
-viewer and full frame/Host/binding fences as selection and copy.
-
-The resolver first reads one strictly validated render row to inspect the clicked
-whole glyph's OSC 8 target, including wide tails. An explicit hyperlink returns
-its complete URI and an empty regions list, keeping frame-owned OSC 8 highlighting
-separate from server-resolved plain-text regions.
-Without OSC 8, complete mapped text rows are read only as needed to prove the
-whitespace-delimited token across verified soft wraps, including token ends
-outside the requested viewport. Missing neighboring context triggers a bounded
-extension; hard row boundaries and Unicode whitespace stop the token. Verified
-wide spacer heads add no text. Plain detection uses lowercase
-http/https prefixes, trailing quotes/punctuation trimmed, balanced round/square/
-curly closers retained, and a click outside the resulting URL yields no link.
-A shared 8192-cell inspection budget includes selected physical
-cells, wide spacer/tail cells and boundary probes in both directions; exhausted
-inspection yields no link rather than a truncated URL. Native
-encoded-byte/glyph/65536-row scan limits still fail explicitly rather than
-returning an unproven empty result. Visible inclusive regions preserve full
-wide/combining cells and are clipped to the requested viewport.
-
-Closed `orchbee.terminal.link-resolve` v1 includes the complete URL or null,
-`plain-text`/`explicit`/`none` kind, visible regions, viewport origin/offset and
-captured content revision/generation/Host/terminal binding. Empty is a successful
-no-link result under the bounded token policy, including exhaustion
-of its inspection budget. Malformed/duplicate/foreign options fail before
-runtime discovery; stale/evicted/misrouted/incomplete records fail whole, with no
-retry or partial regions. This operation never obtains a controller, sends input,
-acknowledges user attention, changes selection/clipboard/focus, starts a Session or
-writes durable state. Schema/help/scoped Windows completion and machine read
-forwarding share the typed request. TUI hover/click wiring
-and physical Host/emulator acceptance remain separately scoped consumers.
-
-## Activate a terminal link
-
-Windows `terminal link-activate <terminal> --cursor ROW:COL` accepts the same
-offset, revision and generation options and explicit native viewport as resolve.
-It resolves the full clicked URI/URL before choosing an enabled, available Windows
-plugin handler. Plugin IDs are ordered lexically; handlers retain manifest order.
-Both handler and referenced action must support Windows. Invalid regex handlers
-are unavailable; matching uses the existing linear-time regex engine with a1MiB
-compiled-pattern ceiling and deadline/cancellation checks between handlers.
-No link or no matching handler returns `handled=false` without invoking a plugin.
-
-A match collects display context for the exact clicked primary or child terminal,
-including its canonical Panel/Tab/Workspace and corroborated cwd/Agent/worktree
-facts. Unrelated caller environment and Client focus do not select this source;
-unknown facts remain absent. `invocationSource=link_click`, the full clicked URL,
-handler ID and operation correlation are fixed by this workflow. Existing plugin
-context ceilings apply: URL4096 UTF-8 bytes, aggregate context16KiB and request32KiB.
-A matched URL that cannot be admitted fails before submission, without truncation.
-After context collection, a strict same-revision render-row read fences the clicked
-content, and the selected catalog entry is checked again before one existing
-plugin invocation. These are pre-submit observations, not an atomic catalog/content
-transaction or a content lock after submission.
-
-The Server alone resolves the current action executable, plugin-root cwd and
-protected environment. Existing Worker Jobs own launch, output logs and cancellation;
-display data cannot supply argv, directory policy or Worker authority. This command
-does not open a browser, send terminal input, navigate/focus, change clipboard or
-start a Session. One existing viewer and the entire preflight/submission share five
-seconds and cancellation. A matched effect path requires one correlated Detach
-acknowledgement after its final content/member fences and before plugin submission;
-a rejected or uncertain Detach submits no plugin and is never retried. Read-only
-and no-effect outcomes retain best-effort Detach plus session EOF cleanup.
-An admitted plugin Job outlives that temporary viewer under its existing Job owner.
-
-Closed `orchbee.terminal.link-activate` v1 retains the resolved link, viewport and
-content/binding receipt, plus activation state and operation identity. `handled=true`
-requires a correlated known Started answer; it means Job admission, not command
-success. Known refusal exits3. A lost post-submit answer or unknown/malformed outcome
-exits8, preserves the operation identity and never retries; cancellation exits130.
-No-handler is a successful no-op. Existing plugin logs expose admitted Jobs; existing
-read receipts remain unchanged. Bilingual help/schema/scoped completion and machine
-relay share the typed command. Focused evidence covers ordered/platform matching,
-context bounds, exact target context, pre-submit stale data, start/refusal/loss and
-viewer release through actual Windows pipes; deployed Host/TUI acceptance remains.
-
-## Terminal copy motion and search
-
-Windows `terminal copy-motion <terminal> --cursor ROW:COL --motion <motion>`
-computes a new screen-buffer cursor without changing Client selection or sending
-input. Motion names are `line-end`, `first-non-blank`, `next-word-start`,
-`previous-word-start`, `next-word-end`, `next-big-word-start`,
-`previous-big-word-start`, `next-big-word-end`, `previous-paragraph` and
-`next-paragraph`. Both word classes cross verified soft wraps; hard rows insert
-whitespace. Ordinary words distinguish whitespace, ASCII punctuation
-(excluding underscore), and other characters; big words distinguish only
-whitespace. Results remain at whole glyph heads, including wide tails and
-combining text. Line end is the last character after hard-row padding trim;
-first nonblank is the first non-whitespace glyph. Kitty Unicode placeholder
-cells are whitespace for copy motion/search. Paragraph motion finds the
-nearest blank physical row in the requested direction, preserving column and
-checking at most 999 rows. No target returns the
-original cursor. Out-of-buffer points fail.
-
-Windows `terminal copy-search <terminal> --cursor ROW:COL --query <literal>`
-`--search-direction forward|backward --content-revision <u64>` searches complete retained
-logical text. The query is preserved, admits at most 4096 UTF-8 bytes, and is
-literal with Unicode smart case: any uppercase character makes it case-sensitive.
-An empty query yields no matches after the content fence. Optional
-`--previous ROW:COL-ROW:COL` is an ordered inclusive prior match; forward origin
-is its end, backward origin its start. Without it the supplied cursor is the
-origin. The next match starts strictly after a forward origin, or ends strictly
-before a backward origin; absent one, search wraps to first/last. Match boundaries
-must coincide with complete glyph boundaries. Padding is trimmed at hard logical
-line endings; a verified wide spacer head adds neither text nor a word boundary.
-The result preserves the exact total and global current index, while returning
-at most 1024 matches centered around the current match and its local index.
-Zero matches have null current indexes. Index/count u64 values use decimal strings.
-
-Both commands share selection-read's existing-Session, five-second cancellation,
-exact terminal/frame revision/generation/Host/geometry and viewer release owner.
-Motion optionally pins `--content-revision`; search requires it. Both additionally
-accept `--generation <positive-u64>`. Each rows request has its own increasing
-sequence and uses the existing per-window byte/cell limits; adjacent windows
-must agree on soft-wrap continuation. A complete admitted scan precedes output:
-at most 65536 rows, 8 MiB of aggregate encoded row windows/logical text and 1048576 stored
-glyphs. Exceeding bounds or stale/evicted/misrouted data fails whole without
-partial matches, retry or an invented no-op. Line motions read one row;
-paragraph and word motion begin with 64 rows and extend only when needed.
-Paragraphs stop at the nearest blank or their 999-row distance; word starts/ends
-are returned only after their boundaries are proven, extending backward through
-soft continuations or forward through unfinished word ends. Adjacent chunks keep
-the same frame and global byte/glyph budgets. Search covers the complete retained buffer.
-
-`orchbee.terminal.copy-motion` and `orchbee.terminal.copy-search` v1 are separate
-closed receipts, retaining original request data, exact terminal binding and
-content identity. Default text localizes labels and escapes query/control text.
-The deterministic `terminal_copy` domain owns cell/word/logical-line decisions;
-the CLI read adapter alone owns discovery, exchange, deadline and cleanup.
-Evidence covers all ten motions, Unicode and whole glyphs, row/window boundaries,
-literal/smart-case/empty search, previous origins, wrapping and exact totals beyond
-1024, parse-before-effect limits, and actual Windows CLI success/stale/forged
-reply/release traces. Final deployed Host/emulator acceptance remains separate.
-
 ## Workbench status
 
 Bare `status` reads one Workbench snapshot and reports reachability and resource counts. Text
@@ -388,8 +205,7 @@ queries to add global focus and the Client's remembered active Tab in each
 Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
 owns this bounded, read-only join and its provenance and consistency checks.
 `orchbee.workspace.list/get`, `orchbee.tab.list`, `orchbee.tab.get` and `orchbee.panel.list/get` all use version 1; discover the complete embedded catalog
-with `api schema`. Retained selection-read controls use `orchbee.client.control` v1;
-viewport reads use v1; other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
+with `api schema`. Viewport reads use v1; other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
 Client read failures; existing target and admission diagnostics remain intact.
 Process and worktree observations use their respective owners as described below;
 reported metadata remains a separate owner and is not implied by topology fields.
@@ -921,8 +737,8 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL, without `~` or variable expansion. A missing, relative, NUL-bearing or overlong value is `invalid-usage`.
   Windows Worktree Create/Open instead admit literal absolute, relative and leading-`~` operands under the [Worktree path policy](windows-worktrees.md#commands-and-defaults); the final executing CLI resolves them after complete grammar and machine routing, before configuration or runtime access. Neither form creates, repairs or probes the directory; filesystem facts remain the Server's authority after submission.
 - `--direction left|right|up|down` is the cardinal vocabulary. `tab move` uses
-  `--order previous|next|first|last`, exclusive with `--insert-index`. `terminal copy-search`
-  uses `--search-direction forward|backward`. Unknown values fail before runtime access.
+  `--order previous|next|first|last`, exclusive with `--insert-index`. Unknown values fail
+  before runtime access.
 - `--cols <n>`, `--rows <n>`, `--cell-width <n>`, `--cell-height <n>`: the terminal
   geometry group on `tab create` and `panel split`, each taking one decimal `u16`. The
   group is all-or-none: with all four absent the command requests the documented default

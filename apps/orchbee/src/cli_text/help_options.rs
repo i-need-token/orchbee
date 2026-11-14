@@ -227,15 +227,7 @@ impl super::CliText {
                 "Split-tree path; root selects the top-level split.",
                 "分屏树路径；root 选择最上层分屏。",
             ),
-            (
-                CommandPath::TerminalCopyMotion
-                | CommandPath::TerminalCopySearch
-                | CommandPath::TerminalLinkResolve
-                | CommandPath::TerminalLinkActivate
-                | CommandPath::TerminalSelectionRead
-                | CommandPath::CommandInvoke,
-                "--cursor",
-            ) => (
+            (CommandPath::CommandInvoke, "--cursor") => (
                 "<ROW:COL>",
                 "Terminal row and column position.",
                 "终端行列位置。",
@@ -393,11 +385,6 @@ impl super::CliText {
                     "Order within the Tab list.",
                     "标签页列表内的顺序。",
                 ),
-                "--search-direction" => (
-                    "<forward|backward>",
-                    "Direction of text search.",
-                    "文本搜索方向。",
-                ),
                 "--terminal" => (
                     "<terminal>",
                     "Select an exact primary or child terminal.",
@@ -527,11 +514,6 @@ impl super::CliText {
                     "Human-readable status message.",
                     "可读的状态说明。",
                 ),
-                "--motion" => (
-                    "<motion>",
-                    "Selection movement to apply.",
-                    "要执行的选区移动。",
-                ),
                 "--mouse" => (
                     "<on|off>",
                     "Mouse capture in the terminal interface; default: on.",
@@ -559,11 +541,6 @@ impl super::CliText {
                     "跳过 PATH 步骤：不在 bin/ 放置启动器，也不修改用户 Path。",
                 ),
                 "--off" => ("", "Turn panel maximization off.", "关闭面板最大化。"),
-                "--offset-from-bottom" => (
-                    "<n>",
-                    "Row offset from the bottom of terminal output.",
-                    "相对终端输出底部的行偏移。",
-                ),
                 "--on" => ("", "Turn panel maximization on.", "开启面板最大化。"),
                 "--outdated-only" => (
                     "",
@@ -611,11 +588,6 @@ impl super::CliText {
                     "Select a specific displayed terminal surface.",
                     "选择指定的终端显示画面。",
                 ),
-                "--previous" => (
-                    "<ROW:COL-ROW:COL>",
-                    "Previous match to continue a search from.",
-                    "用于继续搜索的上一次匹配。",
-                ),
                 "--profile" => (
                     "<selector>",
                     "Use a saved launch profile.",
@@ -631,7 +603,6 @@ impl super::CliText {
                     "Limit the operation to this Agent provider.",
                     "将操作限定到此智能体提供方。",
                 ),
-                "--query" => ("<text>", "Text to search for.", "要搜索的文本。"),
                 "--ratio" => ("<n>", "Desired split ratio.", "目标分屏比例。"),
                 "--ref" => (
                     "<ref>",

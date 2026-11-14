@@ -496,7 +496,7 @@ An uncertain detach is not retried: the lane drops that connection and refuses t
 
 Resolution reads render detail for the clicked row first, preserving OSC 8 metadata and applying
 the shared wide-tail-to-head rule. Without an explicit hyperlink it uses the same bounded
-lowercase `http://`/`https://` resolver as `terminal link-resolve`, including verified soft-wrap
+lowercase `http://`/`https://` resolver as the shared link domain, including verified soft-wrap
 context outside the visible viewport. One private, joined lane admits at most one click; a busy
 lane reports refusal without queueing or retrying. Ordered enabled Windows plugin link handlers
 have priority. A matching handler is revalidated immediately before its single submission. A

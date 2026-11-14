@@ -41,18 +41,9 @@ mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
 mod diagnostics;
 mod schema_export;
-mod terminal_output;
-mod terminal_selection;
-pub(crate) use terminal_selection::TerminalSelectionCommand;
 mod terminal_buffer;
-mod terminal_copy;
-mod terminal_links;
-pub(crate) use crate::terminal_copy::{
-    CopyMotion, CopySearchDirection, TerminalTextPoint, TerminalTextRange,
-};
-pub(crate) use terminal_copy::TerminalCopyAction;
-pub(crate) use terminal_copy::TerminalCopyCommand;
-pub(crate) use terminal_links::TerminalLinkCommand;
+mod terminal_output;
+pub(crate) use crate::terminal_copy::TerminalTextPoint;
 mod terminal_run;
 mod terminal_stream;
 mod terminal_target;
@@ -781,18 +772,6 @@ pub(crate) enum Request {
         saved_at: u64,
         format: OutputFormat,
     },
-    TerminalLink {
-        command: TerminalLinkCommand,
-        format: OutputFormat,
-    },
-    TerminalCopy {
-        command: TerminalCopyCommand,
-        format: OutputFormat,
-    },
-    TerminalSelection {
-        command: TerminalSelectionCommand,
-        format: OutputFormat,
-    },
     AgentView {
         action: orchbee_workbench_protocol::AgentViewAction,
         format: OutputFormat,
@@ -1019,10 +998,6 @@ struct Options {
     values: Vec<(&'static str, String)>,
     dry_run: bool,
     events: events::Options,
-    link_offset: Option<String>,
-    copy_motion: Option<String>,
-    copy_query: Option<String>,
-    copy_previous: Option<String>,
     selection_anchor: Option<String>,
     content_revision: Option<String>,
     agent_view_spec: Option<String>,
@@ -1074,7 +1049,6 @@ struct Options {
     label: Option<String>,
     direction: Option<String>,
     order: Option<String>,
-    search_direction: Option<String>,
     terminal: Option<String>,
     insert_index: Option<String>,
     before: Option<String>,

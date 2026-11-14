@@ -171,8 +171,8 @@ orchbee workspace list --format json | ConvertFrom-Json
 ## 一致的命令词汇
 
 Panel 命令族使用位置目标或 `--current`；Agent 使用 `--panel` 或 `--terminal`，终端可为子终端。
-四向方向为 `left|right|up|down`，Tab 顺序使用 `--order previous|next|first|last`，
-复制搜索使用 `--search-direction`。显示标签的创建／重命名使用 `--label`。Provider 统一
+四向方向为 `left|right|up|down`，Tab 顺序使用 `--order previous|next|first|last`。
+显示标签的创建／重命名使用 `--label`。Provider 统一
 使用 `--provider`，start／integration／doctor 中均为 `antigravity`。事件使用 `panel.*`，
 按键使用 `ctrl+c` 等规范加号修饰符。close 结束活动资源，delete 销毁存储记录，remove 移除
 成员关系，dissolve 保留分组中的子项。

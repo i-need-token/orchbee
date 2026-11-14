@@ -28,12 +28,6 @@ impl super::CliText {
                 "a value declared in this command's help"
             }
             (Locale::ZhCn, ExpectedValue::DeclaredValue) => "此命令帮助中列出的取值",
-            (Locale::EnUs, ExpectedValue::TerminalViewportPoint) => {
-                "viewport ROW:COL (row/column 0..65535)"
-            }
-            (Locale::ZhCn, ExpectedValue::TerminalViewportPoint) => {
-                "视口 ROW:COL（行／列 0..65535）"
-            }
             (Locale::EnUs, ExpectedValue::TerminalSelectionPoint) => {
                 "ROW:COL (row 0..4294967295, column 0..65535)"
             }
@@ -46,23 +40,6 @@ impl super::CliText {
             (Locale::ZhCn, ExpectedValue::TerminalSelectionSpan) => "最多跨 4096 行的选区",
             (_, ExpectedValue::TerminalContentRevision) => "0..18446744073709551615",
             (_, ExpectedValue::TerminalContentGeneration) => "1..18446744073709551615",
-            (Locale::EnUs, ExpectedValue::TerminalCopyMotion) => {
-                "one of the ten motions listed by help terminal copy-motion"
-            }
-            (Locale::ZhCn, ExpectedValue::TerminalCopyMotion) => {
-                "help terminal copy-motion 列出的十种移动之一"
-            }
-            (Locale::EnUs, ExpectedValue::TerminalCopyQuery) => {
-                "a literal query of at most 4096 UTF-8 bytes"
-            }
-            (Locale::ZhCn, ExpectedValue::TerminalCopyQuery) => "最多 4096 UTF-8 字节的字面量查询",
-            (_, ExpectedValue::TerminalCopyDirection) => "forward|backward",
-            (Locale::EnUs, ExpectedValue::TerminalCopyPrevious) => {
-                "ROW:COL-ROW:COL (inclusive buffer endpoints)"
-            }
-            (Locale::ZhCn, ExpectedValue::TerminalCopyPrevious) => {
-                "ROW:COL-ROW:COL（包含缓冲区端点）"
-            }
 
             (Locale::EnUs, ExpectedValue::PluginActionId) => {
                 "an action ID or plugin.action ID (up to 241 ASCII characters)"

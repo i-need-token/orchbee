@@ -132,11 +132,6 @@ commands! {
     TerminalList => ["terminal", "list"], 0, Operand, Portable, true, true, false;
     TerminalGet => ["terminal", "get"], 1, Operand, Portable, true, true, false;
     TerminalRead => ["terminal", "read"], 1, TerminalOrPanel, Portable, true, true, false;
-    TerminalSelectionRead => ["terminal", "selection-read"], 1, Operand, Windows, true, true, false;
-    TerminalCopyMotion => ["terminal", "copy-motion"], 1, Operand, Windows, true, true, false;
-    TerminalCopySearch => ["terminal", "copy-search"], 1, Operand, Windows, true, true, false;
-    TerminalLinkResolve => ["terminal", "link-resolve"], 1, Operand, Windows, true, true, false;
-    TerminalLinkActivate => ["terminal", "link-activate"], 1, Operand, Windows, true, true, false;
     TerminalClear => ["terminal", "clear"], 1, Operand, Windows, true, true, false;
     TerminalWaitOutput => ["terminal", "wait-output"], 1, TerminalOrPanel, Portable, true, true, false;
     TerminalSend => ["terminal", "send"], 1, TerminalOrPanel, Portable, true, true, false;

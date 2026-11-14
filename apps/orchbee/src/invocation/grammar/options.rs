@@ -68,81 +68,11 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
-        spelling: "--offset-from-bottom",
-        values: &[],
-        closed_values: false,
-        string_rule: None,
-        commands: &[
-            CommandPath::TerminalLinkResolve,
-            CommandPath::TerminalLinkActivate,
-        ],
-        role: OptionRole::Business,
-        value: Some("filter"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.link_offset = Some(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
-        spelling: "--motion",
-        values: super::values::COPY_MOTION_VALUES,
-        closed_values: true,
-        string_rule: None,
-        commands: &[CommandPath::TerminalCopyMotion],
-        role: OptionRole::Business,
-        value: Some("copy_motion"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.copy_motion = Some(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
-        spelling: "--query",
-        values: &[],
-        closed_values: false,
-        string_rule: None,
-        commands: &[CommandPath::TerminalCopySearch],
-        role: OptionRole::Business,
-        value: Some("filter"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.copy_query = Some(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
-        spelling: "--previous",
-        values: &[],
-        closed_values: false,
-        string_rule: None,
-        commands: &[CommandPath::TerminalCopySearch],
-        role: OptionRole::Business,
-        value: Some("filter"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.copy_previous = Some(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
         spelling: "--anchor",
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[
-            CommandPath::CommandInvoke,
-            CommandPath::TerminalSelectionRead,
-        ],
+        commands: &[CommandPath::CommandInvoke],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
@@ -158,14 +88,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[
-            CommandPath::CommandInvoke,
-            CommandPath::TerminalLinkResolve,
-            CommandPath::TerminalLinkActivate,
-            CommandPath::TerminalCopyMotion,
-            CommandPath::TerminalCopySearch,
-            CommandPath::TerminalSelectionRead,
-        ],
+        commands: &[CommandPath::CommandInvoke],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
@@ -1367,22 +1290,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
-        spelling: "--search-direction",
-        values: super::values::SEARCH_DIRECTION_VALUES,
-        closed_values: true,
-        string_rule: None,
-        commands: &[CommandPath::TerminalCopySearch],
-        role: OptionRole::Business,
-        value: Some("search_direction"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.search_direction = Some(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
         spelling: "--terminal",
         values: &[],
         closed_values: false,
@@ -2273,13 +2180,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         string_rule: None,
         commands: &[
             CommandPath::CommandInvoke,
-            CommandPath::TerminalLinkResolve,
-            CommandPath::TerminalLinkActivate,
-            CommandPath::TerminalCopyMotion,
-            CommandPath::TerminalCopySearch,
             CommandPath::AgentList,
             CommandPath::AgentChanges,
-            CommandPath::TerminalSelectionRead,
         ],
         role: OptionRole::Business,
         value: Some("filter"),
@@ -2545,11 +2447,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::TabResume,
             CommandPath::PanelResume,
             CommandPath::ProjectResume,
-            CommandPath::TerminalLinkResolve,
-            CommandPath::TerminalLinkActivate,
-            CommandPath::TerminalCopyMotion,
-            CommandPath::TerminalCopySearch,
-            CommandPath::TerminalSelectionRead,
             CommandPath::WorktreeResume,
         ],
         role: OptionRole::Business,

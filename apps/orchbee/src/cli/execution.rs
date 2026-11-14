@@ -29,7 +29,6 @@ pub(super) enum Capability {
     Reports,
     AgentManifests,
     RuntimeStatus,
-    TerminalContent,
     TerminalStream,
     PaneGraphics,
     Plugins,
@@ -80,7 +79,6 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::Reports
         | Capability::AgentManifests
         | Capability::RuntimeStatus
-        | Capability::TerminalContent
         | Capability::TerminalStream
         | Capability::PaneGraphics
         | Capability::Plugins

@@ -1,13 +1,8 @@
 //! Existing-only Session admission and bounded query exchanges. Snapshot queries
 //! are read-only; the names child owns one explicit Agent alias exchange.
-//! No path activates a Session. Selection/copy/link reads do not start processes;
-//! explicit link activation delegates one plugin Job to the existing execution owner.
+//! No path activates a Session.
 
-mod terminal_buffer;
-pub(super) mod terminal_copy;
-pub(super) mod terminal_links;
 mod terminal_output;
-pub(super) mod terminal_selection;
 pub(crate) use terminal_output::read_output;
 
 pub(crate) fn wait_source_output(

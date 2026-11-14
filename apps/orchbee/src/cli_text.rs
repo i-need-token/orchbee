@@ -50,8 +50,6 @@ mod tab;
 mod terminal;
 mod terminal_attach;
 mod terminal_clear;
-mod terminal_copy;
-mod terminal_links;
 mod usage;
 mod workbench;
 mod workspace;

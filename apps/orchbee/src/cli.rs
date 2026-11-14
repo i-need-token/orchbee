@@ -15,7 +15,6 @@ mod execution;
 mod input_source;
 mod installation;
 pub(crate) mod invocation_route;
-mod link_activation;
 pub(crate) mod machines;
 pub(crate) mod notification;
 pub(crate) mod operation;
@@ -112,9 +111,6 @@ pub(crate) mod source;
 mod source_finalization;
 pub(crate) use source_finalization::SourceFinalization;
 mod terminal_output;
-pub(crate) use query::terminal_copy::run as copy_terminal;
-pub(crate) use query::terminal_links::run as resolve_terminal_link;
-pub(crate) use query::terminal_selection::run as read_terminal_selection;
 pub(crate) mod terminal_stream;
 
 pub(crate) fn terminal_attach(
