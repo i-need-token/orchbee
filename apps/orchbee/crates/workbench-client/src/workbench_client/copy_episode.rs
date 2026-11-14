@@ -30,10 +30,7 @@ pub(super) enum EntryOrigin {
     /// The copy-mode command: the episode starts at the application cursor and exit returns to
     /// live output.
     Command,
-    /// `/` while reading retained history: the episode starts a forward search from the top of
-    /// the window being read, and exit returns to that history.
-    HistorySearch,
-    /// Find in terminal: the episode holds the Find bar over the Panel and closing leaves the
+    /// Find in terminal, or `/` while reading retained history: the episode holds the Find bar over the Panel and closing leaves the
     /// view where Find left it.
     Find,
 }

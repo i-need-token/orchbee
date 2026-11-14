@@ -609,6 +609,10 @@ impl TerminalInputPort for ClientInputPort<'_> {
         self.0.copy_mode_active()
     }
 
+    fn find_bar_active(&self) -> bool {
+        self.0.find_bar_active()
+    }
+
     fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
         self.0.pointer_probe()
     }
@@ -645,7 +649,8 @@ impl TerminalInputPort for ClientInputPort<'_> {
             | SurfaceInput::PanelClose { .. }
             | SurfaceInput::WorkspaceClose { .. }
             | SurfaceInput::Rename { .. }
-            | SurfaceInput::Setup { .. } => self.0.surface_input(input),
+            | SurfaceInput::Setup { .. }
+            | SurfaceInput::CopyMode(_) => self.0.surface_input(input),
             _ => false,
         }
     }
@@ -728,11 +733,10 @@ fn dispatcher_consumes_history_keys_and_orders_recovery() {
     );
 }
 
-// `/` read in history is the copy search's key, never shell input: the raw byte through the real
-// dispatcher opens a forward search draft over the history and stages nothing on the wire. Leaving
-// that search returns to the history, not to live output.
+// `/` read in history opens Find, never shell input: the raw byte through the real dispatcher
+// opens the bar, the typed query stages nothing on the wire, and closing leaves the history.
 #[test]
-fn slash_in_history_opens_the_copy_search_and_types_nothing() {
+fn slash_in_history_opens_find_and_the_query_types_nothing() {
     let (mut ui, mailbox, _clock, _elapsed) = controlling_ui();
     let key = install_projection(&mut ui, Some((9, false, 24)), 0);
     let mut view = ClientView::new(120);
@@ -742,15 +746,15 @@ fn slash_in_history_opens_the_copy_search_and_types_nothing() {
     settle_viewing(&mut ui, &mailbox, &key, 1);
 
     dispatch(&mut dispatcher, &mut view, &mut ui, b"/");
+    assert!(ui.find_bar_active() && view.find_bar_active());
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"build");
     assert!(
         mailbox.try_recv().unwrap().is_none(),
         "neither an Input nor a Recover reaches the wire"
     );
     assert_eq!(
-        ui.copy_mode_view()
-            .and_then(|copy| copy.search)
-            .map(|search| search.direction),
-        Some(crate::terminal_copy::CopySearchDirection::Forward)
+        ui.copy_mode.find().map(|bar| bar.view().draft),
+        Some("build")
     );
 
     assert!(ui.capture_copy_mode_key(&KeyEvent::press(KeyCode::Esc, Modifiers::NONE)));

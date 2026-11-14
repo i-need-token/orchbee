@@ -164,13 +164,7 @@ impl WorkbenchClientUi {
             self.copy_notice(ClientNotice::CopyModeInvalidated);
             return true;
         };
-        let origin = self.copy_mode.origin();
-        let cursor = if origin == Some(EntryOrigin::HistorySearch) {
-            self.normalize_copy_point(&source, surface.top_left())
-        } else {
-            self.copy_initial_cursor(&source, surface)
-        };
-        let Some(cursor) = cursor else {
+        let Some(cursor) = self.copy_initial_cursor(&source, surface) else {
             self.cancel_copy_mode();
             self.copy_notice(ClientNotice::CopyModeInvalidated);
             return true;
@@ -179,16 +173,6 @@ impl WorkbenchClientUi {
             self.cancel_copy_mode();
             self.copy_notice(ClientNotice::CopyModeInvalidated);
             return true;
-        }
-        if origin == Some(EntryOrigin::HistorySearch) {
-            let draft = self
-                .copy_mode
-                .mode_mut()
-                .ok_or(Refusal::Invalid)
-                .and_then(|mode| {
-                    mode.begin_search(crate::terminal_copy::CopySearchDirection::Forward)
-                });
-            self.settle_copy_refusal(draft.err());
         }
         true
     }
@@ -212,10 +196,10 @@ impl WorkbenchClientUi {
         self.enter_copy_mode_from(EntryOrigin::Command)
     }
 
-    /// `/` while the focused pane reads its retained history opens the copy search over the
-    /// window being read; the key never reaches the shell, refused entry included.
+    /// `/` while the focused pane reads its retained history opens the Find bar; the key never
+    /// reaches the shell, refused opening included.
     pub(super) fn search_history(&mut self) {
-        self.enter_copy_mode_from(EntryOrigin::HistorySearch);
+        self.find_in_terminal();
     }
 
     fn enter_copy_mode_from(
@@ -506,21 +490,18 @@ impl WorkbenchClientUi {
         true
     }
 
-    /// A person's own exit: Esc, `q` or the toolbar's close control. An episode opened by `/` in
-    /// retained history returns to that history where the episode left it; any other returns to
-    /// live output.
+    /// A person's own exit: Esc, `q` or the toolbar's close control. It returns to live output.
     fn leave_copy_mode(&mut self) -> bool {
-        let recover = self.copy_mode.origin() != Some(EntryOrigin::HistorySearch);
-        self.end_copy_mode(recover)
+        self.end_copy_mode()
     }
 
     /// Ends the episode for any other reason, including a delivered copy, and returns the pane
-    /// to live output.
+    /// to live output. An open Find bar closes and leaves the pane where Find left it.
     pub(in crate::workbench_client) fn cancel_copy_mode(&mut self) -> bool {
-        self.end_copy_mode(true)
+        self.end_copy_mode()
     }
 
-    fn end_copy_mode(&mut self, recover: bool) -> bool {
+    fn end_copy_mode(&mut self) -> bool {
         if self.find_bar_active() {
             return self.close_find();
         }
@@ -567,12 +548,11 @@ impl WorkbenchClientUi {
                 self.copy_notice(ClientNotice::CopyModeInvalidated);
             }
             self.admit_selections(&mailbox);
-            if recover
-                && let Some(viewport) = self
-                    .projections
-                    .iter_mut()
-                    .find(|projection| projection.key == key)
-                    .and_then(|projection| projection.viewport.as_mut())
+            if let Some(viewport) = self
+                .projections
+                .iter_mut()
+                .find(|projection| projection.key == key)
+                .and_then(|projection| projection.viewport.as_mut())
             {
                 let effect = viewport.nav(ViewportNav::Exit);
                 self.settle_viewport_effect(&mailbox, &key, effect);
