@@ -163,9 +163,9 @@ impl super::CliText {
                 "重命名具有此 ID 的机器，或唯一使用此完整名称的机器。名称不能为空白或含控制字符，最多 128 UTF-8 字节。",
             ),
             C::MachineRemove => (
-                "orchbee machine remove <id|label> [--format text|json]",
-                "Remove only the saved machine. Remote sessions and OpenSSH data remain owned by their existing users.",
-                "仅删除已保存的机器。远端会话和 OpenSSH 数据仍由原有用户管理。",
+                "orchbee machine remove <id|label> [--stop-session [--confirm]] [--format text|json]",
+                "Remove only the saved machine. Remote sessions and OpenSSH data remain owned by their existing users. With --stop-session, the machine's remote Session is stopped first, and a stop that fails keeps the saved machine.",
+                "仅删除已保存的机器。远端会话和 OpenSSH 数据仍由原有用户管理。使用 --stop-session 时先停止该机器的远端会话，停止失败则保留已保存的机器。",
             ),
             C::MachineEnable => (
                 "orchbee machine enable <id|label> [--format text|json]",
