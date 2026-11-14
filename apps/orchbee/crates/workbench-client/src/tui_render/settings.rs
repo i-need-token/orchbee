@@ -387,11 +387,12 @@ fn render_content(
             Rect::new(x, y, width, 1),
         );
     } else if page.page().is_integrations() {
-        let (text, role) = integration_fact(page, locale);
-        frame.render_widget(
-            Paragraph::new(super::modal::status_line(text, role, theme)),
-            Rect::new(x, y, width, 1),
-        );
+        if let Some((text, role)) = integration_fact(page, locale) {
+            frame.render_widget(
+                Paragraph::new(super::modal::status_line(text, role, theme)),
+                Rect::new(x, y, width, 1),
+            );
+        }
     } else if page.page() == Page::General
         && page.query().is_empty()
         && page.category() == Category::Themes
@@ -1302,12 +1303,16 @@ fn render_child_row(
     hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
 }
 
-/// The integration lane's state: a running job, the last failure, or what a check changed and
-/// started.
-fn integration_fact(page: PageView<'_>, locale: Locale) -> (std::borrow::Cow<'static, str>, Role) {
+/// The integration lane's state: a running job, the last failure, or a consent title. An
+/// explanation's page opens with its own sentence and ends with what the check changed and
+/// started, as in the GUI, so it has no line here.
+fn integration_fact(
+    page: PageView<'_>,
+    locale: Locale,
+) -> Option<(std::borrow::Cow<'static, str>, Role)> {
     let integrations = page.integrations();
     let working = locale.integration_status(crate::localization::IntegrationStatus::Working);
-    match (page.page(), integrations.failure()) {
+    Some(match (page.page(), integrations.failure()) {
         (Page::Diagnosis(id), _) => match integrations.diagnosis(id) {
             Some(Diagnosis::Pending) => (working.into(), Role::StatusPending),
             Some(Diagnosis::Failed(failure)) => (
@@ -1320,16 +1325,7 @@ fn integration_fact(page: PageView<'_>, locale: Locale) -> (std::borrow::Cow<'st
                     .into(),
                 Role::StatusWarning,
             ),
-            Some(Diagnosis::Explained(explanation)) if explanation.started_agent() => (
-                locale
-                    .integration_diagnosis_started(locale.agent_integration_name(id))
-                    .into(),
-                Role::TextMuted,
-            ),
-            _ => (
-                locale.integration_diagnosis_read_only().into(),
-                Role::TextMuted,
-            ),
+            Some(Diagnosis::Explained(_)) | None => return None,
         },
         (_, Some(failure)) => (
             locale.integration_failure(failure).into(),
@@ -1338,7 +1334,7 @@ fn integration_fact(page: PageView<'_>, locale: Locale) -> (std::borrow::Cow<'st
         _ if integrations.pending() => (working.into(), Role::StatusPending),
         _ if !integrations.reported() => (locale.integrations_unchecked().into(), Role::TextMuted),
         _ => (locale.integrations_disclosure().into(), Role::TextMuted),
-    }
+    })
 }
 
 /// The line under a child page's rows: a field rule, a confirmation, or why a row is unavailable.
@@ -1517,6 +1513,14 @@ fn render_diagnosis(
                 IntegrationFactLabel::Plan,
                 &locale.integration_plan(&explanation.plan),
             ));
+            // The closing sentence: what the check changed and started.
+            lines.push(Line::default());
+            let closing = if explanation.started_agent() {
+                locale.integration_diagnosis_started(locale.agent_integration_name(id))
+            } else {
+                locale.integration_diagnosis_read_only().to_owned()
+            };
+            wrap(&closing, &mut lines);
         }
         None => lines.push(fact(
             IntegrationFactLabel::Integration,

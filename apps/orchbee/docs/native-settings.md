@@ -152,13 +152,14 @@ Each Agent row ends in a quiet Explain action, `e` on the page, which runs the `
 operation and opens that Agent's diagnosis child page. For an Agent read only through its own
 program, Explain first opens the page with the question "Check <Agent>?": the check starts that
 program, which may create its own files, and Orchbee changes nothing. Nothing runs until Explain
-on that page. The line under the title closes every result with what the check did: "Read-only
-check: nothing was changed and no Agent program was started.", or, for those Agents, that Orchbee
-changed nothing and the check starts the Agent when needed. The page opens with one sentence,
-in the same words as the desktop and web Clients, such as "Claude Code isn't installed." or "The
-integration is off.", or "Couldn't read the plugin's state." for a timed-out, unreadable or
-undetermined inspection, whose explanation says the state is unknown, not missing. The TUI has no
-disclosure control, so the explanation and the facts follow directly below the sentence. The
+on that page. The page opens with one sentence, in the same words as the desktop and web
+Clients, such as "Claude Code isn't installed." or "The integration is off.", or "Couldn't read
+the plugin's state." for a timed-out, unreadable or undetermined inspection, whose explanation
+says the state is unknown, not missing. The TUI has no disclosure control, so the explanation and
+the facts follow directly below the sentence. As in the desktop and web Clients, one closing
+sentence after the facts says what the check did: "Read-only check: nothing was changed and no
+Agent program was started.", or, for those Agents, that Orchbee changed nothing and the check
+starts the Agent when needed. The line under the title stays empty for an explanation. The
 facts follow `orchbee agent integration explain`: Agent presence, integration status, any
 issue, the Orchbee adapter, the provider's marketplace and plugin or guarded entry and adapter
 source, and what turning it on would do: consecutive commands of one program name its executable
