@@ -329,8 +329,8 @@ impl super::CliText {
                         "查询期间来源发生变化，请重试",
                     ),
                     F::Unavailable { .. } => word(
-                        "Worker or query slot unavailable",
-                        "Worker 或查询槽位不可用",
+                        "The directory's machine is busy or unavailable",
+                        "该目录所在的机器繁忙或不可用",
                     ),
                     F::GitFailed {
                         stage: orchbee_workbench_protocol::WorktreeListStage::Probe,
@@ -417,18 +417,18 @@ impl super::CliText {
                         "该目录的 worktree 列举作业已不存在。\n".to_owned()
                     }
                     (Locale::EnUs, "job-unknown") => {
-                        "The directory's worktree listing job is unknown to the Worker.\n"
+                        "Orchbee no longer knows the directory's worktree listing job.\n"
                             .to_owned()
                     }
                     (Locale::ZhCn, "job-unknown") => {
-                        "Worker 不认识该目录的 worktree 列举作业。\n".to_owned()
+                        "Orchbee 已不认识该目录的 worktree 列举作业。\n".to_owned()
                     }
                     (Locale::EnUs, "worker-unavailable") => {
-                        "The directory's Worker is not available for the worktree listing right now.\n"
+                        "The machine that holds the directory is not available for the worktree listing right now.\n"
                             .to_owned()
                     }
                     (Locale::ZhCn, "worker-unavailable") => {
-                        "该目录的 Worker 当前无法进行 worktree 列举。\n".to_owned()
+                        "该目录所在的机器当前无法进行 worktree 列举。\n".to_owned()
                     }
                     (Locale::EnUs, _) => {
                         "The local session could not run the worktree listing right now.\n".to_owned()

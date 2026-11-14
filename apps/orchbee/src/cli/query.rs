@@ -135,7 +135,23 @@ pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
 pub(crate) fn status_read()
 -> Result<(Snapshot, Option<orchbee_connection_handshake::QueryResult>), Failure> {
     super::execution::admit(super::execution::Capability::CanonicalWorkbenchRead)?;
-    let (cohort, session) = session_preamble(deadline_after(COHORT_BUDGET)?, || Ok(()))?;
+    let (cohort, session) =
+        session_preamble(deadline_after(COHORT_BUDGET)?, || Ok(())).map_err(|failure| {
+            // A default runtime base nothing has created yet holds no Session: the same
+            // unavailable discovery as an absent Session folder, not a failed local check.
+            let base_check = failure.kind == FailureKind::CheckFailed
+                && failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("stage"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some("runtime-base");
+            if base_check && crate::local_activation::runtime_base_unstarted().unwrap_or(false) {
+                Failure::new(FailureKind::ServiceUnavailable).details(stage_details("discovery"))
+            } else {
+                failure
+            }
+        })?;
     let (client, deadline, snapshot) = admit_snapshot(
         &cohort,
         &session,

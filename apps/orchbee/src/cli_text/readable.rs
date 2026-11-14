@@ -57,10 +57,10 @@ impl super::CliText {
         }
     }
 
-    pub(crate) const fn cli_session_headers(self) -> [&'static str; 3] {
+    pub(crate) const fn cli_session_headers(self) -> [&'static str; 2] {
         match self.locale {
-            Locale::EnUs => ["SESSION", "STATE", "RUNTIME DIRECTORY"],
-            Locale::ZhCn => ["会话", "状态", "运行时目录"],
+            Locale::EnUs => ["SESSION", "STATE"],
+            Locale::ZhCn => ["会话", "状态"],
         }
     }
 

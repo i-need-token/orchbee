@@ -203,10 +203,10 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
                 "runtimeDirectory":path,"endpoint":endpoint.to_str()}),
             );
             absent |= state == SessionState::Absent;
+            // The runtime directory stays in JSON.
             rows.push(vec![
                 entry.name.as_str().to_owned(),
                 CliText::new(locale).cli_session_state(state).to_owned(),
-                crate::native_path::display(&entry.runtime.to_string_lossy()),
             ]);
         }
         let text = if rows.is_empty() {

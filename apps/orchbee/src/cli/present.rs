@@ -493,11 +493,7 @@ pub(crate) fn render(
             field(out, text.panels_word, &doc.row.panel_count.to_string())?;
             field(out, text.id, &doc.row.tab_id)?;
             field(out, text.pinned, &doc.row.pinned.to_string())?;
-            field(
-                out,
-                text.group,
-                doc.row.group_id.as_deref().unwrap_or("null"),
-            )?;
+            field(out, text.group, doc.row.group_id.as_deref().unwrap_or("-"))?;
             // The split tree and the internal context stay in JSON.
             field(out, text.workspace, &workspace_text(&doc.row.context))
         }
@@ -1025,6 +1021,14 @@ const INTERNAL_CHECKS: [&str; 5] = [
     "records",
 ];
 
+/// The name a check row shows in text: the `cohort` check reads as the installation it verifies.
+const fn check_text_name(name: &str) -> &str {
+    match name.as_bytes() {
+        b"cohort" => "installation",
+        _ => name,
+    }
+}
+
 /// `config check` text: the conclusion, one aligned row per check a person
 /// acts on (an internal check only when it failed), any settings warnings,
 /// stale record notices, a note when the environment has not been started,
@@ -1045,7 +1049,7 @@ pub(crate) fn config_checks(
         .filter(|check| check.status == "fail" || !INTERNAL_CHECKS.contains(&check.name))
         .map(|check| {
             vec![
-                check.name.to_owned(),
+                check_text_name(check.name).to_owned(),
                 CliText::new(locale)
                     .cli_check_status(check.status)
                     .to_owned(),

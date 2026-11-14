@@ -322,9 +322,9 @@ impl super::CliText {
             (Locale::EnUs, F::SessionMismatch) => "Plugin session does not match.",
             (Locale::ZhCn, F::SessionMismatch) => "插件会话不匹配。",
             (Locale::EnUs, F::WorkerChanged) => {
-                "Plugin Worker changed; the old log cursor is no longer valid."
+                "Orchbee restarted; the old plugin log cursor is no longer valid."
             }
-            (Locale::ZhCn, F::WorkerChanged) => "插件 Worker 已变化，旧日志游标失效。",
+            (Locale::ZhCn, F::WorkerChanged) => "Orchbee 已重启，旧的插件日志游标失效。",
             (Locale::EnUs, F::InvalidIntent) => "Invalid plugin invocation.",
             (Locale::ZhCn, F::InvalidIntent) => "插件调用无效。",
             (Locale::EnUs, F::NotFound) => "Plugin action or log not found.",

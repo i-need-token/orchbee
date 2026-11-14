@@ -325,11 +325,11 @@ impl super::CliText {
             (_, CommandPath::MachineDisconnect) => self.cli_machine_help(path),
             (Locale::EnUs, CommandPath::ChannelShow) => crate::cli_text::HelpDetails::new(
                 "orchbee channel show [--format text|json]",
-                "Read the Windows update.channel preference (stable or preview). Defaults to stable.\nValidates the complete config; a missing explicit ORCHBEE_CONFIG_FILE fails.\nDoes not write files, connect to a session, download, or change the installed cohort.",
+                "Read the Windows update.channel preference (stable or preview). Defaults to stable.\nValidates the complete config; a missing explicit ORCHBEE_CONFIG_FILE fails.\nDoes not write files, connect to a session, download, or change the installation.",
             ),
             (Locale::ZhCn, CommandPath::ChannelShow) => crate::cli_text::HelpDetails::new(
                 "orchbee channel show [--format text|json]",
-                "读取 Windows update.channel 偏好（stable 或 preview），默认 stable。校验完整配置；显式 ORCHBEE_CONFIG_FILE 不存在时失败。不写文件、不连接会话、不下载，也不改变已安装 cohort。",
+                "读取 Windows update.channel 偏好（stable 或 preview），默认 stable。校验完整配置；显式 ORCHBEE_CONFIG_FILE 不存在时失败。不写文件、不连接会话、不下载，也不改变安装。",
             ),
             (Locale::EnUs, CommandPath::ChannelSet) => crate::cli_text::HelpDetails::new(
                 "orchbee channel set <stable|preview> [--format text|json]",

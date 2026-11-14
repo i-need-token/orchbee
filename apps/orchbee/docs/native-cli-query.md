@@ -423,13 +423,13 @@ missing explicit `ORCHBEE_RUNTIME_BASE` still fails.
 
 Check and list text views lead with their conclusion and keep raw reason structures in JSON.
 `config check` prints a verdict line counting every check, then one aligned row per check with its
-path, locale or failure reason. The internal checks `runtime-base`, `runtime-directory`, `cohort`,
+path, locale or failure reason. The internal checks `runtime-base`, `runtime-directory`, `cohort` (shown as `installation`),
 `sockets` and `records` get a row only when they fail, and a failed `sockets` row names each failing
 entry with its reason; JSON keeps every check. Then come any settings warnings, any record notices,
 a note when the environment has not been started, the file in use and a `--format json` pointer.
 `doctor` prints
 its verdict, one line per check and a `--format json` pointer. `session list` has a heading
-row and native paths, and explains a `not created` session. An empty `session list`, `command list` or `launch-profile list` prints one
+row, each Session's name and state, and explains a `not created` session; JSON keeps each runtime directory. An empty `session list`, `command list` or `launch-profile list` prints one
 line saying how to create the first entry; the launch-profile catalog revision is JSON-only.
 
 `session attach <name> [--mouse on|off]` activates or reconnects the real TUI. `session stop
