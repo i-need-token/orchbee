@@ -79,8 +79,6 @@ interface WorkbenchSidebarProps {
 		beforeWorkspaceId: string | null,
 	) => Promise<unknown>;
 	readonly renameProject: (projectId: string, name: string) => void;
-	readonly resetSidebarWidth?: (() => void) | undefined;
-	readonly resizeSidebar?: ((delta: number) => void) | undefined;
 	readonly returnToTerminal?: (() => void) | undefined;
 	readonly searchLabel: string;
 	readonly searchShortcutId: string;
@@ -128,8 +126,6 @@ export function WorkbenchSidebar({
 	reorderProject,
 	moveWorkspace,
 	renameProject,
-	resetSidebarWidth,
-	resizeSidebar,
 	returnToTerminal,
 	searchLabel,
 	searchShortcutId,
@@ -206,8 +202,6 @@ export function WorkbenchSidebar({
 		reorderModifier,
 		reorderProject,
 		moveWorkspace,
-		resetSidebarWidth,
-		resizeSidebar,
 		returnToTerminal,
 		state: projectWorkspaceState,
 	});

@@ -22,7 +22,7 @@ const BELOW_TRIGGER: WorkbenchSidebarDropdownMenuPlacement = {
 
 /**
  * Where a row's menu opens. From the pointer it opens below the ⋯ or + that opened it, start edges
- * aligned; from F2, Shift+F10 or the Menu key it opens beside its row, top edges level, as the TUI's
+ * aligned; from Shift+F10 or the Menu key it opens beside its row, top edges level, as the TUI's
  * does. The primitive's collision handling moves it where the window is too small.
  */
 export function useWorkbenchSidebarDropdownMenuPlacement(): WorkbenchSidebarDropdownMenuPlacement & {

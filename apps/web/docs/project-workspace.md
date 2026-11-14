@@ -172,8 +172,9 @@ it, else the first row. ↑ ↓ Home End move between headings, Workspaces and A
 row and then moves into it; ← folds it and then moves to its parent. Enter or Space folds a heading
 and opens a Workspace or Agent, then hands the keyboard to its terminal, as a pointer click does.
 Shift+N starts a Workspace and F1 opens the shortcut reference; Ctrl+↑ and Ctrl+↓,
-⌘ on macOS, move a Project or Workspace among its siblings, as a drag does; Shift+← and Shift+→
-change the width by `10px` and `0` returns it to `250px`; Esc returns to the terminal. The rules
+⌘ on macOS, move a Project or Workspace among its siblings, as a drag does; Esc returns to the
+terminal. F2 renames the focused Project or Workspace, as F2 renames in a file list. The width
+changes only by dragging the divider. The rules
 live in the pure `resolveSidebarNavigationKey` and `resolveSiblingReorder`, which unit tests cover.
 The global New Workspace and shortcut-reference keys wait for shortcut catalog entries.
 
@@ -186,7 +187,8 @@ Unchanged pre-open focus is not a later handoff.
 
 | Input or transition                                                                                 | Result and invariant                                                                                                                                                                                                                                                                     |
 | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Exact `F2`, `Shift+F10` or unmodified `ContextMenu` from a focused Project or Workspace row control | Focus and invoke that row's live, enabled, closed ellipsis trigger, opening its existing Dropdown Menu once, beside the row. The row advertises these keys through `aria-keyshortcuts`. A pointer opens the menu below its trigger.                                                      |
+| Exact `F2` from a focused Project or Workspace row control                                          | Open that row's Rename dialog, as its menu's Rename row does. The row advertises it through `aria-keyshortcuts`.                                                                                                                                                                       |
+| Exact `Shift+F10` or unmodified `ContextMenu` from a focused Project or Workspace row control       | Focus and invoke that row's live, enabled, closed ellipsis trigger, opening its existing Dropdown Menu once, beside the row. The row advertises these keys through `aria-keyshortcuts`. A pointer opens the menu below its trigger.                                                      |
 | Unexpected modifiers, composing or repeated input, a consumed event, or no live enabled trigger     | No invocation and no event suppression. Terminal input has no row listener.                                                                                                                                                                                                              |
 | A portaled menu `keydown` event bubbles through the React row                                       | Actual DOM containment rejects it; the open menu keeps keyboard ownership.                                                                                                                                                                                                               |
 | A native Menu-key release synthesizes `contextmenu` after the Dropdown Menu opens                   | Suppress only keyboard context events from the row or the exact open dropdown named by its live enabled ellipsis's `aria-controls`. Require that trigger to remain expanded; this also covers portaled autofocus targets. Keep pointer behavior and shared menu state unchanged.         |

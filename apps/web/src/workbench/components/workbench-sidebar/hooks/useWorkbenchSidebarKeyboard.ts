@@ -11,9 +11,6 @@ import {
 } from '../model/sidebar-navigation-keys';
 import { revealSidebarRow } from '../utils/revealSidebarRow';
 
-/** Shift+← and Shift+→ change the sidebar's width by this many pixels. */
-const WIDTH_STEP = 10;
-
 const TREE_KEYS: ReadonlySet<string> = new Set<SidebarNavigationKey>([
 	'ArrowDown',
 	'ArrowLeft',
@@ -40,8 +37,6 @@ interface UseWorkbenchSidebarKeyboardOptions {
 		projectId: string | null,
 		beforeWorkspaceId: string | null,
 	) => Promise<unknown>;
-	readonly resetSidebarWidth: (() => void) | undefined;
-	readonly resizeSidebar: ((delta: number) => void) | undefined;
 	readonly returnToTerminal: (() => void) | undefined;
 	readonly state: ProjectWorkspaceState;
 }
@@ -104,8 +99,8 @@ function holdTabStop(root: HTMLElement, holder: HTMLElement | null): void {
 /**
  * The sidebar list's keys, as in the TUI. The list is one tab stop; the arrows, Home and End move
  * through its rows and fold them; Enter opens a row and returns to the terminal; Shift+N, / and F1
- * start a Workspace, Search and Shortcuts; Ctrl+↑↓ (⌘ on macOS) reorder; Shift+←→ and 0 set the
- * width; Esc returns to the terminal. Menus open from the row itself (F2, Shift+F10, Menu).
+ * start a Workspace, Search and Shortcuts; Ctrl+↑↓ (⌘ on macOS) reorder; Esc returns to the
+ * terminal. A row renames with F2 and opens its menu with Shift+F10 or Menu.
  */
 export function useWorkbenchSidebarKeyboard({
 	activateWorkspace,
@@ -115,8 +110,6 @@ export function useWorkbenchSidebarKeyboard({
 	reorderModifier,
 	reorderProject,
 	moveWorkspace,
-	resetSidebarWidth,
-	resizeSidebar,
 	returnToTerminal,
 	state,
 }: UseWorkbenchSidebarKeyboardOptions): WorkbenchSidebarKeyboard {
@@ -226,16 +219,10 @@ export function useWorkbenchSidebarKeyboard({
 				handled = true;
 			}
 		} else if (shiftKey) {
-			if (key === 'ArrowLeft' || key === 'ArrowRight') {
-				resizeSidebar?.(key === 'ArrowLeft' ? -WIDTH_STEP : WIDTH_STEP);
-				handled = true;
-			} else if (key === 'N') {
+			if (key === 'N') {
 				createWorkspace();
 				handled = true;
 			}
-		} else if (key === '0') {
-			resetSidebarWidth?.();
-			handled = true;
 		} else if (key === 'F1') {
 			onShortcuts?.();
 			handled = true;

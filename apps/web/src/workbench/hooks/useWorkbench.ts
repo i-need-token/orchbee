@@ -249,8 +249,6 @@ interface WorkbenchView {
 	readonly onLeftPanelResize: (size: ResizablePanelSize) => void;
 	/** Returns the sidebar to its default width. */
 	readonly resetSidebarWidth: () => void;
-	/** Widens the sidebar by a number of pixels, or narrows it by a negative one. */
-	readonly resizeSidebar: (delta: number) => void;
 	/** Gives keyboard focus back to the current terminal. */
 	readonly returnToTerminal: () => void;
 	readonly onRootBlurCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
@@ -1072,7 +1070,6 @@ export function useWorkbench({
 			leftPanelWidth.current = size.inPixels;
 		},
 		resetSidebarWidth: () => setLeftPanelWidth(DEFAULT_LEFT_PANEL_WIDTH),
-		resizeSidebar: (delta) => setLeftPanelWidth(leftPanelWidth.current + delta),
 		returnToTerminal: () => {
 			closeSidebarOverlay();
 			sidebar.dismissTabList();

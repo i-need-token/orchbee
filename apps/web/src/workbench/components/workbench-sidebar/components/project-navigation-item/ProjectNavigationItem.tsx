@@ -27,9 +27,12 @@ import { SidebarTruncationTooltip } from '../sidebar-truncation-tooltip/SidebarT
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import { WorkspaceNavigationRow } from './components/workspace-navigation-row/WorkspaceNavigationRow';
 import { useProjectNavigationMenuFocus } from './hooks/useProjectNavigationMenuFocus';
-import { navigationMenuAriaKeyShortcuts } from './utils/navigation-menu-shortcuts';
 import {
-	openNavigationRowMenuFromKeyboard,
+	navigationMenuAriaKeyShortcuts,
+	navigationRowAriaKeyShortcuts,
+} from './utils/navigation-menu-shortcuts';
+import {
+	handleNavigationRowKeyDown,
 	suppressDuplicateNavigationContextMenu,
 } from './utils/navigation-row-menu';
 import { projectNewWorkspaceMenu } from './utils/projectNewWorkspaceMenu';
@@ -178,7 +181,7 @@ export function ProjectNavigationItem({
 					render={
 						<button
 							aria-expanded={expanded}
-							aria-keyshortcuts={project === null ? undefined : navigationMenuAriaKeyShortcuts}
+							aria-keyshortcuts={project === null ? undefined : navigationRowAriaKeyShortcuts}
 							aria-label={chevronLabel}
 							className={styles['chevron']}
 							data-holds-active-workspace={holdsHiddenActiveWorkspace || undefined}
@@ -232,7 +235,9 @@ export function ProjectNavigationItem({
 								data-navigation-reorder-row='true'
 								data-project-reorder-row='true'
 								onContextMenuCapture={suppressDuplicateNavigationContextMenu}
-								onKeyDown={openNavigationRowMenuFromKeyboard}
+								onKeyDown={(event) =>
+									handleNavigationRowKeyDown(event, () => showProjectRename(project.id))
+								}
 								onPointerDown={(event) =>
 									onEntryPointerDown({ id: project.id, kind: 'project' }, event)
 								}

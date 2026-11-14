@@ -24,9 +24,12 @@ import type { WorkbenchProjectNavigationMessages } from '../../../../types/workb
 import { SidebarTruncationTooltip } from '../../../sidebar-truncation-tooltip/SidebarTruncationTooltip';
 import { WorkbenchSidebarDropdownMenu } from '../../../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import type { ProjectNavigationMenuFocus } from '../../hooks/useProjectNavigationMenuFocus';
-import { navigationMenuAriaKeyShortcuts } from '../../utils/navigation-menu-shortcuts';
 import {
-	openNavigationRowMenuFromKeyboard,
+	navigationMenuAriaKeyShortcuts,
+	navigationRowAriaKeyShortcuts,
+} from '../../utils/navigation-menu-shortcuts';
+import {
+	handleNavigationRowKeyDown,
 	suppressDuplicateNavigationContextMenu,
 } from '../../utils/navigation-row-menu';
 import { workspaceMoveToProjectMenu } from '../../utils/workspaceMoveToProjectMenu';
@@ -171,14 +174,16 @@ export function WorkspaceNavigationRow({
 							data-navigation-reorder-row='true'
 							onClick={activate}
 							onContextMenuCapture={suppressDuplicateNavigationContextMenu}
-							onKeyDown={openNavigationRowMenuFromKeyboard}
+							onKeyDown={(event) =>
+								handleNavigationRowKeyDown(event, () => showWorkspaceRename(workspace.id))
+							}
 							onPointerDown={onPointerDown}
 						/>
 					}
 				>
 					<button
 						aria-current={active ? 'page' : undefined}
-						aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
+						aria-keyshortcuts={navigationRowAriaKeyShortcuts}
 						aria-label={[
 							name,
 							folded ? null : line,

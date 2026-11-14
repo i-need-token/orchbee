@@ -216,8 +216,6 @@ export function Workbench({
 				onSettings={view.settings}
 				onShortcuts={view.shortcuts}
 				reorderModifier={shortcutPlatform === 'apple' ? 'meta' : 'ctrl'}
-				resetSidebarWidth={view.resetSidebarWidth}
-				resizeSidebar={view.resizeSidebar}
 				returnToTerminal={view.returnToTerminal}
 				shortcutsLabel={view.shortcutsLabel}
 				shortcutsShortcutId={view.shortcutsShortcutId}

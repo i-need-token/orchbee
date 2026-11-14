@@ -1,6 +1,9 @@
 import type { KeyboardEvent, MouseEvent } from 'react';
 
-import { matchesNavigationMenuShortcut } from './navigation-menu-shortcuts';
+import {
+	matchesNavigationMenuShortcut,
+	matchesNavigationRenameShortcut,
+} from './navigation-menu-shortcuts';
 
 /** Marks a menu trigger that a row shortcut is opening, so the menu opens beside that row. */
 const KEYBOARD_ORIGIN = 'data-navigation-menu-keyboard-origin';
@@ -21,11 +24,14 @@ export function findNavigationRowMenuTrigger(row: HTMLElement): HTMLButtonElemen
 		: null;
 }
 
-export function openNavigationRowMenuFromKeyboard(event: KeyboardEvent<HTMLDivElement>): void {
+/** F2 renames the row; Shift+F10 and the Menu key open its menu beside it. */
+export function handleNavigationRowKeyDown(
+	event: KeyboardEvent<HTMLDivElement>,
+	rename: () => void,
+): void {
 	const NodeConstructor = event.currentTarget.ownerDocument.defaultView?.Node;
 	if (
 		event.defaultPrevented ||
-		!matchesNavigationMenuShortcut(event.nativeEvent) ||
 		NodeConstructor === undefined ||
 		!(event.target instanceof NodeConstructor) ||
 		!event.currentTarget.contains(event.target) ||
@@ -33,6 +39,12 @@ export function openNavigationRowMenuFromKeyboard(event: KeyboardEvent<HTMLDivEl
 	) {
 		return;
 	}
+	if (matchesNavigationRenameShortcut(event.nativeEvent)) {
+		event.preventDefault();
+		rename();
+		return;
+	}
+	if (!matchesNavigationMenuShortcut(event.nativeEvent)) return;
 	const trigger = findNavigationRowMenuTrigger(event.currentTarget);
 	if (trigger === null || trigger.getAttribute('aria-expanded') === 'true') return;
 	event.preventDefault();
