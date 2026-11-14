@@ -53,6 +53,32 @@ impl Locale {
             Self::ZhCn => "查找",
         }
     }
+    /// The Find bar's leading label.
+    pub(crate) const fn find_bar_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Find:",
+            Self::ZhCn => "查找:",
+        }
+    }
+    /// The status chip's input indicator while the Find bar owns the keyboard.
+    pub(crate) const fn find_indicator(self) -> &'static str {
+        match self {
+            Self::EnUs => "FIND",
+            Self::ZhCn => "查找",
+        }
+    }
+    pub(crate) const fn find_close_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Close",
+            Self::ZhCn => "关闭",
+        }
+    }
+    pub(crate) const fn find_next_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Next",
+            Self::ZhCn => "下一个",
+        }
+    }
     pub(crate) const fn copy_back_label(self) -> &'static str {
         match self {
             Self::EnUs => "Back",

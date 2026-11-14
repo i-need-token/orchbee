@@ -616,8 +616,8 @@ impl Locale {
                 Self::ZhCn => "拒绝搜索：文本无效或超过 512 个字符".into(),
             },
             WorkbenchClientNotice::FindUnavailable => match self {
-                Self::EnUs => "Find is not available on this panel".into(),
-                Self::ZhCn => "此面板暂时无法查找".into(),
+                Self::EnUs => "Terminal disconnected".into(),
+                Self::ZhCn => "终端已断连".into(),
             },
             WorkbenchClientNotice::FindClosed => match self {
                 Self::EnUs => "Find closed: the terminal changed".into(),

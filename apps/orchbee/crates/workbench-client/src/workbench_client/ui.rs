@@ -1340,6 +1340,12 @@ impl<'a> WorkbenchClientView<'a> {
         self.copy_mode
             .and_then(super::copy_episode::CopyModeEpisodes::crop)
     }
+
+    /// The open Find bar and the pane it searches.
+    pub(crate) fn find_bar(&self) -> Option<(&'a PaneRef, &'a crate::terminal_find::FindBar)> {
+        let episodes = self.copy_mode?;
+        Some((episodes.key()?, episodes.find()?))
+    }
 }
 
 #[cfg(any(test, feature = "test-support"))]

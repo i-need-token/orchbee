@@ -89,6 +89,7 @@ pub(crate) mod controls;
 mod copy_mode;
 mod divider_resize;
 mod environment_marker;
+mod find_bar;
 mod held_restore;
 mod help;
 mod machine_login;
@@ -1740,6 +1741,7 @@ fn render_native_workbench(
                 .and_then(|panel_id| native.pane_viewport(panel_id))
         });
         if let Some(surface) = viewport {
+            let find_origin = window_origin(surface);
             // A non-Live core owns the whole content area the same way a
             // split leaf does — validated window or mode indicator.
             *pane_cursor = viewport::render_selected(
@@ -1759,6 +1761,18 @@ fn render_native_workbench(
             if input_enabled && let Some(copy) = native.copy_mode() {
                 *copy_crop =
                     copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
+            }
+            if input_enabled {
+                paint_find(
+                    frame,
+                    content_area,
+                    find_origin,
+                    native.focus_panel_id(),
+                    native,
+                    locale,
+                    theme,
+                    pane_cursor,
+                );
             }
             if let Some(pane) = active_tab
                 .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
@@ -1833,6 +1847,23 @@ fn render_native_workbench(
             if input_enabled && let Some(copy) = native.copy_mode() {
                 *copy_crop =
                     copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
+            }
+            if input_enabled {
+                let origin = tail.map_or(
+                    terminal.scrollback_rows.saturating_add(u64::from(crop.row)),
+                    |(window, _)| window.route.start_row,
+                );
+                let first_column = if tail.is_some() { 0 } else { crop.column };
+                paint_find(
+                    frame,
+                    painted,
+                    Some((origin, first_column)),
+                    native.focus_panel_id(),
+                    native,
+                    locale,
+                    theme,
+                    pane_cursor,
+                );
             }
             // Only the tab strip stays above the terminal. Every content cell
             // carries the pane's exact live incarnation, including the edges.
@@ -2278,6 +2309,7 @@ fn render_leaf(
         // A non-Live core owns the leaf: its validated window or its mode
         // indicator paints instead of the live frame path.
         let copy_active = active && native.copy_mode().is_some();
+        let find_origin = window_origin(surface);
         let cursor = viewport::render_selected(
             frame,
             content,
@@ -2293,6 +2325,18 @@ fn render_leaf(
         );
         // Only the active leaf yields a cursor.
         *pane_cursor = pane_cursor.or(cursor);
+        if active && input_enabled {
+            paint_find(
+                frame,
+                content,
+                find_origin,
+                panel.map(|panel| panel.panel_id()),
+                native,
+                locale,
+                theme,
+                pane_cursor,
+            );
+        }
     } else if let Some(terminal) = terminal {
         let show_cursor = cursor_visible && active;
         let show_cursor = show_cursor && native.copy_mode().is_none();
@@ -2338,6 +2382,23 @@ fn render_leaf(
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
             theme.style(Role::SurfaceSelection),
         );
+        if active && input_enabled {
+            let origin = tail.map_or(
+                terminal.scrollback_rows.saturating_add(u64::from(crop.row)),
+                |(window, _)| window.route.start_row,
+            );
+            let first_column = if tail.is_some() { 0 } else { crop.column };
+            paint_find(
+                frame,
+                painted,
+                Some((origin, first_column)),
+                panel.map(|panel| panel.panel_id()),
+                native,
+                locale,
+                theme,
+                pane_cursor,
+            );
+        }
     } else if let Some(held) = panel.and_then(|panel| native.held_restore(panel)) {
         held_restore::render(frame, content, &held, input_enabled, locale, theme, hits);
     } else if let Some(failure) = panel.and_then(|panel| native.launch_failure(panel)) {
@@ -2372,6 +2433,46 @@ fn render_leaf(
     {
         *copy_crop = copy_mode::paint_surface(frame, content, copy, native, theme, hits);
     }
+}
+
+/// The absolute top row a validated history window paints from.
+fn window_origin(surface: crate::workbench_client::ViewportSurface<'_>) -> Option<(u64, u16)> {
+    match surface {
+        crate::workbench_client::ViewportSurface::Window { window } => {
+            Some((window.route.start_row, 0))
+        }
+        _ => None,
+    }
+}
+
+/// Paints the open Find bar and its highlights over the Panel it searches; the draft then holds
+/// the terminal cursor. `origin` is the absolute row and first column the view paints from, when
+/// it paints retained rows.
+#[allow(clippy::too_many_arguments)]
+fn paint_find(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    origin: Option<(u64, u16)>,
+    panel: Option<&orchbee_workbench_protocol::WorkbenchPanelId>,
+    native: &WorkbenchClientView<'_>,
+    locale: Locale,
+    theme: &Theme,
+    pane_cursor: &mut Option<Position>,
+) {
+    let Some((key, bar)) = native.find_bar() else {
+        return;
+    };
+    if panel
+        .and_then(|panel| native.pane_ref_for_panel(panel))
+        .as_ref()
+        != Some(key)
+    {
+        return;
+    }
+    if let Some((origin, first_column)) = origin {
+        find_bar::paint_highlights(frame, area, origin, first_column, bar, theme);
+    }
+    *pane_cursor = find_bar::render(frame, area, bar, locale, theme);
 }
 
 /// Paints shared dividers; the caller records their targets after the titles drawn over them.

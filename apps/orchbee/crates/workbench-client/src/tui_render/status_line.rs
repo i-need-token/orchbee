@@ -34,6 +34,8 @@ enum InputIndicator {
     Sidebar,
     Resize,
     ResizePending,
+    /// The Find bar owns the keyboard.
+    Find,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -186,7 +188,7 @@ pub(super) fn render(
     let client_shorter = client_shorter(locale, client_notice);
     let secondary_notice = secondary_notice(view, primary, facts.secondary_notice);
     let glyphs = theme.glyphs.key_labels();
-    let indicator_kind = input_indicator(view, capture_owner);
+    let indicator_kind = input_indicator(view, capture_owner, facts.secondary_notice.is_some());
     let contexts = contexts(view, &facts);
     let copy = locale.status();
     let available = usize::from(area.width).saturating_sub(2);
@@ -747,7 +749,7 @@ fn render_row(
     let primary_notice = client_notice.is_some() || facts.primary_notice;
     let secondary_notice = secondary_notice(view, primary, facts.secondary_notice);
     let glyphs = theme.glyphs.key_labels();
-    let indicator_kind = input_indicator(view, capture_owner);
+    let indicator_kind = input_indicator(view, capture_owner, facts.secondary_notice.is_some());
     let contexts = contexts(view, &facts);
 
     let notice = (indicator_kind.is_none())
@@ -1202,9 +1204,17 @@ fn fit_hints(hints: &HintSet, available: usize, theme: &Theme) -> (Vec<OwnedHint
 fn input_indicator(
     view: &ClientView,
     capture_owner: Option<CaptureOwner>,
+    session_notice: bool,
 ) -> Option<InputIndicator> {
     if capture_owner == Some(CaptureOwner::Resize) {
         return Some(InputIndicator::Resize);
+    }
+    // The Find bar's own notices lead; the prefix stays live over the bar.
+    if capture_owner == Some(CaptureOwner::Copy) && view.find_bar_active() {
+        if view.prefix_active() {
+            return Some(InputIndicator::Prefix);
+        }
+        return (!session_notice).then_some(InputIndicator::Find);
     }
     if capture_owner.is_none() && view.navigator_active() {
         return Some(InputIndicator::Navigator);
@@ -1268,6 +1278,11 @@ fn indicator_projection(
             key: None,
             role: Role::StatusWorking,
         },
+        InputIndicator::Find => Indicator {
+            label: locale.find_indicator(),
+            key: None,
+            role: Role::AccentFocus,
+        },
     }
 }
 
@@ -1306,6 +1321,27 @@ fn status_hints(
         Some(InputIndicator::Sidebar) => return sidebar_hints(locale, glyphs),
         Some(InputIndicator::Resize) => return resize_hints(view, locale, glyphs).into(),
         Some(InputIndicator::ResizePending) => return HintSet::default(),
+        Some(InputIndicator::Find) => {
+            use crate::client_view::{KeyCode, Modifiers};
+            let label = |code| {
+                format_binding_with_glyphs(
+                    &crate::terminal_events::keys::Binding::new(code, Modifiers::NONE),
+                    LabelStyle::for_host(),
+                    glyphs,
+                )
+            };
+            return vec![
+                OwnedHint {
+                    key: label(KeyCode::Esc),
+                    label: locale.find_close_label(),
+                },
+                OwnedHint {
+                    key: label(KeyCode::Enter),
+                    label: locale.find_next_label(),
+                },
+            ]
+            .into();
+        }
         None => {}
     }
 
