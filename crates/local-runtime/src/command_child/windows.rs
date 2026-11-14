@@ -12,7 +12,9 @@ use winsafe::{HPROCESS, co};
 
 mod capture;
 mod program;
-pub use capture::{run_windows_command, run_windows_command_exchange};
+pub use capture::{
+    run_contained_command_exchange, run_windows_command, run_windows_command_exchange,
+};
 pub use program::{resolve_windows_program, windows_system_program};
 
 enum Settlement {

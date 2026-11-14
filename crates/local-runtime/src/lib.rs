@@ -169,8 +169,8 @@ mod command_child;
 pub use command_child::{CommandChild, CommandSpawnFailure};
 #[cfg(windows)]
 pub use command_child::{
-    resolve_windows_program, run_windows_command, run_windows_command_exchange,
-    windows_system_program,
+    resolve_windows_program, run_contained_command_exchange, run_windows_command,
+    run_windows_command_exchange, windows_system_program,
 };
 mod default_interactive_launch;
 pub use default_interactive_launch::{

@@ -41,11 +41,49 @@ pub fn run_windows_command(
 /// Full-duplex bounded exchange. Input is borrowed until child settlement; no
 /// worker thread or pipe owner outlives this call. Limits apply to each output.
 pub fn run_windows_command_exchange(
+    command: Command,
+    input: Option<&[u8]>,
+    output_limit: usize,
+    deadline: Option<Instant>,
+    interrupted: impl FnMut() -> io::Result<bool>,
+) -> CommandOutput {
+    exchange(
+        command,
+        input,
+        output_limit,
+        deadline,
+        interrupted,
+        CommandChild::spawn,
+    )
+}
+
+/// As [`run_windows_command_exchange`], in a Job started by [`CommandChild::spawn_contained`]:
+/// when the calling process ends, however abruptly, the command and everything it started end
+/// with it, so no child outlives its caller to keep writing files the caller owned.
+pub fn run_contained_command_exchange(
+    command: Command,
+    input: Option<&[u8]>,
+    output_limit: usize,
+    deadline: Option<Instant>,
+    interrupted: impl FnMut() -> io::Result<bool>,
+) -> CommandOutput {
+    exchange(
+        command,
+        input,
+        output_limit,
+        deadline,
+        interrupted,
+        CommandChild::spawn_contained,
+    )
+}
+
+fn exchange(
     mut command: Command,
     input: Option<&[u8]>,
     output_limit: usize,
     deadline: Option<Instant>,
     mut interrupted: impl FnMut() -> io::Result<bool>,
+    spawn: fn(Command) -> Result<CommandChild, super::CommandSpawnFailure>,
 ) -> CommandOutput {
     use CommandFailure as Failure;
     let result = CommandOutput::empty();
@@ -75,7 +113,7 @@ pub fn run_windows_command_exchange(
     };
     let mut remaining = input.unwrap_or_default();
     command.stdin(stdin).stdout(stdout).stderr(stderr);
-    let mut child = match CommandChild::spawn(command) {
+    let mut child = match spawn(command) {
         Ok(child) => child,
         Err(failure) => {
             return result.failed(if failure.created {

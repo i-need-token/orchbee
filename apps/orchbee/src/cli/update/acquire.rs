@@ -212,7 +212,8 @@ impl Source {
                 require_curl(context)?;
                 let mut command = curl(url, size.max(1), self.loopback())?;
                 command.arg("--output").arg(path);
-                let result = platform::execute(command, context).map_err(|_| Error::Download)?;
+                let result =
+                    platform::execute_contained(command, context).map_err(|_| Error::Download)?;
                 // A body longer than the signed size fails the size check, not the transfer.
                 if result.exit_code == Some(CURL_FILESIZE_EXCEEDED) {
                     return Err(Error::Checksum);
@@ -294,7 +295,7 @@ fn require_curl(context: &mut Context) -> Result<(), Error> {
     }
     let mut command = curl_base()?;
     command.args(["--disable", "--version"]);
-    let result = platform::execute(command, context).map_err(|_| Error::Download)?;
+    let result = platform::execute_contained(command, context).map_err(|_| Error::Download)?;
     context.command_result(&result)?;
     // Before 8.4, max-filesize did not bound transfers without Content-Length.
     // https://curl.se/docs/manpage.html#--max-filesize

@@ -184,8 +184,8 @@ pub(super) fn unpack_command(unpacked: &Path) -> io::Result<Command> {
 pub(super) fn system_unpack(unpacked: &Path, context: &mut Context) -> Result<(), Error> {
     context.check()?;
     let command = unpack_command(unpacked).map_err(|_| Error::DownloadUnavailable)?;
-    let result =
-        platform::execute(command, context).map_err(|error| context.storage(unpacked, &error))?;
+    let result = platform::execute_contained(command, context)
+        .map_err(|error| context.storage(unpacked, &error))?;
     match result.failure {
         None => Ok(()),
         Some(CommandFailure::Cancelled) => Err(Error::Cancelled),

@@ -137,13 +137,23 @@ pub(super) fn execute(command: Command, context: &mut Context) -> io::Result<Com
     ))
 }
 
-/// Like [`execute`], but captures up to `limit` bytes of standard output instead of 64 KiB.
+/// Like [`execute`] for a download or unpack child (`curl`, `tar`), contained: when this Client
+/// ends, however abruptly, the child ends with it and never keeps writing into `.download`, so
+/// the next update can remove what it left.
+pub(super) fn execute_contained(
+    command: Command,
+    context: &mut Context,
+) -> io::Result<CommandOutput> {
+    execute_capturing(command, OUTPUT_LIMIT, context)
+}
+
+/// Like [`execute_contained`], but captures up to `limit` bytes of standard output.
 pub(super) fn execute_capturing(
     command: Command,
     limit: usize,
     context: &mut Context,
 ) -> io::Result<CommandOutput> {
-    Ok(orchbee_local_runtime::run_windows_command_exchange(
+    Ok(orchbee_local_runtime::run_contained_command_exchange(
         command,
         None,
         limit,
@@ -151,6 +161,9 @@ pub(super) fn execute_capturing(
         || context.interrupted(),
     ))
 }
+
+/// The output [`execute_contained`] keeps, as [`execute`] does.
+const OUTPUT_LIMIT: usize = 64 * 1024;
 
 pub(super) fn verify_capsule(directory: &Path, expected: &str) -> io::Result<bool> {
     Ok(orchbee_agent_integration_writer::verify_distribution_capsule(directory, expected))

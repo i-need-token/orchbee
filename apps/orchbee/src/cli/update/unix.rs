@@ -36,6 +36,13 @@ pub(super) fn execute(_command: Command, _context: &mut Context) -> io::Result<C
     Err(io::ErrorKind::Unsupported.into())
 }
 
+pub(super) fn execute_contained(
+    _command: Command,
+    _context: &mut Context,
+) -> io::Result<CommandOutput> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
 pub(super) fn execute_capturing(
     _command: Command,
     _limit: usize,
