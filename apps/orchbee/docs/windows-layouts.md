@@ -47,7 +47,8 @@ otherwise the old custom Tab label is retained or numbering remains automatic.
 Acquire the entire file or inherited noninteractive stdin before effects, with optional UTF-8 BOM
 and the export bounds. Accept only current v1 native export envelopes, descriptions containing root or bare
 nodes. Native envelopes require all fields and exact current shapes; other versions/shapes return a
-typed layout-input error with an expected-version-1 diagnostic. No migration occurs. Flat `type:panel` templates describe one starting primary with numeric fallback names;
+typed layout-input error with an expected-version-1 diagnostic. No migration occurs. A Panel
+`rightClick` of `orchbee` or `panel`, written by earlier builds, is accepted and ignored. Flat `type:panel` templates describe one starting primary with numeric fallback names;
 layout identity fields use camelCase. Structured members preserve their fallback names, labels and start intent.
 Description IDs and focus and maximized state remain descriptive; new layouts start unmaximized. Mixing flat launch
 fields with structured members, duplicate/unknown fields and malformed nested children is invalid.

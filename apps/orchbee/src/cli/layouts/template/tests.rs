@@ -46,6 +46,9 @@ fn exports_and_templates_keep_literal_launch_values_without_reusing_ids() {
         .plan();
     assert_eq!(plan.leaves[0].primary.name.as_str(), "Retained");
     assert!(!plan.leaves[0].primary.start);
+    let mut earlier = export.clone();
+    earlier["result"]["layout"]["root"]["rightClick"] = json!("orchbee");
+    assert_eq!(parse_value(earlier), parse_value(export.clone()));
     for version in [2, 3, 99] {
         let mut invalid = export.clone();
         invalid["version"] = json!(version);
@@ -219,12 +222,17 @@ fn structured_members_preserve_unbound_intent_and_validate_all_children_before_e
         ("/children/0/start", json!(false)),
         ("/children/0/unknown", json!(true)),
         ("/command", json!(["pwsh"])),
-        ("/rightClick", json!("panel")),
+        ("/rightClick", json!("pane")),
     ] {
         let mut bad = input.clone();
         let (parent, key) = path.rsplit_once('/').unwrap();
         bad.pointer_mut(parent).unwrap()[key] = value;
         assert_eq!(parse_value(bad), Err(InputError::InvalidLayout), "{path}");
+    }
+    for value in ["orchbee", "panel"] {
+        let mut earlier = input.clone();
+        earlier["rightClick"] = json!(value);
+        assert_eq!(parse_value(earlier), parse_value(input.clone()), "{value}");
     }
     let raw = br#"{"type":"panel","primary":{"name":"x","start":false},"children":[{"name":"x","start":true,"start":false}]}"#;
     assert_eq!(parse(raw), Err(InputError::InvalidLayout));

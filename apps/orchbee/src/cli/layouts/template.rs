@@ -262,6 +262,13 @@ fn node(
             } else {
                 fields.optional_string("panelId")?;
             }
+            // Earlier builds exported a right-click owner on every Panel; its two
+            // values are read and dropped, and anything else still rejects.
+            if fields.contains("rightClick")
+                && !matches!(fields.string("rightClick")?.as_str(), "orchbee" | "panel")
+            {
+                return Err("invalid-layout");
+            }
             if fields.contains("primary") {
                 let primary = member::parse(
                     Object::parse(&fields.take("primary")?)?,
