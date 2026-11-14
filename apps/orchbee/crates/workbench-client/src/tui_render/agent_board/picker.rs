@@ -1,5 +1,5 @@
 //! The Start Agent picker as the shared Medium dialog: where the Agent opens, the query, the
-//! grouped provider list and one hint row. The Board owner keeps its episode and capture; this
+//! grouped provider list and one hint row. The picker owner keeps its episode and capture; this
 //! file only paints the picker rows and publishes their exact targets.
 
 use ratatui::{
@@ -143,7 +143,7 @@ pub(super) fn render(
         theme,
         hits,
     );
-    // The Board's own close publishes the interaction its pointer lane routes.
+    // The owner's close publishes the interaction its pointer lane routes.
     let _ = render_header_close(frame, layout.area, &draw, theme, hits);
     if let Some(row) = layout.row(PLACE) {
         paint_place(frame, row, copy.opens_in, place, &draw, theme, hits);

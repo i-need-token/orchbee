@@ -1028,7 +1028,7 @@ fn unbound_panel_focus_exits_board_without_attaching_a_terminal() {
             panel_id: selection.panel_id.unwrap(),
         },
     };
-    ui.board.open();
+    ui.board.open_picker(None, false);
     assert!(ui.control_dialog());
     assert_eq!(ui.validate_panel_focus(&command, &empty_source()), Ok(()));
     assert_eq!(ui.dismiss_focus_modes(&command), Ok(true));

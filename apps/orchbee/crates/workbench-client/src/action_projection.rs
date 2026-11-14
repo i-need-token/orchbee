@@ -271,7 +271,6 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             C::Navigation,
             NAVIGATOR,
         ),
-        PrefixAction::BoardToggle => built_in("orchbee.native.agent-board.toggle", C::Agent, AGENT),
         PrefixAction::Client(A::StartAgent) => {
             built_in("orchbee.native.agent.start", C::Agent, AGENT)
         }
@@ -479,7 +478,6 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             C::Navigation,
             NAVIGATOR,
         ),
-        A::AgentBoard => built_in("orchbee.native.agent-board.toggle", C::Agent, AGENT),
         A::StartAgent | A::StartAgentInTab(_) | A::MoreAgents => {
             built_in("orchbee.native.agent.start", C::Agent, AGENT)
         }

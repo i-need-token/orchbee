@@ -71,6 +71,13 @@ impl<'a> ActionSpec<'a> {
     }
 
     /// Declares pending capability and reserves its status slot plus the larger localized label.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "pending actions are part of the shared action control contract; no current owner declares one"
+        )
+    )]
     pub(crate) const fn with_pending_label(mut self, label: &'a str) -> Self {
         self.pending_label = Some(label);
         self

@@ -5,8 +5,8 @@
 Every Workbench Client single-line field shares one pure editor core at
 [`terminal_text/line_editor.rs`](../crates/workbench-client/src/terminal_text/line_editor.rs): Tab and
 Panel rename, workspace setup, worktree launch, Settings text values and search, Action-menu and
-Command Palette queries, the Machine picker's workspace and Agent queries, the Agent board's start
-name, the shortcut-help filter, and copy-mode search. It covers the editing vocabulary the
+Command Palette queries, the Machine picker's workspace and Agent queries, the Start Agent picker's
+search, the shortcut-help filter, and copy-mode search. It covers the editing vocabulary the
 [keyboard standard](../../../docs/tui/keyboard-input.md#editing-and-drafts) assigns to draft
 fields: insert (typed input and atomic paste share one path), Backspace, Delete, Left, Right,
 Home/Ctrl+a, End/Ctrl+e, and the shared readline keys `LineKey` names: `Ctrl+u` and `Ctrl+k` kill to

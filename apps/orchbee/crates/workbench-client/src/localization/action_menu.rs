@@ -95,7 +95,6 @@ pub(crate) enum MenuLabel {
     Help,
     Sidebar,
     Navigator,
-    AgentBoard,
     StartAgent,
     StartAgentInTab,
     MoreAgents,
@@ -587,8 +586,6 @@ impl Locale {
             (Self::ZhCn, Sidebar) => "切换边栏",
             (Self::EnUs, Navigator) => "Workspace navigator",
             (Self::ZhCn, Navigator) => "工作区导航器",
-            (Self::EnUs, AgentBoard) => "Agent board",
-            (Self::ZhCn, AgentBoard) => "智能体看板",
             (Self::EnUs, StartAgent) => "Start Agent…",
             (Self::ZhCn, StartAgent) => "启动智能体…",
             // A row shows its provider's product name; this names the action itself.

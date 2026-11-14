@@ -496,7 +496,7 @@ fn remapped_direct_and_disabled_toggles_stay_beneath_local_capture() {
                 | Call::Focus(_)
                 | Call::Mode(_)
                 | Call::Confirmation(_)
-                | Call::BoardSelect(_) => None,
+                | Call::BoardControl(_) => None,
             })
             .collect::<Vec<_>>();
         assert_eq!(actions, expected_actions);

@@ -64,18 +64,6 @@ pub(super) struct AgentAttention {
     redraw: bool,
 }
 
-impl crate::agent_board::AgentRowAttention for AgentAttention {
-    fn session_unread(&self, session: &orchbee_agent_observation_protocol::AgentSessionId) -> bool {
-        self.state.session_unread(session)
-    }
-    fn presentation_completion(
-        &self,
-        attachment: &orchbee_agent_observation_protocol::AgentPresentationAttachment,
-    ) -> Option<orchbee_workbench_protocol::AgentCompletion> {
-        self.physical.state.presentation_completion(attachment)
-    }
-}
-
 impl AgentAttention {
     pub(super) fn physical_current(
         &self,

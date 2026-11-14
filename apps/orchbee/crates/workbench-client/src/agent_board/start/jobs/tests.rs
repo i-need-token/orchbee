@@ -268,13 +268,7 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
         })
         .unwrap();
     drop(sender);
-    assert_eq!(
-        jobs.drain(&mut state),
-        Drain {
-            changed: true,
-            started: true
-        }
-    );
+    assert_eq!(jobs.drain(&mut state), Drain { changed: true });
     assert_eq!(jobs.drain(&mut state), Drain::default());
 }
 
@@ -296,13 +290,7 @@ fn disconnected_start_worker_preserves_recovery() {
             task: crate::background_thread::BackgroundThread::ended(),
             cancelled: false,
         });
-        assert_eq!(
-            jobs.drain(&mut state),
-            Drain {
-                changed: true,
-                started: false
-            }
-        );
+        assert_eq!(jobs.drain(&mut state), Drain { changed: true });
         assert_eq!(state.phase(7), Some(Phase::Unknown));
         assert!(
             state.guards(&panel(1)),

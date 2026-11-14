@@ -826,15 +826,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             redraw |= terminal_input.tick_with_client_capture(client_capture_claims(&view));
             let now = inputs.sample_time();
             redraw |= view.expire_notice(now);
-            {
-                let board_animates = match terminal_input.view() {
-                    Some(native) => native.agent_board().is_some_and(|board| {
-                        board.rows().iter().any(|row| matches!(row.status(), orchbee_agent_observation_protocol::AgentSemanticStatus::Working { .. } | orchbee_agent_observation_protocol::AgentSemanticStatus::NeedsAttention { .. }))
-                    }),
-                    _ => false,
-                };
-                redraw |= view.machines.advance_working_motion(now, board_animates);
-            }
+            redraw |= view.machines.advance_working_motion(now);
             redraw |= dispatcher.query_graphics(
                 (dimensions.columns, dimensions.rows),
                 now,

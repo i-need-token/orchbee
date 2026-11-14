@@ -101,7 +101,7 @@ fn actual_shell_paints_installed_canvas_but_acknowledges_only_a_successful_uncov
                         .iter()
                         .any(|pane| pane.drawn_revision == Some(WorkbenchRevision::new(1)))
                 );
-                ui.board.open();
+                ui.board.open_picker(None, false);
                 ui.after_close_draw(draw(&ui, width, height, locale, &theme).0);
                 let observation = ui
                     .graphics_observation(&ui.control_observation(false).unwrap().1)

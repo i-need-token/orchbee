@@ -96,7 +96,7 @@ impl WorkbenchClientUi {
         }
         let origin = attempt.origin.clone();
         let deadlines = attempt.deadlines;
-        // The board's index consumes the snapshot only when the install
+        // The presentation index consumes the snapshot only when the install
         // below actually commits it — a failed recovery's Retire verdict
         // never feeds it.
         let index_snapshot = match &outcome {

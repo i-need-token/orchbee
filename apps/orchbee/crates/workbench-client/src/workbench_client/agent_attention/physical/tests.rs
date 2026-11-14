@@ -1,5 +1,5 @@
 use super::*;
-use orchbee_workbench_protocol::PanelAgentState;
+use orchbee_workbench_protocol::{AgentCompletion, PanelAgentState};
 
 fn state(id: u64, incarnation: u64, sequence: u64) -> TerminalAgentStateSnapshot {
     serde_json::from_value(serde_json::json!({

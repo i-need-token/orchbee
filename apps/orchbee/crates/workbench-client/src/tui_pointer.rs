@@ -2115,9 +2115,9 @@ impl PointerState {
                     )
                 {
                     view.dismiss_overlay();
-                    // The board's own wheel guard: an outside wheel notch
+                    // The picker's own wheel guard: an outside wheel notch
                     // is swallowed whole — only an ordinary outside Press
-                    // dismisses the board. Other overlays keep their
+                    // dismisses the picker. Other overlays keep their
                     // existing backdrop semantics above.
                     if !matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown) {
                         port.surface_action(SurfaceAction::AgentBoard(BoardAction::Dismiss));
@@ -2141,7 +2141,6 @@ impl PointerState {
                 | HitTarget::Rename { .. }
                 | HitTarget::SettingsControl { .. }
                 | HitTarget::AgentBoardControl(_)
-                | HitTarget::AgentBoardRow(_)
                 | HitTarget::ListScroll(_)
                 | HitTarget::Help { .. },
             ) => PointerOutcome::Ignored,

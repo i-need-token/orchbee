@@ -1451,12 +1451,6 @@ fn prefix_mode_hints(view: &ClientView, locale: Locale, glyphs: KeyLabelGlyphs) 
     ));
     hints.extend(prefix_action_hint(
         view,
-        PrefixAction::BoardToggle,
-        copy.agent_board,
-        glyphs,
-    ));
-    hints.extend(prefix_action_hint(
-        view,
         PrefixAction::Client(ClientAction::Exit),
         copy.detach,
         glyphs,

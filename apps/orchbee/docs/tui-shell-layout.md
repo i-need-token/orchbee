@@ -362,7 +362,7 @@ observed host colors under System, so a bare pane
 below it stays distinct. Each Tab leads with the state glyph
 of the Agent the current machine observation places in it and follows with an unread dot; a
 collapsed group carries its members' most urgent state. While the sidebar is hidden, the attached
-machine alone stays observed for this purpose. Summaries stay in the sidebar and Agent Board.
+machine alone stays observed for this purpose. Summaries stay in the sidebar.
 Global actions are available through `Ctrl+b Space` and configured menu bindings. Every platform
 projects the same canonical navigation rows; the retired context breadcrumb is not a separate
 platform layout.
@@ -476,9 +476,7 @@ independent unread marker clears. Accepted terminal text, paste, deletion, compl
 input changes the exact observed completion to a Client-local idle presentation. Focus, hover,
 scrolling, cursor movement, copy and rejected input do not. The observation, outcome and notification
 inputs remain canonical; a newer state or terminal incarnation cannot inherit the edited version.
-The Agent Board applies the same presentation override to its matching observed session version.
-
-Sidebar, Tab, pane-title and Agent Board Working glyphs use a stationary filled hexagon `⬢`
+Sidebar, Tab and pane-title Working glyphs use a stationary filled hexagon `⬢`
 (U+2B22), echoing the honeycomb mark, breathing from
 white to gray over two seconds on the shared 100 ms clock; terminal-native Working uses the host
 foreground and adopts the current Tab's paired foreground. Idle uses a gray hollow hexagon `⬡`
@@ -489,7 +487,7 @@ and Red; their state words keep the status text roles. Opening, from the moment 
 seen until its screen is first recognised, draws exactly the Working glyph and breathing; only its
 state word, Starting, differs. Unknown and the default Workspace identity
 use secondary-gray `•`. Attention alternates full and half intensity every 500 ms. The Picker owns
-the phase and only advances while observed Agents or the visible Board need animation. Rendering stays pure. ASCII
+the phase and only advances while observed Agents need animation. Rendering stays pure. ASCII
 uses `-\|/` Working frames and distinct `#`, `+`, `x`, `o`, `.` status fallbacks; monochrome
 keeps distinguishable outcomes without color breathing. Both hexagons are East Asian Neutral, so
 they measure one cell even on hosts that widen ambiguous-width text, as circles such as `●` are
@@ -929,11 +927,11 @@ locales, configured prefix labels, long scrolled columns, 120x41, 120x40 and 80x
 The navigator suppresses pane cursor/focus emphasis. Prefix input also hides the terminal cursor. Shortcut Help
 retains its nonmodal behavior.
 
-Dialogs, reference surfaces (Help, the navigator, the Agent board and Application Settings) and
+Dialogs, reference surfaces (Help, the navigator and Application Settings) and
 anchored context menus use the full host viewport, including the sidebar, top strip and last row in
 their reference; the status chip paints above them. Sidebar visibility and width never shift these
-surfaces, and their placement leaves terminal geometry unchanged. Help, the navigator and the Agent
-board place through `tui_layout::place_overlay(area, preferred_width, preferred_height) ->
+surfaces, and their placement leaves terminal geometry unchanged. Help and the navigator place
+through `tui_layout::place_overlay(area, preferred_width, preferred_height) ->
 Option<Rect>`, which resolves to `min(preferred, area - 4)` by `min(preferred, area - 2)`, centered
 with the extra cell rounding toward the top-left, and returns `None` when the resolved inner area
 would be below 4x3.

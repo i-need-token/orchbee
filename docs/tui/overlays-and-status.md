@@ -188,7 +188,7 @@ and global action discovery.
 ## Dialogs
 
 A dialog is a capturing overlay that holds one bounded task: a confirmation, a form, a picker, or a
-notice. Reference surfaces such as Help, the navigator, the Agent board and Settings share its
+notice. Reference surfaces such as Help, the navigator and Settings share its
 placement, frame and closing rules but keep their own sizes, navigation and footers. Context menus
 keep their compact composition. Geometry follows [`layout.md`](layout.md#dialog-size); buttons and
 fields follow [`components.md`](components.md).
@@ -379,7 +379,7 @@ live content. While visible it stays above other overlays. Its segments, from st
   prefix and leave when the prefix ends.
 - In prefix mode, the current effective cancel binding comes first, followed by effective hints for
   help, side-panel focus when a side panel exists, the action menu when available, tab creation,
-  splits, the Agent board, and detach. Width drops trailing hints as whole records.
+  splits, and detach. Width drops trailing hints as whole records.
 - A persistent state that leaves the focused content unusable, such as a missing directory, a lost
   connection, or an ended program, shows one or two words with its severity marker, followed by
   the binding that fixes it when one exists. Its full explanation belongs to the affected surface.

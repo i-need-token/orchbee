@@ -69,7 +69,7 @@ impl WorkbenchClientUi {
             self.retire(CarrierFailure::Protocol);
             return true;
         };
-        // The board's index consumes the snapshot only when this reply
+        // The presentation index consumes the snapshot only when this reply
         // actually installs it — a dead marker or a refused outcome is
         // stale for this purpose and never feeds it.
         let index_snapshot = match &outcome {

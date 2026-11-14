@@ -32,9 +32,9 @@ pub struct DrawReceipt {
     worktree: Option<ModalPresentation<super::WorktreeToken>>,
     panel_prompt: Option<ModalPresentation<PanelCloseConfirmationToken>>,
     workspace_prompt: Option<ModalPresentation<super::WorkspaceCloseToken>>,
-    /// The Agent board's exact-episode draw verdict. `Presented` carries the
+    /// The Start Agent picker's exact-episode draw verdict. `Presented` carries the
     /// successful viewport proof; `NotPresented` reports evaluated geometry.
-    /// `None` revokes current proof because the board was absent or covered.
+    /// `None` revokes current proof because the picker was absent or covered.
     agent_board: Option<super::AgentBoardDraw>,
     attention: Option<crate::workbench_client::agent_attention::AgentAttentionDraw>,
     graphics: Vec<crate::workbench_client::PaneGraphicsDraw>,

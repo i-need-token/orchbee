@@ -1897,7 +1897,7 @@ Evidence must cover bounded complete reads, revision/membership/physical identit
 mismatch, primary and child placement, stale job cancellation and fairness,
 keyboard/mouse identity, exact bootstrap and Host mismatch before control.
 Live terminal-title tokens and real SSH/OS visual acceptance remain
-separate obligations. The native canonical Agent list and per-Session Agent board retain unattached canonical
+separate obligations. The native canonical Agent list retains unattached canonical
 sessions. Cross-machine aggregation of those sessions remains a separate capability.
 
 ## Agent metadata, view controls and navigation

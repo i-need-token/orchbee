@@ -462,7 +462,7 @@ fn agent_focus_cancels_only_after_validating_its_source_and_does_not_discard_his
     *target =
         serde_json::from_value(json!({"kind":"session","sessionId":"missing-agent"})).unwrap();
     assert!(ui.request_rename_draft().is_some());
-    ui.board.open();
+    ui.board.open_picker(None, false);
     assert_eq!(
         ui.dismiss_focus_modes(&stale),
         Err(orchbee_workbench_protocol::ClientViewControlReason::ProjectionUnavailable)
@@ -690,7 +690,7 @@ fn physical_paint_requires_exact_terminal_and_current_visible_frame() {
     let (mut ui, pane, mut state) = physical_fixture();
     let shell = ClientView::new(120);
     assert!(!physical_seen(&ui, &state), "reading does not acknowledge");
-    ui.board.open();
+    ui.board.open_picker(None, false);
     ui.after_close_draw(draw(&ui, 120, 40, &shell));
     ui.board.close();
     assert!(!physical_seen(&ui, &state));
@@ -756,7 +756,7 @@ fn attention_render_receipts_only_acknowledge_visible_live_panes_after_success()
 fn attention_hidden_history_overlay_and_changed_pane_reject_receipts() {
     let (mut ui, pane) = fixture();
     let shell = ClientView::new(120);
-    ui.board.open();
+    ui.board.open_picker(None, false);
     ui.after_close_draw(draw(&ui, 120, 40, &shell));
     assert_eq!(ui.view().panel_unseen_count(pane.pane().panel()), 1);
     ui.board.close();
@@ -779,7 +779,7 @@ fn attention_query_preserves_unseen_state_and_distinguishes_missing_sessions() {
         AgentSessionId::parse("missing").unwrap(),
         AgentSessionId::parse("agent-1").unwrap(),
     ];
-    ui.board.open();
+    ui.board.open_picker(None, false);
     let snapshot = ui.read_agent_attention(&sessions).unwrap();
     assert!(snapshot.answers(&sessions));
     assert_eq!(snapshot.outer_focused, None);

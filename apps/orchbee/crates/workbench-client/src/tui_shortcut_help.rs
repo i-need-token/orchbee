@@ -327,9 +327,6 @@ fn local_action_title(locale: Locale, action: &PrefixAction) -> String {
         PrefixAction::NavigatorToggle | PrefixAction::Client(A::OpenWorkbenchNavigator) => {
             ShortcutLabel::Navigator
         }
-        PrefixAction::BoardToggle | PrefixAction::Client(A::ToggleAgentBoard) => {
-            ShortcutLabel::AgentBoard
-        }
         PrefixAction::Client(A::StartAgent) => ShortcutLabel::StartAgent,
         PrefixAction::ShowHelp | PrefixAction::Client(A::OpenShortcutHelp) => ShortcutLabel::Help,
         PrefixAction::SelectTabDigit => ShortcutLabel::TabNumber,

@@ -144,7 +144,7 @@ mod switch_membership;
 
 #[cfg(test)]
 pub(crate) use crate::agent_board::AgentBoardInputContext;
-pub(crate) use crate::agent_board::{AgentBoardDraw, AgentBoardSummary, AgentBoardView};
+pub(crate) use crate::agent_board::{AgentBoardDraw, AgentBoardView};
 
 pub use crate::localization::DisplayPhase;
 
@@ -336,7 +336,6 @@ pub struct WorkbenchClientView<'a> {
     retirement_requested: bool,
     board: Option<AgentBoardView<'a>>,
     worktree: Option<&'a crate::workbench_state::worktree_launch::Launcher>,
-    board_summary: Option<&'a AgentBoardSummary>,
     copy_mode: Option<&'a super::copy_episode::CopyModeEpisodes>,
     attention: Option<&'a super::agent_attention::AgentAttention>,
     reports: Option<&'a super::panel_reports::PanelReports>,
@@ -1316,16 +1315,10 @@ impl<'a> WorkbenchClientView<'a> {
         self.retirement
     }
 
-    /// The Agent board's read handle — `Some` only while the board is
-    /// open, so a closed board never paints and never claims hits.
+    /// The Start Agent picker's read handle — `Some` only while the picker is
+    /// open, so a closed picker never paints and never claims hits.
     pub const fn agent_board(&self) -> Option<&AgentBoardView<'a>> {
         self.board.as_ref()
-    }
-
-    /// The sidebar's summary of the last completed Agent read — `None`
-    /// when no read has completed, never an implied zero.
-    pub(crate) const fn agent_board_summary(&self) -> Option<AgentBoardSummary> {
-        self.board_summary.copied()
     }
 
     pub(crate) fn copy_mode(&self) -> Option<crate::terminal_copy_mode::CopyModeView<'a>> {
@@ -1381,7 +1374,6 @@ impl<'a> WorkbenchClientView<'a> {
             retirement: None,
             retirement_requested: false,
             board: None,
-            board_summary: None,
             copy_mode: None,
             attention: None,
             reports: None,
@@ -1425,7 +1417,6 @@ impl<'a> WorkbenchClientView<'a> {
             retirement: None,
             retirement_requested: false,
             board: None,
-            board_summary: None,
             copy_mode: None,
             attention: None,
             reports: None,
@@ -1551,10 +1542,9 @@ pub(super) struct WorkbenchClientUi {
     outer_focused: Option<bool>,
     focus_control: control_takeover::FocusControl,
     state: Option<WorkbenchClientState>,
+    /// The Start Agent picker's owner.
     board: crate::agent_board::AgentBoard,
-    /// The Board's read lane; its answers settle into `board`.
-    board_reads: agent_board::BoardReads,
-    /// The Board's startup jobs; they settle into `board`'s start state.
+    /// The picker's startup jobs; they settle into `board`'s start state.
     start_jobs: crate::agent_board::start::jobs::Jobs,
     /// The Session's Agent catalog stream; its reports settle into `board`'s start state.
     agent_catalog: super::agent_catalog::Lane,
@@ -1699,7 +1689,6 @@ impl WorkbenchClientUi {
             board: crate::agent_board::AgentBoard::new(
                 capabilities.supports(crate::tui_capabilities::Capability::AgentLaunch),
             ),
-            board_reads: agent_board::BoardReads::new(clock.clone()),
             start_jobs: Default::default(),
             agent_catalog: Default::default(),
             worktrees: worktree_launch::Coordinator::default(),
@@ -1802,7 +1791,6 @@ impl WorkbenchClientUi {
             retirement: self.retirement,
             retirement_requested: self.retirement_failure.is_some(),
             board: self.agent_board_view(),
-            board_summary: self.board.summary(),
             copy_mode: Some(&self.copy_mode),
             attention: Some(&self.attention),
             reports: state
@@ -2025,7 +2013,6 @@ impl WorkbenchClientUi {
         }
         self.start_jobs.request_stop();
         self.agent_catalog.close();
-        self.board_reads.request_stop();
         self.attention.request_stop();
         self.reports.request_stop();
         self.graphics.request_stop();
@@ -2043,7 +2030,6 @@ impl WorkbenchClientUi {
         self.request_stop();
         [
             self.start_jobs.stop_before(deadline),
-            self.board_reads.stop_before(deadline),
             self.attention.stop_before(deadline),
             self.reports.stop_before(deadline),
             self.graphics.stop_before(deadline),
@@ -2222,15 +2208,7 @@ impl WorkbenchClientUi {
             changed |= self.schedule_close_set(&mailbox);
             self.schedule_pane_reconcile(&mailbox);
             self.schedule_poll(&mailbox);
-            // Board lane settlement and intent scheduling remain fair while a
-            // client surface covers native content. Only a focus-moving jump
-            // must wait until the total compositor names Board as the top.
-            let allow_agent_board_jump =
-                crate::tui_composition::project_capture(client_capture, self.capture_claims())
-                    == Some(crate::tui_composition::CaptureOwner::Native(
-                        crate::tui_composition::WorkbenchCaptureOwner::AgentBoard,
-                    ));
-            changed |= self.drive_agent_board(allow_agent_board_jump);
+            changed |= self.drive_agent_board();
             {
                 if let Some(state) = self.state.as_mut()
                     && self.overlays.tick(state)
@@ -3252,15 +3230,12 @@ impl WorkbenchClientUi {
             state.clear_settled_setup_status();
             state.dismiss_record_notice();
         }
-        // The board and every other surface are mutually exclusive: any
-        // action that is not the board's own toggle closes it first —
+        // The picker and every other surface are mutually exclusive: any
+        // action that is not the picker's own key closes it first —
         // navigator, help, sidebar, modals, and pane operations all take
         // the overlay slot back.
-        if !matches!(
-            action,
-            ClientAction::ToggleAgentBoard | ClientAction::StartAgent
-        ) {
-            self.board_reads.close_board(&mut self.board);
+        if action != ClientAction::StartAgent {
+            self.board.close();
         }
         if matches!(
             action,
@@ -3413,7 +3388,6 @@ impl WorkbenchClientUi {
                 self.structure_action(StructureAction::Panel(PanelRequestKind::Move { direction }))
             }
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
-            ClientAction::ToggleAgentBoard => self.toggle_agent_board(),
             ClientAction::StartAgent => self.open_agent_picker(),
             ClientAction::FocusBusinessSidebar => ClientActionDisposition::KeepNavigator,
             ClientAction::ToggleBusinessSidebar
@@ -4180,7 +4154,7 @@ impl WorkbenchClientUi {
                 Ok(MutationResult::Applied) => {
                     self.state = installed;
                     self.attach_agent_start_failures();
-                    // The accepted bootstrap seeds the board's index —
+                    // The accepted bootstrap seeds the presentation index —
                     // only installed canonical state may feed it.
                     let mut index = crate::agent_board::PresentationIndex::default();
                     if let Some(state) = self.state.as_ref() {
@@ -4459,7 +4433,7 @@ impl WorkbenchClientUi {
         }
     }
 
-    /// Adopts an accepted canonical snapshot as the Agent board's index, shows the resume and start
+    /// Adopts an accepted canonical snapshot as the presentation index, shows the resume and start
     /// facts it brings and moves each Presentation's title to its binding: every path that accepts
     /// a snapshot passes here.
     fn adopt_snapshot_index(&mut self, snapshot: &orchbee_workbench_protocol::Snapshot) {
@@ -4482,7 +4456,7 @@ impl WorkbenchClientUi {
             self.retire(CarrierFailure::Protocol);
             return true;
         };
-        // The board's presentation index may only consume a snapshot the
+        // The presentation index may only consume a snapshot the
         // session itself accepted — keep it until the verdict proves the
         // snapshot drove a Membership/Append application.
         let index_snapshot = match &outcome {
@@ -5181,7 +5155,7 @@ impl WorkbenchClientUi {
         if self.retirement_failure.is_none() {
             self.retirement_poll_serial = self.ordinary_poll_serial;
         }
-        self.board_reads.close_board(&mut self.board);
+        self.board.close();
         self.reports.close();
         self.graphics.close();
         self.overlays.close();
@@ -5424,8 +5398,8 @@ fn switch_to(
     Ok(SwitchMarker::new(target))
 }
 
-/// `build_switch` carrying the stable panel identity the Agent board's
-/// jump wants focused after the tab switch lands — the same admission
+/// `build_switch` carrying the stable panel identity to focus after the
+/// tab switch lands — the same admission
 /// checks, the same `begin_switch`, only the selected pane differs: it
 /// resolves `panel_id` to its current index instead of `panel(0)`.
 fn build_switch_for_panel(

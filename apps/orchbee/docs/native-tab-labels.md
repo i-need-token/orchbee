@@ -21,7 +21,7 @@ after move or close; it never renames a survivor or commits another revision. Ra
 identities, Presentation labels and bindings remain unchanged by reordering. Duplicate display
 names are permitted.
 
-Native Tab-strip, navigator, status, Tab-menu, close-confirmation and Agent board chrome share one display name. Fixed names remain
+Native Tab-strip, navigator, status, Tab-menu and close-confirmation chrome share one display name. Fixed names remain
 exact. An automatic name comes from one Panel of the Tab: the focused Panel while the Tab is selected,
 otherwise the Panel selecting it would focus, which is the one this Client last left focused, else the first.
 Selecting another Tab therefore never changes a Tab's name; moving focus inside the selected Tab does.
@@ -117,8 +117,7 @@ Both Clients name each Presentation by one rule:
   row, so no name changes until the person leaves or a new connection replaces the view.
 - A title marks nothing unread and changes no notification or Agent state.
 
-The window title's `{tab}` and terminal title placeholders still read the live frame only. The
-Agent board names other Workspaces' Presentations by the same titles.
+The window title's `{tab}` and terminal title placeholders still read the live frame only.
 
 ## Consumers and model
 
@@ -134,12 +133,7 @@ mode. Same-revision refresh remains exact, while later canonical revisions may c
 rename. Create validation pins the submitted mode at the commit revision and takes the Server-chosen binding and launched program from the candidate, so that fact never breaks exact Create validation. A surviving fixed Tab cannot become automatic again; an automatic survivor keeps its raw
 creation text until a rename switches it to fixed mode. Completion
 cannot overwrite an intervening rename. Close confirmation names a live Tab as the strip does and
-otherwise keeps the name captured when it opened. An Agent board row names its attached
-Presentation and that Presentation's Tab by the same rule: for a Tab of the current context it
-uses the strip's own names; for another context it applies the rule to snapshot facts and the
-titles the Server publishes there (custom label, then title, then committed or failed launch
-program, then position). A Presentation with no name of its own takes its Tab's name,
-and the row omits a Tab name equal to its title. Selection, input
+otherwise keeps the name captured when it opened. Selection, input
 ownership, geometry and terminal controller rights are independent of naming.
 
 The naming fact is the complete pair `(raw label, automatic mode)`, not only visible text. Creating or renaming can clear automatic mode without changing text. Movement preserves that metadata and derives display from order. Concrete codec, authority, projection and Windows process tests check these obligations; there is no separate label workflow model.

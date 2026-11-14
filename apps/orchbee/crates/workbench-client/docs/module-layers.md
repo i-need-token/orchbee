@@ -131,23 +131,6 @@ references the UI composition. `WorkbenchClientView::pane_geometries` is the onl
 entry into the arranged projection; the arranged active-pane area and geometry exist only for
 tests.
 
-## Agent board reads
-
-`agent_board` never holds a read lane. It issues each list or jump read as a
-typed request stamped with its open episode, and settles answers, a foreign outcome, and the lane's
-end through one entry. `workbench_client::agent_read_lane` runs the requests in that vocabulary,
-and `workbench_client::ui` owns the lane's lifetime under these invariants:
-
-- At most one Board lane thread is alive. A lane starts only after every retired predecessor's
-  thread has ended, and nothing on the UI path joins a running thread.
-- The live lane serves exactly one open episode. Every composition entry that can close the Board
-  retires the lane in the same step: it interrupts the in-flight exchange and keeps the handle until
-  the thread ends. The per-tick drive repeats the check before it settles answers.
-- The Board settles every answer that a lane queued before its thread ended, and only then that
-  lane's end; the end fails only a request that no answer settled.
-- Process exit interrupts the live and retired lanes and observes them under the shared Client
-  exit budget. Connection release joins them before the mailbox retires.
-
 ## Module assignment
 
 Each row is the target layer. A note names the part that must move when a module mixes layers
@@ -157,8 +140,8 @@ today.
 | --------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `action_menu`                                 | `state`        | Client-local menu capture and selection, and which prefix binding a menu target advertises.                                                                      |
 | `action_projection`                           | `values`       | Action identity, category, tone, and discovery metadata projected from `client_actions`.                                                                         |
-| `agent_board`                                 | `state`        | Agent board rows from the last completed read, the board's selection and queued intents, and its typed [read](#agent-board-reads) vocabulary.                    |
-| `agent_board::start::jobs`                    | `workflow`     | Agent startup jobs; they settle outcomes into the Board's start state.                                                                                           |
+| `agent_board`                                 | `state`        | The Start Agent picker's open episode, start state and catalog, and the presentation index that names notifications and terminal titles.                         |
+| `agent_board::start::jobs`                    | `workflow`     | Agent startup jobs; they settle outcomes into the picker's start state.                                                                                          |
 | `agent_completion`                            | `values`       | Deterministic Client completion presentation and input acknowledgement; no provider or Server status mutation.                                                   |
 | `agent_provider`                              | `values`       | Recognized Agent identities, canonical command names, and the managed integration identity re-exported from `orchbee-agent-integration`.                         |
 | `agent_runtime`                               | `workflow`     | Agent execution ports and the observation facts that Agent start consumes.                                                                                       |
@@ -247,7 +230,7 @@ today.
 | `windows_signal`                              | `workflow`     | Windows console interrupt dispatcher.                                                                                                                            |
 | `workbench_client`                            | `composition`  | Connection-task lifetime and UI composition. Its children carry their own layers below.                                                                          |
 | `workbench_client::agent_attention`           | `workflow`     | Agent attention observation lane and paint acknowledgements.                                                                                                     |
-| `workbench_client::agent_catalog`             | `workflow`     | The Session's Agent catalog State stream on the shared carrier; its reports settle into the Board's start state.                                                 |
+| `workbench_client::agent_catalog`             | `workflow`     | The Session's Agent catalog State stream on the shared carrier; its reports settle into the picker's start state.                                                |
 | `workbench_client::agent_notifications`       | `values`       | Logical-time notification policy.                                                                                                                                |
 | `workbench_client::agent_read_lane`           | `workflow`     | Bounded Agent and Panel read jobs on the shared carrier.                                                                                                         |
 | `workbench_client::client_control`            | `workflow`     | Remote navigation lane whose steps the UI owner advances.                                                                                                        |

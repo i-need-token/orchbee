@@ -3,9 +3,9 @@ use serde::Deserialize;
 
 use super::super::start::{Phase, StartPlace, place_after, test_catalog};
 use super::{
-    Escape, Group, Holds, Item, Meta, Picker, Places, Sources, Status, escape, items, menu_agents,
-    status,
+    Group, Holds, Item, Meta, Picker, Places, Sources, Status, items, menu_agents, status,
 };
+use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use crate::workbench_state::AgentStartRefusal;
 
 fn panel(value: u128) -> WorkbenchPanelId {
@@ -135,7 +135,7 @@ fn the_cursor_rests_on_the_most_recent_provider_else_the_first_installed() {
     for (recent, expected) in cases {
         let catalog = test_catalog(&["codex", "gemini", "claude-code"], recent);
         let rows = items(&Sources::new(&catalog, &[]), "", false);
-        let picker = Picker::new(false, Places::new(None, |_| false));
+        let picker = Picker::new(Places::new(None, |_| false));
         let index = picker.cursor_index(&rows).unwrap();
         assert!(
             matches!(rows[index], Item::Provider { id, .. } if id == expected),
@@ -271,19 +271,14 @@ fn tab_cycles_the_places_forward_and_shift_tab_backward_wrapping() {
 
 #[test]
 fn esc_clears_the_query_then_leaves_the_picker() {
-    let cases = [
-        (false, false, Escape::ClearQuery),
-        (false, true, Escape::ClearQuery),
-        (true, true, Escape::BackToBoard),
-        (true, false, Escape::Close),
-    ];
-    for (query_empty, from_board, expected) in cases {
-        assert_eq!(
-            escape(query_empty, from_board),
-            expected,
-            "{query_empty} {from_board}"
-        );
-    }
+    let mut board = super::super::AgentBoard::new(true);
+    board.open_picker(None, false);
+    let _ = board.picker_key(KeyEvent::press(KeyCode::Char('c'), Modifiers::NONE));
+    assert_eq!(board.picker().unwrap().query(), "c");
+    assert!(!board.picker_escape(), "Esc clears the query first");
+    assert_eq!(board.picker().unwrap().query(), "");
+    assert!(board.picker_escape(), "Esc on an empty query closes");
+    assert!(!board.is_open());
 }
 
 /// The new-Tab menu lists what the picker lists first: Recent, then Installed A–Z, at most four,

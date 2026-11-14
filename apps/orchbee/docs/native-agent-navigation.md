@@ -109,8 +109,8 @@ checks the exact Agent source, usable terminal geometry, Ready or Empty session 
 of its own pending refresh, submitted or uncertain structural operations and close recovery. A
 background publication read is waited out first under the original operation deadline, as the
 [Windows Client control](windows-client-control.md#tui-execution) contract states. A failed
-preflight leaves modes intact. Unsubmitted rename/setup drafts, close confirmations and the Agent
-board can be cancelled through their owners; retained operation receipts cannot be discarded.
+preflight leaves modes intact. Unsubmitted rename/setup drafts, close confirmations and the Start Agent
+picker can be cancelled through their owners; retained operation receipts cannot be discarded.
 
 The controller owns one mode-exit preparation per command. It requests a single shell-owned
 overlay/prefix dismissal and asks every retained history viewport to exit through its existing

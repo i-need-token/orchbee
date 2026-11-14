@@ -160,7 +160,7 @@ enum Call {
     Mode(ModeRequest),
     Action(ClientAction),
     Confirmation(crate::client_view::ClientKey),
-    BoardSelect(orchbee_agent_observation_protocol::AgentSessionId),
+    BoardControl(crate::agent_board::AgentBoardControl),
 }
 
 struct UnavailablePort(Rc<RefCell<Vec<Call>>>);
@@ -1668,8 +1668,8 @@ fn a_layout_changed_disposition_reobserves_layout_and_stales_the_pointer_map() {
     assert_eq!(*layout_passes.borrow(), 1);
 }
 
-/// A port whose Board capture intent the test flips directly, plus a record
-/// of the exact-episode row selections the pointer path produces.
+/// A port whose picker capture intent the test flips directly, plus a record
+/// of the exact-episode control activations the pointer path produces.
 struct BoardPort {
     calls: Rc<RefCell<Vec<Call>>>,
     owned: Rc<std::cell::Cell<bool>>,
@@ -1710,18 +1710,16 @@ impl BoardPort {
         self.action_menu.cancel();
     }
 
-    fn agent_board_select(&mut self, target: &crate::agent_board::AgentBoardRowTarget) -> bool {
-        let expected = crate::agent_board::AgentBoardRowTarget::for_test(
+    fn agent_board_control(&mut self, target: &crate::agent_board::AgentBoardControlTarget) {
+        let expected = crate::agent_board::AgentBoardControlTarget::for_test(
             crate::agent_board::AgentBoardEpisodeToken::for_test(1),
-            target.session().clone(),
+            target.control(),
         );
-        if !self.owned.get() || target != &expected {
-            return false;
+        if self.owned.get() && target == &expected {
+            self.calls
+                .borrow_mut()
+                .push(Call::BoardControl(target.control()));
         }
-        self.calls
-            .borrow_mut()
-            .push(Call::BoardSelect(target.session().clone()));
-        true
     }
 }
 
@@ -1730,10 +1728,14 @@ impl TerminalInputPort for BoardPort {
         &mut self,
         action: crate::terminal_input::SurfaceAction<'_>,
     ) -> Option<crate::client_view::ClientActionDisposition> {
-        use crate::terminal_input::{MenuAction, SurfaceAction};
+        use crate::terminal_input::{BoardAction, MenuAction, SurfaceAction};
         match action {
             SurfaceAction::ActionMenu(MenuAction::Cancel) => {
                 self.cancel_action_menu();
+                None
+            }
+            SurfaceAction::AgentBoard(BoardAction::Control(target)) => {
+                self.agent_board_control(target);
                 None
             }
             _ => None,
@@ -1746,7 +1748,6 @@ impl TerminalInputPort for BoardPort {
             SurfaceInput::AgentBoard { episode, key } => {
                 self.capture_agent_board_key_for(episode, key)
             }
-            SurfaceInput::AgentBoardSelect(target) => self.agent_board_select(target),
             _ => false,
         }
     }
@@ -1789,7 +1790,7 @@ impl TerminalInputPort for BoardPort {
         command: crate::workbench_client::InputAction,
     ) -> Option<ClientActionDisposition> {
         let action = command.intent();
-        if action == ClientAction::ToggleAgentBoard {
+        if action == ClientAction::StartAgent {
             self.owned.set(!self.owned.get());
         } else {
             self.owned.set(false);
@@ -1906,10 +1907,10 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
     let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
-    let session = orchbee_agent_observation_protocol::AgentSessionId::parse("s-1").unwrap();
+    let control = crate::agent_board::AgentBoardControl::Place;
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     // The open edge settles first so the map published below is the
-    // current authority, matching the painted board.
+    // current authority, matching the painted picker.
     dispatcher
         .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
             Ok::<(), io::Error>(())
@@ -1921,29 +1922,29 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
         crate::tui_hit_map::HitLayer::Overlay,
         ratatui::layout::Rect::new(0, 0, 10, 1),
         ratatui::layout::Rect::new(0, 0, 10, 1),
-        crate::tui_hit_map::InteractionTarget::AgentBoardRow(
-            crate::agent_board::AgentBoardRowTarget::for_test(
+        crate::tui_hit_map::InteractionTarget::AgentBoardControl(
+            crate::agent_board::AgentBoardControlTarget::for_test(
                 crate::agent_board::AgentBoardEpisodeToken::for_test(1),
-                session.clone(),
+                control,
             ),
         ),
         crate::tui_hit_map::InteractionSpec::enabled(
-            crate::tui_hit_map::PrimaryContract::SelectOnPress,
+            crate::tui_hit_map::PrimaryContract::ActivateOnRelease,
         ),
     );
     dispatcher.publish_hit_map(hits.finish());
-    // Baseline: the press resolves the painted row.
+    // Baseline: the click activates the painted control.
     dispatcher
         .dispatch(
             &mut view,
-            b"[<0;1;1M",
+            b"[<0;1;1M[<0;1;1m",
             &mut port,
             Instant::now(),
             |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
-    assert_eq!(*calls.borrow(), [Call::BoardSelect(session.clone())]);
+    assert_eq!(*calls.borrow(), [Call::BoardControl(control)]);
     // The close edge turns the recorded regions into lies about a
     // surface that is no longer painted: the next synchronize drops the
     // whole map and the same press resolves nothing.
@@ -1957,7 +1958,7 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
     dispatcher
         .dispatch(
             &mut view,
-            b"[<0;1;1M",
+            b"[<0;1;1M[<0;1;1m",
             &mut port,
             Instant::now(),
             |_, _| Ok::<bool, io::Error>(false),
@@ -1966,7 +1967,7 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
         .unwrap();
     assert!(
         calls.borrow().is_empty(),
-        "the stale row must not resolve after the close edge"
+        "the stale control must not resolve after the close edge"
     );
 }
 
@@ -2062,22 +2063,19 @@ fn an_open_board_admits_prefix_toggles_and_keeps_paste_captured() {
         );
         assert!(view.prefix_active());
         assert!(view.notice().is_none());
-        // The later `g` completes the prefix toggle through ClientView and
-        // closes the same board episode.
+        // The later `G` completes the prefix toggle through ClientView and
+        // closes the same picker episode.
         dispatcher
             .dispatch(
                 &mut view,
-                b"g",
+                b"G",
                 &mut port,
                 Instant::now(),
                 |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(()),
             )
             .unwrap();
-        assert_eq!(
-            *calls.borrow(),
-            [Call::Action(ClientAction::ToggleAgentBoard)]
-        );
+        assert_eq!(*calls.borrow(), [Call::Action(ClientAction::StartAgent)]);
         assert!(!owned.get());
         assert!(!view.prefix_active());
         assert!(forwarded_bytes(&calls).is_empty());
@@ -2319,19 +2317,19 @@ fn agent_board_prefix_toggle_opens_and_closes_through_native_owner() {
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
 
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02g");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02G");
     assert!(owned.get());
     assert_eq!(
         calls.borrow().as_slice(),
-        [Call::Action(ClientAction::ToggleAgentBoard)]
+        [Call::Action(ClientAction::StartAgent)]
     );
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02g");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02G");
     assert!(!owned.get());
     assert_eq!(
         calls.borrow().as_slice(),
         [
-            Call::Action(ClientAction::ToggleAgentBoard),
-            Call::Action(ClientAction::ToggleAgentBoard),
+            Call::Action(ClientAction::StartAgent),
+            Call::Action(ClientAction::StartAgent),
         ]
     );
     assert!(forwarded_bytes(&calls).is_empty());
@@ -2346,7 +2344,7 @@ fn confirmation_capture_keeps_first_refusal_over_the_agent_board_prefix_route() 
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
 
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02g");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02G");
 
     assert_eq!(
         *calls.borrow(),
@@ -2365,7 +2363,7 @@ fn opening_board_acquires_paste_before_installing_capture_and_fences_the_packet_
     dispatcher
         .dispatch(
             &mut ClientView::new(100),
-            b"\x02gtail",
+            b"\x02Gtail",
             &mut port,
             Instant::now(),
             |_, _| Ok::<bool, io::Error>(false),
@@ -2382,7 +2380,7 @@ fn opening_board_acquires_paste_before_installing_capture_and_fences_the_packet_
         *calls.borrow(),
         [
             Call::Mode(ModeRequest::BracketedPaste(true)),
-            Call::Action(ClientAction::ToggleAgentBoard),
+            Call::Action(ClientAction::StartAgent),
         ]
     );
 }

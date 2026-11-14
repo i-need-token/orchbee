@@ -1293,23 +1293,14 @@ impl InputDispatcher {
                             self.item_idle_motion = Some(changed);
                         }
                         PointerOutcome::Interaction { target, contract } => {
-                            match (target, contract) {
-                                (
-                                    InteractionTarget::AgentBoardRow(target),
-                                    PrimaryContract::SelectOnPress,
-                                ) => {
-                                    let _accepted =
-                                        port.surface_input(SurfaceInput::AgentBoardSelect(&target));
-                                }
-                                (
-                                    InteractionTarget::AgentBoardControl(target),
-                                    PrimaryContract::ActivateOnRelease,
-                                ) => {
-                                    let _accepted = port.surface_action(SurfaceAction::AgentBoard(
-                                        BoardAction::Control(&target),
-                                    ));
-                                }
-                                _ => {}
+                            if let (
+                                InteractionTarget::AgentBoardControl(target),
+                                PrimaryContract::ActivateOnRelease,
+                            ) = (target, contract)
+                            {
+                                let _accepted = port.surface_action(SurfaceAction::AgentBoard(
+                                    BoardAction::Control(&target),
+                                ));
                             }
                             self.pointer_packet = true;
                             self.keys.capture_pending();
@@ -1652,7 +1643,7 @@ impl InputDispatcher {
         {
             self.flush_pending(view, port);
             let DecodedKind::Key(event) = item.kind else {
-                unreachable!("the Agent Board prefix route accepts only keys")
+                unreachable!("the Start Agent picker prefix route accepts only keys")
             };
             let transition = view.decide_agent_board_prefix(PrefixInput::Key(event));
             return self.apply_transition(
@@ -2370,7 +2361,6 @@ impl InputDispatcher {
                 ClientAction::RequestRenameTab
                     | ClientAction::RequestRenamePanel
                     | ClientAction::OpenSettings
-                    | ClientAction::ToggleAgentBoard
                     | ClientAction::StartAgent
                     | ClientAction::RequestWorkspaceCreate
                     | ClientAction::RequestQuickWorkspace

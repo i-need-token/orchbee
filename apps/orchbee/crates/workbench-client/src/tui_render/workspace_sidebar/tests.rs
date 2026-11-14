@@ -2022,10 +2022,8 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
         let now = std::time::Instant::now();
         for step in 0..10 {
             assert!(
-                view.machines.advance_working_motion(
-                    now + std::time::Duration::from_millis(step * 100),
-                    false
-                )
+                view.machines
+                    .advance_working_motion(now + std::time::Duration::from_millis(step * 100))
             );
         }
         let mut animated_hits = HitMapBuilder::new();

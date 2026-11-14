@@ -353,7 +353,7 @@ pub fn adjustable_operation_clock(
 pub fn disconnected_origin() -> super::super::LocalClientOrigin {
     super::super::LocalClientOrigin {
         multiplex: None,
-        endpoint: PathBuf::from("/nonexistent-orchbee-agent-board.sock"),
+        endpoint: PathBuf::from("/nonexistent-orchbee-agent.sock"),
         offer: std::sync::Arc::new(super::handshake::offer()),
         local: true,
         carrier: None,

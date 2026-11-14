@@ -83,7 +83,7 @@ Wheel inside the served content contributes three rows per notch, bounded by the
 ## Input ownership and bindings
 
 An exclusive editor, confirmation, popup or machine surface has precedence. Copy mode then owns
-the whole decoded input packet before the prefix, board, ordinary history, configured direct
+the whole decoded input packet before the prefix, Start Agent picker, ordinary history, configured direct
 bindings and terminal passthrough. Entry cancels the preceding pointer gesture,
 help and armed prefix. Modes do not nest. The packet containing entry or exit remains captured;
 trailing bytes, releases, unknown sequences and malformed or over-bound paste never reach the pane.

@@ -18,7 +18,7 @@ Git branch retains its unique operation identity. A create with a typed branch t
 name from that branch. Renaming the Workspace later does not rename the branch or move files.
 
 There is one New Worktree form. The sidebar row menus' New Worktree… opens it for their addressed
-source, and New Worktree in the [Start Agent picker](agent-board.md) opens it for one create under
+source, and New Worktree in the [Start Agent picker](start-agent-picker.md) opens it for one create under
 the same refusals, with the picker left open beneath it. The picker prefills Branch with
 `agent/<provider id>`, which stays editable. No draft submits on its first draw. Cancelling before submission returns to the picker with its query, cursor and place. The
 submitted create carries the provider's catalog id as `agentStart`, which the Server hands to the

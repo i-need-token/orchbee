@@ -67,14 +67,11 @@ pub enum SurfaceInput<'a> {
         token: crate::workbench_state::workspace_close::WorkspaceCloseToken,
         key: ClientKey,
     },
-    /// A key for the exact Agent board capture episode.
+    /// A key for the exact Start Agent picker capture episode.
     AgentBoard {
         episode: crate::agent_board::AgentBoardEpisodeToken,
         key: KeyEvent,
     },
-    /// A press on a painted board row: provisional selection by stable session identity, never
-    /// by position.
-    AgentBoardSelect(&'a crate::agent_board::AgentBoardRowTarget),
     /// Pages the painted Tab strip window; a stale source changes nothing.
     TabStripPage {
         source: &'a DrawnTabCreate,
@@ -197,10 +194,10 @@ pub enum FindAction {
     Close(crate::terminal_find::FindToken),
 }
 
-/// Committed Agent board gestures.
+/// Committed Start Agent picker gestures.
 pub enum BoardAction<'a> {
     Control(&'a crate::agent_board::AgentBoardControlTarget),
-    /// An outside press dismissed the board's capturing overlay.
+    /// An outside press dismissed the picker's capturing overlay.
     Dismiss,
 }
 

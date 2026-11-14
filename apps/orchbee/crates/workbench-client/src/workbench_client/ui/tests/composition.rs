@@ -17,7 +17,7 @@ use ratatui::{Terminal, backend::TestBackend};
 
 const WIDTH: u16 = 120;
 const FULL_HEIGHT: u16 = 40;
-const REFUSED_HEIGHT: u16 = 8;
+const REFUSED_HEIGHT: u16 = 6;
 
 struct RenderedFrame {
     terminal: Terminal<TestBackend>,
@@ -87,9 +87,7 @@ fn render(
 fn board_hit(target: &HitTarget) -> bool {
     matches!(
         target,
-        HitTarget::AgentBoardRow(_)
-            | HitTarget::AgentBoardControl(_)
-            | HitTarget::ListScroll(ListScrollTarget::AgentBoard(_))
+        HitTarget::AgentBoardControl(_) | HitTarget::ListScroll(ListScrollTarget::AgentBoard(_))
     )
 }
 
@@ -99,7 +97,7 @@ fn admit_board(
     locale: Locale,
     theme: &Theme,
 ) -> AgentBoardEpisodeToken {
-    ui.board.open();
+    open_listing_picker(ui);
     let episode = ui.board.episode();
     let frame = render(ui, shell, WIDTH, FULL_HEIGHT, locale, theme);
     assert!(frame.has_hit(board_hit), "the Board must actually paint");
@@ -109,6 +107,13 @@ fn admit_board(
     assert_eq!(context.presentation(), PresentationPhase::Admitted);
     assert!(context.interactive());
     episode
+}
+
+/// Opens the picker with providers to list, so a short host cannot paint its list.
+fn open_listing_picker(ui: &mut WorkbenchClientUi) {
+    ui.board.open_picker(None, false);
+    ui.board.install_start_catalog_t(&["codex", "amp"]);
+    ui.board.accept_start_without_task_t();
 }
 
 fn open_loaded_settings(ui: &mut WorkbenchClientUi) {
@@ -142,7 +147,7 @@ fn settings_is_the_only_painted_owner_when_it_coexists_with_the_board() {
     assert!(!frame.has_hit(board_hit));
     let text = frame.text();
     assert!(text.contains(Locale::EnUs.settings_title()));
-    assert!(!text.contains(Locale::EnUs.shell().board.title));
+    assert!(!text.contains(Locale::EnUs.shell().board.picker.title));
 
     ui.after_close_draw(frame.receipt);
     assert_eq!(
@@ -172,7 +177,11 @@ fn panel_close_confirmation_outranks_and_is_painted_instead_of_the_board() {
     let frame = render(&ui, &shell, WIDTH, FULL_HEIGHT, Locale::EnUs, &theme);
     assert!(frame.has_hit(|target| matches!(target, HitTarget::PanelClose { .. })));
     assert!(!frame.has_hit(board_hit));
-    assert!(!frame.text().contains(Locale::EnUs.shell().board.title));
+    assert!(
+        !frame
+            .text()
+            .contains(Locale::EnUs.shell().board.picker.title)
+    );
 
     ui.after_close_draw(frame.receipt);
     assert!(
@@ -201,7 +210,11 @@ fn machine_capture_suppresses_native_proof_hits_and_remembered_sidebar_focus() {
     assert!(shell.machines.sidebar_navigation_active());
     let frame = render(&ui, &shell, WIDTH, FULL_HEIGHT, Locale::EnUs, &theme);
     assert!(!frame.has_hit(board_hit));
-    assert!(!frame.text().contains(Locale::EnUs.shell().board.title));
+    assert!(
+        !frame
+            .text()
+            .contains(Locale::EnUs.shell().board.picker.title)
+    );
     assert!(!frame.has_hit(|target| matches!(
         target,
         HitTarget::MachineGroupRow { .. }
@@ -256,7 +269,7 @@ fn first_geometry_refusal_and_admitted_suspension_have_distinct_local_recovery()
         .next()
         .expect("effective application-exit binding");
 
-    ui.board.open();
+    open_listing_picker(&mut ui);
     let first = render(&ui, &shell, WIDTH, REFUSED_HEIGHT, locale, &theme);
     assert!(!first.has_hit(board_hit));
     let text = first.text();

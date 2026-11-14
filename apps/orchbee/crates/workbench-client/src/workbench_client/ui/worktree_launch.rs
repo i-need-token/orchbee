@@ -293,7 +293,7 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::DismissNavigator;
         }
         if agent.is_none() {
-            self.board_reads.close_board(&mut self.board);
+            self.board.close();
         }
         if mailbox.try_enqueue_worktree_preparation_for(
             state,
@@ -479,7 +479,7 @@ impl WorkbenchClientUi {
                 ..
             }
         ) {
-            self.board_reads.close_board(&mut self.board);
+            self.board.close();
         }
         self.observe_worktree();
         self.submit_worktree_start(plan);

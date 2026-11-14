@@ -65,7 +65,7 @@ and dragging moves it. Right-clicking the new-Tab button lists the saved launch 
 default first and marked Default, then a separated Agents section under its heading: up to four
 Agents by product name, the picker's Recent then Installed rows in its order, and More Agents… with
 the `Ctrl+b Shift+G` key. An Agent row starts that Agent in a new Tab of the current Workspace without a
-question, through the [Start Agent picker](agent-board.md)'s new-Tab place; More Agents… opens the
+question, through the [Start Agent picker](start-agent-picker.md)'s new-Tab place; More Agents… opens the
 picker with new Tab as its place. The rows come from the Session's Agent catalog as already held:
 opening the menu never asks the Server to look again, and the rows are fixed when the menu opens,
 so a catalog that arrives later reorders nothing. While a lookup runs the section lists what is

@@ -1,5 +1,4 @@
-//! Localized Agent board, Start Agent picker and start notice labels; does not reinterpret Agent
-//! state.
+//! Localized Start Agent picker and start notice labels.
 
 use super::Locale;
 use crate::workbench_state::{AgentStartNotice, AgentStartRefusal};
@@ -30,30 +29,9 @@ impl From<AgentStartNotice> for AgentStartStatus {
     }
 }
 
-/// The Agent board's localized copy. Read-state lines, jump-refusal notices,
-/// action labels and shortcut verbs live here; the Board key map supplies the
-/// separately formatted effective key labels.
+/// The Start Agent picker's and start notices' localized copy.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct AgentBoardText {
-    pub(crate) title: &'static str,
-    pub(crate) open_button: &'static str,
-    pub(crate) refresh_button: &'static str,
-    /// No completed read yet — never rendered as "no Agents".
-    pub(crate) unread: &'static str,
-    pub(crate) in_flight: &'static str,
-    /// The page walk exhausted its bound — shown, never hidden.
-    pub(crate) incomplete: &'static str,
-    pub(crate) read_denied: &'static str,
-    pub(crate) read_unavailable: &'static str,
-    pub(crate) read_transport: &'static str,
-    pub(crate) lane_unavailable: &'static str,
-    /// A completed read found zero sessions.
-    pub(crate) empty: &'static str,
-    /// A partial empty read is not proof that there are no sessions.
-    pub(crate) empty_partial: &'static str,
-    /// The board's first row and its key hint, which open the Start Agent picker.
-    pub(crate) start_row: &'static str,
-    pub(crate) start_hint: &'static str,
     pub(crate) picker: AgentPickerText,
     pub(crate) start_failed: &'static str,
     /// `{product}` is the provider's product name.
@@ -72,22 +50,8 @@ pub(crate) struct AgentBoardText {
     /// The shorter forms the status line shows when a start notice does not fit; each keeps
     /// the outcome and drops the advice.
     pub(crate) start_short: AgentStartShortText,
-    pub(crate) jumping: &'static str,
     pub(crate) close_hint: &'static str,
     pub(crate) select_hint: &'static str,
-    pub(crate) jump_hint: &'static str,
-    pub(crate) refresh_hint: &'static str,
-    pub(crate) stale: &'static str,
-    pub(crate) disconnected: &'static str,
-    pub(crate) no_workspace: &'static str,
-    /// Location placeholder for a session without a navigable panel.
-    pub(crate) no_panel: &'static str,
-    pub(crate) jump_gone: &'static str,
-    pub(crate) jump_unavailable: &'static str,
-    pub(crate) jump_denied: &'static str,
-    pub(crate) jump_ended: &'static str,
-    pub(crate) jump_no_placement: &'static str,
-    pub(crate) jump_expired: &'static str,
 }
 
 impl AgentBoardText {
@@ -155,20 +119,6 @@ pub(crate) struct AgentStartShortText {
 }
 
 const EN_US_BOARD: AgentBoardText = AgentBoardText {
-    title: "Agent board",
-    open_button: "Open",
-    refresh_button: "Refresh",
-    unread: "No completed Agent read yet",
-    in_flight: "Reading Agent sessions…",
-    incomplete: "listing incomplete",
-    read_denied: "Agent read denied",
-    read_unavailable: "Agent runtime unavailable",
-    read_transport: "Agent read failed: transport",
-    lane_unavailable: "Agent board unavailable: no read lane",
-    empty: "No Agent sessions",
-    empty_partial: "No sessions in this partial read.",
-    start_row: "Start Agent",
-    start_hint: "start Agent",
     picker: AgentPickerText {
         title: "Start Agent",
         search: "Search",
@@ -217,38 +167,11 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
         terminal_too_old: "Nothing was typed: terminal from an older Orchbee",
         unknown: "Startup unconfirmed · check the terminal",
     },
-    jumping: "Jumping…",
     close_hint: "close",
     select_hint: "select",
-    jump_hint: "jump",
-    refresh_hint: "refresh",
-    stale: "stale",
-    disconnected: "disconnected",
-    no_workspace: "No workspace",
-    no_panel: "No navigable panel",
-    jump_gone: "Session or its panel is gone",
-    jump_unavailable: "Cannot verify session · read unavailable",
-    jump_denied: "Session read denied",
-    jump_ended: "Session has ended",
-    jump_no_placement: "Session has no navigable panel",
-    jump_expired: "Jump timed out",
 };
 
 const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
-    open_button: "打开",
-    refresh_button: "刷新",
-    title: "智能体看板",
-    unread: "尚未完成智能体读取",
-    in_flight: "正在读取智能体会话…",
-    incomplete: "列表不完整",
-    read_denied: "智能体读取被拒绝",
-    read_unavailable: "智能体运行时不可用",
-    read_transport: "智能体读取失败：传输错误",
-    lane_unavailable: "看板不可用：无读取通道",
-    empty: "没有智能体会话",
-    empty_partial: "本次不完整读取暂未返回会话。",
-    start_row: "启动智能体",
-    start_hint: "启动智能体",
     picker: AgentPickerText {
         title: "启动智能体",
         search: "搜索",
@@ -297,193 +220,15 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
         terminal_too_old: "未输入任何内容：终端由旧版 Orchbee 启动",
         unknown: "启动结果未确认 · 请查看终端",
     },
-    jumping: "正在跳转…",
     close_hint: "关闭",
     select_hint: "选择",
-    jump_hint: "跳转",
-    refresh_hint: "刷新",
-    stale: "已过期",
-    disconnected: "已断连",
-    no_workspace: "未打开工作区",
-    no_panel: "无可跳转面板",
-    jump_gone: "会话或其面板已不存在",
-    jump_unavailable: "无法验证会话 · 读取不可用",
-    jump_denied: "会话读取被拒绝",
-    jump_ended: "会话已结束",
-    jump_no_placement: "会话没有可跳转的面板",
-    jump_expired: "跳转超时",
 };
-
-/// The renderer-facing read state of the board's last list attempt.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentBoardRead {
-    /// No completed read yet — never rendered as "no Agents".
-    Unread,
-    InFlight,
-    /// `complete` marks the page walk reached the canonical end marker;
-    /// `false` means the walk exhausted its budget — shown, never hidden.
-    Ready {
-        complete: bool,
-        at: std::time::Instant,
-    },
-    Failed(AgentBoardReadFailure),
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentBoardReadFailure {
-    /// The dedicated read lane could not be established at all.
-    LaneUnavailable,
-    Denied,
-    /// The Agent runtime answered `unavailable`.
-    Unavailable,
-    /// Transport/connection failure, including post-submission ambiguity.
-    Transport,
-}
-
-/// Why a jump refused; every variant maps to a localized board notice.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum JumpFailure {
-    /// Get found the session but no resolvable navigable attachment, or the
-    /// session disappeared / its presentation identity vanished.
-    Gone,
-    /// Get could not produce an observation (transport or runtime
-    /// unavailability) — the jump never proceeds from unverified state.
-    Unavailable,
-    Denied,
-    /// The canonical lifecycle says the session already ended.
-    Ended,
-    /// The session has no navigable presentation attachment at all.
-    NoPlacement,
-    /// The jump's total budget elapsed before landing.
-    Expired,
-}
-
-/// The sidebar's honest summary of the last completed read — `None` means
-/// no completed read ever ran and the sidebar shows no count (never zero).
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct AgentBoardSummary {
-    pub(crate) sessions: usize,
-    pub(crate) complete: bool,
-    /// When that read completed — the sidebar renders its age.
-    pub(crate) at: std::time::Instant,
-}
 
 impl Locale {
     pub(super) const fn agent_board_text(self) -> AgentBoardText {
         match self {
             Self::EnUs => EN_US_BOARD,
             Self::ZhCn => ZH_CN_BOARD,
-        }
-    }
-
-    /// One board row's canonical semantic status, rendered verbatim —
-    /// the board localizes the server's verdict, never reinterprets it.
-    pub(crate) fn agent_status(
-        self,
-        status: &orchbee_agent_observation_protocol::AgentSemanticStatus,
-    ) -> String {
-        use orchbee_agent_observation_protocol::AgentSemanticStatus;
-        match status {
-            AgentSemanticStatus::NeedsAttention { count } => match self {
-                Self::EnUs => format!("needs attention · {}", count.value()),
-                Self::ZhCn => format!("需要关注 · {}", count.value()),
-            },
-            AgentSemanticStatus::Failed {} => match self {
-                Self::EnUs => "failed".to_owned(),
-                Self::ZhCn => "失败".to_owned(),
-            },
-            AgentSemanticStatus::Succeeded {} => match self {
-                Self::EnUs => "Done".to_owned(),
-                Self::ZhCn => "完成".to_owned(),
-            },
-            AgentSemanticStatus::Canceled {} => match self {
-                Self::EnUs => "canceled".to_owned(),
-                Self::ZhCn => "已取消".to_owned(),
-            },
-            AgentSemanticStatus::Interrupted {} => match self {
-                Self::EnUs => "interrupted".to_owned(),
-                Self::ZhCn => "已中断".to_owned(),
-            },
-            AgentSemanticStatus::Working { .. } => match self {
-                Self::EnUs => "working".to_owned(),
-                Self::ZhCn => "工作中".to_owned(),
-            },
-            AgentSemanticStatus::Idle {} => match self {
-                Self::EnUs => "idle".to_owned(),
-                Self::ZhCn => "空闲".to_owned(),
-            },
-            AgentSemanticStatus::Unknown { .. } => match self {
-                Self::EnUs => "unknown".to_owned(),
-                Self::ZhCn => "未知".to_owned(),
-            },
-            AgentSemanticStatus::Ended {} => match self {
-                Self::EnUs => "ended".to_owned(),
-                Self::ZhCn => "已结束".to_owned(),
-            },
-        }
-    }
-
-    /// The board body's line for a non-ready read state.
-    pub(crate) fn agent_board_read_line(
-        self,
-        read: crate::localization::AgentBoardRead,
-    ) -> &'static str {
-        use crate::localization::{AgentBoardRead, AgentBoardReadFailure};
-        let board = self.agent_board_text();
-        match read {
-            AgentBoardRead::Unread => board.unread,
-            AgentBoardRead::InFlight => board.in_flight,
-            AgentBoardRead::Failed(AgentBoardReadFailure::Denied) => board.read_denied,
-            AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable) => board.read_unavailable,
-            AgentBoardRead::Failed(AgentBoardReadFailure::Transport) => board.read_transport,
-            AgentBoardRead::Failed(AgentBoardReadFailure::LaneUnavailable) => {
-                board.lane_unavailable
-            }
-            AgentBoardRead::Ready { .. } => board.empty,
-        }
-    }
-
-    /// A jump refusal's board notice.
-    pub(crate) fn agent_board_notice(
-        self,
-        failure: crate::localization::JumpFailure,
-    ) -> &'static str {
-        use crate::localization::JumpFailure;
-        let board = self.agent_board_text();
-        match failure {
-            JumpFailure::Gone => board.jump_gone,
-            JumpFailure::Unavailable => board.jump_unavailable,
-            JumpFailure::Denied => board.jump_denied,
-            JumpFailure::Ended => board.jump_ended,
-            JumpFailure::NoPlacement => board.jump_no_placement,
-            JumpFailure::Expired => board.jump_expired,
-        }
-    }
-
-    /// The sidebar's one-line Agent summary: the last *completed* read's
-    /// count plus its completeness and age marks — `None` input means no
-    /// completed read ever ran and the line must not exist at all.
-    pub(crate) fn agent_sidebar_line(
-        self,
-        summary: crate::localization::AgentBoardSummary,
-        elapsed: std::time::Duration,
-    ) -> String {
-        let seconds = elapsed.as_secs();
-        let mark = if summary.complete { "" } else { "+" };
-        match self {
-            Self::EnUs => {
-                format!(
-                    "  {} {} · {}s ago",
-                    summary.sessions,
-                    if summary.sessions == 1 {
-                        "agent"
-                    } else {
-                        "agents"
-                    },
-                    seconds,
-                ) + mark
-            }
-            Self::ZhCn => format!("  智能体 {} · {}秒前", summary.sessions, seconds) + mark,
         }
     }
 

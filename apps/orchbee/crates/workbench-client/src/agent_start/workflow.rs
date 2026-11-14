@@ -339,7 +339,7 @@ impl Workflow<'_> {
         wake: Option<LocalIo<'_>>,
     ) -> Result<Instant, Failure> {
         // Without arguments no literal argv wrapper is needed; the short form keeps the
-        // shell's echo to one line for the board and the CLI alike.
+        // shell's echo to one line for the picker and the CLI alike.
         let concise = self
             .request
             .args

@@ -64,24 +64,6 @@ use crate::workbench_state::CloseStatusToken;
 use crate::localization::TerminalStatus;
 
 mod agent_board;
-#[cfg(test)]
-pub(crate) fn render_agent_board_for_test(
-    frame: &mut Frame<'_>,
-    locale: Locale,
-    board: &crate::agent_board::AgentBoardView<'_>,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) -> AgentBoardDraw {
-    agent_board::render(
-        frame,
-        frame.area(),
-        locale.shell(),
-        locale,
-        board,
-        (theme, 0),
-        hits,
-    )
-}
 mod agent_sidebar;
 mod contexts;
 pub(crate) mod controls;
@@ -470,12 +452,6 @@ pub fn render_terminal_shell_with_resize<'a>(
             );
         }
         if let Some(sidebar) = areas.sidebar {
-            let agent_line = match workbench_client.as_ref() {
-                Some(native) => native
-                    .agent_board_summary()
-                    .map(|summary| locale.agent_sidebar_line(summary, summary.at.elapsed())),
-                _ => None,
-            };
             if view.machines.available {
                 let captured = capture_owner.is_some();
                 // An open row menu keeps its target row as it was when the menu opened.
@@ -532,7 +508,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                     hits.record_covered_sidebar_geometry(covered_sidebar);
                 }
             } else {
-                render_sidebar(frame, sidebar, text, session_status, agent_line, theme);
+                render_sidebar(frame, sidebar, text, session_status, theme);
             }
         }
         // The Tab list covers the window as the sidebar list does. Under a capture, such as the
@@ -614,7 +590,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
         }
 
-        // The Agent board is Client-owned rather than a ClientView
+        // The Start Agent picker is Client-owned rather than a ClientView
         // overlay: it paints above the workbench (and any chrome overlay)
         // but below armed modals, and its painted truth settles input
         // capture through the draw receipt.
@@ -622,20 +598,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             && let Some(native) = workbench_client.as_ref()
             && let Some(board) = native.agent_board()
         {
-            let working_frame = view.machines.working_frame();
-            // Rows name each Tab of the current context exactly as the Tab strip does.
-            let board = board.with_names(native);
-
-            let draw = agent_board::render(
-                frame,
-                frame.area(),
-                text,
-                locale,
-                &board,
-                (theme, working_frame),
-                hits,
-            );
-            board_draw = Some(draw);
+            board_draw = Some(agent_board::render(frame, text, board, theme, hits));
         }
 
         if native_top(WorkbenchCaptureOwner::WorkspaceClose)
@@ -727,7 +690,7 @@ pub fn render_terminal_shell_with_resize<'a>(
         }
     }
 
-    // An open board that could not paint at all (too-small viewport)
+    // An open picker that could not paint at all (too-small viewport)
     // still reports its verdict — input capture never settles on an
     // unpainted surface.
     if native_top(WorkbenchCaptureOwner::AgentBoard)
@@ -2725,7 +2688,6 @@ fn render_sidebar(
     sidebar: SidebarArea,
     text: ShellText,
     backend_status: SessionStatus<'_>,
-    agent_line: Option<String>,
     theme: &Theme,
 ) {
     if sidebar.covers() {
@@ -2764,13 +2726,6 @@ fn render_sidebar(
             fit(format!("  {}", text.agents)),
             theme.style(Role::TextSecondary),
         )),
-        // The last *completed* read's count plus age/completeness marks —
-        // absent entirely when no read ever completed (never an implied
-        // zero, never live data).
-        agent_line.map_or_else(
-            || ListItem::new(""),
-            |line| ListItem::new(Line::styled(fit(line), theme.style(Role::TextSecondary))),
-        ),
         ListItem::new(""),
         ListItem::new(Line::styled(
             fit(text.sidebar_hint.to_owned()),

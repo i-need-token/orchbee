@@ -107,7 +107,7 @@ fn restored_filtered_selection_is_visible_on_the_first_small_frame() {
             MenuAction::RenameTab,
             MenuAction::Machines,
             MenuAction::Settings,
-            MenuAction::AgentBoard,
+            MenuAction::StartAgent,
         ],
         None,
     ));

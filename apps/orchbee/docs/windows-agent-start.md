@@ -62,7 +62,7 @@ the next step, with the same handle:
 `agent prompt --name <name>` after a canonical confirmation, or `agent prompt --panel <panel>`
 after an observed one, whose name was not bound.
 
-The [Start Agent picker](agent-board.md) lists from the Session's
+The [Start Agent picker](start-agent-picker.md) lists from the Session's
 [Agent catalog](../../orchbee-server/README.md#agent-catalog), which the Server keeps from its
 Worker's [Agent probe](../../orchbee-worker/README.md#agent-probe-job); the Client looks at no
 `PATH` of its own and runs no lookup process. Each opening of the picker asks the Server to look
@@ -222,7 +222,7 @@ When the Tab's creation or the split commits, the CLI reads the new Panel's shel
 PowerShell and a marked cmd count as launched; any other shell answers the not-idle refusal without
 the settling retry, since nothing will be typed into it. The TUI reads nothing and runs no early
 check for a new Panel: its start notices come from that `agentStartFailure` fact, shown once as the
-[Agent board](agent-board.md) describes. POSIX shells have no managed startup that takes a first
+[Start Agent picker](start-agent-picker.md) describes. POSIX shells have no managed startup that takes a first
 command, and the TUI starts no Agent there; the CLI parses the same grammar on POSIX and reports its
 existing unsupported outcome.
 
@@ -412,7 +412,7 @@ is not required for this Windows slice.
 
 Windows Agent Get v1 (v1 with a selected Client) includes `management` with its own read source, sampled canonical revision and `state`. The Server retains active startup identity only after accepted Complete; manual naming remains unmanaged. Active means that launch was confirmed interactive, independently of later work, attention, freshness or OS focus. Name clear, end/removal/disposal, provider mismatch and exact physical-binding retirement/replacement clear the managed record. Renaming preserves it. Managed names are transient and are not restored from checkpoints.
 
-Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v1. Successful Start v1 adds required interactiveReady to its existing completion and send evidence: true after a named start's confirmation and false after a start without a name. The CLI blocked-start cancellation policy is unchanged. The interactive board can wait for canonical attention to clear within its original budget; neither path reports input as needed from screen text, though the board's observed confirmation accepts a published blocked state as started and the
+Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v1. Successful Start v1 adds required interactiveReady to its existing completion and send evidence: true after a named start's confirmation and false after a start without a name. The CLI blocked-start cancellation policy is unchanged. The interactive picker start can wait for canonical attention to clear within its original budget; neither path reports input as needed from screen text, though the picker's observed confirmation accepts a published blocked state as started and the
 CLI refuses it as `agent-blocked`.
 
-The native form leaves the provider unset while detection has no result; its name field starts empty and stays optional. Found providers precede manual choices; an explicit choice stays pinned by provider identity across catalog updates. Without an explicit choice, the first found provider becomes the default; a completed empty catalog selects the first manual provider. Startup feedback appears once in the board status row and directs unconfirmed outcomes to the terminal. Only a pinned canonical attention observation declares that input is needed; process presence alone never proves readiness.
+The native form leaves the provider unset while detection has no result; its name field starts empty and stays optional. Found providers precede manual choices; an explicit choice stays pinned by provider identity across catalog updates. Without an explicit choice, the first found provider becomes the default; a completed empty catalog selects the first manual provider. Startup feedback appears once in the status line and directs unconfirmed outcomes to the terminal. Only a pinned canonical attention observation declares that input is needed; process presence alone never proves readiness.

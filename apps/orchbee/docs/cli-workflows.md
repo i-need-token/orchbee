@@ -70,7 +70,7 @@ capsule integrity.
 Version-3 JSON and localized text report `windows-endpoint-not-inspected`. Capsule 0.4.16
 adds Windows Codex hooks, and Windows x64 cohorts include their required pinned ConPTY
 runtime. Doctor does not exercise that transport. An installed hook or `complete:true`
-does not establish Agent-board readiness. Managed enable/disable and `agent start`/`prompt` are available; see [Windows onboarding](windows-agent-integrations.md) and [startup](windows-agent-start.md).
+does not establish Agent readiness. Managed enable/disable and `agent start`/`prompt` are available; see [Windows onboarding](windows-agent-integrations.md) and [startup](windows-agent-start.md).
 
 ## Prerequisites
 

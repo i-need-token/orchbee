@@ -65,8 +65,6 @@ pub enum ClientAction {
     /// Opens the Agent the visible notification card announced.
     OpenNotificationTarget,
     CloseWorkbenchNavigator,
-    /// `Ctrl+B g` — toggles the Client-owned Agent board overlay.
-    ToggleAgentBoard,
     /// `Ctrl+B G` — opens the Start Agent picker.
     StartAgent,
     CreateTab,
@@ -159,7 +157,6 @@ impl ClientAction {
             | Self::PageShortcutHelp
             | Self::OpenWorkbenchNavigator
             | Self::CloseWorkbenchNavigator
-            | Self::ToggleAgentBoard
             | Self::StartAgent
             | Self::TogglePointerCapture
             | Self::EnterHistory
@@ -245,7 +242,6 @@ pub enum MenuAction {
     Help,
     Sidebar,
     Navigator,
-    AgentBoard,
     StartAgent,
     /// A new-Tab menu row: starts this provider in a new Tab of the current Workspace.
     StartAgentInTab(&'static str),
@@ -326,7 +322,6 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::Help => Self::Help,
             MenuAction::Sidebar => Self::Sidebar,
             MenuAction::Navigator => Self::Navigator,
-            MenuAction::AgentBoard => Self::AgentBoard,
             MenuAction::StartAgent => Self::StartAgent,
             MenuAction::StartAgentInTab(_) => Self::StartAgentInTab,
             MenuAction::MoreAgents => Self::MoreAgents,
@@ -411,7 +406,6 @@ impl MenuAction {
             Self::Help => ClientAction::OpenShortcutHelp,
             Self::Sidebar => ClientAction::ToggleBusinessSidebar,
             Self::Navigator => ClientAction::OpenWorkbenchNavigator,
-            Self::AgentBoard => ClientAction::ToggleAgentBoard,
             Self::StartAgent => ClientAction::StartAgent,
             Self::OpenNotificationTarget => ClientAction::OpenNotificationTarget,
             Self::ReleasePointer => ClientAction::TogglePointerCapture,
@@ -444,7 +438,6 @@ pub(crate) enum PrefixAction {
     SelectAgentDigit,
     SidebarToggle,
     NavigatorToggle,
-    BoardToggle,
     ShowHelp,
     HelpPagePrevious,
     HelpPageNext,

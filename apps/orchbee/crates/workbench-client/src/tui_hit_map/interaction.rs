@@ -35,7 +35,6 @@ pub enum InteractionTarget {
         token: crate::action_menu::MenuToken,
         control: crate::action_menu::MenuControl,
     },
-    AgentBoardRow(crate::agent_board::AgentBoardRowTarget),
     AgentBoardControl(crate::agent_board::AgentBoardControlTarget),
     Presentation(crate::tui_hit_map::DrawnPresentationTarget),
     HeldRestore(crate::tui_hit_map::HeldRestoreTarget),
@@ -74,7 +73,7 @@ impl InteractionTarget {
     }
 
     pub(crate) const fn is_agent_board(&self) -> bool {
-        matches!(self, Self::AgentBoardRow(_) | Self::AgentBoardControl(_))
+        matches!(self, Self::AgentBoardControl(_))
     }
 
     pub(crate) const fn is_action_menu(&self) -> bool {
@@ -158,7 +157,6 @@ impl InteractionTarget {
                 token: *token,
                 control: *control,
             },
-            Self::AgentBoardRow(target) => HitTarget::AgentBoardRow(target.clone()),
             Self::AgentBoardControl(target) => HitTarget::AgentBoardControl(target.clone()),
             Self::Presentation(target) => HitTarget::Presentation(target.clone()),
             Self::HeldRestore(target) => HitTarget::HeldRestore(target.clone()),

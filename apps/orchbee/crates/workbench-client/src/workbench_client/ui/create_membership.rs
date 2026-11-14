@@ -91,7 +91,7 @@ impl WorkbenchClientUi {
         match result {
             Ok(MutationResult::Applied) => {
                 // The snapshot that drove this accepted recovery is the
-                // freshest canonical feed the board's index may see.
+                // freshest canonical feed the presentation index may see.
                 if let Some(snapshot) = &index_snapshot {
                     self.adopt_snapshot_index(snapshot);
                 }
@@ -116,7 +116,7 @@ impl WorkbenchClientUi {
             self.retire(CarrierFailure::Protocol);
             return true;
         };
-        // The board's presentation index consumes the snapshot only when
+        // The presentation index consumes the snapshot only when
         // the accepted reply used it — a refused or divergent create
         // outcome never feeds it.
         let index_snapshot = match &outcome {

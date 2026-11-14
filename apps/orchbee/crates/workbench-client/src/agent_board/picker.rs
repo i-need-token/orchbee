@@ -1,4 +1,4 @@
-//! The Start Agent picker: one nested task inside the Agent board's modal owner.
+//! The Start Agent picker: the task its modal owner holds while open.
 //!
 //! The picker lists the Session's Agent catalog in groups — recent, installed, then one folded
 //! row for the providers its machine did not find or cannot check — filters them as the query changes, and hands
@@ -325,25 +325,6 @@ pub(crate) fn menu_agents(sources: &Sources<'_>) -> Vec<&'static str> {
         .collect()
 }
 
-/// What Esc does in the picker: it clears a query first, then returns to the board the
-/// picker was opened from, otherwise closes.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Escape {
-    ClearQuery,
-    BackToBoard,
-    Close,
-}
-
-pub(crate) const fn escape(query_empty: bool, from_board: bool) -> Escape {
-    if !query_empty {
-        Escape::ClearQuery
-    } else if from_board {
-        Escape::BackToBoard
-    } else {
-        Escape::Close
-    }
-}
-
 /// A start the picker accepted; the composition runs it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PickedStart {
@@ -359,7 +340,6 @@ pub(crate) struct Picker {
     expanded: bool,
     scroll: usize,
     viewport: usize,
-    from_board: bool,
     places: Places,
     /// Holds while the picker stays open; a query change never resets it.
     place: StartPlace,
@@ -367,14 +347,13 @@ pub(crate) struct Picker {
 }
 
 impl Picker {
-    fn new(from_board: bool, places: Places) -> Self {
+    fn new(places: Places) -> Self {
         Self {
             query: LineEditor::new(String::new(), LengthLimit::Bytes(MAXIMUM_QUERY_BYTES)),
             cursor: None,
             expanded: false,
             scroll: 0,
             viewport: 0,
-            from_board,
             place: places.automatic(),
             places,
             revision: 0,
@@ -488,11 +467,21 @@ impl Picker {
     }
 }
 
-/// The picker's part of a Board draw: any change to what it lists or where its cursor rests.
+/// The picker's part of a draw: any change to what it lists or where its cursor rests.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct DrawSource {
     revision: u64,
     start: u64,
+}
+
+impl DrawSource {
+    #[cfg(test)]
+    pub(super) const fn for_test() -> Self {
+        Self {
+            revision: 0,
+            start: 0,
+        }
+    }
 }
 
 /// What a key or click inside the picker did.
@@ -503,6 +492,7 @@ pub(crate) enum PickerOutcome {
 }
 
 impl AgentBoard {
+    #[cfg(test)]
     pub(crate) const fn picker(&self) -> Option<&Picker> {
         self.picker.as_ref()
     }
@@ -516,10 +506,7 @@ impl AgentBoard {
 
     /// The Session's Agents as last observed.
     pub(crate) fn observe_session_agents(&mut self, agents: SessionAgents) {
-        if self.session_agents != agents {
-            self.session_agents = agents;
-            self.follow_shown_agents();
-        }
+        self.session_agents = agents;
     }
 
     /// What the picker lists from, while a catalog is held.
@@ -594,15 +581,16 @@ impl AgentBoard {
         .with_worktree(worktree)
     }
 
-    /// `Ctrl+B G`: opens the Board's owner straight into the picker, without reading the
-    /// Board's rows. `worktree` offers New Worktree.
+    /// `Ctrl+B G`: opens the picker. `worktree` offers New Worktree.
     pub(crate) fn open_picker(&mut self, focus: Option<&WorkbenchPanelId>, worktree: bool) {
-        self.open();
-        self.intent = None;
-        self.start_picker(focus, worktree, false);
+        let places = self.places(focus, worktree);
+        self.open_with(Picker::new(places));
+        // Each opening asks the composition to have the Server look for installed Agents again;
+        // the new-Tab menu never asks.
+        self.catalog_refresh = true;
     }
 
-    /// The new-Tab menu's "More Agents…": the picker alone, with a new Tab as its place.
+    /// The new-Tab menu's "More Agents…": the picker with a new Tab as its place.
     pub(crate) fn open_picker_in_new_tab(
         &mut self,
         focus: Option<&WorkbenchPanelId>,
@@ -614,61 +602,27 @@ impl AgentBoard {
         }
     }
 
-    /// The Board's Start Agent row or `s`: the picker replaces the Board's content until Esc.
-    pub(crate) fn enter_picker(
-        &mut self,
-        focus: Option<&WorkbenchPanelId>,
-        worktree: bool,
-    ) -> bool {
-        if !self.open || self.picker.is_some() || !self.offers_start() {
-            return false;
-        }
-        self.start_picker(focus, worktree, true);
-        true
-    }
-
-    /// Opens the picker and asks the composition to have the Server look for installed Agents
-    /// again; the new-Tab menu never asks.
-    fn start_picker(&mut self, focus: Option<&WorkbenchPanelId>, worktree: bool, from_board: bool) {
-        let places = self.places(focus, worktree);
-        self.picker = Some(Picker::new(from_board, places));
-        self.catalog_refresh = true;
-        self.shown = None;
-    }
-
     /// Whether an opened picker asked for a new lookup since the last call.
     pub(crate) fn take_catalog_refresh(&mut self) -> bool {
         std::mem::replace(&mut self.catalog_refresh, false)
     }
 
-    fn leave_picker(&mut self) {
-        self.picker = None;
-        self.shown = None;
-    }
-
-    /// Esc inside the picker. Returns whether the whole owner closed.
+    /// Esc inside the picker: it clears a query first, otherwise closes. Returns whether the
+    /// picker closed.
     pub(crate) fn picker_escape(&mut self) -> bool {
         let Some(picker) = self.picker.as_mut() else {
             return false;
         };
-        match escape(picker.query().is_empty(), picker.from_board) {
-            Escape::ClearQuery => {
-                picker.query.clear();
-                picker.cursor = None;
-                picker.scroll = 0;
-                picker.touch();
-                self.shown = None;
-                false
-            }
-            Escape::BackToBoard => {
-                self.leave_picker();
-                false
-            }
-            Escape::Close => {
-                self.close();
-                true
-            }
+        if picker.query().is_empty() {
+            self.close();
+            return true;
         }
+        picker.query.clear();
+        picker.cursor = None;
+        picker.scroll = 0;
+        picker.touch();
+        self.shown = None;
+        false
     }
 
     /// One key the picker owns. Esc is the caller's, so its order stays in one place.
@@ -734,15 +688,10 @@ impl AgentBoard {
                 PickerOutcome::Handled
             }
             AgentBoardControl::Close => {
-                // The close control leaves the picker the way Esc does with an empty query.
-                if self.picker.as_ref().is_some_and(|picker| picker.from_board) {
-                    self.leave_picker();
-                } else {
-                    self.close();
-                }
+                // The close control closes the picker the way Esc does with an empty query.
+                self.close();
                 PickerOutcome::Handled
             }
-            _ => PickerOutcome::Handled,
         }
     }
 

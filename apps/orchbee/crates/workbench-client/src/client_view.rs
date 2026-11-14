@@ -1198,7 +1198,7 @@ impl ClientView {
                     | ClientAction::UnknownPrefix
             )
         ) {
-            // The native Agent Board owns input while visible. Literal,
+            // The Start Agent picker owns input while visible. Literal,
             // canceled, and unknown local prefix results stay in that owner;
             // only a recognized global binding leaves through its action.
             ClientTransition {
@@ -1292,7 +1292,7 @@ impl ClientView {
                     (action, ShellCommand::None)
                 }
             }
-            ClientAction::ToggleAgentBoard | ClientAction::StartAgent => {
+            ClientAction::StartAgent => {
                 self.replace_overlay(None);
                 (action, ShellCommand::None)
             }
@@ -1442,7 +1442,6 @@ impl ClientView {
             PrefixAction::NavigatorToggle => {
                 self.apply_action_decision(ClientAction::OpenWorkbenchNavigator)
             }
-            PrefixAction::BoardToggle => self.apply_action_decision(ClientAction::ToggleAgentBoard),
             PrefixAction::ShowHelp => self.apply_action_decision(ClientAction::OpenShortcutHelp),
             PrefixAction::HelpPagePrevious | PrefixAction::HelpPageNext => {
                 if self.overlay == Some(Overlay::ShortcutHelp) {

@@ -823,7 +823,7 @@ impl WorkbenchClient {
         );
         let _accepted =
             native.finalize_retirement(pending_create, pending_move, pending_panel, close_return);
-        // The board lane's blocked thread join precedes mailbox release —
+        // The Agent lanes' blocked thread joins precede mailbox release —
         // draining lane outcomes is over before the mailbox can retire.
         native.release_agent_lane();
         native.release_mailbox();

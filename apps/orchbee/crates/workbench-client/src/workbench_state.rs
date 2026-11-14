@@ -751,7 +751,7 @@ pub(crate) enum ClientNotice {
     /// A dialog could not be drawn when it was requested; nothing ran.
     DialogRefused,
     /// A modal surface or armed confirmation owns the input layer — the
-    /// Agent board refused to open rather than fight for capture.
+    /// Start Agent picker refused to open rather than fight for capture.
     ModalOwnsInput,
     AgentStart(AgentStartNotice),
     /// The viewport lost its facts/anchor and is returning to live —
@@ -1917,8 +1917,8 @@ impl WorkbenchClientState {
     }
 
     /// Whether a context-selection admission is currently in flight —
-    /// the Agent board's jump planner waits it out instead of stacking
-    /// a second selection behind it.
+    /// a navigation planner waits it out instead of stacking a second
+    /// selection behind it.
     pub(crate) fn context_selecting(&self) -> bool {
         self.context_selection.is_some()
     }
@@ -3689,7 +3689,7 @@ impl WorkbenchClientState {
     }
 
     /// `target_for_switch` carrying the stable panel identity the caller
-    /// wants focused after landing — the Agent board's jump variant. The
+    /// wants focused after landing — the exact-Panel variant. The
     /// identity is re-resolved to the at-that-moment `panel_index` here,
     /// so the switch can never fall back to `panel(0)` for a known target.
     /// `None` when the panel is not currently present in that tab.
@@ -3754,9 +3754,9 @@ impl WorkbenchClientState {
 
     /// Whether the named panel's viewer is live under the current desired
     /// anchor — attached, projected, not departing, and holding a
-    /// controller mode. The Agent board's jump requires this for its
-    /// `Landed` verdict: a resolved placement with a dead viewer record
-    /// must reattach, never land.
+    /// controller mode. Exact-Panel navigation requires this before it
+    /// lands: a resolved placement with a dead viewer record must
+    /// reattach, never land.
     pub(crate) fn panel_viewer_live(&self, panel: &WorkbenchPanelId) -> bool {
         let Some(anchor) = self.desired.as_ref().map(PaneKey::anchor) else {
             return false;
@@ -3767,7 +3767,7 @@ impl WorkbenchClientState {
             })
     }
 
-    /// The Agent board's same-tab dead-viewer repair: the selected tab is
+    /// Exact-Panel navigation's same-tab dead-viewer repair: the selected tab is
     /// already the anchor, but the target panel has no live viewer under
     /// it — a fresh-generation attach target on the same tab re-creates
     /// the viewer through the ordinary switch machinery (`begin_switch`),

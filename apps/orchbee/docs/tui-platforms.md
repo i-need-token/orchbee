@@ -84,7 +84,7 @@ I/O failure or fabricates a recovered or empty checkpoint.
 
 Unsupported optional actions are absent from menus and shortcut discovery. The sidebar omits
 New workspace without directory input. Without a launch adapter, Start Agent is absent from menus,
-shortcut help, the status line and the Agent board; its binding opens the picker only to show the
+shortcut help and the status line; its binding opens the picker only to show the
 localized unsupported explanation. Copy-mode navigation
 and search remain usable without a clipboard; the copy button and copy hint are absent. The UI
 revalidates capability at invocation, so a stale or explicitly entered operation reports an

@@ -42,7 +42,7 @@ impl WorkbenchClientUi {
         marker: CloseReconciliationMarker,
         outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome,
     ) -> bool {
-        // The board's index consumes the snapshot only when this reply
+        // The presentation index consumes the snapshot only when this reply
         // installs a membership candidate from it — a failed
         // reconciliation's `Continue` never feeds it.
         let index_snapshot = match &outcome {

@@ -1070,7 +1070,6 @@ fn sidebar_status_truncates_with_ellipsis_on_grapheme_boundaries() {
                 text: "Tab 1 · Ready · controlling",
                 role: crate::tui_theme::Role::StatusSuccess,
             },
-            None,
             &theme,
         );
     }));

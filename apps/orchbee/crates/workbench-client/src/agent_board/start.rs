@@ -46,7 +46,6 @@ pub(crate) use crate::workbench_state::AgentStartPhase as Phase;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Drain {
     pub(super) changed: bool,
-    pub(super) started: bool,
 }
 
 impl Phase {

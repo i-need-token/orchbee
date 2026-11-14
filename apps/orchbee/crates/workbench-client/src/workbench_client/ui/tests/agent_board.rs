@@ -1,16 +1,10 @@
-//! The Agent board's UI-seam tests: the presentation index is fed only
-//! by snapshots the session actually accepted — through bootstrap and
-//! every snapshot-bearing applier — and a jump resolving against an
-//! index no canonical snapshot ever fed waits inside its own deadline
-//! instead of reporting `Gone`.
+//! The Start Agent picker's UI-seam tests: the presentation index is fed only by snapshots the
+//! session actually accepted — through bootstrap and every snapshot-bearing applier — and the
+//! picker's capture is exact to its open episode.
 
 use super::super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::EventDeadline;
-use orchbee_agent_observation_protocol::{
-    AgentAttachmentGeneration, AgentPresentationAttachment, AgentPresentationId,
-    AgentPresentationVisibility,
-};
 use orchbee_workbench_protocol::*;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
@@ -21,13 +15,8 @@ fn key(code: crate::client_view::KeyCode) -> crate::client_view::KeyEvent {
     crate::client_view::KeyEvent::press(code, crate::client_view::Modifiers::NONE)
 }
 
-fn attachment(presentation: u64) -> AgentPresentationAttachment {
-    AgentPresentationAttachment {
-        generation: AgentAttachmentGeneration::parse("gen-1").unwrap(),
-        navigable: true,
-        presentation_id: AgentPresentationId::parse(&format!("{presentation:032x}")).unwrap(),
-        visibility: AgentPresentationVisibility::Visible,
-    }
+fn presentation(id: u64) -> String {
+    format!("{id:032x}")
 }
 
 fn fixture() -> (
@@ -80,17 +69,18 @@ fn ready(ui: &mut WorkbenchClientUi) {
 #[test]
 fn bootstrap_feeds_the_index_only_through_the_accepted_cache() {
     let (mut ui, mailbox, clock) = fixture();
-    // Before any canonical feed the index is unready — an empty map a
-    // jump could only misread as "nothing exists".
-    assert!(!ui.agent_index.ready());
+    assert!(
+        ui.agent_index
+            .placement_by_presentation(&presentation(0x3ea))
+            .is_none()
+    );
     bootstrap(&mut ui, &mailbox, &clock);
-    assert!(ui.agent_index.ready());
     // `snapshot(1, ·)` paints one tab: presentation 0x3ea (1002) on tab
     // 0x3e8, panel 0x3e9 — the index resolves the stable identity to the
     // exact canonical placement.
     let placement = ui
         .agent_index
-        .placement(&attachment(0x3ea))
+        .placement_by_presentation(&presentation(0x3ea))
         .expect("the bootstrap snapshot's presentation resolves");
     assert_eq!(
         placement.tab_id,
@@ -101,7 +91,11 @@ fn bootstrap_feeds_the_index_only_through_the_accepted_cache() {
         WorkbenchPanelId::parse(&format!("{:032x}", 0x3e9)).unwrap()
     );
     // An identity the snapshot never painted resolves to nothing.
-    assert!(ui.agent_index.placement(&attachment(0x9ff)).is_none());
+    assert!(
+        ui.agent_index
+            .placement_by_presentation(&presentation(0x9ff))
+            .is_none()
+    );
 }
 
 #[test]
@@ -120,7 +114,9 @@ fn an_accepted_refresh_rebuilds_but_an_unaccepted_snapshot_never_feeds() {
     assert!(ui.tick());
     mailbox.take_deposited_reply(&wait).unwrap();
     assert!(
-        ui.agent_index.placement(&attachment(0x3f4)).is_some(),
+        ui.agent_index
+            .placement_by_presentation(&presentation(0x3f4))
+            .is_some(),
         "the accepted snapshot's new presentation resolves"
     );
     mailbox.finish_lease(lease).unwrap();
@@ -153,49 +149,25 @@ fn an_accepted_refresh_rebuilds_but_an_unaccepted_snapshot_never_feeds() {
     // `snapshot(3, ·)` would add presentation 0x3fe (1022); the refused
     // reply leaves the accepted placements intact and adds nothing.
     assert!(
-        ui.agent_index.placement(&attachment(0x3f4)).is_some(),
+        ui.agent_index
+            .placement_by_presentation(&presentation(0x3f4))
+            .is_some(),
         "accepted placements survive the refused reply"
     );
-    assert!(ui.agent_index.placement(&attachment(0x3fe)).is_none());
-}
-
-#[test]
-fn a_jump_against_an_unfed_index_waits_instead_of_reporting_gone() {
-    let (mut ui, _mailbox, _clock) = fixture();
-    ui.board.open();
-    ui.board.force_jump_t(crate::agent_board::BoardJump {
-        serial: 1,
-        stage: crate::agent_board::JumpStage::Navigating {
-            candidates: vec![attachment(0x3ea)].into_boxed_slice(),
-            index: 0,
-        },
-        deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
-    });
-    let actual = ui.agent_board_view().unwrap().actual_draw(4).unwrap();
-    ui.after_agent_board_draw(Some(AgentBoardDraw::Presented(actual)));
-    // No canonical snapshot has ever fed the index: resolving now could
-    // only guess, and guessing reports `Gone` for sessions that exist.
-    // The drive must keep the candidate exactly where it is — waiting
-    // inside the jump's own deadline, with no failure notice.
-    let _changed = ui.drive_agent_board(true);
-    let Some(jump) = ui.board.jump() else {
-        panic!("the jump survives the unfed-index wait");
-    };
-    assert!(matches!(
-        jump.stage,
-        crate::agent_board::JumpStage::Navigating { index: 0, .. }
-    ));
-    assert!(ui.board.notice().is_none());
-    assert!(ui.board.jumping());
+    assert!(
+        ui.agent_index
+            .placement_by_presentation(&presentation(0x3fe))
+            .is_none()
+    );
 }
 
 #[test]
 fn exact_board_capture_is_fail_closed_during_pending_and_suspended_recovery() {
     let (mut ui, _mailbox, _clock) = fixture();
-    ui.board.open();
+    ui.board.open_picker(None, false);
     let stale = ui.board.episode();
     ui.board.close();
-    ui.board.open();
+    ui.board.open_picker(None, false);
     let episode = ui.board.episode();
     assert_ne!(episode, stale);
 
@@ -223,151 +195,4 @@ fn exact_board_capture_is_fail_closed_during_pending_and_suspended_recovery() {
         !ui.board.is_open(),
         "the declared local recovery exit remains live"
     );
-}
-
-#[test]
-fn a_covered_board_keeps_an_accepted_jump_without_moving_workbench_focus() {
-    let (mut ui, mailbox, clock) = fixture();
-    bootstrap(&mut ui, &mailbox, &clock);
-    ready(&mut ui);
-    ui.board.open();
-    ui.board.force_jump_t(crate::agent_board::BoardJump {
-        serial: 1,
-        stage: crate::agent_board::JumpStage::Navigating {
-            candidates: vec![attachment(0x3ea)].into_boxed_slice(),
-            index: 0,
-        },
-        deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
-    });
-    let actual = ui.agent_board_view().unwrap().actual_draw(4).unwrap();
-    ui.after_agent_board_draw(Some(AgentBoardDraw::Presented(actual)));
-    assert!(ui.board.input_context().unwrap().interactive());
-
-    let focused = ui.state.as_ref().unwrap().focus_panel_id().cloned();
-    let _changed = ui.drive_agent_board(false);
-    assert_eq!(
-        ui.state.as_ref().unwrap().focus_panel_id(),
-        focused.as_ref(),
-        "a Client-level cover blocks navigation before its draw receipt"
-    );
-    assert!(matches!(
-        ui.board.jump().map(|jump| &jump.stage),
-        Some(crate::agent_board::JumpStage::Navigating { index: 0, .. })
-    ));
-
-    ui.after_agent_board_draw(None);
-    assert!(!ui.board.input_context().unwrap().interactive());
-    let _changed = ui.drive_agent_board(true);
-
-    assert_eq!(
-        ui.state.as_ref().unwrap().focus_panel_id(),
-        focused.as_ref(),
-        "a covered completion cannot move focus behind its child"
-    );
-    assert!(matches!(
-        ui.board.jump().map(|jump| &jump.stage),
-        Some(crate::agent_board::JumpStage::Navigating { index: 0, .. })
-    ));
-}
-
-#[test]
-fn a_new_higher_capture_blocks_a_jump_before_the_next_cover_receipt() {
-    let (mut ui, mailbox, clock) = fixture();
-    bootstrap(&mut ui, &mailbox, &clock);
-    ready(&mut ui);
-    ui.board.open();
-    ui.board.force_jump_t(crate::agent_board::BoardJump {
-        serial: 1,
-        stage: crate::agent_board::JumpStage::Navigating {
-            candidates: vec![attachment(0x3ea)].into_boxed_slice(),
-            index: 0,
-        },
-        deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
-    });
-    let actual = ui.agent_board_view().unwrap().actual_draw(4).unwrap();
-    ui.after_agent_board_draw(Some(AgentBoardDraw::Presented(actual)));
-    assert!(ui.board.input_context().unwrap().interactive());
-
-    assert!(matches!(
-        ui.request_panel_close_confirmation(),
-        ClientActionDisposition::DismissNavigator
-    ));
-    assert!(ui.view().panel_close_confirmation().is_some());
-    assert!(
-        ui.board.input_context().unwrap().interactive(),
-        "the previous Board frame has not received its cover receipt yet"
-    );
-    let focused = ui.state.as_ref().unwrap().focus_panel_id().cloned();
-    let _changed = ui.drive_agent_board(true);
-
-    assert_eq!(
-        ui.state.as_ref().unwrap().focus_panel_id(),
-        focused.as_ref(),
-        "a synchronously opened higher capture blocks Board focus effects"
-    );
-    assert!(matches!(
-        ui.board.jump().map(|jump| &jump.stage),
-        Some(crate::agent_board::JumpStage::Navigating { index: 0, .. })
-    ));
-}
-
-/// A board row names an automatic Tab exactly as the Tab strip does, never by its canonical
-/// ordinal: the program while no title is observed, then the program's live title.
-#[test]
-fn rows_name_an_automatic_tab_as_the_tab_strip_does() {
-    use crate::agent_board::LivePlacementNames;
-    use crate::localization::Locale;
-    let mut source = super::super::tests::membership::snapshot(1, 1);
-    let tab = &mut source.terminal_contexts[0].tabs[0];
-    tab.automatic_label = true;
-    tab.label = "1".into();
-    let PanelNode::Panel {
-        primary_presentation,
-        ..
-    } = &mut tab.root
-    else {
-        unreachable!()
-    };
-    primary_presentation.label = "1".into();
-    primary_presentation.launch_program =
-        Some(PresentationLaunchProgram::parse("pwsh.exe").unwrap());
-    let presentation = primary_presentation.presentation_id.as_str().to_owned();
-    let index = crate::agent_board::PresentationIndex::rebuild(&source);
-    let placement = index
-        .placement_by_presentation(&presentation)
-        .unwrap()
-        .clone();
-    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
-    let named = |ui: &WorkbenchClientUi, locale| {
-        let view = ui.view();
-        let strip = view.tab(0).unwrap().display_label(locale).into_owned();
-        let live: &dyn LivePlacementNames = &view;
-        (strip, placement.names(&presentation, Some(live), locale))
-    };
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let (strip, names) = named(&ui, locale);
-        assert_eq!(strip, "PowerShell");
-        assert_eq!(names, (strip.clone(), strip.clone()));
-        // Without a live Tab, snapshot facts give the same name.
-        assert_eq!(
-            placement.names(&presentation, None, locale),
-            (strip.clone(), strip)
-        );
-    }
-    let key = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
-    let mut projection = TerminalProjection::new(
-        orchbee_terminal_protocol::AttachmentId::parse(&format!("{:032x}", 7001)).unwrap(),
-        orchbee_terminal_protocol::HostEpoch::parse(&format!("{:032x}", 7002)).unwrap(),
-    );
-    let mut frame = super::super::tests::viewport::frame(&projection, 0, false, 24);
-    frame.title = Some("build log".into());
-    projection.install_frame_for_test(frame);
-    ui.projections.push(KeyedProjection::for_test(
-        key,
-        projection,
-        ClientProjectionStatus::FrameAvailable,
-    ));
-    let (strip, names) = named(&ui, Locale::EnUs);
-    assert_eq!(strip, "build log");
-    assert_eq!(names, (strip.clone(), strip));
 }

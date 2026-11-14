@@ -1,5 +1,4 @@
 //! Client-owned acknowledgement of complete, creation-qualified physical state checkpoints.
-use orchbee_workbench_protocol::AgentCompletion;
 use std::collections::BTreeMap;
 
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
@@ -47,17 +46,6 @@ impl PhysicalAttentionState {
                 .is_some_and(|entry| {
                     entry.current.binding == *binding && entry.current.sequence == sequence
                 })
-    }
-    pub(super) fn presentation_completion(
-        &self,
-        attachment: &orchbee_agent_observation_protocol::AgentPresentationAttachment,
-    ) -> Option<AgentCompletion> {
-        self.entries
-            .get(attachment.presentation_id.as_str())
-            .filter(|entry| {
-                self.readable && entry.current.binding.generation == attachment.generation
-            })
-            .map(|entry| entry.current.completion)
     }
 
     pub(super) fn agent_in_terminal(

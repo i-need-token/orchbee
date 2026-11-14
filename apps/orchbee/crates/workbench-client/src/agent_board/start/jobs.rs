@@ -1,7 +1,7 @@
 //! The Agent start's private background jobs: one Agent startup workflow per
 //! started Panel.
 //!
-//! The composition owns these jobs beside the Board and drives them against
+//! The composition owns these jobs beside the picker and drives them against
 //! the start state. Each job settles its own outcome into that state, and the
 //! state never holds a thread or transport handle. Session teardown cancels and
 //! joins every job within the workflow's existing bounded I/O and release
@@ -71,7 +71,6 @@ impl Jobs {
                     let applied =
                         state.apply_completion(completion.generation, &completion.panel, phase);
                     drained.changed |= applied;
-                    drained.started |= applied && phase == Phase::Started;
                     false
                 }
                 Err(TryRecvError::Disconnected) => {
@@ -150,38 +149,6 @@ impl Jobs {
             .iter_mut()
             .map(|task| task.task.join_before(deadline))
             .fold(Ok(()), std::io::Result::and)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn queue_completion_t(&mut self, state: &State, report: Report) -> bool {
-        let Some((generation, panel)) = state.latest() else {
-            return false;
-        };
-        let (sender, outcomes) = mpsc::sync_channel(1);
-        if sender
-            .send(Completion {
-                generation,
-                panel: panel.clone(),
-                report,
-            })
-            .is_err()
-        {
-            return false;
-        }
-        drop(sender);
-        let Ok((_reader, wake)) = LocalStream::pair() else {
-            return false;
-        };
-        self.start.push(StartTask {
-            generation,
-            panel: panel.clone(),
-            progress: Arc::new(Mutex::new(None)),
-            outcomes,
-            wake,
-            task: BackgroundThread::ended(),
-            cancelled: false,
-        });
-        true
     }
 }
 

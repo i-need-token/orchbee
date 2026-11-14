@@ -103,7 +103,6 @@ impl WorkbenchClientUi {
             SurfaceInput::AgentBoard { episode, key } => {
                 self.capture_agent_board_key(episode, &key)
             }
-            SurfaceInput::AgentBoardSelect(target) => self.agent_board_select(target),
             SurfaceInput::TabStripPage { source, start } => {
                 self.page_drawn_tab_strip(source, start);
                 true

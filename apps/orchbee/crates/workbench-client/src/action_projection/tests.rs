@@ -177,7 +177,6 @@ fn menu_and_binding_presenters_share_common_action_identity() {
         ),
         (MenuAction::Sidebar, PrefixAction::SidebarToggle),
         (MenuAction::Navigator, PrefixAction::NavigatorToggle),
-        (MenuAction::AgentBoard, PrefixAction::BoardToggle),
         (MenuAction::Help, PrefixAction::ShowHelp),
         (
             MenuAction::ReleasePointer,

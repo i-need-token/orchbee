@@ -223,7 +223,7 @@ pub fn actual_native_shell_places_confirmed_pixels_inside_one_frame_and_clears_u
             .iter()
             .any(|pane| pane.drawn_revision == Some(WorkbenchRevision::new(1)))
     );
-    ui.board.open();
+    ui.board.open_picker(None, false);
     let (covered, _) = paint(&mut ui, &mut terminal);
     assert!(covered.panes.is_empty());
     let wire = wire.0.borrow();

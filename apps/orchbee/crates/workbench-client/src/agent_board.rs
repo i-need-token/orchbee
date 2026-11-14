@@ -1,23 +1,9 @@
-//! The Agent board's session-side presentation state: the rows the last
-//! completed OBAP list read returned plus every Agent the sidebar shows
-//! without a canonical session, the board's own interaction state
-//! (selection, scroll, notice), the queued read/jump intents, and the
-//! in-flight jump's stage bookkeeping. Canonical Agent state stays
-//! server-owned — this module keeps only what the last completed read
-//! delivered and never synthesizes status of its own.
+//! The Start Agent picker's overlay owner and the Workbench presentation index.
 //!
-//! The Board holds no read lane. It issues each OBAP read as a typed
-//! [`AgentBoardReadRequest`] and settles each [`AgentBoardReadEvent`] the
-//! composition hands back; the composition owns the lane thread that runs
-//! the reads on a logical scope of the shared carrier.
-
-use std::time::{Duration, Instant};
-
-use orchbee_agent_observation_protocol::{
-    AgentGetOutcome, AgentLifecycle, AgentObservationFreshness, AgentPresentationAttachment,
-    AgentPresentationVisibility, AgentProviderId, AgentSemanticStatus, AgentSessionId,
-    AgentSessionRejectionReason, AgentSessionSummary,
-};
+//! The owner holds one open picker episode: its exact-draw proof, the Session's Agent catalog and
+//! start state the picker lists from, and which Panels the Session's Agents hold. The index maps
+//! each Presentation to its Workbench placement for notification names and terminal titles.
+//! Canonical Agent state stays Server-owned; nothing here synthesizes status of its own.
 
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 
@@ -31,136 +17,11 @@ mod tests;
 pub(crate) use session_agents::SessionAgents;
 pub(crate) use start::CatalogEvent as AgentCatalogEvent;
 
-/// One bounded read round's absolute deadline — connect admission, the
-/// whole page walk, and the single allowed restart all live inside it.
-pub(crate) const AGENT_READ_DEADLINE: Duration = Duration::from_secs(3);
-/// One jump Get's own deadline inside the jump's total budget.
-pub(crate) const AGENT_GET_DEADLINE: Duration = Duration::from_secs(3);
-/// One jump's total budget across the Get plus every navigation stage.
-pub(crate) const AGENT_JUMP_DEADLINE: Duration = Duration::from_secs(8);
-/// The read cooldown: a completed list round — success or failure —
-/// refuses further reads until this much time has passed; `r` does not
-/// bypass it.
-pub(crate) const AGENT_READ_COOLDOWN: Duration = Duration::from_secs(2);
-/// The 512-session runtime bound at 100 items per page, rounded up.
-const MAXIMUM_ROWS: usize = 600;
-
-/// An Agent row: the canonical summary the last completed list read
-/// returned, kept verbatim — the board renders it, never reinterprets it —
-/// or an Agent the sidebar shows that has no canonical session.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AgentBoardRow {
-    session_id: AgentSessionId,
-    provider_id: AgentProviderId,
-    status: AgentSemanticStatus,
-    lifecycle: AgentLifecycle,
-    freshness: AgentObservationFreshness,
-    attachments: Box<[AgentPresentationAttachment]>,
-    /// The sidebar's report of an Agent without a canonical session — one started without a
-    /// hook integration, by the picker, the CLI or by hand. It has no session to `Get`, so a
-    /// jump goes straight to its Panel.
-    sidebar: bool,
-}
-
-impl AgentBoardRow {
-    fn from_summary(summary: AgentSessionSummary) -> Self {
-        Self {
-            session_id: summary.session_id,
-            provider_id: summary.provider_id,
-            status: summary.status,
-            lifecycle: summary.lifecycle,
-            freshness: summary.observation.freshness,
-            attachments: summary.presentation_attachments.into_boxed_slice(),
-            sidebar: false,
-        }
-    }
-
-    /// The row for an Agent the sidebar shows, keyed by its Presentation — internal only, like
-    /// every session id — with the sidebar's state.
-    fn from_shown(shown: &session_agents::ShownAgent) -> Option<Self> {
-        use orchbee_workbench_protocol::PanelAgentState;
-        let binding = &shown.binding;
-        let provider =
-            orchbee_agent_observation_protocol::AgentReportProvider::lookup(&shown.agent)
-                .map_or_else(
-                    || shown.agent.to_ascii_lowercase(),
-                    |provider| provider.native_provider_id().to_owned(),
-                );
-        let status = match shown.state {
-            PanelAgentState::Working => AgentSemanticStatus::Working {
-                activity: None,
-                phase: orchbee_agent_observation_protocol::AgentTurnPhase::Working,
-            },
-            PanelAgentState::Blocked => AgentSemanticStatus::NeedsAttention {
-                count: orchbee_agent_observation_protocol::AgentPositiveInteger::new(1)?,
-            },
-            PanelAgentState::Done => AgentSemanticStatus::Succeeded {},
-            PanelAgentState::Error => AgentSemanticStatus::Failed {},
-            PanelAgentState::Idle => AgentSemanticStatus::Idle {},
-            PanelAgentState::Unknown | PanelAgentState::Opening => AgentSemanticStatus::Unknown {
-                activity_hint: None,
-            },
-        };
-        Some(Self {
-            session_id: AgentSessionId::parse(&format!(
-                "terminal:{}",
-                binding.presentation_id.as_str()
-            ))
-            .ok()?,
-            provider_id: AgentProviderId::parse(&provider)
-                .or_else(|_| AgentProviderId::parse("unknown"))
-                .ok()?,
-            status,
-            lifecycle: AgentLifecycle::Live,
-            freshness: AgentObservationFreshness::Fresh,
-            attachments: Box::new([AgentPresentationAttachment {
-                generation: binding.generation.clone(),
-                navigable: true,
-                presentation_id: binding.presentation_id.clone(),
-                visibility: AgentPresentationVisibility::Unknown,
-            }]),
-            sidebar: true,
-        })
-    }
-
-    pub(crate) const fn session_id(&self) -> &AgentSessionId {
-        &self.session_id
-    }
-    pub(crate) const fn provider_id(&self) -> &AgentProviderId {
-        &self.provider_id
-    }
-    pub const fn status(&self) -> &AgentSemanticStatus {
-        &self.status
-    }
-    pub(crate) const fn lifecycle(&self) -> AgentLifecycle {
-        self.lifecycle
-    }
-    pub(crate) const fn freshness(&self) -> AgentObservationFreshness {
-        self.freshness
-    }
-    pub(crate) fn attachments(&self) -> &[AgentPresentationAttachment] {
-        &self.attachments
-    }
-    /// Whether the canonical observation advertises at least one navigable
-    /// attachment — a display hint only; the jump itself re-verifies.
-    pub(crate) fn navigable(&self) -> bool {
-        self.attachments
-            .iter()
-            .any(|attachment| attachment.navigable)
-    }
-}
-
-pub(crate) use crate::localization::AgentBoardRead;
-
-pub(crate) use crate::localization::AgentBoardReadFailure;
-
-pub(crate) use crate::localization::JumpFailure;
-
-/// Stable identity for one open Board incarnation.
+/// Stable identity for one open picker incarnation.
 ///
-/// Selection, viewport and row-source changes deliberately do not advance this
-/// token. They belong to the exact draw witness below; late work from another
-/// open incarnation remains excluded by this episode.
+/// Query, cursor and catalog changes deliberately do not advance this token. They belong to the
+/// exact draw witness below; late work from another open incarnation remains excluded by this
+/// episode.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AgentBoardEpisodeToken(u64);
 
@@ -171,46 +32,21 @@ impl AgentBoardEpisodeToken {
     }
 }
 
-/// Value-semantic source behind one Board draw.
-///
-/// `rows_revision` changes whenever the installed visible row set changes;
-/// selection and jump availability remain explicit so a pointer release cannot
-/// act on a different projection that happens to share a viewport offset.
+/// Value-semantic source behind one picker draw.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct AgentBoardDrawSource {
     episode: AgentBoardEpisodeToken,
-    rows_revision: u64,
-    selected: Option<AgentSessionId>,
-    /// Whether the Start Agent row holds the cursor.
-    start_row: bool,
-    jumping: bool,
-    picker: Option<picker::DrawSource>,
+    picker: picker::DrawSource,
 }
 
-/// Exact successful-paint evidence for one Board frame.
+/// Exact successful-paint evidence for one picker frame.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AgentBoardActualDraw {
     token: AgentBoardToken,
     visible_rows: usize,
-    first: Option<AgentSessionId>,
-    selected: Option<AgentSessionId>,
 }
 
 impl AgentBoardActualDraw {
-    fn new(
-        token: AgentBoardToken,
-        visible_rows: usize,
-        first: Option<AgentSessionId>,
-        selected: Option<AgentSessionId>,
-    ) -> Option<Self> {
-        (visible_rows > 0).then_some(Self {
-            token,
-            visible_rows,
-            first,
-            selected,
-        })
-    }
-
     pub(crate) const fn episode(&self) -> AgentBoardEpisodeToken {
         self.token.source.episode
     }
@@ -223,21 +59,6 @@ impl AgentBoardActualDraw {
         self.visible_rows
     }
 
-    pub(crate) const fn first(&self) -> Option<&AgentSessionId> {
-        self.first.as_ref()
-    }
-
-    pub(crate) const fn selected(&self) -> Option<&AgentSessionId> {
-        self.selected.as_ref()
-    }
-
-    pub(crate) fn row_target(&self, session: AgentSessionId) -> AgentBoardRowTarget {
-        AgentBoardRowTarget {
-            token: self.token.clone(),
-            session,
-        }
-    }
-
     pub(crate) fn control_target(&self, control: AgentBoardControl) -> AgentBoardControlTarget {
         AgentBoardControlTarget {
             token: self.token.clone(),
@@ -246,7 +67,7 @@ impl AgentBoardActualDraw {
     }
 }
 
-/// What the renderer actually did with one exact Board episode.
+/// What the renderer actually did with one exact picker episode.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AgentBoardDraw {
     Presented(AgentBoardActualDraw),
@@ -297,16 +118,14 @@ impl AgentBoardInputContext {
         self.presentation
     }
 
-    /// Whether a complete frame for this episode still holds its visibility
-    /// lease. The compositor separately decides whether the Board is the top
-    /// owner. Together those facts permit owner-local navigation; activations
-    /// and pointer effects also require exact current draw proof.
+    /// Whether a complete frame for this episode still holds its visibility lease. The
+    /// compositor separately decides whether the picker is the top owner. Together those facts
+    /// permit owner-local keys; activations and pointer effects also require exact current draw
+    /// proof.
     pub(crate) const fn interactive(self) -> bool {
         self.interactive
     }
 }
-
-pub(crate) use crate::localization::AgentBoardSummary;
 
 /// A workbench placement resolved from a `TerminalPresentationId`: which
 /// context owns it, which tab, which panel — plus the display labels the
@@ -316,15 +135,11 @@ pub(crate) struct PresentationPlacement {
     pub(crate) location: crate::workbench_projection::ClientContextLocation,
     pub(crate) tab_id: orchbee_workbench_protocol::WorkbenchTabId,
     pub(crate) panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
-    pub(crate) tab_position: usize,
     pub(crate) tab_label: String,
     pub(crate) panel_name: NameFacts,
     pub(crate) panel_position: usize,
     /// The attached Presentation's naming facts for the Tab strip's rule.
     pub(crate) presentation_name: NameFacts,
-    /// For an automatic Tab, the facts of the member the strip names it after when no live view
-    /// selects one: the first Panel's primary Presentation. `None` keeps a fixed name exact.
-    pub(crate) automatic_tab_name: Option<NameFacts>,
     pub(crate) project_label: Option<String>,
     pub(crate) workspace_label: Option<String>,
 }
@@ -334,10 +149,6 @@ pub(crate) struct PresentationPlacement {
 /// the index is a function of canonical state, never a second authority.
 #[derive(Default)]
 pub(crate) struct PresentationIndex {
-    /// `false` until a canonical snapshot (or the bootstrap cache) has
-    /// actually fed the index — a jump resolving against a never-fed
-    /// index must wait for one, never conclude `Gone` from an empty map.
-    ready: bool,
     placements: std::collections::HashMap<String, PresentationPlacement>,
     /// Every bound Presentation in canonical Workspace, Tab, Panel and member order.
     bound: Vec<orchbee_workbench_protocol::TerminalPresentationId>,
@@ -349,10 +160,7 @@ impl PresentationIndex {
     /// Called only after the snapshot passed the session's acceptance
     /// fences — the index is a function of accepted canonical state.
     pub(crate) fn rebuild(snapshot: &orchbee_workbench_protocol::Snapshot) -> Self {
-        let mut index = Self {
-            ready: true,
-            ..Self::default()
-        };
+        let mut index = Self::default();
         for location in navigation_locations(snapshot) {
             if let Ok(tabs) =
                 crate::workbench_projection::project_native_context_tabs(snapshot, &location)
@@ -363,13 +171,6 @@ impl PresentationIndex {
         index
     }
 
-    /// Whether any canonical feed has ever built this index — the
-    /// jump's honesty gate: `false` means "no snapshot yet", never
-    /// "no placements exist".
-    pub(crate) const fn ready(&self) -> bool {
-        self.ready
-    }
-
     /// Fold one context's projected tabs into the index (used for the
     /// bootstrap cache, which arrives already projected rather than as a
     /// raw snapshot).
@@ -377,7 +178,6 @@ impl PresentationIndex {
         &mut self,
         tabs: &crate::workbench_projection::ClientContextTabs,
     ) {
-        self.ready = true;
         let (project_label, workspace_label) = tabs
             .navigation()
             .iter()
@@ -396,10 +196,6 @@ impl PresentationIndex {
             })
             .unwrap_or((None, None));
         for (tab_index, tab) in tabs.tabs().iter().enumerate() {
-            let automatic_tab_name = tab
-                .automatic_label()
-                .then(|| tab.panel(0).map(|panel| NameFacts::of(panel.primary())))
-                .map(Option::unwrap_or_default);
             for panel_index in 0..tab.panel_count() {
                 let Some(panel) = tab.panel(panel_index) else {
                     continue;
@@ -414,12 +210,10 @@ impl PresentationIndex {
                             location: tabs.location().clone(),
                             tab_id: tab.tab_id().clone(),
                             panel_id: panel.panel_id().clone(),
-                            tab_position: tab_index + 1,
                             tab_label: tab.display_label(tab_index).into_owned(),
                             panel_name: NameFacts::of(panel.primary()),
                             panel_position: panel_index + 1,
                             presentation_name: NameFacts::of(member),
-                            automatic_tab_name: automatic_tab_name.clone(),
                             project_label: project_label.clone(),
                             workspace_label: workspace_label.clone(),
                         },
@@ -429,15 +223,8 @@ impl PresentationIndex {
         }
     }
 
-    /// Resolve one attachment's stable presentation identity to a live
-    /// placement — identity only; labels are never used to locate.
-    pub(crate) fn placement(
-        &self,
-        attachment: &AgentPresentationAttachment,
-    ) -> Option<&PresentationPlacement> {
-        self.placements.get(attachment.presentation_id.as_str())
-    }
-
+    /// Resolve one stable presentation identity to a live placement — identity only; labels are
+    /// never used to locate.
     pub(crate) fn placement_by_presentation(
         &self,
         presentation_id: &str,
@@ -488,298 +275,6 @@ fn navigation_locations(
     locations
 }
 
-/// The board's key map, resolved in one place so the capture handler and
-/// its tests share the exact binding set. All bindings are plain (no
-/// modifiers); `Ctrl+B g` reaches the dispatcher before the board layer.
-const BOARD_SELECT_UP_KEYS: [crate::client_view::Binding; 2] = [
-    crate::client_view::Binding::new(
-        crate::client_view::KeyCode::Up,
-        crate::client_view::Modifiers::NONE,
-    ),
-    crate::client_view::Binding::new(
-        crate::client_view::KeyCode::Char('k'),
-        crate::client_view::Modifiers::NONE,
-    ),
-];
-const BOARD_SELECT_DOWN_KEYS: [crate::client_view::Binding; 2] = [
-    crate::client_view::Binding::new(
-        crate::client_view::KeyCode::Down,
-        crate::client_view::Modifiers::NONE,
-    ),
-    crate::client_view::Binding::new(
-        crate::client_view::KeyCode::Char('j'),
-        crate::client_view::Modifiers::NONE,
-    ),
-];
-const BOARD_REFRESH_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
-    crate::client_view::KeyCode::Char('r'),
-    crate::client_view::Modifiers::NONE,
-);
-const BOARD_JUMP_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
-    crate::client_view::KeyCode::Enter,
-    crate::client_view::Modifiers::NONE,
-);
-const BOARD_CLOSE_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
-    crate::client_view::KeyCode::Esc,
-    crate::client_view::Modifiers::NONE,
-);
-/// Opens the Start Agent picker from anywhere in the Board.
-const BOARD_START_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
-    crate::client_view::KeyCode::Char('s'),
-    crate::client_view::Modifiers::NONE,
-);
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentBoardKeyAction {
-    SelectUp,
-    SelectDown,
-    Refresh,
-    Jump,
-    Close,
-    StartAgent,
-}
-
-pub(crate) fn board_key_action(event: crate::client_view::KeyEvent) -> Option<AgentBoardKeyAction> {
-    if BOARD_SELECT_UP_KEYS
-        .iter()
-        .any(|binding| binding.matches(event))
-    {
-        Some(AgentBoardKeyAction::SelectUp)
-    } else if BOARD_SELECT_DOWN_KEYS
-        .iter()
-        .any(|binding| binding.matches(event))
-    {
-        Some(AgentBoardKeyAction::SelectDown)
-    } else if BOARD_REFRESH_KEY.matches(event) {
-        Some(AgentBoardKeyAction::Refresh)
-    } else if BOARD_JUMP_KEY.matches(event) {
-        Some(AgentBoardKeyAction::Jump)
-    } else if BOARD_CLOSE_KEY.matches(event) {
-        Some(AgentBoardKeyAction::Close)
-    } else if BOARD_START_KEY.matches(event) {
-        Some(AgentBoardKeyAction::StartAgent)
-    } else {
-        None
-    }
-}
-
-/// One step of the staged jump, decided purely from observed state — the
-/// driver re-plans against live facts every tick and never caches indices.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum JumpStep {
-    /// The owning context is not active; select it (0-based position).
-    SelectContext(usize),
-    /// In the right context; select the tab (1-based `SelectTab` position).
-    SelectTab(u8),
-    /// Right context and tab; focus the panel if the record is ready.
-    FocusPanel(orchbee_workbench_protocol::WorkbenchPanelId),
-    /// Right context and tab, but the target panel's viewer record is
-    /// dead — reattach through the same switch admission, still naming
-    /// the stable panel identity (1-based `SelectTab` position + panel).
-    Reattach {
-        position: u8,
-        panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
-    },
-    /// Already focused on the exact target *and* its viewer is live —
-    /// the jump landed.
-    Landed,
-    /// This candidate's identity no longer resolves (or its owning context
-    /// or tab vanished); try the next attachment.
-    Advance,
-    /// An admission already owns the mailbox (context selection or a tab
-    /// switch is in flight) — observe again next tick.
-    Wait,
-}
-
-#[expect(clippy::too_many_arguments)]
-pub(crate) fn plan_jump_step(
-    placement: &PresentationPlacement,
-    active_location: Option<&crate::workbench_projection::ClientContextLocation>,
-    context_locations: &[crate::workbench_projection::ClientContextLocation],
-    target_tab_index: Option<usize>,
-    active_tab: Option<&orchbee_workbench_protocol::WorkbenchTabId>,
-    focus_panel: Option<&orchbee_workbench_protocol::WorkbenchPanelId>,
-    target_live: bool,
-    context_selecting: bool,
-    switching: bool,
-) -> JumpStep {
-    if active_location != Some(&placement.location) {
-        if context_selecting {
-            return JumpStep::Wait;
-        }
-        return match context_locations
-            .iter()
-            .position(|location| location == &placement.location)
-        {
-            Some(index) => JumpStep::SelectContext(index),
-            None => JumpStep::Advance,
-        };
-    }
-    let Some(tab_index) = target_tab_index else {
-        return JumpStep::Advance;
-    };
-    if active_tab != Some(&placement.tab_id) {
-        return if switching {
-            JumpStep::Wait
-        } else {
-            JumpStep::SelectTab((tab_index + 1) as u8)
-        };
-    }
-    if switching {
-        return JumpStep::Wait;
-    }
-    if !target_live {
-        // The resolved panel has no live viewer under the current
-        // anchor — landing here would strand the user on a dead pane.
-        // Reattach on the same tab instead of ever reporting `Landed`.
-        return JumpStep::Reattach {
-            position: (tab_index + 1) as u8,
-            panel_id: placement.panel_id.clone(),
-        };
-    }
-    if focus_panel == Some(&placement.panel_id) {
-        JumpStep::Landed
-    } else {
-        JumpStep::FocusPanel(placement.panel_id.clone())
-    }
-}
-
-/// A queued board intent — the arbitration model's single intent slot:
-/// Enter replaces an unissued refresh, while a refresh request is
-/// consumed rather than displacing a queued jump.
-#[derive(Clone, Debug)]
-enum BoardIntent {
-    Refresh,
-    Jump { target: AgentSessionId },
-}
-
-/// The one outstanding read request, correlated by kind (and jump serial).
-#[derive(Clone, Debug)]
-enum BoardInflight {
-    ListRound,
-    JumpGet { serial: u64 },
-}
-
-/// One canonical read the open Board asks for. The composition runs it on
-/// the Board's read lane; the answer carries `episode` and `serial` back
-/// unchanged, and the Board alone interprets them.
-#[derive(Debug)]
-pub(crate) enum AgentBoardReadRequest {
-    /// Walk the whole Agent list within `deadline`.
-    List {
-        episode: AgentBoardEpisodeToken,
-        deadline: Instant,
-    },
-    /// Verify one session's attachments for jump `serial` within `deadline`.
-    Get {
-        episode: AgentBoardEpisodeToken,
-        serial: u64,
-        session: AgentSessionId,
-        deadline: Instant,
-    },
-}
-
-impl AgentBoardReadRequest {
-    /// The open Board episode that issued the request.
-    pub(crate) const fn episode(&self) -> AgentBoardEpisodeToken {
-        match self {
-            Self::List { episode, .. } | Self::Get { episode, .. } => *episode,
-        }
-    }
-}
-
-/// Why the composition could not hand a request to a read lane.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentBoardReadRefusal {
-    /// No lane could serve it: no origin yet, a retired lane's thread is
-    /// still exiting, or the lane thread could not start.
-    LaneUnavailable,
-    /// The live lane refused the command because its thread is gone; the
-    /// composition released that lane.
-    Rejected,
-}
-
-/// Why a read the lane ran produced no canonical answer.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentReadFailure {
-    /// The runtime answered `unavailable`.
-    Unavailable,
-    /// The runtime denied the read.
-    Denied,
-    /// Connect, transport, or post-submission ambiguity.
-    Transport,
-}
-
-/// One completed list walk. `complete` is false when the page bound or the
-/// restart budget was hit; the accumulated pages are still canonical and may
-/// be shown with the incomplete marker.
-#[derive(Debug)]
-pub(crate) struct AgentListRound {
-    pub(crate) items: Vec<AgentSessionSummary>,
-    pub(crate) complete: bool,
-}
-
-/// The read lane's answer to one [`AgentBoardReadRequest`].
-#[derive(Debug)]
-pub(crate) enum AgentBoardReadAnswer {
-    List {
-        episode: AgentBoardEpisodeToken,
-        result: Result<AgentListRound, AgentReadFailure>,
-    },
-    Get {
-        episode: AgentBoardEpisodeToken,
-        serial: u64,
-        result: Result<AgentGetOutcome, AgentReadFailure>,
-    },
-}
-
-/// What the composition settles into the Board from its read lane, in
-/// delivery order.
-#[derive(Debug)]
-pub(crate) enum AgentBoardReadEvent {
-    Answer(AgentBoardReadAnswer),
-    /// The lane delivered an outcome of a kind the Board never requests.
-    Foreign,
-    /// The lane serving this episode ended after delivering every answer it
-    /// had queued, so no answer will arrive for an outstanding request.
-    LaneEnded,
-}
-
-/// Attention facts that the Board view overlays on canonical rows. The
-/// composition lends the attention owner; the Board never reaches it.
-pub(crate) trait AgentRowAttention {
-    /// Whether the session has attention the user has not seen.
-    fn session_unread(&self, session: &AgentSessionId) -> bool;
-    /// The Server's completion fact for this exact presentation generation.
-    fn presentation_completion(
-        &self,
-        attachment: &AgentPresentationAttachment,
-    ) -> Option<orchbee_workbench_protocol::AgentCompletion>;
-}
-
-/// An accepted jump in progress. `serial` is the generation the lane's
-/// `Get` outcome must match; a new jump replaces the serial so a stale
-/// in-flight stage is dropped at its next boundary check.
-#[derive(Clone, Debug)]
-pub(crate) struct BoardJump {
-    pub(crate) serial: u64,
-    pub(crate) stage: JumpStage,
-    pub(crate) deadline: Instant,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum JumpStage {
-    /// The lane Get is in flight — the canonical attachment set is not yet
-    /// verified, so no navigation may begin.
-    Checking,
-    /// Ordered navigable candidates, resolved fresh against the live
-    /// presentation index on every attempt.
-    Navigating {
-        candidates: Box<[AgentPresentationAttachment]>,
-        index: usize,
-    },
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AgentBoardToken {
     source: AgentBoardDrawSource,
@@ -792,55 +287,16 @@ impl AgentBoardToken {
     }
 }
 
-/// Exact Board row painted into one admitted frame.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AgentBoardRowTarget {
-    token: AgentBoardToken,
-    session: AgentSessionId,
-}
-
-impl AgentBoardRowTarget {
-    #[cfg(test)]
-    pub(crate) fn for_test(episode: AgentBoardEpisodeToken, session: AgentSessionId) -> Self {
-        Self {
-            token: AgentBoardToken {
-                source: AgentBoardDrawSource {
-                    episode,
-                    rows_revision: 0,
-                    selected: Some(session.clone()),
-                    start_row: false,
-                    jumping: false,
-                    picker: None,
-                },
-                scroll: 0,
-            },
-            session,
-        }
-    }
-
-    pub(crate) const fn token(&self) -> &AgentBoardToken {
-        &self.token
-    }
-
-    pub(crate) const fn session(&self) -> &AgentSessionId {
-        &self.session
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AgentBoardControl {
-    Open,
-    Refresh,
     Close,
-    /// The Board's Start Agent row.
-    StartRow,
     /// One picker row, by its index in the drawn picker rows.
     Pick(usize),
     /// The picker's place row; a click moves to the next place.
     Place,
 }
 
-/// Exact Board control painted into one admitted frame.
+/// Exact picker control painted into one admitted frame.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AgentBoardControlTarget {
     token: AgentBoardToken,
@@ -848,6 +304,23 @@ pub struct AgentBoardControlTarget {
 }
 
 impl AgentBoardControlTarget {
+    #[cfg(test)]
+    pub(crate) const fn for_test(
+        episode: AgentBoardEpisodeToken,
+        control: AgentBoardControl,
+    ) -> Self {
+        Self {
+            token: AgentBoardToken {
+                source: AgentBoardDrawSource {
+                    episode,
+                    picker: picker::DrawSource::for_test(),
+                },
+                scroll: 0,
+            },
+            control,
+        }
+    }
+
     pub(crate) const fn token(&self) -> &AgentBoardToken {
         &self.token
     }
@@ -857,50 +330,20 @@ impl AgentBoardControlTarget {
     }
 }
 
+/// The Start Agent picker's owner: open exactly while it holds a picker.
 pub(crate) struct AgentBoard {
-    open: bool,
-    /// Bump on every open/close — read answers carrying an older episode
-    /// are stale by construction and dropped.
+    /// Bump on every open/close — a draw receipt carrying an older episode is stale by
+    /// construction and dropped.
     epoch: u64,
     presentation: PresentationPhase,
-    /// Whole-surface visibility lease for ordinary owner-local navigation.
-    /// Only an exact successful paint grants it; cover, geometry block,
-    /// reopen and close revoke it. Semantic state changes invalidate `shown`
-    /// activation proof without pretending the still-visible Board vanished.
+    /// Whole-surface visibility lease for ordinary owner-local keys. Only an exact successful
+    /// paint grants it; cover, geometry block, reopen and close revoke it. Semantic state changes
+    /// invalidate `shown` activation proof without pretending the still-visible picker vanished.
     visible: bool,
     shown: Option<AgentBoardActualDraw>,
-    rows: Vec<AgentBoardRow>,
-    rows_revision: u64,
-    selection: usize,
-    scroll: usize,
-    /// Rows the last paint could show at once — the selection-visibility
-    /// window, settled from the draw receipt rather than guessed.
-    viewport_rows: usize,
-    read: AgentBoardRead,
-    /// Whether the rows on screen came from a complete read — the
-    /// last_good marker F6's incomplete path preserves.
-    rows_from_complete: bool,
-    /// When the rows on screen were installed — held independently of
-    /// the read state so a partial round landing on last_good never
-    /// rewrites the kept rows' age.
-    rows_at: Option<Instant>,
-    /// The sidebar's summary of the last completed read — survives
-    /// failed attempts, absent until the first completed read ever.
-    last_summary: Option<AgentBoardSummary>,
-    intent: Option<BoardIntent>,
-    inflight: Option<BoardInflight>,
-    jump: Option<BoardJump>,
-    jump_serial: u64,
-    notice: Option<JumpFailure>,
-    /// When the last list round finished — success or failure — the
-    /// source of the read cooldown `r` never bypasses.
-    last_read_end: Option<Instant>,
-    /// Whether the Start Agent row holds the cursor; it always does while no Agent row exists.
-    start_row: bool,
     start: start::State,
     /// An opened picker asked for a new lookup; it holds until the composition sends it.
     catalog_refresh: bool,
-    /// The Start Agent picker while it replaces the Board's content.
     picker: Option<picker::Picker>,
     session_agents: SessionAgents,
 }
@@ -910,52 +353,27 @@ impl AgentBoard {
         AgentBoardEpisodeToken(self.epoch)
     }
 
-    fn draw_source(&self) -> AgentBoardDrawSource {
-        AgentBoardDrawSource {
+    fn draw_source(&self) -> Option<AgentBoardDrawSource> {
+        Some(AgentBoardDrawSource {
             episode: self.episode(),
-            rows_revision: self.rows_revision,
-            selected: self.selected_row().map(|row| row.session_id.clone()),
-            start_row: self.start_row_selected(),
-            jumping: self.jumping(),
-            picker: self.picker_draw_source(),
-        }
+            picker: self.picker_draw_source()?,
+        })
     }
 
-    fn token(&self) -> AgentBoardToken {
-        AgentBoardToken {
-            source: self.draw_source(),
-            scroll: self
-                .picker
-                .as_ref()
-                .map_or(self.scroll, picker::Picker::scroll),
-        }
-    }
-
-    /// Whether this host and the Session's machine can start an Agent, as far as the Session's
-    /// catalog says, so the Board offers its Start Agent row.
-    pub(crate) const fn offers_start(&self) -> bool {
-        self.start.startable()
-    }
-
-    /// Whether the Start Agent row holds the cursor.
-    pub(crate) fn start_row_selected(&self) -> bool {
-        self.offers_start() && (self.start_row || self.rows.is_empty())
-    }
-
-    /// The selected Agent row within the `visible` rows from `first`.
-    fn visible_selection(&self, first: usize, visible: usize) -> Option<&AgentSessionId> {
-        self.selected_row()
-            .filter(|_| self.selection >= first && self.selection < first.saturating_add(visible))
-            .map(AgentBoardRow::session_id)
+    fn token(&self) -> Option<AgentBoardToken> {
+        Some(AgentBoardToken {
+            source: self.draw_source()?,
+            scroll: self.picker.as_ref()?.scroll(),
+        })
     }
 
     fn current_draw(&self) -> Option<&AgentBoardActualDraw> {
         let draw = self.shown.as_ref()?;
-        (draw.token == self.token()).then_some(draw)
+        (Some(&draw.token) == self.token().as_ref()).then_some(draw)
     }
 
     pub(crate) fn input_context(&self) -> Option<AgentBoardInputContext> {
-        self.open.then_some(AgentBoardInputContext {
+        self.is_open().then_some(AgentBoardInputContext {
             episode: self.episode(),
             presentation: self.presentation,
             interactive: self.interactive(),
@@ -963,62 +381,21 @@ impl AgentBoard {
     }
 
     fn interactive(&self) -> bool {
-        self.open && self.presentation.interactive() && self.visible
-    }
-
-    pub(crate) fn selected_is_shown(&self) -> bool {
-        let Some(draw) = self.current_draw() else {
-            return false;
-        };
-        self.selected_row()
-            .is_some_and(|row| draw.selected() == Some(row.session_id()))
+        self.is_open() && self.presentation.interactive() && self.visible
     }
 
     fn actual_draw(&self, visible_rows: usize) -> Option<AgentBoardActualDraw> {
-        if !self.open || visible_rows == 0 {
+        if visible_rows == 0 {
             return None;
         }
-        if self.picker.is_some() {
-            let token = AgentBoardToken {
-                source: self.draw_source(),
-                scroll: self.picker_first_row(visible_rows),
-            };
-            return AgentBoardActualDraw::new(token, visible_rows, None, None);
-        }
-        let first_index = self
-            .scroll
-            .min(self.rows.len().saturating_sub(visible_rows));
         let token = AgentBoardToken {
-            source: self.draw_source(),
-            scroll: first_index,
+            source: self.draw_source()?,
+            scroll: self.picker_first_row(visible_rows),
         };
-        let first = self
-            .rows
-            .get(first_index)
-            .map(|row| row.session_id().clone());
-        let selected = self.visible_selection(first_index, visible_rows).cloned();
-        AgentBoardActualDraw::new(token, visible_rows, first, selected)
-    }
-
-    pub(crate) fn control_drawn(&mut self, target: &AgentBoardControlTarget, now: Instant) -> bool {
-        if !self.interactive()
-            || self
-                .current_draw()
-                .is_none_or(|draw| draw.token() != target.token())
-        {
-            return false;
-        }
-        match target.control() {
-            AgentBoardControl::Open if self.selected_is_shown() => self.request_jump(),
-            AgentBoardControl::Open => return false,
-            AgentBoardControl::Refresh => self.request_refresh(now),
-            AgentBoardControl::Close => self.close(),
-            // The composition opens the picker and runs a picked start.
-            AgentBoardControl::StartRow | AgentBoardControl::Pick(_) | AgentBoardControl::Place => {
-                return false;
-            }
-        }
-        true
+        Some(AgentBoardActualDraw {
+            token,
+            visible_rows,
+        })
     }
 
     pub(crate) fn scroll_painted(
@@ -1031,33 +408,16 @@ impl AgentBoard {
             return None;
         }
         let lines = isize::try_from(lines).ok()?;
-        self.scroll_by(if up { -lines } else { lines });
-        Some(self.token())
+        self.picker_scroll_by(if up { -lines } else { lines });
+        self.token()
     }
 
     pub(crate) fn new(launch_supported: bool) -> Self {
         Self {
-            open: false,
             epoch: 0,
             presentation: PresentationPhase::Pending,
             visible: false,
             shown: None,
-            rows: Vec::new(),
-            rows_revision: 0,
-            selection: 0,
-            scroll: 0,
-            viewport_rows: 0,
-            read: AgentBoardRead::Unread,
-            rows_from_complete: false,
-            rows_at: None,
-            last_summary: None,
-            intent: None,
-            inflight: None,
-            jump: None,
-            jump_serial: 0,
-            notice: None,
-            last_read_end: None,
-            start_row: false,
             start: start::State::new(launch_supported),
             catalog_refresh: false,
             picker: None,
@@ -1066,60 +426,39 @@ impl AgentBoard {
     }
 
     pub(crate) const fn is_open(&self) -> bool {
-        self.open
+        self.picker.is_some()
     }
 
-    /// The open episode that the composition's read lane may serve; `None`
-    /// while the Board is closed.
-    pub(crate) const fn open_episode(&self) -> Option<AgentBoardEpisodeToken> {
-        if self.open {
-            Some(self.episode())
-        } else {
-            None
-        }
-    }
-    /// Capture presence is synchronous from `open`: a key arriving before
-    /// the first paint still belongs to the board and never falls through.
-    /// Activation remains separately gated by exact successful-draw proof.
+    /// Capture presence is synchronous from opening: a key arriving before the first paint still
+    /// belongs to the picker and never falls through. Activation remains separately gated by
+    /// exact successful-draw proof.
     #[cfg(test)]
     pub(crate) const fn owns_input(&self) -> bool {
-        self.open
+        self.is_open()
     }
 
-    pub(crate) fn open(&mut self) {
-        self.open = true;
+    /// Starts a new open episode around `picker`.
+    fn open_with(&mut self, picker: picker::Picker) {
         self.epoch += 1;
-        self.picker = None;
-        self.start_row = false;
         self.presentation = PresentationPhase::Pending;
         self.visible = false;
         self.shown = None;
-        self.intent = Some(BoardIntent::Refresh);
-        self.inflight = None;
-        self.jump = None;
-        self.notice = None;
-        self.clamp_viewport();
+        self.picker = Some(picker);
     }
 
-    /// Ends the open episode. The epoch bump invalidates every answer the
-    /// episode's requests still owe and stops scheduling; the composition then
-    /// retires the read lane that served the episode.
+    /// Ends the open episode. The epoch bump invalidates every draw receipt the episode still
+    /// owes.
     pub(crate) fn close(&mut self) {
-        self.open = false;
-        self.epoch += 1;
+        if self.picker.take().is_some() {
+            self.epoch += 1;
+        }
         self.visible = false;
         self.shown = None;
-        self.intent = None;
-        self.inflight = None;
-        self.jump = None;
-        self.notice = None;
-        self.picker = None;
     }
 
-    /// Settles exact paint evidence. `None` means another composed surface
-    /// covered the Board: revoke current-frame authority but retain the open
-    /// episode and all domain work. `NotPresented` is geometry evidence and
-    /// therefore refuses only a never-presented episode.
+    /// Settles exact paint evidence. `None` means another composed surface covered the picker:
+    /// revoke current-frame authority but retain the open episode. `NotPresented` is geometry
+    /// evidence and therefore refuses only a never-presented episode.
     pub(crate) fn settle_draw(
         &mut self,
         draw: Option<AgentBoardDraw>,
@@ -1129,7 +468,7 @@ impl AgentBoard {
             self.shown = None;
             return None;
         };
-        if !self.open || draw.episode() != self.episode() {
+        if !self.is_open() || draw.episode() != self.episode() {
             return None;
         }
         match draw {
@@ -1144,30 +483,13 @@ impl AgentBoard {
             }
             AgentBoardDraw::Presented(actual) => {
                 let visible = actual.visible_rows();
-                if self.picker.is_some() {
-                    let first = self.picker_first_row(visible);
-                    if actual.token.source != self.draw_source() || actual.token.scroll != first {
-                        return None;
-                    }
-                    self.settle_picker_viewport(visible, first);
-                    self.presentation.presented();
-                    self.visible = true;
-                    self.shown = Some(actual);
-                    return None;
-                }
-                let maximum = self.rows.len().saturating_sub(visible);
-                let first_index = self.scroll.min(maximum);
-                let first = self.rows.get(first_index).map(AgentBoardRow::session_id);
-                let selected = self.visible_selection(first_index, visible);
-                if actual.token.source != self.draw_source()
-                    || actual.token.scroll != first_index
-                    || actual.first() != first
-                    || actual.selected() != selected
+                let first = self.picker_first_row(visible);
+                if Some(&actual.token.source) != self.draw_source().as_ref()
+                    || actual.token.scroll != first
                 {
                     return None;
                 }
-                self.viewport_rows = visible;
-                self.scroll = first_index;
+                self.settle_picker_viewport(visible, first);
                 self.presentation.presented();
                 self.visible = true;
                 self.shown = Some(actual);
@@ -1176,202 +498,15 @@ impl AgentBoard {
         }
     }
 
-    pub(crate) fn rows(&self) -> &[AgentBoardRow] {
-        &self.rows
-    }
-    pub(crate) const fn selection(&self) -> usize {
-        self.selection
-    }
-    pub(crate) const fn read(&self) -> AgentBoardRead {
-        self.read
-    }
-    pub(crate) const fn notice(&self) -> Option<JumpFailure> {
-        self.notice
-    }
-    pub(crate) fn jump(&self) -> Option<&BoardJump> {
-        self.jump.as_ref()
-    }
-    pub(crate) const fn jumping(&self) -> bool {
-        self.jump.is_some()
-    }
-
-    /// The sidebar's summary of the last completed read — `None` until
-    /// the first completed read ever, so a failed or never-run read
-    /// shows no count at all rather than implying zero Agents.
-    pub(crate) fn summary(&self) -> Option<&AgentBoardSummary> {
-        self.last_summary.as_ref()
-    }
-
-    fn selected_row(&self) -> Option<&AgentBoardRow> {
-        if self.start_row {
-            return None;
-        }
-        self.rows.get(self.selection)
-    }
-
-    fn clamp_viewport(&mut self) {
-        if self.rows.is_empty() {
-            self.selection = 0;
-            self.scroll = 0;
-            return;
-        }
-        self.selection = self.selection.min(self.rows.len() - 1);
-        let visible = self.viewport_rows.max(1);
-        let maximum = self.rows.len().saturating_sub(visible);
-        self.scroll = self.scroll.min(maximum);
-    }
-
-    fn reveal_selection(&mut self) {
-        self.clamp_viewport();
-        if self.rows.is_empty() {
-            return;
-        }
-        let visible = self.viewport_rows.max(1);
-        if self.selection < self.scroll {
-            self.scroll = self.selection;
-        } else if self.selection >= self.scroll + visible {
-            self.scroll = self.selection + 1 - visible;
-        }
-        self.clamp_viewport();
-    }
-
-    /// Moves the cursor over the Start Agent row and the Agent rows below it.
-    pub(crate) fn move_selection(&mut self, delta: isize) {
-        if self.rows.is_empty() {
-            return;
-        }
-        if self.start_row {
-            if delta > 0 {
-                self.start_row = false;
-                self.selection = 0;
-                self.selection = self
-                    .selection
-                    .saturating_add_signed(delta - 1)
-                    .min(self.rows.len() - 1);
-            }
-        } else if delta < 0 && self.selection == 0 && self.offers_start() {
-            // Moving up from the first row reaches the Start Agent row above it.
-            self.start_row = true;
-        } else {
-            self.selection = self
-                .selection
-                .saturating_add_signed(delta)
-                .min(self.rows.len() - 1);
-        }
-        self.shown = None;
-        self.reveal_selection();
-    }
-
-    /// Pointer row selection commits on press, but only against the exact
-    /// successfully painted source and visible range carried by the target.
-    pub(crate) fn select_drawn_row(&mut self, target: &AgentBoardRowTarget) -> bool {
-        if !self.interactive()
-            || self
-                .current_draw()
-                .is_none_or(|draw| draw.token() != target.token())
-        {
-            return false;
-        }
-        let Some(draw) = self.current_draw() else {
-            return false;
-        };
-        let end = draw
-            .token
-            .scroll
-            .saturating_add(draw.visible_rows)
-            .min(self.rows.len());
-        let Some(index) = self.rows[draw.token.scroll..end]
-            .iter()
-            .position(|row| row.session_id() == target.session())
-            .map(|index| index + draw.token.scroll)
-        else {
-            return false;
-        };
-        self.selection = index;
-        self.start_row = false;
-        self.shown = None;
-        self.clamp_viewport();
-        true
-    }
-
-    /// Internal stable-id selection seam retained for non-pointer tests and
-    /// owner operations that do not claim painted pointer authority.
-    #[cfg(test)]
-    pub(crate) fn select_session(&mut self, session: &AgentSessionId) -> bool {
-        let Some(index) = self.rows.iter().position(|row| row.session_id() == session) else {
-            return false;
-        };
-        self.selection = index;
-        self.start_row = false;
-        self.shown = None;
-        self.reveal_selection();
-        true
-    }
-
-    pub(crate) fn scroll_by(&mut self, delta: isize) {
-        if self.picker.is_some() {
-            self.picker_scroll_by(delta);
-            return;
-        }
-        let visible = self.viewport_rows.max(1);
-        let maximum = self.rows.len().saturating_sub(visible);
-        self.scroll = self.scroll.saturating_add_signed(delta).min(maximum);
-        self.shown = None;
-    }
-
-    pub(crate) fn request_refresh(&mut self, now: Instant) {
-        // A completed round — success or failure — imposes the cooldown;
-        // `r` inside the window is a no-op, not a queued refresh.
-        if self
-            .last_read_end
-            .is_some_and(|at| now < at + AGENT_READ_COOLDOWN)
-        {
-            return;
-        }
-        // A queued jump holds the single intent slot — a refresh
-        // request is consumed without displacing it.
-        if matches!(self.intent, Some(BoardIntent::Jump { .. })) {
-            return;
-        }
-        self.notice = None;
-        self.intent = Some(BoardIntent::Refresh);
-    }
-
-    /// Enter on the selected row. A row without a navigable attachment
-    /// refuses here — before any lane request — with the honest notice,
-    /// and never disturbs a jump already in progress. An accepted jump
-    /// supersedes the previous one *at request time*: the superseded
-    /// jump dies now, while its in-flight Get keeps the physical lane
-    /// credit until the matching outcome drains or the lane thread's
-    /// exit releases it — a stale outcome can never displace the newer
-    /// jump (the serial check in `apply_get_outcome`).
-    pub(crate) fn request_jump(&mut self) {
-        let Some(row) = self.selected_row() else {
-            return;
-        };
-        if !row.navigable() {
-            self.notice = Some(JumpFailure::NoPlacement);
-            return;
-        }
-        let target = row.session_id.clone();
-        self.notice = None;
-        self.jump = None;
-        self.shown = None;
-        self.intent = Some(BoardIntent::Jump { target });
-    }
-
     /// One start drain: `jobs` settles its outcomes into the start state.
     pub(crate) fn drain_start(
         &mut self,
-        now: Instant,
+        now: std::time::Instant,
         jobs: impl FnOnce(&mut start::State) -> start::Drain,
     ) -> bool {
         let expired = self.start.expire(now);
         self.hold_picker_cursor();
         let drained = jobs(&mut self.start);
-        if drained.started {
-            self.request_refresh(now);
-        }
         drained.changed || expired
     }
 
@@ -1406,430 +541,6 @@ impl AgentBoard {
         self.start.latest().map(|(_, panel)| panel)
     }
 
-    /// Issue the queued intent as a typed read request — one outstanding
-    /// request at a time (the model's read serialization). `issue` hands the
-    /// request to the composition's read lane and reports a refusal; the
-    /// request's answer arrives later through `settle_read`.
-    pub(crate) fn drive_intent(
-        &mut self,
-        now: Instant,
-        issue: impl FnOnce(AgentBoardReadRequest) -> Result<(), AgentBoardReadRefusal>,
-    ) -> bool {
-        if !self.open || self.inflight.is_some() {
-            return false;
-        }
-        match self.intent.take() {
-            Some(BoardIntent::Refresh) => {
-                // A queued refresh still honors the read cooldown — the
-                // intent waits out the remainder instead of issuing early
-                // or being dropped. `open()` queues its first refresh even
-                // while a previous round's cooldown still runs; rearming
-                // each tick is what makes the residual honest.
-                if self
-                    .last_read_end
-                    .is_some_and(|at| now < at + AGENT_READ_COOLDOWN)
-                {
-                    self.intent = Some(BoardIntent::Refresh);
-                    return false;
-                }
-                self.issue_list_round(now, issue);
-                true
-            }
-            Some(BoardIntent::Jump { target }) => {
-                self.issue_jump_get(target, now, issue);
-                true
-            }
-            None => false,
-        }
-    }
-
-    fn issue_list_round(
-        &mut self,
-        now: Instant,
-        issue: impl FnOnce(AgentBoardReadRequest) -> Result<(), AgentBoardReadRefusal>,
-    ) {
-        let Some(deadline) = now.checked_add(AGENT_READ_DEADLINE) else {
-            self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
-            return;
-        };
-        let request = AgentBoardReadRequest::List {
-            episode: self.episode(),
-            deadline,
-        };
-        self.read = match issue(request) {
-            Ok(()) => {
-                self.inflight = Some(BoardInflight::ListRound);
-                AgentBoardRead::InFlight
-            }
-            Err(AgentBoardReadRefusal::LaneUnavailable) => {
-                AgentBoardRead::Failed(AgentBoardReadFailure::LaneUnavailable)
-            }
-            Err(AgentBoardReadRefusal::Rejected) => {
-                AgentBoardRead::Failed(AgentBoardReadFailure::Transport)
-            }
-        };
-    }
-
-    fn issue_jump_get(
-        &mut self,
-        target: AgentSessionId,
-        now: Instant,
-        issue: impl FnOnce(AgentBoardReadRequest) -> Result<(), AgentBoardReadRefusal>,
-    ) {
-        self.jump_serial += 1;
-        let serial = self.jump_serial;
-        let Some(deadline) = now.checked_add(AGENT_JUMP_DEADLINE) else {
-            self.fail_jump(JumpFailure::Expired);
-            return;
-        };
-        // A sidebar row has no canonical session to verify: it navigates to its Panel at once,
-        // and the live presentation index still resolves every stage.
-        if let Some(row) = self
-            .rows
-            .iter()
-            .find(|row| row.sidebar && row.session_id == target)
-        {
-            self.jump = Some(BoardJump {
-                serial,
-                stage: JumpStage::Navigating {
-                    candidates: row.attachments.clone(),
-                    index: 0,
-                },
-                deadline,
-            });
-            self.shown = None;
-            return;
-        }
-        self.jump = Some(BoardJump {
-            serial,
-            stage: JumpStage::Checking,
-            deadline,
-        });
-        self.shown = None;
-        // The Get's own deadline sits inside the jump's total budget —
-        // it cannot outlive either.
-        let get_deadline = now
-            .checked_add(AGENT_GET_DEADLINE)
-            .map_or(deadline, |get| get.min(deadline));
-        let request = AgentBoardReadRequest::Get {
-            episode: self.episode(),
-            serial,
-            session: target,
-            deadline: get_deadline,
-        };
-        match issue(request) {
-            Ok(()) => self.inflight = Some(BoardInflight::JumpGet { serial }),
-            Err(_) => self.fail_jump(JumpFailure::Unavailable),
-        }
-    }
-
-    /// Settle one read event in the order the composition's lane delivered
-    /// it. The list path is board-local; the Get path needs the caller's
-    /// live-context preference to order candidates, so it takes that as a
-    /// closure.
-    pub(crate) fn settle_read(
-        &mut self,
-        event: AgentBoardReadEvent,
-        now: Instant,
-        prefer: &mut impl FnMut(&AgentPresentationAttachment) -> bool,
-    ) {
-        match event {
-            AgentBoardReadEvent::Answer(AgentBoardReadAnswer::List { episode, result }) => {
-                self.apply_list_outcome(episode, result, now);
-            }
-            AgentBoardReadEvent::Answer(AgentBoardReadAnswer::Get {
-                episode,
-                serial,
-                result,
-            }) => self.apply_get_outcome(episode, serial, result, prefer),
-            AgentBoardReadEvent::Foreign => {
-                self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
-            }
-            // Dead-lane honesty: the lane's end follows every answer it
-            // queued, so it proves no answer will ever arrive for a residual
-            // credit. Release that credit into the honest failure now —
-            // never leave the board waiting on a lane that no longer exists.
-            AgentBoardReadEvent::LaneEnded => match self.inflight.take() {
-                Some(BoardInflight::ListRound) => {
-                    self.last_read_end = Some(now);
-                    self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable);
-                }
-                Some(BoardInflight::JumpGet { serial })
-                    if self.jump.as_ref().is_some_and(|jump| jump.serial == serial) =>
-                {
-                    self.fail_jump(JumpFailure::Unavailable);
-                }
-                Some(BoardInflight::JumpGet { .. }) | None => {}
-            },
-        }
-    }
-
-    /// The rows for every Agent the sidebar shows whose Presentation no canonical row attaches:
-    /// the Board lists each Agent the sidebar shows, whatever started it.
-    fn shown_rows(&self, canonical: &[AgentBoardRow]) -> Vec<AgentBoardRow> {
-        self.session_agents
-            .shown()
-            .filter(|shown| {
-                !canonical.iter().any(|row| {
-                    row.attachments.iter().any(|attachment| {
-                        attachment.presentation_id == shown.binding.presentation_id
-                    })
-                })
-            })
-            .filter_map(AgentBoardRow::from_shown)
-            .collect()
-    }
-
-    /// A changed sidebar updates the rows it contributes once a read installed rows; canonical
-    /// rows wait for the next read.
-    pub(crate) fn follow_shown_agents(&mut self) {
-        if self.rows_at.is_none() {
-            return;
-        }
-        let canonical: Vec<AgentBoardRow> = self
-            .rows
-            .iter()
-            .filter(|row| !row.sidebar)
-            .cloned()
-            .collect();
-        let shown = self.shown_rows(&canonical);
-        if self.rows.iter().filter(|row| row.sidebar).eq(shown.iter()) {
-            return;
-        }
-        let mut rows = canonical;
-        rows.extend(shown);
-        self.install_rows(rows);
-    }
-
-    /// Install a new row set, keeping the selection and the reading position by identity.
-    fn install_rows(&mut self, mut rows: Vec<AgentBoardRow>) {
-        let held = self.selected_row().map(|row| row.session_id.clone());
-        let anchored = self.rows.get(self.scroll).map(|row| row.session_id.clone());
-        let old_scroll = self.scroll;
-        // Needs-attention rows surface first — a stable lift,
-        // never a reorder: the canonical order inside each
-        // group stays exactly what the Server returned.
-        rows.sort_by_key(|row| {
-            usize::from(!matches!(
-                row.status(),
-                AgentSemanticStatus::NeedsAttention { .. }
-            ))
-        });
-        rows.truncate(MAXIMUM_ROWS);
-        self.rows = rows;
-        self.rows_revision = self.rows_revision.wrapping_add(1);
-        self.shown = None;
-        // The selection follows the opaque session identity —
-        // never a stale row index. A vanished selection
-        // repairs deterministically to the first row in the
-        // current display order.
-        if let Some(held) = held {
-            self.selection = self
-                .rows
-                .iter()
-                .position(|row| row.session_id() == &held)
-                .unwrap_or(0);
-        }
-        // A background refresh preserves the manual reading
-        // anchor independently of the logical selection. When
-        // that row vanished, retain the bounded viewport offset;
-        // never snap back to selection merely because data landed.
-        self.scroll = anchored
-            .and_then(|anchor| self.rows.iter().position(|row| row.session_id() == &anchor))
-            .unwrap_or(old_scroll);
-        self.clamp_viewport();
-    }
-
-    fn apply_list_outcome(
-        &mut self,
-        episode: AgentBoardEpisodeToken,
-        result: Result<AgentListRound, AgentReadFailure>,
-        now: Instant,
-    ) {
-        if episode != self.episode() || !matches!(self.inflight, Some(BoardInflight::ListRound)) {
-            return;
-        }
-        self.inflight = None;
-        // Every completed attempt starts the cooldown — failure counts.
-        self.last_read_end = Some(now);
-        match result {
-            Ok(round) => {
-                // An incomplete walk never overwrites a complete read's
-                // rows: last_good stays on screen with the incomplete
-                // mark and its original age. Without any last_good the
-                // single-revision partial rows may show — marked, never
-                // reported as a full count.
-                let replace = round.complete || !self.rows_from_complete;
-                if replace {
-                    let mut rows: Vec<AgentBoardRow> = round
-                        .items
-                        .into_iter()
-                        .map(AgentBoardRow::from_summary)
-                        .collect();
-                    rows.extend(self.shown_rows(&rows));
-                    self.install_rows(rows);
-                    self.rows_from_complete = round.complete;
-                    self.rows_at = Some(now);
-                }
-                // When last_good rows are kept, their install time is the
-                // honest freshness — not the moment this partial landed.
-                let at = if replace {
-                    now
-                } else {
-                    self.rows_at.unwrap_or(now)
-                };
-                self.read = AgentBoardRead::Ready {
-                    complete: round.complete,
-                    at,
-                };
-                self.last_summary = Some(AgentBoardSummary {
-                    sessions: self.rows.len(),
-                    complete: round.complete,
-                    at,
-                });
-                self.notice = None;
-            }
-            Err(AgentReadFailure::Denied) => {
-                self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Denied);
-            }
-            Err(AgentReadFailure::Unavailable) => {
-                self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable);
-            }
-            Err(AgentReadFailure::Transport) => {
-                self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
-            }
-        }
-    }
-
-    /// Apply the verified Get outcome. `prefer` reports whether an
-    /// attachment currently resolves into the caller's active context and
-    /// tab — the deterministic pick's "current-tab usable" preference.
-    fn apply_get_outcome(
-        &mut self,
-        episode: AgentBoardEpisodeToken,
-        serial: u64,
-        result: Result<AgentGetOutcome, AgentReadFailure>,
-        prefer: &mut impl FnMut(&AgentPresentationAttachment) -> bool,
-    ) {
-        // The physical lane credit is bound to the outcome itself: a
-        // matching serial always releases it — even when the jump that
-        // issued it was superseded at request time or already failed.
-        // What the credit must never do is clear a *different* jump:
-        // that check happens only after the release.
-        if episode != self.episode()
-            || !matches!(self.inflight, Some(BoardInflight::JumpGet { serial: held }) if held == serial)
-        {
-            return;
-        }
-        self.inflight = None;
-        let Some(jump) = self.jump.as_mut() else {
-            return;
-        };
-        if jump.serial != serial {
-            return;
-        }
-        match result {
-            Ok(AgentGetOutcome::Found { session, .. }) => {
-                if session.snapshot.lifecycle == AgentLifecycle::Ended {
-                    self.fail_jump(JumpFailure::Ended);
-                    return;
-                }
-                let mut candidates: Vec<AgentPresentationAttachment> = session
-                    .snapshot
-                    .presentation_attachments
-                    .iter()
-                    .filter(|attachment| attachment.navigable)
-                    .cloned()
-                    .collect();
-                // Deterministic pick: attachments already usable on the
-                // active tab first, then Visible over hidden/unknown, then
-                // stable presentation identity — the same observation always
-                // produces the same first attempt.
-                candidates.sort_by(|left, right| {
-                    prefer(right)
-                        .cmp(&prefer(left))
-                        .then(
-                            (right.visibility == AgentPresentationVisibility::Visible)
-                                .cmp(&(left.visibility == AgentPresentationVisibility::Visible)),
-                        )
-                        .then(
-                            left.presentation_id
-                                .as_str()
-                                .cmp(right.presentation_id.as_str()),
-                        )
-                });
-                if candidates.is_empty() {
-                    self.fail_jump(JumpFailure::NoPlacement);
-                    return;
-                }
-                jump.stage = JumpStage::Navigating {
-                    candidates: candidates.into_boxed_slice(),
-                    index: 0,
-                };
-            }
-            Ok(AgentGetOutcome::Rejected {
-                reason: AgentSessionRejectionReason::NotFound,
-            }) => self.fail_jump(JumpFailure::Gone),
-            Ok(AgentGetOutcome::Rejected {
-                reason: AgentSessionRejectionReason::ReadDenied,
-            }) => self.fail_jump(JumpFailure::Denied),
-            Ok(AgentGetOutcome::Unavailable { .. }) | Err(_) => {
-                self.fail_jump(JumpFailure::Unavailable);
-            }
-        }
-    }
-
-    /// Drop the current candidate and try the next one; exhaustion means
-    /// no attachment resolved to a live workbench target — `Gone`.
-    pub(crate) fn advance_jump_candidate(&mut self) -> bool {
-        let Some(jump) = self.jump.as_mut() else {
-            return false;
-        };
-        let JumpStage::Navigating { candidates, index } = &mut jump.stage else {
-            return false;
-        };
-        *index += 1;
-        if *index >= candidates.len() {
-            self.fail_jump(JumpFailure::Gone);
-        }
-        true
-    }
-
-    /// Whether the jump's total budget elapsed; caller checks each tick.
-    pub(crate) fn expire_jump(&mut self, now: Instant) -> bool {
-        if self.jump.as_ref().is_some_and(|jump| now >= jump.deadline) {
-            self.fail_jump(JumpFailure::Expired);
-            return true;
-        }
-        false
-    }
-
-    /// A failed jump is finished logically, but its lane credit is
-    /// physical: an in-flight Get keeps the credit until the matching
-    /// outcome drains (released by `apply_get_outcome`'s serial match)
-    /// or the dead-lane witness releases it — never an unconditional
-    /// clear that would let a fresh request overlap the lane's work.
-    pub(crate) fn fail_jump(&mut self, kind: JumpFailure) {
-        self.notice = Some(kind);
-        self.jump = None;
-        self.shown = None;
-    }
-
-    /// The jump landed on the exact panel — the user is where they asked
-    /// to be, so the board closes.
-    pub(crate) fn jump_landed(&mut self) {
-        self.jump = None;
-        self.close();
-    }
-
-    /// Test seam: install a jump in a chosen stage without driving the
-    /// lane — the UI drive tests stage navigation directly.
-    #[cfg(test)]
-    pub(crate) fn force_jump_t(&mut self, jump: BoardJump) {
-        self.jump = Some(jump);
-        self.shown = None;
-    }
-
     /// Connection release: the catalog stream is closed, so nothing held belongs to a connection
     /// any more.
     pub(crate) fn retire_start_catalog(&mut self) {
@@ -1838,77 +549,15 @@ impl AgentBoard {
     }
 }
 
-/// The renderer's read handle over a live `AgentBoard` — borrows the
-/// board and the freshest Workbench presentation index inside
-/// `WorkbenchClientView`, exposes rows and placement lookups without
-/// handing out mutation.
+/// The renderer's read handle over an open picker owner, without handing out mutation.
 #[derive(Clone, Copy)]
 pub struct AgentBoardView<'a> {
     board: &'a AgentBoard,
-    index: &'a PresentationIndex,
-    attention: Option<&'a dyn AgentRowAttention>,
-    names: Option<&'a dyn LivePlacementNames>,
 }
 
 impl<'a> AgentBoardView<'a> {
-    pub(crate) const fn new(board: &'a AgentBoard, index: &'a PresentationIndex) -> Self {
-        Self {
-            board,
-            index,
-            attention: None,
-            names: None,
-        }
-    }
-    pub(crate) fn with_attention(mut self, attention: &'a dyn AgentRowAttention) -> Self {
-        self.attention = Some(attention);
-        self
-    }
-    /// Names rows after the Tab strip's live names wherever the view shows the row's Tab.
-    pub(crate) fn with_names(mut self, names: &'a dyn LivePlacementNames) -> Self {
-        self.names = Some(names);
-        self
-    }
-    /// The row title and Tab name for an attachment's placement, by the Tab strip's rule.
-    pub(crate) fn placement_names(
-        &self,
-        attachment: &AgentPresentationAttachment,
-        placement: &PresentationPlacement,
-        locale: crate::localization::Locale,
-    ) -> (String, String) {
-        placement.names(attachment.presentation_id.as_str(), self.names, locale)
-    }
-    pub(crate) fn unread(&self, row: &AgentBoardRow) -> bool {
-        {
-            self.attention
-                .is_some_and(|attention| attention.session_unread(row.session_id()))
-        }
-    }
-    pub(crate) fn display_status<'row>(
-        &self,
-        row: &'row AgentBoardRow,
-    ) -> &'row AgentSemanticStatus {
-        if matches!(
-            row.status(),
-            AgentSemanticStatus::Succeeded {} | AgentSemanticStatus::Idle {}
-        ) && let Some(completion) = self.attention.and_then(|attention| {
-            row.attachments()
-                .iter()
-                .find_map(|attachment| attention.presentation_completion(attachment))
-        }) {
-            match completion {
-                orchbee_workbench_protocol::AgentCompletion::AwaitingInput => {
-                    return &AgentSemanticStatus::Succeeded {};
-                }
-                orchbee_workbench_protocol::AgentCompletion::Acknowledged => {
-                    return &AgentSemanticStatus::Idle {};
-                }
-                orchbee_workbench_protocol::AgentCompletion::None => {}
-            }
-        }
-        row.status()
-    }
-    pub fn rows(&self) -> &'a [AgentBoardRow] {
-        self.board.rows()
+    pub(crate) const fn new(board: &'a AgentBoard) -> Self {
+        Self { board }
     }
     pub(crate) const fn episode(&self) -> AgentBoardEpisodeToken {
         self.board.episode()
@@ -1919,36 +568,11 @@ impl<'a> AgentBoardView<'a> {
     pub(crate) fn input_context(&self) -> AgentBoardInputContext {
         self.board
             .input_context()
-            .expect("a AgentBoardView borrows an open Board")
+            .expect("a AgentBoardView borrows an open picker")
     }
-    /// Builds the exact successful-frame witness after the renderer has
-    /// resolved the viewport. The owner supplies the source revision,
-    /// logical selection proof and stable top-row identity in one value.
+    /// Builds the exact successful-frame witness after the renderer has resolved the viewport.
     pub(crate) fn actual_draw(&self, visible_rows: usize) -> Option<AgentBoardActualDraw> {
         self.board.actual_draw(visible_rows)
-    }
-    pub(crate) const fn close_binding(&self) -> crate::client_view::Binding {
-        BOARD_CLOSE_KEY
-    }
-    pub(crate) const fn jump_binding(&self) -> crate::client_view::Binding {
-        BOARD_JUMP_KEY
-    }
-    pub(crate) const fn refresh_binding(&self) -> crate::client_view::Binding {
-        BOARD_REFRESH_KEY
-    }
-    pub(crate) const fn navigation_bindings(&self) -> [crate::client_view::Binding; 4] {
-        [
-            BOARD_SELECT_UP_KEYS[0],
-            BOARD_SELECT_DOWN_KEYS[0],
-            BOARD_SELECT_DOWN_KEYS[1],
-            BOARD_SELECT_UP_KEYS[1],
-        ]
-    }
-    pub(crate) const fn start_binding(&self) -> crate::client_view::Binding {
-        BOARD_START_KEY
-    }
-    pub(crate) const fn offers_start(&self) -> bool {
-        self.board.offers_start()
     }
     pub(crate) fn picker_status(&self) -> Option<picker::Status> {
         self.board.picker_status()
@@ -1957,36 +581,13 @@ impl<'a> AgentBoardView<'a> {
     pub(crate) fn start_agent_text(&self, id: &str) -> Option<(&'a str, &'a str)> {
         self.board.start_agent_text(id)
     }
-    pub(crate) fn start_row_selected(&self) -> bool {
-        self.board.start_row_selected()
-    }
     pub(crate) const fn picker(&self) -> Option<&'a picker::Picker> {
         self.board.picker.as_ref()
     }
     pub(crate) fn picker_items(&self) -> Vec<picker::Item> {
         self.board.picker_items()
     }
-    pub(crate) const fn selection(&self) -> usize {
-        self.board.selection()
-    }
-    pub(crate) const fn read(&self) -> AgentBoardRead {
-        self.board.read()
-    }
-    pub(crate) const fn notice(&self) -> Option<JumpFailure> {
-        self.board.notice()
-    }
-    pub(crate) const fn jumping(&self) -> bool {
-        self.board.jumping()
-    }
     pub(crate) const fn can_start_agent(&self) -> bool {
         self.board.can_start_agent()
-    }
-    /// Where one attachment currently resolves in the live Workbench —
-    /// `None` when its presentation identity has no painted panel.
-    pub(crate) fn placement(
-        &self,
-        attachment: &AgentPresentationAttachment,
-    ) -> Option<&'a PresentationPlacement> {
-        self.index.placement(attachment)
     }
 }

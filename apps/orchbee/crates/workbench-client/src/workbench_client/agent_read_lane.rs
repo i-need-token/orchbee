@@ -19,13 +19,8 @@ use std::{
 };
 
 use orchbee_agent_observation_protocol::{
-    AgentGetOutcome, AgentListCursor, AgentListOutcome, AgentListRejectionReason, AgentReadRequest,
-    AgentReadResult, AgentSafeInteger, AgentSessionId, AgentSessionSummary, MAXIMUM_LIST_LIMIT,
-    ObapRequestId,
-};
-
-use crate::agent_board::{
-    AgentBoardReadAnswer, AgentBoardReadRequest, AgentListRound, AgentReadFailure,
+    AgentListCursor, AgentListOutcome, AgentListRejectionReason, AgentReadRequest, AgentReadResult,
+    AgentSafeInteger, AgentSessionSummary, MAXIMUM_LIST_LIMIT, ObapRequestId,
 };
 
 use crate::local_client::{
@@ -64,8 +59,6 @@ pub(super) enum LaneCommand {
         revision: Option<u64>,
         deadline: Instant,
     },
-    /// One Agent board read; its answer is `LaneOutcome::Board`.
-    Board(AgentBoardReadRequest),
 }
 
 pub(super) enum LaneOutcome {
@@ -85,7 +78,6 @@ pub(super) enum LaneOutcome {
         epoch: u64,
         result: Result<AttentionRound, LaneFailure>,
     },
-    Board(AgentBoardReadAnswer),
 }
 
 /// One completed list walk — `complete` is false when the page bound or
@@ -110,16 +102,6 @@ pub(super) enum LaneFailure {
     /// Connect, transport, or post-submission ambiguity — the session
     /// logical lane is already dropped; the connection actor owns any reconnect.
     Transport,
-}
-
-impl From<LaneFailure> for AgentReadFailure {
-    fn from(failure: LaneFailure) -> Self {
-        match failure {
-            LaneFailure::Unavailable => Self::Unavailable,
-            LaneFailure::Denied => Self::Denied,
-            LaneFailure::Transport => Self::Transport,
-        }
-    }
 }
 
 /// One lane handle: command channel, outcome drain, the wake
@@ -308,42 +290,6 @@ fn run(
                     &shutdown,
                 ),
             },
-            LaneCommand::Board(AgentBoardReadRequest::List { episode, deadline }) => {
-                LaneOutcome::Board(AgentBoardReadAnswer::List {
-                    episode,
-                    result: list_round(
-                        &origin,
-                        &clock,
-                        &mut client,
-                        deadline,
-                        wake_read.as_local_io(),
-                        &shutdown,
-                    )
-                    .map(|round| AgentListRound {
-                        items: round.items,
-                        complete: round.complete,
-                    })
-                    .map_err(AgentReadFailure::from),
-                })
-            }
-            LaneCommand::Board(AgentBoardReadRequest::Get {
-                episode,
-                serial,
-                session,
-                deadline,
-            }) => LaneOutcome::Board(AgentBoardReadAnswer::Get {
-                episode,
-                serial,
-                result: get_session(
-                    &origin,
-                    &clock,
-                    &mut client,
-                    session,
-                    deadline,
-                    wake_read.as_local_io(),
-                )
-                .map_err(AgentReadFailure::from),
-            }),
         };
         if outcomes.try_send(outcome).is_err() {
             break;
@@ -449,26 +395,6 @@ fn list_round(
             revision,
         });
     }
-}
-
-fn get_session(
-    origin: &LocalClientOrigin,
-    clock: &LocalOperationClock,
-    client: &mut Option<LocalClient>,
-    session: AgentSessionId,
-    deadline: Instant,
-    wake: orchbee_local_ipc::LocalIo<'_>,
-) -> Result<AgentGetOutcome, LaneFailure> {
-    let request = AgentReadRequest::Get {
-        request_id: mint_request_id()?,
-        session_id: session,
-    };
-    let AgentReadResult::Get { result, .. } =
-        submit(origin, clock, client, request, deadline, wake)?
-    else {
-        return Err(LaneFailure::Transport);
-    };
-    Ok(result.outcome)
 }
 
 /// One exchange on the shared carrier, acquiring a logical scope when its handle

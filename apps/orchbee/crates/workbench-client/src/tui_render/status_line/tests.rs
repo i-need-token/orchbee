@@ -211,11 +211,10 @@ fn prefix_mode_status_hints_drop_only_the_lowest_priority_whole_items_by_width()
         "Space actions",
         "c create Tab",
         r"\ / - split",
-        "g Agent board",
         "q detach",
     ];
 
-    let width_cases: &[(u16, usize)] = &[(160, 8), (115, 7), (100, 6), (85, 5), (60, 3)];
+    let width_cases: &[(u16, usize)] = &[(160, 7), (115, 7), (100, 6), (85, 5), (60, 3)];
 
     for &(width, visible_count) in width_cases {
         let mut view = ClientView::new(width);
@@ -262,7 +261,6 @@ fn prefix_mode_hint_labels_are_localized_in_both_supported_locales() {
             copy.actions,
             copy.create_tab,
             copy.split,
-            copy.agent_board,
             copy.detach,
         ] {
             assert!(text.contains(label), "{label:?} missing in {text:?}");
