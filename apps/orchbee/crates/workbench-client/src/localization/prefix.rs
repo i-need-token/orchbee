@@ -40,7 +40,6 @@ pub(crate) enum PrefixDesc {
     WorktreeCreate,
     WorktreeOpen,
     WorkspaceClose,
-    ControlTakeover,
     WorkspaceDirectory,
     WorkspaceRename,
     ProjectRename,
@@ -109,7 +108,6 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::QuickWorkspaceCreate => "Create a Workspace and enter its first terminal",
         PrefixDesc::WorktreeCreate => "Create a Git worktree and enter its terminal",
         PrefixDesc::WorktreeOpen => "Open an existing Git checkout",
-        PrefixDesc::ControlTakeover => "Take control of the current panel; use this window's size",
         PrefixDesc::WorkspaceClose => {
             "Close current Workspace and its terminals (asks for confirmation)"
         }
@@ -187,7 +185,6 @@ pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
         PrefixDesc::WorktreeCreate => "创建 Git 工作树并进入终端",
         PrefixDesc::WorktreeOpen => "打开已有 Git 检出目录",
-        PrefixDesc::ControlTakeover => "接管当前面板；使用本窗口尺寸",
         PrefixDesc::WorkspaceClose => "关闭当前工作区及其终端（需要确认）",
         PrefixDesc::WorkspaceCreate => "创建工作区并进入第一个终端",
         PrefixDesc::WorkspaceDirectory => "配置空工作区的首个目录",

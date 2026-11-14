@@ -1752,12 +1752,6 @@ fn workspace_geometry_changes_require_a_separate_controller_grant() -> TestResul
                 rendered.contains("initial_workspace · Ready · view only"),
                 "{rendered}"
             );
-            assert!(
-                rendered.contains(&crate::terminal_events::keys::tests::host_label(
-                    "Ctrl+b t take control"
-                )),
-                "{rendered}"
-            );
         }
         let prefixed = render_prefix_client(&workbench_client, &client_view)?;
         assert_ready_prefix_client(&workbench_client, &prefixed, 1, expected);

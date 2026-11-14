@@ -97,7 +97,7 @@ Reactivation requires a fresh full frame, even when the terminal revision is unc
 The unpublished OBCS observation, activation and takeover shapes require one development cohort.
 Older peers reject the action; there is no fallback that disconnects another Client or retries an
 uncertain effect. No new Host protocol or dependency is needed. Native stream control and attach
-consume this authority. The Windows native Client's explicit `Ctrl+B t` integration is governed by
+consume this authority. The Windows native Client's explicit take-control integration is governed by
 [native controller takeover](../../orchbee/docs/native-control-takeover.md); the old Client's
 label follows subsequent ownership observations without waiting for rejected input/resize.
 

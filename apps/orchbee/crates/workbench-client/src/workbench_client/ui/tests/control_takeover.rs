@@ -426,7 +426,7 @@ fn former_controller_accepts_host_snapshot_geometry_without_local_resize_or_auth
 }
 
 #[test]
-fn read_only_input_notice_preserves_the_takeover_hint_in_the_status_line() {
+fn read_only_input_notice_shows_view_only_in_the_status_line() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
@@ -466,11 +466,6 @@ fn read_only_input_notice_preserves_the_takeover_hint_in_the_status_line() {
                 }),
                 "{locale:?}: {status}"
             );
-            let takeover: String = crate::terminal_events::keys::tests::host_label("Ctrl+b t")
-                .chars()
-                .filter(|c| c.is_alphanumeric())
-                .collect();
-            assert!(readable.contains(&takeover), "{locale:?}: {status}");
         }
     }
 }

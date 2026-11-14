@@ -123,13 +123,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         desc: PrefixDesc::WorkspaceClose,
     },
     PrefixGroup {
-        members: &[member(
-            key(KeyCode::Char('t')),
-            ClientAction::RequestControlTakeover,
-        )],
-        desc: PrefixDesc::ControlTakeover,
-    },
-    PrefixGroup {
         members: &[member(key(KeyCode::Char('M')), ClientAction::OpenMachines)],
         desc: PrefixDesc::Machines,
     },

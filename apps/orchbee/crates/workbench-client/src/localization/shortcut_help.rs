@@ -46,7 +46,6 @@ pub(crate) enum ShortcutLabel {
     CancelPrefix,
     PointerCapture,
     Exit,
-    ControlTakeover,
     Machines,
     PreviousAgent,
     NextAgent,
@@ -354,11 +353,6 @@ impl Locale {
             ShortcutLabel::Exit => match self {
                 Self::EnUs => "Leave view (keep terminals running)",
                 Self::ZhCn => "离开界面（终端继续运行）",
-            }
-            .to_owned(),
-            ShortcutLabel::ControlTakeover => match self {
-                Self::EnUs => "Enable typing in this panel",
-                Self::ZhCn => "获取此面板的输入权限",
             }
             .to_owned(),
             ShortcutLabel::Machines => match self {

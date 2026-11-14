@@ -137,7 +137,6 @@ fn shortcut_action_title(
                 | ClientAction::RequestRenameTab
                 | ClientAction::ClosePanel
                 | ClientAction::ToggleZoom
-                | ClientAction::RequestControlTakeover
                 | ClientAction::Exit
                 | ClientAction::MovePanelFocus(_)
                 | ClientAction::SplitPanel(_)
@@ -370,7 +369,6 @@ fn local_action_title(locale: Locale, action: &PrefixAction) -> String {
         PrefixAction::Client(A::DismissPrefix) => ShortcutLabel::CancelPrefix,
         PrefixAction::Client(A::TogglePointerCapture) => ShortcutLabel::PointerCapture,
         PrefixAction::Client(A::Exit) => ShortcutLabel::Exit,
-        PrefixAction::Client(A::RequestControlTakeover) => ShortcutLabel::ControlTakeover,
         PrefixAction::Client(A::OpenMachines) => ShortcutLabel::Machines,
         PrefixAction::Client(A::PreviousAgent) => ShortcutLabel::PreviousAgent,
         PrefixAction::Client(A::NextAgent) => ShortcutLabel::NextAgent,

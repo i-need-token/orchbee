@@ -343,7 +343,7 @@ feedback may advance initial frame acquisition.
 The Client never restarts or adopts a failed Session. Failed/residual runtimes explicitly require
 recovery and are not deleted automatically. `Ctrl+b q` or `Ctrl+b d` closes only this Client;
 reopening attaches to the same retained shell. Additional concurrent Clients are read-only unless
-they acquire an independent controller grant. On Windows, `Ctrl+b t` explicitly takes control of
+they acquire an independent controller grant. On Windows, the Panel menu's take-control row explicitly takes control of
 the current Panel and supplies this window's Panel size; ordinary typing and clicks never take over.
 The previous Client keeps viewing and confirms read-only on its next input or resize interaction;
 see [native controller takeover](docs/native-control-takeover.md). TTY admission occurs once, every duplicate is
