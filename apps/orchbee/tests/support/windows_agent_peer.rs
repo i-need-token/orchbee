@@ -854,7 +854,6 @@ pub(super) fn configuration_reply(
                     notification_profile: "[notifications]\ncli_delivery='off'\n".into(),
                     agent_sidebar_profile: "{}".into(),
                     spaces_sidebar_profile: "{}".into(),
-                    focus_new_panel: true,
                     worktrees_directory: worktrees_directory.map(Into::into),
                     new_cwd: new_cwd.into(),
                 },

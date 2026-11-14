@@ -602,7 +602,7 @@ fn edit_in(
 #[test]
 fn an_edit_against_an_unparsable_file_writes_nothing_and_answers_its_position() {
     let fixture = Fixture::new();
-    fixture.write("[terminal]\nfocus_new_panel = true\n[keys\n");
+    fixture.write("[terminal]\nrestore_output = false\n[keys\n");
     let startup = fixture.load(true);
     let syntax = startup.syntax.unwrap();
     let registry = Registry::default();
@@ -611,8 +611,8 @@ fn an_edit_against_an_unparsable_file_writes_nothing_and_answers_its_position() 
     let before = std::fs::read(fixture.file()).unwrap();
     let (outcome, output_off) = registry.edit_with(
         &[set(
-            "terminal.focus_new_panel",
-            orchbee_workbench_protocol::SettingValue::Boolean(false),
+            "terminal.restore_output",
+            orchbee_workbench_protocol::SettingValue::Boolean(true),
         )],
         edit_in(&fixture),
         sampled,
@@ -635,14 +635,14 @@ fn an_edit_against_an_unparsable_file_writes_nothing_and_answers_its_position() 
 #[test]
 fn a_refused_edit_publishes_nothing() {
     let fixture = Fixture::new();
-    fixture.write("[terminal]\nfocus_new_panel = true\n");
+    fixture.write("[terminal]\nrestore_output = false\n");
     let registry = Registry::default();
     registry.initialize_load(&fixture.load(true)).unwrap();
     let signal = watched(&registry);
     let (configuration, published) = (current(&registry), settings(&registry));
     let (outcome, _) = registry.edit_with(
         &[set(
-            "terminal.focus_new_panel",
+            "terminal.restore_output",
             orchbee_workbench_protocol::SettingValue::Text("yes".into()),
         )],
         edit_in(&fixture),
@@ -654,11 +654,11 @@ fn a_refused_edit_publishes_nothing() {
             reason: SettingsRefusal::InvalidValue,
             key: Some(ref key),
             ..
-        } if key.as_str() == "terminal.focus_new_panel"
+        } if key.as_str() == "terminal.restore_output"
     ));
     assert_eq!(
         std::fs::read_to_string(fixture.file()).unwrap(),
-        "[terminal]\nfocus_new_panel = true\n"
+        "[terminal]\nrestore_output = false\n"
     );
     assert_eq!(signal.revision(), 0);
     assert_eq!(current(&registry), configuration);
@@ -668,15 +668,15 @@ fn a_refused_edit_publishes_nothing() {
 #[test]
 fn one_committed_edit_publishes_exactly_one_snapshot_with_a_higher_revision() {
     let fixture = Fixture::new();
-    fixture.write("[terminal]\nfocus_new_panel = true\n");
+    fixture.write("[terminal]\nnew_cwd = 'follow'\n");
     let registry = Registry::default();
     registry.initialize_load(&fixture.load(true)).unwrap();
     let signal = watched(&registry);
     let before = settings(&registry);
     let (outcome, _) = registry.edit_with(
         &[set(
-            "terminal.focus_new_panel",
-            orchbee_workbench_protocol::SettingValue::Boolean(false),
+            "terminal.new_cwd",
+            orchbee_workbench_protocol::SettingValue::Text("home".into()),
         )],
         edit_in(&fixture),
         sampled,
@@ -690,11 +690,13 @@ fn one_committed_edit_publishes_exactly_one_snapshot_with_a_higher_revision() {
     };
     assert!(snapshot.revision.value() > before.revision.value());
     assert_eq!(
-        value(&snapshot, "terminal.focus_new_panel"),
-        Some(orchbee_workbench_protocol::SettingScalar::Boolean(false))
+        value(&snapshot, "terminal.new_cwd"),
+        Some(orchbee_workbench_protocol::SettingScalar::Text(
+            "home".into()
+        ))
     );
     assert_eq!(settings(&registry), *snapshot);
-    assert!(!current(&registry).focus_new_panel);
+    assert_eq!(current(&registry).new_cwd, "home");
     assert_eq!(signal.revision(), 1);
     // The sampler then finds the file it would publish already published.
     let mut sampler = Sampler::default();

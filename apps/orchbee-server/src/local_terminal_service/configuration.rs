@@ -644,7 +644,6 @@ fn snapshot(
         notification_profile: current.notifications.profile(),
         agent_sidebar_profile: orchbee_local_runtime::AGENT_SIDEBAR_PROFILE.into(),
         spaces_sidebar_profile: current.space_sidebar.profile(),
-        focus_new_panel: current.focus_new_panel,
         worktrees_directory: current.worktree_root.clone(),
         new_cwd: match &current.cwd {
             Some((DirectoryPolicy::Explicit, Some(path))) => path.clone(),

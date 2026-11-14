@@ -544,7 +544,6 @@ impl WorkbenchClient {
                         native.configure_agent_notifications(revision, view.notifications.policy());
                     }
                     if let Some(defaults) = watcher.take_creation_update() {
-                        native.configure_panel_focus(defaults.focus_new_panel);
                         native
                             .configure_worktrees_directory(defaults.worktrees_directory.as_deref());
                     }

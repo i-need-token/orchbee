@@ -380,6 +380,9 @@ struct Trace {
     phase: TracePhase,
     first_operation: Option<CreateOperationKey>,
     last_panel_wait: Option<UiWaitKey>,
+    /// The created Panel of a committed split still in `panel_recovery`: the drain that folds
+    /// the recovery must leave the selection on it.
+    recovery_focus: Option<WorkbenchPanelId>,
     retire_cause: Option<CarrierFailure>,
     coverage: Coverage,
 }
@@ -755,8 +758,6 @@ impl Trace {
             .map_err(|error| violation_error(format!("initial projection: {error:?}")))?;
         let (mut session, _target) = WorkbenchClientState::starting(cache, 1, geometry())
             .ok_or_else(|| violation_error("initial state was rejected"))?;
-        // The input-fact oracle models splits that keep the source Panel focused.
-        session.configure_panel_focus(false);
         let desired = session.desired().unwrap().clone();
         require(
             session.install_projection_t(&desired),
@@ -803,6 +804,7 @@ impl Trace {
             phase: TracePhase::Ready,
             first_operation: None,
             last_panel_wait: None,
+            recovery_focus: None,
             retire_cause: None,
             coverage: Coverage::default(),
         })
@@ -2162,7 +2164,7 @@ impl Trace {
                 direction: PanelDirection::Right,
             },
             PanelRequestKind::Move {
-                direction: PanelDirection::Right,
+                direction: PanelDirection::Left,
             },
             PanelRequestKind::Close,
         ] {
@@ -2354,6 +2356,17 @@ impl Trace {
 
         let (outcome, class, expected_decision) =
             self.build_panel_outcome(&operation, kind, outcome_sel)?;
+        // The Panel a committed split creates; the settlement must leave the focus on it.
+        let created = match &outcome {
+            PanelResult::Committed { commit, .. } => match commit.as_ref() {
+                PanelCommit::Split(
+                    WorkbenchPanelSplitCommit::Pending { new_panel_id, .. }
+                    | WorkbenchPanelSplitCommit::Created { new_panel_id, .. },
+                ) => Some(new_panel_id.clone()),
+                PanelCommit::Move(_) => None,
+            },
+            _ => None,
+        };
         self.coverage.panel_outcomes[class.index()] += 1;
         if matches!(
             class,
@@ -2682,6 +2695,16 @@ impl Trace {
             }
             PanelDecision::Retire => {
                 return violation("generated Panel cycle retired mid-trace");
+            }
+        }
+        if let Some(created) = created {
+            match class {
+                OutcomeClass::CommittedKeep | OutcomeClass::CommittedDrop => require(
+                    self.selected_panel_id().as_ref() == Some(&created),
+                    "committed split did not focus the created Panel",
+                )?,
+                OutcomeClass::CommittedNoSnapshot => self.recovery_focus = Some(created),
+                _ => {}
             }
         }
 
@@ -3221,6 +3244,12 @@ impl Trace {
                 self.workbench_client.panel_recovery_for_test().is_none(),
                 "drain Refresh left an armed panel recovery",
             )?;
+            if let Some(created) = self.recovery_focus.take() {
+                require(
+                    self.selected_panel_id().as_ref() == Some(&created),
+                    "recovered split did not focus the created Panel",
+                )?;
+            }
             self.coverage.panel_recovery_clears += 1;
         }
         require(
@@ -3228,6 +3257,18 @@ impl Trace {
             "drain Refresh left publication debt pending",
         )?;
         Ok(())
+    }
+
+    /// The Panel the Client's selection rests on.
+    fn selected_panel_id(&self) -> Option<WorkbenchPanelId> {
+        let active = self.workbench_client.active()?;
+        Some(
+            self.workbench_client
+                .tab(active.index())?
+                .panel(active.panel_index())?
+                .panel_id()
+                .clone(),
+        )
     }
 
     /// Fixture-lane request identity: never consumed from the mailbox cursor, so forged
@@ -3401,23 +3442,26 @@ impl Trace {
         )?;
         // The decision the settlement must produce for this input, derived from the
         // request facts and the pre-settlement session/authority state: non-committed
-        // refusals and no-ops Continue; membership classes stage cleanup while attached
-        // or install directly while unattached, attaching only when the reselected tab's
+        // refusals and no-ops Continue; membership classes — and a committed split that keeps
+        // its Tab, whose created Panel takes the focus — stage cleanup while attached or
+        // install directly while unattached, attaching only when the reselected tab's
         // provenance allows it.
-        let expected_decision = match class {
-            OutcomeClass::CommittedDrop | OutcomeClass::CommittedTabGone => {
-                if self.workbench_client.has_attachments() {
-                    1
-                } else {
-                    let attachable = if class == OutcomeClass::CommittedDrop {
-                        target_attachable
-                    } else {
-                        !self.tabgone_retargets_unattachable(operation)
-                    };
-                    if attachable { 2 } else { 3 }
-                }
-            }
-            _ => 0,
+        let membership = matches!(
+            class,
+            OutcomeClass::CommittedDrop | OutcomeClass::CommittedTabGone
+        ) || (class == OutcomeClass::CommittedKeep
+            && matches!(kind, PanelRequestKind::Split { .. }));
+        let expected_decision = if !membership {
+            0
+        } else if self.workbench_client.has_attachments() {
+            1
+        } else {
+            let attachable = if class == OutcomeClass::CommittedTabGone {
+                !self.tabgone_retargets_unattachable(operation)
+            } else {
+                target_attachable
+            };
+            if attachable { 2 } else { 3 }
         };
         let baseline_revision = operation.baseline().revision();
         // Fresh-only precondition: every normal outcome is built while the authority
@@ -4797,13 +4841,15 @@ fn outcome_table(kind: PanelRequestKind) -> &'static [OutcomeClass] {
     }
 }
 
+/// The fixture's request vocabulary. Splits open to the right and focus their created leaf,
+/// so a Move points left, back toward the leaf the split started from.
 const fn panel_kind(selector: u8) -> PanelRequestKind {
     match selector % 3 {
         0 => PanelRequestKind::Split {
             direction: PanelDirection::Right,
         },
         1 => PanelRequestKind::Move {
-            direction: PanelDirection::Right,
+            direction: PanelDirection::Left,
         },
         _ => PanelRequestKind::Close,
     }

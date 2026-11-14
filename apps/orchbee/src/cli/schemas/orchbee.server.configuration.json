@@ -71,7 +71,6 @@
 														"notificationProfile",
 														"agentSidebarProfile",
 														"spacesSidebarProfile",
-														"focusNewPanel",
 														"worktreesDirectory",
 														"newCwd"
 													],
@@ -143,9 +142,6 @@
 																	"maximum": 65536
 																}
 															}
-														},
-														"focusNewPanel": {
-															"type": "boolean"
 														},
 														"worktreesDirectory": {
 															"type": ["string", "null"],
@@ -179,7 +175,6 @@
 														"notificationProfile",
 														"agentSidebarProfile",
 														"spacesSidebarProfile",
-														"focusNewPanel",
 														"worktreesDirectory",
 														"newCwd"
 													],
@@ -251,9 +246,6 @@
 																	"maximum": 65536
 																}
 															}
-														},
-														"focusNewPanel": {
-															"type": "boolean"
 														},
 														"worktreesDirectory": {
 															"type": ["string", "null"],

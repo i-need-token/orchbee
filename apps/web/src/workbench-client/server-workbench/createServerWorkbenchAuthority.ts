@@ -8,7 +8,6 @@ import type {
 	WorkbenchAuthorityTabReceipt,
 	WorkbenchConfiguredCommands,
 	WorkbenchFocusedPanel,
-	WorkbenchFocusNewPanelSource,
 	WorkbenchProjectCreationReceipt,
 } from '../../workbench';
 import {
@@ -57,8 +56,6 @@ interface ServerWorkbenchAuthorityOptions {
 	readonly defaultDirectory: string;
 	readonly defaultWorkspaceLabel: () => string;
 	readonly focusedWorkspaceId: () => string | null;
-	/** Absent where every new Panel takes the focus, as the default configuration sets it. */
-	readonly focusNewPanel?: WorkbenchFocusNewPanelSource | undefined;
 	/** Without them, every Tab starts with the default launch profile. */
 	readonly launchProfiles?: ServerLaunchProfileSource;
 	/** Takes out of view what a followed close removes; absent where no close leaves early. */
@@ -260,7 +257,6 @@ export function createServerWorkbenchAuthority({
 	defaultDirectory,
 	defaultWorkspaceLabel,
 	focusedWorkspaceId,
-	focusNewPanel,
 	launchProfiles,
 	leave,
 	session,
@@ -269,7 +265,6 @@ export function createServerWorkbenchAuthority({
 		...createServerWorkbenchClose(session, leave),
 		...(agentCatalog === undefined ? {} : { agentCatalog }),
 		...(configuredCommands === undefined ? {} : { configuredCommands }),
-		...(focusNewPanel === undefined ? {} : { focusNewPanel }),
 		...(launchProfiles === undefined
 			? {}
 			: {

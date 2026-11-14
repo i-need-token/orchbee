@@ -57,7 +57,6 @@ import {
 	settledServerTerminalLifecycle,
 	ServerAgentNameSource,
 	ServerAgentCatalog,
-	ServerFocusNewPanelSource,
 	ServerLeaving,
 	ServerTerminalAgentSource,
 	ServerTerminalEndObserver,
@@ -267,10 +266,6 @@ export function createServerWorkbenchRuntime({
 		runtime: projectWorkspaceRuntime,
 		session,
 	});
-	const focusNewPanel = new ServerFocusNewPanelSource({
-		connection,
-		sessionId: session.snapshot.sessionId,
-	});
 	const agentCatalog = new ServerAgentCatalog({
 		connection,
 		sessionId: session.snapshot.sessionId,
@@ -294,7 +289,6 @@ export function createServerWorkbenchRuntime({
 			const location = projectWorkspaceRuntime.getSnapshot().activeLocation;
 			return location.kind === 'workspace' ? location.workspaceId : null;
 		},
-		focusNewPanel,
 		...(launchProfiles === undefined ? {} : { launchProfiles }),
 		leave: leaving,
 		session,
@@ -478,7 +472,6 @@ export function createServerWorkbenchRuntime({
 					() => stopPublication(),
 					() => agentCatalog.dispose(),
 					() => configuredCommands.dispose(),
-					() => focusNewPanel.dispose(),
 					() => clientView?.dispose(),
 					() => terminalEnds.dispose(),
 					() => stopLocaleObservation(),

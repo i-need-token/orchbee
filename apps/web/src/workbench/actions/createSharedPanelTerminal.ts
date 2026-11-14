@@ -32,8 +32,6 @@ export async function createSharedPanelTerminal(
 	{ authority, beginTerminalHandover, runtime }: SharedPanelTerminalOptions,
 ): Promise<ActionResult<string>> {
 	const origin = runtime.getSnapshot().activeLocation;
-	// As the TUI does, the preference in force when the Panel is asked for decides whether it takes focus.
-	const focusNewPanel = authority.focusNewPanel?.current() ?? true;
 	const handover = beginTerminalHandover();
 	const created = await authority.createPanelTerminal(context, creation);
 	if (created.kind === 'unchanged') return { kind: 'unchanged' };
@@ -45,7 +43,6 @@ export async function createSharedPanelTerminal(
 	if (
 		store !== undefined &&
 		takesCreatedPanelFocus({
-			focusNewPanel,
 			handoverHeld: handover.held(),
 			sameActiveTab: store.getActiveTabId() === tabId,
 			sameLocation: workbenchActiveLocationsEqual(origin, runtime.getSnapshot().activeLocation),

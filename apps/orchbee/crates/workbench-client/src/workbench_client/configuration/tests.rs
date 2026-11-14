@@ -15,7 +15,6 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
         agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
         spaces_sidebar_profile: orchbee_local_runtime::SpaceSidebarSettings::default().profile(),
         window_title: "{hostname}: {workspace}".into(),
-        focus_new_panel: true,
         worktrees_directory: None,
         new_cwd: "follow".into(),
     }
@@ -264,7 +263,6 @@ fn a_newer_publication_hands_its_creation_defaults_and_policy_over_once() {
     watcher.shared.0.lock().unwrap().snapshot = Some(snapshot(1, "[keys]\nprefix='ctrl+b'"));
     assert!(watcher.tick(&mut view));
     watcher.shared.0.lock().unwrap().snapshot = Some(ConfigurationSnapshot {
-        focus_new_panel: false,
         worktrees_directory: Some("C:/trees".into()),
         ..snapshot(2, "[keys]\nprefix='ctrl+x'")
     });
@@ -277,7 +275,6 @@ fn a_newer_publication_hands_its_creation_defaults_and_policy_over_once() {
     );
     assert_eq!(watcher.take_notification_update(), Some(2));
     let defaults = watcher.take_creation_update().unwrap();
-    assert!(!defaults.focus_new_panel);
     assert_eq!(defaults.worktrees_directory.as_deref(), Some("C:/trees"));
     assert!(!watcher.tick(&mut view));
     assert!(watcher.take_notification_update().is_none());

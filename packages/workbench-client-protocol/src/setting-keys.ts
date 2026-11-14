@@ -143,17 +143,6 @@ export const SETTING_KEY_TABLE = {
 			page: true,
 		},
 		{
-			path: 'terminal.focus_new_panel',
-			type: 'boolean',
-			default: true,
-			scope: 'server',
-			clients: 'both',
-			effect: 'restart',
-			category: 'terminal',
-			group: 'panels',
-			page: false,
-		},
-		{
 			path: 'terminal.copy_on_select',
 			type: 'boolean',
 			default: false,

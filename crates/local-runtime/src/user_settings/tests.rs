@@ -653,37 +653,19 @@ fn default_configuration_quotes_and_roundtrips_binding_strings() {
     assert_eq!(&roundtripped, settings);
 }
 
-#[test]
-fn split_focus_defaults_true_and_admits_only_booleans() {
-    for (value, expected, valid) in [
-        ("true", true, true),
-        ("false", false, true),
-        ("'false'", true, false),
-    ] {
-        let load = parse(
-            &format!("[terminal]\nfocus_new_panel={value}"),
-            Path::new(r"C:\config.toml"),
-            &|_| None,
-        );
-        assert_eq!(load.focus_new_panel, expected);
-        assert_eq!(load.diagnostics.is_empty(), valid);
-    }
-    assert!(UserSettings::default().focus_new_panel);
-}
-
 // Startup no longer refuses a broken file: the defaults apply and the error names where it is.
 #[test]
 fn syntax_errors_leave_defaults_and_name_the_line_and_column() {
     let path = Path::new(r"C:\config.toml");
     let broken = parse(
-        "[terminal]\nfocus_new_panel = false\n[terminal]\nnew_cwd = 'home'\n",
+        "[appearance]\nwindow_title = 'kept'\n[appearance]\n[terminal]\nnew_cwd = 'home'\n",
         path,
         &|_| None,
     );
     let syntax = broken.syntax.unwrap();
     assert_eq!((syntax.reason, syntax.line), ("invalid-toml", 3));
     assert!((1..=2).contains(&syntax.column), "{syntax:?}");
-    assert!(broken.focus_new_panel);
+    assert_eq!(broken.window_title, UserSettings::default().window_title);
     assert_eq!(broken.cwd, None);
     assert!(broken.exists);
     assert!(broken.diagnostics.items().iter().any(|diagnostic| {
@@ -692,11 +674,11 @@ fn syntax_errors_leave_defaults_and_name_the_line_and_column() {
             && diagnostic.disposition == SettingsDiagnosticDisposition::Defaulted
     }));
     let last_valid = UserSettings {
-        focus_new_panel: false,
+        window_title: "kept".into(),
         ..UserSettings::default()
     };
     let kept = broken.clone().or_last_valid(&last_valid);
-    assert!(!kept.focus_new_panel);
+    assert_eq!(kept.window_title, "kept");
     assert_eq!(kept.path.as_deref(), Some(path));
     assert_eq!(
         broken.require_valid_syntax().unwrap_err(),
@@ -709,7 +691,7 @@ fn syntax_errors_leave_defaults_and_name_the_line_and_column() {
         (syntax.reason, syntax.line, syntax.column),
         ("invalid-utf8", 2, 15)
     );
-    let fine = parse("[terminal]\nfocus_new_panel = false\n", path, &|_| None);
+    let fine = parse("[appearance]\nwindow_title = 'kept'\n", path, &|_| None);
     assert_eq!(
         fine.clone().or_last_valid(&UserSettings::default()),
         fine.clone()

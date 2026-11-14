@@ -298,6 +298,8 @@ struct Coverage {
     panel_settlements_normal: [usize; PanelSettleClass::COUNT],
     panel_settlements_defensive: [usize; PanelSettleClass::COUNT],
     panel_merges: usize,
+    /// Committed splits whose created Panel took the focus, from a settle or a recovery fold.
+    split_focus_installs: usize,
     panel_membership_installs: usize,
     panel_membership_cleanups: usize,
     panel_recovery_entries: usize,
@@ -357,6 +359,7 @@ impl Coverage {
             *total += count;
         }
         self.panel_merges += other.panel_merges;
+        self.split_focus_installs += other.split_focus_installs;
         self.panel_membership_installs += other.panel_membership_installs;
         self.panel_membership_cleanups += other.panel_membership_cleanups;
         self.panel_recovery_entries += other.panel_recovery_entries;
@@ -446,6 +449,9 @@ struct TraceState {
     delivered_tabs: Vec<Tab>,
     /// `server_revision` while a committed panel op is still unobserved (`panel_recovery`).
     recovery_revision: Option<u64>,
+    /// The created Panel of a committed split still in `panel_recovery`: the fold that
+    /// resolves it hands the focus to this Panel.
+    recovery_focus: Option<WorkbenchPanelId>,
     /// Next `tab()` seed; kept monotonic so appended tabs never reuse removed ids.
     tab_seed: usize,
     /// Fresh identity allocator for panel commits (kept far from `tab()` seeds).
@@ -521,8 +527,9 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
                 class: PanelSettleClass::CommittedMerge,
                 tier: SettleTier::Normal,
             },
+            // The split focused its created right leaf; focus walks back left to the source.
             TraceAction::PanelFocus {
-                direction: 1,
+                direction: 0,
                 generation_step: 1,
             },
             TraceAction::PanelSubmit {
@@ -533,9 +540,11 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
                 class: PanelSettleClass::CommittedMerge,
                 tier: SettleTier::Normal,
             },
+            // The Down split focused its created leaf under the source; a Move right from it
+            // lands on the first split's leaf and settles in place.
             TraceAction::PanelSubmit {
                 kind: 2,
-                direction: 0,
+                direction: 1,
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::CommittedMerge,
@@ -612,8 +621,9 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
                 class: PanelSettleClass::CommittedMerge,
                 tier: SettleTier::Normal,
             },
+            // The split focused its created right leaf; focus walks back left to the source.
             TraceAction::PanelFocus {
-                direction: 1,
+                direction: 0,
                 generation_step: 1,
             },
             TraceAction::RefreshLeafRepair { generation_step: 1 },
@@ -625,8 +635,9 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
                 class: PanelSettleClass::CommittedMerge,
                 tier: SettleTier::Normal,
             },
+            // The split focused its created right leaf; focus walks back left to the source.
             TraceAction::PanelFocus {
-                direction: 1,
+                direction: 0,
                 generation_step: 1,
             },
             TraceAction::PanelSubmit {
@@ -980,6 +991,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             .all(|class| total.panel_settlements_defensive[class.index()] >= SEEDS.len())
     );
     assert!(total.panel_merges >= SEEDS.len());
+    assert!(total.split_focus_installs >= SEEDS.len());
     assert!(total.panel_membership_installs >= SEEDS.len());
     assert!(total.panel_membership_cleanups >= SEEDS.len());
     assert!(total.panel_recovery_entries >= SEEDS.len());
@@ -1008,10 +1020,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
 
 fn new_trace() -> TraceState {
     let bootstrap = snapshot(3, 1, None).terminal_contexts[0].tabs.clone();
-    // The settlement oracle models splits that keep the source Panel focused; focusing the
-    // created Panel is the membership install covered by the deterministic Panel tests.
-    let mut session = ready(3);
-    session.configure_panel_focus(false);
+    let session = ready(3);
     TraceState {
         workbench_client: session,
         generation: 1,
@@ -1026,6 +1035,7 @@ fn new_trace() -> TraceState {
         server_revision: 1,
         delivered_tabs: bootstrap,
         recovery_revision: None,
+        recovery_focus: None,
         tab_seed: 3,
         identity: 0xA5E0_0000,
         coverage: Coverage::default(),
@@ -1654,6 +1664,15 @@ fn refresh(
     let prepared = trace
         .workbench_client
         .prepare_refresh(trace.refresh, outcome);
+    let prepared = if available {
+        let Some(prepared) = fold_recovered_split(trace, prepared)? else {
+            trace.coverage.refresh_successes += 1;
+            return Ok(());
+        };
+        prepared
+    } else {
+        prepared
+    };
     let decision = trace
         .workbench_client
         .apply_prepared_refresh(prepared, std::time::Instant::now());
@@ -1734,6 +1753,12 @@ fn refresh_stale_then_current(
             snapshot: snapshot_with_tabs(trace.server_tabs.clone(), trace.server_revision),
         },
     );
+    let Some(prepared) = fold_recovered_split(trace, prepared)? else {
+        trace.refresh = current;
+        trace.coverage.stale_refreshes += 1;
+        trace.coverage.refresh_successes += 1;
+        return Ok(());
+    };
     // Unobserved peer commits (stale-rejection paths) may already sit in
     // `server_tabs`; adoption is checked against the delivered Server state.
     if trace
@@ -2458,6 +2483,8 @@ fn panel_settle(
     let commit_revision = trace.server_revision.checked_add(1).ok_or("revision")?;
     let terminal_context_id = operation.baseline().terminal_context_id().unwrap().clone();
     let tab_id = operation.target().tab_id().clone();
+    // The Panel a committed split creates; it takes the focus when the commit settles.
+    let mut created = None;
     let result = match class {
         PanelSettleClass::NotSubmitted => PanelResult::NotSubmitted,
         // A Rejected precommit evaluated at the operation's own baseline. No existing
@@ -2529,7 +2556,7 @@ fn panel_settle(
             })
         }
         PanelSettleClass::CommittedMerge | PanelSettleClass::CommittedRecovery => {
-            let (commit, tabs, _added) = commit_edit(
+            let (commit, tabs, added) = commit_edit(
                 &mut trace.identity,
                 &trace.server_tabs,
                 &operation,
@@ -2539,6 +2566,9 @@ fn panel_settle(
             trace.server_revision = commit_revision;
             if class == PanelSettleClass::CommittedRecovery {
                 trace.recovery_revision = Some(commit_revision);
+                trace.recovery_focus = added;
+            } else {
+                created = added;
             }
             PanelResult::Committed {
                 commit: Box::new(commit),
@@ -2578,12 +2608,13 @@ fn panel_settle(
             // delivered candidate still contains the committed graft minus that leaf.
             // The result must route through the paired membership path with the commit
             // fact retained — the real selected-leaf-loss route for a panel result.
-            let (commit, mut tabs, _added) = commit_edit(
+            let (commit, mut tabs, added) = commit_edit(
                 &mut trace.identity,
                 &trace.server_tabs,
                 &operation,
                 trace.geometry_columns,
             )?;
+            created = added;
             let Some(wire) = tabs.iter_mut().find(|tab| tab.tab_id == tab_id) else {
                 return Err("leaf-repair tab missing");
             };
@@ -2618,7 +2649,7 @@ fn panel_settle(
         baseline_revision,
         server_revision: trace.server_revision,
     });
-    apply_panel_result(trace, &operation, result, class)
+    apply_panel_result(trace, &operation, result, class, created.as_ref())
 }
 
 /// The wire-compatible unavailable reasons for each panel intent, mirroring
@@ -2744,6 +2775,7 @@ fn apply_panel_result(
     operation: &PanelOperation,
     result: PanelResult,
     class: PanelSettleClass,
+    created: Option<&WorkbenchPanelId>,
 ) -> Result<(), &'static str> {
     let baseline_tab = operation
         .baseline()
@@ -2753,13 +2785,18 @@ fn apply_panel_result(
     let baseline_count = baseline_tab.panel_count();
     let baseline_leaf_index = baseline_tab.panel_index(operation.panel_id());
     let prepared = trace.workbench_client.prepare_panel(operation, result);
-    if prepared.membership_candidate().is_some() {
-        return install_panel_membership(
-            trace,
-            operation,
-            prepared,
-            class == PanelSettleClass::CommittedLeafRepair,
-        );
+    // A refusal that loses the Tab, a commit whose candidate folds the selected leaf, and
+    // every committed split (its created Panel takes the focus) settle through the paired
+    // membership path; every other result settles in place.
+    let membership = matches!(
+        class,
+        PanelSettleClass::TabUnavailableGone | PanelSettleClass::CommittedLeafRepair
+    ) || (class == PanelSettleClass::CommittedMerge && created.is_some());
+    if prepared.membership_candidate().is_some() != membership {
+        return Err("panel result route diverged from the model");
+    }
+    if membership {
+        return install_panel_membership(trace, operation, prepared, class, created);
     }
     let decision = trace.workbench_client.apply_prepared_panel(prepared);
     if decision != PanelDecision::Continue {
@@ -2823,11 +2860,7 @@ fn apply_panel_result(
                 return Err("committed merge settlement");
             }
             match operation.intent() {
-                PanelIntent::Split { .. } => {
-                    if merged.panel_count() != baseline_count + 1 {
-                        return Err("split merge did not add a leaf");
-                    }
-                }
+                PanelIntent::Split { .. } => return Err("split merged without moving focus"),
                 PanelIntent::Move { .. } => {
                     if merged.panel_count() != baseline_count
                         || merged.panel_index(operation.panel_id()) == baseline_leaf_index
@@ -2866,8 +2899,13 @@ fn install_panel_membership(
     trace: &mut TraceState,
     operation: &PanelOperation,
     prepared: PreparedPanel,
-    committed: bool,
+    class: PanelSettleClass,
+    created: Option<&WorkbenchPanelId>,
 ) -> Result<(), &'static str> {
+    let committed = matches!(
+        class,
+        PanelSettleClass::CommittedMerge | PanelSettleClass::CommittedLeafRepair
+    );
     let (consumed, candidate) = trace
         .workbench_client
         .retain_prepared_panel_membership(prepared)
@@ -2942,9 +2980,9 @@ fn install_panel_membership(
             return Err("panel membership preserved selection");
         }
     }
-    if committed {
-        // The leaf the commit left selected was folded away, so the membership install
-        // must retarget onto a surviving leaf of the same Tab.
+    if class == PanelSettleClass::CommittedLeafRepair {
+        // The source leaf was folded away, so the membership install must retarget onto a
+        // surviving leaf of the same Tab.
         let index = trace
             .workbench_client
             .cache()
@@ -2962,8 +3000,201 @@ fn install_panel_membership(
             return Err("leaf repair did not retarget selection");
         }
     }
+    if let Some(created) = created {
+        let index = trace
+            .workbench_client
+            .cache()
+            .tab_index(operation.target().tab_id())
+            .ok_or("split tab")?;
+        let baseline_count = operation
+            .baseline()
+            .tab_index(operation.target().tab_id())
+            .and_then(|index| operation.baseline().tabs().get(index))
+            .ok_or("baseline tab")?
+            .panel_count();
+        // A leaf repair folds the source away again; a plain commit keeps it.
+        let added = if class == PanelSettleClass::CommittedMerge {
+            baseline_count + 1
+        } else {
+            baseline_count
+        };
+        if trace.workbench_client.active().map(SelectedTab::index) != Some(index)
+            || trace
+                .workbench_client
+                .tab(index)
+                .map(|tab| tab.panel_count())
+                != Some(added)
+            || selected_panel_id(&trace.workbench_client).as_ref() != Some(created)
+        {
+            return Err("split did not focus the created Panel");
+        }
+        trace.coverage.split_focus_installs += 1;
+    }
     if trace.workbench_client.pending_panel().is_some() {
         return Err("membership left a pending panel");
+    }
+    Ok(())
+}
+
+/// Settles a committed split on a bare session the only way a split settles: the paired
+/// membership install keeps the commit fact and hands the focus to the created Panel.
+fn install_split_focus(
+    session: &mut WorkbenchClientState,
+    operation: &PanelOperation,
+    prepared: PreparedPanel,
+    created: &WorkbenchPanelId,
+    frame: &mut u64,
+) -> Result<(), &'static str> {
+    let (_, candidate) = session
+        .retain_prepared_panel_membership(prepared)
+        .map_err(|_| "split membership retain")?;
+    if session.retained_panel_for_test().is_none() || session.notice().is_some() {
+        return Err("split membership dropped the committed fact");
+    }
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
+    let fresh = candidate.selected_tab_id().map(|tab| {
+        AttachmentKey::new(
+            operation.target().generation().saturating_add(1),
+            tab.clone(),
+        )
+    });
+    let decision = if session.has_attachments() {
+        let cleanup = session
+            .stage_panel_membership_cleanup(operation.request_id(), candidate, deadlines)
+            .map_err(|_| "split membership cleanup")?;
+        let cleaned = session
+            .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
+            .map_err(|_| "cleaned candidate")?;
+        session
+            .prepare_cleaned_membership_install(&cleanup, cleaned, fresh)
+            .map_err(|_| "cleaned install")?
+            .commit()
+    } else {
+        session
+            .prepare_panel_membership_install(
+                operation.request_id(),
+                candidate,
+                fresh,
+                Some(deadlines),
+            )
+            .map_err(|_| "split install")?
+            .commit()
+    };
+    let MembershipInstallDecision::Attach(target) = decision else {
+        return Err("split membership did not attach");
+    };
+    let key = target.selected().key().clone();
+    settle_attached_ready(session, key.anchor(), frame)?;
+    if selected_panel_id(session).as_ref() != Some(created) || session.pending_panel().is_some() {
+        return Err("split did not focus the created Panel");
+    }
+    Ok(())
+}
+
+/// The Panel the Client's selection rests on.
+fn selected_panel_id(session: &WorkbenchClientState) -> Option<WorkbenchPanelId> {
+    let active = session.active()?;
+    Some(
+        session
+            .tab(active.index())?
+            .panel(active.panel_index())?
+            .panel_id()
+            .clone(),
+    )
+}
+
+/// A refresh that folds a recovered split settles the commit the only way a split settles:
+/// through the paired membership path, with the created Panel focused. Hands the prepared
+/// refresh back untouched when no split recovery is pending.
+fn fold_recovered_split(
+    trace: &mut TraceState,
+    prepared: PreparedRefresh,
+) -> Result<Option<PreparedRefresh>, &'static str> {
+    let Some(created) = trace.recovery_focus.clone() else {
+        return Ok(Some(prepared));
+    };
+    let PreparedRefresh::Membership {
+        generation,
+        prepared,
+    } = prepared
+    else {
+        return Err("recovered split did not route to membership");
+    };
+    install_refresh_membership(trace, generation, prepared)?;
+    if trace.workbench_client.panel_recovery_for_test().is_some()
+        || trace.workbench_client.cache().tabs().len() != trace.server_tabs.len()
+        || selected_panel_id(&trace.workbench_client).as_ref() != Some(&created)
+    {
+        return Err("recovered split did not focus the created Panel");
+    }
+    trace.recovery_focus = None;
+    trace.coverage.panel_recovery_resolutions += 1;
+    trace.coverage.split_focus_installs += 1;
+    Ok(None)
+}
+
+/// The paired membership consume for a refresh, mirroring `run_membership_cleanup`: detach
+/// the old attachment when one exists, then install the cleaned candidate.
+fn install_refresh_membership(
+    trace: &mut TraceState,
+    generation: u64,
+    prepared: PreparedMembershipCandidate,
+) -> Result<(), &'static str> {
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
+    let fresh_generation = trace
+        .workbench_client
+        .desired()
+        .map(|desired| desired.generation())
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or("generation")?;
+    let fresh = prepared
+        .selected_tab_id()
+        .map(|tab| AttachmentKey::new(fresh_generation, tab.clone()));
+    let decision = if trace.workbench_client.has_attachments() {
+        let cleanup = trace
+            .workbench_client
+            .stage_refresh_membership_cleanup(generation, prepared, deadlines)
+            .map_err(|_| "repair cleanup")?;
+        trace.coverage.panel_membership_cleanups += 1;
+        let cleaned = trace
+            .workbench_client
+            .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
+            .map_err(|_| "cleaned candidate")?;
+        trace
+            .workbench_client
+            .prepare_cleaned_membership_install(&cleanup, cleaned, fresh)
+            .map_err(|_| "cleaned install")?
+            .commit()
+    } else {
+        trace
+            .workbench_client
+            .prepare_refresh_membership_install(generation, prepared, fresh, Some(deadlines))
+            .map_err(|_| "repair install")?
+            .commit()
+    };
+    trace.coverage.panel_membership_installs += 1;
+    trace.delivered_tabs = trace.server_tabs.clone();
+    trace.recovery_revision = None;
+    match decision {
+        MembershipInstallDecision::Attach(target) => {
+            let key = target.selected().key().clone();
+            trace.generation = trace.generation.max(key.generation());
+            settle_attached_ready(&mut trace.workbench_client, key.anchor(), &mut trace.frame)?;
+        }
+        MembershipInstallDecision::SelectedWithoutAttachment => {
+            if trace.workbench_client.phase_kind() != ClientPhaseKind::SelectedWithoutAttachment {
+                return Err("repair did not settle unattached");
+            }
+        }
+        MembershipInstallDecision::Empty => {
+            if trace.workbench_client.phase_kind() != ClientPhaseKind::Empty {
+                return Err("repair did not settle empty");
+            }
+        }
+        MembershipInstallDecision::Preserved => {
+            return Err("leaf repair preserved selection");
+        }
     }
     Ok(())
 }
@@ -2998,6 +3229,9 @@ fn panel_recovery_refresh(trace: &mut TraceState, generation_step: u8) -> Result
             snapshot: snapshot_with_tabs(trace.server_tabs.clone(), revision),
         },
     );
+    let Some(prepared) = fold_recovered_split(trace, prepared)? else {
+        return Ok(());
+    };
     if !matches!(&prepared, PreparedRefresh::Append { .. }) {
         return Err("recovery refresh did not classify as append");
     }
@@ -3080,69 +3314,26 @@ fn refresh_leaf_repair(trace: &mut TraceState, generation_step: u8) -> Result<()
     else {
         return Err("leaf repair did not route to membership");
     };
-    let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
-    let fresh_generation = trace
-        .workbench_client
-        .desired()
-        .map(|desired| desired.generation())
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or("generation")?;
-    let fresh = prepared
-        .selected_tab_id()
-        .map(|tab| AttachmentKey::new(fresh_generation, tab.clone()));
-    let decision = if trace.workbench_client.has_attachments() {
-        let cleanup = trace
-            .workbench_client
-            .stage_refresh_membership_cleanup(generation, prepared, deadlines)
-            .map_err(|_| "repair cleanup")?;
-        trace.coverage.panel_membership_cleanups += 1;
-        let cleaned = trace
-            .workbench_client
-            .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
-            .map_err(|_| "cleaned candidate")?;
-        trace
-            .workbench_client
-            .prepare_cleaned_membership_install(&cleanup, cleaned, fresh)
-            .map_err(|_| "cleaned install")?
-            .commit()
-    } else {
-        trace
-            .workbench_client
-            .prepare_refresh_membership_install(generation, prepared, fresh, Some(deadlines))
-            .map_err(|_| "repair install")?
-            .commit()
-    };
-    trace.coverage.panel_membership_installs += 1;
-    trace.delivered_tabs = trace.server_tabs.clone();
-    trace.recovery_revision = None;
-    match decision {
-        MembershipInstallDecision::Attach(target) => {
-            let key = target.selected().key().clone();
-            trace.generation = trace.generation.max(key.generation());
-            settle_attached_ready(&mut trace.workbench_client, key.anchor(), &mut trace.frame)?;
+    // Folding a recovered split also settles its commit: the created Panel takes the focus.
+    let focus = trace.recovery_focus.take();
+    install_refresh_membership(trace, generation, prepared)?;
+    match focus {
+        Some(created) => {
+            if selected_panel_id(&trace.workbench_client).as_ref() != Some(&created) {
+                return Err("recovered split did not focus the created Panel");
+            }
+            trace.coverage.split_focus_installs += 1;
         }
-        MembershipInstallDecision::SelectedWithoutAttachment => {
-            if trace.workbench_client.phase_kind() != ClientPhaseKind::SelectedWithoutAttachment {
-                return Err("repair did not settle unattached");
+        None => {
+            if trace
+                .workbench_client
+                .active()
+                .map(SelectedTab::panel_index)
+                != Some(expected_panel_index)
+            {
+                return Err("leaf repair landed on wrong index");
             }
         }
-        MembershipInstallDecision::Empty => {
-            if trace.workbench_client.phase_kind() != ClientPhaseKind::Empty {
-                return Err("repair did not settle empty");
-            }
-        }
-        MembershipInstallDecision::Preserved => {
-            return Err("leaf repair preserved selection");
-        }
-    }
-    if trace
-        .workbench_client
-        .active()
-        .map(SelectedTab::panel_index)
-        != Some(expected_panel_index)
-    {
-        return Err("leaf repair landed on wrong index");
     }
     trace.coverage.refresh_leaf_repairs += 1;
     Ok(())
@@ -3276,15 +3467,13 @@ fn panel_anchor(trace: &mut TraceState, class: PanelAnchorClass) -> Result<(), &
 }
 
 /// A fresh attached Client whose selected Tab has two real leaves (committed through one
-/// leaf-level split) and a pending Move — the shared fixture for membership anchors.
+/// leaf-level split, which focuses the created right leaf) and a pending Move — the shared
+/// fixture for membership anchors.
 fn anchor_pending_move()
 -> Result<(WorkbenchClientState, PanelOperation, Vec<Tab>, u128), &'static str> {
     let mut session = ready(2);
-    // The split merge oracle keeps the source Panel focused.
-    session.configure_panel_focus(false);
     let mut identity = 0xBEEF_0000u128;
     let mut frame = 1u64;
-    let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
     let mut tabs = snapshot(2, 1, None).terminal_contexts[0].tabs.clone();
     let operation = session
         .plan_panel(
@@ -3298,7 +3487,7 @@ fn anchor_pending_move()
     if !session.begin_panel(operation.clone()) {
         return Err("anchor split begin");
     }
-    let (commit, grafted, _) = commit_edit(&mut identity, &tabs, &operation, 80)?;
+    let (commit, grafted, created) = commit_edit(&mut identity, &tabs, &operation, 80)?;
     tabs = grafted;
     let revision = operation.baseline().revision().value() + 1;
     let prepared = session.prepare_panel(
@@ -3310,18 +3499,15 @@ fn anchor_pending_move()
             },
         },
     );
-    if session.apply_prepared_panel(prepared) != PanelDecision::Continue {
-        return Err("anchor split merge");
-    }
-    attach_nonfirst_leaf(&mut session);
-    let pane = session
-        .plan_panel_focus_local(PanelDirection::Right)
-        .ok_or("anchor focus")?;
-    if !session.move_panel_focus_local(pane) {
-        return Err("anchor focus move");
-    }
-    let _ = &deadlines;
-    let _ = &mut frame;
+    install_split_focus(
+        &mut session,
+        &operation,
+        prepared,
+        created.as_ref().ok_or("anchor split created")?,
+        &mut frame,
+    )?;
+    // Every rendered leaf carries an attached viewer, the source included.
+    attach_missing_leaves(&mut session);
     let operation = session
         .plan_panel(
             workbench_request_id(next_identity(&mut identity)),
@@ -3412,11 +3598,9 @@ fn anchor_stale_operation() -> Result<(), &'static str> {
 }
 
 /// `retain_pending_panel` refuses a foreign operation, retains the real commit
-/// idempotently, and the same commit then merges cleanly.
+/// idempotently, and the same commit then settles cleanly with the created Panel focused.
 fn anchor_foreign_retain() -> Result<(), &'static str> {
     let mut session = ready(1);
-    // The merge oracle keeps the source Panel focused.
-    session.configure_panel_focus(false);
     let mut identity = 0xF00D_0000u128;
     let tabs = snapshot(1, 1, None).terminal_contexts[0].tabs.clone();
     let operation = session
@@ -3444,7 +3628,7 @@ fn anchor_foreign_retain() -> Result<(), &'static str> {
     if session.retain_pending_panel(PendingPanelCommit::new(foreign, foreign_commit)) {
         return Err("foreign commit retained");
     }
-    let (commit, grafted, _) = commit_edit(&mut identity, &tabs, &operation, 80)?;
+    let (commit, grafted, created) = commit_edit(&mut identity, &tabs, &operation, 80)?;
     let pending = PendingPanelCommit::new(operation.clone(), commit.clone());
     if !session.retain_pending_panel(pending.clone())
         || !session.retain_pending_panel(pending.clone())
@@ -3461,10 +3645,15 @@ fn anchor_foreign_retain() -> Result<(), &'static str> {
             },
         },
     );
-    if session.apply_prepared_panel(prepared) != PanelDecision::Continue
-        || !session.invariant_holds()
-    {
-        return Err("retained commit did not merge");
+    install_split_focus(
+        &mut session,
+        &operation,
+        prepared,
+        created.as_ref().ok_or("retain created")?,
+        &mut 1,
+    )?;
+    if session.retained_panel_for_test() != Some(&pending) || !session.invariant_holds() {
+        return Err("retained commit did not settle");
     }
     Ok(())
 }
@@ -4507,7 +4696,8 @@ fn stale_unavailable_reasons_are_stage_checked() {
             },
         )
         .expect("seed split commit");
-        apply(&mut trace, TraceAction::PanelSubmit { kind, direction: 1 }).expect("intent submit");
+        // The split focused its created right leaf, so a Move plans left onto the source.
+        apply(&mut trace, TraceAction::PanelSubmit { kind, direction: 0 }).expect("intent submit");
         let operation = trace
             .workbench_client
             .pending_panel()

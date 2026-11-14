@@ -392,15 +392,6 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     .page()
     .effect(SettingEffect::NewTerminals),
     key(
-        "terminal.focus_new_panel",
-        V::Boolean,
-        D::Boolean(true),
-        (C::Terminal, G::Panels),
-        SERVER,
-        "Focus a newly split panel.",
-    )
-    .effect(SettingEffect::Restart),
-    key(
         "terminal.copy_on_select",
         V::Boolean,
         D::Boolean(false),

@@ -1521,7 +1521,6 @@ pub(super) struct WorkbenchClientUi {
     workspace_closed_timer: crate::transient_notice::NoticeTimer<u64>,
     /// A hidden Opened worktree result states its success like any one-shot notice.
     worktree_opened_timer: crate::transient_notice::NoticeTimer<()>,
-    focus_new_panel: bool,
     settings: settings::Coordinator,
     duplication: tab_duplication::Duplication,
     held_restore: held_restore::HeldRestore,
@@ -1661,9 +1660,6 @@ impl WorkbenchClientUi {
     pub(super) fn configuration_clock(&self) -> LocalOperationClock {
         self.clock.clone()
     }
-    pub(super) fn configure_panel_focus(&mut self, focus_new_panel: bool) {
-        self.focus_new_panel = focus_new_panel;
-    }
 
     #[cfg(any(test, feature = "test-support"))]
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
@@ -1702,7 +1698,6 @@ impl WorkbenchClientUi {
             setup_notice_timer: Default::default(),
             workspace_closed_timer: Default::default(),
             worktree_opened_timer: Default::default(),
-            focus_new_panel: true,
             launch_profiles: launch_profiles::Coordinator::default(),
             preferences: orchbee_workbench_protocol::UserSettingsValues::default(),
             completion_reminders: super::completion_reminders::State::default(),
@@ -3870,7 +3865,6 @@ impl WorkbenchClientUi {
         else {
             return ClientActionDisposition::KeepNavigator;
         };
-        state.configure_panel_focus(self.focus_new_panel);
         let result = mailbox.try_enqueue_panel_for(
             state,
             deadline,

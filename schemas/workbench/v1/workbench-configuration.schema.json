@@ -86,7 +86,6 @@
 				"notificationProfile",
 				"agentSidebarProfile",
 				"spacesSidebarProfile",
-				"focusNewPanel",
 				"worktreesDirectory",
 				"newCwd"
 			],
@@ -125,9 +124,6 @@
 					"type": "string",
 					"minLength": 1,
 					"maxLength": 32768
-				},
-				"focusNewPanel": {
-					"type": "boolean"
 				},
 				"worktreesDirectory": {
 					"type": ["string", "null"],

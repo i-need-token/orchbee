@@ -914,7 +914,7 @@ A key's `SettingScope` says whose file holds it. `Client` keys describe how one 
 takes input (`general.language`, `appearance.*`, the terminal font, padding, opacity, Option,
 selection-copy and blank-row keys, `notifications.*`, `keys.*`) and are read from the file on that
 Client's machine. `Server` keys describe what the Server does (`terminal.new_cwd`,
-`focus_new_panel`, `scrollback_bytes`, `restore_output`, the launch profiles and default profile,
+`scrollback_bytes`, `restore_output`, the launch profiles and default profile,
 `worktrees.directory`, `agents.resume_on_restore`, `update.channel`)
 and are read from the attached Server's file. With a local Server both are the same file.
 
@@ -958,7 +958,6 @@ every key's purpose, allowed values and default.
 | `appearance.sidebar.workspaces.rows`                                                        | workspace and Git, then location | file only                            |
 | `appearance.sidebar.workspaces.row_gap`                                                     | `0`                              | file only                            |
 | `terminal.new_cwd`                                                                          | unset (no override)              | General / Basics                     |
-| `terminal.focus_new_panel`                                                                  | `true`                           | file only                            |
 | `terminal.copy_on_select`                                                                   | `false`                          | Terminal / Input                     |
 | `terminal.macos_option_as_alt`                                                              | `"off"`                          | Terminal / Input (Desktop)           |
 | `terminal.scrollback_bytes`                                                                 | `10000000`                       | Terminal / Output                    |

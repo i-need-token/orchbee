@@ -155,11 +155,6 @@ export interface WorkbenchAuthorityTabCreation {
 	readonly terminalContextId: string;
 }
 
-/** Whether a Panel this Client creates takes the focus, as the Session's configuration sets it now. */
-export interface WorkbenchFocusNewPanelSource {
-	current(): boolean;
-}
-
 /** The saved launch profiles a new Tab can start with, as every Client of the Session shares them. */
 export interface WorkbenchLaunchProfiles {
 	/** Holds its identity until the catalog changes. */
@@ -378,8 +373,6 @@ export interface WorkbenchAuthority {
 	readonly heldRestores?: WorkbenchHeldRestores | undefined;
 	/** Absent where every new Tab starts with the default launch profile. */
 	readonly launchProfiles?: WorkbenchLaunchProfiles | undefined;
-	/** Absent where every new Panel takes the focus, as the default configuration sets it. */
-	readonly focusNewPanel?: WorkbenchFocusNewPanelSource | undefined;
 	/** Reports when what a confirmation of `closure` describes has changed. Returns how to stop. */
 	watchClose(closure: WorkbenchAuthorityClosure, onChanged: () => void): () => void;
 	/** Absent where this authority cannot reach Git for its Workspaces. */

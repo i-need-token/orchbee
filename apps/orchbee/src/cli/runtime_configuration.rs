@@ -116,9 +116,8 @@ pub(crate) fn run(action: ConfigurationAction, format: OutputFormat, locale: Loc
                             &crate::cli_text::escape::escape(&snapshot.window_title),
                         ));
                         text.push_str(&format!(
-                            "spacesSidebarProfile={}\nfocusNewPanel={}\nnewCwd={}\n",
+                            "spacesSidebarProfile={}\nnewCwd={}\n",
                             crate::cli_text::escape::escape(&snapshot.spaces_sidebar_profile),
-                            snapshot.focus_new_panel,
                             crate::cli_text::escape::escape(&snapshot.new_cwd),
                         ));
                         if let Some(directory) = &snapshot.worktrees_directory {

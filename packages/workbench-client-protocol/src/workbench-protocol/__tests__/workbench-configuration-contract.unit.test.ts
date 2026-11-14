@@ -44,7 +44,6 @@ const configurationResult = (notificationProfile: string) => ({
 			notificationProfile,
 			agentSidebarProfile: '{}',
 			spacesSidebarProfile: '{}',
-			focusNewPanel: true,
 			worktreesDirectory: null,
 			newCwd: 'follow',
 		},
@@ -82,7 +81,6 @@ describe('Session configuration publication', () => {
 			notificationProfile: '[ui.toast]',
 			agentSidebarProfile: profile('agent'),
 			spacesSidebarProfile: profile('workspace'),
-			focusNewPanel: true,
 			worktreesDirectory: null,
 			newCwd: 'follow',
 		};
@@ -115,7 +113,6 @@ describe('Session configuration publication', () => {
 						notificationProfile: '[ui.toast]',
 						agentSidebarProfile: '{}',
 						spacesSidebarProfile: '{}',
-						focusNewPanel: true,
 						worktreesDirectory: null,
 						newCwd: 'follow',
 					},

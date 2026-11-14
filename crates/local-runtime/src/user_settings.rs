@@ -81,7 +81,6 @@ pub struct UserSettings {
     pub space_sidebar: SpaceSidebarSettings,
     pub notifications: NotificationSettings,
     pub keys: KeySettings,
-    pub focus_new_panel: bool,
     pub path: Option<PathBuf>,
     pub exists: bool,
     pub explicit: bool,
@@ -195,7 +194,6 @@ impl Default for UserSettings {
             space_sidebar: SpaceSidebarSettings::default(),
             notifications: NotificationSettings::default(),
             keys: KeySettings::default(),
-            focus_new_panel: true,
             path: None,
             exists: false,
             explicit: false,
@@ -621,9 +619,6 @@ fn parse_terminal(
     path: &Path,
     env: &impl Fn(&str) -> Option<OsString>,
 ) {
-    if let Some(value) = fields.boolean("terminal.focus_new_panel") {
-        settings.focus_new_panel = value;
-    }
     let Some(value) = fields.value("terminal.new_cwd") else {
         return;
     };

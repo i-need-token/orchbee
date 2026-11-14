@@ -7,7 +7,6 @@ Orchbee reads `config.toml` in its environment's [data root](../../../crates/loc
 ```toml
 [terminal]
 new_cwd = "follow"
-focus_new_panel = true
 
 [worktrees]
 directory = "~/Projects/worktrees"
@@ -425,5 +424,3 @@ Workspace layout diagnostics name `appearance.sidebar.workspaces`. Session/Clien
 keys, notifications and the Workspace sidebar profile before publishing any of them.
 Each profile caps at 32 KiB; the matched-cohort configuration frame caps at 256 KiB
 including escaping.
-
-`terminal.focus_new_panel` accepts a boolean and defaults to `true`. Native Client splits select the newly committed pane; `false` preserves the original pane. The Client applies this setting from each published configuration snapshot, so the next split after a publication uses it. Invalid types produce a field-local diagnostic and use the default. CLI `panel split --focus` retains its explicit command policy.

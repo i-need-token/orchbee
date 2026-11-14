@@ -372,7 +372,6 @@ export function useWorkbenchAuthorityNotice(
 				setNotice(workbenchTabCreationFailureNotice(result));
 				return result;
 			},
-			focusNewPanel: authority.focusNewPanel,
 			heldRestores:
 				authority.heldRestores === undefined
 					? undefined

@@ -256,7 +256,7 @@ Workspace on Linux and macOS; launching from another directory does not add a Wo
 and [startup position](docs/native-context-selection.md#windows-startup-preference).
 
 The prefix is `Ctrl+b`, followed by `|` for a side-by-side split, `-` for a stacked split,
-`h/j/k/l` for Panel focus, or `d` to detach. Splitting focuses the new Panel by default; `terminal.focus_new_panel = false` preserves the current focus once the Session publishes it. Run the executable
+`h/j/k/l` for Panel focus, or `d` to detach. Splitting focuses the new Panel. Run the executable
 again to reattach to the retained Session. Detaching leaves shells running. A shell that exits with
 code 0 closes its Panel; any other exit remains observable until its Tab/Panel is explicitly closed.
 If every registered Session process has exited,

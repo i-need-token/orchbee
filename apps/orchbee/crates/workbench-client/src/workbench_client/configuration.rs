@@ -56,7 +56,6 @@ pub(super) struct Watcher {
 }
 /// Creation defaults the native Workbench owner consumes outside the shared Client view.
 pub(super) struct CreationDefaults {
-    pub(super) focus_new_panel: bool,
     pub(super) worktrees_directory: Option<String>,
 }
 struct Connection {
@@ -136,7 +135,6 @@ impl Watcher {
                     view.notifications.configure(notifications);
                     self.notification_update = Some(snapshot.revision.value());
                     self.creation_update = Some(CreationDefaults {
-                        focus_new_panel: snapshot.focus_new_panel,
                         worktrees_directory: snapshot.worktrees_directory.clone(),
                     });
                     view.configure_keys(&keys);

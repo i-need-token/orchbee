@@ -97,7 +97,6 @@ pub(crate) struct PanelOperation {
     kind: PanelRequestKind,
     intent: PanelIntent,
     deadline: Instant,
-    focus_new_panel: bool,
     /// The Agent a split's new shell runs as its first command, by catalog id.
     agent_start: Option<&'static str>,
 }
@@ -120,7 +119,6 @@ impl PanelOperation {
             kind,
             intent,
             deadline,
-            focus_new_panel: false,
             agent_start: None,
         }
     }
@@ -234,10 +232,8 @@ impl PendingPanelCommit {
         &self.operation
     }
 
+    /// Where a committed split leaves the selection: the new Panel takes the focus.
     pub(super) fn focus_index(&self, candidate: &ClientContextTabs) -> Option<usize> {
-        if !self.operation.focus_new_panel {
-            return None;
-        }
         let tab = candidate
             .tabs()
             .get(candidate.tab_index(self.operation.target.tab_id())?)?;
@@ -604,7 +600,7 @@ impl WorkbenchClientState {
                 }
             }
         };
-        let mut operation = PanelOperation::new(
+        Some(PanelOperation::new(
             request_id,
             self.desired.as_ref()?.anchor().clone(),
             panel.panel_id().clone(),
@@ -612,9 +608,7 @@ impl WorkbenchClientState {
             kind,
             intent,
             deadline,
-        );
-        operation.focus_new_panel = self.focus_new_panel;
-        Some(operation)
+        ))
     }
 
     pub(crate) fn begin_panel(&mut self, operation: PanelOperation) -> bool {

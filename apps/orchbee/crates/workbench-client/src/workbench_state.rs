@@ -1385,7 +1385,6 @@ pub(crate) struct WorkbenchClientState {
     next_incarnation: u32,
     reconcile_deadlines: Option<OperationDeadlines>,
     latest_geometry: Geometry,
-    focus_new_panel: bool,
     notice: Option<ClientNotice>,
     pending_refresh: Option<PendingRefreshFlight>,
     publication_debt: PublicationDebt,
@@ -1537,7 +1536,6 @@ impl WorkbenchClientState {
             next_incarnation: 1,
             reconcile_deadlines: None,
             latest_geometry: geometry,
-            focus_new_panel: true,
             notice: None,
             pending_refresh: None,
             publication_debt: PublicationDebt::Clean,
@@ -1751,10 +1749,6 @@ impl WorkbenchClientState {
             | ClientPhase::RetryableAttachUnavailable(_)
             | ClientPhase::Retired(_) => None,
         }
-    }
-
-    pub(crate) fn configure_panel_focus(&mut self, focus_new_panel: bool) {
-        self.focus_new_panel = focus_new_panel;
     }
 
     pub(crate) const fn latest_geometry(&self) -> Geometry {

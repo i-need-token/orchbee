@@ -1117,47 +1117,6 @@ fn unchanged_result_at_a_divergent_revision_retires() {
 }
 
 #[test]
-fn committed_split_can_preserve_focus_with_the_exact_projection() {
-    let mut state = split_ready();
-    state.configure_panel_focus(false);
-    let operation = plan(&state, 70_070, split_kind());
-    let known = pending_split(&operation);
-    assert!(state.begin_panel(operation.clone()));
-    let prepared = state.prepare_panel(
-        &operation,
-        PanelResult::Committed {
-            commit: Box::new(split_commit(&operation)),
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: split_grafted_snapshot(),
-            },
-        },
-    );
-    assert_eq!(
-        state.apply_prepared_panel(prepared),
-        PanelDecision::Continue
-    );
-    assert_eq!(state.cache().revision(), WorkbenchRevision::new(2));
-    assert_eq!(state.cache().tabs()[0].panel_count(), 3);
-    assert!(
-        state.cache().tabs()[0]
-            .panel_index(&panel_id(90_001))
-            .is_some()
-    );
-    assert_eq!(
-        state.active(),
-        Some(&SelectedTab::new_panel(
-            state.pane_key_for_anchor(operation.target()).unwrap(),
-            0,
-            0
-        ))
-    );
-    assert_eq!(state.phase_kind(), ClientPhaseKind::Ready);
-    assert!(state.pending_panel().is_none());
-    assert_eq!(state.retained_panel_for_test(), Some(&known));
-    assert!(state.invariant_holds());
-}
-
-#[test]
 fn committed_move_merges_the_exact_projection_and_retargets_the_selection() {
     let mut state = split_ready();
     let operation = plan(

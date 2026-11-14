@@ -170,7 +170,7 @@ Panel separators use axis-specific local CSS cursors while the resize primitive'
 
 The product terminal context menu captures the exact focused element before opening. Closing it after a non-structural command, including Clear, returns focus to that element; a successful split suppresses restoration so the new Panel's terminal auto-focus transfer wins. The Panel header's menus suppress their ordinary focus return after a successful split for the same reason.
 
-A split focuses its new Panel only while the Session's `terminal.focus_new_panel` setting is on, which is the default. The setting is read when the split is requested, as the TUI reads it. When it is off, focus stays on the Panel that was split. Panels that a configured command opens keep the focus that command takes.
+A split focuses its new Panel, as a TUI split does. Panels that a configured command opens keep the focus that command takes.
 
 A close of Tabs that holds the focused Panel returns focus to the most recently focused Panel that stays open in the same Workspace, outside the closed Tabs. When no such Panel exists, the post-close active Panel takes the keyboard. Focus never moves into another Workspace on a close.
 

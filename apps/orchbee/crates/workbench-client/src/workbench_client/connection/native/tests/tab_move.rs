@@ -856,8 +856,6 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
         drive_pending_create_to_selected_without_attachment(&mut harness, &old_key)?;
     assert!(!harness.ui.state().selected_has_viewer());
     // Grow the unattached second Tab to two leaves so tab.move keeps a surviving leaf.
-    // The split only builds the layout; keep the source Panel focused.
-    harness.ui.state_mut().configure_panel_focus(false);
     let split = harness.ui.admit_panel(PanelRequestKind::Split {
         direction: crate::client_view::PanelDirection::Right,
     })?;
@@ -895,11 +893,13 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
         &harness,
         WorkbenchSnapshotOutcome::Available { snapshot: grown },
     )?;
+    // The split focuses its created right leaf.
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::Panel(PanelDecision::Continue)
+        UiEvent::Panel(PanelDecision::SettledWithoutAttachment)
     ));
     assert_eq!(harness.ui.state().tab(1).unwrap().panel_count(), 2);
+    assert_eq!(harness.ui.state().active().unwrap().panel_index(), 1);
     let operation = harness.ui.admit_move(WorkbenchTabMoveDirection::Previous)?;
     commit_move_at(&harness, &operation, 4)?;
     // The unattached moved Tab survives at its destination but the selected leaf is gone
@@ -907,7 +907,7 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
     // viewer cleanup.
     let mut contracted = snapshot(2, 5);
     contracted.terminal_contexts[0].tabs.swap(0, 1);
-    contracted.terminal_contexts[0].tabs[0].root = panel_node(3_010, 3_013, 3_011, 3_012, "3");
+    contracted.terminal_contexts[0].tabs[0].root = panel_node(1_011, 1_012, 1_013, 1_014, "2");
     respond_snapshot(
         &harness,
         WorkbenchSnapshotOutcome::Available {
@@ -931,7 +931,7 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
     assert_eq!(state.tab(0).unwrap().panel_count(), 1);
     assert_eq!(
         state.tab(0).unwrap().panel(0).unwrap().panel_id(),
-        &WorkbenchPanelId::parse(&id(3_010))?
+        &WorkbenchPanelId::parse(&id(1_011))?
     );
     assert_eq!(
         state.retained_move_for_test().unwrap().operation(),

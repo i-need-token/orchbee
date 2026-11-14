@@ -58,7 +58,6 @@ fn reload_rejections_and_lost_reply_have_closed_typed_receipts_without_replay() 
                     "{hostname}: {workspace}"
                 }
                 .into(),
-                focus_new_panel: true,
                 worktrees_directory: None,
                 new_cwd: "follow".into(),
             };
@@ -201,7 +200,7 @@ fn public_configuration_requires_complete_current_snapshots() {
                 "outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]",
                     "windowTitle":"{tab}","notificationProfile":"[notifications]",
                     "agentSidebarProfile":"{}","spacesSidebarProfile":"{}",
-                    "focusNewPanel":true,"worktreesDirectory":null,"newCwd":"follow",
+                    "worktreesDirectory":null,"newCwd":"follow",
                     "diagnostics":{"items":[{"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}],"omittedCount":0}}}}}
     });
     assert!(validator.is_valid(&document));
@@ -210,7 +209,6 @@ fn public_configuration_requires_complete_current_snapshots() {
         "notificationProfile",
         "agentSidebarProfile",
         "spacesSidebarProfile",
-        "focusNewPanel",
         "worktreesDirectory",
         "newCwd",
         "diagnostics",
