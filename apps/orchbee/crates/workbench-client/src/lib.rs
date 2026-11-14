@@ -24,6 +24,7 @@ mod local_client;
 mod localization;
 mod machine_agents;
 mod machine_carrier;
+mod machine_credentials;
 mod machine_discovery;
 #[cfg(windows)]
 mod machine_hub;
@@ -251,6 +252,12 @@ pub mod application {
     pub mod machine_agents {
         pub use crate::machine_agents::{
             Collector, StateCheckpoint, Target, confirm, read, read_states_at, verify,
+        };
+    }
+
+    pub mod machine_credentials {
+        pub use crate::machine_credentials::{
+            Deleted, Failure, Item, Remembering, Secret, SecretKind, Store, readable_label,
         };
     }
 

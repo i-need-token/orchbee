@@ -1,7 +1,8 @@
 //! The askpass helper `ssh` starts for a login question, and its private pairing with the machine
-//! hub: the variable that selects it, the pairing that variable carries, and the one record the
-//! helper hands the hub. The answer itself never takes this way; it reaches the helper over the
-//! question's own endpoint. `docs/machines.md#askpass-helper` owns the rules.
+//! hub: the variable that selects it, the pairing that variable carries, the one record the helper
+//! hands the hub, and the recall that names a remembered answer for the helper to read itself. The
+//! answer itself never takes this way; it reaches the helper over the question's own endpoint or
+//! from the credential store. `docs/machines.md#askpass-helper` owns the rules.
 
 #[cfg(windows)]
 mod helper;
@@ -11,7 +12,8 @@ pub(crate) use orchbee_workbench_client::application::machine_question as questi
 
 #[cfg(windows)]
 pub(crate) use pairing::{
-    Asked, Pairing, RAISE_HEADER_BYTES, Raise, TAKEN, TICKET_BYTES, VARIABLE, hex, unhex,
+    Asked, Pairing, RAISE_HEADER_BYTES, RECALL_BYTES, REMEMBERED, Raise, TAKEN, TICKET_BYTES,
+    UNREMEMBERED, VARIABLE, hex, recall, recalled, unhex,
 };
 
 use std::ffi::OsString;

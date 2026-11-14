@@ -1,6 +1,8 @@
 //! Machine picker painters: the capturing picker window, its Agent controls and query rows.
 //! The inherent `Picker::render` entry lives here so painting reads the picker without the
 //! picker state depending on presentation.
+
+mod forget;
 use crate::machine_picker::{
     Choice, Control, DrawnPickerTarget, Mode, Picker, PickerAction, PickerSource,
 };
@@ -687,6 +689,7 @@ impl Picker {
                     _ => {}
                 }
             }
+            let mut copy_reserved = 0;
             if self.row_id(self.selected()).is_some() {
                 let label = format!(
                     "[{} {}]",
@@ -699,6 +702,7 @@ impl Picker {
                 );
                 let copy_width = display_width(&label) as u16;
                 if copy_width <= inner.width {
+                    copy_reserved = copy_width + 1;
                     let rect = Rect::new(
                         inner.right() - copy_width,
                         inner.bottom() - 3,
@@ -725,6 +729,7 @@ impl Picker {
                     }
                 }
             }
+            self.render_forget_action(frame, inner, copy_reserved, &source, locale, theme, hits);
             frame.render_widget(
                 Paragraph::new(lines.join("\n")).style(theme.style(Role::TextSecondary)),
                 Rect::new(
@@ -737,7 +742,8 @@ impl Picker {
         }
         let status = self
             .error
-            .map(|error| (locale.machine_picker_text(error), Role::StatusWarning));
+            .map(|error| (locale.machine_picker_text(error), Role::StatusWarning))
+            .or_else(|| self.forget_status(locale));
         let status = status.or_else(|| {
             self.busy.then(|| {
                 (

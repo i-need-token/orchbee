@@ -4,6 +4,8 @@
 //! only their count, or a new host's typed text while it begins `yes`. A remote pane whose link
 //! was lost carries one line offering Enter to log in again.
 
+mod remember;
+
 use super::controls::ActionKind;
 use super::modal::{
     Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, FieldTone, ModalAction,
@@ -11,7 +13,7 @@ use super::modal::{
     status_line,
 };
 use crate::client_view::{Binding, KeyCode, Modifiers};
-use crate::localization::{Locale, LoginLabel, MachineQuestion};
+use crate::localization::{Locale, LoginLabel, MachineQuestion, RememberText};
 use crate::machine_login::{AskNotice, Ending};
 use crate::machine_picker::{LoginControl, LoginOverlay, Picker};
 use crate::machine_question::{CUT, shown_lines};
@@ -220,6 +222,13 @@ fn render_question(
             Some(AskNotice::Inadmissible) => {
                 DialogRow::Error(locale.machine_answer_undelivered(true).into())
             }
+            Some(AskNotice::RememberedRejected) => {
+                DialogRow::Error(locale.machine_remember_text(RememberText::Rejected).into())
+            }
+            // A ticked box says where the answer goes besides `ssh`.
+            None if login.ticked() == Some(true) => DialogRow::Help(Some(
+                locale.machine_remember_text(RememberText::Privacy).into(),
+            )),
             None => DialogRow::Help(
                 (!host_key).then(|| locale.machine_login_label(LoginLabel::Privacy).into()),
             ),
@@ -245,6 +254,7 @@ fn render_question(
         )
         .with_shortcut(&enter),
     ];
+    let remember_row = remember::row(login, locale);
     let target = |control| HitTarget::MachineLogin {
         token: presented.token,
         control,
@@ -282,6 +292,9 @@ fn render_question(
         rows.push(DialogRow::Field {
             minimum: NAME_FIELD_WIDTH,
         });
+        if let Some(row) = &remember_row {
+            rows.push(copy_row(row));
+        }
         rows.push(copy_row(&status));
         Dialog {
             title: locale.machine_login_label(LoginLabel::Title),
@@ -306,6 +319,17 @@ fn render_question(
         return false;
     };
     paint_dialog(frame, &dialog, &layout, &targets, theme, hits);
+    // The remember row, when there is one, follows the field.
+    let remember_cursor = remember_row
+        .as_ref()
+        .and(
+            dialog
+                .rows
+                .iter()
+                .position(|row| matches!(row, DialogRow::Field { .. })),
+        )
+        .and_then(|index| layout.row(index + 1))
+        .and_then(|area| remember::paint(frame, login, area, locale, theme, hits));
     let value_area = field_value_area(field, theme);
     let width = usize::from(value_area.width);
     let value = match login.shown_yes() {
@@ -319,7 +343,9 @@ fn render_question(
     let column = u16::try_from(display_width(&value))
         .unwrap_or(u16::MAX)
         .min(value_area.width.saturating_sub(1));
-    frame.set_cursor_position((value_area.x.saturating_add(column), value_area.y));
+    frame.set_cursor_position(
+        remember_cursor.unwrap_or((value_area.x.saturating_add(column), value_area.y)),
+    );
     true
 }
 
@@ -334,6 +360,7 @@ fn copy_row<'a>(row: &'a DialogRow<'a>) -> DialogRow<'a> {
         DialogRow::Error(text) => DialogRow::Error(Cow::Borrowed(text)),
         DialogRow::Status(text, role) => DialogRow::Status(Cow::Borrowed(text), *role),
         DialogRow::Help(text) => DialogRow::Help(text.as_deref().map(Cow::Borrowed)),
+        DialogRow::Item(text, role) => DialogRow::Item(Cow::Borrowed(text), *role),
         _ => DialogRow::Blank,
     }
 }

@@ -33,6 +33,8 @@ pub(in super::super) enum Failure {
     Offline(OfflineCause),
     /// A person must answer a question and nobody did.
     NeedsLogin,
+    /// `ssh` refused the remembered answer and nobody could be asked instead.
+    RememberedRejected,
     LoginFailed(LoginFailedCause),
     /// A first-time host key nobody confirmed.
     Untrusted(HostKey),
@@ -63,6 +65,9 @@ impl Failure {
             },
             Self::NeedsLogin => MachineState::NeedsLogin {
                 cause: Some(NeedsLoginCause::AuthRequired),
+            },
+            Self::RememberedRejected => MachineState::NeedsLogin {
+                cause: Some(NeedsLoginCause::RememberedRejected),
             },
             Self::LoginFailed(cause) => MachineState::LoginFailed {
                 cause: Some(*cause),
@@ -98,7 +103,7 @@ impl Failure {
                 OfflineCause::RemoteProtocol => ConnectFailure::RemoteProtocol,
                 OfflineCause::RemoteNotReady => ConnectFailure::RemoteNotReady,
             },
-            Self::NeedsLogin => ConnectFailure::AuthRequired,
+            Self::NeedsLogin | Self::RememberedRejected => ConnectFailure::AuthRequired,
             Self::LoginFailed(_) => ConnectFailure::AuthFailed,
             Self::Untrusted(_) => ConnectFailure::HostUntrusted,
             Self::KeyChanged(_) => ConnectFailure::HostKeyChanged,

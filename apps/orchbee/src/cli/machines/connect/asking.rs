@@ -5,9 +5,11 @@
 //! answer goes straight to the question's endpoint; one it does not take is reported at once. An
 //! empty line or anything but `yes` for a host dismisses the episode, and an interrupt dismisses
 //! it and ends the command. `docs/machines.md#connect-and-disconnect` owns the rule and
-//! `docs/machines.md#answer-path` the buffers that hold an answer.
+//! `docs/machines.md#answer-path` the buffers that hold an answer. With `--remember` a password or
+//! passphrase answer is kept until the login ends; see [`super::remember`].
 
 use super::super::{Context, Error, Remote};
+use super::remember::{Kept, Remember};
 use crate::{
     cli::machines::askpass::question::attributed,
     cli_text::{CliText, MachineQuestion},
@@ -15,7 +17,10 @@ use crate::{
 };
 use orchbee_machine_protocol::{
     Id, MAXIMUM_ANSWER_BYTES, MachineId,
-    hub::{Claimant, Event, LoginPhase, Question, QuestionKind, Reply, Request},
+    hub::{
+        Claimant, ConnectOutcome, ConnectResult, Event, LoginEnd, LoginPhase, Question,
+        QuestionKind, Reply, Request,
+    },
     wipe,
 };
 use orchbee_workbench_client::application::machine_hub::{
@@ -51,18 +56,25 @@ pub(in super::super) struct Console {
     mode: co::CONSOLE,
     target: String,
     text: CliText,
+    /// `--remember`: where answers typed here go once the login succeeds.
+    remember: Option<Remember>,
 }
 
 impl Console {
     /// The console when standard input and standard error are both consoles; `target` is the
     /// Machine's `ssh` target.
-    pub(in super::super) fn detect(target: String, locale: Locale) -> Option<Self> {
+    pub(in super::super) fn detect(
+        target: String,
+        locale: Locale,
+        remember: Option<Remember>,
+    ) -> Option<Self> {
         let mode = standard(co::STD_HANDLE::INPUT)?.GetConsoleMode().ok()?;
         standard(co::STD_HANDLE::ERROR)?.GetConsoleMode().ok()?;
         Some(Self {
             mode,
             target,
             text: CliText::new(locale),
+            remember,
         })
     }
 }
@@ -90,11 +102,20 @@ pub(super) fn converse(
         .map_err(|_| Error::Internal)?;
     let mut login: Option<Id> = None;
     let mut asking: Option<Asking> = None;
+    let mut kept = Kept::new(console.remember.as_ref());
     loop {
         match replies.try_recv() {
             Ok(reply) => {
                 if let Some(open) = asking.take() {
                     open.abandon();
+                }
+                // `online` follows a login that succeeded, whether or not its end was seen.
+                if let Ok(Reply::Connect(ConnectResult {
+                    outcome: ConnectOutcome::Online { .. },
+                    ..
+                })) = &reply
+                {
+                    kept.ended(LoginEnd::Succeeded);
                 }
                 return Ok(reply);
             }
@@ -123,7 +144,7 @@ pub(super) fn converse(
                 let question = open.finish();
                 match reply(&line, &question.kind) {
                     Act::Deliver(answer) => match deliver(&question.answer, answer) {
-                        Ok(()) => {}
+                        Ok(()) => kept.delivered(&question.kind, answer),
                         // Nothing reached the endpoint, which still waits: the same question
                         // again.
                         Err(DeliveryFailure::Inadmissible) => {
@@ -157,13 +178,22 @@ pub(super) fn converse(
                     LoginPhase::Claimed {
                         claim: Claimant::You,
                     } => login = Some(event.login),
-                    LoginPhase::Ended { .. } if login == Some(event.login) => login = None,
+                    LoginPhase::Ended { end } if login == Some(event.login) => {
+                        login = None;
+                        kept.ended(end);
+                    }
                     _ => {}
                 }
             }
             Some(Notice::Event(Event::Question(question)))
                 if login == Some(question.login) && asking.is_none() =>
             {
+                if question.remembered_rejected {
+                    say(console.text.cli_machine_remembered(true));
+                }
+                if kept.asked(&question.kind) {
+                    say(console.text.cli_machine_remembered(false));
+                }
                 match Asking::start(console, question) {
                     Some(open) => asking = Some(open),
                     // A secret is never read with echo: a console that keeps echoing is not asked.

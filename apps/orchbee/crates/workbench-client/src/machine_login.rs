@@ -4,11 +4,16 @@
 //! overlay shows [`Presented`]. `apps/orchbee/docs/machines.md#the-tui-as-a-hub-client` owns the
 //! rules.
 
+mod remember;
 mod secret;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use remember::RememberBox;
 pub(crate) use secret::{Answer, SecretField};
+
+use crate::machine_credentials::{Remembering, SecretKind};
+use remember::Remember;
 
 use crate::machine_question::attributed;
 use orchbee_machine_protocol::{
@@ -92,6 +97,13 @@ pub(crate) enum Effect {
     },
     /// Ask the hub to dismiss the episode.
     Dismiss(Id),
+    /// Write `answer`, which `ssh` took for the login that just succeeded, to the credential store
+    /// as `machine`'s `kind` answer off the interface thread; it is wiped once written.
+    Remember {
+        machine: String,
+        kind: SecretKind,
+        answer: Answer,
+    },
 }
 
 /// How the last episode of a Machine ended, as its selection reads it.
@@ -114,6 +126,8 @@ pub(crate) enum AskNotice {
     Repeated,
     /// The answer held a character `ssh` cannot take; the same question asks again.
     Inadmissible,
+    /// `ssh` refused the remembered answer, which is deleted.
+    RememberedRejected,
 }
 
 /// What an overlay shows of the open question, or of the last question of a login that ended
@@ -135,6 +149,8 @@ pub(crate) struct Presented {
     /// person closes it; the field was wiped and takes nothing.
     pub(crate) outcome: Option<Ending>,
     pub(crate) field: SecretField,
+    /// The remember box beside the field.
+    pub(crate) remember: RememberBox,
 }
 
 struct Open {
@@ -152,6 +168,8 @@ struct Episode {
     machine: String,
     target: String,
     open: Option<Open>,
+    /// The person's choice to remember, and the answers kept until the login succeeds.
+    remember: Remember,
 }
 
 impl Episode {
@@ -192,6 +210,8 @@ pub(crate) struct Logins {
     episode: Option<Episode>,
     concluded: Option<Concluded>,
     endings: Vec<(String, Ending)>,
+    /// How long this platform's store keeps an answer, once the holder looked.
+    remembering: Option<Remembering>,
 }
 
 impl Logins {
@@ -225,6 +245,7 @@ impl Logins {
                     machine,
                     target,
                     open: None,
+                    remember: Remember::default(),
                 });
                 effects
             }
@@ -242,22 +263,37 @@ impl Logins {
                 if let Some(previous) = episode.open.take() {
                     previous.field.clear();
                 }
+                // `ssh` asking this kind again refused the answer kept for it.
+                episode.remember.refused(&kind);
+                let notice = if question.remembered_rejected {
+                    Some(AskNotice::RememberedRejected)
+                } else {
+                    question.repeated.then_some(AskNotice::Repeated)
+                };
                 episode.open = Some(Open {
                     question: question.question,
                     kind,
                     prompt: question.prompt,
                     answer: question.answer,
-                    notice: question.repeated.then_some(AskNotice::Repeated),
+                    notice,
                     sending: false,
                     field: SecretField::new(),
                 });
                 Vec::new()
             }
             Notice::Ended { login, end } => {
-                if let Some(episode) = self.episode.take_if(|episode| episode.login == login) {
-                    self.conclude(episode, Ending::Hub(end));
-                }
-                Vec::new()
+                let Some(mut episode) = self.episode.take_if(|episode| episode.login == login)
+                else {
+                    return Vec::new();
+                };
+                // Only a login that succeeded writes what was kept; any other end wipes it.
+                let effects = if end == LoginEnd::Succeeded {
+                    episode.remember.saved(&episode.machine)
+                } else {
+                    Vec::new()
+                };
+                self.conclude(episode, Ending::Hub(end));
+                effects
             }
             Notice::Delivered { token, outcome } => {
                 let Some(episode) = self
@@ -333,6 +369,7 @@ impl Logins {
         let Some(open) = episode.open.as_mut().filter(|open| !open.sending) else {
             return Vec::new();
         };
+        let remember = &mut episode.remember;
         let answer = match (act, &open.kind) {
             // The overlay trusts only once the field reads `yes`; what it held is not sent.
             (Act::Trust, QuestionKind::HostKey { .. }) => {
@@ -340,7 +377,9 @@ impl Logins {
                 Answer::fixed(YES.as_bytes())
             }
             (Act::Submit, kind) if !matches!(kind, QuestionKind::HostKey { .. }) => {
-                open.field.take()
+                let answer = open.field.take();
+                remember.keep(kind, &answer, self.remembering);
+                answer
             }
             _ => return Vec::new(),
         };
@@ -351,6 +390,28 @@ impl Logins {
             endpoint: open.answer.clone(),
             answer,
         }]
+    }
+
+    /// The person ticked or cleared the remember box of the question `token` names; it holds for
+    /// the episode's later questions.
+    pub(crate) fn remember(&mut self, token: Token, ticked: bool) {
+        if let Some(episode) = self
+            .episode
+            .as_mut()
+            .filter(|episode| episode.token() == Some(token))
+        {
+            episode.remember.choose(ticked);
+        }
+    }
+
+    /// How long this platform's store keeps an answer, once the holder said.
+    pub(crate) const fn remembering(&self) -> Option<Remembering> {
+        self.remembering
+    }
+
+    /// How long this platform's store keeps an answer, as the holder found it.
+    pub(crate) const fn set_remembering(&mut self, remembering: Remembering) {
+        self.remembering = Some(remembering);
     }
 
     /// The person's selection now waits on `machine`, or on no Machine. A selection that stops
@@ -403,6 +464,7 @@ impl Logins {
                 sending: false,
                 outcome: Some(concluded.ending),
                 field: concluded.field.clone(),
+                remember: RememberBox::Absent,
             });
         }
         let episode = self.episode.as_ref()?;
@@ -420,6 +482,7 @@ impl Logins {
             sending: open.sending,
             outcome: None,
             field: open.field.clone(),
+            remember: episode.remember.shown(&open.kind, self.remembering),
         })
     }
 

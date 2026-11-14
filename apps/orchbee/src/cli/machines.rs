@@ -209,7 +209,7 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
             + Duration::from_secs(match command {
                 MachineCommand::Add(_) => 60,
                 // A hub start, then the hub's own 60-second attempt.
-                MachineCommand::Connect(_) => 90,
+                MachineCommand::Connect { .. } => 90,
                 MachineCommand::Disconnect(_) => 15,
                 _ => 5,
             }),
@@ -285,7 +285,9 @@ fn execute(
             });
         }
         MachineCommand::Remove(machine) => {
-            return commit_selected(&store, machine, context, report, Edit::Remove);
+            commit_selected(&store, machine, context, report, Edit::Remove)?;
+            forget_removed(report);
+            return Ok(());
         }
         MachineCommand::Enable { machine, enabled } => {
             return commit_selected(&store, machine, context, report, |id| Edit::Enable {
@@ -293,8 +295,8 @@ fn execute(
                 enabled: *enabled,
             });
         }
-        MachineCommand::Connect(machine) => {
-            return connect::connect(&store, machine, context, report, locale);
+        MachineCommand::Connect { machine, remember } => {
+            return connect::connect(&store, machine, *remember, context, report, locale);
         }
         MachineCommand::Disconnect(machine) => {
             return connect::disconnect(&store, machine, context, report);
@@ -324,6 +326,21 @@ fn commit_selected(
     report.changed = changed;
     report.committed = changed;
     committed(context, report)
+}
+/// A removed Machine's remembered answers go with it. A store that cannot be reached keeps them
+/// under the removed id, where nothing reads them; uninstall's data removal clears what it finds.
+fn forget_removed(report: &Report) {
+    use orchbee_workbench_client::application::machine_credentials::Store;
+    if !report.committed {
+        return;
+    }
+    if let Some(machine) = report
+        .id
+        .as_ref()
+        .and_then(|id| orchbee_machine_protocol::MachineId::new(id.as_str()).ok())
+    {
+        let _forgotten = Store::select().forget(&machine);
+    }
 }
 /// A committed edit reaches a running machine hub, which would otherwise carry the record as it
 /// was; an unchanged catalog has nothing to tell.
@@ -355,8 +372,8 @@ fn emit(
         OutputFormat::Text if error.is_some() => output::encode_text(""),
         OutputFormat::Text => {
             let mut text = String::new();
-            if let MachineCommand::Connect(_) | MachineCommand::Disconnect(_) = command {
-                let message = if matches!(command, MachineCommand::Connect(_)) {
+            if let MachineCommand::Connect { .. } | MachineCommand::Disconnect(_) = command {
+                let message = if matches!(command, MachineCommand::Connect { .. }) {
                     "connected"
                 } else {
                     "disconnected"

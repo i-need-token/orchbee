@@ -4,6 +4,8 @@
 use super::*;
 use orchbee_machine_protocol::{AnswerToken, PathText};
 
+mod remember;
+
 const MACHINE: &str = "0123456789abcdef0123456789abcdef";
 const TARGET: &str = "user@devbox";
 const PASSWORD: &str = "user@devbox's password: ";
@@ -78,6 +80,7 @@ enum Step {
 enum Did {
     Deliver(Vec<u8>),
     Dismiss(u32),
+    Remember(SecretKind, Vec<u8>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -215,6 +218,9 @@ impl Run {
             .map(|effect| match effect {
                 Effect::Deliver { answer, .. } => Did::Deliver(answer.as_bytes().to_vec()),
                 Effect::Dismiss(login) => Did::Dismiss(login.get()),
+                Effect::Remember { kind, answer, .. } => {
+                    Did::Remember(kind, answer.as_bytes().to_vec())
+                }
             })
             .collect()
     }

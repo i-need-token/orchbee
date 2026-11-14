@@ -23,8 +23,12 @@ pub(crate) enum MachineCommand {
         machine: String,
         enabled: bool,
     },
-    /// Connect the machine the selector names through the machine hub.
-    Connect(String),
+    /// Connect the machine the selector names through the machine hub; with `remember`, an answer
+    /// typed at its login is remembered once the login succeeds.
+    Connect {
+        machine: String,
+        remember: bool,
+    },
     /// End the hub's connection to the machine the selector names.
     Disconnect(String),
     /// A verb or option whose slice has not landed. The whole invocation was parsed and is
@@ -40,7 +44,7 @@ impl MachineCommand {
             Self::Remove(_) => "remove",
             Self::Enable { enabled: true, .. } => "enable",
             Self::Enable { enabled: false, .. } => "disable",
-            Self::Connect(_) => "connect",
+            Self::Connect { .. } => "connect",
             Self::Disconnect(_) => "disconnect",
             Self::NotYetAvailable(operation) => operation,
         }
@@ -153,8 +157,10 @@ pub(super) fn parse(
                 machine,
                 enabled: verb == "enable",
             },
-            "connect" if seen("--remember") => MachineCommand::NotYetAvailable("connect"),
-            "connect" => MachineCommand::Connect(machine),
+            "connect" => MachineCommand::Connect {
+                machine,
+                remember: seen("--remember"),
+            },
             _ => MachineCommand::Disconnect(machine),
         }
     };

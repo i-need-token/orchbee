@@ -13,13 +13,15 @@ use super::{
     relay::Relays,
     stop::Stops,
 };
+use crate::cli::machines::askpass::{RECALL_BYTES, recall};
 use orchbee_local_ipc::LocalStream;
 use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
     Connection, MachineId,
     hub::{self, ConnectOutcome, Event, Reply},
 };
-use std::{collections::BTreeMap, net::Shutdown, sync::Arc, time::Duration};
+use orchbee_workbench_client::application::machine_credentials::{SecretKind, Store};
+use std::{collections::BTreeMap, net::Shutdown, sync::Arc, thread, time::Duration};
 
 /// The hub state under its lock, and the signal that wakes the supervisor and closing.
 pub(super) type Shared = super::super::shared_carrier::Shared<Hub>;
@@ -47,6 +49,8 @@ pub(super) struct Hub {
     pub(super) starting: Vec<(u64, Route)>,
     /// The open askpass helper of each carrier that has one, under its registration number.
     askers: BTreeMap<u64, (u64, LocalStream)>,
+    /// The recall each carrier's helper is sent next, by the thread that admitted its question.
+    recalls: BTreeMap<u64, [u8; RECALL_BYTES]>,
     next_asker: u64,
     /// Helper connections being served.
     pub(super) helpers: usize,
@@ -102,6 +106,7 @@ impl Hub {
             carriers: BTreeMap::new(),
             starting: Vec::new(),
             askers: BTreeMap::new(),
+            recalls: BTreeMap::new(),
             next_asker: 0,
             helpers: 0,
             question,
@@ -230,6 +235,18 @@ impl Hub {
         Some(self.next_asker)
     }
 
+    /// Whether the helper `serial` of `carrier` is still open.
+    pub(super) fn holds_asker(&self, carrier: u64, serial: u64) -> bool {
+        self.askers
+            .get(&carrier)
+            .is_some_and(|(registered, _)| *registered == serial)
+    }
+
+    /// The recall a transition asked for the helper of `carrier`, once.
+    pub(super) fn take_recall(&mut self, carrier: u64) -> Option<[u8; RECALL_BYTES]> {
+        self.recalls.remove(&carrier)
+    }
+
     /// Forgets the helper `serial` of `carrier`; false when the hub already closed it.
     pub(super) fn release_asker(&mut self, carrier: u64, serial: u64) -> bool {
         match self.askers.get(&carrier) {
@@ -328,10 +345,21 @@ impl Hub {
                 }
             }
             Effect::Close { carrier } => {
+                self.recalls.remove(&carrier);
                 if let Some((_, stream)) = self.askers.remove(&carrier) {
                     let _closed = stream.shutdown(Shutdown::Both);
                 }
             }
+            Effect::Recall {
+                carrier,
+                machine,
+                kind,
+            } => {
+                if self.askers.contains_key(&carrier) {
+                    self.recalls.insert(carrier, recall(&machine, kind));
+                }
+            }
+            Effect::Forget { machine, kind } => forget(machine, kind),
             Effect::Reply { waiters, result } => {
                 // A `connect` that ends `online` starts the expiry countdown again.
                 if matches!(result.outcome, ConnectOutcome::Online { .. })
@@ -355,4 +383,17 @@ impl Hub {
             }
         }
     }
+}
+
+/// Deletes the Machine's remembered answer of `kind` off the hub's lock. Deleting reads nothing:
+/// the hub never holds the answer. A failed deletion leaves the item, which `ssh` will refuse again.
+fn forget(machine: MachineId, kind: SecretKind) {
+    let _started = thread::Builder::new()
+        .name("orchbee-hub-forget".into())
+        .spawn(move || {
+            let item = orchbee_workbench_client::application::machine_credentials::Item::new(
+                machine, kind,
+            );
+            let _deleted = Store::select().delete(&item);
+        });
 }

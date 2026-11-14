@@ -1,16 +1,18 @@
 //! The hub's askpass endpoint: each askpass helper hands it one question, which the hub matches to
 //! a running carrier by its ticket and gives that Machine; the helper's connection then says only
-//! whether the answer was taken. No answer ever reaches this endpoint.
+//! whether the answer was taken, or, after the hub named a remembered answer for the helper to read
+//! itself, whether it found one. No answer ever reaches this endpoint.
 //! `docs/machines.md#askpass-helper` owns the pairing.
 
 use super::{machine::Raised, state::Shared};
 use crate::cli::machines::askpass::{
-    Asked, RAISE_HEADER_BYTES, Raise, TAKEN, TICKET_BYTES, hex, question, unhex,
+    Asked, RAISE_HEADER_BYTES, REMEMBERED, Raise, TAKEN, TICKET_BYTES, UNREMEMBERED, hex, question,
+    unhex,
 };
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_machine_protocol::{AnswerToken, PathText, hub::AnswerEndpoint, hub::QuestionKind};
 use std::{
-    io::Read,
+    io::{Read, Write},
     net::Shutdown,
     sync::{
         Arc,
@@ -106,28 +108,49 @@ fn admit(shared: &Shared, stream: &LocalStream) -> Option<(u64, u64)> {
             None
         }
     };
+    let recall = hub.take_recall(carrier);
     drop(hub);
     shared.wake();
+    // A recall the helper never reads leaves it waiting; its leaving then ends the attempt.
+    if let Some(record) = recall {
+        let _sent = stream
+            .set_write_timeout(Some(RECORD))
+            .and_then(|()| (&*stream).write_all(&record));
+    }
     serial.map(|serial| (carrier, serial))
 }
 
-/// Waits for the helper's one byte, or its leaving, and tells the Machine, unless the hub already
-/// closed this helper.
+/// Waits for the helper's last byte, or its leaving, and tells the Machine, unless the hub already
+/// closed this helper. A helper that found nothing remembered says so and keeps its question.
 fn follow(shared: &Shared, stream: &LocalStream, carrier: u64, serial: u64) {
-    let mut byte = [0; 1];
-    let taken = stream.set_read_timeout(None).is_ok()
-        && matches!((&*stream).read(&mut byte), Ok(1))
-        && byte[0] == TAKEN;
-    let mut hub = shared.lock();
-    if hub.release_asker(carrier, serial) {
-        if taken {
-            hub.machine_of(carrier, |machine, cx| machine.taken(carrier, cx));
-        } else {
-            hub.machine_of(carrier, |machine, cx| machine.unanswered(carrier, cx));
+    let waits = stream.set_read_timeout(None).is_ok();
+    loop {
+        let mut byte = [0; 1];
+        let read = (waits && matches!((&*stream).read(&mut byte), Ok(1))).then_some(byte[0]);
+        let mut hub = shared.lock();
+        if read == Some(UNREMEMBERED) {
+            if hub.holds_asker(carrier, serial) {
+                hub.machine_of(carrier, |machine, cx| machine.unrecalled(carrier, cx));
+            }
+            drop(hub);
+            shared.wake();
+            continue;
         }
+        if hub.release_asker(carrier, serial) {
+            match read {
+                Some(TAKEN) => {
+                    hub.machine_of(carrier, |machine, cx| machine.taken(carrier, cx));
+                }
+                Some(REMEMBERED) => {
+                    hub.machine_of(carrier, |machine, _| machine.recalled(carrier));
+                }
+                _ => hub.machine_of(carrier, |machine, cx| machine.unanswered(carrier, cx)),
+            }
+        }
+        drop(hub);
+        shared.wake();
+        return;
     }
-    drop(hub);
-    shared.wake();
 }
 
 /// The helper's record within its bound.

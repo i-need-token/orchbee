@@ -44,6 +44,18 @@ impl super::CliText {
         format!("{shown}{asked}")
     }
 
+    /// The line `machine connect` writes about a remembered answer: `rejected` when `ssh` refused
+    /// the one the store held, which is deleted; otherwise `--remember` cannot be honored here.
+    #[cfg(windows)]
+    pub(crate) fn cli_machine_remembered(self, rejected: bool) -> &'static str {
+        match (self.locale, rejected) {
+            (Locale::EnUs, true) => "The saved password no longer works.\n",
+            (Locale::ZhCn, true) => "保存的密码已失效。\n",
+            (Locale::EnUs, false) => "Passwords can't be remembered in this kind of login.\n",
+            (Locale::ZhCn, false) => "在这种登录方式下不能记住密码。\n",
+        }
+    }
+
     /// The line `machine connect` writes when an answer was not delivered: `again` when the answer
     /// held a character `ssh` cannot take and the question is asked again; otherwise its endpoint
     /// was gone or refused it and the login stops.
@@ -137,8 +149,8 @@ impl super::CliText {
             ),
             C::MachineConnect => (
                 "orchbee machine connect <id|label> [--remember] [--format text|json]",
-                "Connect an enabled saved machine through the background machine hub, starting the hub when none runs. Returns once the machine is online or with the reason it is not. When standard input and standard error are both consoles, an Orchbee Panel included, it shows each sign-in question OpenSSH asks, such as a password or whether to trust a new host, with OpenSSH's own words, and waits for an answer; an empty answer or Ctrl+C ends the attempt. Otherwise, as with standard input redirected from the null device, which an Agent that cannot answer uses, a sign-in that needs an answer ends the command. The connection stays after the command ends. '--remember' is not available yet.",
-                "通过后台连接进程连接一台已启用的已保存机器，没有连接进程时会启动它。机器上线后返回，或返回未能上线的原因。标准输入和标准错误都是控制台时（包括 Orchbee 面板），它会连同 OpenSSH 的原文显示 OpenSSH 提出的每个登录问题，例如密码或是否信任新主机，并等待回答；空回答或 Ctrl+C 结束本次尝试。否则（例如标准输入重定向自空设备，无法回答的 Agent 应这样做），需要回答的登录会结束命令。命令结束后连接仍保持。‘--remember’ 暂不可用。",
+                "Connect an enabled saved machine through the background machine hub, starting the hub when none runs. Returns once the machine is online or with the reason it is not. When standard input and standard error are both consoles, an Orchbee Panel included, it shows each sign-in question OpenSSH asks, such as a password or whether to trust a new host, with OpenSSH's own words, and waits for an answer; an empty answer or Ctrl+C ends the attempt. Otherwise, as with standard input redirected from the null device, which an Agent that cannot answer uses, a sign-in that needs an answer ends the command. The connection stays after the command ends. With '--remember', a password or key passphrase typed there is remembered in the system credential store once the sign-in succeeds, and later connections use it without asking; a remembered answer OpenSSH refuses is deleted. Removing the machine forgets it.",
+                "通过后台连接进程连接一台已启用的已保存机器，没有连接进程时会启动它。机器上线后返回，或返回未能上线的原因。标准输入和标准错误都是控制台时（包括 Orchbee 面板），它会连同 OpenSSH 的原文显示 OpenSSH 提出的每个登录问题，例如密码或是否信任新主机，并等待回答；空回答或 Ctrl+C 结束本次尝试。否则（例如标准输入重定向自空设备，无法回答的 Agent 应这样做），需要回答的登录会结束命令。命令结束后连接仍保持。使用 ‘--remember’ 时，登录成功后在那里输入的密码或密钥口令会记在系统的凭据存储里，之后的连接直接使用，不再询问；OpenSSH 拒绝的已记住回答会被删除。删除机器时会一并忘记。",
             ),
             C::MachineDisconnect => (
                 "orchbee machine disconnect <id|label> [--format text|json]",

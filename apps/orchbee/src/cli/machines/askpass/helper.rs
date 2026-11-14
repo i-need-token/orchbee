@@ -4,13 +4,18 @@
 //! bound, since `ssh` would send the empty answer of a helper that exits: a helper that cannot ask
 //! tells the hub, which ends the carrier, and ending the carrier ends the helper with it. It never
 //! reads its standard input, which `ssh` shares with the link, and never writes its standard error.
+//! When the hub recalls a remembered answer instead, the helper reads it from the credential store
+//! itself and prints it the same way; the hub only names the item.
 
-use super::{Asked, Pairing, Raise, TAKEN, hex, question};
+use super::{
+    Asked, Pairing, RECALL_BYTES, REMEMBERED, Raise, TAKEN, UNREMEMBERED, hex, question, recalled,
+};
 use orchbee_local_ipc::{LocalListener, LocalStream, Readiness};
 use orchbee_machine_protocol::{
     ANSWER_HEADER_BYTES, ANSWER_TAKEN, AnswerToken, MAXIMUM_ANSWER_BYTES, admissible_answer,
     decode_answer_header, hub::QuestionKind, wipe,
 };
+use orchbee_workbench_client::application::machine_credentials::{Item, Store};
 use std::{
     ffi::OsStr,
     io::{self, Read, Write},
@@ -140,8 +145,10 @@ fn wait(hub: &LocalStream, ready: Ready, deadline: Instant) -> Option<()> {
         match hub.readiness() {
             Ok(Readiness::Pending) => {}
             Ok(Readiness::Readable) => {
-                let mut ignored = [0; 1];
-                let _read = (&*hub).read(&mut ignored);
+                if let Some(length) = recall(hub, &mut answer.0) {
+                    drop(listener);
+                    return print(&mut answer.0, length);
+                }
             }
             Ok(Readiness::Closed) | Err(_) => return None,
         }
@@ -160,13 +167,50 @@ fn wait(hub: &LocalStream, ready: Ready, deadline: Instant) -> Option<()> {
         let _told = (&*hub).write_all(&[TAKEN]);
         let _receipt = (&stream).write_all(&[ANSWER_TAKEN]);
         drop(listener);
-        let line = answer.0.get_mut(..=length)?;
-        *line.last_mut()? = b'\n';
-        // One write of a whole line goes straight to the pipe, past the standard output's buffer.
-        let mut output = io::stdout().lock();
-        return output.write_all(line).and_then(|()| output.flush()).ok();
+        return print(&mut answer.0, length);
     }
     None
+}
+
+/// Prints the answer's first `length` bytes and a line feed for `ssh` in one write, which goes
+/// straight to the pipe past the standard output's buffer.
+fn print(answer: &mut [u8], length: usize) -> Option<()> {
+    let line = answer.get_mut(..=length)?;
+    *line.last_mut()? = b'\n';
+    let mut output = io::stdout().lock();
+    output.write_all(line).and_then(|()| output.flush()).ok()
+}
+
+/// Reads the hub's recall and the remembered answer it names into `answer`; its length once the hub
+/// was told, or `None` when nothing usable is remembered, after which the question stands. The
+/// store's copy is wiped as it drops here.
+fn recall(hub: &LocalStream, answer: &mut [u8]) -> Option<usize> {
+    let mut record = [0; RECALL_BYTES];
+    read_before(hub, &mut record, Instant::now() + RECORD)?;
+    let read = recalled(&record).and_then(|(machine, kind)| {
+        let secret = Store::select().read(&Item::new(machine, kind)).ok()??;
+        let bytes = secret.as_bytes();
+        let fits = !bytes.is_empty() && bytes.len() <= MAXIMUM_ANSWER_BYTES;
+        (fits && admissible_answer(bytes)).then(|| {
+            answer[..bytes.len()].copy_from_slice(bytes);
+            bytes.len()
+        })
+    });
+    // The hub learns whether a remembered answer goes to `ssh` before `ssh` reads it.
+    let marker = if read.is_some() {
+        REMEMBERED
+    } else {
+        UNREMEMBERED
+    };
+    let told = (&*hub).write_all(&[marker]).is_ok();
+    match read {
+        Some(length) if told => Some(length),
+        Some(_) => {
+            wipe(answer);
+            None
+        }
+        None => None,
+    }
 }
 
 /// Reads one delivery record for `token` from `stream` into `answer` within its bound; the length

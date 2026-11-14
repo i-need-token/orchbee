@@ -13,6 +13,8 @@ use crate::{localization::Locale, machines::Store};
 
 #[cfg(windows)]
 mod asking;
+#[cfg(windows)]
+mod remember;
 
 #[cfg(windows)]
 pub(super) use windows::{
@@ -29,6 +31,7 @@ pub(super) fn reload_running(_context: &mut Context) -> Result<(), Error> {
 pub(super) fn connect(
     _store: &Store,
     _selector: &str,
+    _remember: bool,
     _context: &mut Context,
     _report: &mut Report,
     _locale: Locale,
@@ -51,6 +54,7 @@ mod windows {
     use super::{
         super::{Context, Error, Remote, Report},
         asking::{self, Console},
+        remember::Remember,
     };
     use crate::{
         localization::Locale,
@@ -79,16 +83,20 @@ mod windows {
 
     /// Connects the Machine `selector` names and returns once the hub reports it `online` or the
     /// reason it is not. With standard input and standard error both consoles, the command asks
-    /// the login questions on them.
+    /// the login questions on them, and with `remember` it remembers a password or passphrase
+    /// typed there once the login succeeds.
     pub(in super::super) fn connect(
         store: &Store,
         selector: &str,
+        remember: bool,
         context: &mut Context,
         report: &mut Report,
         locale: Locale,
     ) -> Result<(), Error> {
         let machine = resolve(store, selector, report)?;
-        let console = target(report).and_then(|target| Console::detect(target, locale));
+        let remembering = remember.then(|| Remember::new(machine.clone(), &label(report)));
+        let console =
+            target(report).and_then(|target| Console::detect(target, locale, remembering));
         context.check()?;
         let client = open(context)?;
         let result = connect_through(&client, &machine, console.as_ref(), context, report);
@@ -309,6 +317,26 @@ mod windows {
     }
 
     /// The `ssh` target of the machine the report resolved.
+    /// The saved label of the Machine the report names.
+    fn label(report: &Report) -> String {
+        report
+            .id
+            .as_ref()
+            .and_then(|id| {
+                Some(
+                    report
+                        .catalog
+                        .as_ref()?
+                        .resolve(id.as_str())
+                        .ok()?
+                        .draft
+                        .label
+                        .clone(),
+                )
+            })
+            .unwrap_or_default()
+    }
+
     fn target(report: &Report) -> Option<String> {
         let id = report.id.as_ref()?;
         match &report

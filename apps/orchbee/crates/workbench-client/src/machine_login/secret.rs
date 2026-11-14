@@ -32,6 +32,15 @@ impl Answer {
         answer
     }
 
+    /// A second fixed buffer holding the same answer, kept to be remembered once the login
+    /// succeeds; it is wiped on drop like the first.
+    pub(super) fn copy(&self) -> Self {
+        let mut answer = Self::empty();
+        answer.bytes[..self.len].copy_from_slice(self.as_bytes());
+        answer.len = self.len;
+        answer
+    }
+
     pub(crate) fn as_bytes(&self) -> &[u8] {
         &self.bytes[..self.len]
     }

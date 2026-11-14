@@ -12,6 +12,7 @@ use std::{num::NonZeroU64, sync::Arc};
 pub(crate) const COPY_ID_KEY: crate::terminal_events::keys::Binding =
     crate::terminal_events::keys::Binding::new(KeyCode::Char('y'), Modifiers::CTRL);
 mod agents;
+mod forget;
 mod login;
 mod navigation;
 mod pointer;
@@ -20,6 +21,7 @@ mod spaces;
 mod workspace_query;
 pub use agents::Control;
 use agents::Navigation;
+pub(crate) use forget::FORGET_KEY;
 pub(crate) use login::{LoginControl, LoginOverlay};
 pub use navigation::SidebarTarget;
 pub(crate) use navigation::{
@@ -120,6 +122,8 @@ pub enum PickerAction {
     Control(Control),
     Row(usize),
     CopyId(usize),
+    /// Forget the saved password of the remote Machine at this row.
+    ForgetPassword(usize),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -180,7 +184,9 @@ impl PickerSource {
                             | Control::Clear => true,
                         }
             }
-            PickerAction::Row(index) | PickerAction::CopyId(index) => index < self.0.rows.len(),
+            PickerAction::Row(index)
+            | PickerAction::CopyId(index)
+            | PickerAction::ForgetPassword(index) => index < self.0.rows.len(),
         }
     }
 
@@ -263,6 +269,12 @@ pub struct Picker {
     pub error: Option<&'static str>,
     pub request: Option<Selection>,
     pub(crate) copy_id_request: Option<String>,
+    /// The remote Machine whose saved password the person asked to forget.
+    forget_request: Option<ProfileId>,
+    /// How the last forget ended, until the next key.
+    pub(crate) forget_notice: Option<crate::machine_discovery::Forgotten>,
+    /// The credential store can be used, so a remote row offers "Forget password".
+    forgettable: bool,
     selection_generation: u64,
     selection_scope: Option<SelectionScope>,
     pub(crate) current_context: Option<ClientContextTarget>,
@@ -339,6 +351,9 @@ impl Default for Picker {
             error: None,
             request: None,
             copy_id_request: None,
+            forget_request: None,
+            forget_notice: None,
+            forgettable: false,
             selection_generation: 0,
             selection_scope: None,
             current_context: None,
@@ -780,6 +795,9 @@ impl Picker {
         let (code, mods) = key.normalized();
         if COPY_ID_KEY.matches(key) {
             self.copy_id_request = self.row_id(self.selected).map(str::to_owned);
+            return;
+        }
+        if self.forget_key(key) {
             return;
         }
         if self.agent_key(code, mods) {

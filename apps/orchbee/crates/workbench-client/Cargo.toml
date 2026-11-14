@@ -57,6 +57,11 @@ windows.workspace = true
 winsafe = { workspace = true, features = ["kernel", "shell", "gui"] }
 ctrlc.workspace = true
 crossterm = { workspace = true, features = ["windows", "events"] }
+# Remembered login answers in Credential Manager generic credentials, named exactly by the
+# remembered-answer item names: the Credential Manager calls the safe-Rust workspace cannot make
+# without authored `unsafe`, on the `windows-sys` the lock already carries.
+keyring-core = { version = "1.0.1", default-features = false }
+windows-native-keyring-store = { version = "1.1.0", default-features = false }
 
 [dev-dependencies]
 # Bounded fake peers and controlled transport clocks for unit tests only.

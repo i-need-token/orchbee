@@ -1,6 +1,9 @@
-//! The askpass helper's private pairing with the hub: the variable, its value, and the record the
-//! helper hands the hub. Internal to this program; a release may change any of it.
+//! The askpass helper's private pairing with the hub: the variable, its value, the record the
+//! helper hands the hub, and the recall the hub may answer it with. Internal to this program; a
+//! release may change any of it.
 
+use orchbee_machine_protocol::MachineId;
+use orchbee_workbench_client::application::machine_credentials::SecretKind;
 use serde::{Deserialize, Serialize};
 
 /// The private variable that makes this program the askpass helper. Only the hub sets it, in its
@@ -17,6 +20,39 @@ pub(crate) const RAISE_HEADER_BYTES: usize = 8;
 const RAISE_LIMIT: usize = 32 * 1024;
 /// The byte the helper writes to the hub once it took an answer, before it prints it.
 pub(crate) const TAKEN: u8 = b'T';
+/// The byte the helper writes to the hub once it read a remembered answer, before it prints it.
+pub(crate) const REMEMBERED: u8 = b'M';
+/// The byte the helper writes to the hub when nothing is remembered for a recall; its question
+/// then stands.
+pub(crate) const UNREMEMBERED: u8 = b'N';
+/// The first byte of the hub's recall.
+const RECALL: u8 = b'R';
+/// The hub's recall: its byte, the kind's byte and the Machine id's 32 digits.
+pub(crate) const RECALL_BYTES: usize = 2 + 32;
+
+/// The hub's word to a helper whose question a remembered answer may answer: which Machine's
+/// answer of which kind to read from the credential store. It names an item, never an answer.
+pub(crate) fn recall(machine: &MachineId, kind: SecretKind) -> [u8; RECALL_BYTES] {
+    let mut record = [0; RECALL_BYTES];
+    record[0] = RECALL;
+    record[1] = match kind {
+        SecretKind::Password => b'p',
+        SecretKind::KeyPassphrase => b'k',
+    };
+    record[2..].copy_from_slice(machine.as_str().as_bytes());
+    record
+}
+
+/// The item a recall names; `None` for any other bytes.
+pub(crate) fn recalled(record: &[u8; RECALL_BYTES]) -> Option<(MachineId, SecretKind)> {
+    let kind = match (record[0], record[1]) {
+        (RECALL, b'p') => SecretKind::Password,
+        (RECALL, b'k') => SecretKind::KeyPassphrase,
+        _ => return None,
+    };
+    let machine = MachineId::new(std::str::from_utf8(&record[2..]).ok()?.to_owned()).ok()?;
+    Some((machine, kind))
+}
 
 /// Where a carrier's helper reaches the hub, and the ticket that names the carrier.
 #[derive(Clone, Eq, PartialEq)]

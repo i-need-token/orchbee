@@ -18,6 +18,9 @@ impl Picker {
             PickerAction::CopyId(index) => {
                 self.copy_id_request = self.row_id(index).map(str::to_owned);
             }
+            PickerAction::ForgetPassword(index) => {
+                self.forget_request = self.forget_target(index).cloned();
+            }
             PickerAction::Close => self.close_picker(),
             PickerAction::Mode(mode) => self.set_mode(mode),
             PickerAction::Control(control) if self.mode == Mode::Workspaces => {

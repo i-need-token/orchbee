@@ -1,5 +1,6 @@
 //! The TUI's hold on the machine hub, the hub's state of each saved machine, and one read-only
 //! observer per Machine the hub reads `online`. The UI alone owns selection.
+mod credentials;
 mod hub;
 pub(crate) mod overview;
 mod policy;
@@ -9,10 +10,13 @@ mod tests;
 mod worker;
 use crate::local_client::cancellation::Cancellation;
 use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
+use crate::machine_login::Notice as LoginNotice;
 use crate::machine_login::{Act, Effect, Ending, Logins, Presented, Token};
 use crate::machine_refusal::Refusal;
 use crate::machines::{Connection as MachineConnection, Profile, ProfileId};
 use crate::ui_wakeup::UiWakeup;
+use credentials::Credentials;
+pub(crate) use credentials::Forgotten;
 use hub::{Ask, Holder, Reach, View};
 use orchbee_machine_protocol::hub::{ConnectFailure, MachineStateName};
 #[cfg(any(test, feature = "test-support"))]
@@ -135,6 +139,8 @@ pub struct Discovery {
     seen: u64,
     /// The login episode this TUI claimed for the person's selection.
     logins: Logins,
+    /// The credential store remembered answers are written to and forgotten from.
+    credentials: Credentials,
 }
 impl Discovery {
     /// A discovery that holds the hub once the catalog holds a Machine it can observe, and wakes
@@ -150,6 +156,7 @@ impl Discovery {
             hub: View::default(),
             seen: 0,
             logins: Logins::default(),
+            credentials: Credentials::new(),
         }
     }
     /// Reconciles the enabled profiles of the catalog of `revision`; `None` for an unreadable
@@ -203,6 +210,12 @@ impl Discovery {
         }
         let notices = self.holder.as_ref().map(Holder::take_logins);
         for notice in notices.into_iter().flatten() {
+            // The store is asked once, when the first question that may be remembered arrives.
+            if let LoginNotice::Question(question) = &notice
+                && crate::machine_credentials::SecretKind::of(&question.kind).is_some()
+            {
+                self.remembering();
+            }
             let entries = &self.entries;
             let effects = self.logins.notice(notice, |machine| {
                 entries
@@ -394,8 +407,45 @@ impl Discovery {
                 ) => holder.deliver(token, endpoint, answer),
                 (Effect::Dismiss(login), Some(holder)) => holder.dismiss(login),
                 (Effect::Deliver { .. } | Effect::Dismiss(_), None) => {}
+                (
+                    Effect::Remember {
+                        machine,
+                        kind,
+                        answer,
+                    },
+                    _,
+                ) => {
+                    let label = self
+                        .entries
+                        .iter()
+                        .find(|entry| entry.profile.id.as_str() == machine)
+                        .map_or(machine.as_str(), |entry| entry.profile.draft.label.as_str());
+                    self.credentials.remember(&machine, kind, answer, label);
+                }
             }
         }
+    }
+    /// The person ticked or cleared the remember box of the question `token` names.
+    pub(crate) fn login_remember(&mut self, token: Token, ticked: bool) {
+        self.logins.remember(token, ticked);
+    }
+    /// Starts forgetting both remembered answers of `machine`; false when it cannot start now.
+    pub(crate) fn forget_password(&mut self, machine: &ProfileId) -> bool {
+        self.credentials
+            .forget(machine.as_str(), self.wakeup.clone())
+    }
+    /// How long this platform's store keeps an answer in this login; the store is asked once.
+    pub(crate) fn remembering(&mut self) -> crate::machine_credentials::Remembering {
+        if let Some(remembering) = self.logins.remembering() {
+            return remembering;
+        }
+        let remembering = self.credentials.remembering();
+        self.logins.set_remembering(remembering);
+        remembering
+    }
+    /// How the forget in flight ended, once it has.
+    pub(crate) fn forgotten(&mut self) -> Option<Forgotten> {
+        self.credentials.forgotten()
     }
     pub(crate) fn login_act(&mut self, token: Token, act: Act) {
         let effects = self.logins.act(token, act);

@@ -732,6 +732,9 @@ fn remove_data(
     inventory: &Inventory,
     signals: &mut ArmedSignals,
 ) -> Result<(), ()> {
+    if report.delete_data {
+        forget_answers(&inventory.data);
+    }
     let part = &inventory.plan.data;
     for (index, target) in part.targets.iter().enumerate() {
         check(report, signals)?;
@@ -759,6 +762,23 @@ fn remove_data(
         remove_root(report, &part.root, Stop::Data)?;
     }
     Ok(())
+}
+
+/// With `--delete-data`, the login answers this environment remembered for each saved Machine go
+/// before the catalog that names them; the default run keeps both. The credential store is never
+/// listed, so an answer kept for a Machine removed while the store could not be reached stays.
+fn forget_answers(data: &DataRoot) {
+    use orchbee_machine_protocol::MachineId;
+    use orchbee_workbench_client::application::machine_credentials::Store as Credentials;
+    let Ok(catalog) = crate::machines::Store::in_data_root(data.clone()).read() else {
+        return;
+    };
+    let credentials = Credentials::select();
+    for profile in &catalog.profiles {
+        if let Ok(machine) = MachineId::new(profile.id.as_str()) {
+            let _forgotten = credentials.forget(&machine);
+        }
+    }
 }
 
 /// Step f: the store's entries go now except what this process and its launcher hold, the pointer

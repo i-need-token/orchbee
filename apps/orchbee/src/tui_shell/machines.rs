@@ -336,6 +336,8 @@ impl Manager {
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
         // The login question the hub put to this TUI, and the person's act on the last one.
         change.redraw |= view.machines.exchange_login(&mut self.discovery);
+        // "Forget password" on a selected remote Machine, and how the last one ended.
+        change.redraw |= view.machines.exchange_forget(&mut self.discovery);
         // The current remote Machine needs a login again: its pane offers Enter to log in.
         let lost_link = self
             .current

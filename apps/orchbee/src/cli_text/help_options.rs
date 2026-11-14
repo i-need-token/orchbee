@@ -62,8 +62,8 @@ impl super::CliText {
             ),
             (CommandPath::MachineConnect, "--remember") => (
                 "",
-                "Remember the password in the system credential store. Not available yet.",
-                "把密码记在系统的凭据存储里。暂不可用。",
+                "After a sign-in that succeeds, remember a password or key passphrase typed here in the system credential store. Windows only for now.",
+                "登录成功后，把在这里输入的密码或密钥口令记在系统的凭据存储里。目前仅限 Windows。",
             ),
             (CommandPath::TerminalRun, "--wait") => (
                 "",

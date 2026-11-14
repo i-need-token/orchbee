@@ -73,7 +73,7 @@ changes the receipt, to `cancelled` with `committed` true.
 | Add            | Validate and check capacity; prepare remote; reload latest catalog under lock; append enabled `manual` entry | Remote Session may start before local commit  |
 | Rename         | Operand resolves; valid label                                                                                | Replace label; same value is unchanged        |
 | Enable/disable | Operand resolves                                                                                             | Set flag; same value is unchanged             |
-| Remove         | Operand resolves                                                                                             | Remove machine; never stop its remote Session |
+| Remove         | Operand resolves                                                                                             | Remove machine and forget its [remembered answers](#remembered-answers); never stop its remote Session |
 
 Writers use the existing Windows private-cache lock and atomic replacement. Reads reject unknown
 members outside `extensions`, a malformed connection, an unknown `remoteInstall`, invalid
@@ -85,13 +85,12 @@ receipt.
 
 ## Commands not available yet
 
-`machine connect --remember`, `machine add --no-install`, and `machine remove --stop-session`
-belong to later slices of remote-machine support. They appear in help and completion, marked not
-available yet, and their whole grammar is validated, so a malformed invocation is still a usage
-failure with exit 2. A well-formed one is refused before it reads the catalog, contacts any
-machine, or changes anything: the `orchbee.machine` receipt names the operation (`connect`, `add`,
-or `remove`), reports `error: "not-yet-available"`, `remote: "not-contacted"`, `profileId: null`,
-and the command exits 4.
+`machine add --no-install` and `machine remove --stop-session` belong to later slices of
+remote-machine support. They appear in help and completion, marked not available yet, and their
+whole grammar is validated, so a malformed invocation is still a usage failure with exit 2. A
+well-formed one is refused before it reads the catalog, contacts any machine, or changes anything:
+the `orchbee.machine` receipt names the operation (`add` or `remove`), reports
+`error: "not-yet-available"`, `remote: "not-contacted"`, `profileId: null`, and the command exits 4.
 
 ## Connect and disconnect
 
@@ -127,6 +126,14 @@ false, with the resolved `profileId` and the catalog it was read from.
   empty line, or `yes` missing for a new host, sends `dismiss`, which ends the attempt
   `auth-required`; Ctrl+C sends `dismiss`, closes the attachment and ends `cancelled` with exit 130. Either way the console's echo is restored. Time spent at a question does not count against
   the 90 seconds; each question has the hub's own bound.
+- **`--remember`.** A password or key passphrase typed at the console is kept, in a buffer wiped
+  when dropped, until the login ends; a login that ends `succeeded`, or a reply `online`, writes it
+  to the [credential store](#remembered-answers), and any other end wipes it. `ssh` asking the
+  same kind again refused the kept answer, which goes. Where no store can be used the command
+  says once, at the first password or passphrase question, that passwords cannot be remembered in
+  this kind of login, and asks as without the option. Without a console nothing is typed, so
+  nothing is remembered. Whatever the option, a question marked `remembered: rejected` is preceded
+  by a line saying that the saved password no longer works.
 - **Agents in a Panel.** An Orchbee Panel gives a command a console on both streams, so an Agent
   that runs `machine connect` there is asked and waits for a person. An Agent that cannot answer
   redirects standard input away from the console, for example from the null device; the command
@@ -749,7 +756,7 @@ events to the claimant, closing the open question's helper, ending the carrier, 
 | From                 | Event                                                                                                                                                                | To and effects                                                                                                                                                                                         |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | None                 | A question, and a waiter that can answer: origin `user`, or `command` with `answers` while no client that `asks` is attached; the first such waiter in arrival order | `claimed` by it, trigger `user`: `connect-waiting` for its request, `login` `claimed` `you`, then `question` 1; `stage` `authenticating`; the 60-second attempt clock stops while the question is open |
-| None                 | A question and no waiter that can answer: a silent attempt, a reconnect, a `command` without `answers`, or one while another client `asks`                           | No episode and no event: the carrier ends at once, then the helper is closed; `untrusted` with `hostKey` for a new host, otherwise `needs-login` `auth-required`; waiters replied by that state        |
+| None                 | A question and no waiter that can answer: a silent attempt, a reconnect, a `command` without `answers`, or one while another client `asks`                           | No episode and no event: the carrier ends at once, then the helper is closed; `untrusted` with `hostKey` for a new host, `needs-login` `remembered-rejected` when `ssh` refused a remembered answer, otherwise `needs-login` `auth-required`; waiters replied by that state |
 | `claimed`, open      | The helper reports the answer taken                                                                                                                                  | The question closes as answered; the attempt clock runs again                                                                                                                                          |
 | `claimed`, open      | The helper leaves without an answer, or a second question arrives while one is open                                                                                  | The attempt ends as an unanswered question does, the carrier before either helper is closed, so `ssh` never sends an empty answer; a second helper reads `auth-required`                               |
 | `claimed`, none open | A question                                                                                                                                                           | `question` with the next id; `repeated` when an answer of the same kind was taken earlier in the episode                                                                                               |
@@ -760,6 +767,10 @@ events to the claimant, closing the open question's helper, ending the carrier, 
 | `claimed`            | The claimant's connection closes                                                                                                                                     | `ended` `abandoned`; the open question closes; the carrier is ended; `needs-login` `auth-required`; other waiters replied `auth-required`                                                              |
 | `claimed`, open      | The question stays open 120 seconds                                                                                                                                  | `login` `ended` `unavailable`; the question closes; the carrier is ended; `needs-login` `auth-required`; waiters replied `timeout`                                                                     |
 
+- **Remembered first.** Before any of the rows above, the first password and the first key
+  passphrase question of each attempt is held while its helper reads the
+  [remembered answer](#remembered-answers); only when none is usable does the question go on as
+  the table says.
 - **No retry of the hub's own.** Wrong answers lead wherever `ssh` goes: its next question, whose
   `repeated` says the last one was refused, or its end, which the table above reads. The hub never
   asks again by itself and never starts another attempt for a person.
@@ -815,10 +826,16 @@ digits.
    its endpoint, writes the ticket alone. A record holds at most 32 KiB, which any 4,096-byte
    prompt fits. The hub reads it within 5 seconds and matches the ticket to a carrier it is
    running.
-5. It waits for an answer on its endpoint, for the hub to close its connection, or for 130 seconds,
+5. For the first password or key passphrase question of an attempt, the hub writes a recall
+   record: `R`, the kind byte, `p` or `k`, and the Machine's 32-digit id. The helper reads that
+   Machine's item of that kind from the [credential store](#remembered-answers) of this build's
+   environment. A usable answer, nonempty, at most 1,024 bytes and holding nothing `ssh` cannot
+   take, goes as step 7 says after the helper wrote `M`; otherwise the helper writes `N` and the
+   question stands. The hub never sends a recall for any other question.
+6. It waits for an answer on its endpoint, for the hub to close its connection, or for 130 seconds,
    whichever comes first. A connection whose record is malformed or carries another token is closed
    without a byte and the endpoint keeps waiting, for at most eight such connections.
-6. With an answer it writes the byte `T` to the hub, so the hub knows the question was answered,
+7. With an answer it writes the byte `T` to the hub, so the hub knows the question was answered,
    replies 0x06, drops the endpoint, writes the answer and one line feed to its standard output for
    `ssh`, wipes its buffer and exits 0.
 
@@ -868,7 +885,10 @@ answered.
 | The console host of the terminal             | The keys typed into its line-input buffer; not echoed                                                                            | Until `ReadConsoleW` returns them; outside Orchbee's control                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `orchbee machine connect`, the asking client | The UTF-16 read buffer, the UTF-8 answer and the `OBMA` record, each in a buffer sized up front so nothing is copied as it grows | From Enter until the helper's 0x06 or its 5-second bound; each buffer is wiped then, before the next step                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | The TUI, the asking client                   | Each input read and the key or paste decoded from it; the login field's fixed buffer; the `OBMA` record                          | Wiped: the Windows reader's batch of console records once the next batch is read, each key's encoded bytes once collected, a collected burst, which never outgrows its first allocation, and a held run left over by a burst; the Unix read buffer once copied; the decoder's partial character and paste run once their item leaves, and its old allocation when one grows; a read and its decoded item of a shown login once the overlay took them; the field at Enter, when it moves unchanged to the delivery thread, which wipes it after the helper's 0x06 or its 5-second bound, and at Escape, the login's end, a dismissal or its drop. Kept through a resize or a lost focus: the field. Not wiped: the console's own input queue and the console host crate's native record array, the copies of one key on the stack and in the reader's surrogate state, CSI and SS3 bytes, which carry no typed character since Orchbee asks no terminal for keys in CSI u form, and what the terminal and the operating system hold |
-| The askpass helper                           | The record's answer bytes and the line it writes                                                                                 | From reading the record until its standard output takes the line, milliseconds; wiped, and the process exits                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| The operating system's credential store      | A remembered answer, written by the client that took it                                                                          | Until a refusal, Forget password, the Machine's removal or uninstall with `--delete-data` deletes it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| The TUI, remembering                         | A copy of a ticked answer in a second fixed buffer; the writing thread's copy                                                     | From Enter until the login ends: wiped at any end but `succeeded`, at a repeated question of its kind, and at the episode's drop; after `succeeded` it moves to a writing thread, which wipes it once the store took it. The store adapter's own copy is wiped by the crate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `machine connect --remember`                 | A copy of a typed password or passphrase                                                                                         | Until the login ends; written after `succeeded`, wiped either way                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| The askpass helper                           | The record's answer bytes, or a remembered answer it read, and the line it writes                                                | From reading the record until its standard output takes the line, milliseconds; wiped, and the process exits                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `ssh`                                        | The line it reads from the helper                                                                                                | As OpenSSH handles a passphrase or password                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 The answer never passes the hub, a Session's Server or Worker, the Terminal Host or any remote
@@ -879,6 +899,43 @@ logged; its debug form shows no digit. The asking client connects only to an end
 runs as its own user and waits at most 5 seconds for 0x06. The helper takes one record, for its own
 token only, then drops the endpoint, so a second answer, an answer for another question, and an
 answer after the question closed all meet a closed or missing endpoint.
+
+#### Remembered answers
+
+The client that took an answer remembers it in the operating system's credential store, after the
+login ended `succeeded` and only when the person asked: the TUI's "Remember password" box, unticked
+by default, or `machine connect --remember`. The hub never holds an answer and learns only, from
+the helper, that a remembered one went to `ssh`; nothing falls back to a file, and the Desktop
+application calls no store.
+
+- **Items.** One item per Machine and kind, named `Orchbee/<environment>/machine/<machine id>/<kind>`:
+  the environment is `orchbee` for a release and the build's `ob-dev-*` or `ob-test-*` stem
+  otherwise, so builds never share items; the kind is `password` or `key-passphrase`. The item's
+  readable label, `Orchbee: <machine label>` without control characters and at most 120 of its
+  characters, is written once, when the answer is saved. The answer is its UTF-8 bytes.
+- **Stores.** One port in the workbench Client crate selects this platform's store; every caller
+  goes through it. Windows uses Credential Manager: a generic credential with local-computer
+  persistence, written through the `keyring-core` and `windows-native-keyring-store` crates, since
+  the workspace admits no authored `unsafe` for the Win32 calls. The store is never listed; each
+  call names one item. macOS and Linux answer "unavailable" in this build: a current limit, not
+  the design, which gives them the login Keychain and the Secret Service, otherwise the kernel's
+  per-user keyring, as adapters of the same port that change no caller. A store that cannot be
+  reached, such as Credential Manager in an SSH logon, also answers unavailable: the TUI shows
+  "Passwords can't be remembered in this kind of login." in place of the box.
+- **Reading.** The helper reads the item for the first password and the first key passphrase
+  question of every attempt, the silent ones too: one a kept Machine starts when an interface
+  attaches, and one after a lost link. It is tried once per kind per attempt.
+- **A refusal.** `ssh` asking the same kind again after the remembered answer, or ending with
+  `Permission denied` after it, refused it: the hub deletes the item on a thread of its own and
+  never tries it again in that attempt. With a claimant the next question carries
+  `remembered: rejected`, which the TUI and the console show as "The saved password no longer
+  works."; without one the attempt ends `needs-login` `remembered-rejected`.
+- **Forgetting.** The picker's "Forget password" on a selected remote Machine, offered while the
+  store can be used, deletes both of its items without reading them. `machine remove` deletes them
+  after the catalog commit. `uninstall --delete-data` deletes the items of every Machine the
+  catalog still names before it removes the data; the default uninstall keeps them, as it keeps the
+  catalog. An item left by a removal while the store could not be reached is not found again,
+  since the store is never listed.
 
 ### Channels
 
@@ -1174,10 +1231,14 @@ connection, so nothing changed for the link.
 - **The `ssh` phrases are one version's.** The classification reads OpenSSH 9.5's standard error
   wording and the prompts M0 recorded; another wording reads `ssh-failed`, and a prompt it does not
   recognize is asked as `other`.
-- **Only a claimant is asked.** A silent attempt that meets a key passphrase, a password or a new
-  host ends at its first question; nothing remembers an answer yet, so an interface or a terminal
-  must ask once per hub life of the link. No real `ssh` has run these questions yet: the first
+- **Only a claimant is asked.** A silent attempt that meets a new host, or a password or key
+  passphrase with nothing usable remembered, ends at that question, so an interface or a terminal
+  must ask once per hub life of the link unless the person chose to
+  [remember](#remembered-answers) the answer. No real `ssh` has run these questions yet: the first
   real run checks every kind against OpenSSH.
+- **A remembered answer's deletion runs on.** The hub deletes a refused remembered answer on a
+  thread of its own; an attempt the person starts at once may still read it, and is refused once
+  more.
 - **A question's prompt is `ssh`'s.** A one-time code's prompt comes from the server and is shown
   as `ssh` passed it, its control characters stripped; it may name an account or a host.
 - **A remote surface stays disconnected after the TUI's owner ended.** A Session carrier serves the
@@ -1391,6 +1452,7 @@ threads of their own.
 | One overlay    | A question of the episode this TUI claimed opens the login overlay over everything, the picker included: the Machine and its target, `ssh`'s prompt, Orchbee's line for the kind, one field, Cancel and the primary action. The rest of the interface keeps running under it                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Kinds          | A password, a key passphrase and `other` ask for a secret. A new host shows its algorithm and fingerprint and asks for a typed `yes` before Trust and continue, and Orchbee then answers `yes` itself. The client reads the kind again against the Machine's target, so a question naming another host is `other` and a changed host key never offers trust                                                                                                                                                                                                                                                                                                                                                             |
 | Again and next | A refused answer comes back as the next question with `repeated`: the overlay says so and asks again with an empty field. Several questions of one login follow each other in the same overlay. An answer `ssh` could not take is asked again at once; one that reached no endpoint dismisses the login, and its overlay and the selection say so                                                                                                                                                                                                                                                                                                                                                                       |
+| Remember       | A password or key passphrase question shows a "Remember password" box under the field, unticked, which Tab reaches and Shift+Tab leaves, Space or a click toggles; while it has the keyboard, typed characters do not reach the field. A ticked box keeps a copy of the answer until the login ends and saves it after `succeeded`, as [remembered answers](#remembered-answers) say; the privacy line then says where the answer goes. Where no store can be used one secondary line says so in place of the box. A question marked `remembered: rejected` says "The saved password no longer works." |
 | Cancel         | Escape, Cancel or the close control dismisses the login, cancels its selection and closes the picker under it, leaving the person where they were; nothing asks again by itself                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Awaited only   | Only the selection the person still waits on may ask. A selection that ends any other way, such as by choosing another Machine or letting the picker go before the question came, abandons its login: the contract has no request that cancels a waiting `connect`, so its attempt runs on, and the login the hub claims for it at the first question is dismissed on arrival and never shown, as is a login of any Machine the person does not wait on; that Machine reads `needs-login`. A shown login is never replaced: while one overlay is open, another login is dismissed on arrival                                                                                                                            |
 | Ending alone   | A login that ends without the person keeps its overlay: the hub ended it, the link was lost, the answer reached no endpoint, or its selection ended. The field is wiped and gone, the overlay says how the login ended in the words the picker uses for that end, and it keeps every key and press, discarding all but Escape and Enter, which close it onto the state that end left. Only a login that comes online after the person's own answer closes at once: keys read after that Enter and before the close reach nothing                                                                                                                                                                                        |
@@ -1436,7 +1498,7 @@ frames. Each Workbench Client surface holds one claim on its carrier, and only t
 claim performs the shutdown. The observer promotes its initial admission before cloning any
 retained or published origin; secondary query/control lanes are logical scopes on that carrier.
 Buffers are bounded and backpressure pauses reads. No port forwarding, host-key acceptance,
-credentials storage, remote installation or POSIX implementation is added.
+remote installation or POSIX implementation is added.
 
 A refusal that needs the user to change one side is a typed `Refusal` that discovery keeps with the
 Machine, so selection names it instead of the generic failure, the row shows the side's state word,

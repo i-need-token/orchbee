@@ -5,8 +5,9 @@
 //! `login-failed`; a changed host key is refused without a question; a silent attempt or a command
 //! without answers asks nobody; an unanswered question ends within its bound; an endpoint takes one
 //! answer for its own question only; the claimant leaving ends the attempt; and a helper that
-//! cannot ask ends the attempt before `ssh` could read an empty answer. After each run that
-//! delivered answers, no file under the scratch root and no captured stream holds one.
+//! cannot ask ends the attempt before `ssh` could read an empty answer. `remembered` covers the
+//! answers the askpass helper reads from the credential store. After each run that delivered
+//! answers, no file under the scratch root and no captured stream holds one.
 
 use super::*;
 use orchbee_machine_protocol::{
@@ -18,6 +19,9 @@ use orchbee_machine_protocol::{
 };
 use orchbee_workbench_client::application::machine_hub::{DeliveryFailure, deliver};
 use sha2::{Digest, Sha256};
+
+#[path = "questions/remembered.rs"]
+mod remembered;
 
 /// The host-key confirmation as OpenSSH 9.5 words it.
 const NEW_HOST: &str = concat!(

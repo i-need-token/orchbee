@@ -6,6 +6,7 @@
 
 mod episode;
 mod failure;
+mod remembered;
 
 pub(super) use failure::{End, Failure, classify, refusal};
 
@@ -23,7 +24,9 @@ use orchbee_machine_protocol::{
         ReconnectCause, Remote, Stage, Trigger, UnsupportedCause, WaitReason,
     },
 };
+use orchbee_workbench_client::application::machine_credentials::SecretKind;
 use orchbee_workbench_client::application::machine_retry::Backoff;
+use remembered::{Remembered, Use};
 use std::time::{Duration, Instant};
 
 /// An attempt that has not reached `online` by then is ended.
@@ -100,6 +103,18 @@ pub(super) enum Effect {
     Notify { peer: u64, event: Event },
     /// Close the connection of the carrier's askpass helper: its question is refused or closed.
     Close { carrier: u64 },
+    /// Tell the carrier's askpass helper to read the Machine's remembered answer of `kind` from
+    /// the credential store itself; the hub never reads it.
+    Recall {
+        carrier: u64,
+        machine: MachineId,
+        kind: SecretKind,
+    },
+    /// Delete the Machine's remembered answer of `kind`: `ssh` refused it.
+    Forget {
+        machine: MachineId,
+        kind: SecretKind,
+    },
 }
 
 /// What the hub knows around a transition.
@@ -147,6 +162,8 @@ struct Attempt {
     cause: Option<ReconnectCause>,
     /// The login episode once `ssh` asked a person.
     episode: Option<Episode>,
+    /// What the attempt did with the Machine's remembered answers.
+    remembered: Remembered,
 }
 
 impl Attempt {
@@ -541,9 +558,29 @@ impl Machine {
                     {
                         Failure::LoginFailed(LoginFailedCause::PasswordRejected)
                     }
+                    // `ssh` gave up after the remembered answer, which it refused.
+                    Failure::NeedsLogin | Failure::LoginFailed(_)
+                        if attempt.remembered.given().next().is_some() =>
+                    {
+                        Failure::RememberedRejected
+                    }
                     failure => failure,
                 };
-                self.fail(carrier, failure, cx)
+                let forgotten: Vec<Effect> = if failure == Failure::RememberedRejected {
+                    attempt
+                        .remembered
+                        .given()
+                        .map(|kind| Effect::Forget {
+                            machine: self.id.clone(),
+                            kind,
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                let mut effects = self.fail(carrier, failure, cx);
+                effects.extend(forgotten);
+                effects
             }
             Phase::Online(link) if link.carrier == carrier => self.lost(carrier, cx),
             _ => Vec::new(),
@@ -552,10 +589,11 @@ impl Machine {
 
     /// `ssh` asked `raised` through the askpass helper of `carrier`, which the hub admitted as the
     /// carrier's only open helper. The kind is the one the prompt reads as for this Machine's
-    /// target, so another host's password or new host is `other`. With a claimant the question goes
-    /// to it, the first one starting the episode; without one the attempt ends in the state the
-    /// question names and then the helper is closed. A helper that comes while the attempt cannot
-    /// ask is [refused](Self::refuse).
+    /// target, so another host's password or new host is `other`. The attempt's first question of
+    /// a kind that may be remembered is held while the helper reads the remembered answer; a
+    /// second one after that answer went to `ssh` means `ssh` refused it, which is then deleted and
+    /// never tried again in this attempt. Otherwise the question is [posed](Self::pose). A helper
+    /// that comes while the attempt cannot ask is [refused](Self::refuse).
     pub(super) fn question(
         &mut self,
         carrier: u64,
@@ -576,14 +614,83 @@ impl Machine {
             prompt,
             answer,
         };
-        let Phase::Attempting(attempt) = &self.phase else {
+        let Phase::Attempting(attempt) = &mut self.phase else {
             return self.refuse(carrier, cx);
         };
         if attempt.carrier != carrier || attempt.answered.is_some() {
             return self.refuse(carrier, cx);
         }
+        if let Some(kind) = SecretKind::of(&raised.kind) {
+            match attempt.remembered.get(kind) {
+                Use::Untried if attempt.remembered.parked.is_none() => {
+                    attempt.remembered.set(kind, Use::Reading);
+                    attempt.remembered.parked = Some(raised);
+                    return vec![Effect::Recall {
+                        carrier,
+                        machine: self.id.clone(),
+                        kind,
+                    }];
+                }
+                Use::Given => {
+                    attempt.remembered.set(kind, Use::Spent);
+                    let mut effects = vec![Effect::Forget {
+                        machine: self.id.clone(),
+                        kind,
+                    }];
+                    effects.extend(self.pose(carrier, raised, true, cx));
+                    return effects;
+                }
+                Use::Untried | Use::Reading | Use::Spent => {}
+            }
+        }
+        self.pose(carrier, raised, false, cx)
+    }
+
+    /// The carrier's helper read the remembered answer its held question asked for and gives it to
+    /// `ssh`; the hub learns only that.
+    pub(super) fn recalled(&mut self, carrier: u64) -> Vec<Effect> {
+        if let Phase::Attempting(attempt) = &mut self.phase
+            && attempt.carrier == carrier
+            && let Some(raised) = attempt.remembered.parked.take()
+            && let Some(kind) = SecretKind::of(&raised.kind)
+        {
+            attempt.remembered.set(kind, Use::Given);
+        }
+        Vec::new()
+    }
+
+    /// Nothing usable is remembered for the held question: it is posed as any other.
+    pub(super) fn unrecalled(&mut self, carrier: u64, cx: &mut Context<'_>) -> Vec<Effect> {
+        let Phase::Attempting(attempt) = &mut self.phase else {
+            return Vec::new();
+        };
+        if attempt.carrier != carrier {
+            return Vec::new();
+        }
+        let Some(raised) = attempt.remembered.parked.take() else {
+            return Vec::new();
+        };
+        if let Some(kind) = SecretKind::of(&raised.kind) {
+            attempt.remembered.set(kind, Use::Spent);
+        }
+        self.pose(carrier, raised, false, cx)
+    }
+
+    /// Puts `raised` to a person. With a claimant the question goes to it, the first one starting
+    /// the episode, marked when `ssh` refused the remembered answer to it; without one the attempt
+    /// ends in the state the question names and then the helper is closed.
+    fn pose(
+        &mut self,
+        carrier: u64,
+        raised: Raised,
+        rejected: bool,
+        cx: &mut Context<'_>,
+    ) -> Vec<Effect> {
+        let Phase::Attempting(attempt) = &self.phase else {
+            return self.refuse(carrier, cx);
+        };
         if attempt.episode.is_some() {
-            return self.ask(carrier, raised, cx);
+            return self.ask(carrier, raised, rejected, cx);
         }
         let claimant = self
             .waiters
@@ -602,6 +709,7 @@ impl Machine {
         let (Some(claimant), Some(login)) = (claimant, login) else {
             let failure = match raised.kind {
                 QuestionKind::HostKey { host_key } => Failure::Untrusted(host_key),
+                _ if rejected => Failure::RememberedRejected,
                 _ => Failure::NeedsLogin,
             };
             let mut effects = self.fail(carrier, failure, cx);
@@ -629,13 +737,19 @@ impl Machine {
             attempt.episode = Some(episode);
             self.state = attempting(attempt.retry, attempt.cause, Some(Stage::Authenticating));
         }
-        effects.extend(self.ask(carrier, raised, cx));
+        effects.extend(self.ask(carrier, raised, rejected, cx));
         effects
     }
 
     /// Puts `raised` to the claimant of the running episode as its next question; a helper that
     /// comes while one is open is refused.
-    fn ask(&mut self, carrier: u64, raised: Raised, cx: &mut Context<'_>) -> Vec<Effect> {
+    fn ask(
+        &mut self,
+        carrier: u64,
+        raised: Raised,
+        rejected: bool,
+        cx: &mut Context<'_>,
+    ) -> Vec<Effect> {
         let Phase::Attempting(Attempt {
             episode: Some(episode),
             ..
@@ -655,7 +769,7 @@ impl Machine {
                 kind: raised.kind,
                 prompt: raised.prompt,
                 repeated,
-                remembered_rejected: false,
+                remembered_rejected: rejected,
                 answer: raised.answer,
             }),
         }]
@@ -678,6 +792,12 @@ impl Machine {
     /// unanswered question does, so `ssh` never goes on with an empty answer.
     pub(super) fn unanswered(&mut self, carrier: u64, cx: &Context<'_>) -> Vec<Effect> {
         match &self.phase {
+            // The helper left while it read the store: `ssh` would go on with an empty answer.
+            Phase::Attempting(attempt)
+                if attempt.carrier == carrier && attempt.remembered.parked.is_some() =>
+            {
+                self.fail(carrier, Failure::NeedsLogin, cx)
+            }
             Phase::Attempting(attempt)
                 if attempt.carrier == carrier && attempt.question_due().is_some() =>
             {
@@ -866,6 +986,7 @@ impl Machine {
             retry,
             cause,
             episode: None,
+            remembered: Remembered::default(),
         });
         self.state = attempting(retry, cause, None);
         vec![Effect::Start { carrier, route }]
@@ -929,10 +1050,14 @@ impl Machine {
             return Vec::new();
         };
         let carrier = attempt.carrier;
-        let Some(episode) = attempt.episode.take() else {
-            return Vec::new();
-        };
         let mut effects = Vec::new();
+        // A question held while its helper reads the store closes with the attempt.
+        if attempt.remembered.parked.take().is_some() {
+            effects.push(Effect::Close { carrier });
+        }
+        let Some(episode) = attempt.episode.take() else {
+            return effects;
+        };
         if episode.due().is_some() {
             effects.push(Effect::Close { carrier });
         }

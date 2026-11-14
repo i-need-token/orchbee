@@ -10,6 +10,7 @@ use crate::machine_discovery::Discovery;
 use crate::machine_login::{Act, Presented, Token, YES};
 use orchbee_machine_protocol::{hub::QuestionKind, wipe};
 
+mod remember;
 #[cfg(test)]
 mod tests;
 
@@ -19,6 +20,8 @@ pub enum LoginControl {
     Close,
     Cancel,
     Submit,
+    /// The remember box.
+    Remember,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,11 +35,13 @@ pub(crate) struct LoginOverlay {
     /// Counts edits, so a copy of the view taken before a keystroke compares unequal after it.
     edits: u64,
     act: Option<(Token, Act)>,
+    remember: remember::Choice,
 }
 
 impl LoginOverlay {
     fn new(presented: Presented) -> Self {
         Self {
+            remember: remember::Choice::new(&presented),
             presented,
             type_yes: false,
             drawn: false,
@@ -114,6 +119,9 @@ impl LoginOverlay {
             if escape || enter {
                 self.act(Act::Close);
             }
+            return;
+        }
+        if self.remember_key(code, mods) {
             return;
         }
         match (code, mods) {
@@ -213,6 +221,10 @@ impl Picker {
             _ if login.ended() => login.act(Act::Close),
             LoginControl::Close | LoginControl::Cancel => login.act(Act::Cancel),
             LoginControl::Submit => login.submit(),
+            LoginControl::Remember => {
+                login.edits = login.edits.wrapping_add(1);
+                login.toggle_remember();
+            }
         }
         self.settle_login_act();
         true
@@ -253,7 +265,13 @@ impl Picker {
     /// Carries the person's act to discovery and shows what discovery presents now. True when the
     /// overlay changed.
     pub fn exchange_login(&mut self, discovery: &mut Discovery) -> bool {
-        if let Some((token, act)) = self.login.as_mut().and_then(|login| login.act.take()) {
+        if let Some(login) = self.login.as_mut()
+            && let Some((token, act)) = login.act.take()
+        {
+            // The episode learns the box before the answer leaves.
+            if let Some(ticked) = login.ticked() {
+                discovery.login_remember(token, ticked);
+            }
             discovery.login_act(token, act);
         }
         let presented = discovery.login_presented();

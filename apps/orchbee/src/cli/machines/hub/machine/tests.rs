@@ -2,6 +2,8 @@ use super::*;
 use orchbee_connection_handshake::RejectionReason;
 use orchbee_machine_protocol::{AnswerToken, HostKey, KeyFingerprint, PathText};
 
+mod remembered;
+
 /// The model's clock and the hub's serials, advanced by hand.
 struct Hub {
     start: Instant,
@@ -42,6 +44,21 @@ impl Hub {
             serials: &mut self.serials,
         }
     }
+}
+
+/// Raises a question while nothing is remembered: the recall a password or passphrase starts is
+/// answered as a helper with an empty store answers it.
+fn question(
+    machine: &mut Machine,
+    carrier: u64,
+    raised: Raised,
+    cx: &mut Context<'_>,
+) -> Vec<Effect> {
+    let effects = machine.question(carrier, raised, cx);
+    if matches!(effects[..], [Effect::Recall { .. }]) {
+        return machine.unrecalled(carrier, cx);
+    }
+    effects
 }
 
 fn machine() -> Machine {
@@ -488,7 +505,12 @@ fn a_claimant_receives_each_question_in_order_and_a_refused_answer_is_marked_rep
         let mut hub = Hub::new(false);
         let mut machine = machine();
         let carrier = started(&machine.connect(asker(4, 1, answers), &mut hub.cx())).unwrap();
-        let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+        let effects = question(
+            &mut machine,
+            carrier,
+            raised(QuestionKind::Password),
+            &mut hub.cx(),
+        );
         let kinds: Vec<_> = notified(&effects)
             .into_iter()
             .map(|(peer, event)| {
@@ -524,10 +546,20 @@ fn a_claimant_receives_each_question_in_order_and_a_refused_answer_is_marked_rep
 
         // `ssh` asking the same kind after its answer was taken means it refused that answer.
         machine.taken(carrier, &hub.at(Duration::from_secs(5)).cx());
-        let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+        let effects = question(
+            &mut machine,
+            carrier,
+            raised(QuestionKind::Password),
+            &mut hub.cx(),
+        );
         assert_eq!(asked(&effects), Some((2, true)));
         machine.taken(carrier, &hub.cx());
-        let effects = machine.question(carrier, raised(QuestionKind::KeyPassphrase), &mut hub.cx());
+        let effects = question(
+            &mut machine,
+            carrier,
+            raised(QuestionKind::KeyPassphrase),
+            &mut hub.cx(),
+        );
         assert_eq!(asked(&effects), Some((3, false)));
         machine.taken(carrier, &hub.cx());
 
@@ -577,7 +609,7 @@ fn a_question_nobody_can_answer_ends_the_attempt_in_its_state_without_an_event()
             };
             let carrier = started(&effects).unwrap();
             let host = matches!(kind, QuestionKind::HostKey { .. });
-            let effects = machine.question(carrier, raised(kind), &mut hub.cx());
+            let effects = question(&mut machine, carrier, raised(kind), &mut hub.cx());
             assert!(notified(&effects).is_empty(), "{effects:?}");
             assert!(ends_then_closes(&effects, carrier), "{effects:?}");
             let (state, outcome) = if host {
@@ -614,7 +646,8 @@ fn an_open_question_ends_at_its_own_bound_and_stops_the_attempt_clock() {
     let mut machine = machine();
     let carrier = started(&machine.connect(asker(1, 1, Answers::User), &mut hub.cx())).unwrap();
     let ten = Duration::from_secs(10);
-    machine.question(
+    question(
+        &mut machine,
         carrier,
         raised(QuestionKind::Password),
         &mut hub.at(ten).cx(),
@@ -641,7 +674,8 @@ fn an_open_question_ends_at_its_own_bound_and_stops_the_attempt_clock() {
     let start = ten + QUESTION;
     let carrier = started(&machine.connect(asker(1, 2, Answers::User), &mut hub.cx())).unwrap();
     let at = |offset: Duration| start + offset;
-    machine.question(
+    question(
+        &mut machine,
         carrier,
         raised(QuestionKind::Password),
         &mut hub.at(at(ten)).cx(),
@@ -653,7 +687,8 @@ fn an_open_question_ends_at_its_own_bound_and_stops_the_attempt_clock() {
     );
 
     // A helper that leaves with its question open ends the attempt as an unanswered one does.
-    machine.question(
+    question(
+        &mut machine,
         carrier,
         raised(QuestionKind::Password),
         &mut hub.at(at(ten * 5)).cx(),
@@ -672,7 +707,12 @@ fn only_the_claimant_dismisses_and_its_leaving_abandons_the_episode() {
     let mut machine = machine();
     let carrier = started(&machine.connect(asker(1, 1, Answers::User), &mut hub.cx())).unwrap();
     machine.connect(asker(2, 1, Answers::Never), &mut hub.cx());
-    machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    question(
+        &mut machine,
+        carrier,
+        raised(QuestionKind::Password),
+        &mut hub.cx(),
+    );
     let login = machine.login().unwrap();
     let other = Id::new(login.get() + 1).unwrap();
     assert_eq!(machine.claim(1, login), ClaimOutcome::Claimed);
@@ -699,7 +739,12 @@ fn only_the_claimant_dismisses_and_its_leaving_abandons_the_episode() {
     // The claimant's connection closing ends the attempt for the request still waiting.
     let carrier = started(&machine.connect(asker(1, 2, Answers::User), &mut hub.cx())).unwrap();
     machine.connect(asker(2, 2, Answers::Never), &mut hub.cx());
-    machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    question(
+        &mut machine,
+        carrier,
+        raised(QuestionKind::Password),
+        &mut hub.cx(),
+    );
     machine.taken(carrier, &hub.cx());
     let effects = machine.forget(1, &hub.cx());
     assert!(ends(&effects, carrier));
@@ -717,7 +762,12 @@ fn only_the_claimant_dismisses_and_its_leaving_abandons_the_episode() {
 
     // A `disconnect` that ends an episode leaves the Machine needing a login.
     let carrier = started(&machine.connect(asker(1, 3, Answers::User), &mut hub.cx())).unwrap();
-    machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    question(
+        &mut machine,
+        carrier,
+        raised(QuestionKind::Password),
+        &mut hub.cx(),
+    );
     let effects = machine.disconnect();
     assert!(ends_then_closes(&effects, carrier), "{effects:?}");
     assert_eq!(
@@ -733,7 +783,8 @@ fn a_trusted_host_then_a_password_reaching_online_ends_the_episode_succeeded() {
     let mut hub = Hub::new(false);
     let mut machine = machine();
     let carrier = started(&machine.connect(asker(1, 1, Answers::User), &mut hub.cx())).unwrap();
-    let effects = machine.question(
+    let effects = question(
+        &mut machine,
         carrier,
         raised(QuestionKind::HostKey {
             host_key: host_key(),
@@ -753,7 +804,12 @@ fn a_trusted_host_then_a_password_reaching_online_ends_the_episode_succeeded() {
         })
     );
     machine.taken(carrier, &hub.cx());
-    let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    let effects = question(
+        &mut machine,
+        carrier,
+        raised(QuestionKind::Password),
+        &mut hub.cx(),
+    );
     assert_eq!(asked(&effects), Some((2, false)));
     machine.taken(carrier, &hub.cx());
     let effects = machine.answered(carrier, ProductVersion::new("1.0.0").unwrap());
@@ -770,8 +826,18 @@ fn a_helper_that_cannot_be_asked_ends_its_carrier_before_it_is_closed() {
     let mut hub = Hub::new(false);
     let mut machine = machine();
     let carrier = started(&machine.connect(asker(1, 1, Answers::User), &mut hub.cx())).unwrap();
-    machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
-    let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    question(
+        &mut machine,
+        carrier,
+        raised(QuestionKind::Password),
+        &mut hub.cx(),
+    );
+    let effects = question(
+        &mut machine,
+        carrier,
+        raised(QuestionKind::Password),
+        &mut hub.cx(),
+    );
     assert!(ends_then_closes(&effects, carrier), "{effects:?}");
     assert_eq!(login_end(&effects), Some(LoginEnd::Unavailable));
     assert_eq!(
@@ -794,7 +860,12 @@ fn a_helper_that_cannot_be_asked_ends_its_carrier_before_it_is_closed() {
     // A question after `online` loses the link rather than leave `ssh` an empty answer.
     let carrier = started(&machine.connect(waiter(3), &mut hub.cx())).unwrap();
     reach_online(&mut machine, &mut hub, carrier);
-    let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    let effects = question(
+        &mut machine,
+        carrier,
+        raised(QuestionKind::Password),
+        &mut hub.cx(),
+    );
     assert!(ends_then_closes(&effects, carrier), "{effects:?}");
     assert_ne!(machine.state(), &MachineState::Online);
 
@@ -830,7 +901,12 @@ fn a_question_naming_another_host_is_other_and_never_marks_the_machine_untrusted
         let mut hub = Hub::new(false);
         let mut machine = machine();
         let carrier = started(&machine.connect(waiter(1), &mut hub.cx())).unwrap();
-        let effects = machine.question(carrier, raised_as(claimed(), prompt), &mut hub.cx());
+        let effects = question(
+            &mut machine,
+            carrier,
+            raised_as(claimed(), prompt),
+            &mut hub.cx(),
+        );
         assert_eq!(
             replies(&effects),
             [ConnectOutcome::NotOnline(ConnectFailure::AuthRequired)],
@@ -852,7 +928,12 @@ fn a_question_naming_another_host_is_other_and_never_marks_the_machine_untrusted
         let mut hub = Hub::new(false);
         let mut machine = machine();
         let carrier = started(&machine.connect(asker(1, 1, Answers::User), &mut hub.cx())).unwrap();
-        let effects = machine.question(carrier, raised_as(kind, prompt), &mut hub.cx());
+        let effects = question(
+            &mut machine,
+            carrier,
+            raised_as(kind, prompt),
+            &mut hub.cx(),
+        );
         let put = notified(&effects)
             .into_iter()
             .find_map(|(_, event)| match event {
