@@ -4,11 +4,15 @@ use super::super::{ReleaseStore, read_pointer};
 use super::*;
 use std::io::Write;
 
-/// A fresh private root under the test process's temporary folder.
+/// A fresh private root under the test process's temporary folder. The counter keeps two roots
+/// taken in the same clock tick apart; the `s` keeps them apart from the update tests' roots, which
+/// share the prefix and the process.
 fn temporary_root() -> PathBuf {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     std::env::temp_dir().join(format!(
-        "orchbee-release-test-{}-{}",
+        "orchbee-release-test-{}-s{}-{}",
         std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()

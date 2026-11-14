@@ -145,13 +145,17 @@ pub(super) struct Fixture(pub(super) PathBuf);
 
 impl Fixture {
     pub(super) fn new() -> Self {
+        // The counter keeps two fixtures taken in the same clock tick apart; the `u` keeps them
+        // apart from the release store tests' roots, which share the prefix and the process.
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "orchbee-release-test-{}-{nanos}",
-            std::process::id()
+            "orchbee-release-test-{}-u{}-{nanos}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         PrivateCache::prepare(&path).unwrap();
         Self(path)
