@@ -37,7 +37,6 @@ import {
 } from '../projected-terminal-surface';
 import type { ServerConnection } from '../server-connection';
 import { bindServerClientView } from './bindServerClientView';
-import { bindServerAgentBoard } from './bindServerAgentBoard';
 import { bindServerConfiguredCommands } from './bindServerConfiguredCommands';
 import { bindServerFocusControl } from './bindServerFocusControl';
 import { bindServerWindowTitle, type ServerTitleWindow } from './bindServerWindowTitle';
@@ -288,13 +287,7 @@ export function createServerWorkbenchRuntime({
 		session,
 	});
 	const agentObservationSource = new ServerTerminalAgentSource(connection, session);
-	const agentBoard = bindServerAgentBoard({
-		connection,
-		runtime: projectWorkspaceRuntime,
-		agentObservationSource,
-	});
 	const authority = createServerWorkbenchAuthority({
-		agentBoard: agentBoard.board,
 		agentCatalog,
 		configuredCommands: configuredCommands.commands,
 		defaultDirectory,
@@ -491,7 +484,6 @@ export function createServerWorkbenchRuntime({
 			runApplicationCleanup(
 				[
 					() => stopPublication(),
-					() => agentBoard.dispose(),
 					() => agentCatalog.dispose(),
 					() => configuredCommands.dispose(),
 					() => focusNewPanel.dispose(),

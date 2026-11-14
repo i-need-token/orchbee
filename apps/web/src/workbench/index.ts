@@ -9,16 +9,8 @@ export {
 	readWorkbenchClientSelection,
 	readWorkbenchShownPresentationId,
 	showWorkbenchClientTarget,
-	showWorkbenchPresentation,
 } from './model/workbench-client-selection';
 export type { WorkbenchClientTarget } from './model/workbench-client-selection';
-export type {
-	WorkbenchAgentBoard,
-	WorkbenchAgentBoardJump,
-	WorkbenchAgentBoardJumpFailure,
-	WorkbenchAgentBoardRow,
-	WorkbenchAgentBoardSnapshot,
-} from './types/workbench-agent-board';
 export type { WorkbenchAgentCatalogSource } from './types/workbench-agent-start';
 export type { WorkbenchEnvironmentMarker } from './types/workbench-environment-marker';
 export type {
@@ -132,5 +124,3 @@ export type {
 export { hasWorkbenchExclusiveFocusSurface } from './utils/workbench-focus-dom';
 
 export { resolveWorkbenchAgentDisplayState } from './utils/resolveWorkbenchAgentDisplayState';
-export { resolveWorkbenchAgentProviderId } from './utils/workbench-agent-names';
-export { projectWorkbenchAgentOverview } from './model/project-workbench-agent-overview';

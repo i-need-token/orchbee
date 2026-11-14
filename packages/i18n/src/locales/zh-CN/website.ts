@@ -60,7 +60,7 @@ export const zhCNWebsiteMessages = {
 	'website.agentsTitleLead': 'Agent 成群地跑，',
 	'website.agentsTitleAccent': '谁在等你，一眼便知。',
 	'website.agentsBody':
-		'每个 Agent 都带一盏状态灯，侧边栏、标签页和 Agent 面板上都看得到。谁做完了、在等你，Orchbee 都可以拍拍你的肩。',
+		'每个 Agent 都带一盏状态灯，侧边栏和标签页上都看得到。谁做完了、在等你，Orchbee 都可以拍拍你的肩。',
 	'website.desktopAlt':
 		'Orchbee 桌面版：侧边栏是工作区和带状态灯的 Agent，旁边是一个命令提示符，OpenCode 和 Gemini CLI 正在工作。',
 	'website.sidebarAlt':

@@ -90,7 +90,6 @@ interface UseWorkbenchActionsOptions {
 	readonly getNewTerminalAvailability?:
 		| ((input: WorkbenchTerminalCreateInput) => ActionAvailability)
 		| undefined;
-	readonly openAgentBoard: () => void;
 	readonly openAgentStart: (places: readonly WorkbenchAgentStartPlace[]) => void;
 	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
 	/** The Search filters the window offers; a release offers only Actions. */
@@ -139,7 +138,6 @@ export function useWorkbenchActions({
 	navigation,
 	onNewTerminal,
 	getNewTerminalAvailability,
-	openAgentBoard,
 	openAgentStart,
 	openSearch,
 	openTabTitleEditor,
@@ -473,29 +471,6 @@ export function useWorkbenchActions({
 					title: workbenchMessages.search,
 				}),
 			),
-			// Only an authority that reads the Server's Agent sessions has a board to open.
-			...(authority.agentBoard === undefined
-				? []
-				: [
-						typedRuntime.register(
-							scope,
-							defineAction({
-								category: categoryNavigation,
-								execution,
-								getAvailability: () => ({ kind: 'enabled' }),
-								handler: {
-									execute: (context) => {
-										context.markCommitted();
-										openAgentBoard();
-										return { kind: 'completed' };
-									},
-								},
-								id: WORKBENCH_ACTION_IDS.openAgentBoard,
-								input: noActionInput,
-								title: workbenchMessages.agentBoardTitle,
-							}),
-						),
-					]),
 			typedRuntime.register(
 				scope,
 				defineAction({
@@ -559,7 +534,6 @@ export function useWorkbenchActions({
 		onSettings,
 		onShortcuts,
 		onTerminalFontSizeChange,
-		openAgentBoard,
 		openAgentStart,
 		openSearch,
 		openTabTitleEditor,

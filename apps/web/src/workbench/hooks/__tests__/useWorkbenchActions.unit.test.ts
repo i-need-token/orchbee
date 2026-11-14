@@ -107,7 +107,6 @@ function WorkbenchActionsHarness({
 		onNewTerminal,
 		onSettings: undefined,
 		onTerminalFontSizeChange,
-		openAgentBoard: () => undefined,
 		openAgentStart: () => undefined,
 		openSearch: () => undefined,
 		openTabTitleEditor: () => undefined,
@@ -310,8 +309,6 @@ describe('useWorkbenchActions', () => {
 						actionId !== WORKBENCH_ACTION_IDS.closeTabConfirmed &&
 						// Only an authority's close can stop where Resume continues it.
 						actionId !== WORKBENCH_ACTION_IDS.resumeTabClose &&
-						// Only an authority that reads the Server's Agent sessions has a board.
-						actionId !== WORKBENCH_ACTION_IDS.openAgentBoard &&
 						// Only an authority that reads the Session's Agent catalog starts an Agent.
 						actionId !== WORKBENCH_ACTION_IDS.openAgentStart &&
 						actionId !== WORKBENCH_ACTION_IDS.startAgent &&

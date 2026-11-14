@@ -209,35 +209,15 @@ export const agentObservationMessages = defineMessages({
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.primeAgent'],
 		description: 'Curated product name for the Prime Agent Agent provider.',
 	},
-	statusCanceled: {
-		id: 'agent.observation.status.canceled',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.canceled'],
-		description: 'Agent session status: its last turn was canceled.',
-	},
-	statusEnded: {
-		id: 'agent.observation.status.ended',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.ended'],
-		description: 'Agent session status: the session has ended.',
-	},
 	statusFailed: {
 		id: 'agent.observation.status.failed',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.failed'],
 		description: 'Terminal Agent state: the Agent reported that its work failed.',
 	},
-	statusInterrupted: {
-		id: 'agent.observation.status.interrupted',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.interrupted'],
-		description: 'Agent session status: its last turn was interrupted.',
-	},
 	statusNeedsAttention: {
 		id: 'agent.observation.status.needsAttention',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.needsAttention'],
 		description: 'Terminal Agent state: the Agent waits for the person.',
-	},
-	statusNeedsAttentionCount: {
-		id: 'agent.observation.status.needsAttentionCount',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.needsAttentionCount'],
-		description: 'Agent session status: it waits for the person on this many requests.',
 	},
 	statusReady: {
 		id: 'agent.observation.status.ready',

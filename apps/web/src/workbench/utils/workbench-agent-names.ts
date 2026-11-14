@@ -82,12 +82,6 @@ export function formatWorkbenchAgentProvider(intl: IntlShape, providerId: string
 	return formatWorkbenchAgentName(intl, PROVIDER_LABELS.get(providerId) ?? providerId);
 }
 
-/** The provider-registry ID a report label stands for; any other label, such as a custom report's, stays itself. */
-export function resolveWorkbenchAgentProviderId(agent: string): string {
-	for (const [id, label] of PROVIDER_LABELS) if (label === agent) return id;
-	return agent;
-}
-
 /** One name for one Agent; a generic name once different Agents share a summary. */
 export function formatWorkbenchAgentGroupName(intl: IntlShape, agents: readonly string[]): string {
 	const [only, ...others] = agents;

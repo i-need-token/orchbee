@@ -248,8 +248,6 @@ export function useWorkbenchAuthorityNotice(
 	const reportingAuthority = React.useMemo<WorkbenchAuthority>(
 		() => ({
 			minimumSplitPercent: authority.minimumSplitPercent,
-			// The board reports its own outcomes, so nothing it does reaches the status line.
-			agentBoard: authority.agentBoard,
 			agentCatalog: authority.agentCatalog,
 			change: async (context, change) => {
 				const dissolvedWorkspaces =

@@ -16,7 +16,7 @@
 	font: var(--ob-sys-typography-body-sm);
 }
 
-/* One column set for every row, as the Agent board's, so names and details line up. */
+/* One column set for every row, so names and details line up. */
 .list {
 	display: grid;
 	min-height: var(--ob-ref-space-0);

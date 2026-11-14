@@ -53,7 +53,7 @@
 	"uses": ["workbench.worktree-form-dialog"],
 	"useWhen": ["A person starts one of the Session's Agents in a new terminal of the Workbench."],
 	"avoidWhen": [
-		"The person goes to an Agent session that already runs; use the Agent Board.",
+		"The person goes to an Agent that already runs; use its row in the Project and Workspace Navigation.",
 		"The person runs any action by name; use the Unified Search Surface."
 	],
 	"invariants": [

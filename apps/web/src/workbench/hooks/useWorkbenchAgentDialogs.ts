@@ -2,21 +2,16 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
-import type { WorkbenchAgentBoard } from '../types/workbench-agent-board';
 import type {
 	WorkbenchAgentCatalogSource,
 	WorkbenchAgentStartPlace,
 } from '../types/workbench-agent-start';
-import type { WorkbenchTerminalHandover } from '../types/workbench-focus-routing';
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
 
 interface UseWorkbenchAgentDialogsOptions {
-	/** Absent where the authority cannot read the Server's Agent sessions; the board then never opens. */
-	readonly agentBoard: WorkbenchAgentBoard | undefined;
 	/** Absent where the authority publishes no Agent catalog; Start Agent then never opens. */
 	readonly agentCatalog: WorkbenchAgentCatalogSource | undefined;
-	readonly beginTerminalHandover: () => WorkbenchTerminalHandover;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 }
 
@@ -28,34 +23,16 @@ export interface WorkbenchAgentStartDialogModel {
 	readonly places: readonly WorkbenchAgentStartPlace[];
 }
 
-/** What the Agent board shows while it is open. */
-export interface WorkbenchAgentBoardDialogModel {
-	readonly board: WorkbenchAgentBoard;
-	readonly finalFocus: () => HTMLElement | false | null;
-}
-
 interface WorkbenchAgentDialogs {
-	/** Present while the board is open. */
-	readonly board: WorkbenchAgentBoardDialogModel | undefined;
-	readonly closeBoard: () => void;
-	/**
-	 * Closes Start Agent: back to the board when Start Agent replaced it, otherwise to where the
-	 * keyboard was.
-	 */
+	/** Closes Start Agent, returning the keyboard to where it was. */
 	readonly closeStart: () => void;
 	/**
-	 * A start ran: Start Agent closes on this frame, with the board it replaced. `handedOff` says a
-	 * dialog the start opened, the New Worktree form, takes the keyboard in its place.
+	 * A start ran: Start Agent closes on this frame. `handedOff` says a dialog the start opened, the
+	 * New Worktree form, takes the keyboard in its place.
 	 */
 	readonly endStart: (handedOff: boolean) => void;
-	readonly openBoard: () => void;
-	/**
-	 * Opens Start Agent with the places `workbench.agent.start` found available. Opened while the
-	 * board is open, it replaces the board, which comes back when Start Agent closes.
-	 */
+	/** Opens Start Agent with the places `workbench.agent.start` found available. */
 	readonly openStart: (places: readonly WorkbenchAgentStartPlace[]) => void;
-	/** Closes the board after a jump and hands the shown terminal the keyboard. */
-	readonly showBoardSession: () => void;
 	/** Present while Start Agent is open. */
 	readonly start: WorkbenchAgentStartDialogModel | undefined;
 	/** Whether the Session can start an Agent now, which offers Start Agent's entry points. */
@@ -63,28 +40,17 @@ interface WorkbenchAgentDialogs {
 }
 
 type Shown =
-	| { readonly kind: 'board' }
 	| { readonly kind: 'none' }
-	| {
-			readonly fromBoard: boolean;
-			readonly kind: 'start';
-			readonly places: readonly WorkbenchAgentStartPlace[];
-	  };
+	| { readonly kind: 'start'; readonly places: readonly WorkbenchAgentStartPlace[] };
 
 const NONE: Shown = { kind: 'none' };
-const BOARD: Shown = { kind: 'board' };
 
 /**
- * The one owner of the Agent board and Start Agent, which never stack: Start Agent opened from the
- * board takes its place, as the TUI's picker takes the board's, and closing it brings the board
- * back. Focus returns once, when the last of them closes, to where it was before the first opened;
- * passing from one to the other moves it only into the dialog that opens. A jump from the board or a
- * start hands the keyboard to the terminal it shows instead.
+ * The one owner of Start Agent. Focus returns, when it closes, to where it was before it opened; a
+ * start that hands the keyboard to another dialog leaves focus to that dialog instead.
  */
 export function useWorkbenchAgentDialogs({
-	agentBoard,
 	agentCatalog,
-	beginTerminalHandover,
 	projectWorkspaceRuntime,
 }: UseWorkbenchAgentDialogsOptions): WorkbenchAgentDialogs {
 	const [shown, setShown] = React.useState<Shown>(NONE);
@@ -110,7 +76,6 @@ export function useWorkbenchAgentDialogs({
 		setShown(target);
 	};
 	const finalFocus = useMemoizedFn((): HTMLElement | false | null => {
-		// The other dialog opens in its place and takes the keyboard itself.
 		if (next.current.kind !== 'none') return false;
 		const captured = returnFocus.current;
 		returnFocus.current = null;
@@ -119,38 +84,19 @@ export function useWorkbenchAgentDialogs({
 			? captured
 			: findActiveTerminalFocusTarget(projectWorkspaceRuntime);
 	});
-	const openBoard = useMemoizedFn(() => show(BOARD));
-	const closeBoard = useMemoizedFn(() => show(NONE));
-	const showBoardSession = useMemoizedFn(() => {
-		// The terminal the jump showed takes the keyboard once the board has gone.
-		const handover = beginTerminalHandover();
-		show(NONE);
-		landed.current = true;
-		handover.complete();
-	});
 	const openStart = useMemoizedFn((places: readonly WorkbenchAgentStartPlace[]) =>
-		show({ fromBoard: next.current.kind === 'board', kind: 'start', places }),
+		show({ kind: 'start', places }),
 	);
-	const closeStart = useMemoizedFn(() => {
-		const current = next.current;
-		show(current.kind === 'start' && current.fromBoard ? BOARD : NONE);
-	});
+	const closeStart = useMemoizedFn(() => show(NONE));
 	const endStart = useMemoizedFn((handedOff: boolean) => {
 		show(NONE);
 		if (handedOff) landed.current = true;
 	});
 
 	return {
-		board:
-			shown.kind === 'board' && agentBoard !== undefined
-				? { board: agentBoard, finalFocus }
-				: undefined,
-		closeBoard,
 		closeStart,
 		endStart,
-		openBoard,
 		openStart,
-		showBoardSession,
 		start:
 			shown.kind === 'start' && agentCatalog !== undefined
 				? { catalog: agentCatalog, finalFocus, places: shown.places }

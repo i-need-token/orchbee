@@ -1,5 +1,4 @@
 import type {
-	WorkbenchAgentBoard,
 	WorkbenchAgentCatalogSource,
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
@@ -51,8 +50,6 @@ export interface ServerLaunchProfileSource {
 }
 
 interface ServerWorkbenchAuthorityOptions {
-	/** The Server's Agent sessions, which the Agent board reads over this window's connection. */
-	readonly agentBoard?: WorkbenchAgentBoard | undefined;
 	/** The Session's Agent catalog, which Start Agent reads over this window's connection. */
 	readonly agentCatalog?: WorkbenchAgentCatalogSource | undefined;
 	/** Absent where this window publishes no view for a command to start from. */
@@ -259,7 +256,6 @@ function launchPlan(
  * a ratio goes again, when a commit elsewhere moved the revision and left the split as it was.
  */
 export function createServerWorkbenchAuthority({
-	agentBoard,
 	agentCatalog,
 	configuredCommands,
 	defaultDirectory,
@@ -272,7 +268,6 @@ export function createServerWorkbenchAuthority({
 }: ServerWorkbenchAuthorityOptions): WorkbenchAuthority {
 	return {
 		...createServerWorkbenchClose(session, leave),
-		...(agentBoard === undefined ? {} : { agentBoard }),
 		...(agentCatalog === undefined ? {} : { agentCatalog }),
 		...(configuredCommands === undefined ? {} : { configuredCommands }),
 		...(focusNewPanel === undefined ? {} : { focusNewPanel }),

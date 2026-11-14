@@ -3,7 +3,7 @@
 	"domain": "web",
 	"runtime": ["browser", "electron"],
 	"stability": "experimental",
-	"responsibility": "Workbench renderer for the Desktop window as a Server Client, including the React Workbench shell with Project and Workspace navigation, Tab and Panel layout, unified action and settings search, the Agent board, and client-local layout records; Browser Router and URL-to-Client-View coordination, client-local application and terminal settings, Session-shared shell profiles and terminal defaults through the Server connection, platform-neutral page-client runtime with Electron MessagePort adapters, strict Agent-observation snapshots and explicit local Agent-integration settings, native Project Folder acquisition and managed Project Worktree forms with unprivileged clients, and terminal clipboard and link effects.",
+	"responsibility": "Workbench renderer for the Desktop window as a Server Client, including the React Workbench shell with Project and Workspace navigation, Tab and Panel layout, unified action and settings search, and client-local layout records; Browser Router and URL-to-Client-View coordination, client-local application and terminal settings, Session-shared shell profiles and terminal defaults through the Server connection, platform-neutral page-client runtime with Electron MessagePort adapters, strict Agent-observation snapshots and explicit local Agent-integration settings, native Project Folder acquisition and managed Project Worktree forms with unprivileged clients, and terminal clipboard and link effects.",
 	"nonGoals": [
 		"Owning cross-application reusable UI primitives; app-owned product experience compositions remain here.",
 		"Owning the supported-locale contract, product message descriptors, or translation catalogs.",

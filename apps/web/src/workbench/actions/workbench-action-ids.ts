@@ -54,7 +54,6 @@ export const WORKBENCH_ACTION_IDS = {
 	focusTabStrip: 'workbench.focus.tab-strip',
 	reopenEarlierLayout: 'workbench.layout.reopen-earlier',
 	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
-	openAgentBoard: 'workbench.agent-board.open',
 	openAgentStart: 'workbench.agent.start',
 	startAgent: 'workbench.agent.start-provider',
 	openSearch: 'workbench.search.open',
@@ -314,7 +313,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.focusTabStrip]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.reopenEarlierLayout]: ActionSignature<WorkbenchEarlierLayoutInput>;
 	readonly [WORKBENCH_ACTION_IDS.increaseTerminalFontSize]: ActionSignature<void>;
-	readonly [WORKBENCH_ACTION_IDS.openAgentBoard]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openAgentStart]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.startAgent]: ActionSignature<WorkbenchAgentStartInput>;
 	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;

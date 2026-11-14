@@ -6,7 +6,6 @@ import type {
 	WorkbenchAgentStartProvider,
 } from '@orchbee/workbench-client-protocol';
 
-import type { WorkbenchAgentBoard } from './workbench-agent-board';
 import type { WorkbenchAgentCatalogSource } from './workbench-agent-start';
 import type { WorkbenchConfiguredCommands } from './workbench-configured-commands';
 import type { WorkbenchFocusedPanel } from './workbench-focused-panel';
@@ -382,8 +381,6 @@ export interface WorkbenchEarlierLayouts {
 export interface WorkbenchAuthority {
 	/** The smallest share either side of a split can hold, out of 100. */
 	readonly minimumSplitPercent: number;
-	/** Absent where this authority cannot read the Server's Agent sessions. */
-	readonly agentBoard?: WorkbenchAgentBoard | undefined;
 	/** Absent where no Server publishes the Session's Agent catalog, so no Agent can be started. */
 	readonly agentCatalog?: WorkbenchAgentCatalogSource | undefined;
 	/** Absent where no Server resumes Agent conversations after a restart. */

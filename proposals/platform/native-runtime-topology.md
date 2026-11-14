@@ -1838,8 +1838,9 @@ command, the TUI's too; the Server now creates it as a Panel.
 Not done in this slice: popup commands, keys for commands, and naming a command without a
 description by what it runs.
 
-The window also shows the Server's Agent sessions on an Agent board and jumps to one, as the TUI
-does. These choices stand unless review changes them:
+The window also showed the Server's Agent sessions on an Agent board and jumped to one, as the TUI
+did. The board has since been removed from the GUI, because the sidebar's Agent rows already list
+and jump to every Agent; Start Agent stays. The slice's choices are kept here as its record:
 
 - **Search opens the board.** Agent board is an Action in Search, `workbench.agent-board.open`,
   which corresponds to the TUI's `orchbee.native.agent-board.toggle`. It has no key: the GUI has no

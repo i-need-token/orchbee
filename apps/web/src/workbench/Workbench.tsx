@@ -22,7 +22,6 @@ import {
 	MINIMUM_LEFT_PANEL_WIDTH,
 	type WorkbenchLayoutStorage,
 } from '../workbench-layout-storage';
-import { WorkbenchAgentBoardDialog } from './components/workbench-agent-board-dialog/WorkbenchAgentBoardDialog';
 import { WorkbenchAgentStartDialog } from './components/workbench-agent-start-dialog/WorkbenchAgentStartDialog';
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
 import { WorkbenchEmptyWorkspace } from './components/workbench-empty-workspace/WorkbenchEmptyWorkspace';
@@ -563,16 +562,6 @@ export function Workbench({
 					shortcutLabelForAction={shortcutLabelForAction}
 					state={view.searchState}
 					update={view.updateSearch}
-				/>
-			)}
-			{view.agentBoard === undefined ? null : (
-				<WorkbenchAgentBoardDialog
-					board={view.agentBoard.board}
-					finalFocus={view.agentBoard.finalFocus}
-					onClose={view.closeAgentBoard}
-					onShown={view.showAgentBoardSession}
-					onStartAgent={view.startAgentFromBoard}
-					projectWorkspaceRuntime={projectWorkspaceRuntime}
 				/>
 			)}
 			{view.agentStart === undefined ? null : (

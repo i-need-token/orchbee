@@ -60,7 +60,7 @@ export const enUSWebsiteMessages = {
 	'website.agentsTitleLead': 'Run a swarm.',
 	'website.agentsTitleAccent': 'See who needs you.',
 	'website.agentsBody':
-		'Every agent carries a status light, in the sidebar, on its tab and on the Agent board. When one finishes or waits on you, Orchbee can tap you on the shoulder.',
+		'Every agent carries a status light, in the sidebar and on its tab. When one finishes or waits on you, Orchbee can tap you on the shoulder.',
 	'website.desktopAlt':
 		'The Orchbee desktop app: Workspaces and agents with their status lights in the sidebar, a Command Prompt, and OpenCode and Gemini CLI at work.',
 	'website.sidebarAlt':

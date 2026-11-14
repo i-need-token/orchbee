@@ -93,7 +93,6 @@ import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusT
 import type { WorkbenchAgentStartInput } from '../types/workbench-agent-start';
 import {
 	useWorkbenchAgentDialogs,
-	type WorkbenchAgentBoardDialogModel,
 	type WorkbenchAgentStartDialogModel,
 } from './useWorkbenchAgentDialogs';
 import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
@@ -174,16 +173,9 @@ interface ResizablePanelSize {
 }
 
 interface WorkbenchView {
-	/** Present while the Agent board is open. */
-	readonly agentBoard: WorkbenchAgentBoardDialogModel | undefined;
-	readonly closeAgentBoard: () => void;
-	/** Closes the board after a jump and hands the shown terminal the keyboard. */
-	readonly showAgentBoardSession: () => void;
-	/** Present while the Session can start an Agent: opens Start Agent in the board's place. */
-	readonly startAgentFromBoard: (() => void) | undefined;
 	/** Present while Start Agent is open. */
 	readonly agentStart: WorkbenchAgentStartDialogModel | undefined;
-	/** Esc, Cancel or the backdrop: back to the board Start Agent replaced, otherwise closed. */
+	/** Esc, Cancel or the backdrop: closes Start Agent. */
 	readonly closeAgentStart: () => void;
 	/** Closes Start Agent and runs `workbench.agent.start-provider`. */
 	readonly startAgent: (input: WorkbenchAgentStartInput) => void;
@@ -541,9 +533,7 @@ export function useWorkbench({
 		return projectWorkspaceRuntime.subscribeTerminalTopology(reconcile);
 	}, [nameEditor, projectWorkspaceRuntime]);
 	const agentDialogs = useWorkbenchAgentDialogs({
-		agentBoard: authorityNotice.authority.agentBoard,
 		agentCatalog: authorityNotice.authority.agentCatalog,
-		beginTerminalHandover: focusRouting.beginTerminalHandover,
 		projectWorkspaceRuntime,
 	});
 	const toggleSidebar = sidebar.toggle;
@@ -681,7 +671,6 @@ export function useWorkbench({
 		onSettings,
 		onShortcuts,
 		onTerminalFontSizeChange,
-		openAgentBoard: agentDialogs.openBoard,
 		openAgentStart: agentDialogs.openStart,
 		openSearch,
 		openTabTitleEditor: openNameEditor,
@@ -699,9 +688,6 @@ export function useWorkbench({
 		// No stacked dialogs: New Worktree… closes Start Agent and its form opens in its place.
 		agentDialogs.endStart(input.place === 'new-worktree');
 		actions.invoke(WORKBENCH_ACTION_IDS.startAgent, input, 'button');
-	});
-	const startAgentFromBoard = useMemoizedFn(() => {
-		actions.invoke(WORKBENCH_ACTION_IDS.openAgentStart, undefined, 'keyboard');
 	});
 	const createProject = useMemoizedFn((path: string) =>
 		actions.invoke(WORKBENCH_ACTION_IDS.createProject, { path }, 'button'),
@@ -953,10 +939,6 @@ export function useWorkbench({
 	);
 
 	return {
-		agentBoard: agentDialogs.board,
-		closeAgentBoard: agentDialogs.closeBoard,
-		showAgentBoardSession: agentDialogs.showBoardSession,
-		startAgentFromBoard: agentDialogs.startOffered ? startAgentFromBoard : undefined,
 		agentStart: agentDialogs.start,
 		closeAgentStart: agentDialogs.closeStart,
 		startAgent,
