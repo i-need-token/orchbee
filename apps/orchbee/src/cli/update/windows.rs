@@ -1,7 +1,7 @@
 //! Windows update effects: declared inputs, no-follow source admission, owned process execution,
 //! and the user `Path` value the PATH step edits.
 use super::{Context, path_value::Edit};
-use orchbee_local_runtime::CommandOutput;
+use orchbee_local_runtime::{CommandOutput, EnvironmentKind, environment_kind};
 use std::{
     ffi::OsString,
     fs::{File, OpenOptions},
@@ -142,6 +142,53 @@ pub(super) fn verify_capsule(directory: &Path, expected: &str) -> io::Result<boo
 /// its read and its write.
 const PATH_ATTEMPTS: usize = 3;
 
+/// The key under `HKEY_CURRENT_USER` that holds the user `Path`.
+pub(super) const USER_ENVIRONMENT: &str = "Environment";
+
+/// The variable a test build reads for a scratch registry key that stands in for
+/// `HKEY_CURRENT_USER`, so that a rehearsal never touches the real `Path` or uninstall entries.
+const TEST_REGISTRY_KEY: &str = "ORCHBEE_TEST_REGISTRY_KEY";
+/// The only registry folder a test build's scratch key may name.
+const TEST_REGISTRY_PREFIX: &str = "Software\\ob-test-scratch\\";
+
+/// A test build's scratch key from [`TEST_REGISTRY_KEY`], whose `Environment` and `Uninstall`
+/// subkeys stand in for the real ones; none when the variable is unset or the build is not a test
+/// build. Any other value refuses rather than falling back to the real keys.
+pub(super) fn scratch_registry_key() -> io::Result<Option<String>> {
+    match (environment_kind(), std::env::var_os(TEST_REGISTRY_KEY)) {
+        (EnvironmentKind::Test, Some(value)) => scratch_key(&value).map(Some),
+        _ => Ok(None),
+    }
+}
+
+/// A scratch key below [`TEST_REGISTRY_PREFIX`] with one more plain name, or a refusal.
+fn scratch_key(value: &OsString) -> io::Result<String> {
+    let text = value.to_str().ok_or(io::ErrorKind::InvalidInput)?;
+    let rest = text
+        .get(..TEST_REGISTRY_PREFIX.len())
+        .filter(|prefix| prefix.eq_ignore_ascii_case(TEST_REGISTRY_PREFIX))
+        .map(|_| &text[TEST_REGISTRY_PREFIX.len()..])
+        .ok_or(io::ErrorKind::InvalidInput)?;
+    if rest.is_empty()
+        || rest.len() > 64
+        || !rest
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        return Err(io::ErrorKind::InvalidInput.into());
+    }
+    Ok(text.to_owned())
+}
+
+/// The key under `HKEY_CURRENT_USER` whose `Path` value the PATH step edits: the user environment,
+/// or a test build's scratch `Environment`.
+pub(super) fn user_environment_key() -> io::Result<String> {
+    Ok(match scratch_registry_key()? {
+        Some(base) => format!("{base}\\Environment"),
+        None => USER_ENVIRONMENT.to_owned(),
+    })
+}
+
 /// The `Path` value of `HKEY_CURRENT_USER\<key>` with its registry type; an absent value reads as an
 /// empty `REG_EXPAND_SZ`, the type Windows gives a new user `Path`.
 #[derive(Eq, PartialEq)]
@@ -174,7 +221,7 @@ fn registry_error(error: co::ERROR) -> io::Error {
 pub(super) fn planned_path_edit(root: &Path) -> Option<Edit> {
     let key = w::HKEY::CURRENT_USER
         .RegOpenKeyEx(
-            Some(super::path_step::USER_ENVIRONMENT),
+            Some(&user_environment_key().ok()?),
             co::REG_OPTION::default(),
             co::KEY::QUERY_VALUE,
         )

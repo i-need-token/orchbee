@@ -48,6 +48,10 @@ pub(super) fn planned_path_edit(_root: &Path) -> Option<Edit> {
     None
 }
 
+pub(super) fn user_environment_key() -> io::Result<String> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
 pub(super) fn edit_user_path(_key: &str, _edit: &dyn Fn(&str) -> Edit) -> io::Result<()> {
     Err(io::ErrorKind::Unsupported.into())
 }

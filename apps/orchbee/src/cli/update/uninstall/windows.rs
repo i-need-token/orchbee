@@ -11,23 +11,15 @@
 //! else is in it. It ends once the held files and the pointer are gone, or after about a minute.
 //! Interrupted, it leaves the pointer while any held file or folder remains.
 use super::super::path_value::{self, Edit};
-use orchbee_local_runtime::{
-    DataRoot, EnvironmentKind, environment_kind, environment_stem, is_release,
-};
+use orchbee_local_runtime::{DataRoot, environment_stem, is_release};
 use orchbee_workbench_client::application::machine_hub;
 use std::{
-    ffi::OsString,
     io,
     path::{Path, PathBuf},
     time::Instant,
 };
 use winsafe::{self as w, co};
 
-/// The variable a test build reads for a scratch registry key that stands in for
-/// `HKEY_CURRENT_USER`, so that a rehearsal never touches the real `Path` or uninstall entries.
-const TEST_REGISTRY_KEY: &str = "ORCHBEE_TEST_REGISTRY_KEY";
-/// The only registry folder a test build's scratch key may name.
-const TEST_REGISTRY_PREFIX: &str = "Software\\ob-test-scratch\\";
 /// Where Windows lists per-user uninstall entries.
 const UNINSTALL_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
 /// About one minute of removal attempts, one second apart.
@@ -89,14 +81,10 @@ pub(super) fn locations() -> io::Result<Locations> {
     } else {
         (environment_stem().to_owned(), environment_stem().to_owned())
     };
-    let base = match (environment_kind(), std::env::var_os(TEST_REGISTRY_KEY)) {
-        (EnvironmentKind::Test, Some(value)) => Some(scratch_key(&value)?),
-        _ => None,
-    };
-    let (environment, registrations) = match &base {
+    let (environment, registrations) = match &super::super::platform::scratch_registry_key()? {
         Some(base) => (format!("{base}\\Environment"), format!("{base}\\Uninstall")),
         None => (
-            super::super::path_step::USER_ENVIRONMENT.to_owned(),
+            super::super::platform::USER_ENVIRONMENT.to_owned(),
             UNINSTALL_KEY.to_owned(),
         ),
     };
@@ -115,25 +103,6 @@ pub(super) fn locations() -> io::Result<Locations> {
                     .join(format!("{shortcut}.lnk"))
             }),
     })
-}
-
-/// A scratch key below [`TEST_REGISTRY_PREFIX`] with one more plain name, or a refusal.
-fn scratch_key(value: &OsString) -> io::Result<String> {
-    let text = value.to_str().ok_or(io::ErrorKind::InvalidInput)?;
-    let rest = text
-        .get(..TEST_REGISTRY_PREFIX.len())
-        .filter(|prefix| prefix.eq_ignore_ascii_case(TEST_REGISTRY_PREFIX))
-        .map(|_| &text[TEST_REGISTRY_PREFIX.len()..])
-        .ok_or(io::ErrorKind::InvalidInput)?;
-    if rest.is_empty()
-        || rest.len() > 64
-        || !rest
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
-    {
-        return Err(io::ErrorKind::InvalidInput.into());
-    }
-    Ok(text.to_owned())
 }
 
 impl Locations {

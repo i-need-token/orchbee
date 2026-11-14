@@ -11,12 +11,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-/// The key under `HKEY_CURRENT_USER` that holds the user `Path`.
-pub(super) const USER_ENVIRONMENT: &str = "Environment";
-
 /// Places the launcher of the version directory `product` names under `root`, then edits the `Path`
-/// value of `HKEY_CURRENT_USER\<key>`, which is [`USER_ENVIRONMENT`] outside a rehearsal. A failure
-/// at either part stops the step before the pointer moves.
+/// value of `HKEY_CURRENT_USER\<key>`, which is the user environment unless a test build names a
+/// scratch key. A failure at either part stops the step before the pointer moves.
 pub(super) fn run(root: &Path, product: &str, key: &str) -> Result<(), Error> {
     let stem = orchbee_local_runtime::environment_stem();
     let source = root

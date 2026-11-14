@@ -7,7 +7,7 @@ use super::{
     Error, Output,
     install::Completion,
     manifest::{Release, own_platform},
-    path_step,
+    path_step, platform,
     signature::{self, DOCUMENT_LIMIT, MANIFEST_LIMIT, Refusal},
 };
 use crate::{
@@ -51,7 +51,8 @@ pub(super) fn activate(root: &Path, entry: &Entry, completion: Completion) -> Re
         return Err(Error::NotReleaseDirectory);
     }
     if completion.path {
-        path_step::run(root, &entry.product, path_step::USER_ENVIRONMENT)?;
+        let key = platform::user_environment_key().map_err(|_| Error::PathVariable)?;
+        path_step::run(root, &entry.product, &key)?;
     }
     store
         .replace_pointer(&Pointer::activate(current, entry.clone()).encode())
