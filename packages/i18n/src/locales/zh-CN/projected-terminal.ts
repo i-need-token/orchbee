@@ -111,7 +111,7 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.newTab': '新建标签页',
 	'terminal.projected.launch.shellFailed': '没能启动 Shell。请检查启动配置和工作目录。',
 	'terminal.projected.launch.unavailable': '终端不可用',
-	'terminal.projected.heldRestore.title': '文件夹不可用',
+	'terminal.projected.heldRestore.title': '目录不可用',
 	'terminal.projected.heldRestore.retry': '重试',
-	'terminal.projected.heldRestore.startInHome': '改在主文件夹启动',
+	'terminal.projected.heldRestore.startInHome': '改在主目录启动',
 } as const satisfies Readonly<Record<ProjectedTerminalMessageId, string>>;

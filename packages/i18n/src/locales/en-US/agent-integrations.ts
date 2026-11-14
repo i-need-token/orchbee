@@ -43,7 +43,7 @@ export const enUSAgentIntegrationMessages = {
 		"Couldn't confirm the plugin's state. Check the Agent's configuration, then refresh.",
 	'agent.integrations.finding.agentMissing': "{agent} isn't installed.",
 	'agent.integrations.finding.conflict': 'Another plugin or file is in the way.',
-	'agent.integrations.finding.disabled': 'The plugin is off.',
+	'agent.integrations.finding.disabled': 'The integration is off.',
 	'agent.integrations.finding.manualSetup': '{agent} needs manual setup.',
 	'agent.integrations.finding.notInstalled': "The plugin isn't installed.",
 	'agent.integrations.finding.ready': 'The plugin is on.',

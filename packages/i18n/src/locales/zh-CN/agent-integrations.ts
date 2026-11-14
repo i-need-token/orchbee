@@ -39,7 +39,7 @@ export const zhCNAgentIntegrationMessages = {
 	'agent.integrations.failure.verificationFailed': '没能确认插件状态。请检查智能体配置后刷新。',
 	'agent.integrations.finding.agentMissing': '没有安装 {agent}。',
 	'agent.integrations.finding.conflict': '有冲突的插件或文件。',
-	'agent.integrations.finding.disabled': '插件没开。',
+	'agent.integrations.finding.disabled': '集成没开。',
 	'agent.integrations.finding.manualSetup': '{agent} 需要手动设置。',
 	'agent.integrations.finding.notInstalled': '没有安装插件。',
 	'agent.integrations.finding.ready': '插件已开。',

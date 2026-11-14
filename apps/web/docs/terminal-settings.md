@@ -425,7 +425,7 @@ opens its diagnosis beneath the row until Close. For an Agent read only through 
 the first Explain only opens the question "Check <Agent>?" beneath the row: the check starts that
 program, which may create its own files, and Orchbee changes nothing. Explain again runs it, and
 Explain on an open diagnosis reruns it. A result is one sentence first, such as "Claude Code isn't
-installed." or "The plugin is off.", and a definite finding (on, manual setup, the Agent or the
+installed." or "The integration is off.", and a definite finding (on, manual setup, the Agent or the
 plugin not installed, off, an update needed, a conflict) stays apart from "Couldn't read the
 plugin's state.", which a timed-out, unreadable or undetermined inspection and an unfinished job
 produce. Everything else waits under a Details disclosure that starts closed: the explanation, the

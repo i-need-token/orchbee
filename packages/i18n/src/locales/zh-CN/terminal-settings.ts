@@ -216,9 +216,9 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.file.unreadable': '无法读取 {path} · 恢复前以只读方式显示上次有效的设置',
 	'terminal.settings.page.newTerminalFolder.label': '新终端文件夹',
 	'terminal.settings.page.newTerminalFolder.description': '适用于 orchbee 命令新建的终端。',
-	'terminal.settings.page.newTerminalFolder.workspace': '工作区文件夹',
-	'terminal.settings.page.newTerminalFolder.home': '主文件夹',
+	'terminal.settings.page.newTerminalFolder.workspace': '工作区目录',
+	'terminal.settings.page.newTerminalFolder.home': '主目录',
 	'terminal.settings.page.newTerminalFolder.follow': '与当前终端相同',
-	'terminal.settings.page.newTerminalFolder.custom': '自定义文件夹…',
-	'terminal.settings.page.newTerminalFolder.path': '自定义文件夹路径',
+	'terminal.settings.page.newTerminalFolder.custom': '自定义目录…',
+	'terminal.settings.page.newTerminalFolder.path': '自定义目录路径',
 } as const satisfies Readonly<Record<TerminalSettingsMessageId, string>>;
