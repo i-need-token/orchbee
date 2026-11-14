@@ -314,9 +314,10 @@ Closed reason sets are:
 - Pending publication: `target-cleanup-pending`, `preparing`, `preparation-failed`, `authority-retired`.
 
 Do not serialize arbitrary errors. A correlated Host typed failure maps conservatively to
-host-refused/cleanup-incomplete, not a claimed no-effect rejection. Native status polling retains
-the addressable target after blocked/unknown results and offers status Refresh. Retry Close needs
-a displayed resumable status and fresh confirmation. Lost acceptance is recovered by status or
+host-refused/cleanup-incomplete, not a claimed no-effect rejection. The interactive Clients show
+the target again after a blocked or unknown result, with one sentence that carries no reason, and
+offer no Resume: closing that target again is an ordinary Close with a fresh confirmation. The
+Resume request stays for the CLI and for scripts. Lost acceptance is recovered by status or
 original command replay; reads and command replays never resume work, and only a fresh ordinary
 alias of a parked resumable operation renews it.
 
