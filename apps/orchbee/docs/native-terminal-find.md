@@ -88,9 +88,7 @@ input over the bar and the Panel is swallowed while the bar is open.
 
 `Esc` closes the bar and removes its highlights. The Panel stays where Find scrolled it, as an
 ordinary history view; if Find never moved it, the Panel is exactly as before. The bar also closes
-when its Panel loses focus, its context changes or the Client retires; then the notice "Find
-closed: the terminal changed" (short: Find closed) says so, so later typing is not silently sent
-to the shell.
+when its Panel loses focus, its context changes or the Client retires.
 
 ## Differences from the web and desktop Find
 

@@ -838,7 +838,6 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::CopyModeSearchLimit => WorkbenchClientNotice::CopyModeSearchLimit,
             ClientNotice::CopyModeNoSelection => WorkbenchClientNotice::CopyModeNoSelection,
             ClientNotice::FindUnavailable => WorkbenchClientNotice::FindUnavailable,
-            ClientNotice::FindClosed => WorkbenchClientNotice::FindClosed,
             ClientNotice::FindStopped => WorkbenchClientNotice::FindStopped,
             ClientNotice::FindFailed => WorkbenchClientNotice::FindFailed,
             ClientNotice::SelectionEvicted => WorkbenchClientNotice::SelectionEvicted,

@@ -69,7 +69,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
         N::CopyModeSearchLimit,
         N::CopyModeNoSelection,
         N::FindUnavailable,
-        N::FindClosed,
         N::FindStopped,
         N::FindFailed,
         N::SelectionEvicted,
@@ -279,7 +278,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             | N::CopyModeSearchLimit
             | N::CopyModeNoSelection
             | N::FindUnavailable
-            | N::FindClosed
             | N::FindStopped
             | N::FindFailed
             | N::SelectionEvicted

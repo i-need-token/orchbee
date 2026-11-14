@@ -771,8 +771,6 @@ pub(crate) enum ClientNotice {
     CopyModeNoSelection,
     /// The Find bar could not open: the focused Panel has no connected terminal frame.
     FindUnavailable,
-    /// The Find bar closed because its Panel lost focus or its terminal changed.
-    FindClosed,
     /// A Find search reached its time limit.
     FindStopped,
     /// A Find search could not read the retained output.

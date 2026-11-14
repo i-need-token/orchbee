@@ -252,7 +252,6 @@ impl WorkbenchClientUi {
                 != Some(&key)
         {
             self.close_find();
-            self.find_notice(ClientNotice::FindClosed);
             return true;
         }
         let mut changed = self.take_find_outcome();

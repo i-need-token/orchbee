@@ -270,7 +270,6 @@ impl Locale {
                 "Search rejected: invalid or too long",
                 "拒绝搜索：文本无效或过长",
             ),
-            N::FindClosed => shorter("Find closed", "查找已关闭"),
             N::FindStopped => shorter("Search stopped", "搜索已停止"),
             N::FindFailed => shorter("Search failed", "搜索失败"),
             N::PositionChanged => shorter(
@@ -619,17 +618,13 @@ impl Locale {
                 Self::EnUs => "Terminal disconnected".into(),
                 Self::ZhCn => "终端已断连".into(),
             },
-            WorkbenchClientNotice::FindClosed => match self {
-                Self::EnUs => "Find closed: the terminal changed".into(),
-                Self::ZhCn => "终端已变化，查找已关闭".into(),
-            },
             WorkbenchClientNotice::FindStopped => match self {
                 Self::EnUs => "Search stopped after reaching the time limit".into(),
                 Self::ZhCn => "搜索达到时间限制后已停止".into(),
             },
             WorkbenchClientNotice::FindFailed => match self {
-                Self::EnUs => "Retained terminal output could not be searched".into(),
-                Self::ZhCn => "无法搜索保留的终端输出".into(),
+                Self::EnUs => "Could not search the terminal output".into(),
+                Self::ZhCn => "无法搜索终端输出".into(),
             },
             WorkbenchClientNotice::CopyModeNoSelection => match self {
                 Self::EnUs => "Start a selection with v or Space before copying".into(),
