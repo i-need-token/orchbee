@@ -72,11 +72,11 @@ describe('projected terminal shortcuts', () => {
 	it('routes prompt navigation from terminal focus', () => {
 		const harness = shortcutHarness('apple');
 		const previous = harness.keyDown(
-			{ ...baseEvent, code: 'KeyZ', ctrlKey: true, shiftKey: true },
+			{ ...baseEvent, code: 'ArrowUp', metaKey: true },
 			harness.terminalNode,
 		);
 		const next = harness.keyDown(
-			{ ...baseEvent, code: 'KeyX', ctrlKey: true, shiftKey: true },
+			{ ...baseEvent, code: 'ArrowDown', metaKey: true },
 			harness.terminalNode,
 		);
 
@@ -96,7 +96,7 @@ describe('projected terminal shortcuts', () => {
 		expect(next.preventDefault).toHaveBeenCalledOnce();
 
 		harness.keyDown(
-			{ ...baseEvent, code: 'KeyZ', ctrlKey: true, shiftKey: true },
+			{ ...baseEvent, code: 'ArrowUp', metaKey: true },
 			harness.findNode,
 		);
 		expect(harness.invoke).toHaveBeenCalledTimes(2);

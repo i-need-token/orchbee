@@ -19,9 +19,9 @@ describe('projected terminal shortcut declarations', () => {
 		expect(formatKeyboardShortcutChord(apple['terminal.clipboard.paste'], 'apple')).toBe('⌘V');
 		expect(formatKeyboardShortcutChord(apple['terminal.selection.select-all'], 'apple')).toBe('⌘A');
 		expect(formatKeyboardShortcutChord(apple['terminal.history.prompt-previous'], 'apple')).toBe(
-			'⌃⇧Z',
+			'⌘↑',
 		);
-		expect(formatKeyboardShortcutChord(apple['terminal.history.prompt-next'], 'apple')).toBe('⌃⇧X');
+		expect(formatKeyboardShortcutChord(apple['terminal.history.prompt-next'], 'apple')).toBe('⌘↓');
 		expect(apple['terminal.history.scroll-line-up']).toEqual({
 			code: 'ArrowUp',
 			modifiers: ['control', 'shift'],
@@ -74,7 +74,7 @@ describe('projected terminal shortcut declarations', () => {
 		expect(formatProjectedTerminalActionShortcut('terminal.clear', 'apple')).toBe('⌘K');
 		expect(formatProjectedTerminalActionShortcut('terminal.clipboard.paste', 'apple')).toBe('⌘V');
 		expect(formatProjectedTerminalActionShortcut('terminal.history.prompt-previous', 'apple')).toBe(
-			'⌃⇧Z',
+			'⌘↑',
 		);
 		expect(formatProjectedTerminalActionShortcut('unknown', 'apple')).toBeNull();
 	});
