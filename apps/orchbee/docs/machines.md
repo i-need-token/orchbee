@@ -1040,7 +1040,9 @@ application calls no store.
   goes through it. Windows uses Credential Manager: a generic credential with local-computer
   persistence, written through the `keyring-core` and `windows-native-keyring-store` crates, since
   the workspace admits no authored `unsafe` for the Win32 calls. The store is never listed; each
-  call names one item. macOS and Linux answer "unavailable" in this build: a current limit, not
+  call names one item. A process makes one Credential Manager call at a time, a write's secret and
+  label together: calls made at once, even on different items, were seen to bring back an item
+  already deleted. macOS and Linux answer "unavailable" in this build: a current limit, not
   the design, which gives them the login Keychain and the Secret Service, otherwise the kernel's
   per-user keyring, as adapters of the same port that change no caller. A store that cannot be
   reached, such as Credential Manager in an SSH logon, also answers unavailable: the TUI shows
@@ -1412,6 +1414,10 @@ connection, so nothing changed for the link.
   must ask once per hub life of the link unless the person chose to
   [remember](#remembered-answers) the answer. No real `ssh` has run these questions yet: the first
   real run checks every kind against OpenSSH.
+- **Two processes' store calls can meet.** Each process makes one Credential Manager call at a
+  time, but the hub and a TUI, or two clients, calling at the same instant can still fail a write
+  or leave a deleted answer behind, as two test processes did; nothing orders calls across
+  processes.
 - **A killed hub leaves a draft's remembered answer.** A draft's answer is forgotten when the hub
   drops the draft; a hub that is killed rather than closed while a draft holds one leaves it in the
   store under an ID no record names, and nothing sweeps such items.

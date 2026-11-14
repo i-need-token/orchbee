@@ -1,11 +1,25 @@
 //! The Windows adapter: one Credential Manager generic credential per item, its target name the
 //! item's name exactly, kept on this computer only (`CRED_PERSIST_LOCAL_MACHINE`) and carrying the
 //! readable label as its comment. The calls run through `windows-native-keyring-store`, which
-//! wipes the system's copy of a credential it read before freeing it.
+//! wipes the system's copy of a credential it read before freeing it, one at a time in a process.
 
 use super::{Adapter, Deleted, Failure, Item, Remembering, Secret};
 use keyring_core::{Entry, Error, api::CredentialStoreApi};
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Mutex, MutexGuard, PoisonError},
+};
+
+/// One Credential Manager call at a time in this process. Calls made at once from several threads,
+/// even on different items, bring back an item already deleted: each delete reported the item
+/// removed and the next read found nothing, yet it was there afterwards; the same calls one at a
+/// time never left one. A write is one call here, its secret and its label together. The lock
+/// guards no data, so one a panicking call poisoned is taken as it is.
+static CALLS: Mutex<()> = Mutex::new(());
+
+fn one_at_a_time() -> MutexGuard<'static, ()> {
+    CALLS.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 /// The Credential Manager of the signed-in user.
 pub(super) struct CredentialManager;
@@ -32,6 +46,7 @@ fn failure(error: &Error) -> Failure {
 
 impl Adapter for CredentialManager {
     fn remembering(&self, probe: &str) -> Remembering {
+        let _call = one_at_a_time();
         let Ok(entry) = Self::entry(probe) else {
             return Remembering::Unavailable;
         };
@@ -43,6 +58,7 @@ impl Adapter for CredentialManager {
     }
 
     fn read(&self, item: &Item) -> Result<Option<Secret>, Failure> {
+        let _call = one_at_a_time();
         match Self::entry(&item.target_name())?.get_secret() {
             Ok(bytes) => Ok(Some(Secret::new(bytes))),
             Err(Error::NoEntry) => Ok(None),
@@ -51,6 +67,7 @@ impl Adapter for CredentialManager {
     }
 
     fn write(&self, item: &Item, secret: &[u8], label: &str) -> Result<(), Failure> {
+        let _call = one_at_a_time();
         let entry = Self::entry(&item.target_name())?;
         entry.set_secret(secret).map_err(|error| failure(&error))?;
         // The label is written after the secret, since only an existing credential takes one.
@@ -61,6 +78,7 @@ impl Adapter for CredentialManager {
     }
 
     fn delete(&self, item: &Item) -> Result<Deleted, Failure> {
+        let _call = one_at_a_time();
         match Self::entry(&item.target_name())?.delete_credential() {
             Ok(()) => Ok(Deleted::Removed),
             Err(Error::NoEntry) => Ok(Deleted::Absent),

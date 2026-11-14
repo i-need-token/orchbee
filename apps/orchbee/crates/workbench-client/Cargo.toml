@@ -73,6 +73,11 @@ nix = { workspace = true, features = ["fs", "process", "signal", "term"] }
 [target.'cfg(windows)'.dev-dependencies]
 # A Job Object owns the real Windows programs the argument-boundary test runs.
 process-wrap.workspace = true
+# The credential tests list, by name, the test items a killed earlier test run left, to delete
+# them: the store's `search`, in test builds only, on the workspace's admitted `regex`.
+windows-native-keyring-store = { version = "1.1.0", default-features = false, features = [
+	"search",
+] }
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 rustix = { workspace = true, features = ["process"] }
