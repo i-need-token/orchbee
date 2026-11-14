@@ -187,7 +187,7 @@ Uninstall removes an installed plugin.
 
 ## Recover async operations
 
-Use the receipt ID with `operation status <request-id>` for Workspace, Tab, Panel, Project, Worktree, Client, Session stop and Agent detection rule operations; no family word is needed. `operation resume <request-id> --generation <n> --confirm` continues one that is resumable; inspect status first. [Retained operation status](native-operation-status.md) owns the identity mapping, lookup order and limits.
+Use the receipt ID with `operation status <request-id>` for Workspace, Tab, Panel, Project, Worktree, Client, Session stop and Agent detection rule operations; no family word is needed. `operation resume <request-id> --generation <n> --confirm` continues one that is resumable; inspect status first. An unfinished Workspace, Tab or Panel close continues by itself on the Server, up to about three 30-second attempts, and only then reports one failure; use `operation resume` to continue a close that finally stopped. [Retained operation status](native-operation-status.md) owns the identity mapping, lookup order and limits.
 
 ## Panel targets for terminal I/O
 

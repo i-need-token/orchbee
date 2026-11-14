@@ -2047,6 +2047,9 @@ and directories are preserved. An `accepted` receipt carries `acceptedRevision`,
 finishes the close asynchronously and the retained operation record outlives the
 Workspace's active projection. Re-running `workspace close` is never a resume — a resumable
 retained operation is continued only through `operation resume <close-request-id>`.
+An unfinished close continues by itself on the Server: it retries up to about three 30-second
+attempts and only then reports one failure, so `operation resume` is for a script that wants to
+continue a close that finally stopped.
 
 `operation status <close-request-id>` reads that retained record by its close request ID
 alone, so a completed close still answers with its `closed` tombstone `revision`.

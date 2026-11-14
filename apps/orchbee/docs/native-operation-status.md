@@ -46,6 +46,14 @@ disappears. The read has no persistent index or extra state and preserves Sessio
 `panel` from the retained target, null when the answer has none), the correlated observation and a
 nullable resume receipt. Missing, denied and unavailable observations stay distinct.
 
+An unfinished close continues by itself on the Server. Each attempt has 30 seconds; when one ends
+with the close still resumable, the Server starts the next, up to about three 30-second attempts in
+all, and status keeps reporting `closing` meanwhile. Only after the last one does status report a
+single failure, `cleanup-blocked`. `operation resume` is for a script that wants to continue a
+close that finally stopped. The
+[Server close contract](../../orchbee-server/docs/terminal-tab-close.md#automatic-renewal) owns
+this allowance.
+
 ## Resume
 
 `operation resume` finds the operation as `operation status` does, then submits the owner's resume
@@ -62,8 +70,8 @@ A Session stop, a Client control or an Agent detection rule operation cannot be 
 command refuses before any submission with kind `rejected`, details
 `{stage:"operation-resume", reason:"resume-unsupported"}` and exit 3. For a stop the text names
 `orchbee server stop --retry --request-id <id>`, the stop's own explicit retry. Cancellation
-preserves obtained facts and stops local waiting; no automatic retry, generic resume of unsupported
-operations or operation replay exists.
+preserves obtained facts and stops local waiting. The CLI never retries on its own, resumes an
+unsupported operation or replays one.
 
 ## Evidence
 

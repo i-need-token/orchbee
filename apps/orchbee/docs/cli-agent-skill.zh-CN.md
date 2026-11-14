@@ -185,7 +185,7 @@ uninstall 移除已安装插件。
 
 ## 恢复异步操作
 
-Workspace、Tab、Panel、Project、Worktree、Client、Session 停止和 Agent 检测规则操作都使用回执 ID 调用 `operation status <request-id>`，无需写出所属类别。`operation resume <request-id> --generation <n> --confirm` 继续可恢复的操作，先检查状态。[保留操作状态](native-operation-status.md) 负责身份映射、查找顺序和边界。
+Workspace、Tab、Panel、Project、Worktree、Client、Session 停止和 Agent 检测规则操作都使用回执 ID 调用 `operation status <request-id>`，无需写出所属类别。`operation resume <request-id> --generation <n> --confirm` 继续可恢复的操作，先检查状态。未完成的 Workspace、Tab 或 Panel 关闭会在 Server 上自行继续，最多约三次、每次 30 秒的尝试，之后才报告一次失败；关闭最终停止时，再用 `operation resume` 继续。[保留操作状态](native-operation-status.md) 负责身份映射、查找顺序和边界。
 
 ## 终端输入输出的 Panel 目标
 
