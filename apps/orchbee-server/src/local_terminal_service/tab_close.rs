@@ -244,12 +244,14 @@ impl LocalTerminalService {
                     | CloseContinuationNext::Closed
                     | CloseContinuationNext::Outstanding => {}
                     actionable => {
-                        selected = Some((id.clone(), step, actionable));
+                        selected = Some((id.clone(), step, actionable, now));
                         break;
                     }
                 }
             }
-            let Some((id, step, next)) = selected else {
+            // The reservation re-derives the scanned step at the scan's instant, so a deadline
+            // crossed in between cannot turn the chosen step into a mismatch.
+            let Some((id, step, next, now)) = selected else {
                 return Ok(due);
             };
             *cursor = Some(id.clone());
@@ -288,7 +290,6 @@ impl LocalTerminalService {
                     step_ordinal,
                 } => {
                     let target = step.target().cloned().ok_or(PostcommitCoordinationError)?;
-                    let now = Instant::now();
                     let Some(expiry) = expiry else {
                         return Ok(now.checked_add(CANDIDATE_RETRY));
                     };

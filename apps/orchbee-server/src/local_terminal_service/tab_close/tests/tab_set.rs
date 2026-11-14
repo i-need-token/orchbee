@@ -8,7 +8,7 @@ use crate::{
     },
     session_coordinator::ProcessObservationTarget,
 };
-use orchbee_capability_node_protocol::LifecycleUnknownReason;
+use orchbee_capability_node_protocol::{LifecycleInventoryFailure, LifecycleUnknownReason};
 use orchbee_workbench_protocol::{
     TabSetCloseAction, TabSetCloseCondition, TabSetCloseFailure, TabSetCloseOutcome,
     TabSetCloseStatus, TabSetCloseUnavailable, WorkbenchTabId, WorkbenchTabSetCloseRequest,
@@ -336,88 +336,106 @@ fn a_set_closes_one_member_at_a_time_and_counts_a_gone_tab_done() {
 }
 
 #[test]
-fn a_set_stops_at_an_unknown_member_and_never_submits_a_later_one() {
-    let Fixture {
-        service,
-        peer,
-        worker_thread,
-        close,
-    } = fixture();
-    let second = add_terminal(&service, 1);
-    service.start_close_maintenance().unwrap();
-    assert!(matches!(
-        start(
-            &service,
-            5000,
-            &[&close, &second],
-            TabSetCloseCondition::Confirmed,
-            &unread,
-        ),
-        TabSetCloseOutcome::Available { .. }
-    ));
-    let steps = serve(peer, 2, move |request| match request.action {
-        TerminalLifecycleAction::InventoryPage { .. } => settled_page(),
-        TerminalLifecycleAction::Dispose => {
-            TerminalLifecycleOutcome::OutcomeUnknown(LifecycleUnknownReason::TransportLost)
-        }
-        action => panic!("unexpected {action:?}"),
-    });
-    run(&service, false, Duration::from_secs(10), &unread);
-    let (peer, seen) = steps.join().unwrap();
-    assert!(seen.iter().all(|(_, target)| *target == host(0)));
-    let ended = set(&service, 5000);
-    assert_eq!(
-        status(&ended),
-        &TabSetCloseStatus::Failed {
-            reason: TabSetCloseFailure::OutcomeUnknown
-        }
-    );
-    let TabSetCloseOutcome::Available { members, .. } = &ended else {
-        unreachable!()
-    };
-    assert_eq!(members[1].close, None);
-    assert!(tabs(&service).contains(&tab(&second)));
-    // The member's own Close stays retained for its own Resume.
-    assert!(matches!(
-        read(&service, &close),
-        WorkbenchTabCloseReadOutcome::Available {
-            status: WorkbenchTabCloseStatus::CleanupBlocked {
-                resumable: true,
-                ..
-            } | WorkbenchTabCloseStatus::OutcomeUnknown { .. },
-            ..
-        }
-    ));
-    assert_eq!(
-        start(
-            &service,
-            5100,
-            &[&close],
-            TabSetCloseCondition::Confirmed,
-            &unread
-        ),
-        TabSetCloseOutcome::Unavailable {
-            reason: TabSetCloseUnavailable::Busy
-        },
-        "an open Close owns its Tab"
-    );
-    assert!(
-        matches!(
+fn a_set_stops_at_a_member_it_cannot_close_and_never_submits_a_later_one() {
+    for unknown in [false, true] {
+        let Fixture {
+            service,
+            peer,
+            worker_thread,
+            close,
+        } = fixture();
+        let second = add_terminal(&service, 1);
+        service.start_close_maintenance().unwrap();
+        assert!(matches!(
             start(
                 &service,
-                5200,
-                &[&second],
+                5000,
+                &[&close, &second],
+                TabSetCloseCondition::Confirmed,
+                &unread,
+            ),
+            TabSetCloseOutcome::Available { .. }
+        ));
+        let steps = serve(
+            peer,
+            if unknown { 2 } else { 1 },
+            move |request| match request.action {
+                TerminalLifecycleAction::InventoryPage { .. } if unknown => settled_page(),
+                // A failure the Server never retries or renews blocks the member at once.
+                TerminalLifecycleAction::InventoryPage { .. } => {
+                    TerminalLifecycleOutcome::InventoryFailure(
+                        LifecycleInventoryFailure::IdentityConflict,
+                    )
+                }
+                TerminalLifecycleAction::Dispose => {
+                    TerminalLifecycleOutcome::OutcomeUnknown(LifecycleUnknownReason::TransportLost)
+                }
+                action => panic!("unexpected {action:?}"),
+            },
+        );
+        run(&service, false, Duration::from_secs(10), &unread);
+        let (peer, seen) = steps.join().unwrap();
+        assert!(seen.iter().all(|(_, target)| *target == host(0)));
+        let ended = set(&service, 5000);
+        assert_eq!(
+            status(&ended),
+            &TabSetCloseStatus::Failed {
+                reason: if unknown {
+                    TabSetCloseFailure::OutcomeUnknown
+                } else {
+                    TabSetCloseFailure::ChildBlocked
+                }
+            },
+            "{unknown}"
+        );
+        let TabSetCloseOutcome::Available { members, .. } = &ended else {
+            unreachable!()
+        };
+        assert_eq!(members[1].close, None, "{unknown}");
+        assert!(tabs(&service).contains(&tab(&second)));
+        // The member's own Close stays retained.
+        assert!(
+            matches!(
+                read(&service, &close),
+                WorkbenchTabCloseReadOutcome::Available {
+                    status: WorkbenchTabCloseStatus::CleanupBlocked { .. }
+                        | WorkbenchTabCloseStatus::OutcomeUnknown { .. },
+                    ..
+                }
+            ),
+            "{unknown}"
+        );
+        assert_eq!(
+            start(
+                &service,
+                5100,
+                &[&close],
                 TabSetCloseCondition::Confirmed,
                 &unread
             ),
-            TabSetCloseOutcome::Available { .. }
-        ),
-        "an ended set releases the members it never closed"
-    );
+            TabSetCloseOutcome::Unavailable {
+                reason: TabSetCloseUnavailable::Busy
+            },
+            "an open Close owns its Tab"
+        );
+        assert!(
+            matches!(
+                start(
+                    &service,
+                    5200,
+                    &[&second],
+                    TabSetCloseCondition::Confirmed,
+                    &unread
+                ),
+                TabSetCloseOutcome::Available { .. }
+            ),
+            "an ended set releases the members it never closed"
+        );
 
-    service.stop_close_maintenance();
-    drop(peer);
-    let _exit = worker_thread.join().unwrap();
+        service.stop_close_maintenance();
+        drop(peer);
+        let _exit = worker_thread.join().unwrap();
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

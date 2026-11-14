@@ -379,7 +379,10 @@ checked generation increment, checked deadline preparation and running state of 
 with no receipt, ledger entry, revision credit or confirmation. A person-started Close holds two
 renewals: admission sets the allowance, and every accepted Resume and renewing join restores it. A record with an
 unknown member, an outstanding step or only nonresumable parks is never renewed, and generation
-exhaustion parks it as above. The status stays `closing` across a renewal, so the first parked
+exhaustion parks it as above. The allowance belongs to the record, not to a member: a record with
+several members renews when any member parks and none is outstanding, so one failing member can
+spend both renewals while others still run, and the record gives up sooner than a single Tab would,
+never later. The status stays `closing` across a renewal, so the first parked
 status a reader sees comes after the allowance is spent. A Resume prepared against the generation a
 renewal replaced is `stale`, whose status read shows the Server still continuing.
 

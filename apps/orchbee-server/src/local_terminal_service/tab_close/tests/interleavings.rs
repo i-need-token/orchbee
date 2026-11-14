@@ -147,6 +147,24 @@ fn successful_enqueue_is_confirmed_after_expiry_under_the_real_session_gate() {
     );
     reply(&mut peer, query, settled_page());
     drop(session);
+    // The generation never moves while a step is outstanding, so the expired attempt's renewed
+    // step proves the late admission and result settled first.
+    let renewed = lifecycle(&mut peer);
+    assert_eq!(
+        renewed.attempt_generation.get(),
+        2,
+        "late admission/result must settle before the attempt renews"
+    );
+    // An answer the Server neither retries nor renews leaves no step outstanding at stop.
+    let ending = match renewed.action {
+        TerminalLifecycleAction::InventoryPage { .. } => {
+            TerminalLifecycleOutcome::InventoryFailure(
+                orchbee_capability_node_protocol::LifecycleInventoryFailure::IdentityConflict,
+            )
+        }
+        _ => TerminalLifecycleOutcome::OutcomeUnknown(LifecycleUnknownReason::TransportLost),
+    };
+    reply(&mut peer, renewed, ending);
     assert_eq!(read_snapshot(&service).revision, WorkbenchRevision::new(1));
     service.stop_close_maintenance();
     drop(peer);
