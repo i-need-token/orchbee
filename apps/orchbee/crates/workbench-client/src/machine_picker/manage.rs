@@ -110,8 +110,10 @@ pub(crate) struct AddForm {
     /// The highlighted SSH config host while the address field has focus.
     pub(crate) suggestion: Option<usize>,
     pub(crate) suggestions: Arc<[String]>,
-    /// The suggestions were read, once, for this form.
+    /// The suggestions were read, once, for this form, or their read failed or ran out.
     pub(crate) suggestions_read: bool,
+    /// The read of the suggestions in progress, off the input thread.
+    pub(crate) reading: Option<crate::machine_ssh_config::HostRead>,
     pub(crate) check: Option<Check>,
     pub(crate) problem: Option<Problem>,
 }
@@ -426,6 +428,7 @@ impl Picker {
             suggestion: None,
             suggestions: Arc::from([]),
             suggestions_read: false,
+            reading: None,
             check: None,
             problem: None,
         }));

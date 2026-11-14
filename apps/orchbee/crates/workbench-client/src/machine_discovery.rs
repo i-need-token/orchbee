@@ -507,6 +507,11 @@ impl Discovery {
             holder.settle_add(revision);
         }
     }
+    /// What a thread working for the interface wakes as it ends; `None` for a discovery that never
+    /// holds a hub.
+    pub(crate) const fn wakeup(&self) -> Option<&UiWakeup> {
+        self.wakeup.as_ref()
+    }
     /// Ends `machine`'s link and login, without a confirmation; its record stays.
     pub fn disconnect(&mut self, machine: &ProfileId) {
         let effects = self.logins.abandon(machine.as_str());

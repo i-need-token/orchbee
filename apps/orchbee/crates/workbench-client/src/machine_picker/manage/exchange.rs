@@ -4,12 +4,14 @@
 //! `Store::commit`; the catalog a commit returns goes back to the shell, which refreshes the
 //! picker from it at once.
 
-use super::{AddForm, Check, Notice, Page, Problem, Work};
+use super::{Check, Notice, Page, Problem, Work};
 use crate::machine_add::{Proposal, Stage};
 use crate::machine_discovery::{Adding, Discovery, SessionStop};
 use crate::machine_picker::Picker;
+use crate::machine_ssh_config::HostRead;
 use crate::machines::{Catalog, Draft, Edit, ProfileId, Store};
-use std::{sync::Arc, time::Instant};
+use crate::ui_wakeup::UiWakeup;
+use std::time::Instant;
 
 /// What one exchange changed.
 #[derive(Debug, Default)]
@@ -40,12 +42,19 @@ impl Picker {
             self.manage.explanations = explanations;
             managed.redraw = true;
         }
+        // The suggestions are read off this thread; the form shows them once the read ends.
         if let Page::Add(form) = &mut self.manage.page
             && !form.suggestions_read
         {
-            form.suggestions = suggestions();
-            form.suggestions_read = true;
-            managed.redraw = true;
+            let read = form
+                .reading
+                .get_or_insert_with(|| read_suggestions(now, discovery.wakeup()));
+            if let Some(hosts) = read.poll(now) {
+                form.suggestions = hosts;
+                form.suggestions_read = true;
+                form.reading = None;
+                managed.redraw = true;
+            }
         }
         // A stop asked earlier settles before anything newer is asked.
         if let Some(machine) = self.manage.stopping.clone()
@@ -224,28 +233,23 @@ fn failed(stage: Option<Stage>, explanation: crate::machine_status::Explanation)
     }
 }
 
-/// The SSH config hosts the address can be chosen from, read once as the form opens: the bounded
-/// read of aliases only. A unit test never reads the person's configuration; no application test
-/// opens the form.
-fn suggestions() -> Arc<[String]> {
+/// Starts reading the SSH config hosts the address can be chosen from, once as the form opens and
+/// off this thread: the bounded read of aliases only, which wakes `wakeup` as it ends. A unit test
+/// never reads the person's configuration; no application test opens the form.
+fn read_suggestions(now: Instant, wakeup: Option<&UiWakeup>) -> HostRead {
     #[cfg(not(test))]
-    {
-        crate::machine_ssh_config::ssh_home()
-            .map(|home| crate::machine_ssh_config::host_suggestions(&home))
-            .unwrap_or_default()
-            .into()
-    }
+    let home = crate::machine_ssh_config::ssh_home();
     #[cfg(test)]
-    {
-        Arc::from([])
-    }
+    let home = None;
+    HostRead::start(home, now, wakeup.cloned())
 }
 
-impl AddForm {
+impl super::AddForm {
     /// The suggestions a test offers in place of the person's configuration.
     #[cfg(test)]
     pub(crate) fn offer(&mut self, hosts: &[&str]) {
         self.suggestions = hosts.iter().map(|host| (*host).to_owned()).collect();
         self.suggestions_read = true;
+        self.reading = None;
     }
 }

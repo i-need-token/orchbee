@@ -1,15 +1,21 @@
 //! Host suggestions for a new Machine's address: the plain aliases that `Host` lines name in the
 //! person's OpenSSH client configuration and the files it includes, in the order OpenSSH reads
 //! them. It reads nothing else, keeps nothing but the aliases, and stops at fixed bounds; a bound
-//! exceeded or an include loop yields no suggestions at all. It never decides how `ssh` connects,
-//! since OpenSSH reads its own configuration for that.
-//! `apps/orchbee/docs/machines.md#ssh-host-suggestions` owns the rules.
+//! exceeded or an include loop yields no suggestions at all. A form reads them on a thread of its
+//! own and waits a bounded time, since a configuration or an include may sit on a path that does
+//! not answer. It never decides how `ssh` connects, since OpenSSH reads its own configuration for
+//! that. `apps/orchbee/docs/machines.md#ssh-host-suggestions` owns the rules.
 
 use crate::machines::valid_target;
+use crate::ui_wakeup::UiWakeup;
 use std::{
+    fmt,
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex, OnceLock, PoisonError},
+    thread,
+    time::{Duration, Instant},
 };
 
 /// The most suggestions offered.
@@ -18,18 +24,98 @@ const SUGGESTIONS: usize = 32;
 const FILE_BYTES: u64 = 256 * 1024;
 /// The most bytes all files together may hold.
 const TOTAL_BYTES: u64 = 1024 * 1024;
-/// The most files read, the configuration itself included.
+/// The most files and directories looked at, found or not, the configuration itself included.
 const FILES: usize = 64;
 /// The deepest include, as OpenSSH bounds it: the configuration is depth 0.
 const DEPTH: usize = 16;
 /// The most directory entries an include's `*` and `?` components may list in all.
 const DIRECTORY_ENTRIES: usize = 4096;
+/// How long a form waits for its suggestions: a read still running then offers none, rather than
+/// suggestions appearing while the person types.
+const READ_BOUND: Duration = Duration::from_secs(5);
+
+/// The hosts one read finds, set once as it ends.
+type Hosts = Arc<OnceLock<Arc<[String]>>>;
+
+/// The one read in flight in this process, which a form opened while it runs joins instead of
+/// starting another beside a path that does not answer.
+static RUNNING: Mutex<Option<Hosts>> = Mutex::new(None);
+
+/// The suggestions one form reads, on a thread of its own: it never holds the input thread, and a
+/// read that fails, cannot start or outlasts its bound offers none, silently.
+#[derive(Clone)]
+pub(crate) struct HostRead {
+    hosts: Hosts,
+    deadline: Instant,
+}
+
+impl HostRead {
+    /// Starts reading below `home`, or joins the read still running for an earlier form; `wakeup`
+    /// is woken when a read this call starts ends. Without a home there is nothing to read.
+    pub(crate) fn start(home: Option<PathBuf>, now: Instant, wakeup: Option<UiWakeup>) -> Self {
+        let deadline = now + READ_BOUND;
+        let Some(home) = home else {
+            return Self {
+                hosts: Arc::new(OnceLock::from(Arc::from([]))),
+                deadline,
+            };
+        };
+        let mut running = RUNNING.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(hosts) = running.as_ref().filter(|hosts| hosts.get().is_none()) {
+            return Self {
+                hosts: hosts.clone(),
+                deadline,
+            };
+        }
+        let hosts = Arc::new(OnceLock::new());
+        let filled = hosts.clone();
+        let started = thread::Builder::new()
+            .name("orchbee-ssh-config".into())
+            .spawn(move || {
+                let _set = filled.set(host_suggestions(&home).into());
+                if let Some(wakeup) = wakeup {
+                    wakeup.signal();
+                }
+            });
+        if started.is_err() {
+            let _set = hosts.set(Arc::from([]));
+        }
+        *running = Some(hosts.clone());
+        Self { hosts, deadline }
+    }
+
+    /// The suggestions once the read ended, or none once its bound passed; `None` while it runs.
+    pub(crate) fn poll(&self, now: Instant) -> Option<Arc<[String]>> {
+        if now >= self.deadline {
+            return Some(Arc::from([]));
+        }
+        self.hosts.get().cloned()
+    }
+}
+
+impl PartialEq for HostRead {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.hosts, &other.hosts) && self.deadline == other.deadline
+    }
+}
+
+impl Eq for HostRead {}
+
+impl fmt::Debug for HostRead {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("HostRead")
+            .field("ended", &self.hosts.get().is_some())
+            .finish_non_exhaustive()
+    }
+}
 
 /// The plain Host aliases of `<home>/.ssh/config` and the files it includes, in first-seen order,
 /// each once whatever its letter case, at most 32. Patterns, negations and anything that is not a
 /// valid SSH target are left out. A missing configuration or include gives nothing; a file over
-/// 256 KiB, over 1 MiB or 64 files in all, an include deeper than 16, or a file that includes
-/// itself through its own chain gives no suggestions at all.
+/// 256 KiB, over 1 MiB in all, more than 64 files and directories looked at, found or not, an
+/// include deeper than 16, or a file that includes itself through its own chain gives no
+/// suggestions at all.
 pub(crate) fn host_suggestions(home: &Path) -> Vec<String> {
     let mut reading = Reading {
         home,
@@ -77,7 +163,18 @@ struct Reading<'home> {
 }
 
 impl Reading<'_> {
+    /// Counts one file or directory looked at, found or not, so many paths that do not answer
+    /// add up to the bound like files read.
+    fn look(&mut self) -> Result<(), Abandoned> {
+        self.files += 1;
+        if self.files > FILES {
+            return Err(Abandoned);
+        }
+        Ok(())
+    }
+
     fn file(&mut self, path: &Path, depth: usize) -> Result<(), Abandoned> {
+        self.look()?;
         // Only a regular file is opened, so a pipe named by an include cannot block the reading;
         // anything missing or unreadable is skipped as OpenSSH skips a missing include.
         if !fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) {
@@ -87,10 +184,6 @@ impl Reading<'_> {
             return Ok(());
         };
         if depth > DEPTH || self.chain.contains(&identity) {
-            return Err(Abandoned);
-        }
-        self.files += 1;
-        if self.files > FILES {
             return Err(Abandoned);
         }
         let Ok(file) = File::open(path) else {
@@ -182,6 +275,7 @@ impl Reading<'_> {
             globbed = true;
             let mut matched = Vec::new();
             for directory in &found {
+                self.look()?;
                 let Ok(entries) = fs::read_dir(directory) else {
                     continue;
                 };
