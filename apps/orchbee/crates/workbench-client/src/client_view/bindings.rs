@@ -241,13 +241,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         desc: PrefixDesc::LastPanel,
     },
     PrefixGroup {
-        members: &[
-            member(key(KeyCode::Char('(')), ClientAction::PreviousPresentation),
-            member(key(KeyCode::Char(')')), ClientAction::NextPresentation),
-        ],
-        desc: PrefixDesc::PresentationSelect,
-    },
-    PrefixGroup {
         members: &[member(key(KeyCode::Char('z')), ClientAction::ToggleZoom)],
         desc: PrefixDesc::PanelZoom,
     },

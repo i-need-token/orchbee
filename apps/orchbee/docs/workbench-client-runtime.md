@@ -2342,7 +2342,7 @@ Pre-cleanup refusal restores the previous live member; unavailable attach remain
 Sibling viewers may be reattached by this initial complete-anchor cleanup. Child attachment uses
 binding-only provenance and cannot inherit a primary terminal creation outcome.
 
-`Ctrl+b (` / `Ctrl+b )` select previous/next Presentation, wrap in canonical order, and are no-ops with one member. The shared help registry provides both localized descriptions. Stable
+Previous/next Presentation has no default key; the selection wraps in canonical order and is a no-op with one member. Stable
 Presentation targeting serves Agent focus. Rendered label/count and attention refer to the
 chosen binding; Panel movement and Close still operate on the complete Panel. The report lane queries
 the selected Presentation and correlates its owning Panel and binding under both revision fences.

@@ -40,8 +40,6 @@ pub(crate) enum ShortcutLabel {
     PreviousTab,
     PreviousWorkspace,
     NextWorkspace,
-    PreviousTerminal,
-    NextTerminal,
     LiteralPrefix,
     CancelPrefix,
     PointerCapture,
@@ -323,16 +321,6 @@ impl Locale {
             ShortcutLabel::NextWorkspace => match self {
                 Self::EnUs => "Select next Workspace",
                 Self::ZhCn => "选择下一个工作区",
-            }
-            .to_owned(),
-            ShortcutLabel::PreviousTerminal => match self {
-                Self::EnUs => "Select previous terminal in panel",
-                Self::ZhCn => "选择面板内上一个终端",
-            }
-            .to_owned(),
-            ShortcutLabel::NextTerminal => match self {
-                Self::EnUs => "Select next terminal in panel",
-                Self::ZhCn => "选择面板内下一个终端",
             }
             .to_owned(),
             ShortcutLabel::LiteralPrefix => match self {

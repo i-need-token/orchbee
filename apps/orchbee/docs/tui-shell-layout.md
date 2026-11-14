@@ -811,8 +811,7 @@ the space between the two targets opens the Tab list too. Pressing that space fi
 the Tabs button fills it, and the count-only button brightens as an icon action. On the one-row bar
 both buttons drop the blank cell inside each bracket (`[»]`, `[Tabs 8]`) and sit at the bar's
 edges. Without a native Workbench Client the row keeps the ordinary strip. The
-multiple-Presentation selector is not on the bar; `Ctrl+b (` and `Ctrl+b )` still switch
-Presentations.
+multiple-Presentation selector is not on the bar.
 
 ## Tab list
 

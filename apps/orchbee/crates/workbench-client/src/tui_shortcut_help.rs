@@ -363,8 +363,6 @@ fn local_action_title(locale: Locale, action: &PrefixAction) -> String {
         PrefixAction::Client(A::SelectPreviousTab) => ShortcutLabel::PreviousTab,
         PrefixAction::Client(A::SelectPreviousContext) => ShortcutLabel::PreviousWorkspace,
         PrefixAction::Client(A::SelectNextContext) => ShortcutLabel::NextWorkspace,
-        PrefixAction::Client(A::PreviousPresentation) => ShortcutLabel::PreviousTerminal,
-        PrefixAction::Client(A::NextPresentation) => ShortcutLabel::NextTerminal,
         PrefixAction::Client(A::ForwardLiteralPrefix) => ShortcutLabel::LiteralPrefix,
         PrefixAction::Client(A::DismissPrefix) => ShortcutLabel::CancelPrefix,
         PrefixAction::Client(A::TogglePointerCapture) => ShortcutLabel::PointerCapture,
