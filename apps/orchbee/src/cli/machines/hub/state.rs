@@ -166,8 +166,11 @@ impl Hub {
         if held {
             self.lifetime.detach();
         }
-        // An episode the connection claimed ends with its attempt.
+        // An episode the connection claimed ends with its attempt; its drafts go with it.
         self.machines(|machine, cx| machine.forget(id, cx));
+        let conditions = self.conditions();
+        let dropped = self.machines.drop_owned(id, &conditions);
+        self.publish(dropped);
         self.peer_left(id);
     }
 
@@ -289,6 +292,17 @@ impl Hub {
         self.publish(outcome);
     }
 
+    /// Drops the draft `id` after `transition`, sends what changed and applies the effects.
+    pub(super) fn drop_draft(
+        &mut self,
+        id: &MachineId,
+        transition: impl FnOnce(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
+    ) {
+        let conditions = self.conditions();
+        let outcome = self.machines.drop_draft(id, &conditions, transition);
+        self.publish(outcome);
+    }
+
     /// As [`Self::machine`], for the Machine the carrier `carrier` belongs to.
     pub(super) fn machine_of(
         &mut self,
@@ -318,6 +332,17 @@ impl Hub {
     pub(super) fn publish(&mut self, outcome: Outcome) {
         for event in &outcome.events {
             self.broadcast(event);
+        }
+        // A draft's events reach its owner alone, and only while it watches.
+        for (owner, event) in outcome.owned {
+            if let Some(peer) = self.peers.get(&owner).filter(|peer| peer.watch) {
+                let mut wire = peer.line.lock();
+                if wire.open {
+                    let _queued = wire.connection.event(event);
+                    drop(wire);
+                    peer.line.wake();
+                }
+            }
         }
         for effect in outcome.effects {
             self.apply(effect);

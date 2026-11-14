@@ -242,6 +242,9 @@ pub(super) struct Machine {
     /// A `command` episode was dismissed: none is offered until a `user` request or until no
     /// connection asks.
     muted: bool,
+    /// The connection a draft Machine belongs to: only it sees the Machine, its events and its
+    /// login episodes, until a reread catalog holds the Machine.
+    owner: Option<u64>,
 }
 
 impl Machine {
@@ -261,7 +264,32 @@ impl Machine {
             waiters: Vec::new(),
             holds: Holds::default(),
             muted: false,
+            owner: None,
         }
+    }
+
+    /// A draft Machine of the connection `owner`: one not yet in the catalog, reached by `route`.
+    pub(super) fn draft(id: MachineId, route: Route, owner: u64) -> Self {
+        let mut machine = Self::new(id, Kind::Ssh(route));
+        machine.owner = Some(owner);
+        machine
+    }
+
+    /// The connection a draft Machine belongs to; `None` for a catalog Machine.
+    pub(super) const fn owner(&self) -> Option<u64> {
+        self.owner
+    }
+
+    /// Whether this draft reaches the record `kind` describes: a reread catalog holding it so
+    /// makes it an ordinary Machine.
+    pub(super) fn drafts(&self, kind: &Kind) -> bool {
+        self.owner.is_some() && self.kind == *kind
+    }
+
+    /// The catalog now holds this draft as it is: it becomes an ordinary Machine, keeping its
+    /// link, its episode and its history.
+    pub(super) const fn promote(&mut self) {
+        self.owner = None;
     }
 
     pub(super) const fn id(&self) -> &MachineId {
@@ -270,6 +298,11 @@ impl Machine {
 
     pub(super) const fn state(&self) -> &MachineState {
         &self.state
+    }
+
+    /// How the hub reaches the Machine.
+    pub(super) const fn kind(&self) -> &Kind {
+        &self.kind
     }
 
     /// The record's kind, taken from a Machine read only to be reconciled into another.
@@ -289,7 +322,7 @@ impl Machine {
                 self.architecture.clone(),
             )
             .ok(),
-            draft: false,
+            draft: self.owner.is_some(),
         })
     }
 

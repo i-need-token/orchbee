@@ -8,7 +8,7 @@
 use super::super::shared_carrier::frames;
 use super::{
     catalog::Machines,
-    machine::{Answers, Waiter},
+    machine::{Answers, Kind, Machine, Route, Waiter},
     state::{Hub, Line, Shared},
     stop,
 };
@@ -17,10 +17,11 @@ use orchbee_machine_protocol::{
     Delivery, FrameDecoder, Id, Message,
     hub::{
         AttachOutcome, ClaimOutcome, Connect, ConnectFailure, ConnectOutcome, ConnectResult,
-        DisconnectOutcome, DismissOutcome, MachineState, Origin, ReloadOutcome, Reply, Request,
-        StopSessionOutcome,
+        DisconnectOutcome, DismissOutcome, Draft, MachineState, Origin, ReloadOutcome, Reply,
+        Request, StopSessionOutcome,
     },
 };
+use orchbee_workbench_client::application::machines::valid_target;
 use std::{
     io::{self, Read, Write},
     sync::Arc,
@@ -218,7 +219,7 @@ fn deliver(
 fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
     let closing = hub.lifetime.is_closing();
     let reply = match body {
-        Request::Attach(_) if closing => Some(Reply::Attach(AttachOutcome::Stopping)),
+        Request::Attach(_) if closing => Reply::Attach(AttachOutcome::Stopping),
         Request::Attach(attach) => {
             let Some(peer) = hub.peers.get_mut(&id) else {
                 return;
@@ -262,7 +263,7 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
                 hub.machines(|machine, cx| machine.stopped_asking(id, cx));
             }
             if watching {
-                let events = hub.machines.events();
+                let events = hub.machines.events(id);
                 let mut wire = line.lock();
                 for event in events {
                     let _queued = wire.connection.event(event);
@@ -270,31 +271,46 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             }
             return;
         }
-        Request::Connect(connect) => match connect_reply(&hub.machines, &connect, closing) {
-            Some(reply) => Some(reply),
-            None if connect.draft.is_some() => None,
+        Request::Connect(connect) => match connect_reply(&hub.machines, &connect, id, closing) {
+            Some(reply) => reply,
             None => {
                 let answers = match connect.origin {
                     Origin::User => Answers::User,
                     Origin::Command { answers: true } => Answers::Command,
                     Origin::Command { answers: false } => Answers::Never,
                 };
+                // A new draft is this connection's until the catalog holds it.
+                if let Some(route) = connect.draft.as_ref().and_then(route)
+                    && hub.machines.state(&connect.machine).is_none()
+                    && hub.machines.draft(&connect.machine).is_none()
+                {
+                    hub.machines
+                        .add_draft(Machine::draft(connect.machine.clone(), route, id));
+                }
                 let waiter = Waiter::new(id, request, answers);
                 hub.machine(&connect.machine, |machine, cx| machine.connect(waiter, cx));
                 return;
             }
         },
-        Request::Disconnect { .. } if closing => {
-            Some(Reply::Disconnect(DisconnectOutcome::Stopping))
-        }
+        Request::Disconnect { .. } if closing => Reply::Disconnect(DisconnectOutcome::Stopping),
+        // Disconnecting a draft drops it; another connection's draft is not there for this one.
         Request::Disconnect { machine } if hub.machines.state(&machine).is_none() => {
-            Some(Reply::Disconnect(DisconnectOutcome::NotFound))
+            if hub
+                .machines
+                .draft(&machine)
+                .is_some_and(|draft| draft.owner() == Some(id))
+            {
+                hub.drop_draft(&machine, |machine, _| machine.disconnect());
+                Reply::Disconnect(DisconnectOutcome::Disconnected)
+            } else {
+                Reply::Disconnect(DisconnectOutcome::NotFound)
+            }
         }
         Request::Disconnect { machine } => {
             hub.machine(&machine, |machine, _| machine.disconnect());
-            Some(Reply::Disconnect(DisconnectOutcome::Disconnected))
+            Reply::Disconnect(DisconnectOutcome::Disconnected)
         }
-        Request::Claim { .. } if closing => Some(Reply::Claim(ClaimOutcome::Stopping)),
+        Request::Claim { .. } if closing => Reply::Claim(ClaimOutcome::Stopping),
         Request::Claim { login } => {
             let mut outcome = ClaimOutcome::Ended;
             if let Some(machine) = hub
@@ -308,9 +324,9 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
                     effects
                 });
             }
-            Some(Reply::Claim(outcome))
+            Reply::Claim(outcome)
         }
-        Request::Dismiss { .. } if closing => Some(Reply::Dismiss(DismissOutcome::Stopping)),
+        Request::Dismiss { .. } if closing => Reply::Dismiss(DismissOutcome::Stopping),
         Request::Dismiss { login } => {
             let mut outcome = DismissOutcome::Ended;
             if let Some(machine) = hub
@@ -324,23 +340,33 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
                     effects
                 });
             }
-            Some(Reply::Dismiss(outcome))
+            Reply::Dismiss(outcome)
         }
         // `deliver` hands `reload` and `stop-session` to their own paths.
-        Request::Reload => Some(Reply::Reload(ReloadOutcome::Stopping)),
-        Request::StopSession { .. } => Some(Reply::StopSession(StopSessionOutcome::Stopping)),
+        Request::Reload => Reply::Reload(ReloadOutcome::Stopping),
+        Request::StopSession { .. } => Reply::StopSession(StopSessionOutcome::Stopping),
     };
-    let mut wire = line.lock();
-    let _answered = match reply {
-        Some(reply) => wire.connection.reply(request, reply),
-        // A request this build does not serve: a draft.
-        None => wire.connection.unsupported(request),
-    };
+    let _answered = line.lock().connection.reply(request, reply);
 }
 
-/// The `connect-result` the hub gives without asking the Machine, or none when a draft reads
-/// `unsupported` or the Machine itself answers.
-fn connect_reply(machines: &Machines, connect: &Connect, closing: bool) -> Option<Reply> {
+/// Where a draft goes, when its target passes the catalog record's own rules.
+fn route(draft: &Draft) -> Option<Route> {
+    valid_target(draft.target.as_str()).then(|| Route {
+        target: draft.target.as_str().to_owned(),
+        session: draft.session.clone(),
+    })
+}
+
+/// The `connect-result` the hub gives without asking the Machine, or none when the Machine itself
+/// answers. A draft is `invalid-draft` when its target breaks the record's rules or its id names
+/// a Machine it does not describe, or another connection's draft; a draft the catalog already
+/// holds as described connects as that Machine.
+fn connect_reply(
+    machines: &Machines,
+    connect: &Connect,
+    peer: u64,
+    closing: bool,
+) -> Option<Reply> {
     let result = |failure, state: Option<&MachineState>| {
         Some(Reply::Connect(ConnectResult {
             outcome: ConnectOutcome::NotOnline(failure),
@@ -350,8 +376,24 @@ fn connect_reply(machines: &Machines, connect: &Connect, closing: bool) -> Optio
     if closing {
         return result(ConnectFailure::Stopping, None);
     }
-    if connect.draft.is_some() {
-        return None;
+    if let Some(draft) = &connect.draft {
+        let Some(route) = route(draft) else {
+            return result(ConnectFailure::InvalidDraft, None);
+        };
+        let kind = Kind::Ssh(route);
+        let described = match (
+            machines.state(&connect.machine),
+            machines.draft(&connect.machine),
+        ) {
+            (Some(_), _) => machines.saved_as(&connect.machine, &kind),
+            (None, Some(other)) => other.owner() == Some(peer) && other.drafts(&kind),
+            (None, None) => true,
+        };
+        if !described {
+            return result(ConnectFailure::InvalidDraft, None);
+        }
+        // A draft not yet saved is connected as itself; a saved one goes on as its record.
+        machines.state(&connect.machine)?;
     }
     match machines.state(&connect.machine) {
         None => result(ConnectFailure::NotFound, None),
