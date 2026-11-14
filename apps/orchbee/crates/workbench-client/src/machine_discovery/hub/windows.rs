@@ -337,10 +337,23 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
         match client.next(Instant::now() + POLL) {
             None => {}
             Some(Notice::Event(Event::Catalog(catalog))) => {
+                let mut unsaved = None;
                 shared.update(|state| {
-                    state.view.catalog = Some(catalog.revision().get());
+                    let revision = catalog.revision().get();
+                    state.view.catalog = Some(revision);
                     let listed: Vec<String> =
                         catalog.machines().iter().map(ToString::to_string).collect();
+                    // The add this TUI saved reads from the catalog at its save or later: one
+                    // that does not name it lost the record before the hub reread it, and the
+                    // draft the hub still keeps for this TUI goes.
+                    unsaved = state
+                        .saved
+                        .take_if(|(_, saved)| revision >= *saved)
+                        .map(|(machine, _)| machine)
+                        .filter(|machine| !listed.contains(machine));
+                    if let Some(machine) = &unsaved {
+                        state.view.drafts.remove(machine);
+                    }
                     state.view.states.retain(|id, _| listed.contains(id));
                     let drafts = &state.view.drafts;
                     state
@@ -348,6 +361,9 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
                         .reported
                         .retain(|id, _| listed.contains(id) || drafts.contains_key(id));
                 });
+                if let Some(machine) = unsaved {
+                    disconnect(shared, machine);
+                }
                 if let Some(client) = shared.reload_due() {
                     reload(client);
                 }
@@ -358,9 +374,18 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
             }
             // A draft Machine's events reach its owner alone: this TUI's add. A Machine's state
             // replaces the last; a saved draft reads from the catalog from its first event there.
+            // A draft that is neither the add in progress nor the add just saved was left behind
+            // by an add given up while its connect was on its way, and goes.
             Some(Notice::Event(Event::Machine(event))) if live && !closing => {
+                let id = event.machine.to_string();
+                let mut stray = false;
                 shared.update(|state| {
-                    let id = event.machine.to_string();
+                    let added = state.view.added.as_ref().map(|(machine, _, _)| machine);
+                    let saved = state.saved.as_ref().map(|(machine, _)| machine);
+                    if event.draft && added != Some(&id) && saved != Some(&id) {
+                        stray = true;
+                        return;
+                    }
                     state.view.reported.insert(
                         id.clone(),
                         Reported {
@@ -369,12 +394,15 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
                         },
                     );
                     if event.draft {
-                        state.view.drafts.insert(id, event.state);
+                        state.view.drafts.insert(id.clone(), event.state);
                     } else {
                         state.view.drafts.remove(&id);
-                        state.view.states.insert(id, event.state);
+                        state.view.states.insert(id.clone(), event.state);
                     }
                 });
+                if stray {
+                    disconnect(shared, id);
+                }
             }
             // The episodes this TUI claimed are its own; a command episode is offered to every
             // client that asks until one claims it.

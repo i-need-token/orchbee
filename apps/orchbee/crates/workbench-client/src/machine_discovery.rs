@@ -498,13 +498,13 @@ impl Discovery {
             self.hub.added = None;
         }
     }
-    /// The add in progress was saved: the hub keeps its link once it rereads the catalog, which
-    /// the next reconcile asks for.
-    pub fn add_saved(&mut self) {
+    /// The add in progress was saved in the catalog of `revision`: the hub keeps its link once it
+    /// rereads the catalog, which the next reconcile asks for.
+    pub fn add_saved(&mut self, revision: u64) {
         if self.adding.take().is_some()
             && let Some(holder) = &self.holder
         {
-            holder.settle_add();
+            holder.settle_add(revision);
         }
     }
     /// Ends `machine`'s link and login, without a confirmation; its record stays.

@@ -193,7 +193,7 @@ impl Picker {
                 let proposal = discovery.proposal()?.clone();
                 match store.map(|store| proposal.save(store)) {
                     Some(Ok((catalog, _))) => {
-                        discovery.add_saved();
+                        discovery.add_saved(catalog.revision);
                         self.manage.select = Some(proposal.id);
                         self.manage.add_focused = false;
                         self.manage.set_page(Page::List);

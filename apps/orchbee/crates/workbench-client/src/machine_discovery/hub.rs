@@ -161,6 +161,9 @@ struct State {
     /// The revision a `reload` was asked for on the current attachment.
     reloading: Option<u64>,
     next_ask: u64,
+    /// The add this TUI just saved and the catalog revision of that save, until the hub's catalog
+    /// at that revision or later says whether its reread took the draft.
+    saved: Option<(String, u64)>,
     /// The login notices of the episodes this TUI claimed, in the order they came, until
     /// discovery takes them.
     logins: Vec<Notice>,
@@ -190,6 +193,7 @@ impl Shared {
                 wanted: None,
                 reloading: None,
                 next_ask: 0,
+                saved: None,
                 logins: Vec::new(),
                 #[cfg(windows)]
                 attempts: platform::Attempts::default(),
@@ -391,9 +395,16 @@ impl Holder {
         platform::disconnect(&self.shared, machine.as_str().to_owned());
     }
 
-    /// The add was saved: the hub keeps its link once it rereads the catalog.
-    pub(super) fn settle_add(&self) {
-        self.shared.update(|state| state.view.added = None);
+    /// The add was saved in the catalog of `revision`: the hub keeps its link once it rereads the
+    /// catalog, and the holder drops the draft when that reread does not name it.
+    pub(super) fn settle_add(&self, revision: u64) {
+        self.shared.update(|state| {
+            state.saved = state
+                .view
+                .added
+                .take()
+                .map(|(machine, _, _)| (machine, revision));
+        });
     }
 
     /// Ends `machine`'s link and login without waiting; the hub's events report the result.

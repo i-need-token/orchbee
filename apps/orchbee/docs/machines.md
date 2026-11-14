@@ -279,7 +279,10 @@ count: the hub's attempt clock stops while a question is open, as for any `conne
   TUI alone. Once every check passed it saves the record and rereads the catalog at once, so the new
   row is there and selected when the form closes. A failed check gives the add up at once, and so
   does Escape during the checks: the holder's `disconnect` drops the draft, and a retry takes a new
-  ID.
+  ID. The holder also asks the hub to disconnect any draft it is told about that is neither the add
+  in progress nor the add it just saved, and the add it saved when the hub's catalog at that save's
+  revision or later does not name it, so a draft whose `connect` overtook its `disconnect`, or whose
+  record went before the hub reread the catalog, does not stay connected.
 
 `ssh` never changes the person's files by itself. The `ssh` command line Orchbee builds sets
 `UpdateHostKeys=no`: since OpenSSH 8.5 the default otherwise lets `ssh` add and remove a host's keys
