@@ -1440,59 +1440,6 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
 }
 
 #[test]
-fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
-    use orchbee_workbench_protocol::{
-        Directory, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkerId,
-    };
-    let (mut ui, mailbox, _, _) = tests::context_selection::ready(true);
-    let mut snapshot = tests::context_selection::snapshot(true);
-    snapshot.terminal_contexts[0].tabs.clear();
-    let directory_id = WorkbenchDirectoryId::parse("00000000000000000000000000000901").unwrap();
-    snapshot.navigation.directories.push(Directory {
-        directory_id: directory_id.clone(),
-        worker_id: WorkerId::parse("00000000000000000000000000000902").unwrap(),
-        path: WorkbenchDirectoryPath::parse("C:/project").unwrap(),
-    });
-    snapshot.navigation.workspaces[1].primary_directory_id = Some(directory_id);
-    let cache = crate::workbench_projection::project_preferred_workspace(&snapshot).unwrap();
-    ui.state = Some(
-        WorkbenchClientState::bootstrap(cache, 1, Geometry::new(80, 24, 8, 16).unwrap())
-            .unwrap()
-            .0,
-    );
-    let origin = Origin::capture(ui.state.as_ref());
-    let location = ui.state.as_ref().unwrap().cache().navigation()[1]
-        .location
-        .clone();
-    assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
-    assert!(
-        !ui.view()
-            .action_menu()
-            .unwrap()
-            .actions
-            .contains(&MenuAction::WorkspaceDirectory)
-    );
-    assert_eq!(
-        action_availability(
-            ui.capabilities,
-            ui.state.as_ref(),
-            ui.menus.intent().unwrap().target(),
-            MenuAction::WorkspaceDirectory,
-            false,
-            None,
-            RowFacts::NONE,
-        ),
-        ActionAvailability::Hidden,
-        "Set Directory… joins only a Workspace without one"
-    );
-    assert!(ui.action_menu_active());
-    assert_eq!(ui.menus.menu.confirmed(), None);
-    assert_eq!(ui.take_action_menu_action(false), None);
-    assert_eq!(Origin::capture(ui.state.as_ref()), origin);
-    assert!(mailbox.try_recv().unwrap().is_none());
-}
-
-#[test]
 fn hidden_action_injected_after_admission_is_refused_by_the_coordinator() {
     let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
     let tab_id = ui.state.as_ref().unwrap().cache().tabs()[0]

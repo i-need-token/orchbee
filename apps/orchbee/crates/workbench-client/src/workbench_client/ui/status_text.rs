@@ -106,7 +106,7 @@ impl WorkbenchClientView<'_> {
             return NativeStatus::fact(locale.duplication_progress(progress));
         }
         let phase = view.phase_status_text(locale);
-        let can_configure_directory = view.phase() == crate::localization::DisplayPhase::Empty
+        let directory_unconfigured = view.phase() == crate::localization::DisplayPhase::Empty
             && view.workspace_directory_unconfigured();
         let text = status_with_setup(
             locale,
@@ -114,13 +114,13 @@ impl WorkbenchClientView<'_> {
             view.retirement().is_some(),
             view.notice(),
             view.setup_status(),
-            can_configure_directory,
+            directory_unconfigured,
         );
         // Only the bare fact has a short form; an appended recovery fact keeps the full text.
         let persistent = if view.retirement().is_none()
             && view.notice().is_none()
             && view.setup_status() == Some(SetupStatus::WorkspaceCreated)
-            && can_configure_directory
+            && directory_unconfigured
         {
             Some(PersistentStatus::DirectoryMissing)
         } else if text == phase
@@ -229,7 +229,7 @@ fn status_with_setup(
     retired: bool,
     notice: Option<WorkbenchClientNotice>,
     setup: Option<SetupStatus>,
-    can_configure_directory: bool,
+    directory_unconfigured: bool,
 ) -> String {
     let primary = if retired {
         Some(phase.clone())
@@ -241,7 +241,7 @@ fn status_with_setup(
             Some(fact) => format!("{primary} · {fact}"),
             None => primary,
         },
-        (None, Some(SetupStatus::WorkspaceCreated)) if can_configure_directory => {
+        (None, Some(SetupStatus::WorkspaceCreated)) if directory_unconfigured => {
             locale.setup_workspace_directory_action().to_owned()
         }
         (None, Some(status)) => locale.setup_status(status).to_owned(),

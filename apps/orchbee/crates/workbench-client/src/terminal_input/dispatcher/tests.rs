@@ -1457,7 +1457,6 @@ fn failed_query_or_tracking_transition_is_never_retried_or_published() {
 fn workspace_shortcuts_acquire_the_modal_lease_and_leave_exit_bindings_intact() {
     for (key, action) in [
         (b'a', ClientAction::RequestWorkspaceCreate),
-        (b'e', ClientAction::RequestWorkspaceDirectory),
         (b'r', ClientAction::RequestWorkspaceRename),
     ] {
         let calls = Rc::new(RefCell::new(Vec::new()));

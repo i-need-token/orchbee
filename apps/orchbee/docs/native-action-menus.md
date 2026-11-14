@@ -58,7 +58,7 @@ A pointer-opened menu follows the press: its frame starts at the pressed column 
 
 Object and creation context menus omit header X controls, footer hints and selection counters, and publish no hidden hit targets for those omitted controls. A context submenu cascades beside its parent as an untitled frame: Right or Enter on a submenu row, or a click on it, opens the child level with that row. The parent stays painted without input; its opening row keeps the selection fill without the marker. Left or Esc in the child, or a click anywhere on the painted parent, returns to the parent with the opening row as its candidate; a click on another enabled parent row returns with that row as the candidate instead. Esc in the root and an outside click close the whole menu. A pointer that rests 200 ms on a submenu row opens it as a click would; on a row still waiting for discovery the rest holds and opens it when discovery enables the row, without another movement. While a child is open, a pointer that stays still for 300 ms over another enabled parent row returns there as that row's click does; every movement restarts the wait, so a diagonal path toward the child may cross parent rows, and reaching the child, the opening row or the frame cancels it. Esc, outside dismissal and returning from a submenu retain the existing owner and draw guards. The global menu's new-Tab submenu still replaces its parent and carries the query, and the global menu keeps its title and discovery controls.
 
-GUI Clients take these compositions: the sidebar's Project and Workspace row menus and the panel menus in `apps/web`, and the Tab, group header and New Tab menus in `packages/tab-strip`. Set Directory… is absent while the Server offers Clients no command for it, and the GUI Tab menu has no Resume row. A Web or Desktop window opens no popup terminal yet and withholds popup configured commands; its terminal menu keeps Show Scrollback, the immutable in-window [scrollback viewer](../../../packages/terminal/docs/scrollback-viewer.md). GUI menus carry no frame title, because each menu's accessible name already names its target, and they open at the press and cascade with the platform's context-menu behavior rather than the TUI's cell geometry and timings. The New Tab button names an unnamed profile as its Settings page does. Without a Workspace it opens no menu rather than disabled rows, and a profile the window cannot start, such as a system shell other than the default, refuses with the Settings recovery notice when chosen. A GUI pane menu opens from the terminal viewport, below the terminal's own commands such as Copy and Paste, and from the panel header's options button and right-click; the header's menu has no Take control row. It says Maximize and Restore for Zoom and Split below for Split down, as the GUI's other panel commands do, and has no GUI-only row. Its rows show their shortcuts, because opening a pane menu focuses its panel.
+GUI Clients take these compositions: the sidebar's Project and Workspace row menus and the panel menus in `apps/web`, and the Tab, group header and New Tab menus in `packages/tab-strip`. The GUI Tab menu has no Resume row. A Web or Desktop window opens no popup terminal yet and withholds popup configured commands; its terminal menu keeps Show Scrollback, the immutable in-window [scrollback viewer](../../../packages/terminal/docs/scrollback-viewer.md). GUI menus carry no frame title, because each menu's accessible name already names its target, and they open at the press and cascade with the platform's context-menu behavior rather than the TUI's cell geometry and timings. The New Tab button names an unnamed profile as its Settings page does. Without a Workspace it opens no menu rather than disabled rows, and a profile the window cannot start, such as a system shell other than the default, refuses with the Settings recovery notice when chosen. A GUI pane menu opens from the terminal viewport, below the terminal's own commands such as Copy and Paste, and from the panel header's options button and right-click; the header's menu has no Take control row. It says Maximize and Restore for Zoom and Split below for Split down, as the GUI's other panel commands do, and has no GUI-only row. Its rows show their shortcuts, because opening a pane menu focuses its panel.
 
 The presentation decision consumes the root target, retained parent chain, exact menu token,
 viewport, locale, theme and owner-derived unavailable reasons. It changes no action identity,
@@ -266,10 +266,7 @@ configuration and capture invalidation still cancel browsing. Geometry follows t
 suspension lifecycle above.
 
 Availability projects existing action-owner prerequisites, without a universal
-Ready guard. Set Directory… is absent for a Workspace drawn with a directory and
-disabled when a directory is configured while the menu is open; for the current Workspace its
-original empty-state and setup-admission guards also apply. Released pointer capture disables Release
-pointer capture. Unknown asynchronous prerequisites continue through their original
+Ready guard. Released pointer capture disables Release pointer capture. Unknown asynchronous prerequisites continue through their original
 owners; the menu does not infer Git support, worker reachability or an operation
 outcome from read-only machine observations.
 
@@ -292,8 +289,8 @@ intact; execution returns the actual disposition to the same view transition.
 Setup retains the current source and focus, checks the original menu deadline at admission, and uses
 bounded preparation without timing optional human editing.
 
-Workspace menus contain Move to Project ▸, Rename Workspace (shown as Rename), Set Directory… when
-it applies, a separated Worktree section and a separated close section. The Worktree section holds
+Workspace menus contain Move to Project ▸, Rename Workspace (shown as Rename), a separated
+Worktree section and a separated close section. The Worktree section holds
 New Worktree…, which opens the New Worktree form with its defaults for the sidebar Create route
 and creates only on that form's Create, and Open
 Worktree ▸, whose submenu lists the discovered non-bare checkouts other than the Workspace's own

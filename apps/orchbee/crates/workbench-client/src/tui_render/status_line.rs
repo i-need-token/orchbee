@@ -78,7 +78,6 @@ enum StatusAction {
     CheckAgain,
     RetryClose,
     TakeControl,
-    ConfigureDirectory,
     RetryRename(LocationLabelTarget),
 }
 
@@ -1624,10 +1623,6 @@ fn action_hint(
             PrefixAction::Client(ClientAction::RequestControlTakeover),
             copy.take_control,
         ),
-        StatusAction::ConfigureDirectory => (
-            PrefixAction::Client(ClientAction::RequestWorkspaceDirectory),
-            copy.configure_directory,
-        ),
         StatusAction::RetryRename(target) => (
             PrefixAction::Client(match target {
                 LocationLabelTarget::Project => ClientAction::RequestProjectRename,
@@ -1706,9 +1701,6 @@ fn native_status_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> 
         };
     }
     match native.setup_status() {
-        Some(SetupStatus::WorkspaceCreated) if native.workspace_directory_unconfigured() => {
-            vec![StatusAction::ConfigureDirectory]
-        }
         Some(SetupStatus::DirectoryAccepted) => vec![StatusAction::CreateTab],
         // The refused text is retained for this owner; the retry stays a separate,
         // droppable hint so the short refusal fact keeps priority.

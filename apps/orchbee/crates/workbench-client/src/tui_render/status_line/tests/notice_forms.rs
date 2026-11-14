@@ -360,7 +360,6 @@ fn every_client_notice() -> Vec<Notice> {
             Action::CreateWorktree,
             Action::OpenWorktree,
             Action::CloseWorkspace,
-            Action::ConfigureWorkspaceDirectory,
             Action::RenameWorkspace,
             Action::RenameProject,
             Action::RenameTab,
@@ -394,7 +393,6 @@ fn every_client_notice() -> Vec<Notice> {
                 | Action::CreateWorktree
                 | Action::OpenWorktree
                 | Action::CloseWorkspace
-                | Action::ConfigureWorkspaceDirectory
                 | Action::RenameWorkspace
                 | Action::RenameProject
                 | Action::RenameTab

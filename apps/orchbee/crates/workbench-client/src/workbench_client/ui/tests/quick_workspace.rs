@@ -951,11 +951,7 @@ fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
 #[test]
 fn unsupported_directory_entry_never_queues_preparation_or_creates_a_draft() {
     use crate::tui_capabilities::{Capabilities, Capability};
-    for action in [
-        ClientAction::RequestQuickWorkspace,
-        ClientAction::CreateTab,
-        ClientAction::RequestWorkspaceDirectory,
-    ] {
+    for action in [ClientAction::RequestQuickWorkspace, ClientAction::CreateTab] {
         let (mut ui, mailbox, _, _) = no_workspace();
         ui.capabilities = Capabilities::none();
         assert_eq!(

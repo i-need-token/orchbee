@@ -38,7 +38,6 @@ impl SetupToken {
 pub(crate) enum SetupIntent {
     Organize(Box<WorkspaceOrganizationRequest>),
     TabGroupName(Box<orchbee_workbench_protocol::TabConfiguration>),
-    ConfigureDirectory,
     RenameLocation(LocationLabelTarget),
     RenameProject(Box<ProjectRenameRequest>),
 }
@@ -72,17 +71,9 @@ pub(crate) use draft::{
     LocationLabelStatus, LocationLabelTarget, SetupDraftView, SetupEdit, SetupStage, SetupStatus,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchDirectoryPath,
-    WorkbenchLabel, WorkbenchProjectId, WorkbenchRequestId, WorkbenchSnapshotOutcome,
+    ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchLabel,
+    WorkbenchProjectId, WorkbenchRequestId, WorkbenchSnapshotOutcome,
 };
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DirectoryConfigurationUnavailable {
-    WorkspaceRequired,
-    Configured,
-    EmptyRequired,
-    Busy,
-}
 
 #[derive(Default)]
 pub(super) struct SetupState {
@@ -277,28 +268,6 @@ impl WorkbenchClientState {
             ClientContextLocation::Workspace { .. }
         ) && self.cache.directory().is_none()
     }
-    /// Read-only projection of the existing first-directory draft admission.
-    pub(crate) fn directory_configuration_unavailable(
-        &self,
-    ) -> Option<DirectoryConfigurationUnavailable> {
-        if !matches!(
-            self.cache.location(),
-            ClientContextLocation::Workspace { .. }
-        ) {
-            Some(DirectoryConfigurationUnavailable::WorkspaceRequired)
-        } else if self.cache.directory().is_some() {
-            Some(DirectoryConfigurationUnavailable::Configured)
-        } else if self.setup_blocks_structure()
-            || !self.setup_authority_available()
-            || !self.invariant_holds()
-        {
-            Some(DirectoryConfigurationUnavailable::Busy)
-        } else if !matches!(self.phase, ClientPhase::Empty) {
-            Some(DirectoryConfigurationUnavailable::EmptyRequired)
-        } else {
-            None
-        }
-    }
     pub(crate) fn workspace_directory_path(&self) -> Option<&str> {
         self.cache
             .directory()
@@ -408,21 +377,6 @@ impl WorkbenchClientState {
                     }),
                 }
             }
-            SetupStage::DirectoryPath => {
-                let ClientContextLocation::Workspace { workspace_id, .. } = self.cache.location()
-                else {
-                    return None;
-                };
-                if !matches!(self.phase, ClientPhase::Empty)
-                    || !self.workspace_directory_unconfigured()
-                {
-                    return None;
-                }
-                WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                    workspace_id: workspace_id.clone(),
-                    path: WorkbenchDirectoryPath::parse(draft.editor.text()).ok()?,
-                }
-            }
             SetupStage::ProjectRename => WorkbenchAction::ProjectRename {
                 project_id: draft.project.clone()?,
                 label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
@@ -484,7 +438,7 @@ impl WorkbenchClientState {
             .setup
             .draft
             .take()
-            .filter(|draft| draft.quick.is_some() || draft.stage == SetupStage::DirectoryPath)
+            .filter(|draft| draft.quick.is_some())
             .map(|draft| (operation.generation, draft));
         self.setup.deadlines = Some(operation.deadlines);
         self.pending_refresh = Some(super::PendingRefreshFlight::recovery(operation.generation));

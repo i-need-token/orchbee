@@ -207,14 +207,14 @@ review the actual sampled path and supply an existing folder, including Unicode 
 without changing a global shell profile. This directory-review entry is scoped to the Windows
 TUI; GUI creation keeps its existing directory-selection owner and the shared launch contract.
 
-The Workspace Directory action (`Ctrl+b e` by default) accepts the first directory only for an
-Empty, unconfigured Workspace. The path is an existing absolute directory; no shell expansion,
-filesystem creation or home fallback occurs. Directory acceptance alone does not launch a shell.
-The Empty-workbench guidance keeps the directory as a localized fact and renders the configured
-effective Workspace Directory or Create Tab chord through the shared key-hint component only while
-no capture owner is active. Its label is the action's shortcut-help title. Empty guidance appears
-only for a connected Client, so it never repeats the help table's connection qualifier. The menu and
-draft share the same pure admission query for configured, nonempty, absent and busy targets.
+The TUI offers no way to give an existing Workspace its first directory; `orchbee workspace
+accept-directory` remains that route for an Empty, unconfigured Workspace, and New Workspace in
+directory… covers the need in the TUI. For an Empty Workspace with a directory, the Empty-workbench
+guidance keeps the directory as a localized fact and renders the configured effective Create Tab
+chord through the shared key-hint component only while no capture owner is active. Its label is the
+action's shortcut-help title. Empty guidance appears only for a connected Client, so it never
+repeats the help table's connection qualifier. An Empty Workspace without a directory shows only the
+fact that none is configured, with no hint, as the GUI does.
 
 [Location label editing](native-location-labels.md) owns Workspace and Project rename. Labels are
 editable presentation, never selection or execution identity. Bare Windows

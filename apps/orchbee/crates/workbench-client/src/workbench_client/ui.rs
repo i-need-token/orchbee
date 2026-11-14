@@ -3271,7 +3271,6 @@ impl WorkbenchClientUi {
         if matches!(
             action,
             ClientAction::RequestWorkspaceRename
-                | ClientAction::RequestWorkspaceDirectory
                 | ClientAction::RequestWorkspaceClose
                 | ClientAction::RequestProjectRename
         ) && let Some(state) = self.state.as_mut()
@@ -3325,12 +3324,9 @@ impl WorkbenchClientUi {
                         self.request_project_close_all(project)
                     })
             }
-            ClientAction::RequestWorkspaceDirectory
-            | ClientAction::RequestWorkspaceRename
-            | ClientAction::RequestProjectRename => {
+            ClientAction::RequestWorkspaceRename | ClientAction::RequestProjectRename => {
                 use crate::workbench_state::workspace_setup::SetupIntent;
                 let intent = match action {
-                    ClientAction::RequestWorkspaceDirectory => SetupIntent::ConfigureDirectory,
                     ClientAction::RequestWorkspaceRename => {
                         SetupIntent::RenameLocation(LocationLabelTarget::Workspace)
                     }

@@ -14,8 +14,7 @@ pub(crate) fn for_action(action: &ClientAction) -> Option<Capability> {
         | ClientAction::RequestWorkspaceAtDirectory
         | ClientAction::RequestProjectQuickWorkspace
         | ClientAction::RequestWorktreeCreate
-        | ClientAction::RequestWorktreeOpen
-        | ClientAction::RequestWorkspaceDirectory => Some(Capability::DirectoryInput),
+        | ClientAction::RequestWorktreeOpen => Some(Capability::DirectoryInput),
         _ => None,
     }
 }

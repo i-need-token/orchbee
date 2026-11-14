@@ -76,7 +76,6 @@ pub(crate) enum MenuLabel {
     CloseTab,
     QuickWorkspace,
     WorkspaceAtDirectory,
-    WorkspaceDirectory,
     RenameWorkspace,
     RenameProject,
     WorkspaceProjects,
@@ -128,8 +127,6 @@ pub(crate) enum MenuRowNote {
 /// Why the action owner has withheld a menu action; never inferred from translated text.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum MenuUnavailable {
-    DirectoryConfigured,
-    EmptyWorkspaceRequired,
     WorkspaceRequired,
     FocusedPanelRequired,
     /// No Panel lies on that side of the focused one.
@@ -318,20 +315,6 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::NoMatchingTabs, false) => "没有符合此关闭操作的标签页。",
             (Self::EnUs, MenuUnavailable::NoMatchingTabs, true) => "No Tabs",
             (Self::ZhCn, MenuUnavailable::NoMatchingTabs, true) => "无匹配标签页",
-            (Self::EnUs, MenuUnavailable::DirectoryConfigured, false) => {
-                "This Workspace already has a directory."
-            }
-            (Self::ZhCn, MenuUnavailable::DirectoryConfigured, false) => "此工作区已配置目录。",
-            (Self::EnUs, MenuUnavailable::DirectoryConfigured, true) => "Dir set",
-            (Self::ZhCn, MenuUnavailable::DirectoryConfigured, true) => "目录已设置",
-            (Self::EnUs, MenuUnavailable::EmptyWorkspaceRequired, false) => {
-                "Only an empty Workspace can set a directory."
-            }
-            (Self::ZhCn, MenuUnavailable::EmptyWorkspaceRequired, false) => {
-                "只能为空工作区配置目录。"
-            }
-            (Self::EnUs, MenuUnavailable::EmptyWorkspaceRequired, true) => "Needs empty",
-            (Self::ZhCn, MenuUnavailable::EmptyWorkspaceRequired, true) => "需空工作区",
             (Self::EnUs, MenuUnavailable::WorkspaceRequired, false) => {
                 "Select or create a workspace before using this action."
             }
@@ -599,8 +582,6 @@ impl Locale {
             (Self::ZhCn, DeleteProject) => "解散项目",
             (Self::EnUs, CloseProjectWorkspaces) => "Close all Workspaces…",
             (Self::ZhCn, CloseProjectWorkspaces) => "关闭项目内全部工作区…",
-            (Self::EnUs, WorkspaceDirectory) => "Set Directory…",
-            (Self::ZhCn, WorkspaceDirectory) => "设置目录…",
             (Self::EnUs, CloseWorkspace) => "Close Workspace…",
             (Self::ZhCn, CloseWorkspace) => "关闭工作区…",
             (Self::EnUs, NewWorkspace) => "New Workspace",

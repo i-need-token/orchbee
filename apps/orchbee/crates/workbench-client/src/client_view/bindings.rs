@@ -149,13 +149,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
     },
     PrefixGroup {
         members: &[member(
-            key(KeyCode::Char('e')),
-            ClientAction::RequestWorkspaceDirectory,
-        )],
-        desc: PrefixDesc::WorkspaceDirectory,
-    },
-    PrefixGroup {
-        members: &[member(
             key(KeyCode::Char('r')),
             ClientAction::RequestWorkspaceRename,
         )],

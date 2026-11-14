@@ -348,7 +348,6 @@ fn local_action_title(locale: Locale, action: &PrefixAction) -> String {
         PrefixAction::Client(A::ConfiguredCommand(_)) => ShortcutLabel::ConfiguredCommand,
         PrefixAction::Client(A::RequestWorkspaceClose) => ShortcutLabel::CloseWorkspace,
         PrefixAction::Client(A::RequestWorkspaceAtDirectory) => ShortcutLabel::WorkspaceAtDirectory,
-        PrefixAction::Client(A::RequestWorkspaceDirectory) => ShortcutLabel::WorkspaceDirectory,
         PrefixAction::Client(A::RequestWorktreeCreate) => ShortcutLabel::NewWorktree,
         PrefixAction::Client(A::RequestWorktreeOpen) => ShortcutLabel::OpenWorktree,
         PrefixAction::Client(A::RequestWorkspaceRename) => ShortcutLabel::RenameWorkspace,

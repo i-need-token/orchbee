@@ -271,16 +271,17 @@ fn directory_actions_only_replace_a_live_empty_panel() {
         assert!(directory_guidance(locale, Phase::Empty, true, None, true).is_none());
         let needed = directory_guidance(locale, Phase::Empty, false, None, true).unwrap();
         assert_eq!(needed.fact, locale.setup_directory_needed());
-        assert_eq!(
-            needed.action,
-            PrefixAction::Client(ClientAction::RequestWorkspaceDirectory)
-        );
-        assert_eq!(needed.label, ShortcutLabel::WorkspaceDirectory);
+        assert_eq!(needed.hint, None);
         let ready =
             directory_guidance(locale, Phase::Empty, false, Some("/workspace"), false).unwrap();
         assert_eq!(ready.fact, locale.setup_directory_ready("/workspace"));
-        assert_eq!(ready.action, PrefixAction::Client(ClientAction::CreateTab));
-        assert_eq!(ready.label, ShortcutLabel::NewTab);
+        assert_eq!(
+            ready.hint,
+            Some((
+                PrefixAction::Client(ClientAction::CreateTab),
+                ShortcutLabel::NewTab
+            ))
+        );
     }
 }
 
@@ -351,12 +352,7 @@ fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_o
     let needed = directory_guidance(Locale::EnUs, DisplayPhase::Empty, false, None, true).unwrap();
     let visible = draw(&needed, true);
     assert!(visible.contains("No directory configured."));
-    assert!(
-        visible.contains(&crate::terminal_events::keys::tests::host_label(
-            "Ctrl+a e Set Workspace directory"
-        ))
-    );
-    assert!(!visible.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+B e")));
+    assert!(!visible.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+a")));
 
     let covered = draw(&ready, false);
     assert!(covered.contains("Directory: C:/workspace"));

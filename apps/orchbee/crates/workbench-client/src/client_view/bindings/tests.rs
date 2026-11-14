@@ -12,7 +12,6 @@ fn press_mods(code: KeyCode, mods: Modifiers) -> KeyEvent {
 fn every_existing_prefix_key_resolves_to_its_action() {
     let cases = [
         ('a', ClientAction::RequestWorkspaceCreate),
-        ('e', ClientAction::RequestWorkspaceDirectory),
         ('r', ClientAction::RequestWorkspaceRename),
         ('x', ClientAction::RequestCloseTab),
         (',', ClientAction::RequestRenameTab),

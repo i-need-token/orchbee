@@ -26,7 +26,6 @@ pub(crate) enum ShortcutLabel {
     ConfiguredCommand,
     CloseWorkspace,
     WorkspaceAtDirectory,
-    WorkspaceDirectory,
     NewWorktree,
     OpenWorktree,
     RenameWorkspace,
@@ -250,11 +249,6 @@ impl Locale {
             ShortcutLabel::WorkspaceAtDirectory => match self {
                 Self::EnUs => "New Workspace in directory",
                 Self::ZhCn => "在指定目录新建工作区",
-            }
-            .to_owned(),
-            ShortcutLabel::WorkspaceDirectory => match self {
-                Self::EnUs => "Set Workspace directory",
-                Self::ZhCn => "设置工作区目录",
             }
             .to_owned(),
             ShortcutLabel::NewWorktree => match self {

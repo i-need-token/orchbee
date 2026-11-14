@@ -205,7 +205,7 @@ additional TLA+ model.
 
 Row menus take the TUI's compositions, which [native-action-menus.md](../../../apps/orchbee/docs/native-action-menus.md) owns. The Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. New Workspace ▸ holds New Worktree… from the repository of the Project's first Workspace, a Folders group with each available directory the Project's Workspaces record, and a Git Worktrees group once Git answers. Folders follow navigation order, compare ignoring ASCII case, and show their folder name, or their full path where folder names repeat; each creates a Workspace in that directory inside the Project. While the Project records no folder, New Workspace leads and creates a Workspace in the Project at the default directory. Opening the Project menu starts Worktree discovery.
 
-The Workspace menu holds Move to Project ▸ and Rename, then New Worktree… and Open Worktree ▸ where the authority provides them, then a separated destructive Close and, once discovery allows it, Remove Worktree…. Move to Project ▸ lists the other Projects, then New Project… and, for a grouped Workspace, Remove from Project. Set Directory… is absent because the Server offers Clients no command to set a Workspace's directory.
+The Workspace menu holds Move to Project ▸ and Rename, then New Worktree… and Open Worktree ▸ where the authority provides them, then a separated destructive Close and, once discovery allows it, Remove Worktree…. Move to Project ▸ lists the other Projects, then New Project… and, for a grouped Workspace, Remove from Project.
 
 ### Created Workspace activation
 

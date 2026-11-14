@@ -378,17 +378,13 @@ impl Locale {
             (
                 Self::EnUs,
                 Some(Notice::BackendUnavailable(
-                    BackendAction::CreateWorkspace
-                    | BackendAction::QuickCreateWorkspace
-                    | BackendAction::ConfigureWorkspaceDirectory,
+                    BackendAction::CreateWorkspace | BackendAction::QuickCreateWorkspace,
                 )),
             ) => "Workspace setup unavailable · no command was sent",
             (
                 Self::ZhCn,
                 Some(Notice::BackendUnavailable(
-                    BackendAction::CreateWorkspace
-                    | BackendAction::QuickCreateWorkspace
-                    | BackendAction::ConfigureWorkspaceDirectory,
+                    BackendAction::CreateWorkspace | BackendAction::QuickCreateWorkspace,
                 )),
             ) => "工作区设置不可用 · 未发送命令",
             (
@@ -595,7 +591,6 @@ impl Locale {
                 | BackendAction::CreateWorktree
                 | BackendAction::OpenWorktree
                 | BackendAction::CloseWorkspace
-                | BackendAction::ConfigureWorkspaceDirectory
                 | BackendAction::RenameWorkspace
                 | BackendAction::RenameProject
                 | BackendAction::RenameTab

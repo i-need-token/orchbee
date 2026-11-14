@@ -40,7 +40,6 @@ pub(crate) enum PrefixDesc {
     WorktreeCreate,
     WorktreeOpen,
     WorkspaceClose,
-    WorkspaceDirectory,
     WorkspaceRename,
     RenameTab,
     CloseTab,
@@ -110,7 +109,6 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
             "Close current Workspace and its terminals (asks for confirmation)"
         }
         PrefixDesc::WorkspaceCreate => "Create a Workspace and enter its first terminal",
-        PrefixDesc::WorkspaceDirectory => "Configure an empty Workspace's first directory",
         PrefixDesc::WorkspaceRename => "Rename current Workspace",
         PrefixDesc::RenameTab => "Rename current Tab",
         PrefixDesc::CloseTab => "Close current Tab / retry Close (confirms for all Clients)",
@@ -183,7 +181,6 @@ pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::WorktreeOpen => "打开已有 Git 检出目录",
         PrefixDesc::WorkspaceClose => "关闭当前工作区及其终端（需要确认）",
         PrefixDesc::WorkspaceCreate => "创建工作区并进入第一个终端",
-        PrefixDesc::WorkspaceDirectory => "配置空工作区的首个目录",
         PrefixDesc::WorkspaceRename => "重命名当前工作区",
         PrefixDesc::RenameTab => "重命名当前标签页",
         PrefixDesc::CloseTab => "关闭当前标签页 / 重试关闭（确认后影响所有客户端）",

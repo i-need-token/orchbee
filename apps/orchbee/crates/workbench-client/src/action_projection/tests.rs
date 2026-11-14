@@ -152,10 +152,6 @@ fn menu_and_binding_presenters_share_common_action_identity() {
             PrefixAction::Client(ClientAction::RequestQuickWorkspace),
         ),
         (
-            MenuAction::WorkspaceDirectory,
-            PrefixAction::Client(ClientAction::RequestWorkspaceDirectory),
-        ),
-        (
             MenuAction::RenameWorkspace,
             PrefixAction::Client(ClientAction::RequestWorkspaceRename),
         ),

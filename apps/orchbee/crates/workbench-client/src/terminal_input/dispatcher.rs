@@ -208,10 +208,7 @@ impl InputDispatcher {
             ModalEpoch::Setup(token) => {
                 match port.native_capture_context(WorkbenchCaptureOwner::Setup) {
                     Some(CaptureContext::Setup(context)) if context.token == token => {
-                        if matches!(
-                            context.stage,
-                            SetupStage::DirectoryPath | SetupStage::QuickDirectory
-                        ) {
+                        if context.stage == SetupStage::QuickDirectory {
                             context.remaining_bytes
                         } else {
                             context.remaining_scalars
@@ -2426,7 +2423,6 @@ impl InputDispatcher {
                     | ClientAction::RequestQuickWorkspace
                     | ClientAction::RequestWorkspaceAtDirectory
                     | ClientAction::RequestProjectQuickWorkspace
-                    | ClientAction::RequestWorkspaceDirectory
                     | ClientAction::RequestWorkspaceRename
                     | ClientAction::RequestProjectRename
                     | ClientAction::RequestTargetedProjectRename
@@ -2793,12 +2789,7 @@ impl InputDispatcher {
             let events = self.decoder.cancel(now);
             self.apply_events(view, port, events, now);
         }
-        let capacity = if setup.is_some_and(|context| {
-            matches!(
-                context.stage,
-                SetupStage::DirectoryPath | SetupStage::QuickDirectory
-            )
-        }) {
+        let capacity = if setup.is_some_and(|context| context.stage == SetupStage::QuickDirectory) {
             ModalCapacity::Bytes4096
         } else {
             ModalCapacity::Scalars512

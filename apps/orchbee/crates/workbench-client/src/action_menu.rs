@@ -120,12 +120,10 @@ pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
     MenuAction::CloseSelectedTabs,
     MenuAction::CloseOtherTabs,
 ];
-/// Set Directory… is hidden once a directory exists; the Worktree rows wait for Git discovery,
-/// which may also add Remove Worktree….
+/// The Worktree rows wait for Git discovery, which may also add Remove Worktree….
 pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::WorkspaceProjects,
     MenuAction::RenameWorkspace,
-    MenuAction::WorkspaceDirectory,
     MenuAction::NewWorktree,
     MenuAction::WorkspaceWorktrees,
     MenuAction::DeleteWorkspace,

@@ -127,7 +127,6 @@ fn action_availability(
     resume_permit: Option<&TabCloseResumePermit>,
     facts: RowFacts,
 ) -> ActionAvailability<MenuUnavailable> {
-    use crate::workbench_state::workspace_setup::DirectoryConfigurationUnavailable;
     // Open Worktree ▸ needs the same host effect as the global Open Worktree…, and the new-Tab
     // menu's Agent rows the same as Start Agent….
     let effect = match action {
@@ -342,37 +341,7 @@ fn action_availability(
     if action == MenuAction::ReleasePointer && pointer_released {
         return ActionAvailability::Disabled(MenuUnavailable::PointerReleased);
     }
-    if action != MenuAction::WorkspaceDirectory {
-        return ActionAvailability::Enabled;
-    }
-    let Target::Workspace { location, source } = target else {
-        return ActionAvailability::Enabled;
-    };
-    // The row applies only while the Workspace has no directory.
-    if matches!(
-        source,
-        MenuContextSource::Workspace {
-            directory: Some(_),
-            ..
-        }
-    ) {
-        return ActionAvailability::Hidden;
-    }
-    let Some(state) = state.filter(|state| state.cache().location() == location) else {
-        return ActionAvailability::Enabled;
-    };
-    ActionAvailability::from_disabled_reason(state.directory_configuration_unavailable().map(
-        |reason| match reason {
-            DirectoryConfigurationUnavailable::Configured => MenuUnavailable::DirectoryConfigured,
-            DirectoryConfigurationUnavailable::EmptyRequired => {
-                MenuUnavailable::EmptyWorkspaceRequired
-            }
-            DirectoryConfigurationUnavailable::WorkspaceRequired => {
-                MenuUnavailable::WorkspaceRequired
-            }
-            DirectoryConfigurationUnavailable::Busy => MenuUnavailable::OperationBusy,
-        },
-    ))
+    ActionAvailability::Enabled
 }
 
 /// A row that leads to a request of the setup owner, whose admission needs the refresh slot.

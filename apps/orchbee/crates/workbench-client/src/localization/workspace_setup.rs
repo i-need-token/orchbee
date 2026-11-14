@@ -11,7 +11,6 @@ pub(crate) enum SetupStage {
     QuickProject,
     QuickName,
     QuickDirectory,
-    DirectoryPath,
     ProjectRename,
     WorkspaceRename,
 }
@@ -188,8 +187,6 @@ impl Locale {
                 | SetupStage::QuickName
                 | SetupStage::QuickDirectory,
             ) => "新建工作区",
-            (Self::EnUs, SetupStage::DirectoryPath) => "Set Workspace Directory",
-            (Self::ZhCn, SetupStage::DirectoryPath) => "设置工作区目录",
             (_, SetupStage::ProjectRename) => self.location_rename_title(true),
             (_, SetupStage::WorkspaceRename) => self.location_rename_title(false),
         }
@@ -199,8 +196,6 @@ impl Locale {
         match (self, stage) {
             (Self::EnUs, SetupStage::ChooseWorkspaceProject) => "Move",
             (Self::ZhCn, SetupStage::ChooseWorkspaceProject) => "移入",
-            (Self::EnUs, SetupStage::DirectoryPath) => "Set",
-            (Self::ZhCn, SetupStage::DirectoryPath) => "设置",
             (Self::EnUs, SetupStage::ProjectRename | SetupStage::WorkspaceRename) => "Rename",
             (Self::ZhCn, SetupStage::ProjectRename | SetupStage::WorkspaceRename) => "重命名",
             (Self::EnUs, _) => "Create",
@@ -233,12 +228,6 @@ impl Locale {
         match self {
             Self::EnUs => "Recent",
             Self::ZhCn => "最近",
-        }
-    }
-    pub(crate) const fn setup_directory_help(self) -> &'static str {
-        match self {
-            Self::EnUs => "Use the full path of an existing folder.",
-            Self::ZhCn => "使用现有文件夹的完整路径。",
         }
     }
     pub(crate) const fn setup_group_name_hint(self) -> &'static str {

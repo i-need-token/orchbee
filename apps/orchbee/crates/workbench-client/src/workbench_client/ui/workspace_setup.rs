@@ -297,11 +297,6 @@ impl WorkbenchClientUi {
         &mut self,
         intent: SetupIntent,
     ) -> Option<SetupToken> {
-        if matches!(intent, SetupIntent::ConfigureDirectory)
-            && !self.admit_capability(crate::tui_capabilities::Capability::DirectoryInput)
-        {
-            return None;
-        }
         if self.retirement_failure.is_some() {
             return None;
         }

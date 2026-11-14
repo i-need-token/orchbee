@@ -8,7 +8,7 @@ use super::{
     SetupDraft, SetupIntent, SetupToken, WorkbenchClientState, WorkbenchLabel, WorkbenchProjectId,
 };
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
-use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, MAXIMUM_LABEL_LENGTH};
+use orchbee_workbench_protocol::MAXIMUM_LABEL_LENGTH;
 
 pub(crate) use crate::localization::SetupStage;
 pub(crate) use crate::localization::SetupStatus;
@@ -165,7 +165,7 @@ impl<'a> SetupDraftView<'a> {
     /// directory field. A rejected insertion reports the field's limit.
     pub(crate) fn field_errors(&self) -> [Option<crate::localization::FieldError>; 2] {
         use crate::localization::FieldError;
-        use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchTabGroupLabel};
+        use orchbee_workbench_protocol::WorkbenchTabGroupLabel;
         let name = |text: &str, valid: bool| {
             (!valid).then_some(if text.trim().is_empty() {
                 FieldError::NameRequired
@@ -194,10 +194,6 @@ impl<'a> SetupDraftView<'a> {
                 name(text, WorkbenchTabGroupLabel::parse(text).is_ok()),
                 None,
             ],
-            SetupStage::DirectoryPath => [
-                path(text, WorkbenchDirectoryPath::parse(text).is_ok()),
-                None,
-            ],
             SetupStage::QuickName | SetupStage::QuickDirectory => {
                 self.draft.quick.as_ref().map_or([None, None], |fields| {
                     [
@@ -212,13 +208,11 @@ impl<'a> SetupDraftView<'a> {
         };
         if self.draft.faulted {
             let index = usize::from(directory_stage);
-            errors[index] = Some(
-                if directory_stage || self.draft.stage == SetupStage::DirectoryPath {
-                    FieldError::PathTooLong
-                } else {
-                    FieldError::NameTooLong
-                },
-            );
+            errors[index] = Some(if directory_stage {
+                FieldError::PathTooLong
+            } else {
+                FieldError::NameTooLong
+            });
         }
         errors
     }
@@ -344,11 +338,6 @@ impl WorkbenchClientState {
         ) {
             self.clear_notice();
         }
-        if matches!(intent, SetupIntent::ConfigureDirectory)
-            && self.directory_configuration_unavailable().is_some()
-        {
-            return None;
-        }
         let mut project = self.cache.project_id().cloned();
         let mut project_rename = None;
         let mut organization = None;
@@ -419,13 +408,6 @@ impl WorkbenchClientState {
                 project_rename = Some(request);
                 (SetupStage::ProjectRename, editor)
             }
-            SetupIntent::ConfigureDirectory => (
-                SetupStage::DirectoryPath,
-                LineEditor::new(
-                    String::new(),
-                    LengthLimit::Bytes(MAXIMUM_DIRECTORY_PATH_BYTES),
-                ),
-            ),
             SetupIntent::RenameLocation(target) => {
                 let Some((owner, label)) = super::labels::location_label_owner(&self.cache, target)
                 else {

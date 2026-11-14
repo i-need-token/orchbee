@@ -25,10 +25,10 @@ use ratatui::{Frame, layout::Rect, text::Text, widgets::Paragraph};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct DirectoryGuidance {
     fact: String,
-    action: PrefixAction,
-    /// The action's discovery title. Guidance appears only for a connected Empty workbench,
-    /// so it never repeats the help table's connection qualifier.
-    label: ShortcutLabel,
+    /// The action and its discovery title; a Workspace without a directory has none. Guidance
+    /// appears only for a connected Empty workbench, so it never repeats the help table's
+    /// connection qualifier.
+    hint: Option<(PrefixAction, ShortcutLabel)>,
 }
 
 pub(super) fn directory_guidance(
@@ -43,14 +43,15 @@ pub(super) fn directory_guidance(
     }
     path.map(|path| DirectoryGuidance {
         fact: locale.setup_directory_ready(&sanitize_terminal_text(path)),
-        action: PrefixAction::Client(ClientAction::CreateTab),
-        label: ShortcutLabel::NewTab,
+        hint: Some((
+            PrefixAction::Client(ClientAction::CreateTab),
+            ShortcutLabel::NewTab,
+        )),
     })
     .or_else(|| {
         unconfigured.then(|| DirectoryGuidance {
             fact: locale.setup_directory_needed().to_owned(),
-            action: PrefixAction::Client(ClientAction::RequestWorkspaceDirectory),
-            label: ShortcutLabel::WorkspaceDirectory,
+            hint: None,
         })
     })
 }
@@ -73,16 +74,16 @@ pub(super) fn render_directory_guidance(
         Paragraph::new(fact).style(theme.style(Role::TextSecondary)),
         area,
     );
-    if !admitted {
+    let (Some((action, label)), true) = (&guidance.hint, admitted) else {
         return;
-    }
+    };
     let glyphs = match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
         #[cfg(any(test, feature = "test-support"))]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
     let Some(key) = bindings
-        .action_labels_with_glyphs(guidance.action.clone(), glyphs)
+        .action_labels_with_glyphs(action.clone(), glyphs)
         .into_iter()
         .next()
     else {
@@ -98,7 +99,7 @@ pub(super) fn render_directory_guidance(
         return;
     };
     let hint_area = Rect::new(area.x, hint_y, area.width, 1);
-    let label = locale.shortcut_label(guidance.label);
+    let label = locale.shortcut_label(*label);
     let _ = super::controls::render_key_hints(
         frame,
         hint_area,
@@ -146,7 +147,6 @@ pub(super) fn render(
         SetupStage::PreparingWorkspace => (Rect::default(), ModalPresentation::NotPresented),
         SetupStage::WorkspaceProjectName
         | SetupStage::TabGroupName
-        | SetupStage::DirectoryPath
         | SetupStage::ProjectRename
         | SetupStage::WorkspaceRename => render_form(frame, locale, draft, status, theme, hits),
     }
@@ -231,15 +231,12 @@ fn render_form(
     };
     let help = match stage {
         SetupStage::TabGroupName => Some(locale.setup_group_name_hint()),
-        SetupStage::DirectoryPath => Some(locale.setup_directory_help()),
         _ => None,
     };
     let mut lead = Vec::new();
     // The Workspace the task acts on, when the title does not name it.
-    if matches!(
-        stage,
-        SetupStage::DirectoryPath | SetupStage::WorkspaceProjectName
-    ) && let Some(workspace) = draft.workspace_label()
+    if stage == SetupStage::WorkspaceProjectName
+        && let Some(workspace) = draft.workspace_label()
     {
         lead.push(DialogRow::Target(
             locale.workspace_display_label(workspace).to_owned().into(),
@@ -271,11 +268,7 @@ fn render_form(
     let form = NameForm {
         title,
         lead,
-        field_minimum: if stage == SetupStage::DirectoryPath {
-            DialogClass::Narrow.path_width()
-        } else {
-            NAME_FIELD_WIDTH
-        },
+        field_minimum: NAME_FIELD_WIDTH,
         trailing,
         actions: &actions,
         placeholder: None,

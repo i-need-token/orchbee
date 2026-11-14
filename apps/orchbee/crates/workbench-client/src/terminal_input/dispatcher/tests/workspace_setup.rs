@@ -872,7 +872,7 @@ fn picker_owns_brackets_and_packet_tail_cannot_edit_or_submit_the_next_step() {
 #[test]
 fn replacement_token_drains_a_partial_paste_without_retargeting_or_forwarding_it() {
     let now = Instant::now();
-    let mut port = SetupPort::new(SetupStage::DirectoryPath);
+    let mut port = SetupPort::new(SetupStage::QuickDirectory);
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\x1b[200~/old/\xe9", now);
     let old = port.token();
@@ -895,7 +895,7 @@ fn replacement_token_drains_a_partial_paste_without_retargeting_or_forwarding_it
 #[test]
 fn directory_paste_uses_remaining_bytes_and_does_not_append_an_overflow_prefix() {
     let now = Instant::now();
-    let mut port = SetupPort::new(SetupStage::DirectoryPath);
+    let mut port = SetupPort::new(SetupStage::QuickDirectory);
     port.text = format!("/{}", "x".repeat(4092));
     let original = port.text.clone();
     let mut dispatcher = InputDispatcher::default();

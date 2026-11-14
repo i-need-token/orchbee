@@ -19,7 +19,6 @@ pub enum BackendAction {
     CreateWorktree,
     OpenWorktree,
     CloseWorkspace,
-    ConfigureWorkspaceDirectory,
     RenameWorkspace,
     RenameProject,
     RenameTab,

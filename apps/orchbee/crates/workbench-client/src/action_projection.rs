@@ -196,11 +196,6 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
         PrefixAction::Client(A::RequestControlTakeover) => {
             built_in("orchbee.native.panel.control.takeover", C::Pane, PANE)
         }
-        PrefixAction::Client(A::RequestWorkspaceDirectory) => built_in(
-            "orchbee.native.workspace.directory.configure",
-            C::Workspace,
-            WORKSPACE,
-        ),
         PrefixAction::Client(A::RequestWorkspaceRename) => built_in(
             "orchbee.native.workspace.rename",
             C::Workspace,
@@ -451,11 +446,6 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         ),
         A::WorkspaceAtDirectory => built_in(
             "orchbee.native.workspace.create-in-directory",
-            C::Workspace,
-            WORKSPACE,
-        ),
-        A::WorkspaceDirectory => built_in(
-            "orchbee.native.workspace.directory.configure",
             C::Workspace,
             WORKSPACE,
         ),
