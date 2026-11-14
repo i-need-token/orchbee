@@ -1520,7 +1520,12 @@ and is never reset per stage:
    on an invocation that later refuses. Rendezvous errors classify exactly like a query's
    discovery stage. A data folder the macOS or Linux admission rules refuse is `check-failed`
    `{stage:"runtime-base"}`; its text names the item at fault and the fix with the TUI's
-   startup refusal copy, while the machine document keeps only the stage.
+   startup refusal copy, while the machine document keeps only the stage. On Windows, before
+   `prepare_mode_checked`, a release or test Client outside the release store whose selected
+   Session has no Client endpoint hands the start to the store's active version and waits for it
+   under the same deadline
+   ([store start](windows-cli-configuration.md#windows-release-installation)); the steps below
+   still run and alone decide the result.
 3. **Socket budget** — every derived socket path must fit this platform's `sockaddr_un`;
    an over-budget path is `service-unavailable`
    `{stage:"runtime-directory",reason:"address-too-long"}` before any lock or admission attempt.
@@ -1537,8 +1542,9 @@ and is never reset per stage:
 5. **Probe** — the admitted probe `LocalClient` is dropped before output; a success implies
    no held session, grant, or Session identity receipt.
 
-`result.outcome` reports the branch this invocation actually took: `started` only when it
-spawned the Server child, `already-running` when an existing Session admitted the probe. A
+`result.outcome` reports the branch this invocation actually took: `started` only when it, or
+the store's Client it ran, spawned the Server child, `already-running` when an existing Session
+admitted the probe. A
 On Linux, a `timeout` answer means readiness stayed unconfirmed — before marker commit nothing was left
 behind, between commit and spawn a marker without a live owner may persist (the next
 invocation then answers `recovery-required`), and after spawn a Server may still be running;

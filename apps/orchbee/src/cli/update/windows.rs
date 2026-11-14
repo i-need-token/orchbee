@@ -41,26 +41,9 @@ pub(super) fn feed_source() -> Option<String> {
 
 /// `ORCHBEE_INSTALL_DIR`, or `%LOCALAPPDATA%\Programs\Orchbee` for release and
 /// `%LOCALAPPDATA%\Programs\<stem>` for a development or test build, so only release names the
-/// release store.
+/// release store. Session start reads the same root through the same owner.
 pub(super) fn install_root() -> io::Result<PathBuf> {
-    let path = match std::env::var_os("ORCHBEE_INSTALL_DIR") {
-        Some(value) => PathBuf::from(value),
-        None => PathBuf::from(std::env::var_os("LOCALAPPDATA").ok_or(io::ErrorKind::NotFound)?)
-            .join("Programs")
-            .join(if orchbee_local_runtime::is_release() {
-                "Orchbee"
-            } else {
-                orchbee_local_runtime::environment_stem()
-            }),
-    };
-    if !path.is_absolute()
-        || path
-            .to_str()
-            .is_none_or(|s| s.len() > 2048 || s.contains([';', '%', '\0', '\r', '\n', '"']))
-    {
-        return Err(io::ErrorKind::InvalidInput.into());
-    }
-    Ok(path)
+    orchbee_local_runtime::release_store_root(|name| std::env::var_os(name))
 }
 
 pub(super) fn open_manifest(path: &Path) -> io::Result<Option<File>> {

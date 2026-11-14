@@ -12,20 +12,18 @@
 //! Administrators owns it, as an elevated session's objects belong to Administrators, and no other
 //! account is let in.
 use super::platform;
-use orchbee_local_runtime::{PrivateCache, private_filesystem as permissions};
+// The shared store reader owns the folder and pointer names and the pointer bound, so Session start
+// and this writer spell them once.
+use orchbee_local_runtime::{
+    PrivateCache, RELEASE_POINTER as POINTER, RELEASE_POINTER_LIMIT as POINTER_LIMIT,
+    RELEASE_VERSIONS as VERSIONS, private_filesystem as permissions,
+};
 use std::{
     collections::BTreeSet,
     fs::File,
     io,
     path::{Path, PathBuf},
 };
-
-/// The folder that keeps version names apart from the fixed names beside it.
-const VERSIONS: &str = "versions";
-/// The pointer that alone names the active version.
-const POINTER: &str = "active.json";
-/// The most pointer bytes any reader accepts.
-const POINTER_LIMIT: usize = 16 * 1024;
 
 /// Exclusive writer for one store root, holding `install.lock` with pinned private ancestors.
 pub(crate) struct ReleaseStore {

@@ -46,7 +46,7 @@ installation's cohort digest — serves diagnostics and integrity; only
 | Saved machine, local Client → remote Orchbee     | `machine-link` helper, a hub Session stream, and routed command packet | Equal product version, protocols, and cohort            | [Saved machines](#saved-machines)                           |
 | Server ↔ remote Worker                           | OBCN                                                                   | Not implemented                                         | Negotiated, when ORC-297 and ORC-338 build it               |
 | Release feed → `orchbee update`                  | Release manifest                                                       | Closed, unsigned `schemaVersion: 1`; never published    | [Release manifest](#release-manifest)                       |
-| Client → runtime store                           | Store layout, active version, and Server start                         | Each Client starts its own installation's Server        | [Shared runtime store](#shared-runtime-store)               |
+| Client → runtime store                           | Store layout, active version, and Server start                         | Built on Windows: the store's active version starts     | [Shared runtime store](#shared-runtime-store)               |
 | Persisted data                                   | Session catalogs, checkpoints, configuration, and plugin registrations | No migration before the first public release            | [Persisted data](#persisted-data)                           |
 
 ## Handshake
@@ -466,8 +466,11 @@ active version's Worker. Inside 1.x, only a security fix can cause either.
   and no Session, Host, or Capsule references it. The previous version stays as the rollback target.
 - A Capsule stays while an Agent integration references it; `update` lists those integrations, and
   the person updates them.
-- Development and test builds keep starting their staged cohort; see
-  [Development builds](#development-builds).
+- Built on Windows: a release or test Client outside the store that finds no Session starts it
+  through the active version's `server start`, unless that version is lower than its own; see
+  [Windows release installation](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation).
+- Development builds keep starting their staged cohort; see
+  [Development builds](#development-builds). A test build follows the rule against its own store.
 - ORC-381 still selects the Desktop installer; that choice may change how Desktop copies its
   runtime, not these rules.
 

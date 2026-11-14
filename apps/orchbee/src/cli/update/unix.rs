@@ -14,7 +14,7 @@ pub(super) fn feed_source() -> Option<String> {
 }
 
 pub(super) fn install_root() -> io::Result<PathBuf> {
-    Err(io::ErrorKind::Unsupported.into())
+    orchbee_local_runtime::release_store_root(|name| std::env::var_os(name))
 }
 
 pub(super) fn open_manifest(_path: &Path) -> io::Result<Option<File>> {

@@ -28,6 +28,11 @@ mod local_clock;
 pub use local_clock::{LocalClock, local_clock};
 mod private_cache;
 pub use private_cache::PrivateCache;
+mod release_store;
+pub use release_store::{
+    ActiveRelease, RELEASE_POINTER, RELEASE_POINTER_LIMIT, RELEASE_VERSIONS, active_release,
+    is_release_version_directory, release_store_root,
+};
 mod user_path;
 pub use user_path::{USER_PATH_LIMIT, UserPathError, UserPathOperand, normalize_user_path};
 mod user_settings;

@@ -13,7 +13,10 @@
 //! release directory (see the application's Windows CLI configuration). Every process gets its own
 //! profile, store root, data root and `PATH` with no Agent program on it, and the registry entries
 //! live below a scratch key under `HKCU\Software\ob-test-scratch` that the test deletes.
+//! [`session_start`] starts Sessions against the same installed package in the same profile.
 #![cfg(windows)]
+
+mod session_start;
 
 use serde_json::Value;
 use std::fs;

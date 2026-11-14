@@ -3,7 +3,7 @@
 	"domain": "release-records",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Strict reading of Orchbee's closed release JSON records, the version and digest tokens they admit, and the release store's active-version pointer record, for the Client and the Windows launcher.",
+	"responsibility": "Strict reading of Orchbee's closed release JSON records, the version and digest tokens they admit, and the release store's active-version pointer record, for the Client, the local runtime's store reader and the Windows launcher.",
 	"nonGoals": [
 		"Reading or writing files, taking the store's writer lock, or choosing a store root.",
 		"Verifying release signatures, admitting a manifest for a platform, or ordering versions for upgrade decisions.",

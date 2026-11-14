@@ -15,6 +15,8 @@ toml_edit.workspace = true
 orchbee-color-themes = { path = "../color-themes" }
 orchbee-connection-handshake = { path = "../connection-handshake" }
 orchbee-local-ipc = { path = "../local-ipc" }
+# The release store pointer's one parser, for the store reader Session start shares with install.
+orchbee-release-records = { path = "../release-records" }
 orchbee-workbench-protocol = { path = "../workbench-protocol" }
 serde.workspace = true
 serde_json.workspace = true

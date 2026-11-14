@@ -17,7 +17,7 @@ This crate owns admitted shared capabilities and stable runtime lifecycle contra
 | `default_interactive_launch`, `notification_policy`                        | The Client, Server and Worker consume launch snapshots or notification profiles; settings decoding uses notification types directly without platform aliases.                                                                                               |
 | `data_root`, `user_settings`, `plugins`, `user_path`                       | Server configuration and the Client's minimal `config.toml` reads (activation, release channel and `config check`) share the bounded settings schema; plugins and paths also serve Worker execution, and Windows path grammar stays explicit on every host. |
 | `command`, `command_outcome`, `command_child`, `directory`                 | Client commands/provisioning, Server restart and Worker commands/directory observations share encoding, outcomes and process settlement contracts.                                                                                                          |
-| `private_cache`, `private_filesystem`, `host_appearance`                   | Runtime storage, CLI release storage and Server frame reads share exact handle admission; Client and Worker share read-only Windows theme observation.                                                                                                      |
+| `private_cache`, `private_filesystem`, `release_store`, `host_appearance`  | Runtime storage, CLI release storage and Server frame reads share exact handle admission; the Client's release commands and Session start share one store reader; Client and Worker share read-only Windows theme observation.                              |
 
 ## Shared types and platform effects
 
@@ -1144,6 +1144,24 @@ The settings owner exposes bounded offline keybinding reset with semantic preser
 The same keys owner encodes and validates canonical `[keys]` profiles for live Client publication, capped at 64 KiB and 144 expanded triggers per action. User files keep the 16-alternative bound; Server and Client own publication and installation.
 
 The Windows plugin catalog boundary supplies bounded manifest parsing, normalized identifiers, platform inheritance, source availability and atomic private user registration for native plugin management. Reads do not create storage; unavailable sources retain explicitly marked inspection metadata. Each plugin's folder is spelled from its ID, recorded in the registry, and keeps its `config` and `data` folders after unlink. The shared Windows command owner provides bounded output capture and descendant settlement for Worker commands and offline provisioning; applications own execution policy. Managed provisioning owns serialized source download/build/commit/cleanup, including update from a recorded source, through an application-supplied executor, with one strict version 1 catalog including required provenance/recovery fields; see the [native plugin contract](../../apps/orchbee/docs/windows-plugins.md).
+
+## Release store reading
+
+`release_store` is the read side of the per-user release store that the Client's
+[release installation](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation)
+writes. `release_store_root` is the one store-root rule: `ORCHBEE_INSTALL_DIR`, otherwise
+`%LOCALAPPDATA%\Programs\Orchbee` for release and `%LOCALAPPDATA%\Programs\<stem>` for a
+development or test build, refusing a relative path and one holding a PATH delimiter, an expansion
+token, a quote or a control character; macOS and Linux answer `Unsupported`. `active_release`
+reads `active.json` through `PrivateCache::read_existing` and parses it with
+`orchbee-release-records`: a missing root or pointer, or bytes that are no pointer record, mean no
+active version, and an unsafe root or pointer, or one over 16 KiB, is an error. A read that meets
+the writer's momentary rename fails like any other and may be retried. `is_release_version_directory`
+answers whether a folder has a store version folder's shape: a version name below a folder named
+`versions` in any letter case. The Client's install, update and uninstall commands and its Session
+start read the store through these, and the CLI's `release_store` writer takes the folder and
+pointer names and the bound from here. Reading takes no lock, creates nothing and starts no
+process.
 
 ## Update channel writes
 

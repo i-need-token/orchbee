@@ -1,8 +1,9 @@
 # Release Records
 
 Private, experimental Rust library for the closed JSON records of Orchbee's native release
-distribution. The Client's install and update owners and the Windows launcher read the same
-grammar from here, so the store pointer has one parser.
+distribution. The Client's install and update owners, the local runtime's store reader, which
+Session start uses, and the Windows launcher read the same grammar from here, so the store pointer
+has one parser.
 
 ## Contract
 

@@ -1076,6 +1076,7 @@ dependencies = [
  "orchbee-color-themes",
  "orchbee-connection-handshake",
  "orchbee-local-ipc",
+ "orchbee-release-records",
  "orchbee-workbench-protocol",
  "process-wrap",
  "rustix",

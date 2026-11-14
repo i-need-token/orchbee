@@ -156,8 +156,9 @@ dedicated `orchbee.project.rename` document. `server start` is the headless acti
 it runs the same connect-or-activate sequence the TUI startup uses — validate the cohort,
 prepare the runtime directory, take the locks, commit the marker, spawn the Server when no
 running Session answers — under one absolute 20-second deadline, then reports `started` only
-when this invocation actually spawned the child and `already-running` when an existing Session
-admitted its probe. The command is effectful even on refusal: only a grammar failure is
+when this invocation, or the release store's Client it handed the start to on Windows
+([store start](docs/windows-cli-configuration.md#windows-release-installation)), actually
+spawned the child and `already-running` when an existing Session admitted its probe. The command is effectful even on refusal: only a grammar failure is
 guaranteed zero-effect, an interrupted or timed-out start may leave committed activation
 state. On Windows, the next invocation automatically recovers a complete v2–v5 registered generation only after
 proving every old exact process gone under all required guards; live, incomplete and legacy Active

@@ -3,7 +3,9 @@
 //! precedes runtime-directory preparation; one absolute caller-supplied
 //! deadline bounds the whole attempt and is never reset per phase. The
 //! lock/marker/spawn order is identical for both callers; only the failure
-//! projection differs.
+//! projection differs. On Windows a release or test Client outside the
+//! release store first hands a start to the store's active version (see
+//! `store_start`), then runs this same sequence to join.
 
 use crate::local_client::{CLIENT_VERSION, LocalClient, LocalClientConnectError, client_offer};
 use crate::startup_status::RefusedVersions;
@@ -16,6 +18,8 @@ use std::{io, path::PathBuf, thread, time::Instant};
 
 mod restore_feedback;
 
+#[cfg(windows)]
+mod store_start;
 #[cfg(windows)]
 mod windows_selection;
 #[cfg(windows)]
@@ -106,6 +110,8 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
     activate(
         deadline,
         #[cfg(windows)]
+        selected_session_name(),
+        #[cfg(windows)]
         windows_selection::location,
     )
 }
@@ -117,7 +123,9 @@ pub fn activate_named_session(
     name: &orchbee_local_runtime::SessionName,
     deadline: Instant,
 ) -> Result<StartedSession, ActivationFailure> {
-    activate(deadline, || windows_selection::location_of(Some(name)))
+    activate(deadline, Some(name.as_str()), || {
+        windows_selection::location_of(Some(name))
+    })
 }
 
 /// The Client endpoint of the existing Session `name` of this user and environment, found as a
@@ -134,8 +142,12 @@ pub fn session_client_endpoint(name: &orchbee_local_runtime::SessionName) -> io:
     Ok(session.client_socket_path().to_owned())
 }
 
+/// `explicit` is the Session name this activation was given, by `--session` or by its caller, which
+/// a store start passes on; an inherited or default selection reaches the store's Client through the
+/// same environment.
 fn activate(
     deadline: Instant,
+    #[cfg(windows)] explicit: Option<&str>,
     #[cfg(windows)] locate: impl FnOnce() -> io::Result<windows_selection::Location>,
 ) -> Result<StartedSession, ActivationFailure> {
     let cohort = Cohort::current_with_diagnostic(deadline).map_err(|error| {
@@ -172,6 +184,16 @@ fn activate(
     let scope = SessionScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
+    // A start the store's Client takes runs before the catalog lock, which that Client's own
+    // activation takes in turn; this activation then joins its Session as any other.
+    #[cfg(windows)]
+    let started_by_store = store_start::start_if_absent(
+        &base,
+        &scope_text,
+        explicit,
+        &cohort.executable(CohortArtifact::Client),
+        deadline,
+    )?;
     // Every Windows Session is one catalog entry, named by its folders.
     #[cfg(windows)]
     let catalog = {
@@ -213,6 +235,10 @@ fn activate(
         #[cfg(windows)]
         &catalog,
     )?;
+    #[cfg(windows)]
+    let spawned = spawned || started_by_store;
+    // Reading the notice leaves it in place, so a Client that joins a Session the store's Client
+    // started reads the same notice that Client reported.
     let restore_notice = match restore_feedback::read(&session) {
         Ok(notice) => notice.map_err(runtime_failure)?,
         Err(restore_feedback::Unsupported) => None,
