@@ -613,7 +613,6 @@ const Utf8BomConformanceFixture = struct {
 const TestIdentifier = struct { bytes: [16]u8 };
 
 const TestRuntimeFailureKind = enum {
-    editor_document,
     process_control,
     process_observation,
     pty_read,
@@ -632,7 +631,6 @@ const TestRuntimeFailureStage = enum {
     read_output,
     release_output,
     release_process_identity,
-    release_editor_document,
     synchronize_worker,
     write_input,
 };

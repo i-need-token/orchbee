@@ -5,6 +5,7 @@
 //! every line. PowerShell starts without profiles, every line the test types
 //! carries the Orchbee run marker, and the first one turns history saving off.
 const harness = @import("runtime_harness.zig");
+const screen_text = @import("screen_text.zig");
 const std = harness.std;
 const builtin = harness.target_builtin;
 const platform = harness.platform_boundary;
@@ -269,7 +270,7 @@ const Session = struct {
     fn waitForPromptRows(self: *Session, count: usize) !void {
         var timer = try platform.monotonic.Timer.start();
         while (true) {
-            var capture = try self.runtime.captureScrollbackText(allocator, capture_limit_bytes);
+            var capture = try screen_text.read(self.runtime, allocator, capture_limit_bytes);
             defer capture.deinit();
             var prompts: usize = 0;
             var last: []const u8 = "";
@@ -360,7 +361,7 @@ const Session = struct {
     fn waitForScreen(self: *Session, expectation: Expectation) !void {
         var timer = try platform.monotonic.Timer.start();
         while (true) {
-            var capture = try self.runtime.captureScrollbackText(allocator, capture_limit_bytes);
+            var capture = try screen_text.read(self.runtime, allocator, capture_limit_bytes);
             defer capture.deinit();
             if (matches(capture.text(), expectation)) return;
             try self.checkTimer(&timer, @tagName(expectation));
@@ -392,7 +393,7 @@ const Session = struct {
     }
 
     fn expectAbsent(self: *Session, needles: []const []const u8) !void {
-        var capture = try self.runtime.captureScrollbackText(allocator, capture_limit_bytes);
+        var capture = try screen_text.read(self.runtime, allocator, capture_limit_bytes);
         defer capture.deinit();
         for (needles) |needle| {
             if (std.mem.indexOf(u8, capture.text(), needle) != null) {
@@ -409,7 +410,7 @@ const Session = struct {
     }
 
     fn timeout(self: *Session, what: []const u8) error{PromptGateWitnessTimedOut} {
-        if (self.runtime.captureScrollbackText(allocator, capture_limit_bytes)) |capture| {
+        if (screen_text.read(self.runtime, allocator, capture_limit_bytes)) |capture| {
             var owned = capture;
             defer owned.deinit();
             std.debug.print("prompt gate witness timed out waiting for {s} ({t} {t}); screen:\n{s}\n", .{ what, self.host, self.shell, owned.text() });

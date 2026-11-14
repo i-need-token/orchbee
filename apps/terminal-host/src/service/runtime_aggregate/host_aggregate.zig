@@ -37,10 +37,6 @@ pub const HostRuntimeAggregateTestingState = if (target_builtin.is_test) struct 
 pub const HostRuntimeAggregate = struct {
     allocator: std.mem.Allocator,
     core_state: core_module.HostCore,
-    /// The folder the Worker passed for editor documents, borrowed for the
-    /// aggregate's lifetime; without one, editor creation fails before any file
-    /// effect.
-    editor_document_directory: ?[]const u8 = null,
     maintenance: host_runtime_maintenance.Maintenance = .{},
     staged_output: @import("../output_staging.zig").StagedOutput = .{},
     testing_state: HostRuntimeAggregateTestingState = .{},
@@ -73,8 +69,6 @@ pub const HostRuntimeAggregate = struct {
     pub const isEmpty = ownership.isEmpty;
     pub const runtimeCount = ownership.runtimeCount;
     pub const runtimeFor = ownership.runtimeFor;
-    pub const pendingStartCleanup = ownership.pendingStartCleanup;
-    pub const releaseStartResources = ownership.releaseStartResources;
 
     // inventory boundary.
     pub const core = inventory.core;
@@ -116,7 +110,6 @@ pub const HostRuntimeAggregate = struct {
 
     // creation boundary.
     pub const prepareCreateTerminal = creation.prepareCreateTerminal;
-    pub const prepareCreateTerminalWithScrollback = creation.prepareCreateTerminalWithScrollback;
     pub const commitPreparedTerminal = creation.commitPreparedTerminal;
 
     // start boundary.

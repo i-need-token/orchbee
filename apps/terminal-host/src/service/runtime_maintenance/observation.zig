@@ -31,7 +31,6 @@ pub fn cleanupFailure(
         error.ProcessContainmentFailed => .contain_process,
         error.OutputReleaseFailed => .release_output,
         error.ProcessIdentityReleaseFailed => .release_process_identity,
-        error.EditorDocumentReleaseFailed => .release_editor_document,
     };
 }
 
@@ -42,7 +41,6 @@ pub fn cleanupFailureFromPhase(
         .contain_process => .contain_process,
         .release_output => .release_output,
         .release_process_identity => .release_process_identity,
-        .release_editor_document => .release_editor_document,
     };
 }
 

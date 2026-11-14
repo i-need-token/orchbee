@@ -11,17 +11,6 @@ pub const RetainedTerminal = struct {
     runtime: ?*terminal_runtime.TerminalRuntime,
     start_preparation: ?terminal_launch.RuntimePreparation,
 
-    pub fn releaseStartResources(self: *RetainedTerminal) terminal_runtime.ShutdownError!void {
-        if (self.start_preparation) |*preparation| try preparation.releaseEditorDocument();
-    }
-
-    pub fn startCleanupPending(self: *const RetainedTerminal) bool {
-        return if (self.start_preparation) |*preparation|
-            preparation.editorDocumentCleanupPending()
-        else
-            false;
-    }
-
     pub fn deinitStartPreparation(
         self: *RetainedTerminal,
         allocator: @import("std").mem.Allocator,

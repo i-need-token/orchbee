@@ -207,14 +207,6 @@ pub const TerminalRuntime = opaque {
         return projection_ops.plainString(stateFrom(self), allocator);
     }
 
-    pub fn captureScrollbackText(
-        self: *TerminalRuntime,
-        allocator: std.mem.Allocator,
-        maximum_bytes: usize,
-    ) !contracts.ScrollbackTextCapture {
-        return projection_ops.captureScrollbackText(stateFrom(self), allocator, maximum_bytes);
-    }
-
     pub fn geometry(self: *TerminalRuntime) contracts.Geometry {
         return projection_ops.geometry(stateFrom(self));
     }

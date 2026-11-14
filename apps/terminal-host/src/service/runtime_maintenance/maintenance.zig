@@ -41,9 +41,8 @@ pub const Maintenance = struct {
         _ = self;
         const core = owner.coreRead();
         for (core.terminalValues()) |session| {
-            if (owner.runtimeFor(session.terminal_id)) |runtime| {
-                if (runtime.pendingShutdownCleanup() != null) return true;
-            } else if (owner.pendingStartCleanup(session.terminal_id)) return true;
+            const runtime = owner.runtimeFor(session.terminal_id) orelse continue;
+            if (runtime.pendingShutdownCleanup() != null) return true;
         }
         return false;
     }
@@ -92,17 +91,7 @@ pub const Maintenance = struct {
         var retained = false;
         for (core.terminalValues()) |session| {
             const terminal_id = session.terminal_id;
-            const runtime = owner.runtimeFor(terminal_id) orelse {
-                if (owner.pendingStartCleanup(terminal_id)) {
-                    _ = core.retainedCleanupBlocked(
-                        terminal_id,
-                        .release_editor_document,
-                        self.nextCleanupRetryAt(),
-                    ) catch unreachable;
-                    retained = true;
-                }
-                continue;
-            };
+            const runtime = owner.runtimeFor(terminal_id) orelse continue;
             const cleanup_failure = runtime_observation.cleanupFailureFromPhase(
                 runtime.pendingShutdownCleanup() orelse continue,
             );
@@ -158,12 +147,7 @@ pub const Maintenance = struct {
         const core = owner.core();
         for (core.terminalValues()) |session| {
             const terminal_id = session.terminal_id;
-            const runtime = owner.runtimeFor(terminal_id) orelse {
-                if (owner.pendingStartCleanup(terminal_id) and session.retainedCleanupPending()) {
-                    _ = core.retainedCleanupExhausted(terminal_id) catch unreachable;
-                }
-                continue;
-            };
+            const runtime = owner.runtimeFor(terminal_id) orelse continue;
             if (runtime.pendingShutdownCleanup() == null) continue;
             if (session.retainedCleanupPending()) {
                 _ = core.retainedCleanupExhausted(terminal_id) catch unreachable;
@@ -397,21 +381,7 @@ pub const Maintenance = struct {
         const core = owner.core();
         const terminal_id = self.takeDueCleanupRetry(core, now_ns) orelse return;
         const terminal = core.findTerminal(terminal_id) orelse return;
-        const runtime = owner.runtimeFor(terminal_id) orelse {
-            if (terminal.phase() != .awaiting_start or
-                terminal.retainedCleanupFailure() != .release_editor_document or
-                terminal.retainedCleanupRetryAt() == null) return;
-            owner.releaseStartResources(terminal_id) catch {
-                _ = core.retainedCleanupBlocked(
-                    terminal_id,
-                    .release_editor_document,
-                    self.nextCleanupRetryAt(),
-                ) catch unreachable;
-                return;
-            };
-            _ = core.retainedCleanupCompleted(terminal_id) catch unreachable;
-            return;
-        };
+        const runtime = owner.runtimeFor(terminal_id) orelse return;
         if (terminal.retainedCleanupRetryAt() != null) {
             self.retryRetainedCleanup(core, terminal_id, runtime) catch {};
         } else {

@@ -44,9 +44,6 @@ pub fn prepare(
     launch: pty_process.Launch,
     options: runtime_options.Options,
 ) (error{ InvalidLaunch, InvalidTerminalProfile } || std.mem.Allocator.Error)!Checked {
-    if (options.editor_document) |document| {
-        if (document.phase() != .ready) return error.InvalidLaunch;
-    }
     if (options.profile) |profile| if (!terminal_profile.valid(profile)) {
         return error.InvalidTerminalProfile;
     };
@@ -102,7 +99,6 @@ pub fn prepare(
             .cell_pixel_width = pixel_pair.width,
             .profile = options.profile,
             .scrollback_bytes = options.scrollback_bytes,
-            .editor_document = options.editor_document,
             .output_seed = options.output_seed,
         },
     };

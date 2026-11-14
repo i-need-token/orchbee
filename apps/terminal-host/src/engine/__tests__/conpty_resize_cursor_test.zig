@@ -1,4 +1,5 @@
 const harness = @import("runtime_harness.zig");
+const screen_text = @import("screen_text.zig");
 const std = harness.std;
 const builtin = harness.target_builtin;
 const platform = harness.platform_boundary;
@@ -78,13 +79,13 @@ fn waitForPowerShellInput(runtime: *TerminalRuntime, expected: []const u8) !void
         const ready = state.terminal.screens.active.cursor.semantic_content == .input;
         state.terminal_mutex.unlock();
         if (ready) {
-            var capture = try runtime.captureScrollbackText(std.testing.allocator, capture_limit_bytes);
+            var capture = try screen_text.read(runtime, std.testing.allocator, capture_limit_bytes);
             defer capture.deinit();
             if (std.mem.eql(u8, std.mem.trim(u8, capture.text(), " \r\n"), std.mem.trim(u8, expected, " "))) return;
         }
         if (runtime.primaryFailure() != null) return error.TerminalRuntimeFailed;
         if (timer.read() >= marker_timeout_ns) {
-            var capture = try runtime.captureScrollbackText(std.testing.allocator, capture_limit_bytes);
+            var capture = try screen_text.read(runtime, std.testing.allocator, capture_limit_bytes);
             defer capture.deinit();
             state.terminal_mutex.lock();
             defer state.terminal_mutex.unlock();
@@ -114,11 +115,12 @@ fn captureWhenPhaseCommitted(
     runtime: *TerminalRuntime,
     marker: []const u8,
     bell_sequence: u64,
-) !harness.subject.ScrollbackTextCapture {
+) !screen_text.ScreenText {
     var timer = try platform.monotonic.Timer.start();
     while (true) {
         if (runtime.bellSequence() >= bell_sequence) {
-            var capture = try runtime.captureScrollbackText(
+            var capture = try screen_text.read(
+                runtime,
                 std.testing.allocator,
                 capture_limit_bytes,
             );

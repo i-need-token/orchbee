@@ -70,13 +70,8 @@ pub(super) fn resolve(
             }
         },
     };
-    // Windows editor launches keep their literal argument list.
     #[cfg(windows)]
-    let arguments = if launch.editor_source().is_some() {
-        arguments
-    } else {
-        powershell::interactive_arguments(&executable, arguments)
-    };
+    let arguments = powershell::interactive_arguments(&executable, arguments);
     #[cfg(windows)]
     let agent_start = powershell::agent_start(&executable, &arguments, launch.agent_start());
     // POSIX shells have no managed startup that takes a first command yet; the launch starts

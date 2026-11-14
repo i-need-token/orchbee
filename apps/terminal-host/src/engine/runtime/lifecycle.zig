@@ -49,7 +49,6 @@ pub fn shutdown(self: *state.State) contracts.ShutdownError!void {
         std.debug.assert(self.containment_confirmed.load(.acquire));
         self.process.releaseProcessIdentity() catch
             return error.ProcessIdentityReleaseFailed;
-        try releaseEditorDocument(self);
         return;
     }
     // Stop every future writer start and reader commit before any fallible
@@ -76,21 +75,12 @@ pub fn shutdown(self: *state.State) contracts.ShutdownError!void {
     joinThreads(self);
     self.process.releaseProcessIdentity() catch
         return error.ProcessIdentityReleaseFailed;
-    try releaseEditorDocument(self);
-}
-
-fn releaseEditorDocument(self: *state.State) contracts.ShutdownError!void {
-    if (self.editor_document) |*document| {
-        document.release() catch return error.EditorDocumentReleaseFailed;
-        self.editor_document = null;
-    }
 }
 
 pub fn pendingShutdownCleanup(self: *const state.State) ?contracts.ShutdownCleanupPhase {
     if (!self.containment_confirmed.load(.acquire)) return .contain_process;
     if (!self.threads_joined) return .release_output;
     if (!self.process.identityReleased()) return .release_process_identity;
-    if (self.editor_document != null) return .release_editor_document;
     return null;
 }
 
@@ -108,7 +98,6 @@ pub fn destroy(self: *state.State) void {
 pub fn destroyAfterShutdown(self: *state.State) void {
     std.debug.assert(self.threads_joined);
     std.debug.assert(self.containment_confirmed.load(.acquire));
-    std.debug.assert(self.editor_document == null);
     self.stream.deinit();
     self.stream_allocator.deinit();
     feedback_ops.deinit(self);

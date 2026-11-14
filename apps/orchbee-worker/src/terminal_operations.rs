@@ -178,17 +178,6 @@ fn run_admitted_with_handoff(
             )
             .into());
         }
-        if let CapabilityNodeMessage::TerminalEditorCommandRequest(request) = request {
-            let result = crate::terminal_editor_operation::execute(request, worker_id, generation);
-            if server_transport::send(
-                &server,
-                Some(host),
-                &CapabilityNodeMessage::TerminalEditorCommandResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
-            continue;
-        }
         if let CapabilityNodeMessage::HostQueryRequest(request) = request {
             let result = host_query::execute(Some(host), request, worker_id, generation);
             if server_transport::send(
@@ -479,8 +468,6 @@ fn run_admitted_with_handoff(
             | CapabilityNodeMessage::AgentDrainReply(_)
             | CapabilityNodeMessage::TerminalTitlesRequest(_)
             | CapabilityNodeMessage::TerminalTitleChangesRequest(_)
-            | CapabilityNodeMessage::TerminalEditorCommandRequest(_)
-            | CapabilityNodeMessage::TerminalEditorCommandResult(_)
             | CapabilityNodeMessage::TerminalTitlesResult(_)
             | CapabilityNodeMessage::TerminalTitlesChanged(_)
             | CapabilityNodeMessage::TerminalTitleChangesResult(_)
@@ -651,20 +638,6 @@ fn prepare(
                 }
                 LaunchPreferences::Available(preferences) => Some(preferences),
             };
-            #[cfg(not(windows))]
-            if launch.editor_source().is_some() {
-                return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    "Windows editor launch is unsupported",
-                )
-                .into());
-            }
-            // A Host this Worker started writes the document to the folder it was given; an
-            // explicit-endpoint Host was given none and refuses the editor itself.
-            #[cfg(windows)]
-            if launch.editor_source().is_some() && session_runtime.is_some() {
-                crate::editor_documents::prepare_launch()?;
-            }
             // Host display mode follows the most recent Client's outer terminal, then the OS.
             let follows_host = preferences.is_none_or(|preferences| preferences.colors().is_none());
             let host_colors = if follows_host {

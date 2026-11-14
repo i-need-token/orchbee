@@ -775,13 +775,6 @@ pub fn build(builder: *std.Build) void {
         clear_tests.root_module.link_libc = true;
         screen_control_step.dependOn(&addTestRun(builder, clear_tests, test_home).step);
     }
-    const scrollback_capture_step = builder.step("test-scrollback-capture", "Run immutable editor scrollback capture checks");
-    const scrollback_capture_tests = builder.addTest(.{
-        .root_module = engine_test_module,
-        .filters = &.{"scrollback text capture"},
-    });
-    scrollback_capture_tests.root_module.link_libc = true;
-    scrollback_capture_step.dependOn(&addTestRun(builder, scrollback_capture_tests, test_home).step);
     const powershell_history_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"managed PowerShell keeps Orchbee-submitted lines"},
@@ -789,38 +782,6 @@ pub fn build(builder: *std.Build) void {
     powershell_history_tests.root_module.link_libc = true;
     builder.step("test-powershell-history", "Run real PowerShell history checks for Orchbee-submitted lines")
         .dependOn(&addTestRun(builder, powershell_history_tests, test_home).step);
-    const editor_document_tests = builder.addTest(.{
-        .root_module = platform_test_module,
-        .filters = &.{"Windows editor document"},
-    });
-    editor_document_tests.root_module.link_libc = true;
-    builder.step("test-editor-document", "Run Windows editor document ownership checks")
-        .dependOn(&addTestRun(builder, editor_document_tests, test_home).step);
-    const editor_lifecycle_tests = builder.addTest(.{
-        .root_module = engine_test_module,
-        .filters = &.{"editor document lifecycle"},
-    });
-    editor_lifecycle_tests.root_module.link_libc = true;
-    builder.step("test-editor-lifecycle", "Run editor document startup and shutdown checks")
-        .dependOn(&addTestRun(builder, editor_lifecycle_tests, test_home).step);
-    const editor_deferred_tests = builder.addTest(.{
-        .root_module = service_test_module,
-        .filters = &.{"editor deferred lifecycle"},
-    });
-    editor_deferred_tests.root_module.link_libc = true;
-    builder.step("test-editor-deferred", "Run deferred editor creation and cleanup checks")
-        .dependOn(&addTestRun(builder, editor_deferred_tests, test_home).step);
-    const editor_workflow_step = builder.step("test-editor-workflow", "Run editor workflow and affected lifecycle regressions");
-    editor_workflow_step.dependOn(&addTestRun(builder, editor_document_tests, test_home).step);
-    for ([_]struct { module: *std.Build.Module, filters: []const []const u8 }{
-        .{ .module = engine_test_module, .filters = &.{ "editor document lifecycle", "thread startup failure", "process spawn failure", "output cleanup failure retry", "Host cleanup waits", "scrollback text capture", "validated launch prepares" } },
-        .{ .module = service_test_module, .filters = &.{ "editor deferred lifecycle", "retained cleanup", "retained-cleanup", "cleanup retry", "cleanup phase", "cleanup failures", "blocked containment", "deferred creation", "StartTerminal", "deferred terminal", "CreateTerminal", "failed runtime creation", "runtime destruction starts only" } },
-        .{ .module = control_test_module, .filters = &.{ "editor capture control", "CreateTerminal", "launch geometry decode" } },
-    }) |cohort| {
-        const editor_checks = builder.addTest(.{ .root_module = cohort.module, .filters = cohort.filters });
-        editor_checks.root_module.link_libc = true;
-        editor_workflow_step.dependOn(&addTestRun(builder, editor_checks, test_home).step);
-    }
     const input_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"programmatic key"},

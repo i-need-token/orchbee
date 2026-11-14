@@ -119,19 +119,6 @@ geometry reserves a deferred terminal identity and prepared launch without suppl
 grid. A later `StartTerminal` carries one complete `TerminalGeometry`; the wire contract defines no
 timeout or 80x24 visual fallback.
 
-An optional non-null `CreateTerminal.captureSource` selects Windows scrollback
-editor creation with deferred geometry only. Its closed object carries
-`attachmentId`, `terminalId`, positive canonical uint64 text `generation`, and
-canonical uint64 text `revision` (zero permitted). Ordinary omission retains the
-legacy request shape and encoded bytes; explicit null, unknown fields, malformed
-identifiers/fences and immediate geometry are refused. The Host owns read
-authorization, one-lock complete capture, source-discriminated replay identity,
-literal document-path append, deferred Start and document cleanup. The request
-does not accept a filesystem path or transcript-selected executable. The selected
-editor's launch remains under the upstream trusted launch authority. Rust projects
-this optional workflow as `CreateScrollbackEditor` within the same creation kind;
-ordinary `CreateTerminal` values and acknowledgement shapes stay unchanged.
-
 Environment names are unique on the wire exactly as written: two entries whose names are identical
 as written are rejected, while names that differ only by case (for example `Path` and `PATH`) remain
 distinct wire names. Environment names are then target-operating-system environment identifiers, and
@@ -213,11 +200,7 @@ coarser category, not an independent field. Its legal pairs are
 `ProcessObservation.kind = unavailable` always carries the `observe-process/process-observation`
 pair. `FailureContainment.kind = blocked` instead carries one contextual cleanup pair:
 `contain-process/process-control`, `release-output/pty-read`, or
-`release-process-identity/process-observation`, or
-`release-editor-document/editor-document`. The document-release pair identifies
-retained Windows scrollback editor cleanup after containment, joined workers and
-process-identity release, or cleanup of a failed deferred Start. It never claims a
-child process outcome. Cleanup pairs are malformed as primary failures,
+`release-process-identity/process-observation`. Cleanup pairs are malformed as primary failures,
 and primary pairs are malformed in either contextual position.
 
 `ListTerminals` accepts `{ cursor, maximumTerminals }`. `cursor` is `null` for the

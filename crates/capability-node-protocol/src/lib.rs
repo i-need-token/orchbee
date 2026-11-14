@@ -44,11 +44,6 @@ pub use worker_shutdown::{
     WorkerShutdownOutcome, WorkerShutdownRequest, WorkerShutdownResult,
 };
 mod terminal_cwd_validation;
-mod terminal_editor;
-pub use terminal_editor::{
-    TerminalEditorCommandOutcome, TerminalEditorCommandRefusal, TerminalEditorCommandRequest,
-    TerminalEditorCommandResult, TerminalEditorCommandSource, TerminalEditorSource,
-};
 mod terminal_graphics_decode;
 mod terminal_launch;
 mod terminal_lifecycle;

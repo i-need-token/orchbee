@@ -1,4 +1,5 @@
 const harness = @import("runtime_harness.zig");
+const screen_text = @import("screen_text.zig");
 const std = harness.std;
 const builtin = harness.target_builtin;
 const platform = harness.platform_boundary;
@@ -75,7 +76,7 @@ fn expectSubmittedLinesStayOutOfHistory(executable: []const u8, history: []const
         "'listed-' + 'probe'\r");
     try waitForReadyLine(runtime, "listed-probe");
 
-    var capture = try runtime.captureScrollbackText(allocator, capture_limit_bytes);
+    var capture = try screen_text.read(runtime, allocator, capture_limit_bytes);
     defer capture.deinit();
     var session: usize = 0;
     var readline: usize = 0;
@@ -117,7 +118,7 @@ fn waitForReadyLine(runtime: *TerminalRuntime, line: ?[]const u8) !void {
     var timer = try platform.monotonic.Timer.start();
     while (true) {
         const printed = if (line) |expected| printed: {
-            var capture = try runtime.captureScrollbackText(allocator, capture_limit_bytes);
+            var capture = try screen_text.read(runtime, allocator, capture_limit_bytes);
             defer capture.deinit();
             var rows = std.mem.splitScalar(u8, capture.text(), '\n');
             while (rows.next()) |row| {
@@ -134,7 +135,7 @@ fn waitForReadyLine(runtime: *TerminalRuntime, line: ?[]const u8) !void {
         }
         if (runtime.primaryFailure() != null) return error.TerminalRuntimeFailed;
         if (timer.read() >= output_timeout_ns) {
-            var capture = try runtime.captureScrollbackText(allocator, capture_limit_bytes);
+            var capture = try screen_text.read(runtime, allocator, capture_limit_bytes);
             defer capture.deinit();
             std.debug.print("PowerShell output timeout: expected {?s}, screen {s}\n", .{ line, capture.text() });
             return error.PowerShellOutputTimedOut;

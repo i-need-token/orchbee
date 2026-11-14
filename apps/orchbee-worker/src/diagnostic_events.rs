@@ -1,7 +1,7 @@
-//! The Worker's diagnostic log records (ORC-397): its own start and end, each Terminal Host start it
-//! attempts, so Host diagnostics reach the log through the Worker, and its removal of day-old editor
-//! documents. A failure carries only closed tokens and numbers: its error kind and, for a Host
-//! start, its stage and codes; no record holds terminal content, input, launch commands or paths.
+//! The Worker's diagnostic log records (ORC-397): its own start and end, and each Terminal Host
+//! start it attempts, so Host diagnostics reach the log through the Worker. A failure carries only
+//! closed tokens and numbers: its error kind and, for a Host start, its stage and codes; no record
+//! holds terminal content, input, launch commands or paths.
 use orchbee_local_runtime::{LogField, LogLevel, LogValue, log_event};
 use std::{error::Error, io, time::Duration};
 
@@ -77,36 +77,6 @@ fn os_error(error: &(dyn Error + 'static)) -> Option<u32> {
         current = error.source();
     }
     None
-}
-
-/// Records a removal pass over the editor document folder only when it removed a document or
-/// failed to remove one.
-#[cfg(windows)]
-pub(crate) fn editor_documents_removed(removal: orchbee_local_runtime::EditorDocumentRemoval) {
-    if removal.removed == 0 && removal.failed == 0 {
-        return;
-    }
-    log_event(
-        if removal.failed == 0 {
-            LogLevel::Info
-        } else {
-            LogLevel::Warning
-        },
-        "editor-documents-removed",
-        &[
-            ("removed", LogValue::Count(removal.removed)),
-            ("failed", LogValue::Count(removal.failed)),
-        ],
-    );
-}
-
-#[cfg(windows)]
-pub(crate) fn editor_document_removal_failed(error: &io::Error) {
-    log_event(
-        LogLevel::Warning,
-        "editor-document-removal-failed",
-        &[("error", error.kind().into())],
-    );
 }
 
 fn error_kind(error: &(dyn Error + 'static)) -> LogField {

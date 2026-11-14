@@ -1,6 +1,5 @@
 const std = @import("std");
 const target_builtin = @import("builtin");
-const ghostty_vt = @import("ghostty-vt");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const read_commit_guard = @import("read_commit_guard.zig");
@@ -47,45 +46,6 @@ pub fn plainString(self: *state.State, allocator: std.mem.Allocator) ![]const u8
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureReadableStateAvailableLocked(self);
     return self.terminal.plainString(allocator);
-}
-
-pub fn captureScrollbackText(
-    self: *state.State,
-    allocator: std.mem.Allocator,
-    maximum_bytes: usize,
-) !contracts.ScrollbackTextCapture {
-    if (maximum_bytes == 0 or maximum_bytes > contracts.max_scrollback_text_bytes) {
-        return error.InvalidCaptureBudget;
-    }
-    // Reserve storage before locking. One extra byte distinguishes an exact fit.
-    const storage = try allocator.alloc(u8, maximum_bytes + 1);
-    errdefer allocator.free(storage);
-    self.terminal_mutex.lock();
-    defer self.terminal_mutex.unlock();
-    try failure_ops.ensureReadableStateAvailableLocked(self);
-    const terminal = &self.terminal;
-    var writer: std.Io.Writer = .fixed(storage);
-    var formatter: ghostty_vt.formatter.ScreenFormatter = .init(
-        terminal.screens.active,
-        .{ .emit = .plain, .trim = true, .unwrap = true },
-    );
-    formatter.format(&writer) catch return error.ScrollbackTextTooLarge;
-    if (writer.end > maximum_bytes) return error.ScrollbackTextTooLarge;
-    return .{
-        .allocator = allocator,
-        .storage = storage,
-        .byte_length = writer.end,
-        .geometry = .{
-            .cell_pixel_height = self.cell_pixel_height,
-            .cell_pixel_width = self.cell_pixel_width,
-            .columns = terminal.cols,
-            .generation = self.generation,
-            .revision = self.revision.load(.monotonic),
-            .rows = terminal.rows,
-        },
-        .screen = if (terminal.screens.active_key == .primary) .primary else .alternate,
-        .total_rows = terminal.screens.active.pages.total_rows,
-    };
 }
 
 pub fn geometry(self: *state.State) contracts.Geometry {

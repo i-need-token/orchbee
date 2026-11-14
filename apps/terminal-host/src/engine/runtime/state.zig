@@ -78,9 +78,6 @@ pub const State = struct {
     input_queue: terminal_input_queue.Queue,
     // Ghostty borrows this canonical path for temporary-file validation.
     kitty_temp_directory: ?[:0]u8 = null,
-    // Only the Host lifecycle owner accesses this after startup handoff; worker
-    // threads never release or borrow the generated document metadata.
-    editor_document: ?platform.editor_document.Document = null,
     input_mutex: thread_sync.Mutex = .{},
     metadata_change_pending: bool = false,
     metadata_published_connection_id: ?u64 = null,

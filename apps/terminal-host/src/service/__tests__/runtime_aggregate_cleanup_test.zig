@@ -544,17 +544,12 @@ test "runtime shutdown errors retain their exact cleanup phase" {
         core_module.RuntimeCleanupFailure.release_process_identity,
         cleanupFailure(error.ProcessIdentityReleaseFailed),
     );
-    try std.testing.expectEqual(
-        core_module.RuntimeCleanupFailure.release_editor_document,
-        cleanupFailure(error.EditorDocumentReleaseFailed),
-    );
 }
 test "dispose returns the retained cleanup phase for every blocked containment variant" {
     const cases = [_]core_module.RuntimeCleanupFailure{
         .contain_process,
         .release_output,
         .release_process_identity,
-        .release_editor_document,
     };
     for (cases) |cleanup_failure| {
         var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);

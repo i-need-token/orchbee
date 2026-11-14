@@ -1,6 +1,6 @@
 //! Maps authorized launches and starts to Host controls and validates correlated physical
 //! observations, preserving literal launch facts and managed environment overlays. It does not
-//! authorize the operation, perform transport I/O, or create editor capture files.
+//! authorize the operation or perform transport I/O.
 
 #[cfg(unix)]
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
@@ -174,7 +174,7 @@ impl From<HostProtocolError> for HostLaunchAdapterError {
 
 const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET";
 
-/// Maps an authorized launch to its closed ordinary or source-capturing Host request.
+/// Maps an authorized launch to its closed Host creation request.
 ///
 /// # Errors
 /// Rejects wrong operation kinds and values outside the Host creation contract.
@@ -183,29 +183,8 @@ pub(crate) fn map_launch_creation(
     facts: ResolvedTerminalLaunchFacts,
     session_runtime: Option<&Path>,
 ) -> Result<TerminalCreationControl, HostLaunchAdapterError> {
-    let request = map_launch_dispatch(dispatch, facts, session_runtime)?;
-    let AuthorizedHostOperation::Launch(launch) = dispatch.operation() else {
-        return Err(HostLaunchAdapterError::OperationKindMismatch);
-    };
-    let creation = if let Some(source) = launch.editor_source() {
-        TerminalCreationControl::CreateScrollbackEditor(Box::new(
-            orchbee_terminal_protocol::CreateScrollbackEditor {
-                creation: request,
-                source: orchbee_terminal_protocol::ScrollbackSource {
-                    attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes(
-                        source.attachment_id.as_bytes(),
-                    )?,
-                    terminal_id: ProtocolTerminalId::from_bytes(source.terminal_id.as_bytes())?,
-                    generation: source.generation,
-                    revision: source.revision,
-                },
-            },
-        ))
-    } else {
-        TerminalCreationControl::CreateTerminal(Box::new(request))
-    };
-    encode_terminal_creation_control(&creation)?;
-    Ok(creation)
+    map_launch_dispatch(dispatch, facts, session_runtime)
+        .map(|request| TerminalCreationControl::CreateTerminal(Box::new(request)))
 }
 
 pub(crate) fn map_launch_dispatch(
@@ -243,8 +222,7 @@ pub(crate) fn map_launch_dispatch(
     encode_terminal_creation_control(&control)?;
     match control {
         TerminalCreationControl::CreateTerminal(request) => Ok(*request),
-        TerminalCreationControl::TerminalCreated(_)
-        | TerminalCreationControl::CreateScrollbackEditor(_) => {
+        TerminalCreationControl::TerminalCreated(_) => {
             Err(HostLaunchAdapterError::UnexpectedHostResponse)
         }
     }

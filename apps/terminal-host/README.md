@@ -190,8 +190,7 @@ The installed binary is `orchbee-terminal-host` on POSIX and `orchbee-terminal-h
 orchbee-terminal-host serve \
   --runtime-directory <absolute-path> \
   --endpoint-id <32-lowercase-hex> \
-  [--scrollback-bytes <decimal-bytes>] \
-  [--editor-document-directory <absolute-path>]
+  [--scrollback-bytes <decimal-bytes>]
 ```
 
 The broker derives the runtime directory and endpoint identifier from its own runtime scope; the Host treats both as infrastructure values and does not infer product topology from them.
@@ -208,13 +207,6 @@ Host, and `15` when a Windows local IPC call failed. Invalid arguments and every
 keep exit code `1`.
 
 `--scrollback-bytes` sets the startup default for newly created terminals. The current default is 10,000,000 decimal bytes; accepted values range from `0` through `1,000,000,000`. A broker may replace the process default for later terminals or supply an explicit configuration when creating one. Zero disables retained scrollback.
-
-`--editor-document-directory` names the folder where a Windows Host writes scrollback editor
-documents; the Worker passes its data root's `internal/tmp/` and creates that folder before an
-editor launch. A Host started without it refuses editor creation before any file effect and
-never falls back to another folder. A document is `scrollback-<UTC time>.txt`, the time spelled
-`YYYY-MM-DDTHH-MM-SSZ`, with `-2`, `-3` and so on before `.txt` when that name is taken; the
-Worker removes day-old documents by this name.
 
 `orchbee-terminal-host --version` prints the executable name and its embedded semantic version. The binary version identifies the packaged process and is independent from protocol and binary format versions.
 

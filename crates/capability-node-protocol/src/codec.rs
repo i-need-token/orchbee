@@ -35,7 +35,6 @@ mod plugin_job;
 mod seeded_launch;
 mod send;
 mod shutdown;
-mod terminal_editor;
 mod terminal_titles;
 mod viewer;
 mod worker_handoff;
@@ -68,8 +67,6 @@ pub enum CapabilityNodeMessage {
     WorkerHandoffReady(crate::WorkerHandoffPeer),
     WorkerHandoffOwned(crate::WorkerHandoffPeer),
     TerminalGraphicsDecodeRequest(crate::TerminalGraphicsDecodeRequest),
-    TerminalEditorCommandRequest(crate::TerminalEditorCommandRequest),
-    TerminalEditorCommandResult(crate::TerminalEditorCommandResult),
     TerminalTitlesRequest(crate::TerminalTitlesRequest),
     TerminalTitlesResult(crate::TerminalTitlesResult),
     TerminalTitlesChanged(crate::TerminalTitlesChanged),
@@ -265,12 +262,6 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::WorkerHandoffHello(value) => worker_handoff::peer(28, *value),
         CapabilityNodeMessage::WorkerHandoffReady(value) => worker_handoff::peer(29, *value),
         CapabilityNodeMessage::WorkerHandoffOwned(value) => worker_handoff::peer(30, *value),
-        CapabilityNodeMessage::TerminalEditorCommandRequest(value) => {
-            terminal_editor::encode_request(*value)
-        }
-        CapabilityNodeMessage::TerminalEditorCommandResult(value) => {
-            terminal_editor::encode_result(value)
-        }
         CapabilityNodeMessage::PluginJobRequest(_) | CapabilityNodeMessage::PluginJobResult(_) => {
             unreachable!("plugin jobs use OBPJ records")
         }
@@ -383,10 +374,6 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
         Some(30) => {
             worker_handoff::read_peer(30, payload).map(CapabilityNodeMessage::WorkerHandoffOwned)
         }
-        Some(24) => terminal_editor::decode_request(payload)
-            .map(CapabilityNodeMessage::TerminalEditorCommandRequest),
-        Some(25) => terminal_editor::decode_result(payload)
-            .map(CapabilityNodeMessage::TerminalEditorCommandResult),
         Some(23) => terminal_titles::decode_request(payload)
             .map(CapabilityNodeMessage::TerminalTitlesRequest),
         Some(terminal_titles::CHANGED_KIND) => terminal_titles::decode_changed(payload)
@@ -471,21 +458,7 @@ fn encode_authorized_terminal_launch(value: &AuthorizedTerminalLaunch) -> Vec<u8
     encode_cwd(&mut payload, value.cwd());
     encode_launch_preferences(&mut payload, value.preferences());
     encode_launch_mode(&mut payload, value.mode());
-    if let Some(source) = value.editor_source() {
-        payload.push(4);
-        encode_launch_selection(
-            &mut payload,
-            value
-                .launch()
-                .expect("editor source requires explicit launch"),
-        );
-        encode_launch_environment(&mut payload, value.environment());
-        payload.extend(source.attachment_id.as_bytes());
-        payload.extend(source.host_epoch.as_bytes());
-        payload.extend(source.terminal_id.as_bytes());
-        payload.extend(source.generation.get().to_be_bytes());
-        payload.extend(source.revision.to_be_bytes());
-    } else if let Some(plugin) = value.plugin_environment() {
+    if let Some(plugin) = value.plugin_environment() {
         payload.push(3);
         encode_launch_selection(
             &mut payload,
@@ -520,22 +493,8 @@ fn decode_authorized_terminal_launch(
     let preferences = decode_launch_preferences(&mut reader)?;
     let mode = decode_launch_mode(&mut reader)?;
     let mut plugin_environment = None;
-    let mut editor_source = None;
     let tag = reader.read_u8()?;
     let (launch, environment) = match tag {
-        4 => {
-            let launch = decode_launch_selection(&mut reader)?;
-            let environment = decode_launch_environment(&mut reader)?;
-            editor_source = Some(crate::TerminalEditorSource {
-                attachment_id: OperationId::from_bytes(reader.read_array()?)?,
-                host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
-                terminal_id: HostTerminalId::from_bytes(reader.read_array()?)?,
-                generation: NonZeroU64::new(reader.read_u64()?)
-                    .ok_or(ProtocolError::InvalidPayload)?,
-                revision: reader.read_u64()?,
-            });
-            (Some(launch), environment)
-        }
         3 => {
             let launch = decode_launch_selection(&mut reader)?;
             let environment = decode_launch_environment(&mut reader)?;
@@ -566,7 +525,6 @@ fn decode_authorized_terminal_launch(
     AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
         .with_environment(environment)
         .with_plugin_environment(plugin_environment)?
-        .with_editor_source(editor_source)?
         .with_agent_start(agent_start)?
         .with_preferences(preferences)
 }

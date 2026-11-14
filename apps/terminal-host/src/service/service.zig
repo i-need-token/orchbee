@@ -21,8 +21,6 @@ const InputFailure = host_failure.InputFailure;
 
 pub const Options = struct {
     terminal_defaults: terminal_configuration.Configuration = .{},
-    /// Borrowed for the service's lifetime.
-    editor_document_directory: ?[]const u8 = null,
     trace_interactions: bool = false,
 };
 
@@ -52,14 +50,9 @@ pub const HostService = struct {
         options: Options,
     ) HostService {
         std.debug.assert(terminal_configuration.valid(options.terminal_defaults));
-        var runtime_aggregate: host_runtime_aggregate.HostRuntimeAggregate = .initWithDefaults(
-            allocator,
-            options.terminal_defaults,
-        );
-        runtime_aggregate.editor_document_directory = options.editor_document_directory;
         return .{
             .allocator = allocator,
-            .runtime_aggregate = runtime_aggregate,
+            .runtime_aggregate = .initWithDefaults(allocator, options.terminal_defaults),
             .trace_interactions = options.trace_interactions,
         };
     }

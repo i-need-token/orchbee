@@ -50,7 +50,6 @@ pub enum RuntimeCleanupFailure {
     ContainProcess,
     ReleaseOutput,
     ReleaseProcessIdentity,
-    ReleaseEditorDocument,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -128,7 +127,6 @@ pub(crate) struct FailurePairWire {
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 enum RuntimeFailureKindWire {
-    EditorDocument,
     ProcessControl,
     ProcessObservation,
     PtyRead,
@@ -149,7 +147,6 @@ enum RuntimeFailureStageWire {
     ReadOutput,
     ReleaseOutput,
     ReleaseProcessIdentity,
-    ReleaseEditorDocument,
     SynchronizeWorker,
     WriteInput,
 }
@@ -266,8 +263,7 @@ pub(crate) fn runtime_failure_from_wire(
             Ok(RuntimeFailure::WriteInput)
         }
         (
-            RuntimeFailureKindWire::EditorDocument
-            | RuntimeFailureKindWire::ProcessControl
+            RuntimeFailureKindWire::ProcessControl
             | RuntimeFailureKindWire::ProcessObservation
             | RuntimeFailureKindWire::PtyRead
             | RuntimeFailureKindWire::PtyWrite
@@ -282,7 +278,6 @@ pub(crate) fn runtime_failure_from_wire(
             | RuntimeFailureStageWire::ReadOutput
             | RuntimeFailureStageWire::ReleaseOutput
             | RuntimeFailureStageWire::ReleaseProcessIdentity
-            | RuntimeFailureStageWire::ReleaseEditorDocument
             | RuntimeFailureStageWire::SynchronizeWorker
             | RuntimeFailureStageWire::WriteInput,
         ) => Err(invalid_field("runtime failure kind and stage do not match")),
@@ -338,12 +333,7 @@ pub(crate) fn cleanup_failure_from_wire(
             RuntimeFailureStageWire::ReleaseProcessIdentity,
         ) => Ok(RuntimeCleanupFailure::ReleaseProcessIdentity),
         (
-            RuntimeFailureKindWire::EditorDocument,
-            RuntimeFailureStageWire::ReleaseEditorDocument,
-        ) => Ok(RuntimeCleanupFailure::ReleaseEditorDocument),
-        (
-            RuntimeFailureKindWire::EditorDocument
-            | RuntimeFailureKindWire::ProcessControl
+            RuntimeFailureKindWire::ProcessControl
             | RuntimeFailureKindWire::ProcessObservation
             | RuntimeFailureKindWire::PtyRead
             | RuntimeFailureKindWire::PtyWrite
@@ -358,7 +348,6 @@ pub(crate) fn cleanup_failure_from_wire(
             | RuntimeFailureStageWire::ReadOutput
             | RuntimeFailureStageWire::ReleaseOutput
             | RuntimeFailureStageWire::ReleaseProcessIdentity
-            | RuntimeFailureStageWire::ReleaseEditorDocument
             | RuntimeFailureStageWire::SynchronizeWorker
             | RuntimeFailureStageWire::WriteInput,
         ) => Err(invalid_field(
@@ -380,10 +369,6 @@ pub(crate) fn cleanup_failure_to_wire(value: RuntimeCleanupFailure) -> FailurePa
         RuntimeCleanupFailure::ReleaseProcessIdentity => (
             RuntimeFailureKindWire::ProcessObservation,
             RuntimeFailureStageWire::ReleaseProcessIdentity,
-        ),
-        RuntimeCleanupFailure::ReleaseEditorDocument => (
-            RuntimeFailureKindWire::EditorDocument,
-            RuntimeFailureStageWire::ReleaseEditorDocument,
         ),
     };
     FailurePairWire { kind, stage }

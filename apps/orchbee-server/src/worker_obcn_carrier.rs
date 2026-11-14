@@ -1815,7 +1815,6 @@ fn validate_response(
             | CapabilityNodeMessage::AgentDrainRequest(_)
             | CapabilityNodeMessage::TerminalTitlesRequest(_)
             | CapabilityNodeMessage::TerminalTitleChangesRequest(_)
-            | CapabilityNodeMessage::TerminalEditorCommandRequest(_)
             | CapabilityNodeMessage::WorktreeMutationRequest(_)
             | CapabilityNodeMessage::PluginJobRequest(_),
         ) => Err(WorkerResponseFailure::WrongDirection),
@@ -1835,7 +1834,6 @@ fn validate_response(
         | (_, CapabilityNodeMessage::AgentDrainReply(_))
         | (_, CapabilityNodeMessage::TerminalTitlesResult(_))
         | (_, CapabilityNodeMessage::TerminalTitleChangesResult(_))
-        | (_, CapabilityNodeMessage::TerminalEditorCommandResult(_))
         | (_, CapabilityNodeMessage::TerminalSendResult(_))
         | (_, CapabilityNodeMessage::PluginJobResult(_))
         | (_, CapabilityNodeMessage::WorktreeMutationResult(_)) => {

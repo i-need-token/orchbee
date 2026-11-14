@@ -283,11 +283,6 @@ impl DataRoot {
         self.internal().join("runtime")
     }
 
-    /// Scrollback documents the Terminal Host writes for an editor; nothing else lives here.
-    pub fn tmp(&self) -> PathBuf {
-        self.internal().join("tmp")
-    }
-
     /// The machine hub's folder.
     pub fn machines(&self) -> PathBuf {
         self.internal().join("machines")

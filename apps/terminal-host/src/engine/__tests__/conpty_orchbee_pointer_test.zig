@@ -1,4 +1,5 @@
 const harness = @import("runtime_harness.zig");
+const screen_text = @import("screen_text.zig");
 const std = harness.std;
 const builtin = harness.target_builtin;
 const platform = harness.platform_boundary;
@@ -21,11 +22,12 @@ fn captureWhenPhaseCommitted(
     runtime: *TerminalRuntime,
     marker: []const u8,
     bell_sequence: u64,
-) !harness.subject.ScrollbackTextCapture {
+) !screen_text.ScreenText {
     var timer = try platform.monotonic.Timer.start();
     while (true) {
         if (runtime.bellSequence() >= bell_sequence) {
-            var capture = try runtime.captureScrollbackText(
+            var capture = try screen_text.read(
+                runtime,
                 std.testing.allocator,
                 capture_limit_bytes,
             );

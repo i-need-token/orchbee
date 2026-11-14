@@ -98,10 +98,6 @@ mod destructive_log;
 pub use data_root::{create_private_directory, prepare_default_runtime_base};
 #[cfg(windows)]
 pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_request};
-#[cfg(windows)]
-mod editor_documents;
-#[cfg(windows)]
-pub use editor_documents::{EditorDocumentRemoval, remove_stale_editor_documents};
 mod process_observation;
 mod process_registration;
 mod registered_child;

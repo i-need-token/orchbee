@@ -22,5 +22,4 @@ comptime {
     _ = @import("runtime_aggregate_lifecycle_test.zig");
     _ = @import("runtime_aggregate_theme_test.zig");
     _ = @import("terminal_integration_test.zig");
-    _ = @import("editor_deferred_lifecycle_test.zig");
 }

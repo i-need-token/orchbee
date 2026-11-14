@@ -375,7 +375,6 @@ pub struct AuthorizedTerminalLaunch {
     launch: Option<LaunchSelection>,
     environment: crate::LaunchEnvironment,
     plugin_environment: Option<crate::PluginTerminalEnvironment>,
-    editor_source: Option<crate::TerminalEditorSource>,
     preferences: crate::LaunchPreferences,
     // Boxed so a launch without earlier output stays as small as before.
     output_seed: Option<Box<OutputSeed>>,
@@ -403,7 +402,6 @@ impl AuthorizedTerminalLaunch {
             launch,
             environment: crate::LaunchEnvironment::empty(),
             plugin_environment: None,
-            editor_source: None,
             preferences: crate::LaunchPreferences::Absent,
             output_seed: None,
             agent_start: None,
@@ -440,9 +438,7 @@ impl AuthorizedTerminalLaunch {
         mut self,
         environment: Option<crate::PluginTerminalEnvironment>,
     ) -> Result<Self, ProtocolError> {
-        if environment.is_some()
-            && (self.launch.is_none() || self.editor_source.is_some() || self.agent_start.is_some())
-        {
+        if environment.is_some() && (self.launch.is_none() || self.agent_start.is_some()) {
             return Err(ProtocolError::InvalidPayload);
         }
         self.plugin_environment = environment;
@@ -456,37 +452,16 @@ impl AuthorizedTerminalLaunch {
     pub const fn environment(&self) -> &crate::LaunchEnvironment {
         &self.environment
     }
-    /// Admits immutable capture only for an explicit deferred editor launch.
-    ///
-    /// # Errors
-    /// Refuses immediate geometry or plugin metadata.
-    pub fn with_editor_source(
-        mut self,
-        source: Option<crate::TerminalEditorSource>,
-    ) -> Result<Self, ProtocolError> {
-        if source.is_some()
-            && (self.mode != TerminalLaunchMode::Deferred
-                || self.launch.is_none()
-                || self.plugin_environment.is_some()
-                || self.output_seed.is_some()
-                || self.agent_start.is_some())
-        {
-            return Err(ProtocolError::InvalidPayload);
-        }
-        self.editor_source = source;
-        Ok(self)
-    }
-
     /// Attaches the Agent the launched shell runs as its first command. The Worker passes it on
     /// only to a shell that can take one; any other program starts without it.
     ///
     /// # Errors
-    /// Refuses a plugin or editor launch.
+    /// Refuses a plugin launch.
     pub fn with_agent_start(
         mut self,
         start: Option<AgentStartCommand>,
     ) -> Result<Self, ProtocolError> {
-        if start.is_some() && (self.plugin_environment.is_some() || self.editor_source.is_some()) {
+        if start.is_some() && self.plugin_environment.is_some() {
             return Err(ProtocolError::InvalidPayload);
         }
         self.agent_start = start.map(Box::new);
@@ -496,12 +471,6 @@ impl AuthorizedTerminalLaunch {
     #[must_use]
     pub fn agent_start(&self) -> Option<&AgentStartCommand> {
         self.agent_start.as_deref()
-    }
-
-    /// The exact existing read source; omission keeps ordinary launch semantics.
-    #[must_use]
-    pub const fn editor_source(&self) -> Option<crate::TerminalEditorSource> {
-        self.editor_source
     }
 
     /// Attaches the Session's preference capture for this creation.
@@ -527,15 +496,13 @@ impl AuthorizedTerminalLaunch {
     }
 
     /// Attaches earlier output the new terminal shows before its program starts. The Host
-    /// admits it separately; an editor launch never carries one.
+    /// admits it separately.
     ///
     /// # Errors
-    /// Refuses empty or oversized output and an editor launch.
+    /// Refuses empty or oversized output.
     pub fn with_output_seed(mut self, seed: Option<Vec<u8>>) -> Result<Self, ProtocolError> {
         if let Some(seed) = &seed
-            && (seed.is_empty()
-                || seed.len() > MAXIMUM_OUTPUT_SEED_BYTES
-                || self.editor_source.is_some())
+            && (seed.is_empty() || seed.len() > MAXIMUM_OUTPUT_SEED_BYTES)
         {
             return Err(ProtocolError::InvalidPayload);
         }

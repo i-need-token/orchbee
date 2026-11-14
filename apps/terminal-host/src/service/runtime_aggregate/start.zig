@@ -60,8 +60,6 @@ pub fn commitPreparedTerminalStart(
             else
                 return error.TerminalRuntimeMissing;
             std.debug.assert(retained.runtime == null);
-            launch_preparation.materializeEditorDocument() catch
-                return error.EditorDocumentMaterializationFailed;
             const runtime = terminal_runtime.TerminalRuntime.createWithOptions(
                 self.allocator,
                 launch_preparation.processLaunch(pending.geometry),

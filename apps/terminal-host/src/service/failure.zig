@@ -135,11 +135,6 @@ pub fn fromCleanup(failure: core_module.RuntimeCleanupFailure) Details {
             .message = "terminal process-identity release did not complete",
             .retryable = true,
         },
-        .release_editor_document => .{
-            .code = "cleanup-release-editor-document",
-            .message = "terminal editor document release did not complete",
-            .retryable = true,
-        },
     };
 }
 

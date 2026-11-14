@@ -10,8 +10,8 @@ Worker owns its admitted Host connection and authorized job lifetimes.
 The managed Worker records `started` and `exited`, and its Terminal Host start as `host-started` or
 `host-start-failed`, in the
 [daily diagnostic log](../../crates/local-runtime/README.md#windows-diagnostic-log). A failed start
-names its cause: `error`, the closed I/O error kind; `stage`, one of `directory` (the Host or editor
-document folder), `endpoint` (the address, or an endpoint that already existed), `registration`
+names its cause: `error`, the closed I/O error kind; `stage`, one of `directory` (the Host's runtime
+folder), `endpoint` (the address, or an endpoint that already existed), `registration`
 (the Session record), `spawn` (process creation), `release` (publishing the Host's identity and
 resuming it), `exited` (the Host ended before its endpoint appeared), `connect` (the dial never
 reached the Host), `handshake` (the `worker-host` offer or protocol `Hello`) or `deadline` (no
@@ -20,55 +20,7 @@ carries, when it has one; `hostExit`, the Host's exit code when it had exited, w
 waits up to 250 milliseconds to observe (the Host's failure codes are in its
 [executable interface](../terminal-host/README.md#executable-interface)); and `elapsedMs`, the
 milliseconds since the start began. These are the only Host diagnostics the log holds; terminal
-content, input and paths never reach it. A pass that removes
-or fails to remove [editor documents](#windows-scrollback-editor-documents) is recorded as
-`editor-documents-removed` with both counts; a folder it cannot inspect, as
-`editor-document-removal-failed` with the error kind. A pass with nothing to remove leaves no record.
-
-## Windows scrollback editor selection
-
-The private editor-command query resolves a launch on the admitted Worker without
-starting a Host, creating a document or launching an editor. It selects nonblank
-`VISUAL`, then nonblank `EDITOR`, then the system directory's `notepad.exe`.
-Native `CommandLineToArgvW` preserves literal argv. Invalid selected values refuse
-whole rather than trying the next preference. Non-UTF-8 and NUL are refused;
-the existing 128-argument and 30 KiB escaped launch-selection limits apply.
-
-Absolute programs must exist. Bare names search only absolute inherited `PATH`
-directories, using the literal name and an `.exe` candidate when no extension is
-present. Relative program paths, current-directory lookup, `PATHEXT`, `ComSpec`
-and shell reparsing never select an executable. The default uses `GetSystemDirectory`,
-independent of inherited `SystemRoot` or `PATH`. No PowerShell arguments are added.
-
-The private reply echoes the entire generation-fenced request and grants no source
-read or launch authority. Current Client/focus admission, exact authorized capture,
-independent overlay and public CLI remain upstream obligations; only Host appends
-its one generated document path and owns the deferred terminal through cleanup.
-
-An authorized deferred launch can carry an existing read-viewer source. Worker
-checks its exact open attachment target, current Host epoch and non-disposal before
-handoff; Host independently checks actual read authority and immutable capture
-generation/revision. No source is created or borrowed across Worker incarnations.
-The Host creation adapter emits `CreateScrollbackEditor`; Worker writes no document,
-appends no path and preserves literal editor argv without PowerShell augmentation.
-Lazy mode refuses such a launch before Host startup. Failed preparation preserves
-the existing pre-handoff receipt; post-handoff loss stays unknown without replay.
-
-### Windows scrollback editor documents
-
-The managed Worker starts its Host with `--editor-document-directory` set to the data root's
-`internal/tmp/` ([Host interface](../terminal-host/README.md#executable-interface)), and creates that
-private folder only while preparing an editor launch, so a Session that opens no editor leaves no
-folder. An explicit-endpoint Worker passes no folder, and its Host refuses editor creation.
-
-The Worker removes documents last written more than one day ago, through
-[`remove_stale_editor_documents`](../../crates/local-runtime/README.md#windows-editor-documents), when
-it starts and before each editor launch. Documents appear only through editor launches, so removing
-at those points keeps the folder bounded without a timer, and a Session start clears what an ended
-Session left behind. A document younger than a day is never removed, so an editor opened within the
-day keeps its document; the Host removes it when the editor closes, and the age rule is the backstop
-for documents a Host crash left. POSIX Workers launch no scrollback editor, so they pass no folder
-and remove nothing.
+content, input and paths never reach it.
 
 ## Child CLI routing
 

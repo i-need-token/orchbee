@@ -135,7 +135,7 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/integrations/agent-observation/<version>/` | Agent observation Capsules the [integration writer](../agent-integration-writer/README.md#capsule-location-and-ownership) installs and names |
 | `internal/machines/hub.lock`                         | The machine hub's single-instance lock; it and `machine_hub_endpoint` freeze at the first public release                                     |
 | `internal/runtime/<session>/`                        | A Session's runtime folder in every environment, unless `ORCHBEE_RUNTIME_BASE` names another base                                            |
-| `internal/tmp/`                                      | Scrollback documents the Terminal Host writes for an editor, removed a day after their last write                                            |
+| `internal/tmp/`                                      | Scrollback documents an earlier build left; nothing writes here, and a default uninstall removes the folder                                  |
 
 On macOS and Linux each folder and file is admitted by how it behaves, never by file system name,
 and nothing is repaired: an item that breaks a rule is refused with an `AdmissionRefusal` that names
@@ -491,22 +491,6 @@ atomic replacement do not prove power-loss or hardware durability.
 The store does not interpret JSON, select a default data directory, relaunch a process, replay an
 operation or grant Session restart authority. The Server owns startup/stop use of this primitive;
 native process-crash/restart and machine-restart witnesses remain separate evidence obligations.
-
-## Windows editor documents
-
-`remove_stale_editor_documents(folder, now)` removes the scrollback documents the Terminal Host
-wrote to `DataRoot::tmp()` and last modified more than one day before `now`; one written exactly a
-day ago stays. It takes only regular files named `scrollback-<UTC time>.txt` or
-`scrollback-<UTC time>-<n>.txt`, the time spelled exactly as `time_name` writes it, so a misspelled
-time, an editor's swap file or a name of another case stays. It pins the folder and its ancestors
-first, refusing a folder that is not private or that is or lies under a link, reads at most 1,024
-entries, never follows an
-entry that is a link, never creates the folder, and returns how many documents it removed and how
-many it could not remove; a missing folder is an empty pass. The Host's
-[naming rule](../../apps/terminal-host/README.md#executable-interface) is the other half of this
-contract; search for `editor-document-name` before changing either. The
-[Worker](../../apps/orchbee-worker/README.md#windows-scrollback-editor-documents) chooses when it
-runs.
 
 ## Windows diagnostic log
 

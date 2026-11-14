@@ -51,27 +51,6 @@ pub const TerminalProfile = terminal_profile.Profile;
 
 pub const Options = terminal_runtime_options.Options;
 
-pub const max_scrollback_text_bytes = 32 * 1024 * 1024;
-
-/// Owned, immutable editor input from one committed terminal state.
-pub const ScrollbackTextCapture = struct {
-    allocator: std.mem.Allocator,
-    storage: []u8,
-    byte_length: usize,
-    geometry: Geometry,
-    screen: enum { primary, alternate },
-    total_rows: u64,
-
-    pub fn text(self: *const ScrollbackTextCapture) []const u8 {
-        return self.storage[0..self.byte_length];
-    }
-
-    pub fn deinit(self: *ScrollbackTextCapture) void {
-        self.allocator.free(self.storage);
-        self.* = undefined;
-    }
-};
-
 pub const ProcessLaunch = pty_process.Launch;
 
 pub const OwnedProfile = terminal_profile.Owned;
@@ -309,7 +288,6 @@ pub const Completion = terminal_runtime_completion.Snapshot;
 /// Semantic owner-cleanup failures. Platform errors are classified at this
 /// boundary so HostCore never has to infer which shutdown phase failed.
 pub const ShutdownError = error{
-    EditorDocumentReleaseFailed,
     OutputReleaseFailed,
     ProcessContainmentFailed,
     ProcessIdentityReleaseFailed,
@@ -319,5 +297,4 @@ pub const ShutdownCleanupPhase = enum {
     contain_process,
     release_output,
     release_process_identity,
-    release_editor_document,
 };

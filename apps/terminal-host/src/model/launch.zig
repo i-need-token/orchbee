@@ -5,33 +5,8 @@ const protocol = @import("terminal-protocol");
 const terminal_configuration = @import("configuration.zig");
 const terminal_geometry = @import("geometry.zig");
 const terminal_profile = @import("profile.zig");
-const identifiers = @import("identifiers.zig");
 
 pub const Digest = [32]u8;
-
-pub const ScrollbackSource = struct {
-    attachment_id: identifiers.AttachmentId,
-    terminal_id: identifiers.TerminalId,
-    generation: u64,
-    revision: u64,
-};
-
-/// This discriminator is present only for editor creation. Ordinary omitted
-/// creation preserves its existing launch digest byte-for-byte.
-pub fn editorLaunchDigest(launch_digest: Digest, source: ScrollbackSource) Digest {
-    var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("orchbee-scrollback-editor-launch-v1");
-    hash.update(&launch_digest);
-    hash.update(&source.attachment_id.bytes);
-    hash.update(&source.terminal_id.bytes);
-    var fences: [16]u8 = undefined;
-    std.mem.writeInt(u64, fences[0..8], source.generation, .little);
-    std.mem.writeInt(u64, fences[8..16], source.revision, .little);
-    hash.update(&fences);
-    var digest: Digest = undefined;
-    hash.final(&digest);
-    return digest;
-}
 
 pub const EnvironmentEntry = struct {
     name: []const u8,

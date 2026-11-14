@@ -67,55 +67,20 @@ Plugin and configured jobs share the 32-running-process admission bound.
 Configured receipts are bounded to 200 records and are never exposed as plugin
 history. Shutdown cancels and joins both kinds before a complete receipt.
 
-## Private editor-command resolution
-
-OBCN kind 24 requests Windows editor-command resolution with a nonzero operation
-ID, Worker ID and positive full-width Worker generation. Kind 25 echoes the entire
-request and returns a validated `LaunchSelection` with `visual`, `editor` or
-`default` provenance, or a closed refusal: wrong Worker, stale generation,
-unsupported platform, invalid command or unavailable program. Frame version 1
-and the 40 KiB payload bound remain unchanged; old cohorts reject these tags.
-
-Integers are big-endian. Requests contain kind, two 16-byte IDs and u64 generation.
-Results contain kind, the same 40 request bytes and an outcome byte: 1 is resolved
-(source byte 1/2/3, then existing executable/argv encoding), 2 is refused
-(reason byte 1 through 5 in the order above). Missing/trailing bytes, unknown tags,
-invalid IDs/generation and malformed selections are refused. The Server carrier
-verifies operation, Worker and generation before delivery.
-
-This read-only, machine-owned preference query is available before Host startup.
-It grants no source attachment or launch authority, creates no file and carries no
-document path. [Worker selection](../../apps/orchbee-worker/README.md#windows-scrollback-editor-selection)
-owns Windows lookup and quoting; current-Client/focus admission, authorized capture,
-independent overlay and public CLI remain separate workflow obligations.
-
-## Authorized editor source capture
-
-An editor launch uses deferred mode, an explicit resolved `LaunchSelection` and one `TerminalEditorSource`: existing read attachment ID, Host epoch/terminal ID, positive generation and full u64 content revision (including zero). It excludes plugin metadata and default-shell selection. Launch kind 4 carries the selection and environment, then three 16-byte IDs and two big-endian u64 fences. The complete source is part of the authorized launch's replay identity.
-
-Worker checks the exact open viewer target, current Host epoch and non-disposal
-before Create handoff. Host repeats connection-owned read authority and same-lock
-content fences; the Worker cache never grants Host attachment authority. Editor
-argv stays literal with no PowerShell augmentation or Worker-generated path.
-Pre-Host lazy launch refuses before startup. Existing unknown-receipt rules and
-Host document lifecycle remain authoritative; current-Client/focus admission,
-independent overlay and public CLI remain upstream obligations.
-
 ## Agent start command
 
 A default or explicit launch may carry an `AgentStartCommand`: the command the launched shell runs
 first, resolved by the Server from the startable Agent catalog. It is a bare command name of at most
 64 bytes, not beginning with `-` or `.`, and at most eight arguments of at most 128 bytes; every token
 uses only `[A-Za-z0-9._:=-]`, so no shell reads it as syntax. Launch kinds 5 and 6 are kinds 0 and 1
-followed by the command in the selection's program encoding. It excludes plugin metadata and an
-editor source, and is part of the authorized launch's replay identity. The Worker passes it only to a
+followed by the command in the selection's program encoding. It excludes plugin metadata and is part of the authorized launch's replay identity. The Worker passes it only to a
 shell whose startup takes a first command and launches any other program without it; see
 [Agent start command](../../apps/orchbee-worker/README.md#agent-start-command).
 
 ## Earlier output for a restored launch
 
 A launch may carry earlier output the new terminal shows before its program starts: at most 1 MiB,
-never empty and never with an editor source. Such a launch travels in its own `OBNL` record instead
+never empty. Such a launch travels in its own `OBNL` record instead
 of an `OBCN` frame: the four bytes `OBNL` and the bytes `00 01 00 00`, an unsigned big-endian body length, then the
 launch's ordinary `OBCN` frame followed by the output bytes. The launch frame keeps the 40 KiB bound
 and exact decoding; only this record admits the larger body, and the streaming reader validates its
@@ -287,7 +252,7 @@ unknown), never mixed. The grid is at most 262,144 cells, and each total pixel e
 imports or re-exports of Terminal Host wire payloads; a future Worker adapter must convert them
 explicitly and preserve validation.
 
-Every launch carries one required u8 kind immediately after the launch mode: 0 uses the default program, 1 carries an explicit selection, 3 carries an explicit plugin selection, and 4 carries an explicit editor selection; kind 2 is [retired](#retired-launch-kind-2). Each kind includes the caller environment, including a zero entry count when empty. Kinds are alternatives in the current layout, not payload versions. Missing kinds, unknown kinds, truncation and trailing bytes are rejected.
+Every launch carries one required u8 kind immediately after the launch mode: 0 uses the default program, 1 carries an explicit selection, and 3 carries an explicit plugin selection; kind 2 is [retired](#retired-launch-kind-2). Each kind includes the caller environment, including a zero entry count when empty. Kinds are alternatives in the current layout, not payload versions. Missing kinds, unknown kinds, truncation and trailing bytes are rejected.
 
 An explicit selection contains a `u16` executable length, executable bytes, a `u16` argument count and `u16`-length-prefixed argument strings. The executable is a nonempty absolute UTF-8 path without NUL; arguments are NUL-free UTF-8 strings (empty and dash-leading values allowed), at most 128 entries and at most 30,720 UTF-8 bytes across executable and arguments. The selection carries `argv[1..]`; Host synthesizes `argv[0]` from the executable. Kind 0 remains distinct from kind 1 with an empty argument list.
 

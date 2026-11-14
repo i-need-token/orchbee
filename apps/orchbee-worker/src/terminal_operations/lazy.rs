@@ -41,8 +41,6 @@ pub(crate) fn run(
     let mut server = server;
     #[cfg(windows)]
     let mut handoff = super::handoff::Handoff::new(Some(runtime));
-    #[cfg(windows)]
-    crate::editor_documents::remove_stale();
     server.set_nonblocking(true)?;
     // The Agent Drain queue is owned by this admitted Server connection and
     // exists before any Host: pre-Launch requests get a truthful empty page,
@@ -107,16 +105,6 @@ pub(crate) fn run(
                                 ),
                         },
                     ),
-                )?;
-                continue;
-            }
-            if let CapabilityNodeMessage::TerminalEditorCommandRequest(request) = request {
-                let result =
-                    crate::terminal_editor_operation::execute(request, worker_id, generation);
-                let _no_host = server_transport::send(
-                    &server,
-                    None,
-                    &CapabilityNodeMessage::TerminalEditorCommandResult(result),
                 )?;
                 continue;
             }
@@ -292,15 +280,6 @@ pub(crate) fn run(
                 }
             };
             // Preserve this exact kernel and dispatch across preparation and startup.
-            if let crate::terminal_authorization::AuthorizedHostOperation::Launch(launch) =
-                dispatch.operation()
-                && launch.editor_source().is_some()
-            {
-                kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
-                let result = super::take_result(&mut kernel)?;
-                let _no_host = server_transport::send(&server, None, &result)?;
-                continue;
-            }
             let prepared =
                 super::prepare_or_fail(&mut kernel, &dispatch, Some(runtime), None, system_shell)?
                     .map(|prepared| prepared.with_output_seed(output_seed));
@@ -389,7 +368,7 @@ pub(crate) fn run(
 /// Where a managed Host start failed, named in its diagnostic record.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum HostStartStage {
-    /// Preparing the Host's runtime or editor-document folder.
+    /// Preparing the Host's runtime folder.
     Directory,
     /// Checking the endpoint address, or an endpoint that existed before the start.
     Endpoint,
@@ -504,20 +483,6 @@ fn start_host(
         &[
             std::ffi::OsStr::new("--endpoint-directory"),
             socket_root.as_os_str(),
-        ],
-    ]
-    .concat();
-    // Only a Windows Host writes editor documents; it receives the folder, which the Worker
-    // creates before the first editor launch.
-    #[cfg(windows)]
-    let editor_documents = crate::editor_documents::folder()
-        .map_err(|error| failed(HostStartStage::Directory, error.into()))?;
-    #[cfg(windows)]
-    let arguments = [
-        &arguments[..],
-        &[
-            std::ffi::OsStr::new("--editor-document-directory"),
-            editor_documents.as_os_str(),
         ],
     ]
     .concat();

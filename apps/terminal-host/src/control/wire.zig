@@ -229,17 +229,9 @@ pub const TerminalProfile = struct {
 };
 
 pub const Create = struct {
-    captureSource: Present(ScrollbackSource) = .missing,
     creationId: []const u8,
     environmentOverlay: []const EnvironmentOverlay,
     launch: Launch,
-};
-
-pub const ScrollbackSource = struct {
-    attachmentId: []const u8,
-    terminalId: []const u8,
-    generation: []const u8,
-    revision: []const u8,
 };
 
 pub const Geometry = struct {

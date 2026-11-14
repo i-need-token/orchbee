@@ -1,4 +1,5 @@
 const harness = @import("runtime_harness.zig");
+const screen_text = @import("screen_text.zig");
 const std = harness.std;
 const target_builtin = harness.target_builtin;
 const ghostty_vt = harness.ghostty_vt;
@@ -2196,7 +2197,7 @@ test "cursor query read during attachment resize replies from committed geometry
     try std.testing.expectEqual(before_resize.revision + 2, after_query.revision);
     try probe.expectReply("\x1b[30;1R");
 
-    var capture = try runtime.captureScrollbackText(std.testing.allocator, 64 * 1024);
+    var capture = try screen_text.read(runtime, std.testing.allocator, 64 * 1024);
     defer capture.deinit();
     for (0..40) |index| {
         var marker_buffer: [32]u8 = undefined;
@@ -2525,90 +2526,4 @@ test "prompt-preserving clear refuses alternate screen without changing content 
     try std.testing.expectEqual(before.revision, after.revision);
     try std.testing.expectEqual(before.generation, after.generation);
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
-}
-
-test "scrollback text capture owns all history Unicode and unwrapped lines after source destruction" {
-    var capture = capture: {
-        const runtime = try createIdleRuntimeWithGeometry(8, 4, .{});
-        defer runtime.destroy();
-        try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "old0\r\nold1\r\nold2\r\nabcdefghij\r\n你好é\r\nprompt"));
-        const before = runtime.geometry();
-        const result = try runtime.captureScrollbackText(std.testing.allocator, 4096);
-        errdefer {
-            var owned = result;
-            owned.deinit();
-        }
-        try std.testing.expectEqualDeep(before, result.geometry);
-        try std.testing.expectEqual(.primary, result.screen);
-        try std.testing.expect(result.total_rows > before.rows);
-        try std.testing.expectEqualDeep(before, runtime.geometry());
-        try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
-        try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
-        try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, " changed"));
-        _ = try runtime.applyTerminalControl(.clear);
-        break :capture result;
-    };
-    defer capture.deinit();
-    try std.testing.expectEqualStrings(
-        "old0\nold1\nold2\nabcdefghij\n你好é\nprompt",
-        std.mem.trim(u8, capture.text(), "\n"),
-    );
-}
-
-test "scrollback text capture rejects exact byte overflow invalid budgets and allocation failure without mutation" {
-    const runtime = try createIdleRuntimeWithGeometry(8, 4, .{});
-    defer runtime.destroy();
-    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "你好éabcdefghij"));
-    const before = runtime.geometry();
-    var reference = try runtime.captureScrollbackText(std.testing.allocator, 4096);
-    defer reference.deinit();
-    var exact = try runtime.captureScrollbackText(std.testing.allocator, reference.text().len);
-    defer exact.deinit();
-    try std.testing.expectEqualStrings(reference.text(), exact.text());
-    try std.testing.expectError(error.ScrollbackTextTooLarge, runtime.captureScrollbackText(std.testing.allocator, reference.text().len - 1));
-    try std.testing.expectError(error.ScrollbackTextTooLarge, runtime.captureScrollbackText(std.testing.allocator, 1));
-    try std.testing.expectError(error.InvalidCaptureBudget, runtime.captureScrollbackText(std.testing.allocator, 0));
-    try std.testing.expectError(error.InvalidCaptureBudget, runtime.captureScrollbackText(std.testing.allocator, engine_boundary.runtime.max_scrollback_text_bytes + 1));
-    try std.testing.expectError(error.OutOfMemory, runtime.captureScrollbackText(std.testing.failing_allocator, 4096));
-    try std.testing.expectEqualDeep(before, runtime.geometry());
-    var after = try runtime.captureScrollbackText(std.testing.allocator, 4096);
-    defer after.deinit();
-    try std.testing.expectEqualStrings(reference.text(), after.text());
-}
-
-test "scrollback text capture preserves history viewport and selection and reads the active alternate screen" {
-    const runtime = try createIdleRuntimeWithGeometry(8, 4, .{});
-    defer runtime.destroy();
-    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "old0\r\nold1\r\nold2\r\nold3\r\nold4\r\nprimary\x1b]2;Editor source\x1b\\\x1b[?2004h"));
-    const state = runtimeState(runtime);
-    const geometry = runtime.geometry();
-    const attachment = AttachmentId.fromBytes(.{0x62} ** 16);
-    try state.history.attach(attachment);
-    const selected = try state.history.applySelectionCommand(&state.terminal, geometry.revision, geometry.generation, .{
-        .attachment_id = attachment,
-        .command = .select_all,
-        .generation = geometry.generation,
-        .revision = geometry.revision,
-    });
-    try std.testing.expectEqual(.active, std.meta.activeTag(selected));
-    _ = try state.history.takeSelectionEvent(attachment);
-    state.terminal.screens.active.scroll(.{ .delta_row = -1 });
-    const viewport = state.terminal.screens.active.pages.pin(.{ .viewport = .{} }).?;
-    var primary = try runtime.captureScrollbackText(std.testing.allocator, 4096);
-    defer primary.deinit();
-    try std.testing.expectEqualDeep(viewport, state.terminal.screens.active.pages.pin(.{ .viewport = .{} }).?);
-    try std.testing.expect(state.history.states.items[0].selection_state.active());
-    try std.testing.expect((try state.history.takeSelectionEvent(attachment)) == null);
-    try std.testing.expectEqualDeep(geometry, runtime.geometry());
-    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b[?1049h\x1b[HALT你好"));
-    const alternate_geometry = runtime.geometry();
-    var alternate = try runtime.captureScrollbackText(std.testing.allocator, 4096);
-    defer alternate.deinit();
-    try std.testing.expectEqual(.alternate, alternate.screen);
-    try std.testing.expectEqualStrings("ALT你好", std.mem.trim(u8, alternate.text(), "\n"));
-    try std.testing.expectEqualDeep(alternate_geometry, runtime.geometry());
-    try std.testing.expectEqualStrings("Editor source", state.terminal.getTitle().?);
-    try std.testing.expect(state.terminal.modes.get(.bracketed_paste));
-    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
-    try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
 }
