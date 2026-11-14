@@ -26,12 +26,8 @@ use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchRejectionReason,
     WorkbenchRequest, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome,
-    WorkbenchSnapshotResult, WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePhase,
-    WorkbenchTabCloseStatus, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
-    WorkbenchWorkspaceCloseCounts, WorkbenchWorkspaceCloseReadOutcome,
-    WorkbenchWorkspaceCloseReadResult, WorkbenchWorkspaceCloseResumeOutcome,
-    WorkbenchWorkspaceCloseResumeResult, parse_snapshot, read_workbench_request,
-    write_workbench_response,
+    WorkbenchSnapshotResult, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, parse_snapshot,
+    read_workbench_request, write_workbench_response,
 };
 use sha2::{Digest, Sha256};
 

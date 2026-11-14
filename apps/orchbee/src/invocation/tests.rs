@@ -6010,18 +6010,11 @@ fn workspace_close_parses_targets_and_requires_confirm() {
 
 #[test]
 fn workspace_close_help_paths_resolve() {
-    for (verb, command) in [("close", CommandPath::WorkspaceClose)] {
-        assert_eq!(
-            parse(&["workspace", verb, "--help"]),
-            Ok(Request::Help(HelpTopic::Command(command))),
-            "workspace {verb} --help"
-        );
-        assert_eq!(
-            parse(&["help", "workspace", verb]),
-            Ok(Request::Help(HelpTopic::Command(command))),
-            "help workspace {verb}"
-        );
-    }
+    let close = Ok(Request::Help(HelpTopic::Command(
+        CommandPath::WorkspaceClose,
+    )));
+    assert_eq!(parse(&["workspace", "close", "--help"]), close);
+    assert_eq!(parse(&["help", "workspace", "close"]), close);
 }
 
 #[test]
