@@ -75,7 +75,6 @@ export function installDesktopApplicationMenu(
 		type: 'checkbox',
 	};
 	const maximizedItem: MenuItemConstructorOptions & { readonly id: string } = {
-		accelerator: 'CommandOrControl+Shift+M',
 		click: (_menuItem, _window, event) => {
 			actions.invokeToggleMaximized(invocationSource(event));
 		},

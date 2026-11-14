@@ -50,10 +50,12 @@ The Main-owned Action runtime registers two stable, non-automatable intents:
 
 | Action ID                           | Effect                                                                             | Menu accelerator                          |
 | ----------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------- |
-| `desktop.window.toggle-maximized`   | Maximize a normal window or restore a maximized window; disabled while full-screen | `CmdOrCtrl+Shift+M`                       |
+| `desktop.window.toggle-maximized`   | Maximize a normal window or restore a maximized window; disabled while full-screen | None                                      |
 | `desktop.window.toggle-full-screen` | Request entry to or exit from Electron native full-screen                          | macOS `Ctrl+Cmd+F`; other platforms `F11` |
 
-The application menu and its accelerator call the same prepared Action path. Native traffic lights
+The application menu and the full-screen accelerator call the same prepared Action path. Maximize
+has no key of its own; macOS keeps its menu row, and the window controls and a double-click on the
+blank Tab bar maximize everywhere. Native traffic lights
 and compositor controls remain operating-system inputs to the same BrowserWindow state; they publish
 the normal Electron maximize, unmaximize, and full-screen events consumed by persistence.
 

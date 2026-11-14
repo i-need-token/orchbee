@@ -63,7 +63,6 @@ describe('installDesktopApplicationMenu', () => {
 			ITEM_IDS.secureKeyboardEntry,
 		]);
 		expect(fullScreenItem?.accelerator).toBe('Control+Command+F');
-		expect(maximizedItem?.accelerator).toBe('CommandOrControl+Shift+M');
 		expect(installedMenu?.getMenuItemById(ITEM_IDS.reload)).toMatchObject({
 			accelerator: 'CommandOrControl+R',
 			registerAccelerator: false,
