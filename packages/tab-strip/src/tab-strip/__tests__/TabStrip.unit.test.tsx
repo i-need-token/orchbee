@@ -1159,6 +1159,8 @@ describe('TabStrip', () => {
 		fireEvent.keyDown(menu, { key: 'ArrowDown' });
 		expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Pin' }));
 		fireEvent.keyDown(menu, { key: 'ArrowDown' });
+		expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Duplicate' }));
+		fireEvent.keyDown(menu, { key: 'ArrowDown' });
 		const groupTrigger = screen.getByRole('menuitem', { name: 'Add to group' });
 		expect(document.activeElement).toBe(groupTrigger);
 
