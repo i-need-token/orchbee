@@ -1,6 +1,6 @@
 //! Remembered answers through real processes: the askpass helper reads the store of this test
 //! build's environment, which the tests write with test words only, under Machine ids no other test
-//! of this binary uses. A silent attempt with the right remembered answer reaches `online` without
+//! or test process uses. A silent attempt with the right remembered answer reaches `online` without
 //! a question; a remembered answer the fake `ssh` refuses is tried once, deleted, and followed by
 //! the claimant's question marked `remembered: rejected`; with nobody to ask the attempt ends
 //! `remembered-rejected`; removing the Machine deletes its items. A server that drops the
@@ -14,25 +14,31 @@ use orchbee_workbench_client::application::machine_credentials::{
     Item, SecretKind, Store, readable_label,
 };
 
-/// This module's Machines, one per test: the store is shared by the tests running at once, so no
-/// other test may name them.
-const MINE: &str = "2e4e4be4e4be4e4be4e4be4e4be4e4b2";
-const DROPPED: &str = "2e4e4be4e4be4e4be4e4be4e4be4e4b3";
-const OLD_SSH: &str = "2e4e4be4e4be4e4be4e4be4e4be4e4b4";
-const TWO_KEYS: &str = "2e4e4be4e4be4e4be4e4be4e4be4e4b5";
-const VANISHED: &str = "2e4e4be4e4be4e4be4e4be4e4be4e4b6";
+/// This module's Machines, one per test, by the last digit of [`id`].
+const MINE: u8 = 2;
+const DROPPED: u8 = 3;
+const OLD_SSH: u8 = 4;
+const TWO_KEYS: u8 = 5;
+const VANISHED: u8 = 6;
+
+/// The id of this module's Machine `test` in this process: the store is shared by every test and
+/// every checkout testing at once, so no other test or run may name it.
+fn id(test: u8) -> String {
+    format!("2e4e4be4{:08x}e4be4e4be4e4be4{test:x}", std::process::id())
+}
 
 /// One kind's item of a Machine of this module, deleted, with the other kind's item, before and
 /// after the test.
-struct Remembered(Item, &'static str);
+struct Remembered(Item, String);
 
 impl Remembered {
     fn new() -> Self {
         Self::of(MINE, SecretKind::Password)
     }
 
-    fn of(id: &'static str, kind: SecretKind) -> Self {
-        let remembered = Self(Item::new(machine(id), kind), id);
+    fn of(test: u8, kind: SecretKind) -> Self {
+        let id = id(test);
+        let remembered = Self(Item::new(machine(&id), kind), id);
         remembered.clear();
         remembered
     }
@@ -60,7 +66,7 @@ impl Remembered {
     }
 
     fn clear(&self) {
-        let _forgotten = Store::select().forget(&machine(self.1));
+        let _forgotten = Store::select().forget(&machine(&self.1));
     }
 }
 
@@ -72,7 +78,7 @@ impl Drop for Remembered {
 
 /// Makes `MINE` the fixture's only Machine, for the hub that starts next.
 fn adopt(carried: &Carried) {
-    adopt_as(carried, MINE);
+    adopt_as(carried, &id(MINE));
 }
 
 /// Makes `id` the fixture's only Machine, for the hub that starts next.
@@ -91,7 +97,7 @@ fn adopt_as(carried: &Carried, id: &str) {
 /// A client that holds the hub, so it attempts the kept Machine by itself, and watches it until
 /// its state reads as `until` says.
 fn keep_until(carried: &Carried, until: impl Fn(&MachineState) -> bool) -> (Client, MachineState) {
-    keep_until_as(carried, MINE, until)
+    keep_until_as(carried, &id(MINE), until)
 }
 
 /// [`keep_until`] for the Machine `id`.
@@ -125,12 +131,12 @@ fn a_dropped_connection_after_a_remembered_answer_is_not_answered_again_by_the_h
     dropping["drop"] = json!(true);
     let (carried, fake) = Carried::faking("mq1-dropped-", &json!({"questions": [dropping]}), &[]);
     let remembered = Remembered::of(DROPPED, SecretKind::Password);
-    adopt_as(&carried, DROPPED);
+    adopt_as(&carried, &remembered.1);
     remembered.write(WRONG);
     carried.state();
     // The server closes the connection after the remembered answer, which reads as no refusal;
     // the hub retries by itself, asks nobody on that retry, and the Machine needs a login.
-    let (mut keeper, state) = keep_until_as(&carried, DROPPED, |state| {
+    let (mut keeper, state) = keep_until_as(&carried, &remembered.1, |state| {
         state.name() == MachineStateName::NeedsLogin
     });
     assert_eq!(
@@ -163,11 +169,11 @@ fn an_ssh_older_than_8_5_is_never_given_a_remembered_answer() {
         &[],
     );
     let remembered = Remembered::of(OLD_SSH, SecretKind::Password);
-    adopt_as(&carried, OLD_SSH);
+    adopt_as(&carried, &remembered.1);
     remembered.write(RIGHT_PASSWORD);
     carried.state();
     // A silent attempt meets the password question and asks nobody, with the answer remembered.
-    let (mut keeper, state) = keep_until_as(&carried, OLD_SSH, |state| {
+    let (mut keeper, state) = keep_until_as(&carried, &remembered.1, |state| {
         state.name() == MachineStateName::NeedsLogin
     });
     assert_eq!(
@@ -185,7 +191,7 @@ fn an_ssh_older_than_8_5_is_never_given_a_remembered_answer() {
     // A person's login on that `ssh` works as without remembering.
     let mut client = claimant(&carried);
     let id = client.send(Request::Connect(Connect {
-        machine: machine(OLD_SSH),
+        machine: machine(&remembered.1),
         origin: Origin::User,
         draft: None,
     }));
@@ -217,12 +223,12 @@ fn a_second_key_asking_for_its_passphrase_deletes_nothing() {
         &[],
     );
     let remembered = Remembered::of(TWO_KEYS, SecretKind::KeyPassphrase);
-    adopt_as(&carried, TWO_KEYS);
+    adopt_as(&carried, &remembered.1);
     remembered.write(RIGHT_PASSPHRASE);
     carried.state();
     let mut client = claimant(&carried);
     let id = client.send(Request::Connect(Connect {
-        machine: machine(TWO_KEYS),
+        machine: machine(&remembered.1),
         origin: Origin::User,
         draft: None,
     }));
@@ -264,11 +270,12 @@ fn a_connection_the_server_closed_at_an_open_question_ends_the_login_as_no_refus
         &[],
     );
     let remembered = Remembered::of(VANISHED, SecretKind::Password);
-    adopt_as(&carried, VANISHED);
+    adopt_as(&carried, &remembered.1);
     remembered.write(RIGHT_PASSWORD);
     carried.state();
     let mut person = asker(&carried);
-    let mut command = carried.command(&["machine", "connect", VANISHED, "--format=json"]);
+    let mut command =
+        carried.command(&["machine", "connect", remembered.1.as_str(), "--format=json"]);
     thread::scope(|scope| {
         let ran = scope.spawn(move || {
             let started = Instant::now();
@@ -326,7 +333,7 @@ fn a_remembered_password_is_tried_once_per_attempt_and_a_refused_one_is_deleted(
     carried.state();
     let mut client = claimant(&carried);
     let id = client.send(Request::Connect(Connect {
-        machine: machine(MINE),
+        machine: machine(&remembered.1),
         origin: Origin::User,
         draft: None,
     }));
@@ -368,7 +375,7 @@ fn a_remembered_password_is_tried_once_per_attempt_and_a_refused_one_is_deleted(
 
     // Removing the Machine forgets what was remembered for it.
     remembered.write(RIGHT_PASSWORD);
-    let removed = carried.run(&["machine", "remove", MINE]);
+    let removed = carried.run(&["machine", "remove", remembered.1.as_str()]);
     assert_eq!(removed.code, Some(0), "{removed}");
     assert!(!remembered.held(), "a removed Machine's answer stays");
 

@@ -1,36 +1,55 @@
 //! The port against this computer's real Windows Credential Manager, under test environments only
-//! and with test words only. Each test names its own fixed Machine id, so a run that was killed
-//! leaves items the next run deletes before it writes; a guard deletes them again on every path,
-//! pass or panic, and only those items are ever read. Where the store cannot be used in this login,
-//! as in an SSH logon or a service session, its own probe answers unavailable and the round trips
-//! assert nothing.
+//! and with test words only. Each test's Machine id carries this process's id, so two checkouts
+//! or runs testing at once never share an item; a guard deletes a test's items before it writes
+//! and again on every path, pass or panic, and only those items are ever read. Where the store
+//! cannot be used in this login, as in an SSH logon or a service session, its own probe answers
+//! unavailable and the round trips assert nothing.
 
 use super::*;
+use std::sync::{Mutex, MutexGuard, PoisonError};
+
+/// Serializes the tests that write the real store. Credential Manager calls made at once from
+/// several threads of one process were seen to bring back an item already deleted and read as
+/// absent, so a passing run left it behind; one test at a time left none. It guards no data, so a
+/// test that panicked while holding it leaves nothing to distrust.
+static STORE: Mutex<()> = Mutex::new(());
 
 /// The environment of the items the round trip writes: no build's stem.
 const ENVIRONMENT: &str = "ob-test-credential-store";
 const WORD: &[u8] = b"test-word-store-one";
 const OTHER_WORD: &[u8] = b"test-word-store-two";
 
-/// A fixed machine id; each test passes its own `last` digits, so no two tests share one.
+/// A machine id of this process; each test passes its own `last` digits, so no two tests share
+/// one.
 fn machine(last: &str) -> MachineId {
-    MachineId::new(format!("7e57c0de000000000000000000{last}")).unwrap()
+    MachineId::new(format!(
+        "7e57c0de{:08x}0000000000{last}",
+        std::process::id()
+    ))
+    .unwrap()
 }
 
-/// Deletes its items when made, so a killed run's are gone before the test writes, and again when
-/// dropped, whatever the test did.
-struct Cleanup(Vec<Item>);
+/// Holds [`STORE`] for one test and deletes its items when made, so a reused process id finds none
+/// left by a killed run, and again when dropped, whatever the test did, before the next test may
+/// write.
+struct Cleanup {
+    items: Vec<Item>,
+    _store: MutexGuard<'static, ()>,
+}
 
 impl Cleanup {
     fn new(items: Vec<Item>) -> Self {
-        let cleanup = Self(items);
+        let cleanup = Self {
+            items,
+            _store: STORE.lock().unwrap_or_else(PoisonError::into_inner),
+        };
         cleanup.delete();
         cleanup
     }
 
     fn delete(&self) {
         let store = Store::select();
-        for item in &self.0 {
+        for item in &self.items {
             let _deleted = store.delete(item);
         }
     }
