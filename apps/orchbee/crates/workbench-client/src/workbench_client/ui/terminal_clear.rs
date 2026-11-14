@@ -9,12 +9,8 @@ use std::time::Duration;
 impl WorkbenchClientUi {
     /// A clear that worked says nothing; it only replaces an earlier clear notice.
     fn note_terminal_clear(&mut self, notice: Option<WorkbenchClientNotice>) {
-        self.command_notice.set(notice.and_then(|notice| {
-            self.clock
-                .now()
-                .checked_add(Duration::from_secs(5))
-                .map(|until| (notice, until))
-        }));
+        let until = self.clock.now().checked_add(Duration::from_secs(5));
+        self.command_notice.set(notice.zip(until));
     }
 
     pub(super) fn request_terminal_clear(&mut self) -> ClientActionDisposition {

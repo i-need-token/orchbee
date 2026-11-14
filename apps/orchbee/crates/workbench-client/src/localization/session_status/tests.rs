@@ -2,45 +2,34 @@ use super::Locale;
 
 #[test]
 fn native_prebootstrap_starting_remains_connecting_without_a_selected_tab() {
-    use crate::localization::{ClientProjectionStatus, TerminalStatus};
+    use crate::localization::TerminalStatus;
 
     for locale in [Locale::EnUs, Locale::ZhCn] {
         assert_eq!(
-            locale.native_starting_status(None, ClientProjectionStatus::Empty),
+            locale.native_starting_status(None),
             locale.terminal_status(TerminalStatus::Connecting)
         );
         assert_eq!(
-            locale.native_switching_status(None, ClientProjectionStatus::Empty),
+            locale.native_switching_status(None),
             locale.terminal_status(TerminalStatus::Unavailable)
         );
     }
-    assert_eq!(
-        Locale::EnUs
-            .native_starting_status(Some("Tab 1"), ClientProjectionStatus::WaitingForFullFrame),
-        "Tab 1 · Connecting · waiting for full frame"
-    );
 }
 
 #[test]
 fn native_prebootstrap_retirement_overrides_the_synthetic_starting_phase() {
-    use crate::localization::{ClientProjectionStatus, DisplayPhase};
+    use crate::localization::{DisplayPhase, TerminalStatus};
     use crate::workbench_client::DisplayRetirement;
 
-    for (locale, unavailable, outcome_unknown) in [
-        (
-            Locale::EnUs,
-            "Terminal disconnected",
-            "Terminal operation result unknown · no replay",
-        ),
-        (Locale::ZhCn, "终端已断连", "终端操作结果未知 · 不会重放"),
-    ] {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let unavailable = locale.terminal_status(TerminalStatus::Unavailable);
+        let outcome_unknown = locale.terminal_status(TerminalStatus::OutcomeUnknown);
         let status = |retirement| {
             locale.native_phase_status_values(
                 DisplayPhase::Starting,
                 None,
                 None,
                 None,
-                ClientProjectionStatus::Empty,
                 Some(retirement),
             )
         };

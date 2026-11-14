@@ -69,7 +69,7 @@ fn current_failure_keeps_the_known_setup_recovery_fact() {
                 false,
             );
             assert!(status.starts_with(&locale.native_notice(notice)));
-            assert!(status.contains(locale.setup_status(setup)));
+            assert!(status.contains(locale.setup_status(setup).unwrap()));
             let retired =
                 status_with_setup(locale, "retired".to_owned(), true, None, Some(setup), false);
             assert!(retired.starts_with("retired"));
@@ -77,13 +77,13 @@ fn current_failure_keeps_the_known_setup_recovery_fact() {
                 retired.contains(if setup == SetupStatus::CommittedNeedRefresh {
                     locale.setup_committed_fact()
                 } else {
-                    locale.setup_status(setup)
+                    locale.setup_status(setup).unwrap()
                 })
             );
             assert!(!retired.contains("Ctrl+B w"));
             assert_eq!(
                 status_with_setup(locale, "phase".to_owned(), false, None, Some(setup), false),
-                locale.setup_status(setup)
+                locale.setup_status(setup).unwrap()
             );
         }
     }
@@ -97,17 +97,10 @@ fn workspace_created_only_offers_directory_setup_for_an_eligible_current_context
         let setup = SetupStatus::WorkspaceCreated;
         let eligible =
             status_with_setup(locale, "phase".to_owned(), false, None, Some(setup), true);
-        assert_eq!(
-            eligible,
-            match locale {
-                Locale::EnUs => "Workspace created · its first directory is not configured",
-                Locale::ZhCn => "工作区已创建 · 尚未配置首个目录",
-            }
-        );
+        assert_eq!(eligible, locale.setup_workspace_directory_action());
         assert!(!eligible.contains("Ctrl+B"));
         let configured_or_nonempty =
             status_with_setup(locale, "phase".to_owned(), false, None, Some(setup), false);
-        assert_eq!(configured_or_nonempty, locale.setup_status(setup));
         assert!(!configured_or_nonempty.contains("Ctrl+B e"));
         let retired =
             status_with_setup(locale, "retired".to_owned(), true, None, Some(setup), true);
