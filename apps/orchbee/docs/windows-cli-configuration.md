@@ -188,9 +188,8 @@ inside the bar remain fixed.
 
 `settings` opens [Settings](native-settings.md), default `prefix+f4`. `close_workspace` asks to close
 the current Workspace with its existing [confirmation](native-workspace-close.md), default `prefix+D`
-(capital D). `rename_panel`, `clear_terminal` and `edit_scrollback` are unbound by default and run the
-Panel menu's Rename, Clear terminal and Edit scrollback on the focused Panel, with their menu
-outcomes. `earlier_layouts` opens the [Earlier layouts picker](native-action-menus.md) and is unbound
+(capital D). `rename_panel` and `clear_terminal` are unbound by default and run the Panel menu's
+Rename and Clear terminal on the focused Panel, with their menu outcomes. `earlier_layouts` opens the [Earlier layouts picker](native-action-menus.md) and is unbound
 by default. `last_panel` steps back to the last focused Panel in any Tab or Workspace
 ([Last Panel](native-context-selection.md#last-panel)), default `prefix+;`.
 
@@ -228,7 +227,7 @@ Supported action fields are `help`, `settings`, `menu`, `new_worktree`, `open_wo
 `earlier_layouts`, `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `open_notification_target`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `copy_mode`, `find`, `resize_mode`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
-`close_panel`, `rename_panel`, `last_panel`, `clear_terminal`, `edit_scrollback`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;
+`close_panel`, `rename_panel`, `last_panel`, `clear_terminal`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 Agent previous/next defaults to prefix `{`/`}` and uses the same ephemeral filtered/sorted
 [machine Agent list](machines.md#agent-metadata-view-controls-and-navigation), with exact physical

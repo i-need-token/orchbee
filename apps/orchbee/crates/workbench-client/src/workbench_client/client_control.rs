@@ -2,7 +2,7 @@
 //! advances.
 mod lane;
 pub(in crate::workbench_client) use lane::{
-    ClientControlLane, CommandCompletion, CommandFailure, Sample, random_request_id,
+    ClientControlLane, CommandCompletion, CommandFailure, Sample,
 };
 #[cfg(test)]
 pub(in crate::workbench_client) use lane::{Delivery, LayoutCompletion};

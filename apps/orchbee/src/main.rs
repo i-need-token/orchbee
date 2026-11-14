@@ -175,14 +175,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::LayoutReopen { saved_at, format }) => {
                 cli::layout_reopen(saved_at, format, locale)
             }
-            Ok(invocation::Request::TerminalEditor {
-                target,
-                client,
-                timeout_ms,
-                format,
-            }) => {
-                cli::edit_terminal_scrollback(&target, client.as_ref(), timeout_ms, format, locale)
-            }
             Ok(invocation::Request::TerminalLink { command, format }) => {
                 cli::resolve_terminal_link(&command, format, locale)
             }

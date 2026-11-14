@@ -622,7 +622,7 @@ fn run(
     }
 }
 
-pub(in crate::workbench_client) fn random_request_id() -> Option<WorkbenchRequestId> {
+fn random_request_id() -> Option<WorkbenchRequestId> {
     let mut bytes = [0; 16];
     getrandom::fill(&mut bytes).ok()?;
     WorkbenchRequestId::parse(&format!("{:032x}", u128::from_be_bytes(bytes))).ok()

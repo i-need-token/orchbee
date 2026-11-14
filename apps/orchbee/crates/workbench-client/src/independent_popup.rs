@@ -274,18 +274,6 @@ impl Driver {
             .as_ref()
             .is_some_and(|latest| matches!(latest.phase, Phase::Failed(_)))
     }
-    /// How the popup opened as `id` settled: `None` while it opens, the reason when the lane
-    /// refused it, and `Some(None)` once it opened, closed, failed, or another popup replaced it.
-    pub(crate) fn settled(&self, id: &WorkbenchRequestId) -> Option<Option<Reason>> {
-        if self.id.as_ref() != Some(id) {
-            return Some(None);
-        }
-        match self.latest.as_ref().map(|latest| &latest.phase) {
-            Some(Phase::Opening) => None,
-            Some(Phase::Refused(reason)) => Some(Some(*reason)),
-            _ => Some(None),
-        }
-    }
     pub(crate) fn identity(&self) -> Option<&WorkbenchRequestId> {
         self.captured().then_some(self.id.as_ref()).flatten()
     }

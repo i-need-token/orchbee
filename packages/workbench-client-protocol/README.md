@@ -463,8 +463,7 @@ bound `ScrollbackEditorSpec.source`. It shares the exact-source `popup-opened`
 completion and generic `popup-close` with typed plugin/editor actors. The
 [Client popup model](../../apps/orchbee/docs/windows-client-control.md#scrollback-editor-popup-model)
 owns same-connection read-only capture, full-content geometry, input, cancellation
-and cleanup. Public editor operation receipts use the sole version-1 control contract. The public Windows `terminal edit-scrollback` path is defined in
-[CLI workflows](../../apps/orchbee/docs/cli-workflows.md#edit-the-focused-terminals-scrollback).
+and cleanup.
 Focused wire/actor evidence does not establish final GUI/cohort acceptance.
 
 ## Configured Windows command contracts

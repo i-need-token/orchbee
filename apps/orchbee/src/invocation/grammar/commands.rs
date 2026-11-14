@@ -143,7 +143,6 @@ commands! {
     TerminalLinkResolve => ["terminal", "link-resolve"], 1, Operand, Windows, true, true, false;
     TerminalLinkActivate => ["terminal", "link-activate"], 1, Operand, Windows, true, true, false;
     TerminalClear => ["terminal", "clear"], 1, Operand, Windows, true, true, false;
-    TerminalEditScrollback => ["terminal", "edit-scrollback"], 1, Operand, Windows, true, true, false;
     TerminalWaitOutput => ["terminal", "wait-output"], 1, TerminalOrPanel, Portable, true, true, false;
     TerminalSend => ["terminal", "send"], 1, TerminalOrPanel, Portable, true, true, false;
     TerminalRun => ["terminal", "run"], 2, TerminalOrPanel, Portable, true, true, false;

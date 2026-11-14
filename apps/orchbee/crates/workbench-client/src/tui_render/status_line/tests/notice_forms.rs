@@ -46,8 +46,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
         N::TerminalClearRefused,
         N::TerminalClearUnavailable,
         N::TerminalClearUnknown,
-        N::ScrollbackEditorUnavailable,
-        N::ScrollbackEditorTooSmall,
         N::CloseRequestNotApplied,
         N::WorkspaceCloseUnavailable,
         N::WorkspaceChanged,
@@ -255,8 +253,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             | N::TerminalClearRefused
             | N::TerminalClearUnavailable
             | N::TerminalClearUnknown
-            | N::ScrollbackEditorUnavailable
-            | N::ScrollbackEditorTooSmall
             | N::CloseRequestNotApplied
             | N::WorkspaceCloseUnavailable
             | N::WorkspaceChanged

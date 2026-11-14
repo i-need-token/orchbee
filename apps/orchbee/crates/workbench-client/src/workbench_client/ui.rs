@@ -14,7 +14,6 @@ mod last_panel;
 mod launch_profiles;
 mod pane_graphics;
 mod presentation_facts;
-mod scrollback_editor;
 pub(in crate::workbench_client) mod settings;
 mod sidebar_reorder;
 mod status_text;
@@ -1591,8 +1590,6 @@ pub(super) struct WorkbenchClientUi {
     held_intents: held_intent::HeldIntents,
     /// The Panel focus history Last Panel steps back through.
     panel_focus_history: last_panel::PanelFocusHistory,
-    /// The scrollback editor this Client's own action opened, until its popup settles.
-    scrollback_editor: Option<orchbee_workbench_protocol::WorkbenchRequestId>,
     viewer_recovery: viewer_recovery::ViewerRecovery,
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
@@ -1749,7 +1746,6 @@ impl WorkbenchClientUi {
             publications: None,
             held_intents: held_intent::HeldIntents::default(),
             panel_focus_history: last_panel::PanelFocusHistory::default(),
-            scrollback_editor: None,
             viewer_recovery: viewer_recovery::ViewerRecovery::default(),
             retirement_failure: None,
             notification_target: false,
@@ -2240,7 +2236,6 @@ impl WorkbenchClientUi {
                 changed |= self.drive_action_menu();
                 changed |= self.links.tick();
                 changed |= self.popup.tick();
-                changed |= self.settle_scrollback_editor();
                 changed |= self.graphics.tick(self.state.as_ref());
                 changed |= self.reports.tick(
                     self.state
@@ -3364,7 +3359,6 @@ impl WorkbenchClientUi {
                 }
             }
             ClientAction::ClearTerminal => self.request_terminal_clear(),
-            ClientAction::EditScrollback => self.request_scrollback_editor(),
             ClientAction::FocusLastPanel => self.request_last_panel(),
             ClientAction::RequestEarlierLayouts => self.request_earlier_layouts(),
             ClientAction::ReopenEarlierLayout(saved_at) => self.reopen_earlier_layout(saved_at),

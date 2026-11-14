@@ -281,8 +281,6 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::LayoutReopen) => super::layouts::REOPEN_ZH,
             (Locale::EnUs, CommandPath::TerminalClear) => super::terminal_clear::HELP_EN,
             (Locale::ZhCn, CommandPath::TerminalClear) => super::terminal_clear::HELP_ZH,
-            (Locale::EnUs, CommandPath::TerminalEditScrollback) => super::terminal_editor::HELP_EN,
-            (Locale::ZhCn, CommandPath::TerminalEditScrollback) => super::terminal_editor::HELP_ZH,
             (Locale::EnUs, CommandPath::TerminalLinkActivate) => super::terminal_links::ACTIVATE_EN,
             (Locale::ZhCn, CommandPath::TerminalLinkActivate) => super::terminal_links::ACTIVATE_ZH,
             (Locale::EnUs, CommandPath::TerminalCopyMotion) => super::terminal_copy::HELP_MOTION_EN,

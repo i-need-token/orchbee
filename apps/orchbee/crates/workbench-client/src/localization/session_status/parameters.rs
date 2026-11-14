@@ -65,8 +65,6 @@ pub(crate) enum WorkbenchClientNotice {
     TerminalClearRefused,
     TerminalClearUnavailable,
     TerminalClearUnknown,
-    ScrollbackEditorUnavailable,
-    ScrollbackEditorTooSmall,
     CloseRequestNotApplied,
     WorkspaceCloseUnavailable,
     WorkspaceChanged,

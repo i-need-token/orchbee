@@ -104,7 +104,6 @@ pub(crate) use crate::localization::{MenuHeading, MenuRowNote, MenuUnavailable};
 pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
     MenuAction::CopySelection,
     MenuAction::ClearTerminal,
-    MenuAction::EditScrollback,
     MenuAction::RenamePanel,
     MenuAction::SplitPanel(PanelDirection::Right),
     MenuAction::SplitPanel(PanelDirection::Down),
@@ -154,7 +153,6 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::CloseTrailingTabs,
     MenuAction::LastPanel,
     MenuAction::ClearTerminal,
-    MenuAction::EditScrollback,
     MenuAction::RenamePanel,
     MenuAction::SplitPanel(PanelDirection::Up),
     MenuAction::SplitPanel(PanelDirection::Down),
@@ -219,7 +217,6 @@ pub(crate) fn menu_binding_action(
         (T::Global, M::RenameTab) => PrefixAction::Client(A::RequestRenameTab),
         (T::Global, M::RenamePanel) => PrefixAction::Client(A::RequestRenamePanel),
         (T::Global, M::ClearTerminal) => PrefixAction::Client(A::ClearTerminal),
-        (T::Global, M::EditScrollback) => PrefixAction::Client(A::EditScrollback),
         (T::Global, M::LastPanel) => PrefixAction::Client(A::FocusLastPanel),
         (T::Global, M::Copy) => PrefixAction::Client(A::EnterCopyMode),
         (T::Global, M::Resize) => PrefixAction::Client(A::EnterResizeMode),
@@ -469,9 +466,7 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::ClosePane
         | MenuAction::MovePanel(_)
         | MenuAction::RenamePanel => GlobalMenuGroup::Panel,
-        MenuAction::ClearTerminal | MenuAction::EditScrollback | MenuAction::LastPanel => {
-            GlobalMenuGroup::Panel
-        }
+        MenuAction::ClearTerminal | MenuAction::LastPanel => GlobalMenuGroup::Panel,
         MenuAction::NewWorkspace
         | MenuAction::WorkspaceAtDirectory
         | MenuAction::NewWorktree

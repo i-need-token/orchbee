@@ -786,12 +786,6 @@ pub(crate) enum Request {
         command: configured_commands::Command,
         format: OutputFormat,
     },
-    TerminalEditor {
-        target: Target,
-        client: Option<orchbee_workbench_protocol::WorkbenchClientId>,
-        timeout_ms: u32,
-        format: OutputFormat,
-    },
     TerminalClear {
         target: Target,
         format: OutputFormat,

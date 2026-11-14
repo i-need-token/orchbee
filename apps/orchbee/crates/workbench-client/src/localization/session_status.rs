@@ -302,8 +302,6 @@ impl Locale {
             | N::TerminalClearRefused
             | N::TerminalClearUnavailable
             | N::TerminalClearUnknown
-            | N::ScrollbackEditorUnavailable
-            | N::ScrollbackEditorTooSmall
             | N::CloseRequestNotApplied
             | N::WorkspaceCloseUnavailable
             | N::WorkspaceChanged
@@ -374,8 +372,6 @@ impl Locale {
             WorkbenchClientNotice::TerminalClearRefused => match self { Self::EnUs => "Terminal clear refused · nothing cleared".into(), Self::ZhCn => "清除终端被拒绝 · 未清除内容".into() },
             WorkbenchClientNotice::TerminalClearUnavailable => match self { Self::EnUs => "Terminal clear unavailable".into(), Self::ZhCn => "无法清除终端".into() },
             WorkbenchClientNotice::TerminalClearUnknown => match self { Self::EnUs => "Terminal clear outcome unknown · not retried".into(), Self::ZhCn => "无法确认清除终端的结果 · 未重试".into() },
-            WorkbenchClientNotice::ScrollbackEditorUnavailable => match self { Self::EnUs => "Scrollback editor unavailable".into(), Self::ZhCn => "无法编辑回滚缓冲区".into() },
-            WorkbenchClientNotice::ScrollbackEditorTooSmall => match self { Self::EnUs => "Window too small for the editor".into(), Self::ZhCn => "窗口太小，无法打开编辑器".into() },
             WorkbenchClientNotice::MenuUnavailable => match self {
                 Self::EnUs => "Menu action cancelled or unavailable · open the menu again".into(),
                 Self::ZhCn => "菜单动作已取消或不可用 · 请重新打开菜单".into(),

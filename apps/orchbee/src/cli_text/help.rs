@@ -553,10 +553,6 @@ impl super::CliText {
                 "Clear output, keeping the cursor's row on Windows and its whole line elsewhere.",
                 "清除输出；在 Windows 上保留光标所在的屏幕行，在其他平台上保留光标所在的整行。",
             ),
-            HelpTopic::Command(CommandPath::TerminalEditScrollback) => (
-                "Open terminal history in an editor.",
-                "在编辑器中打开终端历史。",
-            ),
             HelpTopic::Command(CommandPath::TerminalWaitOutput) => (
                 "Wait for output matching text or a pattern.",
                 "等待终端输出匹配文字或模式。",

@@ -203,7 +203,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::TerminalLinkResolve => &["@terminal:0xabcd", "--cursor", "0:0"],
         CommandPath::TerminalLinkActivate => &["@terminal:0xabcd", "--cursor", "0:0"],
         CommandPath::TerminalClear => &["@terminal:0xabcd"],
-        CommandPath::TerminalEditScrollback => &["@terminal:0xabcd"],
         CommandPath::TerminalWaitOutput => {
             &["@terminal:0xabcd", "--match", "ready", "--timeout", "30000"]
         }

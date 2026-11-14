@@ -21,26 +21,6 @@ pub(super) struct Read {
     pub(super) fence: ViewFence,
 }
 
-pub(super) fn read(
-    client: &mut LocalClient,
-    snapshot: &Snapshot,
-    selected: &ClientViewRecord,
-    panel_id: &WorkbenchPanelId,
-    deadline: Instant,
-    signals: &mut impl SignalWatch,
-) -> Result<ClientPresentationSelection, Failure> {
-    read_with_receipt(
-        client,
-        snapshot,
-        selected,
-        panel_id,
-        ViewFence::Exact,
-        deadline,
-        signals,
-    )
-    .map(|read| read.member)
-}
-
 /// Reads the member again at the Client's record that still answers for `original` under
 /// `fence`; a moved Client fails with `client-changed`.
 pub(super) fn reread(

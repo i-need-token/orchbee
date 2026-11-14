@@ -49,7 +49,6 @@ pub(super) const ACTIONS: &[&str] = &[
     "rename_panel",
     "last_panel",
     "clear_terminal",
-    "edit_scrollback",
     "zoom",
     "toggle_sidebar",
 ];

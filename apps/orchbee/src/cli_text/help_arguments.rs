@@ -167,7 +167,6 @@ impl super::CliText {
             CommandPath::TerminalLinkResolve => &[Argument::Terminal],
             CommandPath::TerminalLinkActivate => &[Argument::Terminal],
             CommandPath::TerminalClear => &[Argument::Terminal],
-            CommandPath::TerminalEditScrollback => &[Argument::Terminal],
             CommandPath::TerminalWaitOutput => &[Argument::TerminalOrPanel],
             CommandPath::TerminalSend => &[Argument::TerminalOrPanel],
             CommandPath::TerminalRun => &[Argument::TerminalOrPanel, Argument::Command],

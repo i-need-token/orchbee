@@ -699,7 +699,7 @@ fn a_parked_focus_disables_the_terminal_rows_that_need_its_attachment() {
             [
                 MenuAction::ClearTerminal,
                 MenuAction::Copy,
-                MenuAction::EditScrollback,
+                MenuAction::RenamePanel,
             ]
         ),
         [

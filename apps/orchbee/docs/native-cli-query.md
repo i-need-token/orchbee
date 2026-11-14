@@ -22,7 +22,7 @@ Report submission, Agent manifest maintenance and runtime-status collection shar
 
 Plugin catalog/runtime commands, configured commands and named-Session commands share preparation, settlement and presentation. Plugin provisioning obtains a native process runner; Unix refusal never fabricates a process outcome. Creation and relocation keep their shared canonical and Client receipts, while the existing explicit Unix Tab, Panel and Workspace routes retain their own request requirements. Capability selection precedes launch-path resolution and preserves Windows execution order.
 
-Terminal selection, copy and link workflows share bounded buffer validation and exact link-activation receipts. Client scrollback-editor requests share passive selection and retained command observation. Their execution capabilities are checked before signal registration or Session discovery; link activation still detaches its viewer before submitting its one effect.
+Terminal selection, copy and link workflows share bounded buffer validation and exact link-activation receipts. Their execution capabilities are checked before signal registration or Session discovery; link activation still detaches its viewer before submitting its one effect.
 
 Terminal observation, control, attachment and Pane graphics share protocol, framing, acknowledgement and cleanup workflows. Windows adapters own the stdin helper and stdout relay processes; shared polling interprets their actual byte, EOF and exit observations. Unsupported hosts refuse before terminal admission, signal registration or helper creation. Native interrupt observation delegates to the existing Windows guard without replacing Unix cancellation ownership.
 

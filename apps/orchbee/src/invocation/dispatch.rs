@@ -20,8 +20,7 @@ use super::{
     resolve_help_path, schema_export, send_input, stop_command, stop_id, tab_move_command, target,
     terminal_copy, terminal_links, terminal_output, terminal_run, terminal_selection,
     terminal_stream, terminal_target, unexpected_argument, unknown_command, usage_with,
-    wait_timeout_option, workspace_creation, workspace_group_close, workspace_id_option,
-    workspace_metadata, worktree,
+    workspace_creation, workspace_group_close, workspace_id_option, workspace_metadata, worktree,
 };
 
 pub(super) fn resolve_words(
@@ -1053,16 +1052,6 @@ pub(super) fn resolve_words(
             check_scope(options, UsageContext::Path("terminal clear"), envelope)?;
             Ok(Request::TerminalClear {
                 target: target((*value).to_owned(), Resource::Terminal, envelope)?,
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
-        ["terminal", "edit-scrollback", value] => {
-            let context = UsageContext::Path("terminal edit-scrollback");
-            check_scope(options, context, envelope)?;
-            Ok(Request::TerminalEditor {
-                target: target((*value).to_owned(), Resource::Terminal, envelope)?,
-                client: client_control::client_id(options, context, envelope)?,
-                timeout_ms: wait_timeout_option(options, context, envelope)?,
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }

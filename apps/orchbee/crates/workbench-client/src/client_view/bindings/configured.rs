@@ -62,7 +62,6 @@ impl Default for Bindings {
                 "resize_panel_down",
                 "rename_panel",
                 "clear_terminal",
-                "edit_scrollback",
                 "earlier_layouts",
             ] {
                 let (action, desc, shell) = action(name);
@@ -554,7 +553,6 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "rename_panel" => (A::RequestRenamePanel, D::RenamePanel),
         "last_panel" => (A::FocusLastPanel, D::LastPanel),
         "clear_terminal" => (A::ClearTerminal, D::ClearTerminal),
-        "edit_scrollback" => (A::EditScrollback, D::EditScrollback),
         "zoom" => (A::ToggleZoom, D::PanelZoom),
         _ => unreachable!("shared settings admit only implemented actions"),
     };

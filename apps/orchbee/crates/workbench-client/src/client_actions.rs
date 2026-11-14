@@ -49,8 +49,6 @@ pub enum ClientAction {
     RequestRenameTab,
     RequestRenamePanel,
     ClearTerminal,
-    /// Opens the focused Panel's displayed terminal scrollback in the configured editor popup.
-    EditScrollback,
     /// Focuses the most recent previously focused Panel that still exists, in any Tab or
     /// Workspace of the Session Workbench.
     FocusLastPanel,
@@ -148,7 +146,7 @@ impl ClientAction {
             | Self::RequestProjectCloseAll(_) => None,
             Self::RequestRenameTab => Some(BackendAction::RenameTab),
             Self::RequestRenamePanel => None,
-            Self::ClearTerminal | Self::EditScrollback | Self::FocusLastPanel => None,
+            Self::ClearTerminal | Self::FocusLastPanel => None,
             Self::RequestEarlierLayouts | Self::ReopenEarlierLayout(_) => None,
             Self::RequestCloseTab => Some(BackendAction::CloseTab),
             Self::CreateTab => Some(BackendAction::CreateTab),
@@ -229,7 +227,6 @@ pub enum MenuAction {
     RenameTab,
     RenamePanel,
     ClearTerminal,
-    EditScrollback,
     LastPanel,
     ResumeTabClose,
     CloseSelectedTabs,
@@ -323,7 +320,6 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::RenameTab => Self::RenameTab,
             MenuAction::RenamePanel => Self::RenamePanel,
             MenuAction::ClearTerminal => Self::ClearTerminal,
-            MenuAction::EditScrollback => Self::EditScrollback,
             MenuAction::LastPanel => Self::LastPanel,
             MenuAction::ResumeTabClose => Self::ResumeTabClose,
             MenuAction::CloseSelectedTabs => Self::CloseSelectedTabs,
@@ -433,7 +429,6 @@ impl MenuAction {
             Self::RenameTab => ClientAction::RequestRenameTab,
             Self::RenamePanel => ClientAction::RequestRenamePanel,
             Self::ClearTerminal => ClientAction::ClearTerminal,
-            Self::EditScrollback => ClientAction::EditScrollback,
             Self::LastPanel => ClientAction::FocusLastPanel,
             Self::QuickWorkspace => ClientAction::RequestQuickWorkspace,
             Self::WorkspaceAtDirectory => ClientAction::RequestWorkspaceAtDirectory,
