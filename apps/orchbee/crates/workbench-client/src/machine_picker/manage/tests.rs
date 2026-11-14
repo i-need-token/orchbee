@@ -188,6 +188,47 @@ fn the_add_row_opens_the_form_whose_enter_starts_the_checks_and_esc_gives_them_u
     );
 }
 
+/// A failed add is given up, so after Esc the login of a selected Machine asks the person.
+#[test]
+fn after_a_failed_add_and_esc_a_selections_login_asks() {
+    use crate::machine_login::{Effect, Notice as Login};
+    let other = ProfileId::parse("fedcba9876543210fedcba9876543210").unwrap();
+    let mut bench = Bench::open(None);
+    bench.send(DOWN);
+    bench.send(DOWN);
+    bench.send(b"\r");
+    bench.send(b"devbox2");
+    bench.send(b"\r");
+    bench.manage_work_clear();
+    // A discovery that holds no hub fails every add at once.
+    let draft = Draft::parse("devbox2", "devbox2", SESSION).unwrap();
+    let proposal = crate::machine_add::Proposal::new(draft, &crate::machines::Catalog::default());
+    bench.discovery.add(proposal.unwrap());
+    bench.exchange();
+    let Page::Add(form) = &bench.manage().page else {
+        panic!("the form stays open on the failure");
+    };
+    assert!(matches!(form.check, Some(Check::Failed { .. })));
+    bench.send(ESC);
+    assert_eq!(bench.manage().page, Page::List);
+
+    bench.discovery.wait_for(Some(&other));
+    let login = orchbee_machine_protocol::Id::new(7).unwrap();
+    let effects = bench.discovery.logins_mut().notice(
+        Login::Claimed {
+            login,
+            machine: other.as_str().to_owned(),
+        },
+        |_| Some("user@other".to_owned()),
+    );
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Dismiss(_)))
+    );
+    assert!(bench.discovery.login_active(&other));
+}
+
 #[test]
 fn the_menu_opens_on_f2_and_its_items_act_on_the_machine() {
     let mut bench = Bench::open(None);

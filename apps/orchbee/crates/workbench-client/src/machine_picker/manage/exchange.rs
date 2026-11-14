@@ -182,6 +182,10 @@ impl Picker {
                 stage, explanation, ..
             } => {
                 form.check = Some(failed(stage, explanation));
+                // A failed add is given up at once: its draft, link, login and remembered answers
+                // go, so a selection's login asks again. The form keeps what it shows, and a
+                // retry takes a fresh id.
+                discovery.discard_add();
                 None
             }
             Adding::Passed => {
