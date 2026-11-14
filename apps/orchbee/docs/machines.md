@@ -784,7 +784,7 @@ events to the claimant, closing the open question's helper, ending the carrier, 
   `user@host's password:` a password, and `The authenticity of host '…' can't be established`
   with a later line exactly `<algorithm> key fingerprint is <fingerprint>.` and a last line asking
   to continue connecting is a host-key confirmation with that key. Anything else is `other`: a
-  keyboard-interactive prompt, which OpenSSH 8.4 and later prefix with `(user@host) `, a server's
+  keyboard-interactive prompt, which OpenSSH 8.5 and later prefix with `(user@host) `, a server's
   text, a confirmation whose key it cannot read. The hub reads the prompt again against the
   Machine's `ssh` target, and so does the asking client: a password or a new host that names
   another host than the target's, such as a jump host's, is `other`, so it is never shown as the
