@@ -118,8 +118,12 @@ fn group_close_confirmation_and_scope_conflicts_fail_before_runtime_access() {
             assert_eq!(document["failure"]["kind"], "invalid-usage");
             assert!(document.get("source").is_none());
         }
-        for verb in ["close-all", "status", "resume"] {
-            let output = run(&["help", "project", verb], locale);
+        for (family, verb) in [
+            ("project", "close-all"),
+            ("operation", "status"),
+            ("operation", "resume"),
+        ] {
+            let output = run(&["help", family, verb], locale);
             assert!(output.status.success());
             assert!(
                 String::from_utf8(output.stdout)
@@ -143,10 +147,8 @@ fn organization_grammar_is_complete_before_effects_and_discoverable_in_both_loca
         let text = String::from_utf8(output.stdout).unwrap();
         for (family, verbs) in [
             ("workspace", &["set-project"][..]),
-            (
-                "project",
-                &["dissolve", "close-all", "status", "resume"][..],
-            ),
+            ("project", &["dissolve", "close-all"][..]),
+            ("operation", &["status", "resume"][..]),
         ] {
             assert!(text.contains(family), "{locale}: {family}");
             let family_output = run(&[family, "--help"], locale);
