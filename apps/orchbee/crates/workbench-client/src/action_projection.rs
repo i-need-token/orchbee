@@ -115,11 +115,6 @@ const AGENT: &[ActionSearchAlias] = &[ActionSearchAlias::Agent];
 const HELP: &[ActionSearchAlias] = &[ActionSearchAlias::Help];
 const MOUSE: &[ActionSearchAlias] = &[ActionSearchAlias::Mouse];
 const DETACH: &[ActionSearchAlias] = &[ActionSearchAlias::Detach];
-const EARLIER_LAYOUTS: &[ActionSearchAlias] = &[
-    ActionSearchAlias::History,
-    ActionSearchAlias::Workspace,
-    ActionSearchAlias::Tab,
-];
 const NONE: &[ActionSearchAlias] = &[];
 
 const fn built_in(
@@ -174,7 +169,6 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
         PrefixAction::Client(A::RequestWorktreeOpen) => {
             built_in("orchbee.native.worktree.open", C::Workspace, WORKTREE)
         }
-        PrefixAction::Client(A::RequestEarlierLayouts) => earlier_layouts(),
         PrefixAction::Client(A::RequestWorkspaceClose) => built_in(
             "workbench.workspace.delete",
             C::Workspace,
@@ -305,15 +299,6 @@ const fn panel_focus(direction: PanelDirection) -> ActionMetadata<'static> {
         id,
         ActionCategory::Navigation,
         &[ActionSearchAlias::Pane, ActionSearchAlias::Select],
-    )
-}
-
-/// Shares the GUI Workbench identity: the same Server listing and reopen.
-const fn earlier_layouts() -> ActionMetadata<'static> {
-    built_in(
-        "workbench.layout.reopen-earlier",
-        ActionCategory::Workspace,
-        EARLIER_LAYOUTS,
     )
 }
 
@@ -481,7 +466,6 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         ),
         A::NewWorkspace => built_in("workbench.workspace.create", C::Workspace, WORKSPACE),
         A::NewWorktree => built_in("orchbee.native.worktree.create", C::Workspace, WORKTREE),
-        A::EarlierLayouts | A::ReopenEarlierLayout(_) => earlier_layouts(),
         A::OpenWorktree | A::OpenWorktreeAt(_) => {
             built_in("orchbee.native.worktree.open", C::Workspace, WORKTREE)
         }

@@ -480,7 +480,6 @@ fn requires_session(action: &PrefixAction) -> bool {
                 | A::FocusLastPanel
                 | A::RequestRenamePanel
                 | A::ClearTerminal
-                | A::RequestEarlierLayouts
         ) | PrefixAction::SelectTabDigit
     )
 }

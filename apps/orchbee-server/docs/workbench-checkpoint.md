@@ -330,8 +330,8 @@ no lineage. The lineage never enters the Client-facing Snapshot or the wire.
 Each reopened Presentation keeps its saved directory as restart intent. After the commit the Server
 probes those directories outside every gate; a missing one gets the [held restore](#held-restore)
 state, and the rest bind and launch through restore's reservation path. No process, Agent or
-screen comes back. The result names the first reopened Tab; interactive Clients select it, and the
-CLI does not move focus.
+screen comes back. The result names the first reopened Tab; the CLI reports it and does not move
+focus.
 
 ## Evidence
 

@@ -458,8 +458,6 @@ impl Locale {
             // Leaving is also what people call quitting or exiting; the title stays Leave view.
             (Self::EnUs, A::Detach) => "detach quit exit",
             (Self::ZhCn, A::Detach) => "分离 退出 关闭",
-            (Self::EnUs, A::History) => "history restore",
-            (Self::ZhCn, A::History) => "历史 恢复",
         }
     }
 }

@@ -33,19 +33,6 @@ a refusal only the Server can answer, such as a full-screen program, stays a sta
 Rename continues to address the primary Presentation independently of the displayed child.
 The global Panel group also holds Back to last focused panel, the [Last Panel](native-context-selection.md#last-panel) step (`Ctrl+b ;`), which shares the GUI
 Workbench identity `workbench.panel.focus-last`.
-The global Workspace group ends with Earlier layouts… ("早先的布局…"), which shares the GUI Workbench
-identity `workbench.layout.reopen-earlier` and has no default key (`[keys].earlier_layouts`). It lists
-the [earlier layouts](../../orchbee-server/docs/workbench-checkpoint.md#earlier-layouts) the Server
-kept and opens the same menu surface as a picker titled Earlier layouts, newest first. Each row reads
-as the relative time with the local clock, then what of that layout is not open now, for example
-"12 min ago · 14:05 · 3 Tabs not open now"; the query filters those words. Enter or a click reopens
-the row once, and a short notice reports the outcome: "Reopened 2 Workspaces, 3 Tabs", nothing to
-reopen, no longer kept, over the limit, busy, refused, unavailable, or an unknown outcome that is
-never retried. An empty listing opens no picker and says there are no earlier layouts yet. After a
-reopen this Client selects the first reopened Tab once the Server revision that holds it has landed,
-through the ordinary Tab switch or Workspace selection; a Tab already gone selects nothing. The CLI
-and the GUI share the copy in `crates/workbench-client/src/localization/layout_history.rs` and its
-message catalog counterpart.
 The Workspace sidebar admits right-click only for an exact, still-present row on the
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.

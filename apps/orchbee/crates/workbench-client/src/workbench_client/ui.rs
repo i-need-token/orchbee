@@ -8,7 +8,6 @@ mod agent_attention;
 mod agent_not_resumed;
 mod agent_start_failure;
 mod captured_actions;
-mod earlier_layouts;
 mod held_restore;
 mod last_panel;
 mod launch_profiles;
@@ -1539,8 +1538,6 @@ pub(super) struct WorkbenchClientUi {
     agent_not_resumed: agent_not_resumed::AgentNotResumedNotices,
     /// The Server's start facts this Client already decided to show or not.
     agent_start_failure: agent_start_failure::AgentStartFailureNotices,
-    /// The earlier-layout listing, picker rows and reopen in flight.
-    earlier_layouts: earlier_layouts::EarlierLayouts,
     launch_profiles: launch_profiles::Coordinator,
     preferences: orchbee_workbench_protocol::UserSettingsValues,
     completion_reminders: super::completion_reminders::State,
@@ -1659,7 +1656,6 @@ impl WorkbenchClientUi {
             .chain(pending)
             .chain(self.duplication.wake())
             .chain(self.held_restore.wake())
-            .chain(self.earlier_layouts.wake())
             .chain(self.held_intent_wake())
             .chain(self.find_wake())
             .min()
@@ -1713,7 +1709,6 @@ impl WorkbenchClientUi {
             held_restore: held_restore::HeldRestore::default(),
             agent_not_resumed: agent_not_resumed::AgentNotResumedNotices::default(),
             agent_start_failure: agent_start_failure::AgentStartFailureNotices::default(),
-            earlier_layouts: earlier_layouts::EarlierLayouts::default(),
             notice_timer: Default::default(),
             setup_notice_timer: Default::default(),
             workspace_closed_timer: Default::default(),
@@ -2259,7 +2254,6 @@ impl WorkbenchClientUi {
             changed |= self.drive_settings();
             changed |= self.drive_duplication();
             changed |= self.drive_held_restore();
-            changed |= self.drive_earlier_layouts();
             changed |= self.attention.tick();
             changed |= self.drive_completion_reminders();
             {
@@ -3367,8 +3361,6 @@ impl WorkbenchClientUi {
             }
             ClientAction::ClearTerminal => self.request_terminal_clear(),
             ClientAction::FocusLastPanel => self.request_last_panel(),
-            ClientAction::RequestEarlierLayouts => self.request_earlier_layouts(),
-            ClientAction::ReopenEarlierLayout(saved_at) => self.reopen_earlier_layout(saved_at),
             ClientAction::RequestCloseTab => self.request_close_confirmation(),
             ClientAction::RequestWorkspaceClose => self.request_workspace_close(),
             ClientAction::RequestWorkspaceCloseAt(workspace) => {

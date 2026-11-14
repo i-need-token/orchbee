@@ -789,12 +789,6 @@ impl WorkbenchClientUi {
                     crate::action_menu::AGENT_ACTIONS.to_vec(),
                 )
             }
-            MenuTarget::EarlierLayouts => {
-                if !live {
-                    return false;
-                }
-                (Target::Global, String::new(), self.earlier_layouts.rows())
-            }
             MenuTarget::Drawn { .. }
             | MenuTarget::Create(_)
             | MenuTarget::TabCreate(_)

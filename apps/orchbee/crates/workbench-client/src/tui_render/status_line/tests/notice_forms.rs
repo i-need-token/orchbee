@@ -5,9 +5,7 @@ use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
 use super::{StatusFacts, facts, render};
 use crate::client_view::{BackendAction, ClientView, Notice, SidebarSurface};
-use crate::localization::{
-    AgentStartStatus, EarlierLayoutNotice, Locale, SettingsNotice, WorkbenchClientNotice,
-};
+use crate::localization::{AgentStartStatus, Locale, SettingsNotice, WorkbenchClientNotice};
 use crate::terminal_text::display_width;
 use crate::tui_layout::{
     COMPACT_MINIMUM_COLUMNS, COMPACT_MINIMUM_ROWS, TOO_SMALL_MINIMUM_COLUMNS, project_shell_areas,
@@ -20,7 +18,6 @@ use crate::tui_theme::Theme;
 fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
     use crate::workbench_state::AgentStartRefusal as Refusal;
     use AgentStartStatus as Start;
-    use EarlierLayoutNotice as Layout;
     use SettingsNotice as Settings;
     use WorkbenchClientNotice as N;
     use orchbee_local_runtime::{RecordProblem as Problem, VersionedRecord};
@@ -160,23 +157,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             [Why::PromptUnconfirmed, Why::TerminalTooOld].map(|why| N::AgentNotResumed(agent, why)),
         );
     }
-    all.extend(
-        [
-            Layout::Reopened {
-                workspaces: u32::MAX,
-                tabs: u32::MAX,
-            },
-            Layout::NothingToReopen,
-            Layout::NotFound,
-            Layout::ResourceLimit,
-            Layout::Busy,
-            Layout::Denied,
-            Layout::Empty,
-            Layout::Unknown,
-            Layout::Unavailable,
-        ]
-        .map(N::EarlierLayout),
-    );
     for notice in &all {
         match notice {
             N::Unsupported(_)
@@ -224,17 +204,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
                 | F::PhysicalUnknown,
             )
             | N::AgentNotResumed(_, Why::PromptUnconfirmed | Why::TerminalTooOld)
-            | N::EarlierLayout(
-                Layout::Reopened { .. }
-                | Layout::NothingToReopen
-                | Layout::NotFound
-                | Layout::ResourceLimit
-                | Layout::Busy
-                | Layout::Denied
-                | Layout::Empty
-                | Layout::Unknown
-                | Layout::Unavailable,
-            )
             | N::MenuUnavailable
             | N::LocalBusy
             | N::NoTabAtPosition(_)

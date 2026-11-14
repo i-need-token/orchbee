@@ -95,7 +95,7 @@ now. It is a read and exits 0 with an empty list when nothing is kept yet.
 
 `layout reopen <saved-at> [--format text|json]` reopens from that entry only what is not open now
 and emits `orchbee.layout.reopen` v1. It needs no `--yes`: it never closes, moves or renames
-anything. The CLI does not move focus; interactive Clients select the first reopened Tab. A save
+anything, and it does not move focus. A save
 time no longer kept exits 3 (`not-found`), as do `rejected` and `denied`; `unavailable` exits 4.
 The request is submitted once: an outcome lost after handoff is an `unknown` observation with exit
 8, never replayed; `layout history` then shows what is open. A reopen that did land counts as

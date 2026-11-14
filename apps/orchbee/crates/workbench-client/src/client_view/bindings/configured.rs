@@ -55,7 +55,7 @@ impl Default for Bindings {
         let entries = {
             let mut entries = entries;
             // Configured-only actions keep a disabled default, so overrides find their position.
-            for name in ["rename_panel", "clear_terminal", "earlier_layouts"] {
+            for name in ["rename_panel", "clear_terminal"] {
                 let (action, desc, shell) = action(name);
                 entries.push(Entry {
                     enabled: false,
@@ -509,7 +509,6 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "open_worktree" => (A::RequestWorktreeOpen, D::WorktreeOpen),
         "rename_workspace" => (A::RequestWorkspaceRename, D::WorkspaceRename),
         "close_workspace" => (A::RequestWorkspaceClose, D::WorkspaceClose),
-        "earlier_layouts" => (A::RequestEarlierLayouts, D::EarlierLayouts),
         "previous_workspace" => (A::SelectPreviousContext, D::SelectContext),
         "next_workspace" => (A::SelectNextContext, D::SelectContext),
         "previous_agent" => (A::PreviousAgent, D::AgentCycle),

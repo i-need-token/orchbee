@@ -1,6 +1,5 @@
-//! Copy for earlier layouts, shared by the TUI picker and notices and the CLI text output: when an
-//! entry was saved (relative time and local clock), what it holds that is not open now, and what a
-//! reopen did.
+//! Copy for earlier layouts in the CLI text output: when an entry was saved (relative time and
+//! local clock), what it holds that is not open now, and what a reopen did.
 use super::Locale;
 use orchbee_workbench_protocol::{
     LayoutHistoryEntry, LayoutHistoryOutcome, LayoutHistoryRejection, LayoutHistoryUnavailable,
@@ -87,7 +86,7 @@ impl Locale {
         EarlierLayoutNotice::from_outcome(outcome).map(|notice| self.earlier_layout_notice(notice))
     }
 
-    /// The short notice an interactive Client shows for an earlier-layout request.
+    /// The line for a reopen outcome.
     #[must_use]
     pub fn earlier_layout_notice(self, notice: EarlierLayoutNotice) -> String {
         use EarlierLayoutNotice as N;
@@ -152,37 +151,8 @@ impl Locale {
             (Self::ZhCn, N::Busy) => "未重新打开：有工作区正在关闭，请重试".to_owned(),
             (Self::EnUs, N::Denied) => "Not reopened: this Client may not open Tabs".to_owned(),
             (Self::ZhCn, N::Denied) => "未重新打开：此客户端无权打开标签页".to_owned(),
-            (Self::EnUs, N::Empty) => "No earlier layouts yet".to_owned(),
-            (Self::ZhCn, N::Empty) => "还没有早先的布局".to_owned(),
-            (Self::EnUs, N::Unknown) => "Reopen outcome unknown · not retried".to_owned(),
-            (Self::ZhCn, N::Unknown) => "重新打开的结果未知 · 未重试".to_owned(),
             (Self::EnUs, N::Unavailable) => "Earlier layouts are unavailable right now".to_owned(),
             (Self::ZhCn, N::Unavailable) => "早先的布局暂不可用".to_owned(),
-        }
-    }
-
-    /// The status line's shorter form of a notice too wide for it, for the notices that can be;
-    /// it keeps the outcome and drops the explanation.
-    pub(crate) const fn earlier_layout_notice_shorter(
-        self,
-        notice: EarlierLayoutNotice,
-    ) -> Option<&'static str> {
-        use EarlierLayoutNotice as N;
-        match (self, notice) {
-            (Self::EnUs, N::NothingToReopen) => Some("Nothing to reopen"),
-            (Self::ZhCn, N::NothingToReopen) => Some("无需重新打开"),
-            (Self::EnUs, N::ResourceLimit) => Some("Not reopened: Workspace or Tab limit"),
-            (Self::ZhCn, N::ResourceLimit) => Some("未重新打开：工作区或标签页已达上限"),
-            (
-                _,
-                N::Reopened { .. }
-                | N::NotFound
-                | N::Busy
-                | N::Denied
-                | N::Empty
-                | N::Unknown
-                | N::Unavailable,
-            ) => None,
         }
     }
 
@@ -195,22 +165,15 @@ impl Locale {
     }
 }
 
-/// What an interactive Client reports after an earlier-layout request.
+/// What a reopen of an earlier layout did.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EarlierLayoutNotice {
-    Reopened {
-        workspaces: u32,
-        tabs: u32,
-    },
+    Reopened { workspaces: u32, tabs: u32 },
     NothingToReopen,
     NotFound,
     ResourceLimit,
     Busy,
     Denied,
-    /// The listing is empty, so no picker opens.
-    Empty,
-    /// The request was handed off but its outcome never arrived; it is not repeated.
-    Unknown,
     Unavailable,
 }
 

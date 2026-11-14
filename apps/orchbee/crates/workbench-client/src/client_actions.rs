@@ -47,10 +47,6 @@ pub enum ClientAction {
     /// Focuses the most recent previously focused Panel that still exists, in any Tab or
     /// Workspace of the Session Workbench.
     FocusLastPanel,
-    /// Lists the Session's earlier layouts and opens the picker over them.
-    RequestEarlierLayouts,
-    /// Reopens what the earlier layout saved at this Unix millisecond has and the Workbench lacks.
-    ReopenEarlierLayout(u64),
     RequestCloseTab,
     ConfirmClose,
     CancelClose,
@@ -138,7 +134,6 @@ impl ClientAction {
             Self::RequestRenameTab => Some(BackendAction::RenameTab),
             Self::RequestRenamePanel => None,
             Self::ClearTerminal | Self::FocusLastPanel => None,
-            Self::RequestEarlierLayouts | Self::ReopenEarlierLayout(_) => None,
             Self::RequestCloseTab => Some(BackendAction::CloseTab),
             Self::CreateTab => Some(BackendAction::CreateTab),
             Self::MovePreviousTab => Some(BackendAction::MovePreviousTab),
@@ -245,10 +240,6 @@ pub enum MenuAction {
     NewWorkspace,
     NewWorktree,
     OpenWorktree,
-    /// Opens the earlier-layout picker.
-    EarlierLayouts,
-    /// One picker row: the listed earlier layout it reopens.
-    ReopenEarlierLayout(orchbee_workbench_protocol::LayoutHistoryEntry),
     Settings,
     Machines,
     Help,
@@ -330,8 +321,6 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::NewWorkspace => Self::NewWorkspace,
             MenuAction::NewWorktree => Self::NewWorktree,
             MenuAction::OpenWorktree => Self::OpenWorktree,
-            MenuAction::EarlierLayouts => Self::EarlierLayouts,
-            MenuAction::ReopenEarlierLayout(_) => Self::ReopenEarlierLayout,
             MenuAction::Settings => Self::Settings,
             MenuAction::Machines => Self::Machines,
             MenuAction::Help => Self::Help,
@@ -417,8 +406,6 @@ impl MenuAction {
             Self::NewWorkspace => ClientAction::RequestWorkspaceCreate,
             Self::NewWorktree => ClientAction::RequestWorktreeCreate,
             Self::OpenWorktree => ClientAction::RequestWorktreeOpen,
-            Self::EarlierLayouts => ClientAction::RequestEarlierLayouts,
-            Self::ReopenEarlierLayout(entry) => ClientAction::ReopenEarlierLayout(entry.saved_at),
             Self::Settings => ClientAction::OpenSettings,
             Self::Machines => ClientAction::OpenMachines,
             Self::Help => ClientAction::OpenShortcutHelp,

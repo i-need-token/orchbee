@@ -560,8 +560,6 @@ fn title(measured: &Measured<'_>, area: Rect, locale: Locale, theme: &Theme) -> 
             locale
                 .menu_action(crate::localization::MenuLabel::NewTab)
                 .to_owned()
-        } else if matches!(menu.source, MenuTarget::EarlierLayouts) {
-            locale.earlier_layouts_title().to_owned()
         } else if matches!(menu.source, MenuTarget::Create(_)) {
             // Every row of a `+` menu creates a Workspace; a Project's name would read as adding one.
             locale
@@ -1457,14 +1455,6 @@ fn action_label(
             |scope| locale.menu_tab_action(action, scope),
         )
     };
-    if let MenuAction::ReopenEarlierLayout(entry) = action {
-        // A picker row reads as when the layout was kept and what of it is not open now.
-        return format!(
-            "{} {separator} {}",
-            locale.earlier_layout_when(entry.saved_at, std::time::SystemTime::now()),
-            locale.earlier_layout_summary(entry)
-        );
-    }
     if let MenuAction::StartAgentInTab(provider) = action {
         // Under the Agents heading a row names only its Agent, as the picker does.
         return crate::agent_provider::product_name(provider).to_owned();

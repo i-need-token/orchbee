@@ -25,7 +25,6 @@ pub(crate) enum ActionSearchAlias {
     Help,
     Mouse,
     Detach,
-    History,
 }
 /// Textual action identity without an executable target, profile or captured command.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -65,8 +64,6 @@ pub(crate) enum MenuLabel {
     FindInTerminal,
     ClearTerminal,
     LastPanel,
-    EarlierLayouts,
-    ReopenEarlierLayout,
     ResumeTabClose,
     CloseSelectedTabs,
     CloseOtherTabs,
@@ -224,8 +221,6 @@ impl Locale {
             // Leaving is also what people call quitting or exiting; the title stays Leave view.
             (Self::EnUs, A::Detach) => "detach quit exit",
             (Self::ZhCn, A::Detach) => "分离 退出 关闭",
-            (Self::EnUs, A::History) => "history restore",
-            (Self::ZhCn, A::History) => "历史 恢复",
         }
     }
 
@@ -508,10 +503,6 @@ impl Locale {
             (Self::ZhCn, ClearTerminal) => "清除终端",
             (Self::EnUs, LastPanel) => "Back to last focused panel",
             (Self::ZhCn, LastPanel) => "回到上次聚焦的面板",
-            (Self::EnUs, EarlierLayouts) => "Earlier layouts…",
-            (Self::ZhCn, EarlierLayouts) => "早先的布局…",
-            (Self::EnUs, ReopenEarlierLayout) => "Reopen",
-            (Self::ZhCn, ReopenEarlierLayout) => "重新打开",
             (Self::ZhCn, RenamePanel) => "重命名面板",
             (Self::EnUs, RenameWorkspace) => "Rename Workspace",
             (Self::EnUs, RenameProject) => "Rename Project",

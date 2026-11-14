@@ -247,9 +247,6 @@ impl Locale {
             N::AgentStart(phase) => self.agent_start_phase_shorter(phase),
             N::Settings(notice) => self.settings_notice_shorter(notice).map(str::to_owned),
             N::Unsupported(capability) => Some(self.unsupported_capability_shorter(capability)),
-            N::EarlierLayout(notice) => self
-                .earlier_layout_notice_shorter(notice)
-                .map(str::to_owned),
             N::MenuUnavailable => shorter(
                 "Menu action cancelled or unavailable",
                 "菜单动作已取消或不可用",
@@ -529,7 +526,6 @@ impl Locale {
                     }
                 }
             }
-            WorkbenchClientNotice::EarlierLayout(notice) => self.earlier_layout_notice(notice),
             WorkbenchClientNotice::LinkOpened => match self {
                 Self::EnUs => "Link opened".into(),
                 Self::ZhCn => "链接已打开".into(),

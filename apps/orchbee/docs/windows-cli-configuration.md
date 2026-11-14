@@ -154,8 +154,7 @@ inside the bar remain fixed.
 `settings` opens [Settings](native-settings.md), default `prefix+f4`. `close_workspace` asks to close
 the current Workspace with its existing [confirmation](native-workspace-close.md), default `prefix+D`
 (capital D). `rename_panel` and `clear_terminal` are unbound by default and run the Panel menu's
-Rename and Clear terminal on the focused Panel, with their menu outcomes. `earlier_layouts` opens the [Earlier layouts picker](native-action-menus.md) and is unbound
-by default. `last_panel` steps back to the last focused Panel in any Tab or Workspace
+Rename and Clear terminal on the focused Panel, with their menu outcomes. `last_panel` steps back to the last focused Panel in any Tab or Workspace
 ([Last Panel](native-context-selection.md#last-panel)), default `prefix+;`. `focus_panel_left`,
 `focus_panel_down`, `focus_panel_up` and `focus_panel_right` default to the prefix followed by the
 matching arrow key, then `prefix+h`, `prefix+j`, `prefix+k` and `prefix+l`; help and menus show the
@@ -192,7 +191,7 @@ Apple hosts, Apple modifier symbols. Simplified glyph mode spells `Up`, `Down`, 
 one space. These display rules do not change TOML spelling, normalization, matching or dispatch.
 
 Supported action fields are `help`, `settings`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `close_workspace`, `workspace_picker`,
-`earlier_layouts`, `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `open_notification_target`, `new_tab`, `rename_tab`, `previous_tab`,
+`detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `open_notification_target`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `copy_mode`, `find`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
 `close_panel`, `rename_panel`, `last_panel`, `clear_terminal`, `zoom` and `toggle_sidebar`. They invoke existing native actions;

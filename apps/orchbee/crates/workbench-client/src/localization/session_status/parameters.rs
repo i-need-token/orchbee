@@ -119,8 +119,6 @@ pub(crate) enum WorkbenchClientNotice {
         Option<crate::agent_provider::IntegrationId>,
         orchbee_workbench_protocol::AgentNotResumedReason,
     ),
-    /// What an earlier-layout list or reopen did.
-    EarlierLayout(super::super::EarlierLayoutNotice),
     LinkOpened,
     LinkHandled,
     LinkNoLink,

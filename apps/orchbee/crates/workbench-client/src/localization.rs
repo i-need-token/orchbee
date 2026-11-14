@@ -14,7 +14,6 @@ pub(crate) use control_takeover::TakeoverStatus;
 mod directory_startup;
 mod environment;
 mod layout_history;
-pub(crate) use layout_history::EarlierLayoutNotice;
 mod machine_login;
 pub(crate) use machine_login::LoginLabel;
 mod machine_remember;
