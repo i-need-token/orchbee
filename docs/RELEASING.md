@@ -46,7 +46,16 @@ repository>`. Print each public half with the command in
    `git tag -a v0.1.0-beta.1 --cleanup=verbatim -F <notes file>`, then
    `git push origin v0.1.0-beta.1`. `--cleanup=verbatim` keeps lines that start with `#`, which
    git's default cleanup deletes. A lightweight tag or an empty message fails the run's first job,
-   before any build: delete the tag and tag again.
+   before any build: delete the tag and tag again. The notes end with how to update:
+
+   > Update with `orchbee update`. Running terminals and Agents are not interrupted: they keep the
+   > old version until they are restarted. Open Orchbee again to use the new one.
+
+   Until 0.1.0, they add:
+
+   > 0.1.0-beta.1 has no update command. Coming from it, install this version once by hand: run the
+   > installer again, or `npm install -g orchbee`. Close the terminals you opened from the Orchbee
+   > window before you run the installer.
 4. The run then needs no human step. To stop a release, cancel the run (Cancel workflow on the run
    page) before its job "Publish v0.1.0-beta.1" starts; until then nothing is public.
 5. Publication signs the update feed document with the release key, then creates a draft release

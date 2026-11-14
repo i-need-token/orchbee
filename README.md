@@ -107,6 +107,17 @@ orchbee          # open the terminal interface
 
 Or open **Orchbee** from the Start menu.
 
+### Update
+
+```powershell
+orchbee update
+```
+
+Installs the newest version beside the one you have. Running terminals and Agents are not
+interrupted: they keep the old version until they are restarted. Open Orchbee again to use the new
+one. Version 0.1.0-beta.1 has no update command, so from it install the next version once by hand,
+with the installer or npm as above.
+
 ### Uninstall
 
 Remove Orchbee from **Settings › Apps**, or run `orchbee uninstall`. For an npm install, run
