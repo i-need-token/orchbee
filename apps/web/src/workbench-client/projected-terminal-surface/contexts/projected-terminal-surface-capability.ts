@@ -17,7 +17,6 @@ import type { ProjectedTerminalPlatformEffects } from '../../projected-terminal-
 import type { TerminalProjectionClient } from '../../terminal-projection';
 import type { TerminalCompletionReminderObserver } from '../../../terminal-feedback-settings';
 import type { TerminalInputConfigurationSource } from '../../../terminal-input-configuration';
-import type { TerminalTrailingBlankRowsPreferenceSource } from '../../../terminal-interaction-settings';
 
 /**
  * Why a terminal shows no running terminal, as the Server recorded it: its launch failed, or a
@@ -68,9 +67,6 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly presentationConfigurationSource: TerminalPresentationConfigurationSource;
 	readonly inputConfigurationSource?: TerminalInputConfigurationSource | undefined;
 	readonly interactionConfigurationSource?: TerminalInteractionConfigurationSource | undefined;
-	readonly trailingBlankRowsPreferenceSource?:
-		| TerminalTrailingBlankRowsPreferenceSource
-		| undefined;
 	observeTerminalMetadata(
 		presentationId: TerminalPresentationId,
 		metadata: Pick<ProjectedTerminalMetadata, 'currentDirectory' | 'revision' | 'title'>,

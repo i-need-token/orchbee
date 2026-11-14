@@ -325,15 +325,6 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     )
     .page(),
     key(
-        "appearance.tui_colors",
-        V::Choice(&["theme", "terminal"]),
-        D::Text("theme"),
-        (C::Appearance, G::Theme),
-        CLIENT,
-        "Where the terminal interface takes its colors: the theme or the host terminal's palette.",
-    )
-    .clients(TUI),
-    key(
         "appearance.terminal_colors",
         V::Choice(&["theme", "host", "custom"]),
         D::Text("theme"),
@@ -438,14 +429,6 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     )
     .page()
     .effect(SettingEffect::NewTerminals),
-    key(
-        "terminal.trim_trailing_blank_rows_for_agents",
-        V::Boolean,
-        D::Boolean(true),
-        (C::Terminal, G::Output),
-        CLIENT,
-        "Keep an Agent's latest output at the bottom of its panel.",
-    ),
     key(
         "terminal.restore_output",
         V::Boolean,

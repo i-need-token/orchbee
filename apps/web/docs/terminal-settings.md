@@ -45,9 +45,8 @@ Both weights are integer hundreds from 100 through 900. Terminal padding is an i
 through 32 CSS pixels. Custom colors are exactly `#RRGGBB` and are normalized to lowercase.
 Background opacity is an integer percentage from 10 through 100.
 
-Copy on select and trimming Agent tail blanks are the `terminal.copy_on_select` and
-`terminal.trim_trailing_blank_rows_for_agents` keys. Their controller keeps its own subscriptions
-and publishes interaction configuration when a snapshot changes either value.
+Copy on select is the `terminal.copy_on_select` key. Its controller keeps its own subscription
+and publishes interaction configuration when a snapshot changes the value.
 
 The complete product default is:
 
@@ -67,30 +66,27 @@ The complete product default is:
 | Custom background       | `#fcfcfc`                                                          |
 | Background opacity      | `100`                                                              |
 | Copy on select          | `false`                                                            |
-| Trim Agent tail blanks  | `true`                                                             |
 | Resume Agents           | `true`                                                             |
 | Restore terminal output | `false`                                                            |
 
-### CLI Agent trailing-blank-row preference
+### Agent trailing blank rows
 
-The `terminal.trim_trailing_blank_rows_for_agents` key is on by default and updates existing
-terminal presentations without recreating their Host attachments. Turning it off immediately
-restores the exact projected VT grid. The GUI Settings page does not show it; the TUI's Settings
-edits it and the window applies the confirmed value.
+Trimming an Agent's trailing blank rows is fixed behaviour with no setting. It updates existing
+terminal presentations without recreating their Host attachments, and an Agent's exit immediately
+restores the exact projected VT grid.
 
-The application derives one effective presentation policy from the stored value and the
-Server's Agent observation for that presentation identifier. It is `true` only while the key
-is on and the composition's Workbench Agent source holds an observation for that presentation.
+The application derives one effective presentation policy from the Server's Agent observation for
+that presentation identifier. It is `true` only while the composition's Workbench Agent source
+holds an observation for that presentation.
 A composition without an Agent source, a source that cannot be observed, and a terminal without an
 observed Agent are all safe `false` results. Detection belongs to the Server; the composition does
 not inspect terminal output or guess process names.
 This provider-neutral decision is passed to `@orchbee/terminal`, which owns the bounded display
 window and its fallback behavior; neither layer changes PTY geometry or retained history.
 
-A change is one edit and reaches installed presentations when its snapshot arrives. Reset
-restores both interaction keys. Deterministic controller tests cover default-on reset and
-publication of edited values. Derived-source
-tests cover Agent start, end, replacement, missing capability, the setting turned off, and disposal;
+A copy-on-select change is one edit and reaches installed presentations when its snapshot
+arrives. Deterministic controller tests cover publication of edited values. Derived-source
+tests cover Agent start, end, replacement, missing capability, and disposal;
 projected-terminal evidence owns the row-classification and Host-window boundaries.
 
 ### Agent resume preference

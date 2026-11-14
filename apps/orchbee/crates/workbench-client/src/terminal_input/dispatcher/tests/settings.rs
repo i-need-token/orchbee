@@ -93,14 +93,14 @@ fn every_key_of_a_settings_packet_applies_in_order() {
     let defaults = UserSettingsValues::default();
     let cases: [Case; 3] = [
         Case {
-            name: "toggle, three rows down, toggle",
+            name: "toggle, three rows down, three up, toggle",
             start: Row::CopyOnSelect,
             set: &[],
-            packet: b"\r\x1b[B\x1b[B\x1b[B\r",
+            packet: b"\r\x1b[B\x1b[B\x1b[B\x1b[A\x1b[A\x1b[A\r",
             check: |page| {
-                page.selected() == Row::TrimAgents
+                page.selected() == Row::CopyOnSelect
                     && page.waits(Row::CopyOnSelect)
-                    && page.waits(Row::TrimAgents)
+                    && page.values().copy_on_select == UserSettingsValues::default().copy_on_select
             },
         },
         Case {

@@ -1,18 +1,14 @@
 use super::*;
 use crate::tui_theme::{ColorPreferences, Resolution, TerminalReason, named_themes_available};
 use orchbee_workbench_protocol::{
-    ApplicationAppearance as App, MetadataState, TerminalDisplayAppearance, TuiColorSource,
+    ApplicationAppearance as App, MetadataState, TerminalDisplayAppearance,
 };
 
-fn preferences(
-    application_theme: App,
-    tui_color_source: TuiColorSource,
-) -> ColorPreferences<'static> {
+fn preferences(application_theme: App) -> ColorPreferences<'static> {
     ColorPreferences {
         application_theme,
         light_theme: "dayfox",
         dark_theme: "gruvbox-dark",
-        tui_color_source,
         terminal_display_theme: TerminalDisplayAppearance::Theme,
         custom_foreground: "#141414",
         custom_background: "#fcfcfc",
@@ -33,46 +29,35 @@ fn the_resolution_matrix_paints_the_active_slot_only_on_a_truecolor_host_of_know
     for application in [App::System, App::Light, App::Dark] {
         for host in [None, Some(Polarity::Light), Some(Polarity::Dark)] {
             for level in LEVELS {
-                for source in [TuiColorSource::Theme, TuiColorSource::Terminal] {
-                    let resolution = Resolution::of(preferences(application, source), host, level);
-                    let polarity = match application {
-                        App::Light => Some(Polarity::Light),
-                        App::Dark => Some(Polarity::Dark),
-                        App::System => host,
-                    };
-                    let expected = if level != ColorLevel::Truecolor {
-                        Resolution::Terminal(TerminalReason::ReducedColor)
-                    } else if source == TuiColorSource::Terminal {
-                        Resolution::Terminal(TerminalReason::Chosen)
-                    } else {
-                        match polarity {
-                            None => Resolution::Terminal(TerminalReason::UnknownAppearance),
-                            Some(Polarity::Light) => {
-                                Resolution::Theme(orchbee_color_themes::select(
-                                    orchbee_color_themes::Polarity::Light,
-                                    "dayfox",
-                                ))
-                            }
-                            Some(Polarity::Dark) => {
-                                Resolution::Theme(orchbee_color_themes::select(
-                                    orchbee_color_themes::Polarity::Dark,
-                                    "gruvbox-dark",
-                                ))
-                            }
-                        }
-                    };
-                    assert_eq!(
-                        resolution, expected,
-                        "{application:?} {host:?} {level:?} {source:?}"
-                    );
-                    let theme = Theme::resolve(preferences(application, source), host, level);
-                    match expected {
-                        Resolution::Theme(named) => {
-                            assert_eq!(theme.name, named.id());
-                            assert_eq!(theme.color_level, ColorLevel::Truecolor);
-                        }
-                        Resolution::Terminal(_) => assert_eq!(theme.name, "terminal-native"),
+                let resolution = Resolution::of(preferences(application), host, level);
+                let polarity = match application {
+                    App::Light => Some(Polarity::Light),
+                    App::Dark => Some(Polarity::Dark),
+                    App::System => host,
+                };
+                let expected = if level != ColorLevel::Truecolor {
+                    Resolution::Terminal(TerminalReason::ReducedColor)
+                } else {
+                    match polarity {
+                        None => Resolution::Terminal(TerminalReason::UnknownAppearance),
+                        Some(Polarity::Light) => Resolution::Theme(orchbee_color_themes::select(
+                            orchbee_color_themes::Polarity::Light,
+                            "dayfox",
+                        )),
+                        Some(Polarity::Dark) => Resolution::Theme(orchbee_color_themes::select(
+                            orchbee_color_themes::Polarity::Dark,
+                            "gruvbox-dark",
+                        )),
                     }
+                };
+                assert_eq!(resolution, expected, "{application:?} {host:?} {level:?}");
+                let theme = Theme::resolve(preferences(application), host, level);
+                match expected {
+                    Resolution::Theme(named) => {
+                        assert_eq!(theme.name, named.id());
+                        assert_eq!(theme.color_level, ColorLevel::Truecolor);
+                    }
+                    Resolution::Terminal(_) => assert_eq!(theme.name, "terminal-native"),
                 }
             }
         }
@@ -92,7 +77,7 @@ fn the_truecolor_gate_admits_named_themes_only_at_24_bit_color() {
 #[test]
 fn a_slot_id_this_build_does_not_ship_or_of_the_other_polarity_paints_the_orchbee_theme() {
     for (light, dark) in [("missing", "missing"), ("gruvbox-dark", "dayfox")] {
-        let mut stored = preferences(App::Light, TuiColorSource::Theme);
+        let mut stored = preferences(App::Light);
         stored.light_theme = light;
         stored.dark_theme = dark;
         let light = Theme::resolve(stored, None, ColorLevel::Truecolor);
@@ -107,11 +92,7 @@ fn a_slot_id_this_build_does_not_ship_or_of_the_other_polarity_paints_the_orchbe
 /// fixed Agent traffic light carries exact colors.
 #[test]
 fn terminal_colors_emit_host_defaults_and_ansi_indexes_beside_the_fixed_agent_colors() {
-    let theme = Theme::resolve(
-        preferences(App::Dark, TuiColorSource::Terminal),
-        Some(Polarity::Dark),
-        ColorLevel::Truecolor,
-    );
+    let theme = Theme::resolve(preferences(App::System), None, ColorLevel::Truecolor);
     for role in Role::ALL {
         if matches!(
             role,

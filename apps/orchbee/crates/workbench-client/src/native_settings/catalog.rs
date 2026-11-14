@@ -74,12 +74,12 @@ impl Group {
         match self {
             Self::Language => vec![Row::Language],
             Self::AfterRestart => vec![Row::RestoreOutput],
-            Self::AppAppearance => vec![Row::Theme, Row::ColorSource],
+            Self::AppAppearance => vec![Row::Theme],
             Self::TerminalColors => vec![Row::TerminalTheme, Row::Foreground, Row::Background],
             Self::LightThemes => theme_rows(Row::LightTheme),
             Self::DarkThemes => theme_rows(Row::DarkTheme),
             Self::SelectionKeys => vec![Row::CopyOnSelect],
-            Self::Output => vec![Row::NewTerminalFolder, Row::Scrollback, Row::TrimAgents],
+            Self::Output => vec![Row::NewTerminalFolder, Row::Scrollback],
             Self::LaunchProfiles => vec![Row::LaunchProfiles],
             Self::WhenToNotify => vec![
                 Row::Reminders,

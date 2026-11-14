@@ -89,11 +89,7 @@ impl WorkbenchClientUi {
             {
                 continue;
             }
-            let target = self
-                .preferences
-                .trim_trailing_blank_rows_for_agents
-                .then(|| self.view().tail_target(&key))
-                .flatten();
+            let target = self.view().tail_target(&key);
             if let Some(viewport) = self.projections[index].viewport.as_mut() {
                 if target.is_none() {
                     let effect = viewport.nav(ViewportNav::Exit);

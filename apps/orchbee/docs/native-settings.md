@@ -6,8 +6,8 @@
 TUI hosts. Settings is a full page that captures the client area while pane output continues. It
 covers every common setting both Clients present in the
 [settings registry](../../../crates/local-runtime/README.md#user-settings), including launch profiles
-and new-terminal scrollback defaults, plus the TUI-only interface colors, Agent blank-space trimming,
-the completion-reminder threshold and the prefix key. Host-owned fonts, pixel metrics and management
+and new-terminal scrollback defaults, plus the TUI-only
+completion-reminder threshold and the prefix key. Host-owned fonts, pixel metrics and management
 workflows stay with their own owners. The native Settings feature maps each shared key once to its
 row, group, category, control kind, availability, integer unit, bounds, step and effect horizon. The
 settings registry owns keys, defaults and validation, and Workbench Protocol the value types and
@@ -50,7 +50,7 @@ Every change applies at once: there is no draft and no Save. A change sends one 
 whose candidate previews when it is an appearance field and applies on acceptance. A text or number
 row edits in place, applies on Enter, and Esc keeps the confirmed value. Left/Right and the painted
 minus/plus controls step a number by its step and apply that step. Picking a theme line sends its slot,
-the appearance that shows it and Colors set to Theme in one edit; the focused uncommitted line previews, and Esc returns
+and the appearance that shows it in one edit; the focused uncommitted line previews, and Esc returns
 to the theme in use. Launch profiles open as a child page whose edits apply as one edit on leaving;
 an invalid catalog first focuses the failing field, and leaving again discards it. Custom colors are
 unavailable unless Custom is selected and login shells are unavailable on Windows; a focused
@@ -80,7 +80,7 @@ Desktop, and it never takes cells from the name or the description: when the fir
 it moves to the end of the description line while the whole description fits beside it, and
 otherwise only Del offers it.
 A theme list whose slot the file sets carries the marker on its heading, and Del on any of its lines
-restores that slot alone; the appearance and Colors keep their own rows. There is no page-wide reset.
+restores that slot alone; the appearance keeps its own row. There is no page-wide reset.
 
 Snapshots from the settings subscription show on the open page at once, whoever wrote them, while
 focus stays on its row. A snapshot whose revision is not newer than the last one observed is dropped.
@@ -191,8 +191,8 @@ Themes holds the light list and the dark list, with the GUI's wording in both la
 stay untranslated. Each list holds the shipped themes of its polarity in catalog order, Orchbee
 first. Each line ends in a swatch, a foreground sample on the theme's canvas and five ANSI fills,
 shown only at truecolor and where the line has room. Focusing an uncommitted line previews it at its
-own polarity with Colors set to Theme; Enter applies it and Esc returns to the theme in use. Applying a theme sets its
-slot, switches a fixed Appearance of the other polarity and sets Colors to Theme, so the applied
+own polarity; Enter applies it and Esc returns to the theme in use. Applying a theme sets its
+slot and switches a fixed Appearance of the other polarity, so the applied
 theme shows; under System it shows when the host matches, and the list's description says so. A
 stored id this build does not ship opens on the Orchbee theme it resolves to and stays stored until
 another theme is applied.
@@ -203,7 +203,8 @@ or per-Agent mute policy. Completion reminders consume physical-terminal sequenc
 facts once, require a fresh timestamp and minimum duration, and never replay when
 a setting is enabled. They appear as localized transient status plus optional bell.
 
-Agent tail folding shares the retained-history read/ack/recovery owner. It only
+Agent tail folding is always on for a detected Agent and shares the retained-history
+read/ack/recovery owner. It only
 replaces a proved blank primary-screen suffix with an exactly matching acknowledged
 window. Stale, resized, graphic or unavailable windows fall back to the live grid;
 the cursor moves with its live row. Ordinary typing remains live. Selection,
@@ -232,26 +233,24 @@ Every shared key persists through the same edit of `config.toml`. The
 defaults. The native page applies each change at once and names new-terminal effects beside the row
 name:
 
-| Key                                | Before commit                                                                 | Effect after a confirmed edit or external observation                                                                   |
-| ---------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `locale`                           | Whole-frame authored-copy preview; System uses the startup locale environment | Current application copy and later localized feedback; program bytes are unchanged                                      |
-| `applicationTheme`                 | Whole-frame chrome preview                                                    | Current chrome; independent of terminal display theme                                                                   |
-| `lightTheme`                       | Picker candidate previews at Light with Colors set to Theme                   | Chrome and Theme terminal defaults while the light slot paints on a truecolor host                                      |
-| `darkTheme`                        | Picker candidate previews at Dark with Colors set to Theme                    | Chrome and Theme terminal defaults while the dark slot paints on a truecolor host                                       |
-| `tuiColorSource`                   | Whole-frame Theme or Terminal colors preview                                  | This Client's chrome source and Theme terminal defaults; the GUI ignores it                                             |
-| `terminalDisplayTheme`             | Theme/Host/Custom default-color preview                                       | Existing live and retained terminal presentation; explicit program colors remain exact                                  |
-| `customForeground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked foregrounds in Custom; retained while other display themes are selected                         |
-| `customBackground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked backgrounds in Custom; retained while other display themes are selected                         |
-| `copyOnSelect`                     | No preview                                                                    | Later gesture completion, including a gesture already in progress; explicit Copy remains available                      |
-| `trimTrailingBlankRowsForAgents`   | No preview                                                                    | Existing detected Agents through the exact retained-window/acknowledgment owner; user selection/history retains control |
-| `resumeAgentsOnRestore`            | No preview                                                                    | The Server's next restart from its checkpoint; Off also stops recording Agent session IDs at its next capture           |
-| `restoreTerminalOutput`            | No preview                                                                    | The Server's next capture keeps recent output and its next restart replays it; Off deletes every kept copy at once      |
-| `agentNotificationMode`            | No preview                                                                    | Future eligible hidden-Agent transitions, without replay; host delivery and per-Agent mute still apply                  |
-| `completionReminderMode`           | No preview                                                                    | Future fresh command completions; requires shell integration and respects focus policy                                  |
-| `completionReminderMinimumSeconds` | No preview                                                                    | Later completion evaluation at the new duration threshold                                                               |
-| `soundEnabled`                     | No preview                                                                    | Eligible later reminders; host sound capability and per-Agent mute still apply                                          |
-| `scrollbackBytes`                  | No preview                                                                    | Newly created terminals capture the limit; existing/restored terminals keep theirs                                      |
-| `launchProfiles`                   | Child-page edits apply as one edit on leaving                                 | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                      |
+| Key                                | Before commit                                                                 | Effect after a confirmed edit or external observation                                                              |
+| ---------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `locale`                           | Whole-frame authored-copy preview; System uses the startup locale environment | Current application copy and later localized feedback; program bytes are unchanged                                 |
+| `applicationTheme`                 | Whole-frame chrome preview                                                    | Current chrome; independent of terminal display theme                                                              |
+| `lightTheme`                       | Picker candidate previews at Light                                            | Chrome and Theme terminal defaults while the light slot paints on a truecolor host                                 |
+| `darkTheme`                        | Picker candidate previews at Dark                                             | Chrome and Theme terminal defaults while the dark slot paints on a truecolor host                                  |
+| `terminalDisplayTheme`             | Theme/Host/Custom default-color preview                                       | Existing live and retained terminal presentation; explicit program colors remain exact                             |
+| `customForeground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked foregrounds in Custom; retained while other display themes are selected                    |
+| `customBackground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked backgrounds in Custom; retained while other display themes are selected                    |
+| `copyOnSelect`                     | No preview                                                                    | Later gesture completion, including a gesture already in progress; explicit Copy remains available                 |
+| `resumeAgentsOnRestore`            | No preview                                                                    | The Server's next restart from its checkpoint; Off also stops recording Agent session IDs at its next capture      |
+| `restoreTerminalOutput`            | No preview                                                                    | The Server's next capture keeps recent output and its next restart replays it; Off deletes every kept copy at once |
+| `agentNotificationMode`            | No preview                                                                    | Future eligible hidden-Agent transitions, without replay; host delivery and per-Agent mute still apply             |
+| `completionReminderMode`           | No preview                                                                    | Future fresh command completions; requires shell integration and respects focus policy                             |
+| `completionReminderMinimumSeconds` | No preview                                                                    | Later completion evaluation at the new duration threshold                                                          |
+| `soundEnabled`                     | No preview                                                                    | Eligible later reminders; host sound capability and per-Agent mute still apply                                     |
+| `scrollbackBytes`                  | No preview                                                                    | Newly created terminals capture the limit; existing/restored terminals keep theirs                                 |
+| `launchProfiles`                   | Child-page edits apply as one edit on leaving                                 | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                 |
 
 Native host configuration is a separate admitted surface, not extra shared-editor
 rows. Windows TOML changes publish when the Server's sampler sees the edit, about
@@ -263,18 +262,18 @@ Server through the same sampler; existing dispatcher work and scheduling can del
 its delivery, so this is not a strict one-second observation guarantee. macOS and Linux Servers do
 not sample yet. Neither publication is an acknowledgment from every connected Client.
 
-| Admitted native configuration or Client state                                                                                                      | Actual application policy                                                                                                                                 |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `keys.prefix`, implemented action overrides, `keys.commands`                                                                                       | Complete admitted reload updates dispatch and its help/hints together; clears pending prefix; does not execute configured commands merely by loading them |
-| `appearance.sidebar.workspaces.rows`, `row_gap` and their admitted token/rule fields                                                               | Complete reload changes existing sidebar projections; layout and interaction remain with their sidebar owners                                             |
-| `appearance.window_title`                                                                                                                          | Live title subscription uses the admitted template after reload; enclosing-host title delivery remains a capability                                       |
-| `notifications.cli_delivery`, `delay_seconds`, `position`; `notifications.sound_by_agent`                                                          | Reload updates manual delivery and later automatic feedback; confirmed shared Agent mode/global sound remain authoritative; per-Agent mute is preserved   |
-| `terminal.focus_new_panel`                                                                                                                         | Publication updates the split focus preference for later splits; defaults to true                                                                         |
-| `worktrees.directory`                                                                                                                              | Publication updates native Worktree launch for later queries and starts; Windows CLI creation reads the published value when it runs                      |
-| `terminal.new_cwd`                                                                                                                                 | Windows CLI creation reads the published value when it runs; does not move an existing process                                                            |
-| `agent_detection.auto_update`                                                                                                                      | Reload updates the existing rule-check scheduler; automatic checks retain their managed-release/capability restrictions                                   |
-| `update.channel`                                                                                                                                   | Consumed by subsequent release/update operations; does not recolor or restart the current TUI                                                             |
-| Pointer capture (`--mouse off`, default prefix `m`), sidebar visibility/width                                                                      | Immediate Client-local interaction state; these actions do not persist a setting                                                                          |
+| Admitted native configuration or Client state                                             | Actual application policy                                                                                                                                 |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keys.prefix`, implemented action overrides, `keys.commands`                              | Complete admitted reload updates dispatch and its help/hints together; clears pending prefix; does not execute configured commands merely by loading them |
+| `appearance.sidebar.workspaces.rows`, `row_gap` and their admitted token/rule fields      | Complete reload changes existing sidebar projections; layout and interaction remain with their sidebar owners                                             |
+| `appearance.window_title`                                                                 | Live title subscription uses the admitted template after reload; enclosing-host title delivery remains a capability                                       |
+| `notifications.cli_delivery`, `delay_seconds`, `position`; `notifications.sound_by_agent` | Reload updates manual delivery and later automatic feedback; confirmed shared Agent mode/global sound remain authoritative; per-Agent mute is preserved   |
+| `terminal.focus_new_panel`                                                                | Publication updates the split focus preference for later splits; defaults to true                                                                         |
+| `worktrees.directory`                                                                     | Publication updates native Worktree launch for later queries and starts; Windows CLI creation reads the published value when it runs                      |
+| `terminal.new_cwd`                                                                        | Windows CLI creation reads the published value when it runs; does not move an existing process                                                            |
+| `agent_detection.auto_update`                                                             | Reload updates the existing rule-check scheduler; automatic checks retain their managed-release/capability restrictions                                   |
+| `update.channel`                                                                          | Consumed by subsequent release/update operations; does not recolor or restart the current TUI                                                             |
+| Pointer capture (`--mouse off`, default prefix `m`), sidebar visibility/width             | Immediate Client-local interaction state; these actions do not persist a setting                                                                          |
 
 Unknown configuration keys warn and are ignored; loading them does not change Client behavior. Fonts, pixel size, opacity and physical Option-key handling
 belong to the enclosing host. Clipboard, terminal/OS notifications and sound need
@@ -343,8 +342,8 @@ Cargo/TypeScript checks. The affected root gate remains required.
 
 ## History units and host-color display
 
-History capacity displays and edits decimal MB (1 MB = 1,000,000 bytes), from 0 to 1000 MB. Up to six fractional digits preserve individual bytes; storage and the step retain their existing byte domain: 1,000,000 bytes, and 1 second for the completion threshold. Disabled color fields show known effective RGB defaults; an unresolved host default shows its localized choice label instead of fallback palette values. Agent blank-space trimming uses plain-language copy. These are presentation and entry-conversion changes; commit and new-terminal effect boundaries stay with the existing owners.
+History capacity displays and edits decimal MB (1 MB = 1,000,000 bytes), from 0 to 1000 MB. Up to six fractional digits preserve individual bytes; storage and the step retain their existing byte domain: 1,000,000 bytes, and 1 second for the completion threshold. Disabled color fields show known effective RGB defaults; an unresolved host default shows its localized choice label instead of fallback palette values. These are presentation and entry-conversion changes; commit and new-terminal effect boundaries stay with the existing owners.
 
 ## Color-disabled guidance
 
-The Shell retains whether a nonempty `NO_COLOR` disabled colors at startup and carries that reason through committed and preview themes. Appearance, theme slot, Colors, terminal theme and editable color descriptions explain the suppression in both languages. Validation, confirmation and unknown-save recovery messages take precedence. The hint never infers `NO_COLOR` from monochrome alone, reads the environment while rendering, or changes the saved theme choice.
+The Shell retains whether a nonempty `NO_COLOR` disabled colors at startup and carries that reason through committed and preview themes. Appearance, theme slot, terminal theme and editable color descriptions explain the suppression in both languages. Validation, confirmation and unknown-save recovery messages take precedence. The hint never infers `NO_COLOR` from monochrome alone, reads the environment while rendering, or changes the saved theme choice.

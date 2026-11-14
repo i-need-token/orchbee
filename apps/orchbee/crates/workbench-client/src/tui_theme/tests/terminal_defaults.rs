@@ -2,19 +2,17 @@ use super::*;
 use crate::host_appearance::HostColors;
 use crate::tui_theme::ColorPreferences;
 use orchbee_workbench_protocol::{
-    ApplicationAppearance as App, TerminalDisplayAppearance as Terminal, TuiColorSource,
+    ApplicationAppearance as App, TerminalDisplayAppearance as Terminal,
 };
 
 fn preferences(
     application_theme: App,
-    tui_color_source: TuiColorSource,
     terminal_display_theme: Terminal,
 ) -> ColorPreferences<'static> {
     ColorPreferences {
         application_theme,
         light_theme: "orchbee-light",
         dark_theme: "orchbee-dark",
-        tui_color_source,
         terminal_display_theme,
         custom_foreground: "#123456",
         custom_background: "#654321",
@@ -34,27 +32,26 @@ fn canvas(polarity: orchbee_color_themes::Polarity) -> (Color, Color) {
     )
 }
 
-/// Theme and Host follow the painted slot when Appearance is fixed; System and Terminal colors
-/// defer them to the host. Custom always wins, and no terminal choice changes the chrome.
+/// Theme and Host follow the painted slot when Appearance is fixed; System defers them to the
+/// host. Custom always wins, and no terminal choice changes the chrome.
 #[test]
 fn terminal_defaults_follow_the_painted_slot_defer_to_the_host_or_take_the_custom_pair() {
     use orchbee_color_themes::Polarity::{Dark, Light};
     let captured = (rgb(0xabcdef), rgb(0x102030));
     let custom = (rgb(0x123456), rgb(0x654321));
-    for (application, source, slot) in [
-        (App::Light, TuiColorSource::Theme, Some(canvas(Light))),
-        (App::Dark, TuiColorSource::Theme, Some(canvas(Dark))),
-        (App::System, TuiColorSource::Theme, None),
-        (App::Dark, TuiColorSource::Terminal, None),
+    for (application, slot) in [
+        (App::Light, Some(canvas(Light))),
+        (App::Dark, Some(canvas(Dark))),
+        (App::System, None),
     ] {
         for terminal in [Terminal::Theme, Terminal::Host, Terminal::Custom] {
             let chrome = Theme::resolve(
-                preferences(application, source, Terminal::Theme),
+                preferences(application, Terminal::Theme),
                 None,
                 ColorLevel::Truecolor,
             );
             let theme = Theme::resolve(
-                preferences(application, source, terminal),
+                preferences(application, terminal),
                 None,
                 ColorLevel::Truecolor,
             )
@@ -66,7 +63,7 @@ fn terminal_defaults_follow_the_painted_slot_defer_to_the_host_or_take_the_custo
             assert_eq!(
                 theme.terminal_defaults(),
                 expected,
-                "{application:?} {source:?} {terminal:?}"
+                "{application:?} {terminal:?}"
             );
             assert_eq!(
                 theme.style(Role::SurfaceChrome),
@@ -80,7 +77,7 @@ fn terminal_defaults_follow_the_painted_slot_defer_to_the_host_or_take_the_custo
 fn a_reported_host_polarity_never_replaces_an_explicit_terminal_display_choice() {
     use orchbee_color_themes::Polarity::{Dark, Light};
     let custom = Theme::resolve(
-        preferences(App::System, TuiColorSource::Theme, Terminal::Custom),
+        preferences(App::System, Terminal::Custom),
         Some(Polarity::Light),
         ColorLevel::Truecolor,
     )
@@ -89,7 +86,7 @@ fn a_reported_host_polarity_never_replaces_an_explicit_terminal_display_choice()
     assert_eq!(custom.terminal_defaults(), (rgb(0x123456), rgb(0x654321)));
 
     let fixed = Theme::resolve(
-        preferences(App::Light, TuiColorSource::Theme, Terminal::Theme),
+        preferences(App::Light, Terminal::Theme),
         Some(Polarity::Dark),
         ColorLevel::Truecolor,
     );
@@ -97,7 +94,7 @@ fn a_reported_host_polarity_never_replaces_an_explicit_terminal_display_choice()
     assert_eq!(fixed.terminal_defaults(), canvas(Light));
 
     let system = Theme::resolve(
-        preferences(App::System, TuiColorSource::Theme, Terminal::Theme),
+        preferences(App::System, Terminal::Theme),
         Some(Polarity::Dark),
         ColorLevel::Truecolor,
     );
@@ -108,12 +105,12 @@ fn a_reported_host_polarity_never_replaces_an_explicit_terminal_display_choice()
 #[test]
 fn a_preview_takes_captured_host_defaults_without_mutating_the_confirmed_theme() {
     let confirmed = Theme::resolve(
-        preferences(App::Dark, TuiColorSource::Theme, Terminal::Host),
+        preferences(App::Dark, Terminal::Host),
         None,
         ColorLevel::Truecolor,
     );
     let preview = Theme::resolve(
-        preferences(App::System, TuiColorSource::Theme, Terminal::Host),
+        preferences(App::System, Terminal::Host),
         None,
         ColorLevel::Truecolor,
     )
@@ -134,27 +131,15 @@ fn deferred_defaults_take_outer_host_colors_and_never_a_child_baseline() {
         background: Some(0x0c0c0c),
         ..Default::default()
     };
-    for (source, terminal, expected) in [
-        (
-            TuiColorSource::Terminal,
-            Terminal::Theme,
-            (0xcccccc, 0x0c0c0c),
-        ),
-        (
-            TuiColorSource::Terminal,
-            Terminal::Host,
-            (0xcccccc, 0x0c0c0c),
-        ),
-        (
-            TuiColorSource::Terminal,
-            Terminal::Custom,
-            (0x123456, 0x654321),
-        ),
-        (TuiColorSource::Theme, Terminal::Host, (0xcccccc, 0x0c0c0c)),
+    for (host, terminal, expected) in [
+        (None, Terminal::Theme, (0xcccccc, 0x0c0c0c)),
+        (None, Terminal::Host, (0xcccccc, 0x0c0c0c)),
+        (None, Terminal::Custom, (0x123456, 0x654321)),
+        (Some(Polarity::Dark), Terminal::Host, (0xcccccc, 0x0c0c0c)),
     ] {
         let theme = Theme::resolve(
-            preferences(App::System, source, terminal),
-            Some(Polarity::Dark),
+            preferences(App::System, terminal),
+            host,
             ColorLevel::Truecolor,
         )
         .with_outer_host_colors(outer)
@@ -170,7 +155,7 @@ fn deferred_defaults_take_outer_host_colors_and_never_a_child_baseline() {
         }
     }
     let unobserved = Theme::resolve(
-        preferences(App::System, TuiColorSource::Terminal, Terminal::Host),
+        preferences(App::System, Terminal::Host),
         None,
         ColorLevel::Truecolor,
     )

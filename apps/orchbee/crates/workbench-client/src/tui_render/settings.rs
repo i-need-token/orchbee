@@ -969,11 +969,7 @@ fn render_row(
             let description = if theme.no_color()
                 && matches!(
                     row,
-                    Row::Theme
-                        | Row::ColorSource
-                        | Row::TerminalTheme
-                        | Row::Foreground
-                        | Row::Background
+                    Row::Theme | Row::TerminalTheme | Row::Foreground | Row::Background
                 ) {
                 locale.settings_no_color().to_owned()
             } else if is_focused && !enabled {

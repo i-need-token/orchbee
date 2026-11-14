@@ -37,7 +37,6 @@ pub(crate) enum SettingEffect {
     CurrentApplication,
     CurrentTerminalPresentation,
     SubsequentSelection,
-    ExistingAgentPresentation,
     FutureNotification,
     NewTerminal,
     NewDefaultLaunch,
@@ -55,7 +54,7 @@ pub(crate) struct SettingMetadata {
     pub(crate) effect: SettingEffect,
 }
 
-pub(crate) static SETTINGS: [SettingMetadata; 18] = [
+pub(crate) static SETTINGS: [SettingMetadata; 16] = [
     SettingMetadata {
         key: UserSettingsField::Locale,
         row: Row::Language,
@@ -80,13 +79,6 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
     SettingMetadata {
         key: UserSettingsField::DarkTheme,
         row: Row::DarkTheme,
-        control: SettingControl::FiniteChoice,
-        availability: SettingAvailability::NamedThemes,
-        effect: SettingEffect::CurrentApplication,
-    },
-    SettingMetadata {
-        key: UserSettingsField::TuiColorSource,
-        row: Row::ColorSource,
         control: SettingControl::FiniteChoice,
         availability: SettingAvailability::NamedThemes,
         effect: SettingEffect::CurrentApplication,
@@ -118,13 +110,6 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         control: SettingControl::Boolean,
         availability: SettingAvailability::Always,
         effect: SettingEffect::SubsequentSelection,
-    },
-    SettingMetadata {
-        key: UserSettingsField::TrimTrailingBlankRowsForAgents,
-        row: Row::TrimAgents,
-        control: SettingControl::Boolean,
-        availability: SettingAvailability::Always,
-        effect: SettingEffect::ExistingAgentPresentation,
     },
     SettingMetadata {
         key: UserSettingsField::ResumeAgentsOnRestore,

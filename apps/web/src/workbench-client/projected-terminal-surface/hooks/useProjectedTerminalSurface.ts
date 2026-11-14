@@ -248,7 +248,6 @@ export function useProjectedTerminalSurface(
 				const trailingBlankRowsPresentationSource =
 					createTerminalTrailingBlankRowsPresentationSource({
 						agentObservationSource: capability.agentObservationSource,
-						preferenceSource: capability.trailingBlankRowsPreferenceSource,
 						presentationId: presentation.presentationId,
 					});
 				return startProjectedTerminalRenderer(

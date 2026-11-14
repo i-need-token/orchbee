@@ -213,7 +213,6 @@ fn in_place_text_and_color_updates_replace_a_cropped_frame_without_manual_refres
 #[test]
 fn a_smaller_live_view_uses_cursor_follow_instead_of_automatic_history_trimming() {
     let (mut ui, _, mailbox) = fixture();
-    ui.preferences.trim_trailing_blank_rows_for_agents = true;
     let mut frame = ui.projections[0].value.frame().unwrap().clone();
     frame.geometry.columns = 104;
     frame.geometry.rows = 36;
@@ -247,9 +246,6 @@ fn shared_tail_requires_a_live_agent_and_preserves_presented_rows() {
     ] {
         refuse(frame.clone(), change);
     }
-    ui.preferences.trim_trailing_blank_rows_for_agents = false;
-    assert!(!ui.drive_terminal_tails(&mailbox));
-    ui.preferences.trim_trailing_blank_rows_for_agents = true;
     ui.attention.close();
     assert!(!ui.drive_terminal_tails(&mailbox));
     assert!(ui.projections[0].viewport.is_none());
@@ -272,7 +268,7 @@ fn tail_waits_for_exact_ack_and_user_scrolling_takes_over_without_a_second_lease
 }
 
 #[test]
-fn frame_change_and_disabled_preference_never_show_stale_rows() {
+fn frame_change_never_shows_stale_rows() {
     let (mut ui, key, mailbox) = fixture();
     install_tail(&mut ui, &key, &mailbox);
     let mut frame = ui.projections[0].value.frame().unwrap().clone();
@@ -280,8 +276,4 @@ fn frame_change_and_disabled_preference_never_show_stale_rows() {
     frame.route.sequence = NonZeroU64::new(2).unwrap();
     ui.projections[0].value.install_frame_for_test(frame);
     assert!(ui.view().pane_tail_window(key.pane().panel()).is_none());
-    ui.preferences.trim_trailing_blank_rows_for_agents = false;
-    ui.drive_terminal_tails(&mailbox);
-    assert!(ui.projections[0].viewport.as_ref().unwrap().recovering());
-    assert!(ui.projections[0].tail_attempted.is_none());
 }

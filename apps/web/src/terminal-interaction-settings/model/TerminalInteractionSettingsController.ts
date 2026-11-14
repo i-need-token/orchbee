@@ -9,7 +9,6 @@ import { readSetting, type UserSettingsControl } from '../../user-settings';
 import {
 	terminalInteractionConfigurationFromPreferences,
 	type TerminalInteractionPreferences,
-	type TerminalTrailingBlankRowsPreferenceSource,
 } from './terminal-interaction-preferences';
 
 export interface TerminalInteractionSettingsSnapshot {
@@ -23,10 +22,7 @@ export type TerminalInteractionSettingsUpdateResult =
 type ConfigurationListener = (configuration: TerminalInteractionConfiguration) => void;
 type SnapshotListener = () => void;
 
-/**
- * `terminal.copy_on_select` and `terminal.trim_trailing_blank_rows_for_agents` in the settings file
- * own both values; this publishes the file's values.
- */
+/** `terminal.copy_on_select` in the settings file owns the value; this publishes the file's value. */
 export class TerminalInteractionSettingsController implements TerminalInteractionConfigurationSource {
 	readonly #configurationListeners = new Set<ConfigurationListener>();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
@@ -37,18 +33,6 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 	#pendingConfigurations: TerminalInteractionConfiguration[] = [];
 	#publishingConfiguration = false;
 	#snapshot: TerminalInteractionSettingsSnapshot;
-	readonly trailingBlankRowsPreferenceSource: TerminalTrailingBlankRowsPreferenceSource = {
-		current: () => this.#snapshot.preferences.trimTrailingBlankRowsForAgents,
-		subscribe: (listener) => {
-			let previous = this.#snapshot.preferences.trimTrailingBlankRowsForAgents;
-			return this.subscribeSnapshot(() => {
-				const next = this.#snapshot.preferences.trimTrailingBlankRowsForAgents;
-				if (next === previous) return;
-				previous = next;
-				listener(next);
-			});
-		},
-	};
 
 	constructor(userSettings: UserSettingsControl) {
 		this.#userSettings = userSettings;
@@ -79,12 +63,6 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 		const changes: SettingChange[] = [];
 		if (patch.copyOnSelect !== undefined) {
 			changes.push({ key: 'terminal.copy_on_select', value: patch.copyOnSelect });
-		}
-		if (patch.trimTrailingBlankRowsForAgents !== undefined) {
-			changes.push({
-				key: 'terminal.trim_trailing_blank_rows_for_agents',
-				value: patch.trimTrailingBlankRowsForAgents,
-			});
 		}
 		void this.#userSettings.edit(changes);
 		return { kind: 'pending' };
@@ -127,16 +105,10 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 		if (this.#disposed) return;
 		const preferences = interactionPreferences(this.#userSettings);
 		const before = this.#snapshot.preferences;
-		if (
-			before.copyOnSelect === preferences.copyOnSelect &&
-			before.trimTrailingBlankRowsForAgents === preferences.trimTrailingBlankRowsForAgents
-		)
-			return;
+		if (before.copyOnSelect === preferences.copyOnSelect) return;
 		this.#snapshot = snapshot(preferences);
-		if (before.copyOnSelect !== preferences.copyOnSelect) {
-			this.#configuration = terminalInteractionConfigurationFromPreferences(preferences);
-			this.#emitConfiguration(this.#configuration);
-		}
+		this.#configuration = terminalInteractionConfigurationFromPreferences(preferences);
+		this.#emitConfiguration(this.#configuration);
 		this.#emitSnapshot();
 	}
 
@@ -160,11 +132,5 @@ function snapshot(
 
 function interactionPreferences(control: UserSettingsControl): TerminalInteractionPreferences {
 	const settings = control.getSnapshot().snapshot;
-	return {
-		copyOnSelect: readSetting(settings, 'terminal.copy_on_select'),
-		trimTrailingBlankRowsForAgents: readSetting(
-			settings,
-			'terminal.trim_trailing_blank_rows_for_agents',
-		),
-	};
+	return { copyOnSelect: readSetting(settings, 'terminal.copy_on_select') };
 }

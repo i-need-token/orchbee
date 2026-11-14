@@ -38,17 +38,6 @@ pub enum TerminalDisplayAppearance {
     Custom,
 }
 
-/// Where the terminal Client takes its interface colors. Theme uses the active color-theme slot
-/// wherever the host can show it; Terminal keeps the host terminal's own colors. The graphical
-/// Client has no host terminal and ignores it.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum TuiColorSource {
-    #[default]
-    Theme,
-    Terminal,
-}
-
 /// The longest admitted color-theme id, in bytes.
 const MAXIMUM_COLOR_THEME_ID_BYTES: usize = 64;
 
@@ -83,16 +72,12 @@ pub struct UserSettingsValues {
     /// The color-theme id of the dark slot, admitted and resolved like `light_theme`.
     #[serde(default = "default_dark_theme", deserialize_with = "color_theme_id")]
     pub dark_theme: String,
-    /// The terminal Client's color source.
-    #[serde(default)]
-    pub tui_color_source: TuiColorSource,
     pub terminal_display_theme: TerminalDisplayAppearance,
     #[serde(deserialize_with = "color_value")]
     pub custom_foreground: String,
     #[serde(deserialize_with = "color_value")]
     pub custom_background: String,
     pub copy_on_select: bool,
-    pub trim_trailing_blank_rows_for_agents: bool,
     /// Whether the Server records supported Agent sessions in its checkpoint and resumes them in
     /// their Panels after a restart.
     #[serde(default = "default_resume_agents_on_restore")]
@@ -117,12 +102,10 @@ impl Default for UserSettingsValues {
             application_theme: ApplicationAppearance::System,
             light_theme: default_light_theme(),
             dark_theme: default_dark_theme(),
-            tui_color_source: TuiColorSource::Theme,
             terminal_display_theme: TerminalDisplayAppearance::Theme,
             custom_foreground: "#141414".into(),
             custom_background: "#fcfcfc".into(),
             copy_on_select: false,
-            trim_trailing_blank_rows_for_agents: true,
             resume_agents_on_restore: true,
             restore_terminal_output: false,
             agent_notification_mode: AgentReminderMode::Never,

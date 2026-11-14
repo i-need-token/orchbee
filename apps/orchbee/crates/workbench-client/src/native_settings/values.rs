@@ -108,9 +108,6 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
         }
         _ if step == AdjustmentStep::Large => {}
         Row::CopyOnSelect => values.copy_on_select = !values.copy_on_select,
-        Row::TrimAgents => {
-            values.trim_trailing_blank_rows_for_agents = !values.trim_trailing_blank_rows_for_agents
-        }
         Row::ResumeAgents => values.resume_agents_on_restore = !values.resume_agents_on_restore,
         Row::RestoreOutput => values.restore_terminal_output = !values.restore_terminal_output,
         Row::Sound => values.sound_enabled = !values.sound_enabled,

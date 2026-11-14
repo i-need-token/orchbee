@@ -3,8 +3,7 @@
 ## Selection and ownership
 
 The [appearance settings](../../../crates/local-runtime/README.md#tables-and-keys) choose an application appearance (Light, Dark, System), one theme for each of the light and dark
-slots, the native Client's color source (Theme or Terminal colors) and terminal defaults (Theme,
-Host, Custom). The TUI does not change the outer host's font or configured theme. While it owns the screen,
+slots and terminal defaults (Theme, Host, Custom). The TUI does not change the outer host's font or configured theme. While it owns the screen,
 its named canvas temporarily sets the default background on admitted hosts, as described below.
 
 The [source resolver](../crates/workbench-client/src/tui_theme/source.rs) decides what the TUI
@@ -13,7 +12,6 @@ paints. The first matching row wins:
 | Host and settings                                    | The TUI paints                    |
 | ---------------------------------------------------- | --------------------------------- |
 | The host is below truecolor                          | Terminal colors                   |
-| Colors is Terminal colors                            | Terminal colors                   |
 | Appearance is Light or Dark                          | The theme in that slot            |
 | Appearance is System and the host appearance settled | The slot matching that appearance |
 | Appearance is System and it has not settled          | Terminal colors                   |

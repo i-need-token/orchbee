@@ -311,8 +311,6 @@ async function run(
 		terminalInteractionConfigurationSource: terminalInteractionSettingsController,
 		terminalPlatformEffects: browserPlatformEffects(targetWindow),
 		terminalPresentationConfigurationSource: terminalSettingsController,
-		terminalTrailingBlankRowsPreferenceSource:
-			terminalInteractionSettingsController.trailingBlankRowsPreferenceSource,
 		// Electron names the window after its page, which the taskbar and window switcher show.
 		titleWindow: targetWindow,
 	});

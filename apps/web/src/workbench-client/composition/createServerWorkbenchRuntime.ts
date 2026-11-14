@@ -24,7 +24,6 @@ import {
 	DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	type TerminalInputConfigurationSource,
 } from '../../terminal-input-configuration';
-import type { TerminalTrailingBlankRowsPreferenceSource } from '../../terminal-interaction-settings';
 import type { ProjectedTerminalShortcutBindingSource } from '../projected-terminal-actions';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import {
@@ -131,9 +130,6 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	readonly terminalPresentationConfigurationSource?:
 		| TerminalPresentationConfigurationSource
 		| undefined;
-	readonly terminalTrailingBlankRowsPreferenceSource?:
-		| TerminalTrailingBlankRowsPreferenceSource
-		| undefined;
 	/**
 	 * The window named after the Session's title policy, as the TUI names its outer terminal; absent
 	 * where this Client names no window.
@@ -165,7 +161,6 @@ export function createServerWorkbenchRuntime({
 	terminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	terminalPlatformEffects = {},
 	terminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
-	terminalTrailingBlankRowsPreferenceSource,
 	titleWindow,
 }: CreateServerWorkbenchRuntimeOptions): ServerWorkbenchRuntime {
 	let disposed = false;
@@ -465,9 +460,6 @@ export function createServerWorkbenchRuntime({
 		...(terminalCompletionReminderObserver === undefined
 			? {}
 			: { terminalCompletionReminderObserver }),
-		...(terminalTrailingBlankRowsPreferenceSource === undefined
-			? {}
-			: { trailingBlankRowsPreferenceSource: terminalTrailingBlankRowsPreferenceSource }),
 	};
 
 	return {

@@ -3,7 +3,7 @@ use super::{AppearancePreview, Row};
 use orchbee_color_themes::Polarity;
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
-    TerminalDisplayAppearance, TuiColorSource, UserSettingsValues,
+    TerminalDisplayAppearance, UserSettingsValues,
 };
 use std::sync::LazyLock;
 
@@ -14,7 +14,6 @@ pub enum Choice {
     ApplicationTheme(ApplicationAppearance),
     /// A shipped theme for the slot of its polarity.
     ColorTheme(ColorTheme),
-    ColorSource(TuiColorSource),
     TerminalTheme(TerminalDisplayAppearance),
     AgentReminders(AgentReminderMode),
     CompletionReminders(CompletionReminderMode),
@@ -74,10 +73,6 @@ impl Choice {
         match row {
             Row::LightTheme => &LIGHT_THEMES,
             Row::DarkTheme => &DARK_THEMES,
-            Row::ColorSource => &[
-                Self::ColorSource(TuiColorSource::Theme),
-                Self::ColorSource(TuiColorSource::Terminal),
-            ],
             Row::Language => &[
                 Self::Locale(SettingsLocale::System),
                 Self::Locale(SettingsLocale::EnUs),
@@ -119,7 +114,6 @@ impl Choice {
                 Polarity::Dark,
                 &values.dark_theme,
             ))),
-            Row::ColorSource => Some(Self::ColorSource(values.tui_color_source)),
             Row::TerminalTheme => Some(Self::TerminalTheme(values.terminal_display_theme)),
             Row::Reminders => Some(Self::AgentReminders(values.agent_notification_mode)),
             Row::CompletionReminders => {
@@ -155,9 +149,7 @@ impl Choice {
                     }
                     _ => {}
                 }
-                values.tui_color_source = TuiColorSource::Theme;
             }
-            Self::ColorSource(value) => values.tui_color_source = value,
             Self::TerminalTheme(value) => values.terminal_display_theme = value,
             Self::AgentReminders(value) => values.agent_notification_mode = value,
             Self::CompletionReminders(value) => values.completion_reminder_mode = value,
@@ -182,9 +174,7 @@ impl Choice {
                         preview.application_theme = ApplicationAppearance::Dark;
                     }
                 }
-                preview.tui_color_source = TuiColorSource::Theme;
             }
-            Self::ColorSource(value) => preview.tui_color_source = value,
             Self::TerminalTheme(value) => preview.terminal_display_theme = value,
             Self::AgentReminders(_) | Self::CompletionReminders(_) => {}
         }

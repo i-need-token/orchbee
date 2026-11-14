@@ -38,7 +38,7 @@ pub(crate) use integrations::{
 mod parameters;
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
-    TerminalDisplayAppearance, TuiColorSource,
+    TerminalDisplayAppearance,
 };
 pub(crate) use parameters::{
     SettingUnit, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
@@ -65,15 +65,10 @@ impl Locale {
             Row::Theme => ("Application theme", "应用主题"),
             Row::LightTheme => ("Light theme", "浅色主题"),
             Row::DarkTheme => ("Dark theme", "深色主题"),
-            Row::ColorSource => ("Interface colors", "界面配色"),
             Row::TerminalTheme => ("Terminal colors", "终端配色"),
             Row::Foreground => ("Text color", "文字颜色"),
             Row::Background => ("Background color", "背景色"),
             Row::CopyOnSelect => ("Copy on select", "选中即复制"),
-            Row::TrimAgents => (
-                "Hide empty space below Agent output",
-                "收起智能体输出下方的空白",
-            ),
             Row::ResumeAgents => (
                 "Resume Agent conversations after restart",
                 "重启后恢复智能体会话",
@@ -263,10 +258,6 @@ impl Locale {
                 "Colors for the interface and terminals when the appearance is dark.",
                 "外观为深色时，界面和终端使用的配色。",
             ),
-            Row::ColorSource => self.setting(
-                "Use the theme, or your terminal’s own colors, for menus and panels.",
-                "菜单和面板使用主题配色，或使用终端自己的配色。",
-            ),
             Row::TerminalTheme => self.setting(
                 "Default text and background in terminals; program colors are kept.",
                 "终端默认的文字和背景颜色；程序自己指定的颜色不变。",
@@ -282,10 +273,6 @@ impl Locale {
             Row::CopyOnSelect => self.setting(
                 "Copies text as soon as you finish selecting it.",
                 "选择完成后立即复制文字。",
-            ),
-            Row::TrimAgents => self.setting(
-                "Keeps an Agent’s latest output at the bottom of its panel.",
-                "让智能体的最新输出贴住面板底部。",
             ),
             Row::ResumeAgents => self.setting(
                 "Reopens Claude Code and Codex conversations in place after restart.",
@@ -352,10 +339,6 @@ impl Locale {
                 .iter()
                 .find(|theme| theme.id() == id)
                 .map_or(id, |theme| theme.name()),
-            Choice::ColorSource(TuiColorSource::Theme) => self.setting("Theme", "主题"),
-            Choice::ColorSource(TuiColorSource::Terminal) => {
-                self.setting("Match my terminal", "跟随我的终端")
-            }
             Choice::TerminalTheme(TerminalDisplayAppearance::Theme) => {
                 self.setting("Match theme", "跟随主题")
             }

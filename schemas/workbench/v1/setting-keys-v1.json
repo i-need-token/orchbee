@@ -51,18 +51,6 @@
 			"page": true
 		},
 		{
-			"path": "appearance.tui_colors",
-			"type": "choice",
-			"choices": ["theme", "terminal"],
-			"default": "theme",
-			"scope": "client",
-			"clients": "tui",
-			"effect": "immediate",
-			"category": "appearance",
-			"group": "theme",
-			"page": false
-		},
-		{
 			"path": "appearance.terminal_colors",
 			"type": "choice",
 			"choices": ["theme", "host", "custom"],
@@ -194,17 +182,6 @@
 			"category": "terminal",
 			"group": "output",
 			"page": true
-		},
-		{
-			"path": "terminal.trim_trailing_blank_rows_for_agents",
-			"type": "boolean",
-			"default": true,
-			"scope": "client",
-			"clients": "both",
-			"effect": "immediate",
-			"category": "terminal",
-			"group": "output",
-			"page": false
 		},
 		{
 			"path": "terminal.restore_output",

@@ -952,7 +952,6 @@ every key's purpose, allowed values and default.
 | `appearance.mode`                                                                           | `"system"`                       | Appearance / Theme                   |
 | `appearance.light_theme`                                                                    | `"orchbee-light"`                | Themes / Light                       |
 | `appearance.dark_theme`                                                                     | `"orchbee-dark"`                 | Themes / Dark                        |
-| `appearance.tui_colors`                                                                     | `"theme"`                        | file only (TUI)                      |
 | `appearance.terminal_colors`                                                                | `"theme"`                        | Appearance / Terminal colors         |
 | `appearance.custom_foreground`, `custom_background`                                         | `"#141414"`, `"#fcfcfc"`         | Appearance / Terminal colors         |
 | `appearance.window_title`                                                                   | `"{hostname}: {workspace}"`      | file only                            |
@@ -963,7 +962,6 @@ every key's purpose, allowed values and default.
 | `terminal.copy_on_select`                                                                   | `false`                          | Terminal / Input                     |
 | `terminal.macos_option_as_alt`                                                              | `"off"`                          | Terminal / Input (Desktop)           |
 | `terminal.scrollback_bytes`                                                                 | `10000000`                       | Terminal / Output                    |
-| `terminal.trim_trailing_blank_rows_for_agents`                                              | `true`                           | file only                            |
 | `terminal.restore_output`                                                                   | `false`                          | General / Restore                    |
 | `terminal.font_family`, `font_size`                                                         | built-in stack, `13`             | Appearance / Terminal text (Desktop) |
 | `terminal.font_weight`, `font_weight_bold`, `font_ligatures`, `padding`                     | `400`, `700`, `true`, `0`        | file only (Desktop)                  |

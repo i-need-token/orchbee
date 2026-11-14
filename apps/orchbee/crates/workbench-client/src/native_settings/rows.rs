@@ -9,12 +9,10 @@ pub enum Row {
     /// The light slot's identity; the Themes category lists its themes as [`Row::ThemeOption`].
     LightTheme,
     DarkTheme,
-    ColorSource,
     TerminalTheme,
     Foreground,
     Background,
     CopyOnSelect,
-    TrimAgents,
     ResumeAgents,
     RestoreOutput,
     Reminders,

@@ -421,7 +421,6 @@ impl PageState {
                 Some(integrations.row(id).state == orchbee_agent_integration::State::Enabled)
             }
             Row::CopyOnSelect => Some(values.copy_on_select),
-            Row::TrimAgents => Some(values.trim_trailing_blank_rows_for_agents),
             Row::ResumeAgents => Some(values.resume_agents_on_restore),
             Row::RestoreOutput => Some(values.restore_terminal_output),
             Row::Sound => Some(values.sound_enabled),

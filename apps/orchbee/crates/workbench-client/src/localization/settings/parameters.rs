@@ -3,7 +3,7 @@ use super::IntegrationStatus;
 use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
-    TerminalDisplayAppearance, TuiColorSource,
+    TerminalDisplayAppearance,
 };
 
 /// Semantic row description; focus, availability and navigation remain the page's.
@@ -13,12 +13,10 @@ pub(crate) enum SettingsRow {
     Theme,
     LightTheme,
     DarkTheme,
-    ColorSource,
     TerminalTheme,
     Foreground,
     Background,
     CopyOnSelect,
-    TrimAgents,
     ResumeAgents,
     RestoreOutput,
     Reminders,
@@ -87,7 +85,6 @@ pub(crate) enum SettingsChoice {
     ApplicationTheme(ApplicationAppearance),
     /// A shipped theme id; names stay untranslated except the Orchbee pair.
     ColorTheme(&'static str),
-    ColorSource(TuiColorSource),
     TerminalTheme(TerminalDisplayAppearance),
     AgentReminders(AgentReminderMode),
     CompletionReminders(CompletionReminderMode),

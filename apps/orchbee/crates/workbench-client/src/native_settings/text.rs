@@ -18,12 +18,10 @@ impl From<Row> for SettingsRow {
                 Polarity::Light => Self::LightTheme,
                 Polarity::Dark => Self::DarkTheme,
             },
-            Row::ColorSource => Self::ColorSource,
             Row::TerminalTheme => Self::TerminalTheme,
             Row::Foreground => Self::Foreground,
             Row::Background => Self::Background,
             Row::CopyOnSelect => Self::CopyOnSelect,
-            Row::TrimAgents => Self::TrimAgents,
             Row::ResumeAgents => Self::ResumeAgents,
             Row::RestoreOutput => Self::RestoreOutput,
             Row::Reminders => Self::Reminders,
@@ -97,7 +95,6 @@ impl From<Choice> for SettingsChoice {
             Choice::Locale(value) => Self::Locale(value),
             Choice::ApplicationTheme(value) => Self::ApplicationTheme(value),
             Choice::ColorTheme(choice) => Self::ColorTheme(choice.theme().id()),
-            Choice::ColorSource(value) => Self::ColorSource(value),
             Choice::TerminalTheme(value) => Self::TerminalTheme(value),
             Choice::AgentReminders(value) => Self::AgentReminders(value),
             Choice::CompletionReminders(value) => Self::CompletionReminders(value),
@@ -133,7 +130,7 @@ fn detail_kind(page: PageView<'_>) -> SettingsDetailKind {
     if !page.enabled(selected) {
         return match selected {
             Row::Foreground | Row::Background => SettingsDetailKind::CustomColorsRequired,
-            Row::ColorSource | Row::ThemeOption(_) => SettingsDetailKind::TruecolorRequired,
+            Row::ThemeOption(_) => SettingsDetailKind::TruecolorRequired,
             Row::Login if !page.login_shell_supported() => SettingsDetailKind::LoginUnsupported,
             Row::Executable
             | Row::Argument
@@ -197,12 +194,10 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
         match row {
             Row::Language => Self::Choice(SettingsChoice::Locale(values.locale)),
             Row::Theme => Self::Choice(SettingsChoice::ApplicationTheme(values.application_theme)),
-            Row::LightTheme | Row::DarkTheme | Row::ColorSource => {
-                match Choice::from_values(row, values) {
-                    Some(choice) => Self::Choice(choice.into()),
-                    None => Self::Empty,
-                }
-            }
+            Row::LightTheme | Row::DarkTheme => match Choice::from_values(row, values) {
+                Some(choice) => Self::Choice(choice.into()),
+                None => Self::Empty,
+            },
             Row::ThemeOption(theme) => Self::Choice(Choice::ColorTheme(theme).into()),
             Row::TerminalTheme => {
                 Self::Choice(SettingsChoice::TerminalTheme(values.terminal_display_theme))
@@ -210,7 +205,6 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
             Row::Foreground => Self::Text(&values.custom_foreground),
             Row::Background => Self::Text(&values.custom_background),
             Row::CopyOnSelect => Self::Toggle(values.copy_on_select),
-            Row::TrimAgents => Self::Toggle(values.trim_trailing_blank_rows_for_agents),
             Row::ResumeAgents => Self::Toggle(values.resume_agents_on_restore),
             Row::RestoreOutput => Self::Toggle(values.restore_terminal_output),
             Row::Reminders => Self::Choice(SettingsChoice::AgentReminders(

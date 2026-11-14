@@ -13,8 +13,8 @@ pub use agent_view::{
 };
 pub use user_settings::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
-    TerminalDisplayAppearance, TuiColorSource, UserLaunchCommand, UserLaunchField,
-    UserLaunchProfile, UserLaunchProfiles, UserSettingsValues,
+    TerminalDisplayAppearance, UserLaunchCommand, UserLaunchField, UserLaunchProfile,
+    UserLaunchProfiles, UserSettingsValues,
 };
 mod carrier;
 mod multiplex;
