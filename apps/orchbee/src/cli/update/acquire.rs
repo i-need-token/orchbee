@@ -10,6 +10,7 @@ use std::{
     io::{self, Read, Write},
     path::Path,
     process::Command,
+    time::{Duration, Instant},
 };
 
 /// The signature document lives beside the signed document under this suffix.
@@ -17,6 +18,30 @@ const SIGNATURE_SUFFIX: &str = ".sig";
 /// curl's exit status when a transfer exceeds `--max-filesize`, which is the signed size.
 /// <https://curl.se/libcurl/c/libcurl-errors.html#CURLEFILESIZEEXCEEDED>
 const CURL_FILESIZE_EXCEEDED: i32 = 63;
+/// curl's exit status when `--max-time`, `--connect-timeout` or the `--speed-limit` rule ends a
+/// transfer. <https://curl.se/libcurl/c/libcurl-errors.html#CURLEOPERATIONTIMEDOUT>
+const CURL_OPERATION_TIMEDOUT: i32 = 28;
+/// curl's own limit for a feed or signature document, which is small.
+const DOCUMENT_SECONDS: u64 = 600;
+/// The archive transfer's floor: one that averages below this many bytes per second over
+/// [`STALL_SECONDS`] has stalled and ends as `timeout`.
+const FLOOR_BYTES_PER_SECOND: u64 = 4096;
+const STALL_SECONDS: u64 = 60;
+/// Added to the time the signed size takes at the floor, for connecting and a slow start.
+const TRANSFER_SLACK_SECONDS: u64 = 600;
+/// The longest an archive transfer may take, whatever its signed size.
+const TRANSFER_CEILING_SECONDS: u64 = 6 * 60 * 60;
+/// How long past curl's own `--max-time` the Client waits before it ends curl itself.
+const TRANSFER_GRACE: Duration = Duration::from_secs(10);
+
+/// The archive transfer's own time limit in seconds, apart from the command's deadline: the time
+/// the signed size takes at the floor plus the slack, never more than the ceiling. 25 MB may take
+/// about 113 minutes on a link that stays above the floor.
+fn transfer_seconds(size: u64) -> u64 {
+    size.div_ceil(FLOOR_BYTES_PER_SECOND)
+        .saturating_add(TRANSFER_SLACK_SECONDS)
+        .min(TRANSFER_CEILING_SECONDS)
+}
 
 pub(super) enum Source {
     Local(LocalPath),
@@ -160,8 +185,8 @@ impl Source {
             Self::Https(url) | Self::Loopback(url) => {
                 require_curl(context).map_err(Fetch::Failed)?;
                 let url = format!("{url}{}", suffix.unwrap_or(""));
-                let mut command =
-                    curl(&url, limit as u64, self.loopback()).map_err(Fetch::Failed)?;
+                let mut command = curl(&url, limit as u64, self.loopback(), Transfer::Document)
+                    .map_err(Fetch::Failed)?;
                 command.args(["--output", "-"]);
                 // One captured byte beyond the bound proves an oversized document.
                 let result = platform::execute_capturing(command, limit + 1, context)
@@ -210,15 +235,26 @@ impl Source {
             }
             Self::Https(url) | Self::Loopback(url) => {
                 require_curl(context)?;
-                let mut command = curl(url, size.max(1), self.loopback())?;
+                let seconds = transfer_seconds(size);
+                let mut command = curl(url, size.max(1), self.loopback(), Transfer::Archive)?;
                 command.arg("--output").arg(path);
-                let result =
-                    platform::execute_contained(command, context).map_err(|_| Error::Download)?;
-                // A body longer than the signed size fails the size check, not the transfer.
-                if result.exit_code == Some(CURL_FILESIZE_EXCEEDED) {
-                    return Err(Error::Checksum);
+                // The transfer runs under its own limit, Ctrl+C still ends it at once, and the
+                // command's deadline stands still meanwhile, so it keeps covering the rest.
+                let started = Instant::now();
+                let deadline = started + Duration::from_secs(seconds) + TRANSFER_GRACE;
+                let result = platform::execute_transfer(command, deadline, context);
+                context.deadline = context
+                    .deadline
+                    .checked_add(started.elapsed())
+                    .unwrap_or(context.deadline);
+                let result = result.map_err(|_| Error::Download)?;
+                match result.exit_code {
+                    // A body longer than the signed size fails the size check, not the transfer.
+                    Some(CURL_FILESIZE_EXCEEDED) => return Err(Error::Checksum),
+                    // Stalled below the floor, or past the transfer's limit.
+                    Some(CURL_OPERATION_TIMEDOUT) => return Err(Error::Timeout),
+                    _ => context.command_result(&result)?,
                 }
-                context.command_result(&result)?;
             }
         }
         file.sync_all()
@@ -237,9 +273,18 @@ enum Fetch {
     /// The document exceeds its bound.
     Oversized,
 }
+/// What one transfer fetches, which chooses its time limit.
+#[derive(Clone, Copy)]
+enum Transfer {
+    /// A feed or signature document, read into memory.
+    Document,
+    /// The archive: it ends when it stalls below the floor, and otherwise after
+    /// [`transfer_seconds`] of its `--max-filesize`, the signed size.
+    Archive,
+}
 /// One bounded transfer: HTTPS only, at most five redirects, each to HTTPS. A loopback source
 /// instead allows plain HTTP to 127.0.0.1 and no proxy; only a test build ever has one.
-fn curl(url: &str, limit: u64, loopback: bool) -> Result<Command, Error> {
+fn curl(url: &str, limit: u64, loopback: bool, transfer: Transfer) -> Result<Command, Error> {
     let protocol = if loopback { "=http" } else { "=https" };
     let mut command = curl_base()?;
     command.args([
@@ -257,9 +302,17 @@ fn curl(url: &str, limit: u64, loopback: bool) -> Result<Command, Error> {
         "--globoff",
         "--connect-timeout",
         "20",
-        "--max-time",
-        "600",
     ]);
+    match transfer {
+        Transfer::Document => command.arg("--max-time").arg(DOCUMENT_SECONDS.to_string()),
+        Transfer::Archive => command
+            .arg("--speed-limit")
+            .arg(FLOOR_BYTES_PER_SECOND.to_string())
+            .arg("--speed-time")
+            .arg(STALL_SECONDS.to_string())
+            .arg("--max-time")
+            .arg(transfer_seconds(limit).to_string()),
+    };
     if loopback {
         command.args(["--noproxy", "127.0.0.1"]);
     }

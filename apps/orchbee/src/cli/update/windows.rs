@@ -9,6 +9,7 @@ use std::{
     os::windows::fs::{MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
     process::Command,
+    time::Instant,
 };
 use winsafe::{self as w, co};
 
@@ -158,6 +159,22 @@ pub(super) fn execute_capturing(
         None,
         limit,
         Some(context.deadline),
+        || context.interrupted(),
+    ))
+}
+
+/// Like [`execute_contained`] for the archive transfer, which ends at its own `deadline` rather
+/// than the command's; Ctrl+C still ends it at once.
+pub(super) fn execute_transfer(
+    command: Command,
+    deadline: Instant,
+    context: &mut Context,
+) -> io::Result<CommandOutput> {
+    Ok(orchbee_local_runtime::run_contained_command_exchange(
+        command,
+        None,
+        OUTPUT_LIMIT,
+        Some(deadline),
         || context.interrupted(),
     ))
 }

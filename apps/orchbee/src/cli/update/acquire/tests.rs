@@ -94,6 +94,15 @@ fn curl_stream_limit_and_https_resolution_do_not_silently_degrade() {
     assert_windows_source_compatibility(&longest, Some(&path));
 }
 
+/// The archive may take its signed size at 4 KiB/s plus ten minutes, and never more than six hours,
+/// which no real run can wait for.
+#[test]
+fn the_archive_transfer_limit_follows_the_signed_size_up_to_six_hours() {
+    assert_eq!(transfer_seconds(1), 601);
+    assert_eq!(transfer_seconds(25_267_310), 6169 + 600);
+    assert_eq!(transfer_seconds(1 << 30), 6 * 60 * 60);
+}
+
 /// curl receives `SystemRoot` and the three proxy variables that are set, and nothing else of the
 /// environment: no other proxy, credential, curlrc or TLS setting reaches it.
 #[cfg(windows)]

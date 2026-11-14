@@ -43,7 +43,8 @@ use std::{
 };
 pub(crate) use uninstall::{installer as installer_uninstall, run as uninstall};
 
-/// The total deadline of one install or update.
+/// The deadline of one install or update. It stands still while the archive transfers under its
+/// own limit (`acquire::transfer_seconds`).
 const DEADLINE: Duration = Duration::from_secs(600);
 /// Whether `update` admits a loopback feed address, fixed at compile time: only a test build does,
 /// so a release or development build never reads plain HTTP.

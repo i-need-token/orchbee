@@ -6,6 +6,7 @@ use std::{
     io,
     path::{Path, PathBuf},
     process::Command,
+    time::Instant,
 };
 
 pub(super) fn feed_source() -> Option<String> {
@@ -38,6 +39,14 @@ pub(super) fn execute(_command: Command, _context: &mut Context) -> io::Result<C
 
 pub(super) fn execute_contained(
     _command: Command,
+    _context: &mut Context,
+) -> io::Result<CommandOutput> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+pub(super) fn execute_transfer(
+    _command: Command,
+    _deadline: Instant,
     _context: &mut Context,
 ) -> io::Result<CommandOutput> {
     Err(io::ErrorKind::Unsupported.into())
