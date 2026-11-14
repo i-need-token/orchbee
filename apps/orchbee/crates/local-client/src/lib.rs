@@ -89,14 +89,6 @@ pub mod workbench {
         };
     }
 
-    pub mod panel_input {
-        pub use crate::local_client::workbench::panel_input::{
-            WorkbenchPanelInputNotSubmitted, WorkbenchPanelInputOutcomeUnknownReason,
-            WorkbenchPanelInputPrecommit, WorkbenchPanelInputRequest,
-            WorkbenchPanelInputSubmission,
-        };
-    }
-
     pub mod panel_placement {
         pub use crate::local_client::workbench::panel_placement::{
             WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementNotSubmitted,

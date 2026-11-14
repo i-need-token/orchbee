@@ -11,14 +11,13 @@ use super::{
     business_options, check_scope, client_control, close_wait, configured_commands,
     confirm_option_required, creation, diagnostics, events, grammar, label_option, layouts,
     machines, missing_command, missing_required, mutation, named_sessions, operation,
-    pane_graphics, panel_agent, panel_input, panel_metadata, panel_move_destination,
-    panel_relocation, panel_terminal_creation, parse_send_key, path_option, plugins,
-    profile_name_option, profile_selector, provider_option, query, reject_extras,
-    reject_extras_scope, reject_filters, required, required_launch_option, required_provider,
-    resolve_help_path, schema_export, send_input, stop_command, tab_move_command, target,
-    terminal_output, terminal_run, terminal_stream, terminal_target, unexpected_argument,
-    unknown_command, usage_with, workspace_creation, workspace_group_close, workspace_metadata,
-    worktree,
+    pane_graphics, panel_agent, panel_metadata, panel_move_destination, panel_relocation,
+    panel_terminal_creation, parse_send_key, path_option, plugins, profile_name_option,
+    profile_selector, provider_option, query, reject_extras, reject_extras_scope, reject_filters,
+    required, required_launch_option, required_provider, resolve_help_path, schema_export,
+    send_input, stop_command, tab_move_command, target, terminal_output, terminal_run,
+    terminal_stream, terminal_target, unexpected_argument, unknown_command, usage_with,
+    workspace_creation, workspace_group_close, workspace_metadata, worktree,
 };
 
 pub(super) fn resolve_words(
@@ -627,7 +626,6 @@ pub(super) fn resolve_words(
             )
         }
         ["tab", "create"] => creation::parse(None, options, envelope),
-        ["panel", "input", operands @ ..] => panel_input::parse(operands, options, envelope),
         ["panel", "rename", value] => {
             let context = UsageContext::Path("panel rename");
             check_scope(options, context, envelope)?;

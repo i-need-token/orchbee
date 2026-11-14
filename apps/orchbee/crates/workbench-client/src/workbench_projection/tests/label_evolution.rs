@@ -2,14 +2,10 @@ use super::*;
 
 const TRACE_SEEDS: u64 = 64;
 const STEPS_PER_TRACE: usize = 38;
-const ACTION_COUNT: usize = 29;
+const ACTION_COUNT: usize = 25;
 
 #[derive(Clone, Copy, Debug)]
 enum Action {
-    SetPanelInput,
-    ClearPanelInput,
-    SameRevisionPanelInput,
-    OlderPanelInput,
     SetPanelLabel,
     ClearPanelLabel,
     SameRevisionPanelLabel,
@@ -39,10 +35,6 @@ enum Action {
 
 impl Action {
     const ALL: [Self; ACTION_COUNT] = [
-        Self::SetPanelInput,
-        Self::ClearPanelInput,
-        Self::SameRevisionPanelInput,
-        Self::OlderPanelInput,
         Self::SetPanelLabel,
         Self::ClearPanelLabel,
         Self::SameRevisionPanelLabel,
@@ -73,9 +65,7 @@ impl Action {
     const fn must_be_accepted(self) -> bool {
         matches!(
             self,
-            Self::SetPanelInput
-                | Self::ClearPanelInput
-                | Self::SetPanelLabel
+            Self::SetPanelLabel
                 | Self::ClearPanelLabel
                 | Self::ExactSameRevision
                 | Self::RevisionOnly
@@ -171,28 +161,6 @@ fn apply(
     let mut candidate = successor(current, 0);
     let first = random.index(current.tabs.len());
     match action {
-        Action::SetPanelInput | Action::SameRevisionPanelInput | Action::OlderPanelInput => {
-            candidate.tabs[first].panels[0].right_click =
-                match current.tabs[first].panels[0].right_click {
-                    orchbee_workbench_protocol::PanelRightClickTarget::Orchbee => {
-                        orchbee_workbench_protocol::PanelRightClickTarget::Panel
-                    }
-                    orchbee_workbench_protocol::PanelRightClickTarget::Panel => {
-                        orchbee_workbench_protocol::PanelRightClickTarget::Orchbee
-                    }
-                };
-            if matches!(action, Action::SameRevisionPanelInput) {
-                candidate.revision = current.revision;
-            }
-            if matches!(action, Action::OlderPanelInput) {
-                candidate.revision = WorkbenchRevision::new(current.revision.value() - 1);
-            }
-        }
-        Action::ClearPanelInput => {
-            candidate.tabs[first].panels[0].right_click =
-                orchbee_workbench_protocol::PanelRightClickTarget::Orchbee
-        }
-
         Action::SetPanelLabel | Action::SameRevisionPanelLabel | Action::OlderPanelLabel => {
             let value = format!("custom-{}", random.next());
             candidate.tabs[first].panels[0].primary.custom_label =

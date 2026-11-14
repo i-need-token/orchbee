@@ -474,7 +474,6 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
             &after_create,
             4,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: context_id.clone(),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
@@ -686,7 +685,6 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             &after_create,
             4,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: context_id.clone(),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
@@ -768,7 +766,6 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
         session_id: pending_close.session_id.clone(),
         expected_revision: pending_close.revision,
         action: WorkbenchAction::PanelSplit {
-            right_click: Default::default(),
             terminal_context_id: context_id.clone(),
             tab_id: tab_id.clone(),
             panel_id: panel_id.clone(),
@@ -841,7 +838,6 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             &pending_close,
             11,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: context_id.clone(),
                 tab_id: other_tab_id.clone(),
                 panel_id: other_panel_id.clone(),
@@ -1132,7 +1128,6 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
             &after_create,
             4,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: context_id.clone(),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),

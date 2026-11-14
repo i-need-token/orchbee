@@ -1,8 +1,8 @@
 //! Canonical members of one Panel; child terminals never become layout leaves.
 use super::{ClientProjectionError, ClientTerminalBinding};
 use orchbee_workbench_protocol::{
-    PanelCustomLabel, PanelRightClickTarget, Presentation, PresentationLaunchFailure,
-    PresentationLaunchProgram, TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
+    PanelCustomLabel, Presentation, PresentationLaunchFailure, PresentationLaunchProgram,
+    TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -75,7 +75,6 @@ impl ClientPresentation {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ClientPanel {
-    pub(super) right_click: PanelRightClickTarget,
     pub(super) panel_id: WorkbenchPanelId,
     pub(super) primary: ClientPresentation,
     pub(super) children: Box<[ClientPresentation]>,
@@ -84,9 +83,6 @@ pub(crate) struct ClientPanel {
 impl ClientPanel {
     pub(crate) fn primary(&self) -> &ClientPresentation {
         &self.primary
-    }
-    pub(crate) const fn right_click(&self) -> PanelRightClickTarget {
-        self.right_click
     }
     pub(crate) fn panel_id(&self) -> &WorkbenchPanelId {
         &self.panel_id

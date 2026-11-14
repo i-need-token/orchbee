@@ -163,8 +163,6 @@ pub struct PointerTab {
 /// and orphans the gesture rather than substituting the new attachment.
 #[derive(Clone, Debug)]
 pub struct PointerPane {
-    pub(crate) right_click_reporting: bool,
-    pub(crate) right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     /// The record's exact incarnation (logical pane + incarnation).
     pub(crate) record: crate::workbench_state::PaneRef,
     /// The record's attachment is live for this incarnation.
@@ -522,8 +520,6 @@ impl From<PointerTabFixture> for PointerTab {
 /// Field-for-field `PointerPane` fixture the application's tests build values from.
 #[cfg(any(test, feature = "test-support"))]
 pub struct PointerPaneFixture {
-    pub right_click_reporting: bool,
-    pub right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     pub record: crate::workbench_state::PaneRef,
     pub attached: bool,
     pub controlling: Option<bool>,
@@ -534,16 +530,12 @@ pub struct PointerPaneFixture {
 impl From<PointerPaneFixture> for PointerPane {
     fn from(fixture: PointerPaneFixture) -> Self {
         let PointerPaneFixture {
-            right_click_reporting,
-            right_click,
             record,
             attached,
             controlling,
             frame_available,
         } = fixture;
         Self {
-            right_click_reporting,
-            right_click,
             record,
             attached,
             controlling,

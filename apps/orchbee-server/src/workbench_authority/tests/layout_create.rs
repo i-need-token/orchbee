@@ -1,8 +1,6 @@
 use super::*;
 use crate::test_support::WorkbenchFixture;
-use orchbee_workbench_protocol::{
-    PanelOrientation, PanelRightClickTarget, WorkbenchLayoutTemplate,
-};
+use orchbee_workbench_protocol::{PanelOrientation, WorkbenchLayoutTemplate};
 
 pub(super) fn action(owner: &WorkbenchAuthority) -> WorkbenchAction {
     WorkbenchAction::TabCreateLayout {
@@ -10,9 +8,9 @@ pub(super) fn action(owner: &WorkbenchAuthority) -> WorkbenchAction {
         label: WorkbenchLabel::parse("Layout").unwrap(), automatic_label: true,
         layout: serde_json::from_value::<WorkbenchLayoutTemplate>(serde_json::json!({
             "kind":"split", "orientation":"vertical", "children":[
-                {"kind":"panel","rightClick":"panel","primary":{"label":"First","customLabel":"Custom"},
+                {"kind":"panel","primary":{"label":"First","customLabel":"Custom"},
                     "children":[{"label":"Child 1","customLabel":null},{"label":"Child 2","customLabel":"Pinned name"}]},
-                {"kind":"panel","rightClick":"orchbee","primary":{"label":"Second","customLabel":null},"children":[]}
+                {"kind":"panel","primary":{"label":"Second","customLabel":null},"children":[]}
             ]
         })).unwrap(),
     }
@@ -74,13 +72,11 @@ fn materialization_is_atomic_unbound_and_exactly_replayable() {
     let PanelNode::Panel {
         primary_presentation,
         child_presentations,
-        right_click,
         ..
     } = &children[0].node
     else {
         panic!("panel")
     };
-    assert_eq!(*right_click, PanelRightClickTarget::Panel);
     assert!(primary_presentation.binding.is_none());
     assert_eq!(primary_presentation.label, "First");
     assert_eq!(primary_presentation.display_label(), "Custom");

@@ -290,7 +290,6 @@ export const WorkbenchPresentationSchema = z
 export type WorkbenchPresentation = z.infer<typeof WorkbenchPresentationSchema>;
 
 interface WorkbenchPanelNodePanel {
-	readonly rightClick?: 'orchbee' | 'panel' | undefined;
 	readonly childPresentations: readonly WorkbenchPresentation[];
 	readonly kind: 'panel';
 	readonly panelId: WorkbenchPanelId;
@@ -323,7 +322,6 @@ export const WorkbenchPanelNodeSchema: z.ZodType<WorkbenchPanelNode> = z.lazy(()
 					.max(WORKBENCH_MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL)
 					.readonly(),
 				kind: z.literal('panel'),
-				rightClick: z.enum(['orchbee', 'panel']).optional(),
 				panelId: WorkbenchPanelIdSchema,
 				primaryPresentation: WorkbenchPresentationSchema,
 			})

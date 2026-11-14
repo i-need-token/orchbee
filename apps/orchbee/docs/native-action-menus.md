@@ -11,8 +11,8 @@ localized unsupported outcome. Shared Workbench actions retain their own admissi
 
 `Ctrl+b Space` and `[keys].menu` open the global action menu. These keyboard routes remain
 available without a permanent Actions button. Unmodified right-click opens a menu for a drawn
-pane, Tab, Project, Workspace or Agent row. Opening or cancelling does not change focus. Pane content retains its configured
-`right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
+pane, Tab, Project, Workspace or Agent row. Opening or cancelling does not change focus. A right
+press never reaches the pane's program, even one that reports mouse tracking. Shift gestures retain
 the host-terminal bypass. Machines retains `Ctrl+b Shift+M`.
 The sidebar footer opens Settings directly; no permanent Menu or Machines footer remains.
 The Panel menu offers Rename after terminal commands, using the primary Presentation's shared override; the global

@@ -41,7 +41,6 @@ use super::{ExchangeAttempt, LocalClient, exchange_once};
 pub(crate) mod label_rename;
 pub(crate) mod launch_profile;
 pub(crate) mod panel_close;
-pub(crate) mod panel_input;
 pub(crate) mod panel_placement;
 pub(crate) mod panel_relocate;
 pub(crate) mod panel_split;

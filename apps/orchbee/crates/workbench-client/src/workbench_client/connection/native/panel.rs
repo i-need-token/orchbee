@@ -62,7 +62,6 @@ impl ClientExecutor {
                 };
                 let request =
                     WorkbenchPanelSplitRequest::try_from(command(WorkbenchAction::PanelSplit {
-                        right_click: Default::default(),
                         terminal_context_id: baseline
                             .terminal_context_id()
                             .ok_or(CarrierFailure::Protocol)?

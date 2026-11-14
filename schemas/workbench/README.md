@@ -558,8 +558,6 @@ Panel swap uses the shared structural placement authority for one atomic same-Ta
 
 `set-split-ratio` accepts optional `expectedSplit:{splitId,firstSlotId,secondSlotId}`. When present all three are required, ordered slots must differ, and explicit null is invalid. The Client compares exact identity before writing; `layout-adjusted` receipts must match all three. Omission retains ordinary path-setter behavior. Shared corpus cases cover replaced identities, missing fields and duplicate slots. This additive field requires a matched cohort and adds no Desktop CLI command.
 
-The [Panel input contract](../../apps/orchbee/docs/native-panel-input.md) adds Panel-owned optional `rightClick` (`orchbee` by default, or `panel`), required policy on `panel.input.set`, optional policy on `panel.split`, and `panel-input-configured` receipt. Null and unknown values are invalid. Pure updates preserve membership; split applies policy only to the new Panel. Rust, TypeScript and JSON Schema consume the same conformance corpus. This adds no Desktop CLI command and requires a coordinated development cohort.
-
 ## Tab insertion boundary contract
 
 `tab.move-index { terminalContextId, tabId, insertIndex }` extends shared canonical Tab ordering;
@@ -714,8 +712,8 @@ envelope. JSON Schema marks aggregate byte/uniqueness rules that bindings enforc
 `tab.create` and `panel.split` use the same optional launch/profile/options fields, closed
 nested shapes, normalization and 96 KiB command envelope as `panel.create-terminal`. All three
 preserve literal arguments and environment values; supplying both a non-null launch and profile
-is invalid. Default `automaticLabel:false` on Tab creation and `rightClick:orchbee` on Split
-normalize to omission, matching Rust serialization. Null `options` and null environment arrays
+is invalid. Default `automaticLabel:false` on Tab creation
+normalizes to omission, matching Rust serialization. Null `options` and null environment arrays
 are invalid; null cwd and empty environment are omitted. The shared corpus checks these existing
 native launch capabilities across Rust, TypeScript and JSON Schema, including extended requests
 above the ordinary intent limit. This does not add Desktop commands or change Server launch,
@@ -732,7 +730,7 @@ this extension adds no persistent migration or public CLI command by itself.
 ## Identity-free layout materialization
 
 The command binding also admits `tab.create-layout` and its final `tab-layout-created` receipt.
-A validated recursive template carries labels, manual overrides, Panel input policy and binary
+A validated recursive template carries labels, manual overrides and binary
 Split orientation, with no caller-provided identities or bindings. Rust and TypeScript enforce
 24 leaves, 16 levels and 16 children per leaf in addition to the closed JSON structure. The whole
 command is bounded to 1 MiB; other commands retain their individual limits even though the shared

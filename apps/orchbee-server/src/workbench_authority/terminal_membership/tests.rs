@@ -210,7 +210,6 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: vec![Presentation {
                         custom_label: None,
                         binding: None,
@@ -237,7 +236,6 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
             },
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(106)).unwrap(),
                     primary_presentation: Presentation {
@@ -287,7 +285,6 @@ fn tree_membership_collects_split_primary_leaves_for_the_workspace() {
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
                     primary_presentation: Presentation {
@@ -305,7 +302,6 @@ fn tree_membership_collects_split_primary_leaves_for_the_workspace() {
             },
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(105)).unwrap(),
                     primary_presentation: Presentation {
@@ -373,7 +369,6 @@ fn tree_membership_preserves_unbound_layouts_and_enumerates_only_bound_members()
             children: Box::new([
                 PanelSlot {
                     node: PanelNode::Panel {
-                        right_click: Default::default(),
                         child_presentations: Vec::new(),
                         panel_id,
                         primary_presentation,
@@ -382,7 +377,6 @@ fn tree_membership_preserves_unbound_layouts_and_enumerates_only_bound_members()
                 },
                 PanelSlot {
                     node: PanelNode::Panel {
-                        right_click: Default::default(),
                         child_presentations: Vec::new(),
                         panel_id: WorkbenchPanelId::parse(&identity(105)).unwrap(),
                         primary_presentation: Presentation {

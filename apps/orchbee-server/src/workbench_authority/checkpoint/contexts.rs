@@ -1,12 +1,12 @@
 //! Retained graph fields are explicit even when the live wire representation omits defaults.
 
 use orchbee_workbench_protocol::{
-    PanelCustomLabel, PanelNode, PanelOrientation, PanelRightClickTarget, PanelSlot, Presentation,
-    PresentationBinding, Tab, TabGroup, TerminalContext, TerminalPresentationId, WorkbenchPanelId,
-    WorkbenchPanelSlotId, WorkbenchSplitId, WorkbenchSplitRatio, WorkbenchTabGroupId,
-    WorkbenchTabId, WorkbenchTerminalContextId,
+    PanelCustomLabel, PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding,
+    Tab, TabGroup, TerminalContext, TerminalPresentationId, WorkbenchPanelId, WorkbenchPanelSlotId,
+    WorkbenchSplitId, WorkbenchSplitRatio, WorkbenchTabGroupId, WorkbenchTabId,
+    WorkbenchTerminalContextId,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -44,7 +44,15 @@ struct StoredSlot {
 )]
 enum StoredPanel {
     Panel {
-        right_click: PanelRightClickTarget,
+        /// Earlier builds wrote a right-click owner on every Panel. Every Panel
+        /// now behaves as their default did, so a stored value is read and dropped.
+        #[serde(
+            rename = "rightClick",
+            default,
+            skip_serializing,
+            deserialize_with = "retired_right_click"
+        )]
+        retired_right_click: (),
         child_presentations: Vec<StoredPresentation>,
         panel_id: WorkbenchPanelId,
         primary_presentation: StoredPresentation,
@@ -55,6 +63,18 @@ enum StoredPanel {
         split_id: WorkbenchSplitId,
         ratio: WorkbenchSplitRatio,
     },
+}
+
+/// The two values earlier builds wrote; anything else still rejects the document.
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum RetiredRightClick {
+    Orchbee,
+    Panel,
+}
+
+fn retired_right_click<'de, D: Deserializer<'de>>(deserializer: D) -> Result<(), D::Error> {
+    RetiredRightClick::deserialize(deserializer).map(|_| ())
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -136,12 +156,11 @@ impl From<PanelNode> for StoredPanel {
     fn from(node: PanelNode) -> Self {
         match node {
             PanelNode::Panel {
-                right_click,
                 child_presentations,
                 panel_id,
                 primary_presentation,
             } => Self::Panel {
-                right_click,
+                retired_right_click: (),
                 child_presentations: child_presentations
                     .into_iter()
                     .map(StoredPresentation::from)
@@ -168,12 +187,11 @@ impl From<StoredPanel> for PanelNode {
     fn from(node: StoredPanel) -> Self {
         match node {
             StoredPanel::Panel {
-                right_click,
+                retired_right_click: (),
                 child_presentations,
                 panel_id,
                 primary_presentation,
             } => Self::Panel {
-                right_click,
                 child_presentations: child_presentations
                     .into_iter()
                     .map(Presentation::from)

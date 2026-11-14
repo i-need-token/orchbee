@@ -294,12 +294,12 @@ const CONFLICTS: &[Conflict] = &[
         incompatible: &["--profile"],
     },
     Conflict {
-        commands: &[CommandPath::PanelInput, CommandPath::PanelSplit],
+        commands: &[CommandPath::PanelSplit],
         flags: &["--panel"],
         incompatible: &["--current"],
     },
     Conflict {
-        commands: &[CommandPath::PanelInput, CommandPath::PanelSplit],
+        commands: &[CommandPath::PanelSplit],
         flags: &["--current"],
         incompatible: &["--panel"],
     },
@@ -867,7 +867,6 @@ const OPERANDS: &[OperandRule] = &[
             CommandPath::PanelEdges,
             CommandPath::PanelResize,
             CommandPath::PanelSwap,
-            CommandPath::PanelInput,
             CommandPath::PanelSplit,
         ],
         reductions: &[&["--panel", "--current"]],

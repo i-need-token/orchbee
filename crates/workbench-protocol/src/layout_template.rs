@@ -1,7 +1,5 @@
 //! Identity-free structure admission for atomic unbound Tab materialization.
-use crate::{
-    ContractError, PanelCustomLabel, PanelOrientation, PanelRightClickTarget, WorkbenchLabel,
-};
+use crate::{ContractError, PanelCustomLabel, PanelOrientation, WorkbenchLabel};
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 pub const MAXIMUM_LAYOUT_PANELS: usize = 24;
@@ -28,7 +26,6 @@ pub enum WorkbenchLayoutNode {
     Panel {
         primary: WorkbenchLayoutPresentation,
         children: Vec<WorkbenchLayoutPresentation>,
-        right_click: PanelRightClickTarget,
     },
     Split {
         orientation: PanelOrientation,

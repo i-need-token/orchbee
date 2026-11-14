@@ -84,7 +84,6 @@ fn split(
             authority,
             command_id,
             WorkbenchAction::PanelSplit {
-                right_click: orchbee_workbench_protocol::PanelRightClickTarget::Panel,
                 terminal_context_id: initial_workspace_context(authority),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),

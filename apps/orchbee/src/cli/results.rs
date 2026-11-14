@@ -210,7 +210,6 @@ pub(crate) struct PanelRow {
     /// Human naming fallback only; never serialized into the Panel query document.
     pub(crate) launch_program: Option<String>,
     pub(crate) display_label: String,
-    pub(crate) right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     pub(crate) panel_id: String,
     pub(crate) tab_id: String,
     pub(crate) terminal_context_id: String,
@@ -1546,7 +1545,6 @@ impl Projection {
                             "label": row.label,
                             "customLabel": row.custom_label,
                             "displayLabel": row.display_label,
-                            "rightClick": row.right_click.as_str(),
                             "tabId": row.tab_id,
                             "terminalContextId": row.terminal_context_id,
                             "primaryPresentationId": row.primary_presentation_id,
@@ -1565,7 +1563,6 @@ impl Projection {
             Self::PanelGet(doc) => json!({
                 "panel": {
                     "panelId": doc.row.panel_id,
-                    "rightClick": doc.row.right_click.as_str(),
                     "tabId": doc.row.tab_id,
                     "context": context_json(&doc.context),
                     "slotPath": doc.slot_path,
@@ -2754,7 +2751,6 @@ fn collect_panels<'a>(
 ) {
     match node {
         PanelNode::Panel {
-            right_click,
             panel_id,
             primary_presentation,
             child_presentations,
@@ -2768,7 +2764,6 @@ fn collect_panels<'a>(
                     .map(|label| label.as_str().to_owned()),
                 display_label: primary_presentation.display_label().to_owned(),
                 launch_program: launch_program(primary_presentation),
-                right_click: *right_click,
                 panel_id: panel_id.as_str().to_owned(),
                 tab_id: tab.tab_id.as_str().to_owned(),
                 terminal_context_id: context.terminal_context_id.as_str().to_owned(),
@@ -2799,7 +2794,6 @@ fn panel_presentations(
 ) -> Option<(PresentationRow, Vec<PresentationRow>)> {
     match node {
         PanelNode::Panel {
-            right_click: _,
             panel_id: id,
             primary_presentation,
             child_presentations,
@@ -2977,7 +2971,6 @@ fn collect_terminal_rows(
 ) {
     match node {
         PanelNode::Panel {
-            right_click: _,
             panel_id,
             primary_presentation,
             child_presentations,

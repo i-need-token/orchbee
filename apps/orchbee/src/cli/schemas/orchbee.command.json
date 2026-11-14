@@ -3082,19 +3082,6 @@
 					"type": "object",
 					"properties": {
 						"kind": {
-							"const": "panel-input-configured"
-						},
-						"revision": {
-							"$ref": "#/$defs/wb_revision"
-						}
-					},
-					"required": ["kind", "revision"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
 							"const": "workspaces-reordered"
 						},
 						"revision": {

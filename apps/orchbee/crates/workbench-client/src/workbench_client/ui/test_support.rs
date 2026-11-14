@@ -333,7 +333,6 @@ pub(in crate::workbench_client) fn snapshot(count: usize, revision: u64) -> Snap
                         label: format!("Tab {index}"),
                         tab_id: WorkbenchTabId::parse(&format!("{base:032x}")).unwrap(),
                         root: PanelNode::Panel {
-                            right_click: Default::default(),
                             child_presentations: Vec::new(),
                             panel_id: WorkbenchPanelId::parse(&format!("{:032x}", base + 1))
                                 .unwrap(),

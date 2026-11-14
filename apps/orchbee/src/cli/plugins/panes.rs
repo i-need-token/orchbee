@@ -79,7 +79,6 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
                     return Err(Reason::PopupTargetUnsupported.failure());
                 }
                 command.creation.kind = CreationKind::Split {
-                    right_click: Default::default(),
                     target: None,
                     direction: orchbee_workbench_protocol::WorkbenchPanelSplitDirection::Right,
                     ratio: None,

@@ -5062,7 +5062,6 @@ impl Authority {
             .find(|tab| &tab.tab_id == tab_id)
             .ok_or_else(|| violation_error("authority split missed its tab"))?;
         let new_leaf = PanelNode::Panel {
-            right_click: Default::default(),
             child_presentations: Vec::new(),
             panel_id: new_panel_id.clone(),
             primary_presentation: Presentation {
@@ -5163,7 +5162,6 @@ fn leaf_node(
     worker: u128,
 ) -> PanelNode {
     PanelNode::Panel {
-        right_click: Default::default(),
         child_presentations: Vec::new(),
         panel_id: panel,
         primary_presentation: Presentation {

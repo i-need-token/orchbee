@@ -1434,7 +1434,6 @@ fn project_panel_tree(
 ) -> Result<ClientPanelTree, ClientProjectionError> {
     match node {
         PanelNode::Panel {
-            right_click,
             child_presentations,
             panel_id,
             primary_presentation,
@@ -1446,7 +1445,6 @@ fn project_panel_tree(
             }
             let panel_index = panels.len();
             panels.push(ClientPanel {
-                right_click: *right_click,
                 panel_id: panel_id.clone(),
                 primary: ClientPresentation::project(primary_presentation)?,
                 children: child_presentations

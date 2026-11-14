@@ -386,9 +386,7 @@ fn workspace_unbound_primary_child_and_split_preserve_missing_target_and_boundar
 
 #[test]
 fn indexed_workspace_move_preserves_complete_split_records_and_other_contexts() {
-    use orchbee_workbench_protocol::{
-        PanelCustomLabel, PanelRightClickTarget, WorkbenchTabInsertIndex,
-    };
+    use orchbee_workbench_protocol::{PanelCustomLabel, WorkbenchTabInsertIndex};
     for source in 0..3 {
         for boundary in 0..=3 {
             let (mut authority, grant) = workspace_authority(3);
@@ -398,7 +396,6 @@ fn indexed_workspace_move_preserves_complete_split_records_and_other_contexts() 
             let PanelNode::Panel {
                 panel_id,
                 primary_presentation,
-                right_click,
                 ..
             } = &mut sibling
             else {
@@ -411,7 +408,6 @@ fn indexed_workspace_move_preserves_complete_split_records_and_other_contexts() 
             primary_presentation.binding.as_mut().unwrap().terminal_id =
                 TerminalId::parse(&identity(9999)).unwrap();
             primary_presentation.custom_label = Some(PanelCustomLabel::parse("保留 😀").unwrap());
-            *right_click = PanelRightClickTarget::Panel;
             context.tabs[1].root = PanelNode::Split {
                 ratio: Default::default(),
                 split_id: WorkbenchSplitId::parse(&identity(800)).unwrap(),

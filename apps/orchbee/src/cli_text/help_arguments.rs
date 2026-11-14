@@ -118,7 +118,6 @@ impl super::CliText {
             CommandPath::TabCreate => &[],
             CommandPath::TabRename => &[Argument::Tab],
             CommandPath::PanelRename => &[Argument::Panel],
-            CommandPath::PanelInput => &[Argument::Panel],
             CommandPath::PanelSwap => &[Argument::Panel],
             CommandPath::TabMove => &[Argument::Tab],
             CommandPath::TabClose => &[Argument::Tab],

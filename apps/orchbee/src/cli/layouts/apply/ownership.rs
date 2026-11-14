@@ -132,17 +132,11 @@ pub(super) fn materialized(
     }
     fn matches(expected: &WorkbenchLayoutNode, actual: &PanelNode) -> bool {
         match expected {
-            WorkbenchLayoutNode::Panel {
-                primary,
-                children,
-                right_click,
-            } => matches!(actual, PanelNode::Panel {
+            WorkbenchLayoutNode::Panel { primary, children } => matches!(actual, PanelNode::Panel {
                     primary_presentation,
                     child_presentations,
-                    right_click: actual_policy,
                     ..
-                } if right_click == actual_policy
-                    && presentation(primary, primary_presentation)
+                } if presentation(primary, primary_presentation)
                     && children.len() == child_presentations.len()
                     && children
                         .iter()
@@ -314,8 +308,7 @@ pub(super) fn matches_template(
             let [actual] = nodes.as_slice() else {
                 return false;
             };
-            actual["rightClick"].as_str() == Some(expected.right_click.as_str())
-                && member(&expected.primary, &actual["primary"])
+            member(&expected.primary, &actual["primary"])
                 && actual["children"].as_array().is_some_and(|children| {
                     children.len() == expected.children.len()
                         && children

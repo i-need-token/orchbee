@@ -4,8 +4,8 @@ mod object;
 pub(super) use member::Member;
 use object::Object;
 use orchbee_workbench_protocol::{
-    ClientSplitPath, ClientSplitRatio, PanelOrientation, PanelRightClickTarget,
-    WorkbenchLayoutNode, WorkbenchLayoutTemplate, WorkbenchPanelSplitDirection,
+    ClientSplitPath, ClientSplitRatio, PanelOrientation, WorkbenchLayoutNode,
+    WorkbenchLayoutTemplate, WorkbenchPanelSplitDirection,
 };
 use serde_json::value::RawValue;
 
@@ -15,7 +15,6 @@ pub(super) const MAX_BYTES: usize = 1024 * 1024;
 pub(super) struct Leaf {
     pub(super) primary: Member,
     pub(super) children: Vec<Member>,
-    pub(super) right_click: PanelRightClickTarget,
 }
 impl Leaf {
     pub(super) fn members(&self) -> impl Iterator<Item = &Member> {
@@ -56,7 +55,6 @@ impl Node {
             Self::Panel(leaf) => WorkbenchLayoutNode::Panel {
                 primary: leaf.primary.structural(),
                 children: leaf.children.iter().map(Member::structural).collect(),
-                right_click: leaf.right_click,
             },
             Self::Split {
                 direction,
@@ -253,7 +251,7 @@ fn node(
     match kind.as_str() {
         "panel" => {
             if current_export {
-                fields.require(&["panelId", "rightClick", "primary", "children"])?;
+                fields.require(&["panelId", "primary", "children"])?;
             }
             *count += 1;
             if *count > super::model::MAX_PANELS {
@@ -264,11 +262,6 @@ fn node(
             } else {
                 fields.optional_string("panelId")?;
             }
-            let right_click = if fields.contains("rightClick") {
-                fields.decode("rightClick")?
-            } else {
-                Default::default()
-            };
             if fields.contains("primary") {
                 let primary = member::parse(
                     Object::parse(&fields.take("primary")?)?,
@@ -288,17 +281,12 @@ fn node(
                     Vec::new()
                 };
                 fields.finish()?;
-                Ok(Node::Panel(Leaf {
-                    primary,
-                    children,
-                    right_click,
-                }))
+                Ok(Node::Panel(Leaf { primary, children }))
             } else {
                 let primary = member::parse(fields, false, false)?;
                 Ok(Node::Panel(Leaf {
                     primary,
                     children: Vec::new(),
-                    right_click,
                 }))
             }
         }

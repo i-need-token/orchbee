@@ -24,7 +24,6 @@ pub(crate) const WORKSPACE_MOVE_RESULT_ID: &str = "orchbee.workspace.move";
 pub(crate) const WORKSPACE_MOVE_FAILURE_ID: &str = "orchbee.cli.failure.workspace-move";
 pub(crate) const TAB_MOVE_RESULT_ID: &str = "orchbee.tab.move";
 pub(crate) const TAB_MOVE_FAILURE_ID: &str = "orchbee.cli.failure.tab-move";
-pub(crate) const PANEL_INPUT_RESULT_ID: &str = "orchbee.panel.input";
 pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
 /// `schema` id → embedded document, in dictionary order.
@@ -224,10 +223,6 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
     (
         TAB_MOVE_FAILURE_ID,
         include_str!("../../cli/schemas/orchbee.cli.failure.tab-move.json"),
-    ),
-    (
-        PANEL_INPUT_RESULT_ID,
-        include_str!("../../cli/schemas/orchbee.panel.input.json"),
     ),
     (
         "orchbee.cli.failure.machine-route",

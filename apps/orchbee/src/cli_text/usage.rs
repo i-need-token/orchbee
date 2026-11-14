@@ -180,8 +180,6 @@ impl super::CliText {
             }
             (Locale::EnUs, ExpectedValue::Format) => "'text' or 'json'",
             (Locale::ZhCn, ExpectedValue::Format) => "'text' 或 'json'",
-            (Locale::EnUs, ExpectedValue::RightClick) => "'orchbee' or 'panel'",
-            (Locale::ZhCn, ExpectedValue::RightClick) => "'orchbee' 或 'panel'",
             (Locale::EnUs, ExpectedValue::PanelLabel) => {
                 "at most 512 Unicode characters; empty text clears the title"
             }

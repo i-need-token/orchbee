@@ -80,7 +80,7 @@ fn known_shared_ratio_receipt_advances_only_its_exact_owned_split() {
     );
 }
 fn input() -> Value {
-    json!({"type":"panel","rightClick":"panel","primary":{"name":"Empty","start":false},
+    json!({"type":"panel","primary":{"name":"Empty","start":false},
     "children":[{"name":"Child","label":"Manual","start":true}]})
 }
 fn plan() -> crate::cli::layouts::template::Plan {
@@ -90,11 +90,11 @@ fn plan() -> crate::cli::layouts::template::Plan {
 }
 fn tab() -> Tab {
     serde_json::from_value(json!({"tabId":id(1),"label":"Tab","pinned":false,"groupId":null,
-    "root":{"kind":"panel","panelId":id(2),"rightClick":"panel","primaryPresentation":{"customLabel":null,"presentationId":id(3),"label":"Empty","binding":null},
+    "root":{"kind":"panel","panelId":id(2),"primaryPresentation":{"customLabel":null,"presentationId":id(3),"label":"Empty","binding":null},
     "childPresentations":[{"presentationId":id(4),"label":"Child","customLabel":"Manual","binding":null}]}})).unwrap()
 }
 #[test]
-fn materialization_must_match_every_member_label_policy_and_unbound_state() {
+fn materialization_must_match_every_member_label_and_unbound_state() {
     let expected = tab();
     let plan = plan();
     let (panels, splits) = materialized(&plan, &expected.root).unwrap();
@@ -102,7 +102,6 @@ fn materialization_must_match_every_member_label_policy_and_unbound_state() {
     assert!(splits.is_empty());
     let root = serde_json::to_value(expected.root).unwrap();
     for (pointer, value) in [
-        ("/rightClick", json!("orchbee")),
         ("/primaryPresentation/label", json!("Wrong")),
         ("/childPresentations/0/customLabel", json!("Changed")),
         (
@@ -163,14 +162,13 @@ fn binding_adopts_only_one_exact_members_binding_and_no_other_tree_change() {
     );
 }
 #[test]
-fn final_observation_requires_child_order_start_intent_labels_and_policy() {
+fn final_observation_requires_child_order_start_intent_and_labels() {
     let plan = plan();
     let panels = [WorkbenchPanelId::parse(&id(2)).unwrap()];
     let mut observed = input();
     observed["panelId"] = json!(id(2));
     assert!(matches_template(&plan, &panels, &observed));
     for (pointer, new) in [
-        ("/rightClick", json!("orchbee")),
         ("/primary/start", json!(true)),
         ("/children/0/label", json!("Changed")),
         ("/children", json!([])),

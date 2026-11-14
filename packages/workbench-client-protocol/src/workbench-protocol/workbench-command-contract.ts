@@ -346,15 +346,6 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
-			kind: z.literal('panel.input.set'),
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			rightClick: z.enum(['orchbee', 'panel']),
-		})
-		.readonly(),
-	z
-		.strictObject({
 			kind: z.literal('layout.set-split-ratio'),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,
@@ -518,7 +509,6 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	WorkbenchTerminalLaunchFieldsSchema.safeExtend({
 		kind: z.literal('panel.split'),
-		rightClick: z.enum(['orchbee', 'panel']).optional(),
 		terminalContextId: WorkbenchTerminalContextIdSchema,
 		tabId: WorkbenchTabIdSchema,
 		panelId: WorkbenchPanelIdSchema,
@@ -527,10 +517,9 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		customLabel: WorkbenchPanelCustomLabelSchema.nullish(),
 		geometry: WorkbenchTerminalGeometrySchema,
 	})
-		.transform(({ rightClick, customLabel, ...action }) => ({
+		.transform(({ customLabel, ...action }) => ({
 			...normalizeWorkbenchTerminalLaunch(action),
 			...(customLabel === undefined || customLabel === null ? {} : { customLabel }),
-			...(rightClick === 'panel' ? { rightClick } : {}),
 		}))
 		.readonly(),
 	z

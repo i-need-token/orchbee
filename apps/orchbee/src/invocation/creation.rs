@@ -14,7 +14,6 @@ pub(crate) enum CreationKind {
         context: Option<TabContext>,
     },
     Split {
-        right_click: orchbee_workbench_protocol::PanelRightClickTarget,
         target: Option<Target>,
         direction: WorkbenchPanelSplitDirection,
         ratio: Option<ClientSplitRatio>,
@@ -105,12 +104,6 @@ pub(super) fn parse(
             })
             .transpose()?;
         CreationKind::Split {
-            right_click: options
-                .right_click
-                .as_deref()
-                .map(|value| super::panel_input::policy(value, context, envelope))
-                .transpose()?
-                .unwrap_or_default(),
             target,
             direction: panel_direction(options, context, envelope)?,
             ratio,

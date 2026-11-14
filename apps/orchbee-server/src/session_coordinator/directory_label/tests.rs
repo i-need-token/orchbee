@@ -33,7 +33,6 @@ fn presentation(presentation: u128, terminal: Option<u128>) -> Presentation {
 
 fn panel(panel: u128, primary: Presentation, children: Vec<Presentation>) -> PanelNode {
     PanelNode::Panel {
-        right_click: Default::default(),
         child_presentations: children,
         panel_id: WorkbenchPanelId::parse(&id(panel)).unwrap(),
         primary_presentation: primary,

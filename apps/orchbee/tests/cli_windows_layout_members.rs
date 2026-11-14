@@ -12,7 +12,7 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 fn panel(panel: u64, primary: u64, child: u64) -> Value {
-    json!({"kind":"panel","panelId":id(panel),"rightClick":"panel",
+    json!({"kind":"panel","panelId":id(panel),
         "primaryPresentation":{"customLabel":null,"presentationId":id(primary),"label":"Empty","binding":null},
         "childPresentations":[{"presentationId":id(child),"label":"Child","customLabel":"Manual","binding":null}]})
 }
@@ -119,14 +119,13 @@ fn unbound_export_preserves_members_without_runtime_reads_or_focus_changes() {
     assert_eq!(root["primary"]["start"], false);
     assert_eq!(root["children"][0]["start"], false);
     assert_eq!(root["children"][0]["label"], "Manual");
-    assert_eq!(root["rightClick"], "panel");
 }
 #[test]
 fn apply_records_structure_and_unknown_exact_child_launch_without_compensation_or_secret_leak() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let file = fixture.0.join("members.json");
-    std::fs::write(&file,json!({"type":"panel","rightClick":"panel","primary":{"name":"Empty","start":false},
+    std::fs::write(&file,json!({"type":"panel","primary":{"name":"Empty","start":false},
         "children":[{"name":"Child","label":"Manual","start":true,"cwd":fixture.0,
             "command":[fixture.executable(),"--version",""],"env":{"LAYOUT_SECRET":"do-not-print-this"}}]}).to_string()).unwrap();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
@@ -148,17 +147,11 @@ fn apply_records_structure_and_unknown_exact_child_launch_without_compensation_o
         };
         assert!(*automatic_label);
         assert_eq!(label.as_str(), "2");
-        let WorkbenchLayoutNode::Panel {
-            primary,
-            children,
-            right_click,
-        } = layout.root()
-        else {
+        let WorkbenchLayoutNode::Panel { primary, children } = layout.root() else {
             panic!();
         };
         assert_eq!(primary.label.as_str(), "Empty");
         assert_eq!(children.len(), 1);
-        assert_eq!(*right_click, PanelRightClickTarget::Panel);
         write_workbench_response(
             &mut stream,
             &WorkbenchResponse::Command(WorkbenchCommandResult {

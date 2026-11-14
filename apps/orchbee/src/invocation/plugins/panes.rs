@@ -191,7 +191,6 @@ pub(super) fn parse(
                     CreationDirectory::Default
                 },
                 kind: CreationKind::Split {
-                    right_click: Default::default(),
                     target: options
                         .target_panel
                         .clone()

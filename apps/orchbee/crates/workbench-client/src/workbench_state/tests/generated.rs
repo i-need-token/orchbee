@@ -2239,7 +2239,6 @@ fn commit_edit(
             let first_slot = slot_id(next_identity(identity));
             let second_slot = slot_id(next_identity(identity));
             let added = PanelNode::Panel {
-                right_click: Default::default(),
                 child_presentations: Vec::new(),
                 panel_id: new_panel_id.clone(),
                 primary_presentation: Presentation {

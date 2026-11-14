@@ -69,7 +69,6 @@ impl TerminalPlacement {
                 WorkbenchAction::PanelSplit {
                     label,
                     custom_label,
-                    right_click,
                     ..
                 },
             ) => replace_panel(
@@ -84,7 +83,6 @@ impl TerminalPlacement {
                     presentation_id,
                     label: label.as_str(),
                     custom_label: custom_label.as_ref(),
-                    right_click: *right_click,
                     binding,
                     launch_program,
                 },

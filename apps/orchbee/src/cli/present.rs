@@ -1076,8 +1076,7 @@ fn panel_doc(out: &mut Bounded, doc: &PanelDoc, text: &CliLabels) -> Result<(), 
             primary.unavailable_directory.as_ref(),
             text,
         ),
-    )?;
-    field(out, text.right_click, doc.row.right_click.as_str())
+    )
 }
 
 /// Aligned columns with a heading row and no width degradation, for text

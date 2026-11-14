@@ -1,7 +1,7 @@
 use super::*;
 
 fn leaf(n: u64, label: &str) -> Value {
-    json!({"kind":"panel","panelId":id(n),"rightClick":"orchbee",
+    json!({"kind":"panel","panelId":id(n),
         "primaryPresentation":{"customLabel":null,"presentationId":id(n+100),"label":label,"binding":null},
         "childPresentations":[]})
 }
@@ -265,10 +265,15 @@ fn same_tab_move_uses_one_placement_and_preserves_unchanged_receipts() {
 fn headless_apply_builds_and_exports_the_shared_tree_in_one_session() {
     let fixture = Fixture::new();
     let file = fixture.0.join("headless-layout.json");
-    std::fs::write(&file, json!({"type":"split","direction":"right","ratio":0.7,
-        "first":{"type":"panel","rightClick":"orchbee","primary":{"name":"First","start":false},"children":[]},
-        "second":{"type":"panel","rightClick":"orchbee","primary":{"name":"Second","start":false},"children":[]}
-    }).to_string()).unwrap();
+    std::fs::write(
+        &file,
+        json!({"type":"split","direction":"right","ratio":0.7,
+            "first":{"type":"panel","primary":{"name":"First","start":false},"children":[]},
+            "second":{"type":"panel","primary":{"name":"Second","start":false},"children":[]}
+        })
+        .to_string(),
+    )
+    .unwrap();
     let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         let mut current = snapshot();

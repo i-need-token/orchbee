@@ -215,7 +215,6 @@ pub(crate) fn available_snapshot(binding: Option<PresentationBinding>) -> Workbe
                     label: "initial_workspace".into(),
                     pinned: false,
                     root: PanelNode::Panel {
-                        right_click: Default::default(),
                         child_presentations: Vec::new(),
                         panel_id: WorkbenchPanelId::parse(ID).unwrap(),
                         primary_presentation: Presentation {

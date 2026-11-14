@@ -98,7 +98,6 @@ commands! {
     TabCreate => ["tab", "create"], 0, Operand, Portable, true, true, true;
     TabRename => ["tab", "rename"], 1, Operand, Portable, true, true, false;
     PanelRename => ["panel", "rename"], 1, Panel, Portable, true, true, false;
-    PanelInput => ["panel", "input"], 1, Panel, Portable, true, true, false;
     PanelSwap => ["panel", "swap"], 1, Panel, Portable, true, true, false;
     TabMove => ["tab", "move"], 1, Operand, Portable, true, true, false;
     TabClose => ["tab", "close"], 1, Operand, Portable, true, true, false;

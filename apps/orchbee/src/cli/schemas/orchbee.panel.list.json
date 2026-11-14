@@ -1612,7 +1612,6 @@
 						"type": "object",
 						"required": [
 							"panelId",
-							"rightClick",
 							"tabId",
 							"terminalContextId",
 							"primaryPresentationId",
@@ -1641,9 +1640,6 @@
 						"properties": {
 							"panelId": {
 								"$ref": "#/$defs/id"
-							},
-							"rightClick": {
-								"enum": ["orchbee", "panel"]
 							},
 							"tabId": {
 								"$ref": "#/$defs/id"

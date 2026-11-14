@@ -1694,7 +1694,6 @@
 					"type": "object",
 					"required": [
 						"panelId",
-						"rightClick",
 						"tabId",
 						"context",
 						"slotPath",
@@ -1718,9 +1717,6 @@
 					"properties": {
 						"panelId": {
 							"$ref": "#/$defs/id"
-						},
-						"rightClick": {
-							"enum": ["orchbee", "panel"]
 						},
 						"tabId": {
 							"$ref": "#/$defs/id"

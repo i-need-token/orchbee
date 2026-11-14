@@ -145,7 +145,6 @@ fn semantic_event_projection_records_intermediate_commits_and_noop_revision() {
         group_id: None,
         root: PanelNode::Panel {
             panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 5)).unwrap(),
-            right_click: Default::default(),
             child_presentations: Vec::new(),
             primary_presentation: Presentation {
                 presentation_id: TerminalPresentationId::parse(&format!("{:032x}", 6)).unwrap(),

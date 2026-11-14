@@ -98,8 +98,8 @@ authorization policy.
 `tab.create` and `panel.split` use the same optional launch/profile/options fields, closed
 nested shapes, normalization and 96 KiB command envelope as `panel.create-terminal`. All three
 preserve literal arguments and environment values; supplying both a non-null launch and profile
-is invalid. Default `automaticLabel:false` on Tab creation and `rightClick:orchbee` on Split
-normalize to omission, matching Rust serialization. Null `options` and null environment arrays
+is invalid. Default `automaticLabel:false` on Tab creation
+normalizes to omission, matching Rust serialization. Null `options` and null environment arrays
 are invalid; null cwd and empty environment are omitted. The shared corpus checks these existing
 native launch capabilities across Rust, TypeScript and JSON Schema, including extended requests
 above the ordinary intent limit. This does not add Desktop commands or change Server launch,
@@ -259,8 +259,6 @@ The [Panel label contract](../../apps/orchbee/docs/native-panel-labels.md) requi
 Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. The Windows CLI separately acknowledges source focus through the original Client; known canonical commits survive later failure or unknown focus. [Native Panel swap](../../apps/orchbee/docs/native-panel-swap.md) owns the workflow, receipt and evidence.
 
 `set-split-ratio` accepts optional `expectedSplit:{splitId,firstSlotId,secondSlotId}`. When present all three are required, ordered slots must differ, and explicit null is invalid. The Client compares exact identity before writing; `layout-adjusted` receipts must match all three. Omission retains ordinary path-setter behavior. Shared corpus cases cover replaced identities, missing fields and duplicate slots. This additive field requires a matched cohort and adds no Desktop CLI command.
-
-The [Panel input contract](../../apps/orchbee/docs/native-panel-input.md) adds Panel-owned optional `rightClick` (`orchbee` by default, or `panel`), required policy on `panel.input.set`, optional policy on `panel.split`, and `panel-input-configured` receipt. Null and unknown values are invalid. Pure updates preserve membership; split applies policy only to the new Panel. Rust, TypeScript and JSON Schema consume the same conformance corpus. This adds no Desktop CLI command and requires a coordinated development cohort.
 
 ## Tab insertion boundary contract
 

@@ -3,8 +3,8 @@ use super::*;
 use base64::Engine;
 use orchbee_workbench_protocol::{
     MAXIMUM_GRAPHICS_SET_BYTES, Navigation, PaneGraphicsFormat, PaneGraphicsFrame,
-    PaneGraphicsPlacement, PanelNode, PanelRightClickTarget, Presentation, ProtocolVersion,
-    SessionId, Tab, TerminalContext, TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId,
+    PaneGraphicsPlacement, PanelNode, Presentation, ProtocolVersion, SessionId, Tab,
+    TerminalContext, TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId,
     WorkbenchTerminalContextId,
 };
 
@@ -152,7 +152,6 @@ fn fixture() -> (Snapshot, PaneGraphicsTarget) {
                 pinned: false,
                 tab_id: WorkbenchTabId::parse(&format!("{:032x}", 3)).unwrap(),
                 root: PanelNode::Panel {
-                    right_click: PanelRightClickTarget::default(),
                     panel_id: panel_id.clone(),
                     child_presentations: vec![],
                     primary_presentation: Presentation {

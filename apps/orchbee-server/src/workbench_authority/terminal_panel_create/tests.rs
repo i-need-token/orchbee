@@ -35,7 +35,6 @@ fn split_command(
         session_id: authority.session_id().clone(),
         expected_revision: WorkbenchRevision::new(1),
         action: WorkbenchAction::PanelSplit {
-            right_click: Default::default(),
             terminal_context_id: authority.fixture_context_id().clone(),
             tab_id,
             panel_id,
@@ -60,15 +59,11 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
 
     let grant =
         WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());
-    let mut request = split_command(
+    let request = split_command(
         &authority,
         source.tab_id().clone(),
         source.panel_id().clone(),
     );
-    let WorkbenchAction::PanelSplit { right_click, .. } = &mut request.action else {
-        panic!("split")
-    };
-    *right_click = orchbee_workbench_protocol::PanelRightClickTarget::Panel;
     let WorkbenchPanelCreateBegin::Admitted(admission) =
         authority.begin_terminal_panel_create(Some(&grant), request)
     else {
@@ -148,7 +143,6 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
     assert_eq!(children.len(), 2);
     for (index, slot) in children.iter().enumerate() {
         let PanelNode::Panel {
-            right_click,
             primary_presentation,
             ..
         } = &slot.node
@@ -159,14 +153,6 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
         assert_eq!(
             primary_presentation.launch_program,
             if index == 0 { None } else { program() }
-        );
-        assert_eq!(
-            *right_click,
-            if index == 0 {
-                orchbee_workbench_protocol::PanelRightClickTarget::Orchbee
-            } else {
-                orchbee_workbench_protocol::PanelRightClickTarget::Panel
-            }
         );
     }
 

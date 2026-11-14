@@ -21,7 +21,7 @@ fn handle(key: &str) -> Option<fn(&str) -> String> {
 
 /// Public receipt members in display order. Every other result member is an
 /// internal identity or ordering detail that only `--format json` reports.
-const FIELDS: [&str; 18] = [
+const FIELDS: [&str; 17] = [
     "projectId",
     "workspaceId",
     "workspaceIds",
@@ -37,7 +37,6 @@ const FIELDS: [&str; 18] = [
     "customLabel",
     "direction",
     "insertIndex",
-    "rightClick",
     "path",
     "terminal",
 ];
@@ -292,8 +291,6 @@ impl super::CliText {
             (Locale::ZhCn, "direction") => "方向",
             (Locale::EnUs, "insertIndex") => "Position",
             (Locale::ZhCn, "insertIndex") => "位置",
-            (Locale::EnUs, "rightClick") => "Right click",
-            (Locale::ZhCn, "rightClick") => "右键",
             (Locale::EnUs, "path") => "Directory",
             (Locale::ZhCn, "path") => "目录",
             (Locale::EnUs, _) => "Terminal",

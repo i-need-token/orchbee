@@ -688,7 +688,6 @@ fn split_snapshot() -> Snapshot {
             },
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 7_010)).unwrap(),
                     primary_presentation: Presentation {

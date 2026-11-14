@@ -10,7 +10,7 @@ remain separate obligations. No other platform adapter is introduced.
 
 The checkpoint retains optional Project membership, Project labels, global local-directory paths,
 Workspaces and their display order, terminal contexts, ordered
-Tabs, groups, pinned state, split structure and ratios, Panel input policy and Presentation labels. It also
+Tabs, groups, pinned state, split structure and ratios and Presentation labels. It also
 retains Launch Profile definitions and the allocation high-water counter, including deleted IDs.
 All primary and child Presentations survive structurally but carry no terminal binding, launched program or launch failure.
 
@@ -62,8 +62,9 @@ Canonical split ratios remain retained; see [shared ratios](shared-split-ratios.
 `lastIdentity` and each profile `counter` are canonical nonzero 32-character lowercase hex.
 Every Presentation binding is `null`; `customLabel` is required-nullable.
 `checkpoint/contexts.rs` owns the retained graph shape: Tab `automaticLabel` and `groupId`,
-Panel `rightClick`, Split `ratio` and Presentation `binding` are explicit even at their default or
-null values. The runtime-only `launchProgram`, `launchFailure`, `agentNotResumed` and `agentStartFailure` fields are not admitted into retained configuration.
+Split `ratio` and Presentation `binding` are explicit even at their default or
+null values. Earlier builds also wrote Panel `rightClick` (`orchbee` or `panel`); restore reads
+either value and drops it, and a new checkpoint omits it. Any other value is still refused. The runtime-only `launchProgram`, `launchFailure`, `agentNotResumed` and `agentStartFailure` fields are not admitted into retained configuration.
 Retained navigation stores the protocol Workspace shape, so Workspace `automaticLabel` keeps its
 protocol omission rule: it appears only when true, and its absence restores a fixed name.
 Optional `terminalDirectory` is retained the same way. The directory Server last sampled for each
@@ -176,7 +177,7 @@ already ended, so a successful Retry resumes the Agent at once under the same ru
 default, then validates and prepares the entire resulting projection/publication before mutation.
 Dropping preparation changes nothing. Commit sets exactly one binding, with the launched program
 its fresh reservation planned, and advances revision;
-structural identities, allocator high-water, labels, order, groups, input policy and profiles remain
+structural identities, allocator high-water, labels, order, groups and profiles remain
 unchanged. Already-bound targets and duplicate physical terminal bindings are refused.
 
 Preparation creates no process and replays no command. The managed coordinator prepares a fresh terminal reservation with the canonical binding, commits both under one lock, then dispatches and settles that exact physical request before exposing Clients. Restored snapshot bindings are the only attachment selection source; there is no reconstructed Open reference. Planning tests alone do not establish runtime integration.

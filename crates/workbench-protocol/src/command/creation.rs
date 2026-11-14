@@ -30,7 +30,6 @@ impl WorkbenchCommand {
             | WorkbenchAction::NavigationConfigure { .. }
             | WorkbenchAction::TabsConfigure { .. }
             | WorkbenchAction::PanelRename { .. }
-            | WorkbenchAction::PanelInputSet { .. }
             | WorkbenchAction::SplitRatioSet { .. }
             | WorkbenchAction::TabMove { .. }
             | WorkbenchAction::TabMoveIndex { .. }

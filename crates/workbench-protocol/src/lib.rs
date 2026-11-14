@@ -202,8 +202,8 @@ pub use identity::{
 };
 pub use model::{
     AgentNotResumedReason, AgentStartFailureReason, Delta, DeltaChange, DeltaRejectionReason,
-    Directory, Navigation, PanelNode, PanelOrientation, PanelRightClickTarget, PanelSlot,
-    Presentation, PresentationAgentNotResumed, PresentationAgentStartFailure, PresentationBinding,
+    Directory, Navigation, PanelNode, PanelOrientation, PanelSlot, Presentation,
+    PresentationAgentNotResumed, PresentationAgentStartFailure, PresentationBinding,
     PresentationLaunchFailure, PresentationLaunchFailureReason, Project, Snapshot,
     SnapshotReadIntent, Tab, TabGroup, TabGroupColor, TerminalContext, WorkbenchProtocolDocument,
     WorkbenchPublicationDocument, Workspace, tab_display_label,

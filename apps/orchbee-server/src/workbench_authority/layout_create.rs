@@ -86,18 +86,13 @@ fn member(
 }
 fn tree(node: &WorkbenchLayoutNode, cursor: &mut u128) -> Result<PanelNode, PlanFailure> {
     Ok(match node {
-        WorkbenchLayoutNode::Panel {
-            primary,
-            children,
-            right_click,
-        } => PanelNode::Panel {
+        WorkbenchLayoutNode::Panel { primary, children } => PanelNode::Panel {
             panel_id: WorkbenchPanelId::parse(&take(cursor)).map_err(|_| PlanFailure::Internal)?,
             primary_presentation: member(primary, cursor)?,
             child_presentations: children
                 .iter()
                 .map(|child| member(child, cursor))
                 .collect::<Result<_, _>>()?,
-            right_click: *right_click,
         },
         WorkbenchLayoutNode::Split {
             orientation,

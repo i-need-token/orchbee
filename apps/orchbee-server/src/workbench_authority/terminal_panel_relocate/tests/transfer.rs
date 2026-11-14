@@ -7,7 +7,6 @@ use std::collections::BTreeMap;
 
 fn leaf(n: u128) -> PanelNode {
     PanelNode::Panel {
-        right_click: Default::default(),
         child_presentations: Vec::new(),
         panel_id: WorkbenchPanelId::parse(&identity(n)).unwrap(),
         primary_presentation: Presentation {

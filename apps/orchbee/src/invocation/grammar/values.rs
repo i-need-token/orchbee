@@ -3,7 +3,6 @@
 pub(crate) const ORDER_VALUES: &[&str] = &["previous", "next", "first", "last"];
 pub(crate) const CWD_VALUES: &[&str] = &["follow", "home", "current", "workspace"];
 pub(crate) const OUTPUT_SOURCES: &[&str] = &["visible", "recent", "recent-unwrapped", "detection"];
-pub(crate) const RIGHT_CLICK_VALUES: &[&str] = &["orchbee", "panel"];
 pub(crate) const KEY_VALUES: &[&str] = &[
     "enter",
     "escape",

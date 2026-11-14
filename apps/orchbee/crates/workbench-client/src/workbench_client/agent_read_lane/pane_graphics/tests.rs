@@ -53,7 +53,6 @@ fn fixture() -> (Snapshot, Source, PaneGraphicsLayer) {
                 pinned: false,
                 tab_id: WorkbenchTabId::parse(&format!("{:032x}", 3)).unwrap(),
                 root: PanelNode::Panel {
-                    right_click: PanelRightClickTarget::default(),
                     panel_id: target.panel_id.clone(),
                     child_presentations: vec![],
                     primary_presentation: Presentation {

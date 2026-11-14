@@ -209,7 +209,6 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
             options: Box::new(options.clone()),
         }),
         maximum_command(WorkbenchAction::PanelSplit {
-            right_click: crate::PanelRightClickTarget::Panel,
             terminal_context_id: context.clone(),
             tab_id: WorkbenchTabId::parse("ffffffffffffffffffffffffffffffff").unwrap(),
             panel_id: WorkbenchPanelId::parse("ffffffffffffffffffffffffffffffff").unwrap(),
@@ -357,7 +356,7 @@ fn launch_selection_wire_shape_is_closed_and_default_omits_the_key() {
 
 #[test]
 fn layout_command_has_a_bounded_large_carrier_without_widening_ordinary_commands() {
-    let leaf = serde_json::json!({"kind":"panel","rightClick":"orchbee",
+    let leaf = serde_json::json!({"kind":"panel",
         "primary":{"label":"蜂".repeat(512),"customLabel":null},
         "children":(0..16).map(|_| serde_json::json!({"label":"蜂".repeat(512),"customLabel":null})).collect::<Vec<_>>()});
     let mut root = leaf;

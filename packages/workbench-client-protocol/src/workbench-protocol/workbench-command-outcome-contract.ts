@@ -197,9 +197,6 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z.strictObject({ kind: z.literal('renamed'), revision: WorkbenchRevisionSchema }).readonly(),
 	z
-		.strictObject({ kind: z.literal('panel-input-configured'), revision: WorkbenchRevisionSchema })
-		.readonly(),
-	z
 		.strictObject({ kind: z.literal('split-ratio-configured'), revision: WorkbenchRevisionSchema })
 		.readonly(),
 	z.strictObject({ kind: z.literal('unchanged'), revision: WorkbenchRevisionSchema }).readonly(),

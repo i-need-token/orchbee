@@ -8,7 +8,6 @@ use orchbee_workbench_protocol::{
 mod launch_profile;
 mod layout_create;
 mod navigation_configuration;
-mod panel_input;
 mod panel_labels;
 mod split_ratios;
 mod stateful;

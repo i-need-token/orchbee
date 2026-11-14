@@ -15,7 +15,6 @@ mod multiplex_conformance;
 mod notification;
 mod pane_graphics;
 mod panel_agent;
-mod panel_input;
 mod panel_labels;
 mod panel_metadata;
 mod plugins;

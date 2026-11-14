@@ -23,7 +23,6 @@ fn snapshot(empty: bool) -> Snapshot {
         pinned: false,
         tab_id: WorkbenchTabId::parse(&id(3)).unwrap(),
         root: PanelNode::Panel {
-            right_click: Default::default(),
             child_presentations: Vec::new(),
             panel_id: WorkbenchPanelId::parse(&id(4)).unwrap(),
             primary_presentation: Presentation {
@@ -93,7 +92,6 @@ fn snapshot(empty: bool) -> Snapshot {
                     let mut other = tab;
                     other.tab_id = WorkbenchTabId::parse(&id(9)).unwrap();
                     other.root = PanelNode::Panel {
-                        right_click: Default::default(),
                         child_presentations: Vec::new(),
                         panel_id: WorkbenchPanelId::parse(&id(10)).unwrap(),
                         primary_presentation: Presentation {

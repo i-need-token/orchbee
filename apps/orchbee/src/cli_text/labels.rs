@@ -33,7 +33,6 @@ pub(crate) struct CliLabels {
     pub(crate) status_session: &'static str,
     pub(crate) status_session_name: &'static str,
     pub(crate) status_client_version: &'static str,
-    pub(crate) right_click: &'static str,
     pub(crate) tab: &'static str,
     pub(crate) tab_id: &'static str,
     pub(crate) tabs: &'static str,
@@ -121,7 +120,6 @@ const EN_US_LABELS: CliLabels = CliLabels {
     workspace_headers: ["HANDLE", "NAME", "PROJECT"],
     tab_ref_headers: ["ID", "LABEL"],
     tab_headers: ["HANDLE", "NAME", "PANELS", "WORKSPACE"],
-    right_click: "Right click",
     panel_headers: ["ID", "NAME", "WORKSPACE", "TAB", "TERMINAL"],
     directory_unavailable: "Directory unavailable",
     terminal_list_headers: [
@@ -197,7 +195,6 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     workspace_headers: ["句柄", "名称", "项目"],
     tab_ref_headers: ["ID", "LABEL"],
     tab_headers: ["句柄", "名称", "面板", "工作区"],
-    right_click: "右键",
     panel_headers: ["ID", "名称", "工作区", "标签页", "终端"],
     directory_unavailable: "目录不可用",
     terminal_list_headers: ["句柄", "标题", "Agent", "状态", "工作区", "面板", "目录"],

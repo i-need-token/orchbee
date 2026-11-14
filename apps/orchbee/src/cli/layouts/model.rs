@@ -106,7 +106,6 @@ fn project(
                 panel_id,
                 primary_presentation,
                 child_presentations,
-                right_click,
             } => {
                 fn member(
                     presentation: &Presentation,
@@ -131,11 +130,9 @@ fn project(
                     }
                     Ok(value)
                 }
-                Ok(
-                    json!({"type":"panel","panelId":panel_id,"rightClick":right_click,
+                Ok(json!({"type":"panel","panelId":panel_id,
                     "primary":member(primary_presentation,facts)?,
-                    "children":child_presentations.iter().map(|p| member(p,facts)).collect::<Result<Vec<_>,_>>()?}),
-                )
+                    "children":child_presentations.iter().map(|p| member(p,facts)).collect::<Result<Vec<_>,_>>()?}))
             }
             PanelNode::Split {
                 split_id,

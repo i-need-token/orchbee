@@ -217,7 +217,6 @@ fn presentation_snapshot() -> Snapshot {
                 label: "Tab".into(),
                 tab_id: tab_id(5),
                 root: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: panel_id(6),
                     primary_presentation: Presentation {

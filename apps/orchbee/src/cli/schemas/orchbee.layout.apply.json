@@ -359,16 +359,13 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["type", "panelId", "rightClick", "primary", "children"],
+							"required": ["type", "panelId", "primary", "children"],
 							"properties": {
 								"type": {
 									"const": "panel"
 								},
 								"panelId": {
 									"$ref": "#/$defs/export/$defs/id"
-								},
-								"rightClick": {
-									"enum": ["orchbee", "panel"]
 								},
 								"primary": {
 									"$ref": "#/$defs/export/$defs/member"

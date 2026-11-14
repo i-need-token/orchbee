@@ -3603,19 +3603,6 @@
 					"type": "object",
 					"properties": {
 						"kind": {
-							"const": "panel-input-configured"
-						},
-						"revision": {
-							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
-						}
-					},
-					"required": ["kind", "revision"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
 							"const": "workspaces-reordered"
 						},
 						"revision": {

@@ -163,40 +163,6 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
 }
 
 #[test]
-fn panel_input_current_rejects_untrusted_metadata_before_admission_in_both_locales() {
-    for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
-        for (terminal, worker) in [
-            (None, None),
-            (Some("untrusted-secret-value"), Some("bad")),
-            (Some("00000000000000000000000000000001"), None),
-        ] {
-            let result = run(
-                &[
-                    "panel",
-                    "input",
-                    "--current",
-                    "--right-click=panel",
-                    "--format=json",
-                ],
-                terminal,
-                worker,
-                locale,
-            );
-            assert_eq!(result.status.code(), Some(2));
-            let doc: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
-            assert_eq!(doc["failure"]["kind"], "invalid-usage");
-            assert!(!String::from_utf8_lossy(&result.stderr).contains("untrusted-secret-value"));
-        }
-        for args in [["help", "panel", "input"], ["panel", "input", "--help"]] {
-            let result = run(&args, None, None, locale);
-            assert!(result.status.success());
-            let text = String::from_utf8(result.stdout).unwrap();
-            assert!(text.contains("--right-click <orchbee|panel>") && text.contains("--current"));
-        }
-    }
-}
-
-#[test]
 fn terminal_observe_rejects_invalid_grammar_before_effect_and_closes_missing_runtime() {
     let help = run(
         &["help", "terminal", "session", "observe"],

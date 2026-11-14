@@ -1574,38 +1574,12 @@ fn searchable_menu_escape_after_query_edit_cancels_and_restores_terminal_forward
 }
 
 #[test]
-fn right_menu_does_not_focus_and_policy_chrome_modifiers_and_release_keep_ownership() {
-    for (content, policy, mods, opens) in [
-        (
-            true,
-            orchbee_workbench_protocol::PanelRightClickTarget::Orchbee,
-            0,
-            true,
-        ),
-        (
-            true,
-            orchbee_workbench_protocol::PanelRightClickTarget::Panel,
-            0,
-            false,
-        ),
-        (
-            false,
-            orchbee_workbench_protocol::PanelRightClickTarget::Panel,
-            0,
-            true,
-        ),
-        (
-            true,
-            orchbee_workbench_protocol::PanelRightClickTarget::Orchbee,
-            4,
-            false,
-        ),
-        (
-            true,
-            orchbee_workbench_protocol::PanelRightClickTarget::Orchbee,
-            16,
-            false,
-        ),
+fn right_menu_does_not_focus_and_chrome_modifiers_and_release_keep_ownership() {
+    for (content, mods, opens) in [
+        (true, 0, true),
+        (false, 0, true),
+        (true, 4, false),
+        (true, 16, false),
     ] {
         let mut port = Port::new(MenuAction::Help);
         let pane = super::pane_ref();
@@ -1614,8 +1588,6 @@ fn right_menu_does_not_focus_and_policy_chrome_modifiers_and_release_keep_owners
             attached: true,
             controlling: Some(true),
             frame_available: true,
-            right_click: policy,
-            right_click_reporting: false,
         });
         let mut hits = HitMapBuilder::new();
         let source = crate::action_menu::DrawnMenuSource {
@@ -1671,20 +1643,6 @@ fn right_menu_does_not_focus_and_policy_chrome_modifiers_and_release_keep_owners
             dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<2;5;2m");
             assert!(forwarded_bytes(&port.calls).is_empty());
             assert!(dispatcher.menu_release.is_none());
-        } else if mods == 0 {
-            // Without a menu, the host's paste follows the ordinary route to the pane.
-            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<2;5;2m");
-            dispatch_all(
-                &mut dispatcher,
-                &mut view,
-                &mut port,
-                b"\x1b[200~F2MARK\x1b[201~",
-            );
-            assert!(
-                forwarded_bytes(&port.calls)
-                    .windows(6)
-                    .any(|bytes| bytes == b"F2MARK")
-            );
         }
     }
 }
@@ -1851,8 +1809,6 @@ fn global_menu_respects_existing_pane_selection_pending_link_and_wheel_owners() 
                 attached: true,
                 controlling: Some(true),
                 frame_available: true,
-                right_click: Default::default(),
-                right_click_reporting: false,
             }],
             tabs: vec![PointerTab {
                 id: pane.anchor().tab_id().clone(),
@@ -1952,91 +1908,6 @@ fn global_menu_respects_existing_pane_selection_pending_link_and_wheel_owners() 
             assert!(dispatcher.pointer.can_open_action_menu());
             assert_eq!(forwarded_bytes(&port.calls), b"\x1b[B".repeat(60));
         }
-    }
-}
-
-#[test]
-fn lost_menu_release_cannot_swallow_a_later_program_owned_right_release() {
-    use crate::terminal_input::{PointerFrameFacts, PointerTab};
-    use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
-    for lost_focus in [false, true] {
-        let pane = super::pane_ref();
-        let mut port = Port::new(MenuAction::Help);
-        port.probe = PointerProbe {
-            focus: Some(pane.clone()),
-            desired: Some(pane.pane().clone()),
-            input_ready: true,
-            selection_ready: true,
-            panes: vec![PointerPane {
-                record: pane.clone(),
-                attached: true,
-                controlling: Some(true),
-                frame_available: true,
-                right_click: Default::default(),
-                right_click_reporting: false,
-            }],
-            tabs: vec![PointerTab {
-                id: pane.anchor().tab_id().clone(),
-                position: 1,
-            }],
-            frame: Some(PointerFrameFacts {
-                tracking: MouseTracking::Button,
-                format: MouseFormat::Sgr,
-                cell_pixel: (0, 0),
-                alternate_screen: false,
-                alternate_scroll: false,
-                application_cursor: false,
-            }),
-            ..PointerProbe::default()
-        };
-        let mut dispatcher = InputDispatcher::default();
-        let mut view = ClientView::new(120);
-        dispatcher.set_pointer_capture(&mut view, &mut port, true);
-        let source = crate::action_menu::DrawnMenuSource {
-            session: orchbee_workbench_protocol::SessionId::parse(
-                "00000000000000000000000000000001",
-            )
-            .unwrap(),
-            revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
-        };
-        let publish = |dispatcher: &mut InputDispatcher| {
-            let mut hits = HitMapBuilder::new();
-            hits.record_action_menu_source(Some(source.clone()));
-            hits.record(
-                HitLayer::Foreground,
-                Rect::new(0, 0, 10, 3),
-                HitTarget::Pane {
-                    pane: pane.clone(),
-                    content: Rect::new(0, 0, 10, 3),
-                },
-            );
-            dispatcher.publish_hit_map(hits.finish());
-        };
-        publish(&mut dispatcher);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<2;2;2M");
-        assert!(port.menu.active());
-        port.menu
-            .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
-        dispatcher
-            .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
-                Ok::<(), io::Error>(())
-            })
-            .unwrap();
-        publish(&mut dispatcher);
-        assert_eq!(
-            dispatcher.menu_release,
-            Some(super::super::super::MouseButton::Right)
-        );
-        if lost_focus {
-            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O\x1b[I");
-            assert_eq!(dispatcher.menu_release, None);
-        }
-        port.probe.panes[0].right_click = orchbee_workbench_protocol::PanelRightClickTarget::Panel;
-        port.probe.panes[0].right_click_reporting = true;
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<2;2;2M");
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<2;2;2m");
-        assert_eq!(forwarded_bytes(&port.calls), b"\x1b[<2;2;2M\x1b[<2;2;2m");
-        assert!(dispatcher.pointer.can_open_action_menu());
     }
 }
 

@@ -2650,8 +2650,6 @@ fn machine_picker_retires_a_cancelled_link_release_before_the_next_pane_press() 
             focus: Some(pane.clone()),
             desired: Some(pane.pane().clone()),
             panes: vec![PointerPane {
-                right_click_reporting: false,
-                right_click: Default::default(),
                 record: pane.clone(),
                 attached: true,
                 controlling: Some(true),

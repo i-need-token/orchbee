@@ -384,9 +384,6 @@
 						"geometry": {
 							"$ref": "#/$defs/terminalGeometry"
 						},
-						"rightClick": {
-							"enum": ["orchbee", "panel"]
-						},
 						"launch": {
 							"anyOf": [
 								{
@@ -792,28 +789,6 @@
 						}
 					},
 					"required": ["kind", "terminalContextId", "tabId", "panelId", "targetPanelId"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "panel.input.set"
-						},
-						"terminalContextId": {
-							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
-						},
-						"tabId": {
-							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
-						},
-						"panelId": {
-							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
-						},
-						"rightClick": {
-							"enum": ["orchbee", "panel"]
-						}
-					},
-					"required": ["kind", "terminalContextId", "tabId", "panelId", "rightClick"],
 					"additionalProperties": false
 				},
 				{
@@ -2166,19 +2141,6 @@
 						"panelId",
 						"targetPanelId"
 					],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "panel-input-configured"
-						},
-						"revision": {
-							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
-						}
-					},
-					"required": ["kind", "revision"],
 					"additionalProperties": false
 				},
 				{
@@ -3685,12 +3647,9 @@
 							"items": {
 								"$ref": "#/$defs/layoutPresentation"
 							}
-						},
-						"rightClick": {
-							"enum": ["orchbee", "panel"]
 						}
 					},
-					"required": ["kind", "primary", "children", "rightClick"],
+					"required": ["kind", "primary", "children"],
 					"additionalProperties": false
 				},
 				{

@@ -205,11 +205,6 @@ impl super::CliText {
                 "Show only integrations that need updating.",
                 "仅显示需要更新的集成。",
             ),
-            (CommandPath::PanelInput | CommandPath::PanelSplit, "--right-click") => (
-                "<orchbee|panel>",
-                "Handle right-clicks in Orchbee or pass them to the panel.",
-                "由 Orchbee 处理右键，或将右键传给面板。",
-            ),
             (CommandPath::LayoutSetSplitRatio, "--path") => (
                 "<root|0.1>",
                 "Split-tree path; root selects the top-level split.",
@@ -586,11 +581,6 @@ impl super::CliText {
                     "",
                     "Explicitly retry an eligible retained attempt.",
                     "显式重试符合条件的保留尝试。",
-                ),
-                "--right-click" => (
-                    "<action>",
-                    "Action when the notification is right-clicked.",
-                    "右键点击通知时执行的操作。",
                 ),
                 "--rows" => (
                     "<n>",

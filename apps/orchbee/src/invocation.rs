@@ -35,9 +35,8 @@ pub(crate) mod workspace_creation;
 pub(crate) use workspace_creation::ParsedWorkspaceCreationCommand;
 pub(crate) use workspace_creation::WorkspaceCreationCommand;
 mod panel_relocation;
-pub(crate) use panel_relocation::{PanelRelocationCommand, PanelRelocationDestination};
-mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
+pub(crate) use panel_relocation::{PanelRelocationCommand, PanelRelocationDestination};
 mod diagnostics;
 mod schema_export;
 mod terminal_buffer;
@@ -509,10 +508,6 @@ pub(crate) enum MutationCommand {
         profile: Option<LaunchProfileSelector>,
         options: LaunchOptions,
     },
-    PanelInput {
-        target: Option<Target>,
-        right_click: orchbee_workbench_protocol::PanelRightClickTarget,
-    },
     PanelRename {
         target: Target,
         label: orchbee_workbench_protocol::PanelLabelUpdate,
@@ -535,7 +530,6 @@ pub(crate) enum MutationCommand {
     },
     PanelSplit {
         target: Target,
-        right_click: orchbee_workbench_protocol::PanelRightClickTarget,
         direction: WorkbenchPanelSplitDirection,
         label: WorkbenchLabel,
         /// The visible name `--label` gives the new Panel, as `panel rename`
@@ -1008,7 +1002,6 @@ struct Options {
     insert_index: Option<String>,
     amount: Option<String>,
     ratio: Option<String>,
-    right_click: Option<String>,
     cols: Option<String>,
     rows: Option<String>,
     cell_width: Option<String>,

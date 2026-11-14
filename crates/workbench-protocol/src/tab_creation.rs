@@ -190,7 +190,6 @@ pub fn create_terminal_tab(
             pinned,
             group_id,
             root: PanelNode::Panel {
-                right_click: Default::default(),
                 panel_id: fresh.panel_id,
                 child_presentations: Vec::new(),
                 primary_presentation: Presentation {

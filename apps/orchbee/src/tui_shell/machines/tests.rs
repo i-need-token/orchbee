@@ -560,16 +560,12 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
             selection_ready: true,
             panes: vec![
                 PointerPane::from(PointerPaneFixture {
-                    right_click_reporting: false,
-                    right_click: Default::default(),
                     record: previous,
                     attached: true,
                     controlling: Some(true),
                     frame_available: true,
                 }),
                 PointerPane::from(PointerPaneFixture {
-                    right_click_reporting: false,
-                    right_click: Default::default(),
                     record: target.clone(),
                     attached: true,
                     controlling: Some(true),

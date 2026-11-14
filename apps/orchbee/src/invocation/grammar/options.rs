@@ -724,22 +724,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
-        spelling: "--right-click",
-        values: super::values::RIGHT_CLICK_VALUES,
-        closed_values: true,
-        string_rule: None,
-        commands: &[CommandPath::PanelInput, CommandPath::PanelSplit],
-        role: OptionRole::Business,
-        value: Some("right_click"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.right_click = Some(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
         spelling: "--focus",
         values: &[],
         closed_values: false,
@@ -1479,7 +1463,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::PanelMaximize,
             CommandPath::AgentStart,
             CommandPath::PanelCreateTerminal,
-            CommandPath::PanelInput,
             CommandPath::PanelSwap,
             CommandPath::PanelCurrent,
             CommandPath::PanelProcessInfo,

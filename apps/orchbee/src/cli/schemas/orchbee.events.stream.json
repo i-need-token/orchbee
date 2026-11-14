@@ -1088,9 +1088,6 @@
 				"kind": {
 					"const": "panel"
 				},
-				"rightClick": {
-					"enum": ["orchbee", "panel"]
-				},
 				"panelId": {
 					"$ref": "#/$defs/publicPanel_d21"
 				},

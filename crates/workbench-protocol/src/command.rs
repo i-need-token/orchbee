@@ -708,13 +708,6 @@ pub enum WorkbenchAction {
         #[serde(default)]
         label: crate::PanelLabelUpdate,
     },
-    #[serde(rename = "panel.input.set")]
-    PanelInputSet {
-        terminal_context_id: WorkbenchTerminalContextId,
-        tab_id: WorkbenchTabId,
-        panel_id: WorkbenchPanelId,
-        right_click: crate::PanelRightClickTarget,
-    },
     #[serde(rename = "layout.set-split-ratio")]
     SplitRatioSet {
         terminal_context_id: WorkbenchTerminalContextId,
@@ -784,11 +777,6 @@ pub enum WorkbenchAction {
         tab_id: WorkbenchTabId,
         panel_id: WorkbenchPanelId,
         direction: WorkbenchPanelSplitDirection,
-        #[serde(
-            default,
-            skip_serializing_if = "crate::PanelRightClickTarget::is_default"
-        )]
-        right_click: crate::PanelRightClickTarget,
         label: WorkbenchLabel,
         /// The visible Panel name a person chose at creation, stored as
         /// `panel.rename` stores it; absent leaves the Panel automatically
@@ -1298,9 +1286,6 @@ pub enum WorkbenchCommandOutcome {
         worker_id: WorkerId,
     },
     Renamed {
-        revision: WorkbenchRevision,
-    },
-    PanelInputConfigured {
         revision: WorkbenchRevision,
     },
     SplitRatioConfigured {

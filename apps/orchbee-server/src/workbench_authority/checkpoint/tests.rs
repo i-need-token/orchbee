@@ -66,7 +66,7 @@ fn graph(session_id: SessionId, owner: &WorkerId, bound: bool, revision: u64) ->
                 "root": {"kind": "split", "splitId": identity(8), "orientation": "horizontal",
                     "children": [
                         {"slotId": identity(9), "node": {"kind": "panel", "panelId": identity(10),
-                            "rightClick": "panel", "primaryPresentation": presentation(11, owner, bound),
+                            "primaryPresentation": presentation(11, owner, bound),
                             "childPresentations": [presentation(15, owner, bound)]}},
                         {"slotId": identity(12), "node": {"kind": "split", "splitId": identity(19), "orientation": "vertical",
                             "children": [
@@ -190,6 +190,40 @@ fn preserves_the_graph_and_profiles_without_retaining_process_authority() {
         assert!(!text.contains(omitted), "checkpoint retained {omitted}");
     }
     assert_eq!(restored.checkpoint(&worker(400)).unwrap(), encoded);
+}
+
+/// Builds before the right-click owner was removed wrote it on every Panel; their
+/// checkpoints keep restoring, the value is dropped, and only its two old values pass.
+#[test]
+fn restores_a_panel_right_click_written_by_earlier_builds_without_keeping_it() {
+    let encoded = checkpoint();
+    for value in ["orchbee", "panel"] {
+        let earlier = changed(|document| {
+            for path in [
+                "/terminalContexts/0/tabs/0/root/children/0/node",
+                "/terminalContexts/0/tabs/1/root",
+            ] {
+                document.pointer_mut(path).unwrap()["rightClick"] = json!(value);
+            }
+        });
+        let restored = restore(&earlier).unwrap();
+        assert_eq!(
+            restored.snapshot(),
+            restore(&encoded).unwrap().snapshot(),
+            "{value}"
+        );
+        assert_eq!(restored.checkpoint(&worker(400)).unwrap(), encoded);
+    }
+    for value in [json!(null), json!("pane"), json!(1)] {
+        assert!(
+            restore(&changed(|document| {
+                document
+                    .pointer_mut("/terminalContexts/0/tabs/1/root")
+                    .unwrap()["rightClick"] = value;
+            }))
+            .is_err()
+        );
+    }
 }
 
 #[test]
@@ -406,7 +440,6 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
         ("/terminalContexts/0/tabs/1", "automaticLabel"),
         ("/terminalContexts/0/tabs/0", "groupId"),
         ("/terminalContexts/0/tabs/0/root", "ratio"),
-        ("/terminalContexts/0/tabs/1/root", "rightClick"),
         (
             "/terminalContexts/0/tabs/1/root/primaryPresentation",
             "binding",

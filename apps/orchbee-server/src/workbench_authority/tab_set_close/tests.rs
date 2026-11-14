@@ -143,7 +143,6 @@ impl Fixture {
             session_id: self.authority.session_id().clone(),
             expected_revision: self.authority.snapshot().revision,
             action: WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: self.context(),
                 tab_id: source.tab_id().clone(),
                 panel_id: source.panel_id().clone(),

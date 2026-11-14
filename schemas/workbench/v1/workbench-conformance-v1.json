@@ -482,125 +482,6 @@
 			"revision": "2",
 			"sessionId": "11111111111111111111111111111111"
 		},
-		"snapshot-panel-input-r2": {
-			"kind": "workbench.snapshot",
-			"navigation": {
-				"projects": [
-					{
-						"label": "Orchbee",
-						"projectId": "44444444444444444444444444444444"
-					}
-				],
-				"directories": [
-					{
-						"directoryId": "22222222222222222222222222222222",
-						"path": "/work/orchbee",
-						"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-					}
-				],
-				"workspaces": [
-					{
-						"workspaceId": "33333333333333333333333333333333",
-						"terminalContextId": "33333333333333333333333333333333",
-						"projectId": null,
-						"primaryDirectoryId": null,
-						"label": "Workspace"
-					},
-					{
-						"label": "Main",
-						"primaryDirectoryId": "22222222222222222222222222222222",
-						"terminalContextId": "66666666666666666666666666666666",
-						"workspaceId": "55555555555555555555555555555555",
-						"projectId": "44444444444444444444444444444444"
-					}
-				]
-			},
-			"protocolVersion": 1,
-			"revision": "2",
-			"sessionId": "11111111111111111111111111111111",
-			"terminalContexts": [
-				{
-					"groups": [],
-					"tabs": [
-						{
-							"groupId": null,
-							"label": "Shell",
-							"pinned": true,
-							"root": {
-								"childPresentations": [],
-								"kind": "panel",
-								"panelId": "99999999999999999999999999999999",
-								"primaryPresentation": {
-									"binding": {
-										"terminalId": "cccccccccccccccccccccccccccccccc",
-										"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-									},
-									"label": "Shell",
-									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-									"customLabel": null
-								},
-								"rightClick": "panel"
-							},
-							"tabId": "88888888888888888888888888888888"
-						}
-					],
-					"terminalContextId": "33333333333333333333333333333333"
-				},
-				{
-					"groups": [
-						{
-							"color": "blue",
-							"groupId": "77777777777777777777777777777777",
-							"label": "Development"
-						}
-					],
-					"tabs": [
-						{
-							"groupId": "77777777777777777777777777777777",
-							"label": "Split",
-							"pinned": false,
-							"root": {
-								"children": [
-									{
-										"node": {
-											"childPresentations": [],
-											"kind": "panel",
-											"panelId": "13131313131313131313131313131313",
-											"primaryPresentation": {
-												"binding": null,
-												"label": "Left",
-												"presentationId": "15151515151515151515151515151515",
-												"customLabel": null
-											}
-										},
-										"slotId": "ffffffffffffffffffffffffffffffff"
-									},
-									{
-										"node": {
-											"childPresentations": [],
-											"kind": "panel",
-											"panelId": "14141414141414141414141414141414",
-											"primaryPresentation": {
-												"binding": null,
-												"label": "Right",
-												"presentationId": "16161616161616161616161616161616",
-												"customLabel": null
-											}
-										},
-										"slotId": "12121212121212121212121212121212"
-									}
-								],
-								"kind": "split",
-								"orientation": "horizontal",
-								"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-							},
-							"tabId": "dddddddddddddddddddddddddddddddd"
-						}
-					],
-					"terminalContextId": "66666666666666666666666666666666"
-				}
-			]
-		},
 		"snapshot-launch-failure-r2": {
 			"kind": "workbench.snapshot",
 			"navigation": {
@@ -662,8 +543,7 @@
 									},
 									"launchProgram": "program",
 									"customLabel": null
-								},
-								"rightClick": "panel"
+								}
 							},
 							"tabId": "88888888888888888888888888888888"
 						}
@@ -781,8 +661,7 @@
 									"label": "Shell",
 									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 									"customLabel": null
-								},
-								"rightClick": "panel"
+								}
 							},
 							"tabId": "88888888888888888888888888888888"
 						}
@@ -1703,8 +1582,7 @@
 									},
 									"launchProgram": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
 									"customLabel": null
-								},
-								"rightClick": "panel"
+								}
 							},
 							"tabId": "88888888888888888888888888888888"
 						}
@@ -1797,7 +1675,6 @@
 		"delta-non-increasing",
 		"delta-duplicate-context-target",
 		"delta-invalid-result",
-		"snapshot-panel-input-r2",
 		"snapshot-launch-failure-r2",
 		"snapshot-held-restore-r2",
 		"snapshot-launch-program-boundary-r2",
@@ -2246,375 +2123,6 @@
 		},
 		{
 			"boundary": "schema",
-			"name": "panel input policy null",
-			"value": {
-				"kind": "workbench.snapshot",
-				"navigation": {
-					"projects": [
-						{
-							"label": "Orchbee",
-							"projectId": "44444444444444444444444444444444"
-						}
-					],
-					"directories": [
-						{
-							"directoryId": "22222222222222222222222222222222",
-							"path": "/work/orchbee",
-							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-						}
-					],
-					"workspaces": [
-						{
-							"workspaceId": "33333333333333333333333333333333",
-							"terminalContextId": "33333333333333333333333333333333",
-							"projectId": null,
-							"primaryDirectoryId": null,
-							"label": "Workspace"
-						},
-						{
-							"label": "Main",
-							"primaryDirectoryId": "22222222222222222222222222222222",
-							"terminalContextId": "66666666666666666666666666666666",
-							"workspaceId": "55555555555555555555555555555555",
-							"projectId": "44444444444444444444444444444444"
-						}
-					]
-				},
-				"protocolVersion": 1,
-				"revision": "2",
-				"sessionId": "11111111111111111111111111111111",
-				"terminalContexts": [
-					{
-						"groups": [],
-						"tabs": [
-							{
-								"groupId": null,
-								"label": "Shell",
-								"pinned": true,
-								"root": {
-									"childPresentations": [],
-									"kind": "panel",
-									"panelId": "99999999999999999999999999999999",
-									"primaryPresentation": {
-										"binding": {
-											"terminalId": "cccccccccccccccccccccccccccccccc",
-											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-										},
-										"label": "Shell",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-										"customLabel": null
-									},
-									"rightClick": null
-								},
-								"tabId": "88888888888888888888888888888888"
-							}
-						],
-						"terminalContextId": "33333333333333333333333333333333"
-					},
-					{
-						"groups": [
-							{
-								"color": "blue",
-								"groupId": "77777777777777777777777777777777",
-								"label": "Development"
-							}
-						],
-						"tabs": [
-							{
-								"groupId": "77777777777777777777777777777777",
-								"label": "Split",
-								"pinned": false,
-								"root": {
-									"children": [
-										{
-											"node": {
-												"childPresentations": [],
-												"kind": "panel",
-												"panelId": "13131313131313131313131313131313",
-												"primaryPresentation": {
-													"binding": null,
-													"label": "Left",
-													"presentationId": "15151515151515151515151515151515",
-													"customLabel": null
-												}
-											},
-											"slotId": "ffffffffffffffffffffffffffffffff"
-										},
-										{
-											"node": {
-												"childPresentations": [],
-												"kind": "panel",
-												"panelId": "14141414141414141414141414141414",
-												"primaryPresentation": {
-													"binding": null,
-													"label": "Right",
-													"presentationId": "16161616161616161616161616161616",
-													"customLabel": null
-												}
-											},
-											"slotId": "12121212121212121212121212121212"
-										}
-									],
-									"kind": "split",
-									"orientation": "horizontal",
-									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-								},
-								"tabId": "dddddddddddddddddddddddddddddddd"
-							}
-						],
-						"terminalContextId": "66666666666666666666666666666666"
-					}
-				]
-			}
-		},
-		{
-			"boundary": "schema",
-			"name": "panel input policy unknown",
-			"value": {
-				"kind": "workbench.snapshot",
-				"navigation": {
-					"projects": [
-						{
-							"label": "Orchbee",
-							"projectId": "44444444444444444444444444444444"
-						}
-					],
-					"directories": [
-						{
-							"directoryId": "22222222222222222222222222222222",
-							"path": "/work/orchbee",
-							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-						}
-					],
-					"workspaces": [
-						{
-							"workspaceId": "33333333333333333333333333333333",
-							"terminalContextId": "33333333333333333333333333333333",
-							"projectId": null,
-							"primaryDirectoryId": null,
-							"label": "Workspace"
-						},
-						{
-							"label": "Main",
-							"primaryDirectoryId": "22222222222222222222222222222222",
-							"terminalContextId": "66666666666666666666666666666666",
-							"workspaceId": "55555555555555555555555555555555",
-							"projectId": "44444444444444444444444444444444"
-						}
-					]
-				},
-				"protocolVersion": 1,
-				"revision": "2",
-				"sessionId": "11111111111111111111111111111111",
-				"terminalContexts": [
-					{
-						"groups": [],
-						"tabs": [
-							{
-								"groupId": null,
-								"label": "Shell",
-								"pinned": true,
-								"root": {
-									"childPresentations": [],
-									"kind": "panel",
-									"panelId": "99999999999999999999999999999999",
-									"primaryPresentation": {
-										"binding": {
-											"terminalId": "cccccccccccccccccccccccccccccccc",
-											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-										},
-										"label": "Shell",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-										"customLabel": null
-									},
-									"rightClick": "pane"
-								},
-								"tabId": "88888888888888888888888888888888"
-							}
-						],
-						"terminalContextId": "33333333333333333333333333333333"
-					},
-					{
-						"groups": [
-							{
-								"color": "blue",
-								"groupId": "77777777777777777777777777777777",
-								"label": "Development"
-							}
-						],
-						"tabs": [
-							{
-								"groupId": "77777777777777777777777777777777",
-								"label": "Split",
-								"pinned": false,
-								"root": {
-									"children": [
-										{
-											"node": {
-												"childPresentations": [],
-												"kind": "panel",
-												"panelId": "13131313131313131313131313131313",
-												"primaryPresentation": {
-													"binding": null,
-													"label": "Left",
-													"presentationId": "15151515151515151515151515151515",
-													"customLabel": null
-												}
-											},
-											"slotId": "ffffffffffffffffffffffffffffffff"
-										},
-										{
-											"node": {
-												"childPresentations": [],
-												"kind": "panel",
-												"panelId": "14141414141414141414141414141414",
-												"primaryPresentation": {
-													"binding": null,
-													"label": "Right",
-													"presentationId": "16161616161616161616161616161616",
-													"customLabel": null
-												}
-											},
-											"slotId": "12121212121212121212121212121212"
-										}
-									],
-									"kind": "split",
-									"orientation": "horizontal",
-									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-								},
-								"tabId": "dddddddddddddddddddddddddddddddd"
-							}
-						],
-						"terminalContextId": "66666666666666666666666666666666"
-					}
-				]
-			}
-		},
-		{
-			"boundary": "schema",
-			"name": "panel input policy number",
-			"value": {
-				"kind": "workbench.snapshot",
-				"navigation": {
-					"projects": [
-						{
-							"label": "Orchbee",
-							"projectId": "44444444444444444444444444444444"
-						}
-					],
-					"directories": [
-						{
-							"directoryId": "22222222222222222222222222222222",
-							"path": "/work/orchbee",
-							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-						}
-					],
-					"workspaces": [
-						{
-							"workspaceId": "33333333333333333333333333333333",
-							"terminalContextId": "33333333333333333333333333333333",
-							"projectId": null,
-							"primaryDirectoryId": null,
-							"label": "Workspace"
-						},
-						{
-							"label": "Main",
-							"primaryDirectoryId": "22222222222222222222222222222222",
-							"terminalContextId": "66666666666666666666666666666666",
-							"workspaceId": "55555555555555555555555555555555",
-							"projectId": "44444444444444444444444444444444"
-						}
-					]
-				},
-				"protocolVersion": 1,
-				"revision": "2",
-				"sessionId": "11111111111111111111111111111111",
-				"terminalContexts": [
-					{
-						"groups": [],
-						"tabs": [
-							{
-								"groupId": null,
-								"label": "Shell",
-								"pinned": true,
-								"root": {
-									"childPresentations": [],
-									"kind": "panel",
-									"panelId": "99999999999999999999999999999999",
-									"primaryPresentation": {
-										"binding": {
-											"terminalId": "cccccccccccccccccccccccccccccccc",
-											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-										},
-										"label": "Shell",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-										"customLabel": null
-									},
-									"rightClick": 1
-								},
-								"tabId": "88888888888888888888888888888888"
-							}
-						],
-						"terminalContextId": "33333333333333333333333333333333"
-					},
-					{
-						"groups": [
-							{
-								"color": "blue",
-								"groupId": "77777777777777777777777777777777",
-								"label": "Development"
-							}
-						],
-						"tabs": [
-							{
-								"groupId": "77777777777777777777777777777777",
-								"label": "Split",
-								"pinned": false,
-								"root": {
-									"children": [
-										{
-											"node": {
-												"childPresentations": [],
-												"kind": "panel",
-												"panelId": "13131313131313131313131313131313",
-												"primaryPresentation": {
-													"binding": null,
-													"label": "Left",
-													"presentationId": "15151515151515151515151515151515",
-													"customLabel": null
-												}
-											},
-											"slotId": "ffffffffffffffffffffffffffffffff"
-										},
-										{
-											"node": {
-												"childPresentations": [],
-												"kind": "panel",
-												"panelId": "14141414141414141414141414141414",
-												"primaryPresentation": {
-													"binding": null,
-													"label": "Right",
-													"presentationId": "16161616161616161616161616161616",
-													"customLabel": null
-												}
-											},
-											"slotId": "12121212121212121212121212121212"
-										}
-									],
-									"kind": "split",
-									"orientation": "horizontal",
-									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-								},
-								"tabId": "dddddddddddddddddddddddddddddddd"
-							}
-						],
-						"terminalContextId": "66666666666666666666666666666666"
-					}
-				]
-			}
-		},
-		{
-			"boundary": "schema",
 			"name": "launch-failure-required-executable",
 			"value": {
 				"kind": "workbench.snapshot",
@@ -2675,8 +2183,7 @@
 											"reason": "terminal-create-failed"
 										},
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -2802,8 +2309,7 @@
 											"reason": "terminal-create-failed"
 										},
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -2929,8 +2435,7 @@
 											"reason": "executable-not-found"
 										},
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -3056,8 +2561,7 @@
 											"reason": "terminal-create-failed"
 										},
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -3188,8 +2692,7 @@
 											"directory": "/work/orchbee"
 										},
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -3311,8 +2814,7 @@
 										"label": "Shell",
 										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -3438,8 +2940,7 @@
 										"label": "Shell",
 										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -3571,8 +3072,7 @@
 											"directory": "/work/orchbee"
 										},
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -3699,8 +3199,7 @@
 											"agentResume": true
 										},
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -3827,8 +3326,7 @@
 										},
 										"launchProgram": "program",
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -3956,8 +3454,7 @@
 										},
 										"launchProgram": "/missing/program",
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -4084,8 +3581,7 @@
 										},
 										"launchProgram": "program\u0007",
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -4212,8 +3708,7 @@
 										},
 										"launchProgram": "program",
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -4340,8 +3835,7 @@
 										},
 										"launchProgram": "tools\\program",
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}
@@ -5136,8 +4630,7 @@
 										},
 										"launchProgram": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
 										"customLabel": null
-									},
-									"rightClick": "panel"
+									}
 								},
 								"tabId": "88888888888888888888888888888888"
 							}

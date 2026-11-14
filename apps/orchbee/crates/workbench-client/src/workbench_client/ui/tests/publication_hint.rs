@@ -683,7 +683,6 @@ pub(in crate::workbench_client) fn split_snapshot(revision: u64) -> Snapshot {
             },
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 3_010)).unwrap(),
                     primary_presentation: Presentation {

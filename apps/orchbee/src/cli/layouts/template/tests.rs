@@ -37,7 +37,7 @@ fn exports_and_templates_keep_literal_launch_values_without_reusing_ids() {
         "source":{"kind":"layout-observation","scope":"client","sessionId":"1".repeat(32),"revision":"1","clientId":"2".repeat(32),"viewRevision":"1"},
         "result":{"layout":{"workspaceId":"7".repeat(32),"terminalContextId":"3".repeat(32),"tabId":"4".repeat(32),
             "focusedPanelId":null,"maximized":true,"root":{"type":"panel","panelId":"5".repeat(32),
-                "rightClick":"orchbee","children":[],"primary":{"presentationId":"6".repeat(32),
+                "children":[],"primary":{"presentationId":"6".repeat(32),
                     "name":"Retained","label":null,"cwd":null,"command":null,"env":{},"start":false}}}}});
     let mut bytes = vec![0xef, 0xbb, 0xbf];
     bytes.extend(serde_json::to_vec(&export).expect("JSON"));
@@ -203,7 +203,7 @@ fn limits_cover_total_bytes_leaf_count_depth_and_launch_contracts() {
 #[test]
 fn structured_members_preserve_unbound_intent_and_validate_all_children_before_effects() {
     let member = json!({"name":"Shell","label":"Manual","start":false,"env":{}});
-    let input = json!({"type":"panel","rightClick":"panel","primary":member,
+    let input = json!({"type":"panel","primary":member,
         "children":[{"name":"Agent","start":true,"command":["pwsh","","literal"],"env":{"CHILD_VALUE":"secret"}}]});
     let plan = parse_value(input.clone()).unwrap().plan();
     assert!(!plan.leaves[0].primary.start);
@@ -212,7 +212,6 @@ fn structured_members_preserve_unbound_intent_and_validate_all_children_before_e
         plan.leaves[0].children[0].environment.entries()[0].1,
         "secret"
     );
-    assert_eq!(plan.leaves[0].right_click, PanelRightClickTarget::Panel);
     for (path, value) in [
         ("/primary/command", json!(["pwsh"])),
         ("/primary/cwd", json!("C:\\work")),
@@ -220,7 +219,7 @@ fn structured_members_preserve_unbound_intent_and_validate_all_children_before_e
         ("/children/0/start", json!(false)),
         ("/children/0/unknown", json!(true)),
         ("/command", json!(["pwsh"])),
-        ("/rightClick", json!("both")),
+        ("/rightClick", json!("panel")),
     ] {
         let mut bad = input.clone();
         let (parent, key) = path.rsplit_once('/').unwrap();

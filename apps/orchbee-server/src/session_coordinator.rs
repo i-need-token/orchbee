@@ -518,7 +518,6 @@ fn launch_route_in_node(
     use orchbee_workbench_protocol::PanelNode;
     match node {
         PanelNode::Panel {
-            right_click: _,
             panel_id,
             primary_presentation,
             child_presentations,

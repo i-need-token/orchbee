@@ -1607,7 +1607,6 @@ fn mutation(command: MutationCommand, format: OutputFormat) -> Request {
             options,
         ),
         MutationCommand::PanelSplit {
-            right_click,
             target,
             direction,
             label,
@@ -1618,7 +1617,6 @@ fn mutation(command: MutationCommand, format: OutputFormat) -> Request {
             options,
         } => (
             CreationKind::Split {
-                right_click,
                 target: Some(target),
                 direction,
                 ratio: None,
@@ -1822,7 +1820,6 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
         parse(&arguments),
         Ok(mutation(
             MutationCommand::PanelSplit {
-                right_click: Default::default(),
                 target: Target::Id(ID.into()),
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: label("p"),
@@ -1889,7 +1886,6 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
         parse(&["panel", "split", ID, "--direction", "right", "--label", "p"]),
         Ok(mutation(
             MutationCommand::PanelSplit {
-                right_click: Default::default(),
                 target: Target::Id(ID.into()),
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: label("p"),
@@ -2138,7 +2134,6 @@ fn launch_selection_options_parse_in_every_spelling() {
         parse_request(split.iter().map(OsString::from)),
         Ok(mutation(
             MutationCommand::PanelSplit {
-                right_click: Default::default(),
                 target: Target::Id(ID.into()),
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: label("p"),
@@ -2730,7 +2725,6 @@ fn profile_option_threads_into_launch_bearing_mutations() {
         parse_request(split.iter().map(OsString::from)),
         Ok(mutation(
             MutationCommand::PanelSplit {
-                right_click: Default::default(),
                 target: Target::Id(ID.into()),
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: label("p"),
@@ -2949,7 +2943,6 @@ fn mutation_required_options_cannot_be_dropped() {
         parse(&full_split),
         Ok(mutation(
             MutationCommand::PanelSplit {
-                right_click: Default::default(),
                 target: Target::Id(ID.into()),
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: label("p"),
@@ -6434,120 +6427,6 @@ fn creation_optional_targets_focus_and_ratios_are_validated_before_admission() {
         assert!(parse(&args).is_err(), "{args:?}");
     }
     assert!(parse(&["tab", "create", "--ratio=0.5"]).is_err());
-}
-
-#[test]
-fn panel_input_requires_one_selector_and_closed_policy_without_effect_options() {
-    use orchbee_workbench_protocol::PanelRightClickTarget;
-    for (words, explicit, policy) in [
-        (
-            vec!["panel", "input", "@panel:0x6", "--right-click=panel"],
-            true,
-            PanelRightClickTarget::Panel,
-        ),
-        (
-            vec!["panel", "input", "@panel:0x6", "--right-click", "orchbee"],
-            true,
-            PanelRightClickTarget::Orchbee,
-        ),
-        (
-            vec!["--right-click=panel", "panel", "input", "--current"],
-            false,
-            PanelRightClickTarget::Panel,
-        ),
-    ] {
-        let Request::Mutation {
-            command:
-                MutationCommand::PanelInput {
-                    target,
-                    right_click,
-                },
-            ..
-        } = parse(&words).unwrap()
-        else {
-            panic!("input")
-        };
-        assert_eq!(target.is_some(), explicit);
-        assert_eq!(right_click, policy);
-    }
-    for words in [
-        vec!["panel", "input", "--right-click=panel"],
-        vec!["panel", "input", "--current"],
-        vec![
-            "panel",
-            "input",
-            "@panel:0x6",
-            "--current",
-            "--right-click=panel",
-        ],
-        vec![
-            "panel",
-            "input",
-            "--panel=@panel:0x6",
-            "--current",
-            "--right-click=panel",
-        ],
-        vec![
-            "panel",
-            "input",
-            "@panel:0x6",
-            "@panel:0x7",
-            "--right-click=panel",
-        ],
-        vec!["panel", "input", "--current", "--right-click=pane"],
-        vec![
-            "panel",
-            "input",
-            "--current",
-            "--right-click=invalid-target",
-        ],
-        vec!["panel", "input", "--current", "--right-click="],
-        vec!["panel", "input", "--current", "--right-click=Panel"],
-        vec![
-            "panel",
-            "input",
-            "--current",
-            "--right-click=panel",
-            "--right-click=orchbee",
-        ],
-        vec![
-            "panel",
-            "input",
-            "--current",
-            "--right-click=panel",
-            "--focus",
-        ],
-        vec![
-            "panel",
-            "input",
-            "--current",
-            "--right-click=panel",
-            "--client=00000000000000000000000000000001",
-        ],
-        vec!["panel", "get", "@panel:0x6", "--right-click=panel"],
-        vec!["tab", "create", "--right-click=panel"],
-    ] {
-        assert!(parse(&words).is_err(), "{words:?}");
-    }
-    for (value, expected) in [
-        ("orchbee", PanelRightClickTarget::Orchbee),
-        ("panel", PanelRightClickTarget::Panel),
-    ] {
-        let Request::Creation { command, .. } = parse(&[
-            "panel",
-            "split",
-            "@panel:0x6",
-            "--direction=right",
-            "--right-click",
-            value,
-        ])
-        .unwrap() else {
-            panic!("creation")
-        };
-        assert!(
-            matches!(command.kind, CreationKind::Split { right_click, .. } if right_click == expected)
-        );
-    }
 }
 
 #[test]

@@ -19,7 +19,7 @@ resolved before creation as specified below; explicit paths remain per-launch ov
 
 `panel split --ratio` supplies the first child's share, independent of split direction. Finite
 numbers clamp to 0.1–0.9. Server stores the ratio in the canonical split and restart checkpoint; every Client projects
-the same proportion at its own viewport size. A ratio does not imply focus. Right-click input policy is a separate capability.
+the same proportion at its own viewport size. A ratio does not imply focus.
 
 The invocation parser owns optional input. The CLI creation workflow fixes exact identities and
 owns phase order. Existing Workbench mutation resolution and typed Tab/Panel creation carriers
@@ -78,7 +78,7 @@ The catalog exposes the current documents and command paths.
 Terminal creation supports optional current targeting, default
 no-focus, explicit focus/no-focus and split-ratio behavior. Native IDs, Client routing, numeric
 creation labels, f64 normalization and volatile Client ratios remain explicit native
-contracts. Panel right-click policy is owned separately; dynamic positional naming and persistent
+contracts. Dynamic positional naming and persistent
 default settings are not claimed by this contract.
 
 Grammar and completion witnesses cover omission, explicit forms, ambiguity, conflicts and bounds.

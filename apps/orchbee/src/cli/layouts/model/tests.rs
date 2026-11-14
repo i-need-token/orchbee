@@ -102,7 +102,7 @@ fn export_preserves_order_orientation_observed_ratio_manual_label_and_literal_ar
     assert_eq!(result["second"]["direction"], "down");
     assert_eq!(
         result["first"],
-        json!({"type":"panel","panelId":first,"rightClick":"orchbee","children":[],"primary":{"presentationId":first,"name":"automatic","start":true,"label":"manual",
+        json!({"type":"panel","panelId":first,"children":[],"primary":{"presentationId":first,"name":"automatic","start":true,"label":"manual",
         "cwd":"C:\\目录 空格","command":["C:\\Program Files\\shell.exe","","quoted \" text","中文"],"env":{}}})
     );
     assert!(

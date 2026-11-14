@@ -1990,23 +1990,14 @@ impl PointerState {
                     hit.row_menu_target()
                         .and_then(|target| self.sidebar_menu_target(view, &target))
                 }
-                HitResolution::Region(HitTarget::Pane { pane, content })
+                HitResolution::Region(HitTarget::Pane { pane, .. })
                     if event.button == MouseButton::Right =>
                 {
-                    let policy = probe
+                    probe
                         .panes
                         .iter()
-                        .find(|p| p.record == *pane)
-                        .map(|p| p.right_click);
-                    if policy.is_some()
-                        && (!contains(*content, event.column, event.row)
-                            || policy
-                                != Some(orchbee_workbench_protocol::PanelRightClickTarget::Panel))
-                    {
-                        Some(crate::action_menu::MenuTarget::Pane(pane.clone()))
-                    } else {
-                        None
-                    }
+                        .any(|p| p.record == *pane)
+                        .then(|| crate::action_menu::MenuTarget::Pane(pane.clone()))
                 }
                 _ => None,
             };
@@ -2457,17 +2448,9 @@ impl PointerState {
         target: PaneTarget,
     ) -> PointerOutcome {
         let PaneTarget { expected, content } = target;
-        if event.button == MouseButton::Right
-            && event.action == MouseAction::Press
-            && (event.mods != crate::client_view::Modifiers::NONE
-                || !contains(content, event.column, event.row)
-                || !probe.panes.iter().any(|pane| {
-                    pane.record == expected
-                        && pane.right_click
-                            == orchbee_workbench_protocol::PanelRightClickTarget::Panel
-                        && pane.right_click_reporting
-                }))
-        {
+        // The right button belongs to the Client's menus; a press the menu did
+        // not take never reaches the program.
+        if event.button == MouseButton::Right && event.action == MouseAction::Press {
             return PointerOutcome::Ignored;
         }
         if matches!(event.action, MouseAction::Press)
@@ -2910,11 +2893,6 @@ impl PointerState {
             // No record for the logical pane at all — it is gone.
             return PendingStatus::Orphaned;
         };
-        if pending.button == MouseButton::Right
-            && pane.right_click != orchbee_workbench_protocol::PanelRightClickTarget::Panel
-        {
-            return PendingStatus::Orphaned;
-        }
         if pane.record != pending.expected {
             // The record was re-minted since the paint — a fresh
             // incarnation of the same logical pane is a different target;

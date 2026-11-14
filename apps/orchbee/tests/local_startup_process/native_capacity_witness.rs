@@ -1360,7 +1360,6 @@ fn provision(
         match peer
             .prepare(
                 WorkbenchAction::PanelSplit {
-                    right_click: Default::default(),
                     terminal_context_id: context_id.clone(),
                     tab_id: tab_id.clone(),
                     panel_id: target.clone(),
@@ -1440,7 +1439,6 @@ fn provision(
         match peer
             .prepare(
                 WorkbenchAction::PanelSplit {
-                    right_click: Default::default(),
                     terminal_context_id: context_id.clone(),
                     tab_id: tab2_id.clone(),
                     panel_id: panel_d1.clone(),

@@ -306,7 +306,6 @@ fn split_two_tab_baseline() -> Snapshot {
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: panel_id(1_001),
                     primary_presentation: Presentation {
@@ -327,7 +326,6 @@ fn split_two_tab_baseline() -> Snapshot {
             },
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: panel_id(3_010),
                     primary_presentation: Presentation {
@@ -468,7 +466,6 @@ fn split_grafted_snapshot() -> Snapshot {
                     children: Box::new([
                         PanelSlot {
                             node: PanelNode::Panel {
-                                right_click: Default::default(),
                                 child_presentations: Vec::new(),
                                 panel_id: panel_id(1_001),
                                 primary_presentation: Presentation {
@@ -489,7 +486,6 @@ fn split_grafted_snapshot() -> Snapshot {
                         },
                         PanelSlot {
                             node: PanelNode::Panel {
-                                right_click: Default::default(),
                                 child_presentations: Vec::new(),
                                 panel_id: panel_id(90_001),
                                 primary_presentation: Presentation {
@@ -516,7 +512,6 @@ fn split_grafted_snapshot() -> Snapshot {
             },
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: panel_id(3_010),
                     primary_presentation: Presentation {
@@ -552,7 +547,6 @@ fn move_grafted_snapshot() -> Snapshot {
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: panel_id(3_010),
                     primary_presentation: Presentation {
@@ -573,7 +567,6 @@ fn move_grafted_snapshot() -> Snapshot {
             },
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: panel_id(1_001),
                     primary_presentation: Presentation {
@@ -605,7 +598,6 @@ fn selected_leaf_lost_snapshot(revision: u64) -> Snapshot {
     let mut candidate = split_panel_baseline();
     candidate.revision = WorkbenchRevision::new(revision);
     candidate.terminal_contexts[0].tabs[0].root = PanelNode::Panel {
-        right_click: Default::default(),
         child_presentations: Vec::new(),
         panel_id: panel_id(3_010),
         primary_presentation: Presentation {
@@ -630,7 +622,6 @@ fn second_leaf_lost_snapshot(revision: u64) -> Snapshot {
     let mut candidate = split_panel_baseline();
     candidate.revision = WorkbenchRevision::new(revision);
     candidate.terminal_contexts[0].tabs[0].root = PanelNode::Panel {
-        right_click: Default::default(),
         child_presentations: Vec::new(),
         panel_id: panel_id(1_001),
         primary_presentation: Presentation {

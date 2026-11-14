@@ -14,7 +14,6 @@ type WorkbenchLayoutNode =
 			readonly kind: 'panel';
 			readonly primary: WorkbenchLayoutPresentation;
 			readonly children: readonly WorkbenchLayoutPresentation[];
-			readonly rightClick: 'orchbee' | 'panel';
 	  }
 	| {
 			readonly kind: 'split';
@@ -28,7 +27,6 @@ const nodeSchema: z.ZodType<WorkbenchLayoutNode> = z.lazy(() =>
 				kind: z.literal('panel'),
 				primary: WorkbenchLayoutPresentationSchema,
 				children: z.array(WorkbenchLayoutPresentationSchema).max(16).readonly(),
-				rightClick: z.enum(['orchbee', 'panel']),
 			})
 			.readonly(),
 		z

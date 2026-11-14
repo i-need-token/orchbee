@@ -2715,81 +2715,6 @@
 			}
 		},
 		{
-			"name": "panel input orchbee",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "11111111111111111111111111111111",
-				"sessionId": "22222222222222222222222222222222",
-				"expectedRevision": "7",
-				"action": {
-					"kind": "panel.input.set",
-					"terminalContextId": "33333333333333333333333333333333",
-					"tabId": "44444444444444444444444444444444",
-					"panelId": "55555555555555555555555555555555",
-					"rightClick": "orchbee"
-				}
-			}
-		},
-		{
-			"name": "panel input panel",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "11111111111111111111111111111111",
-				"sessionId": "22222222222222222222222222222222",
-				"expectedRevision": "7",
-				"action": {
-					"kind": "panel.input.set",
-					"terminalContextId": "33333333333333333333333333333333",
-					"tabId": "44444444444444444444444444444444",
-					"panelId": "55555555555555555555555555555555",
-					"rightClick": "panel"
-				}
-			}
-		},
-		{
-			"name": "split with panel right click",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000009",
-				"sessionId": "00000000000000000000000000000001",
-				"expectedRevision": "8",
-				"action": {
-					"kind": "panel.split",
-					"terminalContextId": "00000000000000000000000000000004",
-					"tabId": "00000000000000000000000000000005",
-					"panelId": "00000000000000000000000000000006",
-					"direction": "right",
-					"label": "split",
-					"geometry": {
-						"columns": 120,
-						"rows": 36,
-						"cellPixelWidth": 9,
-						"cellPixelHeight": 18
-					},
-					"rightClick": "panel"
-				}
-			}
-		},
-		{
-			"name": "panel input configured",
-			"direction": "response",
-			"document": {
-				"kind": "workbench.command.result",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000009",
-				"outcome": {
-					"kind": "panel-input-configured",
-					"revision": "3"
-				}
-			}
-		},
-		{
 			"name": "tab-move-index-first",
 			"direction": "request",
 			"document": {
@@ -4464,8 +4389,7 @@
 										"label": "Child",
 										"customLabel": null
 									}
-								],
-								"rightClick": "panel"
+								]
 							},
 							{
 								"kind": "panel",
@@ -4473,8 +4397,7 @@
 									"label": "Empty",
 									"customLabel": null
 								},
-								"children": [],
-								"rightClick": "orchbee"
+								"children": []
 							}
 						]
 					}
@@ -4537,8 +4460,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -4555,8 +4477,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -4569,8 +4490,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -4591,8 +4511,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -4609,8 +4528,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -4623,8 +4541,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -4651,8 +4568,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -4669,8 +4585,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -4683,8 +4598,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -4705,8 +4619,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -4723,8 +4636,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -4737,8 +4649,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -4771,8 +4682,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -4789,8 +4699,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -4803,8 +4712,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -4825,8 +4733,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -4843,8 +4750,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -4857,8 +4763,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -4885,8 +4790,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -4903,8 +4807,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -4917,8 +4820,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -4939,8 +4841,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -4957,8 +4858,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -4971,8 +4871,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -5072,8 +4971,7 @@
 																																						"label": "Child",
 																																						"customLabel": null
 																																					}
-																																				],
-																																				"rightClick": "panel"
+																																				]
 																																			},
 																																			{
 																																				"kind": "panel",
@@ -5086,8 +4984,7 @@
 																																						"label": "Child",
 																																						"customLabel": null
 																																					}
-																																				],
-																																				"rightClick": "panel"
+																																				]
 																																			}
 																																		]
 																																	},
@@ -5102,8 +4999,7 @@
 																																				"label": "Child",
 																																				"customLabel": null
 																																			}
-																																		],
-																																		"rightClick": "panel"
+																																		]
 																																	}
 																																]
 																															},
@@ -5118,8 +5014,7 @@
 																																		"label": "Child",
 																																		"customLabel": null
 																																	}
-																																],
-																																"rightClick": "panel"
+																																]
 																															}
 																														]
 																													},
@@ -5134,8 +5029,7 @@
 																																"label": "Child",
 																																"customLabel": null
 																															}
-																														],
-																														"rightClick": "panel"
+																														]
 																													}
 																												]
 																											},
@@ -5150,8 +5044,7 @@
 																														"label": "Child",
 																														"customLabel": null
 																													}
-																												],
-																												"rightClick": "panel"
+																												]
 																											}
 																										]
 																									},
@@ -5166,8 +5059,7 @@
 																												"label": "Child",
 																												"customLabel": null
 																											}
-																										],
-																										"rightClick": "panel"
+																										]
 																									}
 																								]
 																							},
@@ -5182,8 +5074,7 @@
 																										"label": "Child",
 																										"customLabel": null
 																									}
-																								],
-																								"rightClick": "panel"
+																								]
 																							}
 																						]
 																					},
@@ -5198,8 +5089,7 @@
 																								"label": "Child",
 																								"customLabel": null
 																							}
-																						],
-																						"rightClick": "panel"
+																						]
 																					}
 																				]
 																			},
@@ -5214,8 +5104,7 @@
 																						"label": "Child",
 																						"customLabel": null
 																					}
-																				],
-																				"rightClick": "panel"
+																				]
 																			}
 																		]
 																	},
@@ -5230,8 +5119,7 @@
 																				"label": "Child",
 																				"customLabel": null
 																			}
-																		],
-																		"rightClick": "panel"
+																		]
 																	}
 																]
 															},
@@ -5246,8 +5134,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													},
@@ -5262,8 +5149,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													}
 												]
 											},
@@ -5278,8 +5164,7 @@
 														"label": "Child",
 														"customLabel": null
 													}
-												],
-												"rightClick": "panel"
+												]
 											}
 										]
 									},
@@ -5294,8 +5179,7 @@
 												"label": "Child",
 												"customLabel": null
 											}
-										],
-										"rightClick": "panel"
+										]
 									}
 								]
 							},
@@ -5310,8 +5194,7 @@
 										"label": "Child",
 										"customLabel": null
 									}
-								],
-								"rightClick": "panel"
+								]
 							}
 						]
 					}
@@ -13377,100 +13260,6 @@
 			}
 		},
 		{
-			"name": "panel input refuses null",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "11111111111111111111111111111111",
-				"sessionId": "22222222222222222222222222222222",
-				"expectedRevision": "7",
-				"action": {
-					"kind": "panel.input.set",
-					"terminalContextId": "33333333333333333333333333333333",
-					"tabId": "44444444444444444444444444444444",
-					"panelId": "55555555555555555555555555555555",
-					"rightClick": null
-				}
-			},
-			"boundary": "schema"
-		},
-		{
-			"name": "panel input refuses alias",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "11111111111111111111111111111111",
-				"sessionId": "22222222222222222222222222222222",
-				"expectedRevision": "7",
-				"action": {
-					"kind": "panel.input.set",
-					"terminalContextId": "33333333333333333333333333333333",
-					"tabId": "44444444444444444444444444444444",
-					"panelId": "55555555555555555555555555555555",
-					"rightClick": "pane"
-				}
-			},
-			"boundary": "schema"
-		},
-		{
-			"name": "panel input refuses unknown",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "11111111111111111111111111111111",
-				"sessionId": "22222222222222222222222222222222",
-				"expectedRevision": "7",
-				"action": {
-					"kind": "panel.input.set",
-					"terminalContextId": "33333333333333333333333333333333",
-					"tabId": "44444444444444444444444444444444",
-					"panelId": "55555555555555555555555555555555",
-					"rightClick": "other"
-				}
-			},
-			"boundary": "schema"
-		},
-		{
-			"name": "panel input refuses number",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "11111111111111111111111111111111",
-				"sessionId": "22222222222222222222222222222222",
-				"expectedRevision": "7",
-				"action": {
-					"kind": "panel.input.set",
-					"terminalContextId": "33333333333333333333333333333333",
-					"tabId": "44444444444444444444444444444444",
-					"panelId": "55555555555555555555555555555555",
-					"rightClick": 1
-				}
-			},
-			"boundary": "schema"
-		},
-		{
-			"name": "panel input requires policy",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "11111111111111111111111111111111",
-				"sessionId": "22222222222222222222222222222222",
-				"expectedRevision": "7",
-				"action": {
-					"kind": "panel.input.set",
-					"terminalContextId": "33333333333333333333333333333333",
-					"tabId": "44444444444444444444444444444444",
-					"panelId": "55555555555555555555555555555555"
-				}
-			},
-			"boundary": "schema"
-		},
-		{
 			"name": "tab-move-index-negative",
 			"direction": "request",
 			"document": {
@@ -17370,8 +17159,7 @@
 										"label": "Child",
 										"customLabel": null
 									}
-								],
-								"rightClick": "panel"
+								]
 							},
 							{
 								"kind": "panel",
@@ -17379,8 +17167,7 @@
 									"label": "Empty",
 									"customLabel": null
 								},
-								"children": [],
-								"rightClick": "orchbee"
+								"children": []
 							}
 						]
 					}
@@ -17418,8 +17205,7 @@
 										"label": "Child",
 										"customLabel": null
 									}
-								],
-								"rightClick": "panel"
+								]
 							},
 							{
 								"kind": "panel",
@@ -17427,8 +17213,7 @@
 									"label": "Empty",
 									"customLabel": null
 								},
-								"children": [],
-								"rightClick": "orchbee"
+								"children": []
 							}
 						]
 					}
@@ -17465,8 +17250,7 @@
 										"label": "Child",
 										"customLabel": null
 									}
-								],
-								"rightClick": "panel"
+								]
 							},
 							{
 								"kind": "panel",
@@ -17474,8 +17258,7 @@
 									"label": "Empty",
 									"customLabel": null
 								},
-								"children": [],
-								"rightClick": "orchbee"
+								"children": []
 							}
 						]
 					}
@@ -17512,8 +17295,7 @@
 										"label": "Child",
 										"customLabel": null
 									}
-								],
-								"rightClick": "panel"
+								]
 							},
 							{
 								"kind": "panel",
@@ -17521,8 +17303,7 @@
 									"label": "Empty",
 									"customLabel": null
 								},
-								"children": [],
-								"rightClick": "orchbee"
+								"children": []
 							}
 						]
 					}
@@ -17558,8 +17339,7 @@
 										"label": "Child",
 										"customLabel": null
 									}
-								],
-								"rightClick": "panel"
+								]
 							},
 							{
 								"kind": "panel",
@@ -17567,8 +17347,7 @@
 									"label": "Empty",
 									"customLabel": null
 								},
-								"children": [],
-								"rightClick": "orchbee"
+								"children": []
 							}
 						]
 					}
@@ -17669,100 +17448,6 @@
 										"label": "Child",
 										"customLabel": null
 									}
-								],
-								"rightClick": "panel"
-							},
-							{
-								"kind": "panel",
-								"primary": {
-									"label": "Empty",
-									"customLabel": null
-								},
-								"children": [],
-								"rightClick": "orchbee"
-							}
-						]
-					}
-				}
-			},
-			"boundary": "schema"
-		},
-		{
-			"name": "layout-unknown-right-click",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000009",
-				"sessionId": "00000000000000000000000000000001",
-				"expectedRevision": "2",
-				"action": {
-					"kind": "tab.create-layout",
-					"terminalContextId": "00000000000000000000000000000005",
-					"label": "Layout",
-					"automaticLabel": false,
-					"layout": {
-						"kind": "split",
-						"orientation": "vertical",
-						"children": [
-							{
-								"kind": "panel",
-								"primary": {
-									"label": "Primary",
-									"customLabel": "Manual"
-								},
-								"children": [
-									{
-										"label": "Child",
-										"customLabel": null
-									}
-								],
-								"rightClick": "both"
-							},
-							{
-								"kind": "panel",
-								"primary": {
-									"label": "Empty",
-									"customLabel": null
-								},
-								"children": [],
-								"rightClick": "orchbee"
-							}
-						]
-					}
-				}
-			},
-			"boundary": "schema"
-		},
-		{
-			"name": "layout-missing-policy",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000009",
-				"sessionId": "00000000000000000000000000000001",
-				"expectedRevision": "2",
-				"action": {
-					"kind": "tab.create-layout",
-					"terminalContextId": "00000000000000000000000000000005",
-					"label": "Layout",
-					"automaticLabel": false,
-					"layout": {
-						"kind": "split",
-						"orientation": "vertical",
-						"children": [
-							{
-								"kind": "panel",
-								"primary": {
-									"label": "Primary",
-									"customLabel": "Manual"
-								},
-								"children": [
-									{
-										"label": "Child",
-										"customLabel": null
-									}
 								]
 							},
 							{
@@ -17771,8 +17456,7 @@
 									"label": "Empty",
 									"customLabel": null
 								},
-								"children": [],
-								"rightClick": "orchbee"
+								"children": []
 							}
 						]
 					}
@@ -17803,8 +17487,7 @@
 								"primary": {
 									"label": "Primary",
 									"customLabel": "Manual"
-								},
-								"rightClick": "panel"
+								}
 							},
 							{
 								"kind": "panel",
@@ -17812,8 +17495,7 @@
 									"label": "Empty",
 									"customLabel": null
 								},
-								"children": [],
-								"rightClick": "orchbee"
+								"children": []
 							}
 						]
 					}
@@ -17846,8 +17528,7 @@
 										"label": "Child",
 										"customLabel": null
 									}
-								],
-								"rightClick": "panel"
+								]
 							},
 							{
 								"kind": "panel",
@@ -17855,8 +17536,7 @@
 									"label": "Empty",
 									"customLabel": null
 								},
-								"children": [],
-								"rightClick": "orchbee"
+								"children": []
 							}
 						]
 					}
@@ -17905,8 +17585,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -17923,8 +17602,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -17937,8 +17615,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -17959,8 +17636,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -17977,8 +17653,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -17991,8 +17666,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -18019,8 +17693,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -18037,8 +17710,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -18051,8 +17723,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -18073,8 +17744,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -18091,8 +17761,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -18105,8 +17774,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -18139,8 +17807,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -18157,8 +17824,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -18171,8 +17837,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -18193,8 +17858,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -18211,8 +17875,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -18225,8 +17888,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -18253,8 +17915,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													},
 													{
 														"kind": "split",
@@ -18271,8 +17932,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -18285,8 +17945,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -18311,8 +17970,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -18325,8 +17983,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													},
@@ -18345,8 +18002,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															},
 															{
 																"kind": "panel",
@@ -18359,8 +18015,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													}
@@ -18465,8 +18120,7 @@
 																																								"label": "Child",
 																																								"customLabel": null
 																																							}
-																																						],
-																																						"rightClick": "panel"
+																																						]
 																																					},
 																																					{
 																																						"kind": "panel",
@@ -18479,8 +18133,7 @@
 																																								"label": "Child",
 																																								"customLabel": null
 																																							}
-																																						],
-																																						"rightClick": "panel"
+																																						]
 																																					}
 																																				]
 																																			},
@@ -18495,8 +18148,7 @@
 																																						"label": "Child",
 																																						"customLabel": null
 																																					}
-																																				],
-																																				"rightClick": "panel"
+																																				]
 																																			}
 																																		]
 																																	},
@@ -18511,8 +18163,7 @@
 																																				"label": "Child",
 																																				"customLabel": null
 																																			}
-																																		],
-																																		"rightClick": "panel"
+																																		]
 																																	}
 																																]
 																															},
@@ -18527,8 +18178,7 @@
 																																		"label": "Child",
 																																		"customLabel": null
 																																	}
-																																],
-																																"rightClick": "panel"
+																																]
 																															}
 																														]
 																													},
@@ -18543,8 +18193,7 @@
 																																"label": "Child",
 																																"customLabel": null
 																															}
-																														],
-																														"rightClick": "panel"
+																														]
 																													}
 																												]
 																											},
@@ -18559,8 +18208,7 @@
 																														"label": "Child",
 																														"customLabel": null
 																													}
-																												],
-																												"rightClick": "panel"
+																												]
 																											}
 																										]
 																									},
@@ -18575,8 +18223,7 @@
 																												"label": "Child",
 																												"customLabel": null
 																											}
-																										],
-																										"rightClick": "panel"
+																										]
 																									}
 																								]
 																							},
@@ -18591,8 +18238,7 @@
 																										"label": "Child",
 																										"customLabel": null
 																									}
-																								],
-																								"rightClick": "panel"
+																								]
 																							}
 																						]
 																					},
@@ -18607,8 +18253,7 @@
 																								"label": "Child",
 																								"customLabel": null
 																							}
-																						],
-																						"rightClick": "panel"
+																						]
 																					}
 																				]
 																			},
@@ -18623,8 +18268,7 @@
 																						"label": "Child",
 																						"customLabel": null
 																					}
-																				],
-																				"rightClick": "panel"
+																				]
 																			}
 																		]
 																	},
@@ -18639,8 +18283,7 @@
 																				"label": "Child",
 																				"customLabel": null
 																			}
-																		],
-																		"rightClick": "panel"
+																		]
 																	}
 																]
 															},
@@ -18655,8 +18298,7 @@
 																		"label": "Child",
 																		"customLabel": null
 																	}
-																],
-																"rightClick": "panel"
+																]
 															}
 														]
 													},
@@ -18671,8 +18313,7 @@
 																"label": "Child",
 																"customLabel": null
 															}
-														],
-														"rightClick": "panel"
+														]
 													}
 												]
 											},
@@ -18687,8 +18328,7 @@
 														"label": "Child",
 														"customLabel": null
 													}
-												],
-												"rightClick": "panel"
+												]
 											}
 										]
 									},
@@ -18703,8 +18343,7 @@
 												"label": "Child",
 												"customLabel": null
 											}
-										],
-										"rightClick": "panel"
+										]
 									}
 								]
 							},
@@ -18719,8 +18358,7 @@
 										"label": "Child",
 										"customLabel": null
 									}
-								],
-								"rightClick": "panel"
+								]
 							}
 						]
 					}
@@ -24300,7 +23938,7 @@
 		{
 			"name": "layout-duplicate-member-label",
 			"direction": "request",
-			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"sessionId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"2\",\"action\":{\"kind\":\"tab.create-layout\",\"terminalContextId\":\"00000000000000000000000000000005\",\"label\":\"Layout\",\"automaticLabel\":false,\"layout\":{\"kind\":\"split\",\"orientation\":\"vertical\",\"children\":[{\"kind\":\"panel\",\"primary\":{\"label\":\"Primary\",\"label\":\"Other\",\"customLabel\":\"Manual\"},\"children\":[{\"label\":\"Child\"}],\"rightClick\":\"panel\"},{\"kind\":\"panel\",\"primary\":{\"label\":\"Empty\"},\"children\":[],\"rightClick\":\"orchbee\"}]}}}"
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"sessionId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"2\",\"action\":{\"kind\":\"tab.create-layout\",\"terminalContextId\":\"00000000000000000000000000000005\",\"label\":\"Layout\",\"automaticLabel\":false,\"layout\":{\"kind\":\"split\",\"orientation\":\"vertical\",\"children\":[{\"kind\":\"panel\",\"primary\":{\"label\":\"Primary\",\"label\":\"Other\",\"customLabel\":\"Manual\"},\"children\":[{\"label\":\"Child\"}]},{\"kind\":\"panel\",\"primary\":{\"label\":\"Empty\"},\"children\":[]}]}}}"
 		},
 		{
 			"name": "tab-create-launch-duplicate-launch",
@@ -24916,33 +24554,6 @@
 			"name": "panel-split-launch-null-cwd-empty-env",
 			"direction": "request",
 			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000385\",\"sessionId\":\"00000000000000000000000000000386\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.split\",\"terminalContextId\":\"00000000000000000000000000000387\",\"tabId\":\"00000000000000000000000000000388\",\"panelId\":\"00000000000000000000000000000389\",\"direction\":\"right\",\"label\":\"literal launch\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":0,\"cellPixelHeight\":0},\"launch\":null,\"profile\":null,\"options\":{\"cwd\":null,\"environment\":[]}}}",
-			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000385\",\"sessionId\":\"00000000000000000000000000000386\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.split\",\"terminalContextId\":\"00000000000000000000000000000387\",\"tabId\":\"00000000000000000000000000000388\",\"panelId\":\"00000000000000000000000000000389\",\"direction\":\"right\",\"label\":\"literal launch\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":0,\"cellPixelHeight\":0}}}",
-			"canonical": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000385",
-				"sessionId": "00000000000000000000000000000386",
-				"expectedRevision": "7",
-				"action": {
-					"kind": "panel.split",
-					"terminalContextId": "00000000000000000000000000000387",
-					"tabId": "00000000000000000000000000000388",
-					"panelId": "00000000000000000000000000000389",
-					"direction": "right",
-					"label": "literal launch",
-					"geometry": {
-						"columns": 80,
-						"rows": 24,
-						"cellPixelWidth": 0,
-						"cellPixelHeight": 0
-					}
-				}
-			}
-		},
-		{
-			"name": "panel-split-launch-default-policy",
-			"direction": "request",
-			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000385\",\"sessionId\":\"00000000000000000000000000000386\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.split\",\"terminalContextId\":\"00000000000000000000000000000387\",\"tabId\":\"00000000000000000000000000000388\",\"panelId\":\"00000000000000000000000000000389\",\"direction\":\"right\",\"label\":\"literal launch\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":0,\"cellPixelHeight\":0},\"rightClick\":\"orchbee\"}}",
 			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000385\",\"sessionId\":\"00000000000000000000000000000386\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.split\",\"terminalContextId\":\"00000000000000000000000000000387\",\"tabId\":\"00000000000000000000000000000388\",\"panelId\":\"00000000000000000000000000000389\",\"direction\":\"right\",\"label\":\"literal launch\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":0,\"cellPixelHeight\":0}}}",
 			"canonical": {
 				"kind": "workbench.command",

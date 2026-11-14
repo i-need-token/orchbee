@@ -289,13 +289,11 @@ fn primary_presentation(tab: &Tab) -> TestResult<(&Presentation, &WorkbenchPanel
         child_presentations,
         panel_id,
         primary_presentation,
-        right_click,
     } = &tab.root
     else {
         return Err(io::Error::other("initial_workspace Tab root was not a Panel").into());
     };
     assert!(child_presentations.is_empty());
-    assert!(right_click.is_default());
     Ok((primary_presentation, panel_id))
 }
 

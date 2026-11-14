@@ -151,7 +151,6 @@ fn native_initial_workspace_panel_split_refreshes_and_moves_focus_between_live_l
     let split_geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
     let new_panel_id = match peer.prepare(
         WorkbenchAction::PanelSplit {
-            right_click: Default::default(),
             terminal_context_id: terminal_context_id.clone(),
             tab_id,
             panel_id,
@@ -356,7 +355,6 @@ fn native_initial_workspace_panel_close_collapses_the_split_and_releases_only_th
     let tab_id = tab.tab_id.clone();
     let (split_revision, new_panel_id) = match peer.prepare(
         WorkbenchAction::PanelSplit {
-            right_click: Default::default(),
             terminal_context_id: terminal_context_id.clone(),
             tab_id: tab_id.clone(),
             panel_id: source_panel_id.clone(),
@@ -586,7 +584,6 @@ fn native_initial_workspace_panel_move_relocates_a_leaf_without_touching_either_
     let tab_id = tab.tab_id.clone();
     let (split_revision, new_panel_id) = match peer.prepare(
         WorkbenchAction::PanelSplit {
-            right_click: Default::default(),
             terminal_context_id: terminal_context_id.clone(),
             tab_id: tab_id.clone(),
             panel_id: source_panel_id.clone(),
@@ -771,7 +768,6 @@ fn native_initial_workspace_refresh_catches_up_across_two_committed_peer_splits(
     // next refresh must fold both committed publications into one final snapshot.
     let first_panel_id = match peer.prepare(
         WorkbenchAction::PanelSplit {
-            right_click: Default::default(),
             terminal_context_id: terminal_context_id.clone(),
             tab_id: tab_id.clone(),
             panel_id,
@@ -792,7 +788,6 @@ fn native_initial_workspace_refresh_catches_up_across_two_committed_peer_splits(
     };
     match peer.prepare(
         WorkbenchAction::PanelSplit {
-            right_click: Default::default(),
             terminal_context_id: terminal_context_id.clone(),
             tab_id,
             panel_id: first_panel_id.clone(),
@@ -1284,7 +1279,6 @@ fn native_bare_reentry_replays_the_settled_anchor_across_a_split_leaf() -> TestR
     let tab_id = tab.tab_id.clone();
     let new_panel_id = match peer.prepare(
         WorkbenchAction::PanelSplit {
-            right_click: Default::default(),
             terminal_context_id: terminal_context_id.clone(),
             tab_id,
             panel_id: source_panel_id.clone(),

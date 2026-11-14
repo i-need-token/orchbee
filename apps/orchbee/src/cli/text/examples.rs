@@ -102,7 +102,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::TabCreate => &["--workspace", "work", "--label", "main"],
         CommandPath::TabRename => &["main", "--label", "review"],
         CommandPath::PanelRename => &["@panel:0xabcd", "--label", "review"],
-        CommandPath::PanelInput => &["--current", "--right-click", "panel"],
         CommandPath::PanelSwap => &["--current", "--direction", "right"],
         CommandPath::TabMove => &["main", "--order", "next"],
         CommandPath::TabClose => &["main", "--confirm"],

@@ -77,7 +77,6 @@ pub fn fixture() -> Snapshot {
                     pinned: false,
                     tab_id: WorkbenchTabId::parse(&id(n)).unwrap(),
                     root: PanelNode::Panel {
-                        right_click: Default::default(),
                         panel_id: WorkbenchPanelId::parse(&id(n + 1)).unwrap(),
                         primary_presentation: presentation(n + 2),
                         child_presentations: vec![presentation(n + 3)],

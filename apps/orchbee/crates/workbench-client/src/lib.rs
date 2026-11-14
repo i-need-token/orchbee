@@ -196,11 +196,6 @@ pub mod application {
             WorkbenchPanelCloseNotSubmitted, WorkbenchPanelClosePrecommit,
             WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
         };
-        pub use crate::local_client::workbench::panel_input::{
-            WorkbenchPanelInputNotSubmitted, WorkbenchPanelInputOutcomeUnknownReason,
-            WorkbenchPanelInputPrecommit, WorkbenchPanelInputRequest,
-            WorkbenchPanelInputSubmission,
-        };
         pub use crate::local_client::workbench::panel_placement::{
             WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementNotSubmitted,
             WorkbenchPanelPlacementOutcomeUnknownReason, WorkbenchPanelPlacementPrecommit,

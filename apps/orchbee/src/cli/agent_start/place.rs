@@ -127,7 +127,6 @@ fn command(
         .filter(|(_, _, candidate)| candidate.tab_id == tab.tab_id)
         .count();
     Ok(MutationCommand::PanelSplit {
-        right_click: orchbee_workbench_protocol::PanelRightClickTarget::default(),
         target: Target::Id(panel.to_string()),
         direction,
         label: label(count)?,

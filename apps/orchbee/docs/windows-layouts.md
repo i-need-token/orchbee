@@ -20,7 +20,7 @@ Export never activates a Tab, changes focus, resizes a Host or acquires terminal
 
 The result contains `layout:{workspaceId,terminalContextId,tabId,maximized,focusedPanelId,root}`.
 The Workspace ID is required. Splits contain `type:split`, `direction:right|down`, `ratio`,
-`first` and `second`. Panels contain `type:panel`, descriptive `panelId`, `rightClick`, `primary`
+`first` and `second`. Panels contain `type:panel`, descriptive `panelId`, `primary`
 and ordered `children`. Members contain descriptive `presentationId`, fallback `name`, required-nullable
 manual `label`, `cwd` and `command`, plus `start` and empty `env`. Bound members carry available cwd
 and immutable explicit command argv; unavailable cwd and default-shell command are null. Unbound members have `start:false`
@@ -55,8 +55,8 @@ A non-starting member cannot supply cwd, command or nonempty env. Ratios are fin
 to 0.1..0.9. Validate every cwd, literal argv and environment overlay and resolve every intended
 program before creation, without evaluating shell syntax. Environment values never enter receipts.
 
-First create the complete unbound tree with one `tab.create-layout` transaction. Labels, ordered
-members and right-click policy are present immediately. Then bind only starting members through
+First create the complete unbound tree with one `tab.create-layout` transaction. Labels and ordered
+members are present immediately. Then bind only starting members through
 exact `panel.create-terminal` commands, primary before children. Missing root cwd follows the
 replaced Tab's remembered focused primary with a Client, or its first primary headlessly;
 otherwise it follows the selected context's primary/default.
@@ -69,7 +69,7 @@ permits only that exact unbound-to-bound change in the owned tree; no concurrent
 edit is adopted. The original replacement target is also fenced. Apply exact split identities and
 ratios, then verify readiness. Required focus is acknowledged before old-Tab Close. Close acceptance
 is not completion: observe retained Closed status and, when a Client is selected, its publication before success. Final
-observation rechecks topology, labels, member order/start intent, input policy and ratios.
+observation rechecks topology, labels, member order/start intent and ratios.
 
 Before readiness, definite failure may close only the exact unchanged owned Tab. Concurrent edits
 or unknown outcomes preserve resources and explicit incomplete receipts. Recovery uses a reserved

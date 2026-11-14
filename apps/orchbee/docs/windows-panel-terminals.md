@@ -7,7 +7,7 @@ creates a terminal inside an existing Panel without splitting its geometry. It i
 Omitted member selection binds the unbound primary; `--presentation` selects an exact unbound
 primary or child in that Panel; `--child` appends a fresh child, up to 16. A bound target is refused,
 and a Presentation in another Panel is never selected. `--label` is child-only; its default is the
-next numeric member label. Binding an existing member preserves its labels and input policy.
+next numeric member label. Binding an existing member preserves its labels.
 
 An explicit Panel works without a TUI. An omitted/current Panel uses the validated caller, then
 one Ready Client; `--client` selects that Client and conflicts with an explicit Panel. Targets use

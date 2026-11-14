@@ -335,7 +335,6 @@ impl LocalTerminalService {
                         tab_id: source.tab_id.clone(),
                         panel_id: source.panel_id.clone(),
                         direction: WorkbenchPanelSplitDirection::Below,
-                        right_click: Default::default(),
                         label: WorkbenchLabel::parse(
                             prepared.command.description.as_deref().unwrap_or("Command"),
                         )

@@ -196,8 +196,6 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::PanelSwap) => super::panel::HELP_PANEL_SWAP_ZH,
             (Locale::EnUs, CommandPath::PanelCreateTerminal) => super::panel_terminal_creation::HELP_EN,
             (Locale::ZhCn, CommandPath::PanelCreateTerminal) => super::panel_terminal_creation::HELP_ZH,
-            (Locale::EnUs, CommandPath::PanelInput) => super::panel::HELP_PANEL_INPUT_EN,
-            (Locale::ZhCn, CommandPath::PanelInput) => super::panel::HELP_PANEL_INPUT_ZH,
             (Locale::EnUs, CommandPath::PanelRename) => super::panel::HELP_PANEL_RENAME_EN,
             (Locale::ZhCn, CommandPath::PanelRename) => super::panel::HELP_PANEL_RENAME_ZH,
             (Locale::EnUs, CommandPath::TabRename) => super::tab::HELP_TAB_RENAME_EN,

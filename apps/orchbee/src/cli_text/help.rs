@@ -389,10 +389,6 @@ impl super::CliText {
             }
             HelpTopic::Command(CommandPath::TabRename) => ("Rename a tab.", "重命名标签页。"),
             HelpTopic::Command(CommandPath::PanelRename) => ("Rename a panel.", "重命名面板。"),
-            HelpTopic::Command(CommandPath::PanelInput) => (
-                "Choose where right clicks in a panel go.",
-                "选择面板中右键点击的去向。",
-            ),
             HelpTopic::Command(CommandPath::PanelSwap) => {
                 ("Exchange two panels' positions.", "交换两个面板的位置。")
             }

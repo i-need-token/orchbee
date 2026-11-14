@@ -411,7 +411,6 @@ fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> T
             workbench_id(0x122)?,
             &after_create,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: setup.terminal_context_id.clone(),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
@@ -565,7 +564,6 @@ fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal()
             workbench_id(0x142)?,
             &after_create,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: setup.terminal_context_id.clone(),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
@@ -803,7 +801,6 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
             workbench_id(0x182)?,
             &after_create,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: setup.terminal_context_id.clone(),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
@@ -1248,7 +1245,6 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             workbench_id(0x202)?,
             &after_create,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: setup.terminal_context_id.clone(),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
@@ -1330,7 +1326,6 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
         workbench_id(0x207)?,
         &pending_close,
         WorkbenchAction::PanelSplit {
-            right_click: Default::default(),
             terminal_context_id: setup.terminal_context_id.clone(),
             tab_id: tab_id.clone(),
             panel_id: panel_id.clone(),
@@ -1388,7 +1383,6 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             workbench_id(0x209)?,
             &pending_close,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: setup.terminal_context_id.clone(),
                 tab_id: other_tab_id.clone(),
                 panel_id: other_panel_id.clone(),

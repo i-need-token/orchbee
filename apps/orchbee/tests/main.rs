@@ -34,7 +34,6 @@ mod cli_windows_machine_routing;
 mod cli_windows_machines;
 mod cli_windows_notifications;
 mod cli_windows_pane_graphics;
-mod cli_windows_panel_input;
 mod cli_windows_panel_swap;
 mod cli_windows_panel_terminals;
 mod cli_windows_plugin_provision;

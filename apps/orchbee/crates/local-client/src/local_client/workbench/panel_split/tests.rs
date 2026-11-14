@@ -11,7 +11,6 @@ fn request() -> WorkbenchCommand {
         session_id: orchbee_workbench_protocol::SessionId::parse(&id(2)).unwrap(),
         expected_revision: WorkbenchRevision::new(7),
         action: WorkbenchAction::PanelSplit {
-            right_click: Default::default(),
             terminal_context_id: WorkbenchTerminalContextId::parse(&id(3)).unwrap(),
             tab_id: WorkbenchTabId::parse(&id(4)).unwrap(),
             panel_id: WorkbenchPanelId::parse(&id(5)).unwrap(),

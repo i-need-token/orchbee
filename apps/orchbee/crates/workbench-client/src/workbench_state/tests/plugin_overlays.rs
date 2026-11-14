@@ -13,7 +13,6 @@ fn add_leaf(root: &mut PanelNode, seed: u128) {
             },
             PanelSlot {
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: panel_id(seed + 10),
                     primary_presentation: Presentation {

@@ -84,7 +84,7 @@ The source tuple and expected revision are exact. Existing destination forms ret
 source-context default. An explicit destination context enables cross-context moves, and an
 optional target Panel selects the graft leaf; absence retains the existing root-graft contract.
 A new Workspace specifies nullable Project membership, an optional Directory from the Session pool and labels. A new `primaryDirectoryPath` alternatively creates a Directory in that same commit. It is mutually exclusive with an existing directory ID. The local service probes the path through the current Worker, rechecks its generation and requires directory-association authority; the proven Worker must own the retained source terminal. Missing proof, capacity or path failure cannot publish topology. A created Directory adds one allocated identity and `transfer.createdDirectoryId`. Only new structural and directory identities are allocated. A moved leaf retains its Panel, Presentation, binding,
-custom label and input policy, including every ordered child Presentation. Unbound-member lifecycle
+custom label, including every ordered child Presentation. Unbound-member lifecycle
 remains separately tracked.
 
 | Guard or transition                                                               | Observable result                                                                                              |
@@ -157,7 +157,7 @@ wire unchanged. For original zero-based source position S and original Tab count
 current bounds yield retained `tab-move-index-out-of-bounds` after target/composition validation,
 before no-op/revision allocation, with unchanged order and identity cursor. Exact request replay,
 conflict, capacity, pending creation settlement and context-close fencing use the existing owner.
-Complete records, including nested Panel trees and input policy, move intact. No Client focus,
+Complete records, including nested Panel trees, move intact. No Client focus,
 terminal attachment, controller, Host input or Worker action belongs to this transition.
 
 ### Workspace context extension
@@ -508,7 +508,7 @@ observe surviving bound members while other members remain unbound.
 
 Canonical occupancy is separate from bound inventory. An unbound layout remains occupied and attachment creates no terminal. Explicit Tab Create, Split or member creation can establish bindings through Workspace directory admission. Close captures canonical addresses/topology; unbound siblings survive and entirely unbound scopes use publication-only Close. Mixed and empty-scope evidence covers registration, settlement, replay and exact publication.
 
-Tab creation and ordering admit child Presentations. Split wraps the complete source Panel and a fresh sibling; same-Tab move/swap and cross-Tab/Context relocation transfer the complete Panel payload, including ordered children, labels, bindings and input policy. No existing Presentation is recreated or rebound. Relocation retains Workspace directory ownership and checks canonical Close fences, including unbound members, without starting another process.
+Tab creation and ordering admit child Presentations. Split wraps the complete source Panel and a fresh sibling; same-Tab move/swap and cross-Tab/Context relocation transfer the complete Panel payload, including ordered children, labels and bindings. No existing Presentation is recreated or rebound. Relocation retains Workspace directory ownership and checks canonical Close fences, including unbound members, without starting another process.
 
 Evidence compares full Panel payloads after split/move/swap/relocation, preserves primary-versus-child identity, and verifies Close fences and binding conservation. [Native groups](../../orchbee/docs/native-tab-groups.md) owns group/pin consumer coverage. The current strict wire/checkpoint shape rejects older incompatible documents; no compatibility owner or migration path is retained.
 
@@ -615,7 +615,7 @@ terminal-creation grants; the [checkpoint owner](workbench-checkpoint.md#held-re
 ## Unbound layout creation
 
 `tab.create-layout` creates a complete Tab structure in one canonical transaction. Its identity-free
-layout contains primary and ordered child labels, optional manual labels, Panel right-click policy
+layout contains primary and ordered child labels, optional manual labels
 and binary Split orientations. The Server allocates every Tab, Panel, Presentation, Split and slot
 identity; all Presentations begin unbound. No Worker or terminal is created, reused or required.
 A navigation grant admits structure creation; launching each intended member later uses the separate
@@ -625,7 +625,7 @@ The template admits at most 24 Panels, 16 levels including the root and 16 child
 within a 1 MiB command envelope. Existing context, Tab, projection, identity and retained-request
 limits still apply. An open Context Close fences creation. Revision checking, publication, identity
 allocation and the final `tab-layout-created` receipt commit together; exact request replay returns
-the same IDs without another effect. Labels and input policy survive materialization. Client focus,
+the same IDs without another effect. Labels survive materialization. Client focus,
 ratios, group assignment, pinning and physical launches are separate owners and are not implied by
 this receipt. An all-unbound Tab participates in checkpoint, selection and zero-terminal Close.
 

@@ -38,7 +38,6 @@ pub(super) struct Receipt {
     panel_transfer: Option<orchbee_workbench_protocol::WorkbenchPanelTransfer>,
     label: Option<String>,
     custom_label: Option<orchbee_workbench_protocol::PanelLabelUpdate>,
-    right_click: Option<orchbee_workbench_protocol::PanelRightClickTarget>,
     path: Option<String>,
     terminal: Option<TerminalFact>,
     /// The catalog-private revision a launch-profile command committed —
@@ -141,9 +140,6 @@ impl Receipt {
         }
         if let Some(label) = &self.custom_label {
             result.insert("customLabel".to_owned(), json!(label));
-        }
-        if let Some(policy) = self.right_click {
-            result.insert("rightClick".to_owned(), json!(policy));
         }
         if let Some(path) = &self.path {
             result.insert("path".to_owned(), json!(path));
@@ -383,10 +379,6 @@ mod workflow {
         WorkbenchPanelClosePrecommit, WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
     };
     use crate::local_client::{
-        WorkbenchPanelInputNotSubmitted, WorkbenchPanelInputOutcomeUnknownReason,
-        WorkbenchPanelInputPrecommit, WorkbenchPanelInputRequest, WorkbenchPanelInputSubmission,
-    };
-    use crate::local_client::{
         WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementNotSubmitted,
         WorkbenchPanelPlacementOutcomeUnknownReason, WorkbenchPanelPlacementPrecommit,
         WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
@@ -551,7 +543,6 @@ mod workflow {
     }
 
     submissions! {
-        (WorkbenchPanelInputNotSubmitted, WorkbenchPanelInputPrecommit, WorkbenchPanelInputOutcomeUnknownReason);
         (LaunchProfileMutationNotSubmitted, WorkbenchLaunchProfileMutationPrecommit, LaunchProfileOutcomeUnknownReason);
         (WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameOutcomeUnknownReason);
         (WorkbenchTabMoveNotSubmitted, WorkbenchTabMovePrecommit, WorkbenchTabMoveOutcomeUnknownReason);
@@ -668,17 +659,6 @@ mod workflow {
                 crate::cli::execution::Capability::ExtendedWorkbenchMutation,
             )?;
         }
-        let caller = if let MutationCommand::PanelInput { target, .. } = command {
-            crate::cli::execution::admit(
-                crate::cli::execution::Capability::ExtendedWorkbenchMutation,
-            )?;
-            Some(super::super::caller_context::PanelTarget::prepare(
-                target.as_ref(),
-                |name| std::env::var_os(name),
-            )?)
-        } else {
-            None
-        };
         // One admitted session plus one bounded snapshot read; a read failure
         // already dropped the session inside `snapshot_session`.
         let (mut client, deadline, mut snapshot) = snapshot_session()?;
@@ -688,13 +668,7 @@ mod workflow {
             deadline,
             &mut Unarmed,
             |_, snapshot, _| {
-                let mut exact = command.clone();
-                if let (Some(caller), MutationCommand::PanelInput { target, .. }) =
-                    (&caller, &mut exact)
-                {
-                    *target = Some(caller.resolve(snapshot)?);
-                }
-                let resolved = resolve(&exact, snapshot)
+                let resolved = resolve(command, snapshot)
                     .map_err(|failure| failure.source(results::snapshot_source(snapshot)))?;
                 Ok(((), resolved, ()))
             },
@@ -1082,21 +1056,6 @@ mod workflow {
                     options: Box::new(options.clone()),
                 })
             }
-            MutationCommand::PanelInput {
-                target,
-                right_click,
-            } => {
-                let target = target
-                    .as_ref()
-                    .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
-                let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
-                Ok(WorkbenchAction::PanelInputSet {
-                    terminal_context_id: context.terminal_context_id.clone(),
-                    tab_id: tab.tab_id.clone(),
-                    panel_id,
-                    right_click: *right_click,
-                })
-            }
             MutationCommand::PanelRename { target, label } => {
                 let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
                 Ok(WorkbenchAction::PanelRename {
@@ -1142,7 +1101,6 @@ mod workflow {
             }
             MutationCommand::PanelSplit {
                 target,
-                right_click,
                 direction,
                 label,
                 custom_label,
@@ -1153,7 +1111,6 @@ mod workflow {
             } => {
                 let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
                 Ok(WorkbenchAction::PanelSplit {
-                    right_click: *right_click,
                     terminal_context_id: context.terminal_context_id.clone(),
                     tab_id: tab.tab_id.clone(),
                     panel_id,
@@ -1714,40 +1671,6 @@ mod workflow {
                     }
                 }
             }
-            WorkbenchAction::PanelInputSet {
-                terminal_context_id,
-                tab_id,
-                panel_id,
-                right_click,
-            } => {
-                let mut base = receipt(&resolved, "panel.input", "configured")
-                    .schema(super::super::schema::PANEL_INPUT_RESULT_ID)
-                    .id("terminalContextId", terminal_context_id.as_str())
-                    .id("tabId", tab_id.as_str())
-                    .id("panelId", panel_id.as_str());
-                base.right_click = Some(*right_click);
-                let request =
-                    WorkbenchPanelInputRequest::try_from(command).map_err(|_| internal())?;
-                match client.submit_workbench_panel_input(request, deadline) {
-                    WorkbenchPanelInputSubmission::Committed { revision } => {
-                        Ok(base.revision(revision))
-                    }
-                    WorkbenchPanelInputSubmission::Unchanged { revision } => Ok(Receipt {
-                        outcome: "unchanged",
-                        ..base
-                    }
-                    .revision(revision)),
-                    WorkbenchPanelInputSubmission::DefinitePrecommit(precommit) => {
-                        Err(precommit_failure(precommit.into(), &resolved.action))
-                    }
-                    WorkbenchPanelInputSubmission::DefinitelyNotSubmitted(reason) => {
-                        Err(not_submitted_failure(reason.into()))
-                    }
-                    WorkbenchPanelInputSubmission::OutcomeUnknown { request_id, reason } => {
-                        Err(unknown_failure(request_id, reason.reason()))
-                    }
-                }
-            }
             WorkbenchAction::TabRename { .. } | WorkbenchAction::PanelRename { .. } => {
                 let request =
                     WorkbenchLabelRenameRequest::try_from(command).map_err(|_| internal())?;
@@ -2258,7 +2181,6 @@ mod workflow {
             panel_transfer: None,
             label: None,
             custom_label: None,
-            right_click: None,
             path: None,
             terminal: None,
             catalog_revision: None,

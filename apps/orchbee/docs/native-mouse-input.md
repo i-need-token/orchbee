@@ -37,7 +37,7 @@ Native [Tab arrangement](native-tab-groups.md#pointer-arrangement-and-menu-navig
 press/drag/release, selected membership, group boundaries and static feedback. InputDispatcher
 captures the release packet's keys, paste and pending fragments for both commit and cancellation.
 
-Native [action menus](native-action-menus.md) consume Client-owned right presses before
+Native [action menus](native-action-menus.md) consume right presses before
 ordinary focus. Menu capture cannot replace an existing genuine gesture or wheel stream.
 
 Middle-press surfaces,
@@ -431,8 +431,8 @@ as the encoder:
 | Button   | Encodable presses, held-button motion, and a captured release; no button-free motion. |
 | Any      | The Button classes plus button-free motion.                                           |
 
-Fresh admission is narrower than wire reportability. A reportable non-wheel button press may start
-a `Pane` gesture; a reportable wheel press is one-shot. A release or held-button motion without that
+Fresh admission is narrower than wire reportability. A reportable left or middle press may start
+a `Pane` gesture; a right press never does (see [Right button](#right-button)); a reportable wheel press is one-shot. A release or held-button motion without that
 press-time owner remains an inert Client-side event and never retargets into the pane under the
 pointer. Button-free `Any` motion is the one stateless program event: it reaches only the exact
 already-focused, live, controlling pane inside its painted content rectangle, starts no gesture,
@@ -660,9 +660,9 @@ control/attach byte witnesses described in [terminal streams](windows-terminal-s
 | Real PTY (Legacy seam)    | `tui_shell/tests/connected::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes` — recorded pane-local SGR bytes, pane-local translation, read-only drop, SGR cell fallback, wheel→arrows, capture toggle, mode restoration                                                                                                                                                                                    |
 | Real PTY (public Native)  | `tests/local_startup_process/native_pointer.rs` — the spawned `orchbee` binary on a real PTY: capture arming, X10 and SGR pane-local reports, unfocused-pane click focus and queued flush, read-only rejection, wheel→arrows, `Ctrl+b m`, `--mouse off`, exit restoration, and zero-pixel host geometry keeping cell-addressed reports while `?1016` uses SGR cell fallback                                                         |
 
-## Shared right-button policy
+## Right button
 
-The [Panel input policy](native-panel-input.md) gates fresh right presses before focus or passthrough. Default `orchbee` reserves them for [action menus](native-action-menus.md); `panel` admits only unmodified content presses in a tracking terminal under the existing controller/readiness checks. A pending right press rechecks policy before any bytes. An admitted gesture captures its button and exact Pane incarnation: other buttons cannot inject a press or release it, and generic legacy release maps to its owner. Changing policy affects the next gesture; capture/focus/incarnation cancellation still applies. Menu opening and cancellation preserve focus and capture their matching release.
+The right button belongs to the Client in every Panel. A fresh unmodified right press over a drawn pane opens its [action menu](native-action-menus.md); a right press the menu does not take is ignored before focus or passthrough, so the program never receives it, even in a tracking terminal. Shift stays host-owned. An admitted gesture captures its button and exact Pane incarnation: another button cannot inject a press or release it, and a generic legacy release maps to its owner. Menu opening and cancellation preserve focus and capture their matching release.
 
 ## Presentation selector
 

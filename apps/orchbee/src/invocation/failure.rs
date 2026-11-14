@@ -74,7 +74,6 @@ pub(crate) enum ExpectedValue {
     MetadataSequence,
     MetadataTtl,
     SessionName,
-    RightClick,
     PanelLabel,
     OutputFilePath,
     ClientId,

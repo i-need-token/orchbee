@@ -134,7 +134,6 @@ fn split(
             authority,
             command_id,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: initial_workspace_context(authority),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
@@ -593,7 +592,6 @@ fn relocate_preserves_the_complete_panel_with_child_presentations() {
         while let Some(node) = stack.pop() {
             match node {
                 PanelNode::Panel {
-                    right_click: _,
                     panel_id,
                     child_presentations,
                     primary_presentation,
@@ -955,7 +953,6 @@ fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
             &authority,
             300,
             WorkbenchAction::PanelSplit {
-                right_click: Default::default(),
                 terminal_context_id: initial_workspace_context(&authority),
                 tab_id: source_tab.clone(),
                 panel_id: panel_a.clone(),
@@ -1013,7 +1010,6 @@ fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
 fn deep_tree(depth: usize, seed: u128) -> PanelNode {
     if depth == 1 {
         return PanelNode::Panel {
-            right_click: Default::default(),
             panel_id: WorkbenchPanelId::parse(&identity(seed)).unwrap(),
             primary_presentation: Presentation {
                 custom_label: None,
@@ -1039,7 +1035,6 @@ fn deep_tree(depth: usize, seed: u128) -> PanelNode {
             PanelSlot {
                 slot_id: WorkbenchPanelSlotId::parse(&identity(seed + 1)).unwrap(),
                 node: PanelNode::Panel {
-                    right_click: Default::default(),
                     panel_id: WorkbenchPanelId::parse(&identity(seed + 2)).unwrap(),
                     primary_presentation: Presentation {
                         custom_label: None,
