@@ -63,7 +63,27 @@ Prefer a specific action verb over a generic confirmation label. A form inside a
 - Button labels are concise action phrases without terminal punctuation. Explanations, consequences, and recovery guidance belong in the surrounding message.
 - Reuse a label consistently within one interaction, including its button, menu item, tooltip, notification, and accessibility text, while keeping separately owned message IDs when their semantics differ.
 
-Use **Close Workspace** for closing one Workspace and its terminals, **Dissolve Project** for removing only the group while retaining its Workspaces, and **Close All Workspaces** for the separate explicit group-wide close. **New Workspace** creates immediately without mandatory Project setup. Default names use an available localized base name with numeric suffixes; explicit user names stay unchanged.
+Use **Close Workspace** for closing one Workspace and its terminals, **Ungroup** for removing only a Project while retaining its Workspaces, and **Close All Workspaces** for the separate explicit group-wide close. **New Workspace** creates immediately without mandatory Project setup. Default names use an available localized base name with numeric suffixes; explicit user names stay unchanged.
+
+## Names shared with the TUI
+
+A person who uses Windows Terminal, iTerm2, Ghostty or the VS Code terminal every day must understand every name without knowing Orchbee's internals. These names are shared with the TUI; identifiers, action ids and wire names keep their own spelling.
+
+| Concept                                           | `en-US`                        | `zh-CN`                  | Avoid                      |
+| ------------------------------------------------- | ------------------------------ | ------------------------ | -------------------------- |
+| Make this window the one that types and sizes     | Type here                      | 在这里输入               | Take control、接管         |
+| This window shows the terminal but does not type  | View only                      | 仅查看                   | Read-only                  |
+| Another window holds the terminal                 | Another window is typing here. | 另一个窗口正在这里输入。 | Client, controller、客户端 |
+| A view smaller than the terminal                  | Only part is shown             | 只显示了一部分           | Live crop、实时裁切        |
+| A Panel's first terminal                          | Main terminal                  | 主终端                   | Primary terminal           |
+| A Panel's further terminals                       | Terminal N                     | 终端 N                   | Child terminal、子终端     |
+| Fill the Tab with one Panel, and undo it          | Maximize / Restore             | 最大化 / 还原            | Toggle maximization, zoom  |
+| Remove a Project, keep its Workspaces             | Ungroup                        | 取消分组                 | Dissolve、解散             |
+| Sidebar heading over Workspaces without a Project | Workspaces                     | 工作区                   | Recents、最近              |
+| An Agent whose state Orchbee cannot read          | Status unknown                 | 状态未知                 | Limited status、状态受限   |
+| Split the Panel downward                          | Split down                     | 向下拆分                 | Split below、向下分割      |
+
+"Client" never appears in product copy; say window (窗口). In notices, Worker, Terminal Host and Server are Orchbee.
 
 ## Review
 

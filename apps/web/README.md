@@ -219,7 +219,7 @@ Terminal Host rejects a mode change before encoding or queue admission.
 
 Each projected surface registers the Workbench-owned minimal terminal Action catalog into the
 viewport's application runtime and scope: Copy, Paste, Select All, Find, Find Next, Find Previous,
-Scroll to Bottom, Clear, and Reset, plus Take control where the transport offers it and another Client holds the
+Scroll to Bottom, Clear, and Reset, plus Type here where the transport offers it and another window holds the
 terminal. Availability is
 synchronous and remains authoritative when a prepared invocation executes. Context-menu and custom-shortcut Paste read text only through an
 injected client capability. An idle platform-default paste chord preserves native DOM delivery so
@@ -256,7 +256,7 @@ records activation. A read-only target may request takeover once. Window blur, a
 replacement aborts unsubmitted work, and refusals or uncertain outcomes never retry automatically.
 Already controlling Clients retain ordinary input admission and their picture. Periodic Server
 Observe replies supply current controller, sequence and recent-focus facts, including Server-owned
-promotion; the GUI never invents a local focus-order fallback. The manual Take control Action
+promotion; the GUI never invents a local focus-order fallback. The manual Type here Action
 remains available. Grants arrive through the same next capability revision as manual takeover.
 An already submitted transfer cannot be recalled: its receipt is reconciled even after focus loss,
 without another transfer. This cancellation boundary is a vetoable decision. An opening projection

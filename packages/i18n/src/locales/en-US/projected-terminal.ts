@@ -18,7 +18,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.scrollToBottom': 'Scroll to bottom',
 	'terminal.projected.action.scrollToTop': 'Scroll to top',
 	'terminal.projected.action.selectAll': 'Select all',
-	'terminal.projected.action.takeControl': 'Take control',
+	'terminal.projected.action.takeControl': 'Type here',
 	'terminal.projected.unavailable.alternateScreen': 'A full-screen program is running',
 	'terminal.projected.unavailable.clipboardRead':
 		'Pasting from the clipboard is not available here',
@@ -45,14 +45,14 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.control.outcomeUnknown':
 		'Control outcome unknown. Take control again to be sure.',
 	'terminal.projected.control.refused': 'Control request refused or not submitted.',
-	'terminal.projected.control.take': 'Take control',
+	'terminal.projected.control.take': 'Type here',
 	'terminal.projected.control.taken': "Control acquired. The terminal now uses this panel's size.",
-	'terminal.projected.control.taking': 'Taking control…',
+	'terminal.projected.control.taking': 'Switching…',
 	'terminal.projected.control.viewOnly': 'View only',
-	'terminal.projected.control.viewOnlyCropped': 'View only · Live crop',
+	'terminal.projected.control.viewOnlyCropped': 'View only · Only part is shown',
 	'terminal.projected.control.viewOnlyCroppedReason':
-		'Another Client controls this terminal and its size. This panel shows the part around the cursor; scroll up to read the rest.',
-	'terminal.projected.control.viewOnlyReason': 'Another Client controls this terminal',
+		'Another window is typing here. Only the part around the cursor is shown; scroll up to read the rest.',
+	'terminal.projected.control.viewOnlyReason': 'Another window is typing here.',
 	'terminal.projected.failure.control': 'The terminal control action could not be confirmed.',
 	'terminal.projected.failure.input': 'The terminal input request could not be confirmed.',
 	'terminal.projected.failure.request': 'The terminal action could not be completed.',

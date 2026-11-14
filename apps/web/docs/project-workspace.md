@@ -80,7 +80,7 @@ and rejection classes. Projected metadata supplies no trusted command-execution 
 
 New Workspace, move, ungroup, new Project and move, dissolve, rename, reorder, close, and Worktree commands go to the authority in Workbench's own event vocabulary, as [Workbench](workbench.md#scope) describes, and settle once a publication carries them.
 
-Close Workspace is a destructive Action with the shared confirmation dialog. Dissolve Project is a grouping operation without a destructive confirmation. Neither deletes or relocates a checkout.
+Close Workspace is a destructive Action with the shared confirmation dialog. Ungroup, which dissolves a Project, is a grouping operation without a destructive confirmation. Neither deletes or relocates a checkout.
 
 ## Project Folder acquisition
 
@@ -111,7 +111,7 @@ Remove Worktree… follows Delete Workspace and appears only for a checkout the 
 ## Sidebar groups
 
 The sidebar groups Workspaces as the TUI does. Projects come first in their order, each heading its
-Workspaces; the Workspaces outside any Project follow under a Recents heading, always last and absent
+Workspaces; the Workspaces outside any Project follow under a Workspaces heading (the Recents group in code), always last and absent
 while it would be empty. The list has no heading of its own, and no group heading shows a member
 count. A heading is never current, even folded around the active Workspace, although a sidebar focus
 request lands on that heading while the active Workspace is hidden. Recents folds like a Project
@@ -202,7 +202,7 @@ tests do not establish CSS reachability. Capability-dependent entries and locali
 the existing action model's responsibility. This synchronous adapter introduces no async owner or
 additional TLA+ model.
 
-Row menus take the TUI's compositions, which [native-action-menus.md](../../../apps/orchbee/docs/native-action-menus.md) owns. The Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. New Workspace ▸ holds New Worktree… from the repository of the Project's first Workspace, a Folders group with each available directory the Project's Workspaces record, and a Git Worktrees group once Git answers. Folders follow navigation order, compare ignoring ASCII case, and show their folder name, or their full path where folder names repeat; each creates a Workspace in that directory inside the Project. While the Project records no folder, New Workspace leads and creates a Workspace in the Project at the default directory. Opening the Project menu starts Worktree discovery.
+Row menus take the TUI's compositions, which [native-action-menus.md](../../../apps/orchbee/docs/native-action-menus.md) owns. The Project menu holds New Workspace ▸ and Rename, then a separated Ungroup. New Workspace ▸ holds New Worktree… from the repository of the Project's first Workspace, a Folders group with each available directory the Project's Workspaces record, and a Git Worktrees group once Git answers. Folders follow navigation order, compare ignoring ASCII case, and show their folder name, or their full path where folder names repeat; each creates a Workspace in that directory inside the Project. While the Project records no folder, New Workspace leads and creates a Workspace in the Project at the default directory. Opening the Project menu starts Worktree discovery.
 
 The Workspace menu holds Move to Project ▸ and Rename, then New Worktree… and Open Worktree ▸ where the authority provides them, then a separated destructive Close and, once discovery allows it, Remove Worktree…. Move to Project ▸ lists the other Projects, then New Project… and, for a grouped Workspace, Remove from Project.
 

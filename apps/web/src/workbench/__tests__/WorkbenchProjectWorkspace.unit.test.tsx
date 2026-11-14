@@ -279,7 +279,7 @@ describe('Workbench Project and Workspace management', () => {
 		const projectOptions = screen.getByRole('button', { name: 'Project options: orchbee' });
 		const snapshot = projectWorkspaceRuntime.getSnapshot();
 		for (const [button, options, command] of [
-			[projectButton, projectOptions, 'Dissolve'],
+			[projectButton, projectOptions, 'Ungroup'],
 			[workspaceButton, workspaceOptions, 'Move to Project'],
 		] as const) {
 			for (const [chord, nativeContextTarget] of [
@@ -455,12 +455,12 @@ describe('Workbench Project and Workspace management', () => {
 		// The list has no heading; only a group with Workspaces shows its own.
 		expect(screen.getByRole('list', { name: 'Workspaces' })).toBeTruthy();
 		expect(screen.queryByRole('heading', { name: /Workspaces/u })).toBeNull();
-		expect(screen.queryByRole('button', { name: 'Collapse Recents' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Collapse Workspaces' })).toBeNull();
 		fireEvent.click(newWorkspace);
 		await waitFor(() => expect(runtime.getSnapshot().workspaces).toHaveLength(1));
-		fireEvent.click(screen.getByRole('button', { name: 'Collapse Recents' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Collapse Workspaces' }));
 		await waitFor(() => expect(screen.queryByRole('button', { name: 'Workspace' })).toBeNull());
-		fireEvent.click(screen.getByRole('button', { name: 'Expand Recents' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Expand Workspaces' }));
 		await screen.findByRole('button', { name: 'Workspace' });
 		expect(screen.queryByRole('dialog')).toBeNull();
 		expect(create).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
@@ -514,7 +514,7 @@ describe('Workbench Project and Workspace management', () => {
 		);
 		act(() => publishSnapshot(runtime, workspaceIn(5, fixtureProjectId(1))));
 		fireEvent.click(screen.getByRole('button', { name: 'Project options: Review' }));
-		fireEvent.click(await screen.findByRole('menuitem', { name: 'Dissolve' }));
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Ungroup' }));
 		await waitFor(() =>
 			expect(change).toHaveBeenLastCalledWith(expect.anything(), {
 				projectId: fixtureProjectId(1),
@@ -573,7 +573,7 @@ describe('Workbench Project and Workspace management', () => {
 			name: 'Primary. 1 live Agent. Codex: Ready',
 		});
 		const workspaceRow = workspaceButton.closest('[data-workspace-id]');
-		const agentName = `Codex, Ready, ${targetTabTitle} · Panel 1 · Primary terminal`;
+		const agentName = `Codex, Ready, ${targetTabTitle} · Panel 1 · Main terminal`;
 		const agentButton = screen.getByRole('button', { name: agentName });
 		expect(agentButton.closest('li')?.textContent).toContain('Codex');
 
@@ -1531,7 +1531,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(projectContextMenuPresentation).toEqual([
 			{ icon: 'add', label: 'New Workspace' },
 			{ icon: 'edit', label: 'Rename' },
-			{ icon: 'close', label: 'Dissolve' },
+			{ icon: 'close', label: 'Ungroup' },
 		]);
 		fireEvent.keyDown(document, { key: 'Escape' });
 		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
@@ -1580,7 +1580,7 @@ describe('Workbench Project and Workspace management', () => {
 		});
 
 		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
-		fireEvent.click(await screen.findByRole('menuitem', { name: 'Dissolve' }));
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Ungroup' }));
 		await waitFor(() =>
 			expect(change).toHaveBeenLastCalledWith(expect.anything(), {
 				projectId: fixtureProjectId(1),
