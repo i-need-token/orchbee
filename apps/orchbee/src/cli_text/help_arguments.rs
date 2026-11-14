@@ -69,7 +69,6 @@ impl super::CliText {
             CommandPath::AgentStart => &[Argument::Provider, Argument::Args],
             CommandPath::AgentPrompt => &[Argument::Agent, Argument::Text],
             CommandPath::AgentSendKeys => &[Argument::Agent, Argument::Keys],
-            CommandPath::AgentExplain => &[Argument::Agent],
             CommandPath::AgentWait => &[Argument::Agent],
             CommandPath::AgentResolve => &[Argument::Agent],
             CommandPath::AgentRename => &[Argument::Agent, Argument::NewName],

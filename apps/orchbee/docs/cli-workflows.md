@@ -239,7 +239,7 @@ nothing below performs provider lifecycle or control:
 orchbee agent list                          # live sessions only
 orchbee agent list --include-ended --limit 20
 orchbee agent get <session-id>
-orchbee agent explain <session-id>          # how status/freshness were derived
+orchbee agent get <session-id> --format json  # adds how status/freshness were derived
 orchbee agent wait <session-id>             # poll until a condition matches
 orchbee agent wait <session-id> --until ended --until failed
 ```

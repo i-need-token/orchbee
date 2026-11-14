@@ -6,7 +6,7 @@ use orchbee_agent_observation_protocol::AgentListOutcome;
 use std::collections::HashMap;
 
 use orchbee_agent_observation_protocol::{
-    AgentExplainOutcome, AgentGetOutcome, AgentSafeInteger, AgentSessionDetail, ObapRequestId,
+    AgentGetOutcome, AgentSafeInteger, AgentSessionDetail, ObapRequestId,
 };
 use orchbee_client_server_protocol::{LaunchProfileProvenance, TerminalLaunchFact};
 #[cfg(test)]
@@ -34,7 +34,6 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::Status => "orchbee.status",
         QueryCommand::AgentList { .. } => "orchbee.agent.list",
         QueryCommand::AgentGet(_) | QueryCommand::AgentClientGet { .. } => "orchbee.agent.get",
-        QueryCommand::AgentExplain(_) => "orchbee.agent.explain",
         QueryCommand::AgentWait { .. } => "orchbee.agent.wait",
         QueryCommand::ProjectList => "orchbee.project.list",
         QueryCommand::ProjectGet(_) => "orchbee.project.get",
@@ -1181,8 +1180,12 @@ pub(crate) enum Projection {
     AgentList(AgentListOutcome),
     UnifiedAgentList(Box<dyn OwnedDocument>),
     UnifiedAgentInspection(Box<dyn OwnedDocument>),
-    /// The typed `found` outcome, verbatim from the wire.
-    AgentGet(AgentGetOutcome),
+    /// The typed `found` outcome, verbatim from the wire, with the Explain read's derived
+    /// explanation when a machine document asked for it.
+    AgentGet {
+        outcome: AgentGetOutcome,
+        explanation: Option<Box<orchbee_agent_observation_protocol::AgentSessionExplanation>>,
+    },
     AgentInspection(Box<AgentInspectionDoc>),
     AgentTerminalInspection {
         client_view: Option<terminal_agent::ClientAttention>,
@@ -1190,9 +1193,6 @@ pub(crate) enum Projection {
         terminal: Value,
         semantic: terminal_agent::TerminalAgentRead,
     },
-    /// The typed `found` outcome carrying session plus explanation.
-    AgentExplain(AgentExplainOutcome),
-    AgentTerminalExplanation(Box<orchbee_workbench_protocol::TerminalAgentExplanation>),
     /// The `agent wait` matched answer: the satisfying session detail
     /// verbatim plus the requested-order matched conditions and the
     /// effective wait echo.
@@ -1330,6 +1330,18 @@ pub(crate) enum LaunchProfileCatalogSelection {
     Profile(LaunchProfileEntry),
 }
 
+/// A terminal Agent's detection-rule evaluation as `agent get` carries it in `result.detection`.
+/// An evaluation from a bundled manifest names no manifest file, which the document says as null.
+pub(super) fn agent_detection(
+    terminal: &orchbee_workbench_protocol::TerminalAgentExplanation,
+) -> Value {
+    let mut terminal = json!(terminal);
+    if let Some(explanation) = terminal["explanation"].as_object_mut() {
+        explanation.entry("manifest").or_insert(Value::Null);
+    }
+    terminal
+}
+
 pub(super) fn panel_process_result(doc: &PanelProcessInfoDoc) -> Value {
     let foreground = doc.foreground();
     json!({
@@ -1364,7 +1376,15 @@ impl Projection {
             // Preserve source facts while using the same current public row shape.
             Self::AgentList(outcome) => shape::canonical_list(outcome),
             Self::UnifiedAgentList(doc) | Self::UnifiedAgentInspection(doc) => doc.result(),
-            Self::AgentGet(outcome) => json!(outcome),
+            Self::AgentGet {
+                outcome,
+                explanation,
+            } => {
+                let mut result =
+                    json!({"kind":"projected","agent":{"kind":"unsupported"},"inspection":outcome});
+                result["explanation"] = json!(explanation);
+                result
+            }
             Self::AgentTerminalInspection {
                 binding,
                 terminal,
@@ -1388,16 +1408,6 @@ impl Projection {
                     .as_ref()
                     .map_or(Value::Null, |client| client.document());
                 result
-            }
-            Self::AgentExplain(outcome) => json!(outcome),
-            Self::AgentTerminalExplanation(terminal) => {
-                let mut terminal = json!(terminal);
-                terminal["explanation"]
-                    .as_object_mut()
-                    .expect("typed explanation")
-                    .entry("manifest")
-                    .or_insert(Value::Null);
-                json!({"kind":"terminal-found","terminal":terminal})
             }
             Self::AgentWait(doc) => {
                 // The wait echo carries every effective parameter the poll
@@ -2480,7 +2490,6 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         | QueryCommand::AgentList { .. }
         | QueryCommand::AgentGet(_)
         | QueryCommand::AgentClientGet { .. }
-        | QueryCommand::AgentExplain(_)
         | QueryCommand::AgentWait { .. }
         | QueryCommand::TerminalGet(_)
         | QueryCommand::TerminalOutput { .. }

@@ -91,15 +91,15 @@ function sample(panel) {
 	const rules = ['none', 'read-failed'].includes(state) ? undefined : explain(panel);
 	return { state, title, screen, rules };
 }
-// Screen rules alone, as physical explain evaluates them, and any custom report source.
+// Screen rules alone, as the physical Explain read evaluates them, and any custom report source.
 function explain(panel) {
 	try {
-		const { terminal } = JSON.parse(
-			quietly(['agent', 'explain', '--panel', panel, '--format', 'json']),
+		const { detection } = JSON.parse(
+			quietly(['agent', 'get', '--panel', panel, '--format', 'json']),
 		).result;
 		return {
-			screen: terminal.explanation.state,
-			authority: terminal.view.authoritySource ?? null,
+			screen: detection.explanation.state,
+			authority: detection.view.authoritySource ?? null,
 		};
 	} catch {
 		return { screen: 'read-failed', authority: null };

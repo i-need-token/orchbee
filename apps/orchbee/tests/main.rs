@@ -17,7 +17,6 @@ mod terminal_metadata_peer;
 mod cli_mutation;
 mod cli_query;
 mod cli_send;
-mod cli_windows_agent_explain;
 mod cli_windows_agent_integration;
 mod cli_windows_agent_manifests;
 mod cli_windows_agent_prompt;

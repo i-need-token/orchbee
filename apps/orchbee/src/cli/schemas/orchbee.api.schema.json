@@ -56,7 +56,6 @@
 				"schemas": {
 					"type": "object",
 					"required": [
-						"orchbee.agent.explain",
 						"orchbee.agent.get",
 						"orchbee.agent.integration.mutation",
 						"orchbee.agent.integration.plan",
@@ -186,7 +185,6 @@
 	"$defs": {
 		"schemaId": {
 			"enum": [
-				"orchbee.agent.explain",
 				"orchbee.agent.get",
 				"orchbee.agent.integration.mutation",
 				"orchbee.agent.integration.plan",

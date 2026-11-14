@@ -304,7 +304,6 @@ pub(crate) enum QueryCommand {
         target: AgentTarget,
         client: WorkbenchClientId,
     },
-    AgentExplain(AgentTarget),
     /// `agent wait`: one held Client Connection polls the canonical session
     /// document until a requested condition matches, the fence refuses, or
     /// the shared absolute deadline lands.

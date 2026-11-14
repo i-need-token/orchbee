@@ -359,6 +359,7 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
             detail: Box::new(Projection::AgentInspection(canonical_agent_inspection(
                 with_client,
             ))),
+            explained: Default::default(),
         }))
         .result();
         json!({
@@ -385,6 +386,7 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
     let with_terminal = Projection::UnifiedAgentInspection(Box::new(Inspection {
         row: checkpoint.rows[0].clone(),
         detail: Box::new(Projection::AgentInspection(inspection)),
+        explained: Default::default(),
     }))
     .result();
     let with_terminal = json!({
@@ -533,6 +535,7 @@ fn unified_agent_get_physical_inspection_requires_current_semantics() {
                 observation: Box::new(observation),
             },
         }),
+        explained: Default::default(),
     }))
     .result();
     let document = json!({

@@ -4933,13 +4933,6 @@ fn agent_read_grammar() {
             OutputFormat::Text
         ))
     );
-    assert_eq!(
-        parse(&["agent", "explain", "sess-alpha"]),
-        Ok(query(
-            QueryCommand::AgentExplain(AgentTarget::Auto { target: session() }),
-            OutputFormat::Text
-        ))
-    );
     // A 32-hex operand is still just a session identity — no typed-id split.
     assert_eq!(
         parse(&["agent", "get", ID]),
@@ -5004,10 +4997,10 @@ fn agent_read_usage_failures() {
         }
     );
     assert_eq!(
-        usage_reason(&["agent", "explain", "a", "b"]),
-        UsageReason::UnexpectedArgument {
-            context: path("agent explain"),
-            value: "b".to_owned(),
+        usage_reason(&["agent", "explain", "a"]),
+        UsageReason::UnknownCommand {
+            context: path("agent"),
+            word: "explain".to_owned(),
         }
     );
     assert_eq!(
@@ -5024,11 +5017,6 @@ fn agent_read_usage_failures() {
             &["agent", "get", "sess", "--include-ended"][..],
             "agent get",
             "--include-ended",
-        ),
-        (
-            &["agent", "explain", "sess", "--cursor", AGENT_CURSOR][..],
-            "agent explain",
-            "--cursor",
         ),
         (
             &["agent", "list", "--label", "x"][..],
@@ -5067,15 +5055,11 @@ fn agent_read_usage_failures() {
         }) if cursor == value)
         );
     }
-    for (verb, value) in [("get", "bad id!"), ("explain", ""), ("get", "non-ascii-会")] {
+    for (verb, value) in [("get", "bad id!"), ("get", ""), ("get", "non-ascii-会")] {
         assert_eq!(
             usage_reason(&["agent", verb, value]),
             UsageReason::InvalidValue {
-                context: path(if verb == "get" {
-                    "agent get"
-                } else {
-                    "agent explain"
-                }),
+                context: path("agent get"),
                 option: "<target>",
                 value: value.to_owned(),
                 expected: ExpectedValue::AgentTarget,
@@ -5400,7 +5384,6 @@ fn agent_help_paths_resolve() {
     for (verb, command) in [
         ("list", CommandPath::AgentList),
         ("get", CommandPath::AgentGet),
-        ("explain", CommandPath::AgentExplain),
         ("wait", CommandPath::AgentWait),
     ] {
         assert_eq!(
@@ -5998,7 +5981,7 @@ fn workspace_launch_preserves_launch_values_in_the_platform_workflow() {
 #[test]
 fn agent_read_targets_accept_exactly_one_auto_session_or_name_selector() {
     use orchbee_agent_observation_protocol::{AgentName, AgentSessionId};
-    for verb in ["get", "explain", "wait"] {
+    for verb in ["get", "wait"] {
         for (args, expected) in [
             (
                 vec!["alpha"],
@@ -6025,7 +6008,6 @@ fn agent_read_targets_accept_exactly_one_auto_session_or_name_selector() {
             };
             let target = match command {
                 QueryCommand::AgentGet(target)
-                | QueryCommand::AgentExplain(target)
                 | QueryCommand::AgentWait {
                     session: target, ..
                 } => target,
@@ -6063,7 +6045,6 @@ fn projection_selectors_share_one_grammar_across_agent_operations() {
     ] {
         for (verb, tail) in [
             ("get", None),
-            ("explain", None),
             ("read", None),
             ("wait", None),
             ("focus", None),
@@ -6077,7 +6058,6 @@ fn projection_selectors_share_one_grammar_across_agent_operations() {
                 Request::Query {
                     command:
                         QueryCommand::AgentGet(target)
-                        | QueryCommand::AgentExplain(target)
                         | QueryCommand::TerminalOutput {
                             target: super::OutputTarget::Agent(target),
                             ..
@@ -6278,7 +6258,7 @@ fn infinite_agent_wait_is_explicit_and_rejects_conflicting_or_unscoped_flags() {
 #[test]
 fn agent_panel_selectors_are_exclusive_and_preserve_following_operands() {
     let panel = "22222222222222222222222222222222";
-    for verb in ["get", "explain", "wait", "read", "resolve"] {
+    for verb in ["get", "wait", "read", "resolve"] {
         let parsed = parse_request(
             ["agent", verb, "--panel", panel]
                 .into_iter()
@@ -6978,15 +6958,6 @@ fn format_and_agent_target_diagnostics_point_at_the_invoked_command() {
             option: "--format",
             value: "yaml".to_owned(),
             expected: ExpectedValue::Format,
-        }
-    );
-    assert_eq!(
-        reason(&["agent", "explain", "@workspace:0x91"]),
-        UsageReason::InvalidValue {
-            context: UsageContext::Path("agent explain"),
-            option: "<target>",
-            value: "@workspace:0x91".to_owned(),
-            expected: ExpectedValue::AgentTarget,
         }
     );
 }

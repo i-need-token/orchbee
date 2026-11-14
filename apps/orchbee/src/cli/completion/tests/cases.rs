@@ -1090,12 +1090,6 @@ pub(crate) const CASES: &[(&str, &str, bool)] = &[
         "--agent-session",
         true,
     ),
-    ("orchbee agent explain alpha --cl", "--client", false),
-    (
-        "orchbee agent explain --agent-session sess-1 --n",
-        "--name",
-        false,
-    ),
     ("orchbee agent wait --name alpha --u", "--until", true),
     ("orchbee agent wait alpha --ag", "--agent-session", false),
     (

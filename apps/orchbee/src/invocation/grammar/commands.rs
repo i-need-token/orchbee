@@ -49,7 +49,6 @@ commands! {
     AgentStart => ["agent", "start"], super::super::MAXIMUM_ARGUMENT_BYTES, Operand, Portable, true, true, false;
     AgentPrompt => ["agent", "prompt"], 2, Agent, Portable, true, true, false;
     AgentSendKeys => ["agent", "send-keys"], super::super::MAXIMUM_SEND_RECORDS + 1, Agent, Portable, true, true, false;
-    AgentExplain => ["agent", "explain"], 1, Operand, Portable, true, true, false;
     AgentWait => ["agent", "wait"], 1, Agent, Portable, true, true, false;
     AgentResolve => ["agent", "resolve"], 1, Operand, Portable, true, true, false;
     AgentRename => ["agent", "rename"], 2, Operand, Portable, true, true, false;

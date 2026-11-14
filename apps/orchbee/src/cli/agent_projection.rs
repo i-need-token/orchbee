@@ -58,6 +58,15 @@ impl List {
 pub(crate) struct Inspection {
     pub(super) row: model::Row,
     pub(super) detail: Box<Projection>,
+    pub(super) explained: Explained,
+}
+/// What the Explain read added for a machine document; text skips the read.
+#[derive(Debug, Default)]
+pub(crate) enum Explained {
+    #[default]
+    None,
+    Session(Box<orchbee_agent_observation_protocol::AgentSessionExplanation>),
+    Terminal(Box<orchbee_workbench_protocol::TerminalAgentExplanation>),
 }
 impl results::OwnedDocument for List {
     fn result(&self) -> Value {
@@ -94,7 +103,15 @@ impl Inspection {
         row.as_object_mut()
             .expect("typed Agent row")
             .remove("ordinal");
-        json!({"kind":"projected","agent":row,"inspection":detail})
+        let mut document = json!({"kind":"projected","agent":row,"inspection":detail});
+        let (explanation, detection) = match &self.explained {
+            Explained::None => (Value::Null, Value::Null),
+            Explained::Session(explanation) => (json!(explanation), Value::Null),
+            Explained::Terminal(terminal) => (Value::Null, results::agent_detection(terminal)),
+        };
+        document["explanation"] = explanation;
+        document["detection"] = detection;
+        document
     }
 }
 pub(super) fn failure(kind: FailureKind, reason: &str) -> Failure {

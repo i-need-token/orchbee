@@ -132,6 +132,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             );
             snapshot_reply(&mut stream);
             peer_support::management_reply(&mut stream, 3, json!({"phase":"unmanaged"}));
+            peer_support::explain_reply(&mut stream);
             projection.confirm(&mut stream, true);
             assert_closed(&mut stream);
         });
@@ -218,6 +219,7 @@ fn selected_client_get_checks_intervening_changes_and_refuses_foreign_boot() {
                         "observation":{"generation":3,"sequence":11,"freshness":"stale","fidelity":"rich","source":"native"},"status":{"kind":"succeeded"}
                     }}]
                 }}})).unwrap())).unwrap();
+                peer_support::explain_reply(&mut stream);
                 projection.confirm(&mut stream, true);
             }
             assert_closed(&mut stream);

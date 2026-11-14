@@ -101,6 +101,7 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
                 _ => json!({"phase":"unmanaged"}),
             };
             management_reply(&mut stream, 2, management);
+            explain_reply(&mut stream);
             if case == "binding-change" {
                 let mut changed = ready();
                 changed["snapshot"]["presentationAttachments"][0]["generation"] = json!("gen-new");
@@ -264,6 +265,7 @@ fn agent_terminal_observation_preserves_partial_availability_and_rejects_stale_o
                     if mode == "changed-workbench" { 10 } else { 9 },
                 );
                 management_reply(&mut stream, 2, json!({"phase":"unmanaged"}));
+                explain_reply(&mut stream);
                 if mode == "changed-workbench" {
                     projection.workbench_drift(&mut stream, true, 10);
                 } else {

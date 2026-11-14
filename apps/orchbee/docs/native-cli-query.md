@@ -493,7 +493,7 @@ target, actual frame/process/primary-panel report fields and physical semantic o
 Startup management belongs to canonical Agent session inspection. Physical inspection contains no invented
 session ID. Child terminal reads never borrow the primary panel's report. Named `read`, `send-keys` and
 `attach` route through the exact physical binding and existing terminal owners. Physical
-`explain` returns v1 fresh screen diagnostics or v1 with active rule provenance, plus the [Agent identity](#agent-identity-diagnostics); semantic `wait`/`prompt`, focus and `get --client`
+`get --format json` adds `detection`: v1 fresh screen diagnostics with active rule provenance, plus the [Agent identity](#agent-identity-diagnostics); semantic `wait`/`prompt`, focus and `get --client`
 use their physical observation/Client contracts without inventing canonical sessions;
 terminal names and pending reservations do not survive a cold restart. Renaming preserves the exact physical binding; clearing releases its current name.
 
@@ -512,7 +512,7 @@ a trustworthy matching reply returns outcome-unknown (exit 8), including cancell
 and is never replayed. A known pre-submission cancellation is exit 130. No alias
 cache, provider process, new Session, or canonical-session mutation is involved.
 
-`get`, `explain`, and `wait` accept the same positional target or explicit
+`get` and `wait` accept the same positional target or explicit
 `--agent-session`/`--name`/`--panel` selector. Exact retained IDs take precedence over names; explicit
 IDs and opaque tokens that cannot name aliases or Panels go directly to the read. Other targets first send
 Resolve on the same admitted Client Connection. Resolution and reads share the original
@@ -909,7 +909,7 @@ orchbee launch-profile list | launch-profile get <selector>
 orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
 orchbee launch-profile delete <selector>
 orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <c>]
-orchbee agent get <target> | agent explain <target>
+orchbee agent get <target>
 orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>]
 orchbee agent send-keys <target> <key>...
 orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>] [--forever]
@@ -1019,7 +1019,7 @@ loading. This proves static completion, not runtime target discovery or other op
 `help`, `completion`, `tui`, `-v`/`-V`/`--version`, `--skill`, the bare invocation, and Windows `config default` are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
-commands (`status`, all `list`/`get`, `operation status`, `agent explain`,
+commands (`status`, all `list`/`get`, `operation status`,
 `agent wait`, `api snapshot`, `api schema`, `server start`, `server stop`,
 `doctor`, `config check`, and all four `agent integration` commands) and every
 mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
@@ -1054,7 +1054,7 @@ complete typed IDs and their own `@panel:`/`@terminal:` selectors only; anything
 target rules, and so do every mutation operand and `--target-panel` (the `panel` rule, resolved
 inside the destination tab). `api schema` takes a nonempty schema ID; an empty one is
 `invalid-identifier` with `resource="schema"`, an unmatched one is `not-found`.
-`agent get`, `agent explain`, and `agent wait` take one positional token of 1–128
+`agent get` and `agent wait` take one positional token of 1–128
 characters drawn from `[A-Za-z0-9._:-]` (or an explicit Panel prefix), resolved by the ID-first rules above, or an
 explicit `--agent-session`/`--name`/`--panel` selector. Malformed tokens are `invalid-usage` before runtime access.
 `launch-profile get` and `launch-profile delete` take one positional `<selector>`, and
@@ -1316,17 +1316,19 @@ one paste record and, with `--enter`, a separate trailing Enter record.
   dispositions are respected, not overridden. These are Linux-only claims backed by
   procfs, consistent with the procfd input admission.
 
-`agent list`, `agent get`, and `agent explain` run the same cohort → discovery → socket →
+`agent list` and `agent get` run the same cohort → discovery → socket →
 admission preamble as every network query under one absolute 5-second command budget
 sampled once at invocation entry: the preamble, admission, optional name resolution
 and OBAP read all share that ceiling, which is never refreshed between stages — a stage with
 no budget left never starts, and a step completing at or past the ceiling settles as the
 command's own timeout. They skip the Workbench snapshot read entirely. On the single
 admitted Client Connection they resolve the target when necessary as described above,
-then perform one Agent Observation Protocol (OBAP) read exchange:
+then perform one Agent Observation Protocol (OBAP) read exchange; a machine-document `agent get`
+whose get read found the session follows it with the session's Explain exchange under the same
+ceiling, and a failed Explain exchange fails the command with no partial document:
 
 Apple Silicon macOS development builds currently expose this path for `agent list` without
-`--client`; `get`, `explain`, `wait`, `changes`, and the Client projection retain their documented
+`--client`; `get`, `wait`, `changes`, and the Client projection retain their documented
 platform limits.
 
 1. **Request** — one OBAP frame (`OBAP` magic, version 1) under a freshly minted
@@ -1761,11 +1763,13 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, 
   `{kind:"found",revision,session}` where `session` is the wire `AgentSessionDetail` —
   the summary fields plus `capabilities` (≤10 unique tokens), `lastOutcome`, and
   `pendingRequests`.
-- `orchbee.agent.explain` → the `found` outcome verbatim:
-  `{kind:"found",revision,session,explanation}` where `explanation` is the canonical
+- `orchbee.agent.get` always carries the nullable `explanation` and `detection` members. A
+  machine document fills one of them from the Explain read: `explanation` is a canonical session's
   11-field object (`status`, `statusBasis`, `freshnessMeaning`, `capabilityCeiling`,
   `fidelity`, `freshness`, `generation`, `sequence`, `source`, `actionPath`,
-  `contentAvailable`) — the Server's derived reading, never a CLI inference.
+  `contentAvailable`) — the Server's derived reading, never a CLI inference — and `detection` is a
+  physical terminal Agent's screen-rule evaluation with its [Agent identity](#agent-identity-diagnostics).
+  Text output skips the Explain read and leaves both null.
 - `orchbee.agent.wait` → the matched answer:
   `{matchedConditions,revision,session,wait}` where `matchedConditions` is the
   satisfying subset of the effective `until` list in requested order (1–14 unique
@@ -2550,7 +2554,7 @@ Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounde
 
 ### Agent identity diagnostics
 
-`panel process-info` and physical `agent explain` both carry `identity`: the Server's current Agent
+`panel process-info` and the `detection` member of `agent get --format json` both carry `identity`: the Server's current Agent
 identity result for the exact Terminal generation. It is one closed object discriminated by `result`:
 
 | `result`      | Members                                                                | Text (en-US / zh-CN)                                           |

@@ -948,7 +948,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::LayoutSetSplitRatio,
         CommandPath::LayoutExport,
         CommandPath::LayoutApply,
-        CommandPath::AgentExplain,
         CommandPath::AgentFocus,
         CommandPath::AgentGet,
         CommandPath::AgentRead,

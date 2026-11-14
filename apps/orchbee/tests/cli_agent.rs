@@ -303,6 +303,28 @@ fn found_document(
     })
 }
 
+/// A machine-document `agent get` follows its found get read with the Explain read of the same
+/// session on the same connection; the peer answers it with the shared explanation.
+fn answer_explain(stream: &UnixStream, expected: &str) {
+    let AgentReadRequest::Explain {
+        request_id,
+        session_id,
+    } = read_request(stream)
+    else {
+        panic!("peer expected an explain request after the get");
+    };
+    assert_eq!(session_id.as_str(), expected);
+    answer(
+        stream,
+        found_document(
+            "agent.session.explain.result",
+            request_id.as_str(),
+            session_detail(expected),
+            Some(explanation()),
+        ),
+    );
+}
+
 /// A shape-valid `v1.<59>.<43>` cursor literal for `--cursor` arguments.
 const VALID_CURSOR: &str = "v1.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ";
 
@@ -1102,6 +1124,7 @@ fn get_found_emits_current_inspection() -> TestResult {
                 None,
             ),
         );
+        answer_explain(&stream, "sess-alpha");
     });
     let output = run(
         &base,
@@ -1127,6 +1150,15 @@ fn get_found_emits_current_inspection() -> TestResult {
         document["result"]["inspection"]["session"]["snapshot"]["lastOutcome"].is_null(),
         "required-nullable fields stay explicit on the wire document"
     );
+    assert_eq!(
+        document["result"]["explanation"]["statusBasis"],
+        "attention-request"
+    );
+    assert_eq!(
+        document["result"]["explanation"]["actionPath"],
+        "navigate-only"
+    );
+    assert!(document["result"]["detection"].is_null());
     Ok(())
 }
 
@@ -1198,93 +1230,6 @@ fn get_not_found_maps_to_agent_failure_document() -> TestResult {
     assert_eq!(document["failure"]["kind"], "not-found");
     assert_eq!(document["failure"]["details"]["operation"], "get");
     assert_eq!(document["failure"]["details"]["sessionId"], "sess-gone");
-    Ok(())
-}
-
-#[test]
-fn explain_found_emits_verbatim_outcome() -> TestResult {
-    let base = base_dir("aexplain");
-    let scope = stage_scope(&base);
-    let peer = spawn_peer(&scope, 1, |stream| {
-        admit(&stream);
-        let request = read_request(&stream);
-        let AgentReadRequest::Explain {
-            request_id,
-            session_id,
-        } = request
-        else {
-            panic!("peer expected an explain request");
-        };
-        assert_eq!(session_id.as_str(), "sess-alpha");
-        answer(
-            &stream,
-            found_document(
-                "agent.session.explain.result",
-                request_id.as_str(),
-                session_detail("sess-alpha"),
-                Some(explanation()),
-            ),
-        );
-    });
-    let output = run(
-        &base,
-        &[
-            "agent",
-            "explain",
-            "--agent-session",
-            "sess-alpha",
-            "--format",
-            "json",
-        ],
-    );
-    peer.join().expect("peer finished");
-    assert_eq!(output.status.code(), Some(0));
-    let document = document(&output);
-    assert_eq!(document["schema"], "orchbee.agent.explain");
-    assert_eq!(document["result"]["kind"], "found");
-    assert_eq!(
-        document["result"]["explanation"]["statusBasis"],
-        "attention-request"
-    );
-    assert_eq!(
-        document["result"]["explanation"]["actionPath"],
-        "navigate-only"
-    );
-    Ok(())
-}
-
-#[test]
-fn explain_text_renders_derived_fields() -> TestResult {
-    let base = base_dir("aexplaintxt");
-    let scope = stage_scope(&base);
-    let peer = spawn_peer(&scope, 1, |stream| {
-        admit(&stream);
-        let request = read_request(&stream);
-        let AgentReadRequest::Explain { request_id, .. } = request else {
-            panic!("peer expected an explain request");
-        };
-        answer(
-            &stream,
-            found_document(
-                "agent.session.explain.result",
-                request_id.as_str(),
-                session_detail("sess-alpha"),
-                Some(explanation()),
-            ),
-        );
-    });
-    let output = run(
-        &base,
-        &["agent", "explain", "--agent-session", "sess-alpha"],
-    );
-    peer.join().expect("peer finished");
-    assert_eq!(output.status.code(), Some(0));
-    let text = String::from_utf8(output.stdout).expect("text output is UTF-8");
-    assert!(text.contains("sess-alpha"), "{text}");
-    assert!(
-        text.contains("navigate-only") || text.to_lowercase().contains("navigate"),
-        "the action boundary renders: {text}"
-    );
     Ok(())
 }
 
@@ -1432,14 +1377,13 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
     let scope = stage_scope(&base);
     let list_schema = compiled_schema(&base, "orchbee.agent.list");
     let get_schema = compiled_schema(&base, "orchbee.agent.get");
-    let explain_schema = compiled_schema(&base, "orchbee.agent.explain");
     let failure_schema = compiled_schema(&base, "orchbee.cli.failure.agent");
 
     // Real emitted envelopes validate against their published schemas: one
-    // peer serves all four sequential sessions — the second `list` carries the
+    // peer serves all three sequential sessions — the second `list` carries the
     // semantic refusal whose failure envelope must also validate.
     let lists = std::sync::atomic::AtomicU32::new(0);
-    let peer = spawn_peer(&scope, 4, move |stream| {
+    let peer = spawn_peer(&scope, 3, move |stream| {
         admit(&stream);
         let request = read_request(&stream);
         let request_id = request.request_id().as_str().to_owned();
@@ -1464,24 +1408,19 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
                     "result": {"outcome": {"kind": "rejected", "reason": "read-denied"}}
                 }),
             ),
-            AgentReadRequest::Get { .. } => answer(
-                &stream,
-                found_document(
-                    "agent.session.get.result",
-                    &request_id,
-                    session_detail("sess-alpha"),
-                    None,
-                ),
-            ),
-            AgentReadRequest::Explain { .. } => answer(
-                &stream,
-                found_document(
-                    "agent.session.explain.result",
-                    &request_id,
-                    session_detail("sess-alpha"),
-                    Some(explanation()),
-                ),
-            ),
+            AgentReadRequest::Get { .. } => {
+                answer(
+                    &stream,
+                    found_document(
+                        "agent.session.get.result",
+                        &request_id,
+                        session_detail("sess-alpha"),
+                        None,
+                    ),
+                );
+                answer_explain(&stream, "sess-alpha");
+            }
+            AgentReadRequest::Explain { .. } => panic!("an Explain read only follows a get"),
         }
     });
     let list_out = run(&base, &["agent", "list", "--format", "json"]);
@@ -1496,23 +1435,11 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
             "json",
         ],
     );
-    let explain_out = run(
-        &base,
-        &[
-            "agent",
-            "explain",
-            "--agent-session",
-            "sess-alpha",
-            "--format",
-            "json",
-        ],
-    );
     let denied = run(&base, &["agent", "list", "--format", "json"]);
     peer.join().expect("peer finished");
     for (output, validator, name) in [
         (&list_out, &list_schema, "list"),
         (&get_out, &get_schema, "get"),
-        (&explain_out, &explain_schema, "explain"),
     ] {
         assert_eq!(output.status.code(), Some(0), "{name}");
         let document = document(output);
@@ -1589,28 +1516,16 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
         "unique capabilities must pass"
     );
 
-    let valid_explain = |explanation: serde_json::Value| {
-        serde_json::json!({
-            "schema": "orchbee.agent.explain",
-            "version": 1,
-            "source": {"kind": "agent-read", "requestId": "11111111111111111111111111111111"},
-            "result": {
-                "kind": "found",
-                "revision": 7,
-                "session": session_detail("sess-alpha"),
-                "explanation": explanation
-            }
-        })
-    };
-    let mut explanation = explanation();
-    explanation["capabilityCeiling"] = serde_json::json!(["questions", "questions"]);
+    let mut explained = document(&get_out);
+    explained["result"]["explanation"]["capabilityCeiling"] =
+        serde_json::json!(["questions", "questions"]);
     assert!(
-        !explain_schema.is_valid(&valid_explain(explanation.clone())),
+        !get_schema.is_valid(&explained),
         "duplicate capabilityCeiling entries must fail"
     );
-    explanation["capabilityCeiling"] = serde_json::json!(["questions"]);
+    explained["result"]["explanation"]["capabilityCeiling"] = serde_json::json!(["questions"]);
     assert!(
-        explain_schema.is_valid(&valid_explain(explanation)),
+        get_schema.is_valid(&explained),
         "unique capabilityCeiling entries must pass"
     );
     Ok(())

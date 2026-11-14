@@ -657,7 +657,7 @@ A physical `explain` request may set `inputArea: true`. The Server then adds `in
 `explained` result when the provider's [screen rules](../../apps/orchbee-server/docs/agent-screen-model.md#input-area)
 place an input area on the sampled screen: that area's first row, counted from the top of the live
 screen of the sample's frame generation and revision. Without the flag the Server never adds it, so
-earlier Clients and the CLI `agent explain` document keep their shape. Omission means unknown and
+earlier Clients and the CLI `agent get` `detection` member keep their shape. Omission means unknown and
 explicit null is rejected. A Server that serves the flag lists the `agent-input-area` capability in
 its `client-server` handshake answer, and a Client sets the flag only when the answer lists it.
 [Native terminal output](../../apps/orchbee/docs/native-terminal-output.md#agent-input-area) owns

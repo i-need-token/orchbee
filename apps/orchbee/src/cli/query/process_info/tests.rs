@@ -239,8 +239,7 @@ fn process_info_targets_only_the_primary_binding_without_child_fallback() {
 }
 
 #[test]
-fn physical_explanation_carries_every_identity_in_both_projections() {
-    use crate::localization::Locale;
+fn agent_get_detection_carries_every_identity() {
     let corpus: Value = serde_json::from_str(include_str!(
         "../../../../../../schemas/workbench/v1/workbench-panel-agent-conformance-v1.json"
     ))
@@ -253,37 +252,15 @@ fn physical_explanation_carries_every_identity_in_both_projections() {
         .unwrap()["document"]["outcome"]["explanation"]
         .clone();
     let schema: Value =
-        serde_json::from_str(include_str!("../../schemas/orchbee.agent.explain.json")).unwrap();
-    let validator = jsonschema::draft202012::new(&schema).unwrap();
-    let source = json!({"kind":"panel-agent-explain","sessionId":format!("{:032x}",1),"workbenchRevision":"9","reportRevision":"2","requestId":format!("{:032x}",2)});
-    for (identity, (en, zh)) in identities().into_iter().zip(IDENTITY_TEXT) {
+        serde_json::from_str(include_str!("../../schemas/orchbee.agent.get.json")).unwrap();
+    let detection = json!({"$defs": schema["$defs"], "$ref": "#/$defs/terminalExplanation"});
+    let validator = jsonschema::draft202012::new(&detection).unwrap();
+    for identity in identities() {
         terminal["identity"] = json!(identity);
-        let projection =
-            Projection::AgentTerminalExplanation(serde_json::from_value(terminal.clone()).unwrap());
-        let document = json!({"schema":"orchbee.agent.explain","version":1,"source":source,"result":projection.result()});
+        let document = crate::cli::results::agent_detection(
+            &serde_json::from_value(terminal.clone()).unwrap(),
+        );
         validator.validate(&document).unwrap();
-        assert_eq!(document["result"]["terminal"]["identity"], json!(identity));
-        for (locale, label, value) in [
-            (Locale::EnUs, "Identity", en),
-            (Locale::ZhCn, "识别结果", zh),
-        ] {
-            let output = crate::cli::output::render_text(|out| {
-                crate::cli::present::render(
-                    out,
-                    &projection,
-                    &QueryCommand::AgentExplain(crate::invocation::AgentTarget::Panel {
-                        target: Target::Id(format!("{:032x}", 3)),
-                    }),
-                    locale,
-                )
-            })
-            .unwrap();
-            let text = String::from_utf8(output).unwrap();
-            assert!(
-                text.lines()
-                    .any(|line| line.starts_with(label) && line.ends_with(value)),
-                "{text}"
-            );
-        }
+        assert_eq!(document["identity"], json!(identity));
     }
 }

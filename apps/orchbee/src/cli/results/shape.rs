@@ -138,6 +138,8 @@ pub(in crate::cli) fn complete(command: &QueryCommand, mut result: Value) -> Val
             if result["kind"] != "projected" {
                 result = json!({"kind":"projected","agent":unsupported(),"inspection":result});
             }
+            // Text skips the Explain read, so only a machine document fills one of these.
+            missing(&mut result, &["explanation", "detection"], &Value::Null);
             let inspection = &mut result["inspection"];
             if inspection["kind"] == "found" {
                 missing(inspection, &["client"], &selection);

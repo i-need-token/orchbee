@@ -809,6 +809,33 @@ pub(super) fn read_reply(stream: &mut LocalStream, verb: &str, outcome: Value) -
     id
 }
 
+/// A machine-document `agent get` of a canonical session ends its reads with the session's
+/// Explain read; this answers it with a derived explanation of `sess-alpha`.
+pub(super) fn explain_reply(stream: &mut LocalStream) -> String {
+    read_reply(
+        stream,
+        "explain",
+        json!({
+            "kind": "found",
+            "revision": 7,
+            "session": session_detail("sess-alpha"),
+            "explanation": {
+                "actionPath": "navigate-only",
+                "capabilityCeiling": ["questions", "activity"],
+                "contentAvailable": false,
+                "fidelity": "rich",
+                "freshness": "fresh",
+                "freshnessMeaning": "current-observation",
+                "generation": 3,
+                "sequence": 11,
+                "source": "native",
+                "status": {"kind": "needs-attention", "count": 1},
+                "statusBasis": "attention-request"
+            }
+        }),
+    )
+}
+
 pub(super) fn assert_closed(stream: &mut LocalStream) {
     assert_closed_for(stream, "peer");
 }

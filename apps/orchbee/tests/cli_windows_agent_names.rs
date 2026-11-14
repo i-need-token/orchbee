@@ -152,35 +152,11 @@ fn invalid_names_and_conflicting_selectors_fail_before_runtime_creation() {
         vec!["agent", "read", "alpha", "--history"],
         vec!["agent", "get", "s1", "--name", "alpha"],
         vec!["agent", "wait", "--name", "Upper"],
-        vec![
-            "agent",
-            "explain",
-            "--name",
-            "alpha",
-            "--agent-session",
-            "s1",
-        ],
     ] {
         let output = fixture.run(&[arguments.as_slice(), &["--format", "json"]].concat());
         assert_eq!(output.status.code(), Some(2));
         assert!(!fixture.0.join("runtime").exists());
     }
-}
-
-fn explanation() -> serde_json::Value {
-    serde_json::json!({
-        "actionPath": "navigate-only",
-        "capabilityCeiling": ["questions", "activity"],
-        "contentAvailable": false,
-        "fidelity": "rich",
-        "freshness": "fresh",
-        "freshnessMeaning": "current-observation",
-        "generation": 3,
-        "sequence": 11,
-        "source": "native",
-        "status": {"kind": "needs-attention", "count": 1},
-        "statusBasis": "attention-request"
-    })
 }
 
 fn begin_get_projection(
@@ -195,69 +171,56 @@ fn begin_get_projection(
 }
 
 #[test]
-fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() {
+fn named_get_shares_one_admission_and_publishes_only_the_read_source() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
-    for verb in ["get", "explain"] {
-        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(&fixture, listener, move |mut stream| {
-            let projection = (verb == "get")
-                .then(|| begin_get_projection(&mut stream, 7, &[session_detail("sess-alpha")]));
-            let resolution = resolve_reply(
-                &mut stream,
-                json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
-            );
-            let mut outcome =
-                json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")});
-            if verb == "explain" {
-                outcome["explanation"] = explanation();
-            }
-            let read = read_reply(&mut stream, verb, outcome);
-            assert_ne!(resolution, read);
-            if verb == "get" {
-                metadata_peer::sample(&mut stream, "observed", "claude.exe");
-                read_reply(
-                    &mut stream,
-                    "get",
-                    json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
-                );
-                bound_snapshot_reply(&mut stream);
-                management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
-                projection.unwrap().confirm(&mut stream, true);
-            }
-            assert_closed(&mut stream);
-        });
-        let output = fixture.run(&["agent", verb, "alpha", "--format", "json"]);
-        join_peer(handler, &output);
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
+    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+    let handler = peer(&fixture, listener, move |mut stream| {
+        let projection = begin_get_projection(&mut stream, 7, &[session_detail("sess-alpha")]);
+        let resolution = resolve_reply(
+            &mut stream,
+            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
         );
-        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(
-            document["source"]["kind"],
-            if verb == "get" {
-                "agent-projection"
-            } else {
-                "agent-read"
-            }
+        let read = read_reply(
+            &mut stream,
+            "get",
+            json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
         );
-        let result = if verb == "get" {
-            &document["result"]["inspection"]
-        } else {
-            &document["result"]
-        };
-        assert_eq!(result["session"]["snapshot"]["sessionId"], "sess-alpha");
-        validate(
-            &document,
-            if verb == "get" {
-                include_str!("../src/cli/schemas/orchbee.agent.get.json")
-            } else {
-                include_str!("../src/cli/schemas/orchbee.agent.explain.json")
-            },
+        assert_ne!(resolution, read);
+        metadata_peer::sample(&mut stream, "observed", "claude.exe");
+        read_reply(
+            &mut stream,
+            "get",
+            json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
         );
-    }
+        bound_snapshot_reply(&mut stream);
+        management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
+        explain_reply(&mut stream);
+        projection.confirm(&mut stream, true);
+        assert_closed(&mut stream);
+    });
+    let output = fixture.run(&["agent", "get", "alpha", "--format", "json"]);
+    join_peer(handler, &output);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(document["source"]["kind"], "agent-projection");
+    assert_eq!(
+        document["result"]["inspection"]["session"]["snapshot"]["sessionId"],
+        "sess-alpha"
+    );
+    assert_eq!(
+        document["result"]["explanation"]["statusBasis"],
+        "attention-request"
+    );
+    assert!(document["result"]["detection"].is_null());
+    validate(
+        &document,
+        include_str!("../src/cli/schemas/orchbee.agent.get.json"),
+    );
 }
 
 #[test]
@@ -322,7 +285,7 @@ fn named_wait_resolves_once_and_keeps_polling_the_original_session() {
 fn unresolved_name_publishes_its_own_failure_without_get_or_wait_poll() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
-    for verb in ["get", "explain", "wait"] {
+    for verb in ["get", "wait"] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             if verb == "get" {
@@ -364,6 +327,7 @@ fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
         );
         bound_snapshot_reply(&mut stream);
         management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
+        explain_reply(&mut stream);
         projection.confirm(&mut stream, true);
         assert_closed(&mut stream);
     });
@@ -1015,6 +979,7 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
                 );
                 bound_snapshot_reply(&mut stream);
                 management_reply(&mut stream, 2, json!({"phase":"unmanaged"}));
+                explain_reply(&mut stream);
                 outer.unwrap().confirm(&mut stream, true);
             }
             assert_closed(&mut stream);

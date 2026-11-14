@@ -32,6 +32,8 @@ pub(super) fn run(
     locale: Locale,
 ) -> Output {
     let deadline = Instant::now() + Duration::from_secs(5);
+    // Only a machine document carries the Explain read's facts, so text skips the read.
+    let explain = format == OutputFormat::Json;
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
         Err(_) => {
@@ -68,6 +70,7 @@ pub(super) fn run(
                 session_id
             }
             orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
+                let detection = explain.then(|| binding.clone());
                 let (_, detail) = terminal::read(
                     &mut client,
                     &snapshot,
@@ -76,6 +79,21 @@ pub(super) fn run(
                     deadline,
                     &mut signals,
                 )?;
+                let explained = match detection {
+                    Some(binding) => {
+                        check(deadline, &mut signals)?;
+                        crate::cli::agent_projection::Explained::Terminal(Box::new(
+                            query::agent_explanation::terminal(
+                                &mut client,
+                                &snapshot,
+                                binding,
+                                deadline,
+                                signals.poll_fd(),
+                            )?,
+                        ))
+                    }
+                    None => crate::cli::agent_projection::Explained::None,
+                };
                 crate::cli::agent_projection::confirm(
                     &mut client,
                     &snapshot,
@@ -90,6 +108,7 @@ pub(super) fn run(
                         crate::cli::agent_projection::Inspection {
                             row: projected_row,
                             detail: Box::new(detail),
+                            explained,
                         },
                     )),
                 ));
@@ -131,6 +150,14 @@ pub(super) fn run(
                     .map(Box::new)
             })
             .transpose()?;
+        let explained = if explain {
+            check(deadline, &mut signals)?;
+            crate::cli::agent_projection::Explained::Session(Box::new(
+                query::agent_explanation::session(&mut client, &id, deadline, signals.poll_fd())?,
+            ))
+        } else {
+            crate::cli::agent_projection::Explained::None
+        };
         check(deadline, &mut signals)?;
         crate::cli::agent_projection::confirm(
             &mut client,
@@ -155,6 +182,7 @@ pub(super) fn run(
                             management,
                         },
                     ))),
+                    explained,
                 },
             )),
         ))

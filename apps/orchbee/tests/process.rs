@@ -248,7 +248,6 @@ fn help_flag_aliases_match_the_help_command_at_every_recognized_path() -> Result
         &["worktree", "list"],
         &["agent", "list"],
         &["agent", "get"],
-        &["agent", "explain"],
         &["server", "start"],
         &["api", "snapshot"],
         &["api", "schema"],

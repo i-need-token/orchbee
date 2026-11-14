@@ -110,23 +110,15 @@ pub(super) fn resolve_words(
                 options,
             ))
         }
-        ["agent", verb @ ("get" | "explain"), rest @ ..] => {
-            let context = UsageContext::Path(if *verb == "get" {
-                "agent get"
-            } else {
-                "agent explain"
-            });
+        ["agent", "get", rest @ ..] => {
+            let context = UsageContext::Path("agent get");
             check_scope(options, context, envelope)?;
             let target = agent_selector(rest, options, context, envelope)?;
             Ok(query(
-                if *verb == "get" {
-                    if let Some(client) = client_control::client_id(options, context, envelope)? {
-                        QueryCommand::AgentClientGet { target, client }
-                    } else {
-                        QueryCommand::AgentGet(target)
-                    }
+                if let Some(client) = client_control::client_id(options, context, envelope)? {
+                    QueryCommand::AgentClientGet { target, client }
                 } else {
-                    QueryCommand::AgentExplain(target)
+                    QueryCommand::AgentGet(target)
                 },
                 options,
             ))

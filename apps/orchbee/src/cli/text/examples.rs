@@ -41,7 +41,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::AgentStart => &["codex", "--split", "right"],
         CommandPath::AgentPrompt => &["review", "Review the current changes"],
         CommandPath::AgentSendKeys => &["review", "enter"],
-        CommandPath::AgentExplain => &["review"],
         CommandPath::AgentWait => &["review", "--until", "idle", "--timeout", "30000"],
         CommandPath::AgentResolve => &["--name", "review"],
         CommandPath::AgentRename => &["review", "reviewer"],

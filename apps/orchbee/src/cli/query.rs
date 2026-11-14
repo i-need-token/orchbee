@@ -30,7 +30,7 @@ pub(super) mod terminal_metadata;
 pub(in crate::cli) use agent_management::read_agent_management;
 mod agent_journal;
 pub(crate) use agent_journal::{AgentJournal, JournalError};
-mod agent_explanation;
+pub(in crate::cli) mod agent_explanation;
 mod agent_focus;
 mod agent_input_area;
 mod agent_names;
@@ -2455,108 +2455,83 @@ pub(in crate::cli) fn read_agent_list(
     read().map_err(|failure| failure.failure_schema(super::schema::AGENT_FAILURE_ID))
 }
 
-/// `agent get`: one OBAP get request, same admission/exchange discipline.
+/// `agent get`: admission, optional target resolution and the get read share one deadline. A
+/// machine document (`explain`) adds the Explain read of the same session on the same Client
+/// after the get read; a failed Explain read fails the command, with no partial document.
 pub(crate) fn agent_get(
     target: &crate::invocation::AgentTarget,
+    explain: bool,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
     super::execution::admit(super::execution::Capability::CanonicalAgentRead)
         .map_err(AgentQueryError::Admission)?;
-    agent_session_read(AgentReadOperation::Get, target)
-}
-
-/// `agent explain`: resolve once and read on the same admitted session.
-pub(crate) fn agent_explain(
-    target: &crate::invocation::AgentTarget,
-) -> Result<(serde_json::Value, Projection), AgentQueryError> {
-    if super::execution::admit(super::execution::Capability::AgentProjection).is_ok() {
-        agent_explanation::agent_explain(target)
-    } else {
-        super::execution::admit(super::execution::Capability::CanonicalAgentRead)
-            .map_err(AgentQueryError::Admission)?;
-        agent_session_read(AgentReadOperation::Explain, target)
-    }
-}
-
-/// Admission, optional target resolution and the read share one deadline.
-fn agent_session_read(
-    operation: AgentReadOperation,
-    target: &crate::invocation::AgentTarget,
-) -> Result<(serde_json::Value, Projection), AgentQueryError> {
     super::execution::admit_agent_target(target).map_err(AgentQueryError::Admission)?;
+    let operation = AgentReadOperation::Get;
     let mut resolved = None;
     let (request_id, attempt) = agent_armed_run(operation, |client, request_id, total, wake| {
         let session_id =
             agent_target::resolve_on_session(client, target, None, total, wake)?.session_id;
         resolved = Some(session_id.clone());
-        match operation {
-            AgentReadOperation::Get => Ok(AgentReadRequest::Get {
+        let explain = if explain {
+            Some((obap_request_id()?, session_id.clone()))
+        } else {
+            None
+        };
+        Ok(agent_explanation::GetRead {
+            get: AgentReadRequest::Get {
                 request_id,
                 session_id,
-            }),
-            AgentReadOperation::Explain => Ok(AgentReadRequest::Explain {
-                request_id,
-                session_id,
-            }),
-            _ => Err(Failure::new(FailureKind::InternalFailure)),
-        }
+            },
+            explain,
+        })
     })?;
-    let result = classify_attempt(attempt, operation)?;
+    let (result, explained) = classify_attempt(attempt, operation)?;
     let Some(session_id) = resolved.as_ref() else {
         return Err(AgentQueryError::Read(Failure::new(
             FailureKind::InternalFailure,
         )));
     };
     let source = super::results::agent_source(&request_id);
-    match (operation, result) {
-        (
-            AgentReadOperation::Get,
-            AgentReadResult::Get {
-                result: envelope, ..
-            },
-        ) => match envelope.outcome {
-            AgentGetOutcome::Found { ref session, .. }
-                if session.snapshot.session_id == *session_id =>
-            {
-                Ok((source, Projection::AgentGet(envelope.outcome)))
-            }
-            AgentGetOutcome::Found { .. } => {
-                Err(AgentQueryError::Read(agent_protocol_invalid(operation)))
-            }
-            AgentGetOutcome::Rejected { reason } => Err(AgentQueryError::Read(
+    // This query consumes the requested Agent read result; a different read family cannot answer it.
+    let AgentReadResult::Get {
+        result: envelope, ..
+    } = result
+    else {
+        return Err(AgentQueryError::Read(agent_protocol_invalid(operation)));
+    };
+    let outcome = match envelope.outcome {
+        AgentGetOutcome::Found { ref session, .. }
+            if session.snapshot.session_id == *session_id =>
+        {
+            envelope.outcome
+        }
+        AgentGetOutcome::Found { .. } => {
+            return Err(AgentQueryError::Read(agent_protocol_invalid(operation)));
+        }
+        AgentGetOutcome::Rejected { reason } => {
+            return Err(AgentQueryError::Read(
                 agent_session_rejection(operation, reason, session_id).source(source),
-            )),
-            AgentGetOutcome::Unavailable { .. } => Err(AgentQueryError::Read(
+            ));
+        }
+        AgentGetOutcome::Unavailable { .. } => {
+            return Err(AgentQueryError::Read(
                 Failure::new(FailureKind::ServiceUnavailable)
                     .details(agent_unavailable_details(operation))
                     .source(source),
-            )),
+            ));
+        }
+    };
+    let explanation = explained
+        .map(agent_explanation::session_answer)
+        .transpose()
+        .map_err(AgentQueryError::Read)?
+        .map(Box::new);
+    Ok((
+        source,
+        Projection::AgentGet {
+            outcome,
+            explanation,
         },
-        (
-            AgentReadOperation::Explain,
-            AgentReadResult::Explain {
-                result: envelope, ..
-            },
-        ) => match envelope.outcome {
-            AgentExplainOutcome::Found { ref session, .. }
-                if session.snapshot.session_id == *session_id =>
-            {
-                Ok((source, Projection::AgentExplain(envelope.outcome)))
-            }
-            AgentExplainOutcome::Found { .. } => {
-                Err(AgentQueryError::Read(agent_protocol_invalid(operation)))
-            }
-            AgentExplainOutcome::Rejected { reason } => Err(AgentQueryError::Read(
-                agent_session_rejection(operation, reason, session_id).source(source),
-            )),
-            AgentExplainOutcome::Unavailable { .. } => Err(AgentQueryError::Read(
-                Failure::new(FailureKind::ServiceUnavailable)
-                    .details(agent_unavailable_details(operation))
-                    .source(source),
-            )),
-        },
-        // This query consumes the requested Agent read result; a different read family cannot answer it.
-        _ => Err(AgentQueryError::Read(agent_protocol_invalid(operation))),
-    }
+    ))
 }
 
 /// The `get`/`explain` refusal mapping: `not-found` names the session, while

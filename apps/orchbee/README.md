@@ -107,16 +107,15 @@ Query families are `client`, `project`, `workspace`, `tab`, `panel`, `terminal`,
 or retains the strict `--directory <directory-id>` form; `launch-profile` offers `list`
 and `get <selector>` — a typed read of the running Session's launch profile catalog, resolved
 Server-side with no local pre-read; `agent` offers `list` with
-`--include-ended`/`--limit`/`--cursor` paging, `get <session-id>`, and `explain
-<session-id>` — a read-only typed view of the Server's canonical Agent sessions over OBAP,
+`--include-ended`/`--limit`/`--cursor` paging and `get <session-id>` — a read-only typed view of the Server's canonical Agent sessions over OBAP,
 never inferred from terminal contents — `wait <session-id> [--until <condition>]...
 [--timeout <ms>]`, a held Client Connection waiting for status or freshness; Windows follows
 retained changes and defaults to no total timeout, with every read still bounded).
-Windows `agent explain` also resolves names and Panels to exact physical terminal bindings.
-Canonical sessions retain `orchbee.agent.explain` v1; physical terminals use v2 with the effective
-report view and a separate fresh screen-rule evaluation. The result includes manifest source/version,
-the first highest-priority winner, every rule match and bounded region evidence. One admission and five-second
-CLI budget cover resolution/read; Server queue/read work has a four-second budget. Binding or report
+`agent get --format json` also says how the status was derived: `result.explanation` carries a
+canonical session's status basis, freshness meaning and capability ceiling, and `result.detection`
+carries a physical terminal Agent's fresh screen-rule evaluation — manifest source/version, the first
+highest-priority winner, every rule match and bounded region evidence. The Explain read follows the
+get read on the same admission and five-second CLI budget; text output skips it. Binding or report
 context changes refuse without retry. No input, controller acquisition or focus action is performed.
 Windows startup selects local overrides, eligible cached remote rules, then bundled rules; cached remote rules take part only while `ORCHBEE_AGENT_DETECTION_CATALOG_URL` names a valid catalog, and Orchbee ships no default catalog. Physical diagnostics include actual path, cached version, shadowing and typed warnings. Windows `server agent-manifests`, `server reload-agent-manifests` expose the installed snapshot and live reload; `operation status <id>` reads a retained reload receipt. Explicit `server update-agent-manifests` downloads and activates validated cached rules, with separate per-provider cache and activation receipts. With a catalog, managed release Sessions check automatically at startup and every thirty minutes; without one, no check runs and Update is unavailable; debug/test and standalone execution do not schedule checks. See the [screen model](../orchbee-server/docs/agent-screen-model.md).
 

@@ -171,10 +171,6 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::AgentSendKeys) => {
                 ("Send key presses to an Agent.", "向智能体发送按键。")
             }
-            HelpTopic::Command(CommandPath::AgentExplain) => (
-                "Explain how an Agent was identified.",
-                "说明智能体的识别依据。",
-            ),
             HelpTopic::Command(CommandPath::AgentWait) => (
                 "Wait for an Agent to match a condition.",
                 "等待智能体满足指定条件。",

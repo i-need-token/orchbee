@@ -6,12 +6,9 @@
 use crate::cli_text::{CliLabels, CliText};
 use crate::terminal_title::{display_name, program_name};
 use serde_json::Value;
-mod agent_screen;
 
 use orchbee_agent_observation_protocol::AgentListOutcome;
-use orchbee_agent_observation_protocol::{
-    AgentExplainOutcome, AgentGetOutcome, AgentSessionDetail, AgentSessionExplanation,
-};
+use orchbee_agent_observation_protocol::{AgentGetOutcome, AgentSessionDetail};
 use orchbee_workbench_protocol::{LaunchProfileEntry, WorktreeEntry, WorktreeEntryText};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -676,7 +673,7 @@ pub(crate) fn render(
         Projection::UnifiedAgentList(doc) | Projection::UnifiedAgentInspection(doc) => {
             doc.render(out, command, locale)
         }
-        Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
+        Projection::AgentGet { outcome, .. } => agent_get(out, outcome, text, locale),
         Projection::AgentTerminalInspection {
             terminal,
             semantic,
@@ -729,10 +726,6 @@ pub(crate) fn render(
                     panel_process(out, processes, None, locale)
                 }
             }
-        }
-        Projection::AgentExplain(outcome) => agent_explain(out, outcome, text, locale),
-        Projection::AgentTerminalExplanation(terminal) => {
-            agent_screen::render(out, terminal, locale)
         }
         Projection::AgentWait(doc) => agent_wait(out, doc, locale),
         Projection::AgentTerminalWait(doc) => out.push(
@@ -876,92 +869,6 @@ fn agent_session_fields(
             pending.join(", ")
         },
     )
-}
-
-/// `agent explain`: the derived view — canonical status basis, freshness
-/// meaning, capability ceiling, observation source and fidelity, and the
-/// navigate-only action boundary.
-fn agent_explain(
-    out: &mut Bounded,
-    outcome: &AgentExplainOutcome,
-    text: &CliLabels,
-    locale: Locale,
-) -> Result<(), TooLarge> {
-    let AgentExplainOutcome::Found {
-        session,
-        explanation,
-        ..
-    } = outcome
-    else {
-        unreachable!("agent explain projection holds only the found outcome")
-    };
-    agent_explanation_fields(out, session, explanation, text, locale)
-}
-
-fn agent_explanation_fields(
-    out: &mut Bounded,
-    session: &AgentSessionDetail,
-    explanation: &AgentSessionExplanation,
-    text: &CliLabels,
-    locale: Locale,
-) -> Result<(), TooLarge> {
-    field(
-        out,
-        text.agent_session,
-        session.snapshot.session_id.as_str(),
-    )?;
-    field(
-        out,
-        text.agent_status,
-        &CliText::new(locale).cli_agent_status(&explanation.status),
-    )?;
-    field(
-        out,
-        text.agent_status_basis,
-        CliText::new(locale).cli_agent_status_basis(explanation.status_basis),
-    )?;
-    field(
-        out,
-        text.agent_freshness_meaning,
-        CliText::new(locale).cli_agent_freshness_meaning(explanation.freshness_meaning),
-    )?;
-    field(
-        out,
-        text.agent_freshness,
-        CliText::new(locale).cli_agent_freshness(explanation.freshness),
-    )?;
-    out.write(format_args!(
-        "{:<14}{} {} · {} {}\n",
-        text.agent_observation,
-        text.agent_generation,
-        explanation.generation.value(),
-        text.agent_sequence,
-        explanation.sequence.value(),
-    ))?;
-    if explanation.capability_ceiling.is_empty() {
-        field(out, text.agent_capability_ceiling, text.agent_none)?;
-    } else {
-        out.write(format_args!("{:<14}", text.agent_capability_ceiling))?;
-        for (index, capability) in explanation.capability_ceiling.iter().enumerate() {
-            if index > 0 {
-                out.push(", ")?;
-            }
-            out.push(CliText::new(locale).cli_agent_capability(*capability))?;
-        }
-        out.push("\n")?;
-    }
-    field(
-        out,
-        text.agent_source,
-        CliText::new(locale).cli_agent_source(explanation.source),
-    )?;
-    field(
-        out,
-        text.agent_fidelity,
-        CliText::new(locale).cli_agent_fidelity(explanation.fidelity),
-    )?;
-    out.write(format_args!("{:<14}", text.agent_navigate_only))?;
-    out.push(CliText::new(locale).cli_agent_navigate_only_facts())
 }
 
 fn status_field(

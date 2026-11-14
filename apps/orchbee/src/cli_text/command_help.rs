@@ -281,8 +281,6 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::AgentFocus) => super::client_control::HELP_AGENT_FOCUS_ZH,
             (Locale::EnUs, CommandPath::AgentGet) => super::agent::HELP_AGENT_GET_EN,
             (Locale::ZhCn, CommandPath::AgentGet) => super::agent::HELP_AGENT_GET_ZH,
-            (Locale::EnUs, CommandPath::AgentExplain) => super::agent::HELP_AGENT_EXPLAIN_EN,
-            (Locale::ZhCn, CommandPath::AgentExplain) => super::agent::HELP_AGENT_EXPLAIN_ZH,
             (Locale::EnUs, CommandPath::AgentResolve) => crate::cli_text::HelpDetails::new(
                 "orchbee agent resolve <target> [--format text|json]\n       orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>",
                 "Resolve an exact Session ID first, then a runtime name, then a Panel ID.\nA Panel selects its primary terminal and requires one live Agent. Use --name to select an alias that collides with an ID.",

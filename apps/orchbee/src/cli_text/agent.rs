@@ -18,13 +18,13 @@ pub(super) const HELP_AGENT_LIST_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_AGENT_GET_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent get (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--client <id>] [--format text|json]",
-        "Show one Agent session. Windows resolves canonical and physical terminal\nAgents through the same projection as agent list. Windows JSON uses\norchbee.agent.get v1: 'agent' carries provider, semantic status, source,\nplacement and cwd; 'inspection' carries facet-specific detail. '--client' adds\nClient observations without replacing semantic status. Other supported platforms use the same envelope, retaining canonical\ninspection and marking the unified facet unsupported.\n\nWindows targets accept the shared Agent selectors: '@agent:<kind>' selects a\nunique provider, and '@agent:<n>' selects the one-based complete-list ordinal\n(not a page-relative number). Bare names preserve Server alias precedence,\nthen fall back to provider matching. Get, read, prompt, send-keys, wait and\nfocus use this resolver; ambiguous matches are rejected.",
+        "Show one Agent session. Windows resolves canonical and physical terminal\nAgents through the same projection as agent list. Windows JSON uses\norchbee.agent.get v1: 'agent' carries provider, semantic status, source,\nplacement and cwd; 'inspection' carries facet-specific detail; 'explanation'\n(a canonical session's status basis, freshness meaning and capability ceiling)\nor 'detection' (a terminal Agent's rule evaluation) says how the status was\nderived, and the other is null. '--client' adds\nClient observations without replacing semantic status. Other supported platforms use the same envelope, retaining canonical\ninspection and marking the unified facet unsupported.\n\nWindows targets accept the shared Agent selectors: '@agent:<kind>' selects a\nunique provider, and '@agent:<n>' selects the one-based complete-list ordinal\n(not a page-relative number). Bare names preserve Server alias precedence,\nthen fall back to provider matching. Get, read, prompt, send-keys, wait and\nfocus use this resolver; ambiguous matches are rejected.",
     );
 
 pub(super) const HELP_AGENT_GET_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent get (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--client <id>] [--format text|json]",
-        "显示一个智能体会话。Windows 会通过与 agent list 相同的投影解析规范会话和物理终端智能体。Windows JSON 使用 orchbee.agent.get v1：'agent' 携带提供方、语义状态、来源、位置和 cwd；'inspection' 携带分面详情。'--client' 添加客户端观察，不替换语义状态。其他支持的平台使用相同封套，保留规范 inspection，并将统一分面标为 unsupported。\n\nWindows 目标使用共享智能体 selector：'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；有歧义时拒绝。",
+        "显示一个智能体会话。Windows 会通过与 agent list 相同的投影解析规范会话和物理终端智能体。Windows JSON 使用 orchbee.agent.get v1：'agent' 携带提供方、语义状态、来源、位置和 cwd；'inspection' 携带分面详情；'explanation'（规范会话的状态依据、新鲜度含义和能力上限）或 'detection'（终端智能体的规则评估）说明状态如何得出，另一项为 null。'--client' 添加客户端观察，不替换语义状态。其他支持的平台使用相同封套，保留规范 inspection，并将统一分面标为 unsupported。\n\nWindows 目标使用共享智能体 selector：'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；有歧义时拒绝。",
     );
 
 pub(super) const HELP_AGENT_PROMPT_WINDOWS_EN: crate::cli_text::HelpDetails =
@@ -49,18 +49,6 @@ pub(super) const HELP_AGENT_SEND_KEYS_WINDOWS_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent send-keys (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) <key>... [--format text|json]",
         "向一个存活智能体终端发送 1..64 个语义按键或组合（enter、ctrl+c、alt+left、ctrl+shift+a）。Windows 可用 '@agent:<kind>' 选择唯一提供方，或用 '@agent:<n>' 选择完整智能体列表中的一基序号（不是当前页序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器。\n使用 orchbee.terminal.send 回执。不重放不确定输入。",
-    );
-
-pub(super) const HELP_AGENT_EXPLAIN_EN: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee agent explain (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--format text|json]",
-        "Explain a canonical Agent session or a Windows physical terminal.\nPhysical targets return effective state and a fresh rule evaluation: manifest\nsource/version, winner, all rule matches and bounded region evidence. Live full\nlifecycle authority explicitly skips the screen read. No input or focus change.\nCanonical sessions retain their derived view: the canonical status basis,\nfreshness meaning, capability ceiling, observation source and fidelity,\nand the navigate-only action boundary. '--format json' emits the\norchbee.agent.explain version-1 envelope with canonical or physical subject evidence.\nTarget: one positional Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:0x<hex>>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.",
-    );
-
-pub(super) const HELP_AGENT_EXPLAIN_ZH: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee agent explain (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--format text|json]",
-        "解释规范智能体会话或 Windows 物理终端。物理目标返回当前有效状态及一次新鲜规则评估：清单来源/版本、胜出规则、每条规则的匹配与有界区域证据。不发送输入或改变焦点。规范会话保留推导视图：规范状态依据、新鲜度含义、能力上限、观察来源与保真度，以及仅限导航的操作边界。'--format json' 输出\norchbee.agent.explain 版本 1 封套，包含规范或物理目标证据。目标：一个位置参数会话 ID/名称/面板 ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:0x<hex>>。会话 ID、名称优先于面板。\nPanel 选择主终端，多智能体匹配时拒绝；等待固定到首次解析的会话。",
     );
 
 pub(super) const HELP_AGENT_WAIT_EN: crate::cli_text::HelpDetails =
@@ -375,21 +363,6 @@ impl super::CliText {
         }
     }
 
-    pub(crate) const fn cli_agent_freshness(
-        self,
-        freshness: orchbee_agent_observation_protocol::AgentObservationFreshness,
-    ) -> &'static str {
-        use orchbee_agent_observation_protocol::AgentObservationFreshness;
-        match (self.locale, freshness) {
-            (Locale::EnUs, AgentObservationFreshness::Fresh) => "fresh",
-            (Locale::EnUs, AgentObservationFreshness::Stale) => "stale",
-            (Locale::EnUs, AgentObservationFreshness::Disconnected) => "disconnected",
-            (Locale::ZhCn, AgentObservationFreshness::Fresh) => "新鲜",
-            (Locale::ZhCn, AgentObservationFreshness::Stale) => "过期",
-            (Locale::ZhCn, AgentObservationFreshness::Disconnected) => "已断开",
-        }
-    }
-
     pub(crate) const fn cli_agent_lifecycle(
         self,
         lifecycle: orchbee_agent_observation_protocol::AgentLifecycle,
@@ -400,31 +373,6 @@ impl super::CliText {
             (Locale::EnUs, AgentLifecycle::Ended) => "ended",
             (Locale::ZhCn, AgentLifecycle::Live) => "存活",
             (Locale::ZhCn, AgentLifecycle::Ended) => "已结束",
-        }
-    }
-
-    pub(crate) const fn cli_agent_capability(
-        self,
-        capability: orchbee_agent_observation_protocol::AgentCapability,
-    ) -> &'static str {
-        use orchbee_agent_observation_protocol::AgentCapability;
-        match (self.locale, capability) {
-            (Locale::EnUs, AgentCapability::SessionLifecycle) => "sessionLifecycle",
-            (Locale::EnUs, AgentCapability::TurnLifecycle) => "turnLifecycle",
-            (Locale::EnUs, AgentCapability::Questions) => "questions",
-            (Locale::EnUs, AgentCapability::Approvals) => "approvals",
-            (Locale::EnUs, AgentCapability::Authentication) => "authentication",
-            (Locale::EnUs, AgentCapability::Activity) => "activity",
-            (Locale::EnUs, AgentCapability::Subagents) => "subagents",
-            (Locale::EnUs, AgentCapability::Progress) => "progress",
-            (Locale::ZhCn, AgentCapability::SessionLifecycle) => "会话生命周期",
-            (Locale::ZhCn, AgentCapability::TurnLifecycle) => "轮次生命周期",
-            (Locale::ZhCn, AgentCapability::Questions) => "提问",
-            (Locale::ZhCn, AgentCapability::Approvals) => "审批",
-            (Locale::ZhCn, AgentCapability::Authentication) => "认证",
-            (Locale::ZhCn, AgentCapability::Activity) => "活动",
-            (Locale::ZhCn, AgentCapability::Subagents) => "子代理",
-            (Locale::ZhCn, AgentCapability::Progress) => "进度",
         }
     }
 
@@ -459,103 +407,6 @@ impl super::CliText {
             (Locale::ZhCn, AgentTurnOutcomeKind::Failed) => "失败",
             (Locale::ZhCn, AgentTurnOutcomeKind::Canceled) => "已取消",
             (Locale::ZhCn, AgentTurnOutcomeKind::Interrupted) => "已中断",
-        }
-    }
-
-    pub(crate) const fn cli_agent_source(
-        self,
-        source: orchbee_agent_observation_protocol::AgentObservationSource,
-    ) -> &'static str {
-        use orchbee_agent_observation_protocol::AgentObservationSource;
-        match (self.locale, source) {
-            (Locale::EnUs, AgentObservationSource::Native) => "native",
-            (Locale::EnUs, AgentObservationSource::Hook) => "hook",
-            (Locale::EnUs, AgentObservationSource::Terminal) => "terminal",
-            (Locale::EnUs, AgentObservationSource::Heuristic) => "heuristic",
-            (Locale::ZhCn, AgentObservationSource::Native) => "原生",
-            (Locale::ZhCn, AgentObservationSource::Hook) => "钩子",
-            (Locale::ZhCn, AgentObservationSource::Terminal) => "终端",
-            (Locale::ZhCn, AgentObservationSource::Heuristic) => "启发式",
-        }
-    }
-
-    pub(crate) const fn cli_agent_fidelity(
-        self,
-        fidelity: orchbee_agent_observation_protocol::AgentObservationFidelity,
-    ) -> &'static str {
-        use orchbee_agent_observation_protocol::AgentObservationFidelity;
-        match (self.locale, fidelity) {
-            (Locale::EnUs, AgentObservationFidelity::Rich) => "rich",
-            (Locale::EnUs, AgentObservationFidelity::Basic) => "basic",
-            (Locale::EnUs, AgentObservationFidelity::Heuristic) => "heuristic",
-            (Locale::ZhCn, AgentObservationFidelity::Rich) => "丰富",
-            (Locale::ZhCn, AgentObservationFidelity::Basic) => "基础",
-            (Locale::ZhCn, AgentObservationFidelity::Heuristic) => "启发式",
-        }
-    }
-
-    pub(crate) const fn cli_agent_status_basis(
-        self,
-        basis: orchbee_agent_observation_protocol::AgentStatusBasis,
-    ) -> &'static str {
-        use orchbee_agent_observation_protocol::AgentStatusBasis;
-        match (self.locale, basis) {
-            (Locale::EnUs, AgentStatusBasis::AttentionRequest) => "attention-request",
-            (Locale::EnUs, AgentStatusBasis::TurnOutcome) => "turn-outcome",
-            (Locale::EnUs, AgentStatusBasis::ActiveTurn) => "active-turn",
-            (Locale::EnUs, AgentStatusBasis::AffirmativeIdle) => "affirmative-idle",
-            (Locale::EnUs, AgentStatusBasis::SessionEnded) => "session-ended",
-            (Locale::EnUs, AgentStatusBasis::LimitedActivityHint) => "limited-activity-hint",
-            (Locale::EnUs, AgentStatusBasis::UnobservedTurnState) => "unobserved-turn-state",
-            (Locale::ZhCn, AgentStatusBasis::AttentionRequest) => "注意请求",
-            (Locale::ZhCn, AgentStatusBasis::TurnOutcome) => "轮次结果",
-            (Locale::ZhCn, AgentStatusBasis::ActiveTurn) => "活跃轮次",
-            (Locale::ZhCn, AgentStatusBasis::AffirmativeIdle) => "确认空闲",
-            (Locale::ZhCn, AgentStatusBasis::SessionEnded) => "会话已结束",
-            (Locale::ZhCn, AgentStatusBasis::LimitedActivityHint) => "有限活动提示",
-            (Locale::ZhCn, AgentStatusBasis::UnobservedTurnState) => "未观察轮次状态",
-        }
-    }
-
-    pub(crate) const fn cli_agent_freshness_meaning(
-        self,
-        meaning: orchbee_agent_observation_protocol::AgentFreshnessMeaning,
-    ) -> &'static str {
-        use orchbee_agent_observation_protocol::AgentFreshnessMeaning;
-        match (self.locale, meaning) {
-            (Locale::EnUs, AgentFreshnessMeaning::CurrentObservation) => "current-observation",
-            (Locale::EnUs, AgentFreshnessMeaning::LastObservationMayBeOutdated) => {
-                "last-observation-may-be-outdated"
-            }
-            (Locale::EnUs, AgentFreshnessMeaning::NoTrustedCurrentRoute) => {
-                "no-trusted-current-route"
-            }
-            (Locale::ZhCn, AgentFreshnessMeaning::CurrentObservation) => "当前观察",
-            (Locale::ZhCn, AgentFreshnessMeaning::LastObservationMayBeOutdated) => {
-                "上次观察可能已过期"
-            }
-            (Locale::ZhCn, AgentFreshnessMeaning::NoTrustedCurrentRoute) => "无可信当前路由",
-        }
-    }
-
-    /// The localized boolean words used by navigable flags.
-    pub(crate) const fn cli_agent_bool(self, value: bool) -> &'static str {
-        match (self.locale, value) {
-            (Locale::EnUs, true) => "yes",
-            (Locale::EnUs, false) => "no",
-            (Locale::ZhCn, true) => "是",
-            (Locale::ZhCn, false) => "否",
-        }
-    }
-
-    /// The navigate-only facts line on `agent explain`: every v1 action is a
-    /// navigation and provider content is never carried by the read.
-    pub(crate) const fn cli_agent_navigate_only_facts(self) -> &'static str {
-        match self.locale {
-            Locale::EnUs => {
-                "actions are navigate-only; provider content is not available through agent reads\n"
-            }
-            Locale::ZhCn => "操作仅限导航；智能体读取不提供提供方内容\n",
         }
     }
 

@@ -384,7 +384,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -400,7 +399,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -416,7 +414,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -432,7 +429,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -448,7 +444,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -464,7 +459,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -480,7 +474,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -496,7 +489,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -512,7 +504,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -528,7 +519,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -544,7 +534,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -560,7 +549,6 @@ const CONFLICTS: &[Conflict] = &[
     Conflict {
         commands: &[
             CommandPath::AgentAttach,
-            CommandPath::AgentExplain,
             CommandPath::AgentFocus,
             CommandPath::AgentGet,
             CommandPath::AgentPrompt,
@@ -903,7 +891,6 @@ const OPERANDS: &[OperandRule] = &[
             CommandPath::AgentFocus,
             CommandPath::AgentRead,
             CommandPath::AgentPrompt,
-            CommandPath::AgentExplain,
             CommandPath::AgentWait,
             CommandPath::AgentResolve,
         ],

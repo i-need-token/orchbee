@@ -125,7 +125,7 @@ evidence, both surrounding process samples must select the same Agent, custom re
 keeps its precedence, and process exit keeps its own. The record is unauthenticated: any program
 writing to the terminal after the Agent started, including a tool the Agent runs in the same
 console, can change it. It only changes the Panel state, never identity, provider or authority.
-Physical `agent explain` evaluates screen rules only; when its state differs from the reported
+The physical Explain read behind `agent get --format json` evaluates screen rules only; when its state differs from the reported
 state and no custom report source is present, a program status record decided.
 
 ## Deterministic decisions
@@ -221,7 +221,7 @@ historical physical v2/v3 schemas remain closed; current physical explanations u
 workflow includes current-manifest queries, retained bounded reload and stabilization reset, but still requires an
 owned real updater with atomic cache commits, truthful origin/status and cancellation/cleanup.
 
-Physical `agent explain` is a read, owned by the same detector and temporary-viewer lifecycle.
+The physical Explain read, which fills `agent get --format json` `detection`, is owned by the same detector and temporary-viewer lifecycle.
 An exact binding and current Workbench/report context are prepared under the Worker/Session fences.
 The effective known provider, or the detected provider behind a custom label,
 selects the rules. A fresh frame/row/OSC capture is bracketed by stable complete process samples;
@@ -282,7 +282,7 @@ launch, such as `PI_PROGRAM_STATUS=0` to run pi without OSC 7501 reports. It dri
 through `orchbee terminal send` and records the Panel's reported state and detection screen for each
 step: launch (idle, or blocked by a trust or login prompt), one turn (working, then idle or done),
 and for opencode a question (blocked, then idle or done after Escape), and exit (no reported Agent).
-Beside each reported state it samples the state physical `agent explain` derives from screen rules
+Beside each reported state it samples the state the physical Explain read derives from screen rules
 alone, and names the input that decided the step: `report:<source>` for a custom report,
 `program-status` when the reported and screen-rule states over the step differ, and `agree` when
 they match and either could have decided. A turn sends one trivial model request through the Agent's
