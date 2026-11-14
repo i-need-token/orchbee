@@ -41,12 +41,10 @@ impl Locale {
     /// The primary of a removal decision; a retained failure first offers its resume step.
     pub(crate) fn worktree_remove_submit(self, stage: WorktreeStage) -> &'static str {
         match (self, stage) {
-            (Self::EnUs, WorktreeStage::Remove) => "Remove",
-            (Self::ZhCn, WorktreeStage::Remove) => "移除",
+            (Self::EnUs, WorktreeStage::Remove | WorktreeStage::ResumeRemove) => "Remove",
+            (Self::ZhCn, WorktreeStage::Remove | WorktreeStage::ResumeRemove) => "移除",
             (Self::EnUs, WorktreeStage::AbandonRemove) => "Stop Tracking",
             (Self::ZhCn, WorktreeStage::AbandonRemove) => "停止跟踪",
-            (Self::EnUs, WorktreeStage::ResumeRemove) => "Resume Removal",
-            (Self::ZhCn, WorktreeStage::ResumeRemove) => "恢复移除",
             (Self::EnUs, _) => "Remove Worktree…",
             (Self::ZhCn, _) => "移除工作树…",
         }
