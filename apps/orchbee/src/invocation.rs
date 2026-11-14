@@ -111,15 +111,14 @@ use option_scope::{
 };
 use scan::{format_envelope, scan};
 use send_input::{parse_send_key, send_input};
-use server_stop::{confirm_option_required, stop_command, stop_id};
+use server_stop::{confirm_option_required, stop_command};
 use std::path::PathBuf;
 pub(crate) use target_syntax::label_requires_id;
 use target_syntax::{ZERO_IDENTITY, target, valid_typed_id};
 use wait_options::{close_wait, wait_matcher_option, wait_timeout_option};
 use workbench_options::{
-    close_generation_option, close_request_option, directory_option, geometry_option, label_option,
+    close_generation_option, directory_option, geometry_option, label_option,
     manifest_operation_id, panel_direction, panel_move_destination, path_option, tab_move_command,
-    workspace_id_option,
 };
 pub(crate) use worktree::WorktreeCommand;
 pub(crate) use worktree::WorktreeQueryCommand;
@@ -131,7 +130,7 @@ use orchbee_workbench_protocol::{
     LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchClientId,
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
     WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabInsertIndex,
-    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry, WorkbenchWorkspaceId,
+    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 
 /// Launch/version result consumed by `presentation::present`.
@@ -349,12 +348,6 @@ pub(crate) enum QueryCommand {
         worktrees: bool,
     },
     WorkspaceGet(Target),
-    /// `workspace close-status --project <id> --workspace <id>`: the
-    /// retained Workspace Close record read from stable IDs — it stays
-    /// answerable after the Workspace leaves the active projection.
-    WorkspaceCloseStatus {
-        workspace: WorkbenchWorkspaceId,
-    },
     TabList {
         workspace: Option<Target>,
     },
@@ -533,15 +526,6 @@ pub(crate) enum MutationCommand {
     WorkspaceClose {
         target: Target,
         wait: CloseWait,
-    },
-    /// `workspace close-resume --project <id> --workspace <id> --request
-    /// <close-id> --generation <n> --confirm`: one fresh attempt window for
-    /// a resumable retained Workspace Close, fenced by the explicit
-    /// attempt-generation the caller last observed.
-    WorkspaceCloseResume {
-        workspace: WorkbenchWorkspaceId,
-        request: WorkbenchRequestId,
-        generation: WorkbenchTabCloseAttemptGeneration,
     },
     TabCreate {
         automatic_label: bool,
@@ -1166,11 +1150,7 @@ struct Options {
     profile: Option<String>,
     provider: Option<String>,
     adapter_source: Option<String>,
-    /// `workspace close-resume --request <id>`: the close operation's own
-    /// request ID — the operation identity, never the resume's new
-    /// request identity.
-    request: Option<String>,
-    /// `workspace close-resume --generation <n>`: the explicit attempt
+    /// `<family> resume --generation <n>`: the explicit attempt
     /// fence; a stale value is a settled `stale` answer, never an effect.
     generation: Option<String>,
 }

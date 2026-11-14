@@ -241,9 +241,8 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
 
 use orchbee_workbench_protocol::{
     LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchDirectoryId,
-    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchRequestId,
-    WorkbenchTabCloseAttemptGeneration, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
-    WorkbenchWorkspaceId,
+    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
+    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 
 use super::PanelRelocationDestination;
@@ -706,11 +705,8 @@ fn session_stop_requires_confirmation_and_preserves_explicit_recovery_identity()
         })
     ));
     assert!(matches!(
-        parse(&["server", "stop-status", id]),
-        Ok(Request::ServerStop {
-            command: ServerStopCommand::Status { .. },
-            ..
-        })
+        parse(&["server", "status", id]),
+        Ok(Request::ServerOperationStatus { .. })
     ));
     for args in [
         vec!["server", "stop"],
@@ -732,10 +728,10 @@ fn session_stop_requires_confirmation_and_preserves_explicit_recovery_identity()
         vec!["server", "stop", "--confirm", "--timeout=0"],
         vec!["server", "stop", "--confirm", "--timeout=3600001"],
         vec!["server", "stop", "--confirm", "--detach", "--detach"],
-        vec!["server", "stop-status", id, "--confirm"],
-        vec!["server", "stop-status", id, "--retry"],
-        vec!["server", "stop-status", "short"],
-        vec!["server", "stop-status"],
+        vec!["server", "status", id, "--confirm"],
+        vec!["server", "status", id, "--retry"],
+        vec!["server", "status", "short"],
+        vec!["server", "status"],
         vec!["server", "start", "--detach"],
         vec!["server", "diagnose", "--request-id", id],
         vec!["--retry", "status"],
@@ -6015,148 +6011,9 @@ fn workspace_close_parses_targets_and_requires_confirm() {
     );
 }
 
-/// `workspace close-status` parses only strict stable IDs — the retained
-/// record outlives the Workspace's active-projection membership, so labels
-/// and selectors never reach the wire.
-#[test]
-fn workspace_close_status_requires_strict_stable_ids() {
-    for (words, format) in [
-        (
-            vec!["workspace", "close-status", "--workspace", ID2],
-            OutputFormat::Text,
-        ),
-        (
-            vec![
-                "workspace",
-                "close-status",
-                "--workspace",
-                ID2,
-                "--format=json",
-            ],
-            OutputFormat::Json,
-        ),
-    ] {
-        assert_eq!(
-            parse(&words),
-            Ok(query(
-                QueryCommand::WorkspaceCloseStatus {
-                    workspace: WorkbenchWorkspaceId::parse(ID2).unwrap(),
-                },
-                format
-            ))
-        );
-    }
-    for value in [ZERO, "label", "@workspace:0xab", ""] {
-        let failure = parse(&["workspace", "close-status", "--workspace", value]).unwrap_err();
-        assert_eq!(
-            failure.usage,
-            Some(UsageReason::InvalidValue {
-                context: UsageContext::Path("workspace close-status"),
-                option: "--workspace",
-                value: value.into(),
-                expected: ExpectedValue::WorkspaceId,
-            })
-        );
-    }
-    for words in [
-        vec!["workspace", "close-status"],
-        vec![
-            "workspace",
-            "close-status",
-            "--workspace",
-            ID2,
-            "--project",
-            ID,
-        ],
-        vec!["workspace", "close-status", "--workspace", ID2, "--confirm"],
-        vec!["workspace", "close-status", "extra"],
-    ] {
-        assert!(parse(&words).is_err(), "{words:?}");
-    }
-}
-
-#[test]
-fn workspace_close_resume_parses_strict_selectors_and_fences() {
-    for generation in ["1", "7", "18446744073709551615"] {
-        assert_eq!(
-            parse(&[
-                "workspace",
-                "close-resume",
-                "--workspace",
-                ID2,
-                "--request",
-                ID,
-                "--generation",
-                generation,
-                "--confirm"
-            ]),
-            Ok(mutation(
-                MutationCommand::WorkspaceCloseResume {
-                    workspace: WorkbenchWorkspaceId::parse(ID2).unwrap(),
-                    request: WorkbenchRequestId::parse(ID).unwrap(),
-                    generation: WorkbenchTabCloseAttemptGeneration::parse(generation).unwrap(),
-                },
-                OutputFormat::Text
-            ))
-        );
-    }
-    let valid = [
-        "workspace",
-        "close-resume",
-        "--workspace",
-        ID2,
-        "--request",
-        ID,
-        "--generation",
-        "1",
-        "--confirm",
-    ];
-    for index in [2, 4, 6, 8] {
-        let mut words = valid.to_vec();
-        words.drain(index..if index == 8 { 9 } else { index + 2 });
-        assert!(parse(&words).is_err(), "{words:?}");
-    }
-    for value in ["0", "abc", "-1", "1.5", ""] {
-        let mut words = valid;
-        words[7] = value;
-        assert_eq!(
-            parse(&words).unwrap_err().usage,
-            Some(UsageReason::InvalidValue {
-                context: UsageContext::Path("workspace close-resume"),
-                option: "--generation",
-                value: value.into(),
-                expected: ExpectedValue::CloseGeneration,
-            })
-        );
-    }
-    for (index, option, expected) in [
-        (3, "--workspace", ExpectedValue::WorkspaceId),
-        (5, "--request", ExpectedValue::CloseRequestId),
-    ] {
-        let mut words = valid;
-        words[index] = "label";
-        assert_eq!(
-            parse(&words).unwrap_err().usage,
-            Some(UsageReason::InvalidValue {
-                context: UsageContext::Path("workspace close-resume"),
-                option,
-                value: "label".into(),
-                expected,
-            })
-        );
-    }
-    let mut words = valid.to_vec();
-    words.extend(["--project", ID]);
-    assert!(parse(&words).is_err());
-}
-
 #[test]
 fn workspace_close_help_paths_resolve() {
-    for (verb, command) in [
-        ("close", CommandPath::WorkspaceClose),
-        ("close-status", CommandPath::WorkspaceCloseStatus),
-        ("close-resume", CommandPath::WorkspaceCloseResume),
-    ] {
+    for (verb, command) in [("close", CommandPath::WorkspaceClose)] {
         assert_eq!(
             parse(&["workspace", verb, "--help"]),
             Ok(Request::Help(HelpTopic::Command(command))),
@@ -7516,16 +7373,9 @@ fn manifest_commands_accept_only_their_owned_options() {
         ])
         .is_ok()
     );
-    assert!(
-        parse(&[
-            "server",
-            "agent-manifests-status",
-            "11111111111111111111111111111111"
-        ])
-        .is_ok()
-    );
+    assert!(parse(&["server", "status", "11111111111111111111111111111111"]).is_ok());
     for args in [
-        vec!["server", "agent-manifests-status"],
+        vec!["server", "status"],
         vec!["server", "reload-agent-manifests", "--request-id", "bad"],
         vec![
             "server",

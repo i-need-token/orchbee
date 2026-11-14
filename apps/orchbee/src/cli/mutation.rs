@@ -23,20 +23,12 @@ pub(super) struct Receipt {
     session_id: String,
     request_id: String,
     base_revision: WorkbenchRevision,
-    /// `close-resume` answers under the resume request's own source echo —
-    /// `None` keeps the default `workbench-command` source every command
-    /// receipt already reports.
-    source_override: Option<Value>,
     schema_id: &'static str,
     action: &'static str,
     outcome: &'static str,
     revision: Option<WorkbenchRevision>,
     accepted_revision: Option<WorkbenchRevision>,
     close_request_id: Option<String>,
-    /// The attempt generation a `close-resume` receipt or stale answer
-    /// carried — the resume lifecycle's own fence, never a Workbench
-    /// revision.
-    attempt_generation: Option<String>,
     ids: Vec<(&'static str, Option<String>)>,
     direction: Option<&'static str>,
     insert_index: Option<orchbee_workbench_protocol::WorkbenchTabInsertIndex>,
@@ -102,13 +94,11 @@ impl Receipt {
     }
 
     fn source(&self) -> Value {
-        self.source_override.clone().unwrap_or_else(|| {
-            command_source(
-                self.session_id.as_str(),
-                self.request_id.as_str(),
-                self.base_revision,
-            )
-        })
+        command_source(
+            self.session_id.as_str(),
+            self.request_id.as_str(),
+            self.base_revision,
+        )
     }
 
     pub(super) fn document(&self) -> Value {
@@ -124,9 +114,6 @@ impl Receipt {
         }
         if let Some(close_request_id) = &self.close_request_id {
             result.insert("closeRequestId".to_owned(), json!(close_request_id));
-        }
-        if let Some(attempt_generation) = &self.attempt_generation {
-            result.insert("attemptGeneration".to_owned(), json!(attempt_generation));
         }
         for (key, id) in &self.ids {
             result.insert((*key).to_owned(), json!(id));
@@ -358,12 +345,9 @@ mod workflow {
         LaunchProfileId, Project, ProtocolVersion, SessionId, Snapshot, Tab, TerminalContext,
         WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
         WorkbenchPanelRelocateDestination, WorkbenchPanelSplitDirection, WorkbenchProjectId,
-        WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchRevision,
-        WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseResumeRejectionReason,
-        WorkbenchTabCloseUnavailableReason, WorkbenchTabMoveDirection,
+        WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchRevision, WorkbenchTabMoveDirection,
         WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome,
-        WorkbenchTerminalUnavailableReason, WorkbenchWireError, WorkbenchWorkspaceCloseResume,
-        WorkbenchWorkspaceCloseResumeOutcome, WorkbenchWorkspaceId, Workspace,
+        WorkbenchTerminalUnavailableReason, WorkbenchWireError, Workspace,
     };
     use serde_json::{Map, json};
 
@@ -372,7 +356,7 @@ mod workflow {
         refresh_snapshot, request_id, snapshot_session, snapshot_session_until,
     };
     use super::super::schema::{
-        CLOSE_FAILURE_ID, LAUNCH_PROFILE_FAILURE_ID, MUTATION_RESULT_ID, PROJECT_RENAME_RESULT_ID,
+        LAUNCH_PROFILE_FAILURE_ID, MUTATION_RESULT_ID, PROJECT_RENAME_RESULT_ID,
     };
     use super::super::stale_retry::{Ended, StaleRetry};
     use super::super::{
@@ -431,8 +415,7 @@ mod workflow {
         WorkbenchTabMovePrecommit, WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
         WorkbenchWorkspaceCloseAccepted, WorkbenchWorkspaceCloseFailure,
         WorkbenchWorkspaceCloseNotSubmitted, WorkbenchWorkspaceClosePrecommit,
-        WorkbenchWorkspaceCloseRequest, WorkbenchWorkspaceCloseResumeSubmission,
-        WorkbenchWorkspaceCloseSubmission,
+        WorkbenchWorkspaceCloseRequest, WorkbenchWorkspaceCloseSubmission,
     };
     use crate::localization::Locale;
 
@@ -691,17 +674,6 @@ mod workflow {
                 crate::cli::execution::Capability::ExtendedWorkbenchMutation,
             )?;
         }
-        // `close-resume` is a retained-lifecycle request, not a Workbench
-        // command — it takes its own exchange on the same session
-        // discipline: one admission, one submission, never a replay.
-        if let MutationCommand::WorkspaceCloseResume {
-            workspace,
-            request,
-            generation,
-        } = command
-        {
-            return execute_close_resume(workspace, request, *generation);
-        }
         let caller = if let MutationCommand::PanelInput { target, .. } = command {
             crate::cli::execution::admit(
                 crate::cli::execution::Capability::ExtendedWorkbenchMutation,
@@ -874,7 +846,11 @@ mod workflow {
             .find(|(name, _)| *name == key)
             .and_then(|(_, id)| id.clone())
             .unwrap_or_default();
-        let hint = CliText::new(locale).cli_close_wait_hint(workspace, &id, timeout_ms);
+        let hint = CliText::new(locale).cli_close_wait_hint(
+            workspace,
+            receipt.close_request_id().unwrap_or_default(),
+            timeout_ms,
+        );
         let present = || {
             let (client, _, snapshot) = snapshot_session_until(deadline)?;
             drop(client);
@@ -1121,11 +1097,6 @@ mod workflow {
                 Ok(WorkbenchAction::WorkspaceClose {
                     workspace_id: workspace.workspace_id.clone(),
                 })
-            }
-            // `close-resume` never becomes a Workbench action; `execute`
-            // routes it to the lifecycle resume exchange before resolution.
-            MutationCommand::WorkspaceCloseResume { .. } => {
-                Err(Failure::new(FailureKind::InternalFailure))
             }
             MutationCommand::TabCreate {
                 automatic_label,
@@ -2319,144 +2290,17 @@ mod workflow {
         }
     }
 
-    /// `workspace close-resume`: one retained-lifecycle request on the
-    /// admitted session. There is no `workbench.command` for it — the honest
-    /// source is the resume request's own echo, and every post-submission
-    /// answer maps under the dedicated close failure envelope.
-    fn execute_close_resume(
-        workspace_id: &WorkbenchWorkspaceId,
-        close_request_id: &WorkbenchRequestId,
-        generation: WorkbenchTabCloseAttemptGeneration,
-    ) -> Result<Receipt, Failure> {
-        let (mut client, deadline, snapshot) = snapshot_session()?;
-        let resume = WorkbenchWorkspaceCloseResume {
-            protocol_version: ProtocolVersion,
-            request_id: request_id()?,
-            session_id: snapshot.session_id.clone(),
-            workspace_id: workspace_id.clone(),
-            close_request_id: close_request_id.clone(),
-            expected_attempt_generation: generation,
-        };
-        let resume_request_id = resume.request_id.clone();
-        let source = json!({
-            "kind": "workspace-close-resume",
-            "sessionId": snapshot.session_id.as_str(),
-            "requestId": resume_request_id.as_str(),
-            "closeRequestId": close_request_id.as_str(),
-            "expectedAttemptGeneration": generation.value().to_string(),
-        });
-        let submission = client.submit_workbench_workspace_close_resume(resume, deadline);
-        // The Client Connection is fully dropped before the outcome is mapped or
-        // any output is prepared; an ambiguous submission already retired the
-        // connection inside the transport, and nothing is replayed.
-        drop(client);
-        let failure = |kind| Failure::new(kind).failure_schema(CLOSE_FAILURE_ID);
-        match submission {
-            WorkbenchWorkspaceCloseResumeSubmission::Returned(
-                WorkbenchWorkspaceCloseResumeOutcome::Resumed { attempt_generation },
-            ) => Ok(Receipt {
-                session_id: snapshot.session_id.as_str().to_owned(),
-                request_id: resume_request_id.as_str().to_owned(),
-                base_revision: snapshot.revision,
-                source_override: Some(source.clone()),
-                schema_id: MUTATION_RESULT_ID,
-                action: "workspace.close-resume",
-                outcome: "resumed",
-                revision: None,
-                accepted_revision: None,
-                close_request_id: Some(close_request_id.as_str().to_owned()),
-                attempt_generation: Some(attempt_generation.value().to_string()),
-                ids: vec![("workspaceId", Some(workspace_id.as_str().to_owned()))],
-                direction: None,
-                insert_index: None,
-                workspace_insert_index: None,
-                workspace_order: None,
-                workspace_sources: None,
-                panel_transfer: None,
-                label: None,
-                custom_label: None,
-                right_click: None,
-                path: None,
-                terminal: None,
-                catalog_revision: None,
-                name: None,
-                closing: None,
-            }),
-            WorkbenchWorkspaceCloseResumeSubmission::Returned(
-                WorkbenchWorkspaceCloseResumeOutcome::Stale { attempt_generation },
-            ) => Err(failure(FailureKind::Rejected).details(Map::from_iter([
-                ("stage".to_owned(), json!("close-resume")),
-                ("reason".to_owned(), json!("stale-generation")),
-                (
-                    "attemptGeneration".to_owned(),
-                    json!(attempt_generation.value().to_string()),
-                ),
-            ]))),
-            WorkbenchWorkspaceCloseResumeSubmission::Returned(
-                WorkbenchWorkspaceCloseResumeOutcome::Denied {},
-            ) => Err(failure(FailureKind::Denied).details(stage_details("close-resume"))),
-            WorkbenchWorkspaceCloseResumeSubmission::Returned(
-                WorkbenchWorkspaceCloseResumeOutcome::Unavailable { reason },
-            ) => Err(
-                failure(FailureKind::ServiceUnavailable).details(stage_reason_details(
-                    "close-resume",
-                    close_unavailable_reason(reason),
-                )),
-            ),
-            WorkbenchWorkspaceCloseResumeSubmission::Returned(
-                WorkbenchWorkspaceCloseResumeOutcome::Rejected { reason },
-            ) => Err(failure(FailureKind::Rejected).details(Map::from_iter([
-                ("stage".to_owned(), json!("close-resume")),
-                ("reason".to_owned(), json!(resume_rejection_reason(reason))),
-            ]))),
-            WorkbenchWorkspaceCloseResumeSubmission::DefinitelyNotSubmitted(reason) => {
-                Err(not_submitted_failure_at("close-resume", reason.into())
-                    .failure_schema(CLOSE_FAILURE_ID))
-            }
-            WorkbenchWorkspaceCloseResumeSubmission::OutcomeUnknown { request_id, reason } => Err(
-                unknown_failure_at("close-resume", request_id, reason.reason())
-                    .failure_schema(CLOSE_FAILURE_ID),
-            ),
-        }
-        .map_err(|failure| failure.source(source))
-    }
-
-    /// The close read/resume unavailable vocabulary is the lifecycle's own —
-    /// today it carries only `server-busy`.
-    fn close_unavailable_reason(reason: WorkbenchTabCloseUnavailableReason) -> &'static str {
-        match reason {
-            WorkbenchTabCloseUnavailableReason::ServerBusy => "server-busy",
-        }
-    }
-
-    /// The resume rejection vocabulary — the lifecycle's typed reasons plus
-    /// the fence verdict the caller can act on.
-    fn resume_rejection_reason(reason: WorkbenchTabCloseResumeRejectionReason) -> &'static str {
-        match reason {
-            WorkbenchTabCloseResumeRejectionReason::OperationUnavailable => "operation-unavailable",
-            WorkbenchTabCloseResumeRejectionReason::OperationMismatch => "operation-mismatch",
-            WorkbenchTabCloseResumeRejectionReason::RequestIdentityConflict => {
-                "request-identity-conflict"
-            }
-            WorkbenchTabCloseResumeRejectionReason::GenerationMismatch => "generation-mismatch",
-            WorkbenchTabCloseResumeRejectionReason::NotResumable => "not-resumable",
-            WorkbenchTabCloseResumeRejectionReason::GenerationExhausted => "generation-exhausted",
-        }
-    }
-
     fn receipt(resolved: &Resolved, action: &'static str, outcome: &'static str) -> Receipt {
         Receipt {
             session_id: resolved.session_id.as_str().to_owned(),
             request_id: resolved.request_id.as_str().to_owned(),
             base_revision: resolved.expected_revision,
-            source_override: None,
             schema_id: MUTATION_RESULT_ID,
             action,
             outcome,
             revision: None,
             accepted_revision: None,
             close_request_id: None,
-            attempt_generation: None,
             ids: Vec::new(),
             direction: None,
             insert_index: None,
@@ -2479,19 +2323,12 @@ mod workflow {
     /// defect is internal, a transport refusal before handoff is a clean
     /// transport-loss with no applied effect.
     fn not_submitted_failure(reason: NotSubmitted) -> Failure {
-        not_submitted_failure_at("command", reason)
-    }
-
-    /// The same definite non-submission under a non-command stage: the
-    /// close-resume exchange reports its own stage token so the dedicated
-    /// close envelope's stage vocabulary stays closed.
-    fn not_submitted_failure_at(stage: &'static str, reason: NotSubmitted) -> Failure {
         match reason {
             NotSubmitted::ConnectionUnavailable | NotSubmitted::RequestEncoding => {
                 Failure::new(FailureKind::InternalFailure)
             }
             NotSubmitted::Request => {
-                Failure::new(FailureKind::TransportLoss).details(stage_details(stage))
+                Failure::new(FailureKind::TransportLoss).details(stage_details("command"))
             }
         }
     }
@@ -2606,18 +2443,8 @@ mod workflow {
     /// the request identity is reported so operators can investigate. The CLI
     /// never replays it.
     fn unknown_failure(request_id: WorkbenchRequestId, reason: &'static str) -> Failure {
-        unknown_failure_at("command", request_id, reason)
-    }
-
-    /// The same undetermined-effect verdict under a non-command stage: the
-    /// close-resume exchange reports its own stage token.
-    fn unknown_failure_at(
-        stage: &'static str,
-        request_id: WorkbenchRequestId,
-        reason: &'static str,
-    ) -> Failure {
         Failure::new(FailureKind::OutcomeUnknown).details(Map::from_iter([
-            ("stage".to_owned(), json!(stage)),
+            ("stage".to_owned(), json!("command")),
             ("requestId".to_owned(), json!(request_id.as_str())),
             ("reason".to_owned(), json!(reason)),
         ]))

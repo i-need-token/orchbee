@@ -344,10 +344,6 @@ impl super::CliText {
                 "a nonzero 32-character lowercase hexadecimal directory ID"
             }
             (Locale::ZhCn, ExpectedValue::DirectoryId) => "非零的 32 位小写十六进制目录 ID",
-            (Locale::EnUs, ExpectedValue::WorkspaceId) => {
-                "a nonzero 32-character lowercase hexadecimal workspace ID"
-            }
-            (Locale::ZhCn, ExpectedValue::WorkspaceId) => "非零的 32 位小写十六进制 workspace ID",
             (Locale::EnUs, ExpectedValue::ManifestOperationId) => {
                 "a nonzero 32-character lowercase hexadecimal operation ID"
             }

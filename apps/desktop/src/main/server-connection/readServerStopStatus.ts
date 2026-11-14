@@ -11,13 +11,13 @@ const ServerStopDocumentSchema = z.looseObject({
 });
 
 /**
- * What `server stop-status` says of one stop: `stopped` only once its receipt proves completion,
+ * What `server status` says of one stop: `stopped` only once its receipt proves completion,
  * `failed`, `busy`, and `unmanaged` as the Server reports them, and `undecided` for a stop still
  * running, a Server between closing and writing its receipt, or an answer that cannot be read.
  */
 export type ServerStopStatus = 'busy' | 'failed' | 'stopped' | 'undecided' | 'unmanaged';
 
-/** Reads the stop recorded under `stopId` with `server stop-status`, which never starts a Session. */
+/** Reads the stop recorded under `stopId` with `server status`, which never starts a Session. */
 export function readServerStopStatus(
 	executable: string,
 	sessionArguments: readonly string[],
@@ -27,7 +27,7 @@ export function readServerStopStatus(
 	return new Promise((resolve) => {
 		execFile(
 			executable,
-			[...sessionArguments, 'server', 'stop-status', stopId, '--format', 'json'],
+			[...sessionArguments, 'server', 'status', stopId, '--format', 'json'],
 			{ env: environment, timeout: COMMAND_DEADLINE_MILLISECONDS, windowsHide: true },
 			// Every outcome writes its document to standard output, whatever the exit code says.
 			(_error, stdout) => resolve(interpretServerStopStatus(stdout)),

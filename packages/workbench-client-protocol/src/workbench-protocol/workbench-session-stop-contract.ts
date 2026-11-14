@@ -8,7 +8,7 @@ import {
 
 /**
  * An admitted Client asks the Server to stop its Session under an identity it chose. Recording the
- * stop refuses every later record, so `server stop-status` reads its progress and completion.
+ * stop refuses every later record, so `server status` reads its progress and completion.
  */
 export const WorkbenchSessionStopRequestSchema = z
 	.strictObject({

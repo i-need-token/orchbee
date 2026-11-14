@@ -34,7 +34,6 @@ commands! {
     PanelGraphicsStream => ["panel", "graphics", "stream"], 1, Panel, Windows, true, false, false;
     ClientList => ["client", "list"], 0, Operand, Portable, true, true, false;
     ClientGet => ["client", "get"], 1, Operand, Portable, true, true, false;
-    ClientControlStatus => ["client", "control-status"], 1, Operand, Portable, true, true, false;
     WorkspaceFocus => ["workspace", "focus"], 1, Operand, Portable, true, true, false;
     TabFocus => ["tab", "focus"], 1, Operand, Portable, true, true, false;
     PanelFocus => ["panel", "focus"], 1, Panel, Portable, true, true, false;
@@ -95,8 +94,6 @@ commands! {
     ProjectGet => ["project", "get"], 1, Operand, Portable, true, true, false;
     ProjectDissolve => ["project", "dissolve"], 1, Operand, Portable, true, true, false;
     ProjectCloseAll => ["project", "close-all"], 1, Operand, Portable, true, true, false;
-    ProjectCloseStatus => ["project", "close-status"], 0, Operand, Portable, true, true, false;
-    ProjectCloseResume => ["project", "close-resume"], 0, Operand, Portable, true, true, false;
     WorkspaceSetProject => ["workspace", "set-project"], 1, Operand, Portable, true, true, false;
     WorkspaceCreateProject => ["workspace", "create-project"], 1, Operand, Portable, true, true, false;
     WorkspaceUngroup => ["workspace", "ungroup"], 1, Operand, Portable, true, true, false;
@@ -115,8 +112,6 @@ commands! {
     WorkspaceMoveBlock => ["workspace", "move-block"], orchbee_workbench_protocol::MAXIMUM_WORKSPACE_ORDER_LENGTH, Operand, Portable, true, true, false;
     WorkspaceAcceptDirectory => ["workspace", "accept-directory"], 1, Operand, Portable, true, true, false;
     WorkspaceClose => ["workspace", "close"], 1, Operand, Portable, true, true, false;
-    WorkspaceCloseStatus => ["workspace", "close-status"], 0, Operand, Portable, true, true, false;
-    WorkspaceCloseResume => ["workspace", "close-resume"], 0, Operand, Portable, true, true, false;
     TabList => ["tab", "list"], 0, Operand, Portable, true, true, false;
     TabGet => ["tab", "get"], 1, Operand, Portable, true, true, false;
     TabCreate => ["tab", "create"], 0, Operand, Portable, true, true, true;
@@ -196,7 +191,5 @@ commands! {
     NotificationShow => ["notification", "show"], 1, Operand, Portable, true, true, false;
     ServerAgentManifests => ["server", "agent-manifests"], 0, Operand, Portable, true, true, false;
     ServerReloadAgentManifests => ["server", "reload-agent-manifests"], 0, Operand, Portable, true, true, false;
-    ServerAgentManifestsStatus => ["server", "agent-manifests-status"], 1, Operand, Portable, true, true, false;
     ServerStop => ["server", "stop"], 0, Operand, Portable, true, true, false;
-    ServerStopStatus => ["server", "stop-status"], 1, Operand, Portable, true, true, false;
 }

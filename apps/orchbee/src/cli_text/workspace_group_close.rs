@@ -75,16 +75,13 @@ impl super::CliText {
             }
         }
         if state == "pending" || state == "failed" || state == "unknown" {
-            text.push_str(&format!(
-                "orchbee project close-status --request {}\n",
-                escape(id)
-            ));
+            text.push_str(&format!("orchbee project status {}\n", escape(id)));
         }
         if status["resumable"].as_bool() == Some(true)
             && let Some(attempt) = outcome["attempt"].as_u64()
         {
             text.push_str(&format!(
-                "orchbee project close-resume --request {} --generation {attempt} --confirm\n",
+                "orchbee project resume {} --generation {attempt} --confirm\n",
                 escape(id)
             ));
         }

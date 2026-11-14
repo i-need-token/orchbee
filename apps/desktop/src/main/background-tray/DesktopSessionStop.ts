@@ -16,7 +16,7 @@ export type DesktopSessionStopResult =
 	| { readonly kind: 'stopped' };
 
 export interface DesktopSessionStopOptions {
-	/** Reads the stop's progress with `server stop-status`. */
+	/** Reads the stop's progress with `server status`. */
 	readonly readStatus: (stopId: string) => Promise<ServerStopStatus>;
 	/** Asks the window's page to stop the Session; false when no page can be asked. */
 	readonly request: (stopId: string) => boolean;
@@ -24,7 +24,7 @@ export interface DesktopSessionStopOptions {
 
 /**
  * Quit All's Session stop. Main chooses the stop's identity and the page asks the Server for it
- * through its own connection, once; the stop has completed only when `server stop-status` proves
+ * through its own connection, once; the stop has completed only when `server status` proves
  * it, as `server stop` waits. A stop that cannot have been recorded fails at once.
  */
 export class DesktopSessionStop {

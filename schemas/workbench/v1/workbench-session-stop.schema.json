@@ -18,7 +18,7 @@
 			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
 		},
 		"stopId": {
-			"description": "The identity `server stop-status` reads the stop under.",
+			"description": "The identity `server status` reads the stop under.",
 			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
 		},
 		"request": {

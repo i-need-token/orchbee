@@ -17,8 +17,8 @@ After starting the background service, the two Workspace creation commands each 
 ```powershell
 orchbee workspace close <workspace> --confirm
 orchbee project close-all <project> --confirm
-orchbee project close-status --request <operation-id>
-orchbee project close-resume --request <operation-id> --generation <attempt> --confirm
+orchbee project status <operation-id>
+orchbee project resume <operation-id> --generation <attempt> --confirm
 ```
 
 Ordinary close affects only the selected Workspace and preserves checkout and branch. Project close-all closes captured members and retains the Project. Dissolve only ungroups, retaining Workspaces. Never replay unknown mutations automatically. The Linux examples below retain their separately declared creation flow; current Windows behavior follows the [creation contract](windows-workspace-creation.md).
@@ -54,7 +54,7 @@ $created.result.workspace.result
 & $cli workspace close $created.result.workspace.result.workspaceId --confirm --format json
 # Or stop the whole Windows Session and all its terminals (development and test cohorts):
 $stopped = Invoke-OrchbeeJson -Words @('server', 'stop', '--confirm')
-& $cli server stop-status $stopped.result.requestId --format json
+& $cli server status $stopped.result.requestId --format json
 ```
 
 Check `result.workspace.result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Codex onboarding uses `agent integration enable --provider codex`; `server diagnose` reports local Windows runtime facts without activating the Session. The numbered POSIX examples below describe the existing Linux path.
@@ -116,7 +116,7 @@ orchbee status         # the running Session's Workbench snapshot
 `server start` runs the same connect-or-activate sequence the TUI uses. An
 interrupted or timed-out start can leave committed activation state behind;
 a later invocation then answers `rejected` with a recovery-required reason.
-Linux has no Session stop, repair or deletion command. Windows supports `server stop --confirm` and `server stop-status <id>`; a completed stop allows a later `server start`. Stop ends all terminal processes and discards the Session's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop. The release build refuses `--confirm` and scripted stops; a person runs `server stop` in a console and types the Session name, as the [release confirmation](../README.md#windows-release-destructive-confirmation) describes.
+Linux has no Session stop, repair or deletion command. Windows supports `server stop --confirm` and `server status <id>`; a completed stop allows a later `server start`. Stop ends all terminal processes and discards the Session's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop. The release build refuses `--confirm` and scripted stops; a person runs `server stop` in a console and types the Session name, as the [release confirmation](../README.md#windows-release-destructive-confirmation) describes.
 
 ## 2. Create a Project, Workspace, and directory
 
@@ -275,17 +275,16 @@ orchbee workspace close "$WS" --confirm     # closes the whole context's termina
 while the Session completes the close asynchronously. `workspace close` reuses
 the same lifecycle at the Workspace's context scope, removes the Workspace
 and its terminal context after cleanup, and preserves its checkout,
-branch, and directories. The retained operation stays answerable by strict stable
-IDs even after the Workspace leaves the active projection:
+branch, and directories. The retained operation stays answerable by its close request ID
+even after the Workspace leaves the active projection:
 
 ```sh
-orchbee workspace close-status --workspace <workspace-id>
-orchbee workspace close-resume --workspace <workspace-id> \
-  --request <close-request-id> --generation <n> --confirm
+orchbee workspace status <close-request-id>
+orchbee workspace resume <close-request-id> --generation <n> --confirm
 ```
 
-`close-status` reports the scope lifecycle plus every captured member's
-status, ending in a `closed` tombstone revision; `close-resume` opens one
+`workspace status` reports the scope lifecycle, ending in a `closed`
+tombstone revision; `workspace resume` opens one
 fresh attempt window only on a resumable retained operation — a stale
 `--generation` answers `rejected`/`stale-generation`, and unknown outcomes
 are non-resumable. Closing tabs does not

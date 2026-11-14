@@ -111,24 +111,8 @@ fn group_close_confirmation_and_scope_conflicts_fail_before_runtime_access() {
                 "--project",
                 id,
             ],
-            vec![
-                "workspace",
-                "close-status",
-                "--group",
-                "--request",
-                id,
-                "--workspace",
-                id,
-            ],
-            vec![
-                "workspace",
-                "close-resume",
-                "--group",
-                "--request",
-                id,
-                "--generation",
-                "1",
-            ],
+            vec!["workspace", "status", "--group", id, "--workspace", id],
+            vec!["workspace", "resume", "--group", id, "--generation", "1"],
         ] {
             let mut words = words;
             words.push("--format=json");
@@ -138,16 +122,18 @@ fn group_close_confirmation_and_scope_conflicts_fail_before_runtime_access() {
             assert_eq!(document["failure"]["kind"], "invalid-usage");
             assert!(document.get("source").is_none());
         }
-        for verb in ["close-all", "close-status", "close-resume"] {
+        for verb in ["close-all", "status", "resume"] {
             let output = run(&["help", "project", verb], locale);
             assert!(output.status.success());
-            assert!(String::from_utf8(output.stdout).unwrap().contains(
-                if verb == "close-status" {
-                    "--request"
-                } else {
-                    "--confirm"
-                }
-            ));
+            assert!(
+                String::from_utf8(output.stdout)
+                    .unwrap()
+                    .contains(if verb == "status" {
+                        "<request-id>"
+                    } else {
+                        "--confirm"
+                    })
+            );
         }
     }
 }
@@ -166,7 +152,7 @@ fn organization_grammar_is_complete_before_effects_and_discoverable_in_both_loca
             ),
             (
                 "project",
-                &["dissolve", "close-all", "close-status", "close-resume"][..],
+                &["dissolve", "close-all", "status", "resume"][..],
             ),
         ] {
             assert!(text.contains(family), "{locale}: {family}");
@@ -199,7 +185,7 @@ fn organization_grammar_is_complete_before_effects_and_discoverable_in_both_loca
             vec!["project", "dissolve"],
             vec!["project", "dissolve", "p", "--confirm"],
             vec!["project", "close-all", "p"],
-            vec!["project", "close-status", "--workspace=work"],
+            vec!["project", "status", "--workspace=work"],
             vec!["worktree", "create", "--workspace=w", "--project=p"],
             vec![
                 "worktree",
@@ -223,8 +209,8 @@ fn organization_grammar_is_complete_before_effects_and_discoverable_in_both_loca
             ("workspace", "ungroup"),
             ("project", "dissolve"),
             ("project", "close-all"),
-            ("project", "close-status"),
-            ("project", "close-resume"),
+            ("project", "status"),
+            ("project", "resume"),
         ] {
             let output = run(&["help", family, verb], locale);
             assert!(output.status.success(), "{family} {verb}");

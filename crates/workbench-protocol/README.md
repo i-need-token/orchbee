@@ -207,7 +207,7 @@ owns what is kept and reopened.
 
 `workbench.session-stop` (OBWP 73/74) lets an admitted Client stop its Session as `server stop`
 does. The request names the Client's `sessionId` and a `stopId` it chose, a nonzero 128-bit
-lowercase hexadecimal `WorkbenchStopId`, which `server stop-status` and `server stop --retry` take
+lowercase hexadecimal `WorkbenchStopId`, which `server status` and `server stop --retry` take
 as the request ID; `WorkbenchStopId::bytes` gives its 16 bytes. Outcomes are `recorded`, `busy`
 (another identity's stop holds the Session), `unmanaged`, `rejected` (`session-mismatch`) and
 `denied`; only `recorded` holds a stop. There is no status or retry action: a recorded stop refuses

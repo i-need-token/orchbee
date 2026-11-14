@@ -157,12 +157,14 @@ impl super::CliText {
     }
 
     /// What to run when a close outlived the command's wait.
-    pub(crate) fn cli_close_wait_hint(self, workspace: bool, id: &str, timeout_ms: u32) -> String {
+    pub(crate) fn cli_close_wait_hint(
+        self,
+        workspace: bool,
+        request_id: &str,
+        timeout_ms: u32,
+    ) -> String {
         let check = if workspace {
-            format!(
-                "orchbee workspace close-status --workspace {}",
-                unquoted(id)
-            )
+            format!("orchbee workspace status {}", unquoted(request_id))
         } else {
             "orchbee tab list".to_owned()
         };

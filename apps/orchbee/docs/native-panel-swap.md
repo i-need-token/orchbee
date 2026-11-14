@@ -82,7 +82,7 @@ Timeout, cancellation or post-commit transport failure cannot erase a known cano
 
 A nonzero result after commit requires inspecting the receipt and current layout before deciding
 what to do next. Retrying the whole command would exchange positions again; it is never automatic.
-The existing Client control-status command can observe a submitted focus identity. This workflow
+The existing `client status <id>` command can observe a submitted focus identity. This workflow
 adds no persistent journal or restart recovery guarantee. The schema catalog describes both versions.
 
 ## Evidence and compatibility

@@ -81,26 +81,27 @@ fn removals_held_past_the_close_budget_resume_and_close_without_close_resume() {
         "refs/heads/verify-unlocked",
     ]);
     // A held Close waits for the Worktree decision rather than parking, and `workspace
-    // close-resume` cannot end the hold, so it is refused instead of renewing a budget.
-    let held = fixture.run(&["workspace", "close-status", "--workspace", &kept.workspace]);
-    let close = &held.document["result"];
+    // resume` cannot end the hold, so it is refused instead of renewing a budget.
+    let close_request = kept
+        .close
+        .as_deref()
+        .expect("the held removal names its Close");
+    let held = fixture.run(&["workspace", "status", close_request]);
+    let close = &held.document["result"]["observation"]["outcome"];
     assert!(
         held.code == Some(0) && close["status"]["resumable"] == false,
         "{held}"
     );
     let renewed = fixture.run(&[
         "workspace",
-        "close-resume",
-        "--workspace",
-        &kept.workspace,
-        "--request",
-        close["closeRequestId"].as_str().unwrap(),
+        "resume",
+        close_request,
         "--generation",
-        close["attemptGeneration"].as_str().unwrap(),
+        close["generation"].as_str().unwrap(),
         "--confirm",
     ]);
     assert_eq!(
-        renewed.document["failure"]["details"]["reason"], "not-resumable",
+        renewed.document["result"]["resume"]["submission"]["outcome"]["reason"], "not-resumable",
         "{renewed}"
     );
     // Explicit close also finishes a resumable failure whose directory was released, without Git.
@@ -145,6 +146,8 @@ struct Removal {
     operation: String,
     attempt: u64,
     workspace: String,
+    /// The Workspace Close the failed removal holds, when it names one.
+    close: Option<String>,
     path: PathBuf,
     lock: Option<fs::File>,
 }
@@ -374,11 +377,15 @@ impl Fixture {
                 && status["resumable"] == true,
             "{removed}"
         );
+        let close = status["progress"]["workspace"]["closeRequestId"]
+            .as_str()
+            .map(str::to_owned);
         let reply = &removed.document["result"]["observation"]["reply"];
         Removal {
             operation: reply["operationId"].as_str().unwrap().to_owned(),
             attempt: reply["outcome"]["attempt"].as_u64().unwrap(),
             workspace,
+            close,
             path,
             lock,
         }

@@ -12,7 +12,7 @@ Agent startup, saved-machine management and relay, and configuration reporting k
 
 Agent projection reads, exact terminal metadata, Client attention interpretation and retained Client exchanges share their protocol and rendering owners. Native interrupt borrowing does not register another handler or replace Unix cancellation. Projection admission precedes effects; canonical Unix Agent reads keep their current selectors and `AgentListCursor`, while the projection backend decodes its own cursor.
 
-Workspace-group closure, Worktree operations and source queries keep request preparation, retained observation and post-open focus receipts in shared workflows. Their capability admission runs before literal-path resolution or operation ID generation. Windows path decoding remains explicit operand grammar; compiling that decoder on another host does not enable filesystem or Git operations there. A completed canonical operation is not erased by a failed or cancelled Client-focus observation. Canonical terminal reads/waits, Worktree listing, launch-profile catalog and close-status classification also compile in shared owners; Linux and Windows keep their existing query paths, while macOS refuses before discovery or signal registration.
+Workspace-group closure, Worktree operations and source queries keep request preparation, retained observation and post-open focus receipts in shared workflows. Their capability admission runs before literal-path resolution or operation ID generation. Windows path decoding remains explicit operand grammar; compiling that decoder on another host does not enable filesystem or Git operations there. A completed canonical operation is not erased by a failed or cancelled Client-focus observation. Canonical terminal reads/waits, Worktree listing, launch-profile catalog and close status classification also compile in shared owners; Linux and Windows keep their existing query paths, while macOS refuses before discovery or signal registration.
 
 Client navigation/swap, reusable layouts and direct terminal-member creation share selection, protocol exchanges, recovery and receipt presentation. Native document input and executable lookup stay behind their Windows ports, with unavailable commands rejected before preparation effects. The existing Linux Workbench mutation route remains admitted; sharing its receipt engine does not admit that route on macOS.
 
@@ -90,7 +90,7 @@ Project listing follows the independent Navigation `projectOrder`, with canonica
 omitted or empty. ID/name lookup stays independent of display position; Workspace listing keeps
 using its independent `workspaceOrder`.
 
-Navigation has global `directories` and `workspaces` arrays; `projects` contain only ID/label. Workspace `projectId` is required-nullable. Project list/get v1 derive directories from member Workspaces; Workspace list/get v1 resolve globally and display ungrouped membership. `api snapshot` v1, Worktree query/list v1, Workspace close-status v1 and catalog v1 publish these shapes. Semantic event stream/wait envelopes are v1: Workspace data carries grouping only on the nested Workspace, and Worktree operation metadata is nullable.
+Navigation has global `directories` and `workspaces` arrays; `projects` contain only ID/label. Workspace `projectId` is required-nullable. Project list/get v1 derive directories from member Workspaces; Workspace list/get v1 resolve globally and display ungrouped membership. `api snapshot` v1, Worktree query/list v1, Workspace close status (`orchbee.operation.close` v1) and catalog v1 publish these shapes. Semantic event stream/wait envelopes are v1: Workspace data carries grouping only on the nested Workspace, and Worktree operation metadata is nullable.
 
 `workspace set-project <workspace> --project <project>` changes grouping; `workspace create-project <workspace> --label <label>` atomically creates a Project and moves the Workspace; `workspace ungroup <workspace>` removes grouping; `project dissolve <project>` ungroups all members and removes the Project. These change organization metadata only, retaining exact IDs, cwd, PTYs, directories and order. `workspace move`/`move-block` remain separate reorder commands. Projects can organize multiple repositories. Ordinary close affects only the selected Workspace; batch closure uses the explicit Project commands below.
 
@@ -585,8 +585,7 @@ Check and list text views lead with their conclusion and keep raw reason structu
 reason, any settings warnings, a note when the environment has not been started, the file in use and
 a `--format json` pointer. `agent doctor` prints
 its readiness summary and next command first, then a provider table. `session list` has a heading
-row and native paths, and explains a `not created` session. A closed `workspace close-status` shows
-its members as closed. An empty `session list`, `command list` or `launch-profile list` prints one
+row and native paths, and explains a `not created` session. An empty `session list`, `command list` or `launch-profile list` prints one
 line saying how to create the first entry; the launch-profile catalog revision is JSON-only.
 
 `session attach <name> [--mouse on|off]` activates or reconnects the real TUI. `session stop
@@ -905,16 +904,12 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   begins with a dash; a bare `--` is never consumed as a value (missing value →
   `invalid-usage`). A consumed filter value is not a format selector. Each flag is valid only
   on a command that declares it (`--project` on `workspace list`/`workspace create`/
-  `worktree list`/`workspace close-status`/`workspace close-resume`,
-  `--workspace` on `tab list`/`tab create`/`workspace close-status`/`workspace close-resume`,
+  `worktree list`,
+  `--workspace` on `tab list`/`tab create`,
   `--tab` on `panel list`); anywhere else,
   including `get` commands, is `invalid-usage`. Filters are never silently dropped: a filter
   flag on a command that does not declare it is `invalid-usage` before any runtime access, so
-  `workspace list` rejects `--workspace`, `--tab`, and `--standalone`. On `workspace
-close-status` and `workspace close-resume` both flags are strict stable IDs instead of
-  targets: a complete nonzero 32-lowercase-hex Workbench identifier only — never a label or
-  selector — because the retained close record outlives the Workspace's active-projection
-  membership and must be re-proved by stable identity.
+  `workspace list` rejects `--workspace`, `--tab`, and `--standalone`.
 - `--directory <directory-id>`: single-use value flag for the registered-directory form of `worktree list`, valid nowhere else. Windows also has a source-based form without this flag; see [Windows Worktrees](windows-worktrees.md#source-based-discovery). The value is a `WorkbenchDirectoryId` only — a strict nonzero 32-lowercase-hex
   identifier, never a filesystem path, label, or prefix. A missing, malformed, uppercase,
   zero-valued, or wrong-width value is `invalid-usage` before any runtime access; the CLI
@@ -957,19 +952,14 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   verbatim to the Server, which resolves it under the catalog's ID-first/name-cardinality
   rule — the CLI never reads the catalog or guesses a match. A resolved profile supplies
   the launch for that one request; it is not persisted anywhere else.
-- `--request <close-id>`: single-use value flag, required on `workspace close-resume` and
-  valid nowhere else. The value is the close operation's own `WorkbenchRequestId` — a strict
-  nonzero 32-lowercase-hex identifier, the operation identity the Server re-verifies, never
-  the resume request's fresh identity. A missing, malformed, uppercase, or zero-valued value
-  is `invalid-usage` before any runtime access.
-- `--generation <n>`: single-use value flag, required on `workspace close-resume` and valid
+- `--generation <n>`: single-use value flag, required on every `<family> resume` and valid
   nowhere else. The value is the explicit attempt-generation fence: a nonzero decimal `u64`
   without a leading zero — the protocol's `WorkbenchTabCloseAttemptGeneration` spelling. A
   stale-but-valid generation is a semantic request the Server answers `stale`, never a
   grammar concern; a missing, empty, zero, non-numeric, or overflowing value is
   `invalid-usage` before any runtime access.
 - `--confirm`: valueless boolean, required on `tab close`, `panel close`,
-  `workspace close`, and `workspace close-resume`; absent there or
+  `workspace close`, and every `<family> resume`; absent there or
   present on any other command is `invalid-usage`. A `tab close` or `workspace close` with
   `--dry-run` needs no `--confirm`.
 - `--match <text>`: single-use value flag on `terminal wait-output`, one of the two search
@@ -1080,8 +1070,8 @@ orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
 orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
-orchbee workspace close-status --workspace <id>
-orchbee workspace close-resume --workspace <id> --request <close-id> --generation <n> --confirm
+orchbee workspace status <close-request-id>
+orchbee workspace resume <close-request-id> --generation <n> --confirm
 orchbee worktree list --directory <directory-id>
 orchbee tab list [--workspace <target>] | tab get <target>
 orchbee tab create [--workspace <target>] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
@@ -1110,7 +1100,7 @@ orchbee agent integration list [--provider <id>]
 orchbee agent integration explain --provider <id>
 orchbee agent integration enable --provider <id> [--adapter-source <abs>]
 orchbee agent integration disable --provider <id> [--adapter-source <abs>]
-orchbee client list | client get <client-id> | client control-status <operation-id>
+orchbee client list | client get <client-id> | client status <operation-id>
 orchbee workspace focus <target> [--client <id>]
 orchbee tab focus <target> [--client <id>]
 orchbee panel focus [<target> | --current] [--client <id>]
@@ -1119,7 +1109,7 @@ orchbee api snapshot
 orchbee api schema [<schema-id>] [--output <path>]
 orchbee server start
 orchbee server stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>]
-orchbee server stop-status <request-id>
+orchbee server status <request-id>
 orchbee server diagnose
 orchbee config check
 orchbee completion bash|zsh|fish|powershell|elvish
@@ -1150,7 +1140,7 @@ Help has three information levels, in both `en-US` and `zh-CN`:
   section repeats each direct child command's own usage line, without the leading `orchbee` and
   the shared `--format` choice, so it follows the grammar; full option descriptions stay on the
   child page. `completion` lists its supported shells. Every family and command
-  page displays `-h, --help`; the `server` directory includes `stop` and `stop-status`, with
+  page displays `-h, --help`; the `server` directory includes `stop` and `status`, with
   `--confirm` identified on `stop`.
 - Command help contains complete syntax, positional arguments, admitted options, an example,
   and the command's defaults, effects and constraints. `status` also links its child commands.
@@ -1214,8 +1204,8 @@ grid with unknown cell pixels (0,0).
 `help`, `completion`, `tui`, `-v`/`-V`/`--version`, `--skill`, the bare invocation, and Windows `--default-config` are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
-commands (`status`, all `list`/`get`, `workspace close-status`, `agent explain`,
-`agent doctor`, `agent wait`, `api snapshot`, `api schema`, `server start`, `server stop`, `server stop-status`,
+commands (`status`, all `list`/`get`, `<family> status`, `agent explain`,
+`agent doctor`, `agent wait`, `api snapshot`, `api schema`, `server start`, `server stop`, `server status`,
 `server diagnose`, `config check`, and all four `agent integration` commands) and every
 mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
 `api schema` emits the identical JSON document under both formats, while an `api` failure
@@ -1851,10 +1841,6 @@ Every machine document uses the envelope `{schema, version, source?, result}` of
 - `source.kind="launch-profile-catalog"` — `sessionId` and the decimal-string
   `catalogRevision` of the resolved catalog, on `launch-profile list`/`get` results and
   their post-session failures.
-- `source.kind="workspace-close-resume"` — `sessionId`, the resume `requestId`, the
-  `closeRequestId` it names, and the decimal-string `expectedAttemptGeneration` fence the
-  request carried, on `workspace close-resume` answers: no `workbench.command` exists for a
-  retained lifecycle resume, so the resume request's own echo is the honest source.
 - There is no freshness field; one consistent read is not a liveness guarantee.
 
 Result payloads (schema IDs are stable machine names):
@@ -1873,16 +1859,6 @@ workspaces:[{workspaceId,label}]}}`.
 - `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,number,tabCount,panelCount,projectId,
 primaryDirectoryId|null,terminalContextId}]}` from global navigation, with required-nullable `projectId`; `workspace get` adds
   `tabs:[{tabId,label}]` resolved through `terminalContextId`.
-- `orchbee.workspace.close-status` → the verbatim retained `WorkbenchWorkspaceCloseReadOutcome`:
-  `{kind:"not-closing"}` when no retained operation covers the scope, or
-  `{kind:"available",closeRequestId,workspaceId,terminalContextId,
-attemptGeneration,status,counts:{closing,cleanupBlocked,outcomeUnknown,
-disposedAwaitingPublication},members:[{tabId,panelId,presentationId,status}…]}`. `status` is
-  the scope lifecycle (`kind` `closing`|`cleanup-blocked`|`outcome-unknown`|
-  `disposed-awaiting-publication`|`closed` with its tombstone `revision`), each member's
-  `status` is the captured per-member lifecycle truth without `closed` (the closed tombstone
-  is scope-level only), `attemptGeneration` is the decimal-string attempt fence, and the
-  record stays answerable after the Workspace leaves the active projection.
 - `orchbee.tab.list` → `{tabs:[{tabId,label,number,panelCount,pinned,groupId|null,
 context:{kind:"workspace",terminalContextId,
 workspaceId}}]}`; `workspaceId` is always required. `tab get` adds `root`, the
@@ -2098,7 +2074,7 @@ profileId?,name?}` per
   not carry the terminal ID. Other text receipts and hints follow the same rule: report, metadata,
   relocation, swap, layout, Project-close and worktree receipts name Panels, Tabs, Workspaces and
   Projects by handle, and `terminal clear` names its terminal by `@terminal:0x<hex>`. The
-  `workspace close-status` hint keeps the canonical Workspace ID, which that command requires.
+  `workspace status` hint names the close request ID, which that command requires.
   `panel current` text starts with the current Panel ID. `workspace get`, `terminal get` and `panel process-info` text likewise opens
   with one sentence followed by aligned labels: the Workspace view shows its Project and primary
   directory path before any Agent or worktree supplement; the terminal view shows its Panel, Tab
@@ -2106,21 +2082,6 @@ profileId?,name?}` per
   directory and command, omitting the shell initialization Orchbee appends to interactive
   PowerShell, then lists every sampled process. Worker, context, presentation and directory IDs,
   raw launch structures and FILETIME values remain JSON-only.
-- `orchbee.cli.failure.close` → `{schema:"orchbee.cli.failure.close",version:1,
-failure:{kind,details?},source?}`: the dedicated failure envelope for every
-  `workspace close-status` and `workspace close-resume` failure past the admitted session
-  (pre-boundary grammar, preamble, and the initial `workspace close` command's own failures
-  keep `orchbee.cli.failure`). Its `details` vocabulary is closed:
-  `{stage:"close-status"|"close-resume"}` on `denied`/`transport-loss` and bare
-  `protocol-invalid`, the same plus `reason:"server-busy"` on `service-unavailable`,
-  `{stage:"close-status",timeoutMs:5000}` on `timeout`, `{stage,reason}` with `reason`
-  `correlation-mismatch`|`scope-mismatch` on classified `protocol-invalid`,
-  `{stage:"close-resume",reason}` on `rejected` where `reason` is the typed resume
-  verdict (`stale-generation`|`operation-unavailable`|`operation-mismatch`|
-  `request-identity-conflict`|`generation-mismatch`|`not-resumable`|
-  `generation-exhausted`), and `{stage:"close-resume",requestId,reason}` on
-  `outcome-unknown`. `source` is the `workbench-snapshot` source on close-status
-  failures and the `workspace-close-resume` source on resume failures.
 - `orchbee.project.rename` → `{action:"project.rename",outcome,revision,projectId,label}`
   with `outcome` in `committed|unchanged`: the dedicated v1 document for `project rename`
   receipts, so the shared `orchbee.mutation.result` action enum stays closed and untouched.
@@ -2259,13 +2220,13 @@ Safety contract:
   to repeat the command.
 - **Close confirmation.** `tab close`, `panel close`, and `workspace close` are
   destructive; the parser requires the explicit `--confirm` flag so a noninteractive
-  invocation can never close by default. `workspace close-resume` owes the same flag:
+  invocation can never close by default. Every `<family> resume` owes the same flag:
   opening a fresh attempt window on a retained close is itself an effect.
 - **Close waiting.** `tab close` and `workspace close` by default read fresh snapshots after
   acceptance until the Tab or Workspace is gone, within a total `--timeout` (1..3600000 ms,
   default 30000). The text receipt then reports the closed name and terminal count. Expiry exits
   with a `timeout` failure (`details:{stage:"wait",timeoutMs,observed}`) while the close
-  continues in the session; the text diagnostic names the `tab list` or `workspace close-status`
+  continues in the session; the text diagnostic names the `tab list` or `workspace status <close-request-id>`
   command. An observation step that fails only after the total deadline, such as a cohort check
   that ran out the remaining time, outlasted the wait and settles as that same `timeout`. `--detach` keeps the `accepted` receipt returned at acceptance and conflicts with
   `--timeout`. `--dry-run` submits nothing and returns the `terminal list` result filtered to that
@@ -2274,9 +2235,7 @@ Safety contract:
 
 Outcomes: `committed` reports the new `revision` (base + 1); `unchanged` — a rename or move
 that changed nothing — reports the current revision; `accepted` — the closes — reports
-`acceptedRevision` plus the Server's `closeRequestId` for the asynchronous close;
-`resumed` — `workspace close-resume` — reports `closeRequestId` plus the new
-`attemptGeneration` the Server opened.
+`acceptedRevision` plus the Server's `closeRequestId` for the asynchronous close.
 `tab create` and `panel split` additionally carry `terminal`: `pending` while the Server
 still owes a spawn, or the typed spawn outcome (`started` with the echoed `geometry`,
 `unavailable`/`failed` with a reason, `unknown`).
@@ -2321,11 +2280,7 @@ Workspace and organization mutations use `schema:"orchbee.mutation.result"`, `ve
 `source:{kind:"workbench-command",sessionId,requestId,expectedRevision}` and a `result` carrying
 `action` (the dotted command name), `outcome`, the outcome's revision fields, the resolved
 typed IDs, and `direction`/`label`/`terminal`/`catalogRevision`/`profileId`/`name` where
-the command has them. `workspace close-resume` is the single source exception: no
-`workbench.command` exists for a retained lifecycle resume, so its `resumed` receipt and
-its post-submission failures report `source.kind="workspace-close-resume"` — the resume
-request's own echo with `sessionId`, `requestId`, `closeRequestId`, and
-`expectedAttemptGeneration`. Text output
+the command has them. Text output
 renders the same fields one per line under the same escaping rules as queries.
 `project rename` is the single exception: its receipt uses the dedicated
 `schema:"orchbee.project.rename"`, `version:1` document — the same `workbench-command`
@@ -2340,19 +2295,13 @@ and directories are preserved. An `accepted` receipt carries `acceptedRevision`,
 `closeRequestId`, and the resolved `workspaceId`/`terminalContextId`; the Session
 finishes the close asynchronously and the retained operation record outlives the
 Workspace's active projection. Re-running `workspace close` is never a resume — a resumable
-retained operation is continued only through `workspace close-resume`.
+retained operation is continued only through `workspace resume <close-request-id>`.
 
-`workspace close-status` reads that retained record by strict stable IDs alone: it shares
-the query state machine's session admission but never resolves Workspace membership
-locally — the record outlives the projection row, so a completed close still answers
-`available` with its `closed` tombstone `revision`, while a scope that never saw a close
-answers `not-closing`. `workspace close-resume` is a retained-lifecycle request, not a
-`workbench.command`: it runs the same admission discipline and submits exactly one resume
-exchange carrying the close operation's `closeRequestId` and the caller's last-observed
-`expectedAttemptGeneration` fence. Only resumable lifecycle states resume — unknown
-outcomes are non-resumable — and a stale fence settles as the typed `stale` answer,
-reported as `rejected` with `reason:"stale-generation"` under the close failure envelope,
-never as a second attempt.
+`workspace status <close-request-id>` reads that retained record by its close request ID
+alone, so a completed close still answers with its `closed` tombstone `revision`.
+`workspace resume <close-request-id> --generation <n> --confirm` submits exactly one resume
+exchange under the caller's last-observed attempt fence; only resumable lifecycle states
+resume, and a stale fence settles as the typed `stale` answer, never as a second attempt.
 
 Deliberately not delivered: `project close`, `panel resize`, terminal open operations, Session lifecycle
 restart, disable, recovery or repair commands (Windows stop/status are supported), and every remote operation.
@@ -2420,18 +2369,6 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | command `Denied` precommit                                                                                                                | `denied`                                                                   | 3         | omitted                                                                                                 |
 | command `Unavailable` precommit                                                                                                           | `service-unavailable`                                                      | 4         | `{stage:"command",reason}`                                                                              |
 | `OutcomeUnknown` (any reason)                                                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"command",requestId,reason}`                                                                    |
-| close-status `RequestNotSubmitted`, write/io response failure                                                                             | `transport-loss`                                                           | 5         | `{stage:"close-status"}` under `orchbee.cli.failure.close`                                              |
-| close-status invalid/unexpected response, or a scope-mismatched answer                                                                    | `protocol-invalid`                                                         | 5         | `{stage:"close-status"[,reason:"correlation-mismatch"\|"scope-mismatch"]}` under the close envelope     |
-| close-status response deadline, or the shared 5 s command deadline expiring                                                               | `timeout`                                                                  | 7         | `{stage:"close-status",timeoutMs:5000}` under the close envelope                                        |
-| close-status outcome `Denied`                                                                                                             | `denied`                                                                   | 3         | `{stage:"close-status"}` under the close envelope                                                       |
-| close-status outcome `Unavailable`                                                                                                        | `service-unavailable`                                                      | 4         | `{stage:"close-status",reason:"server-busy"}` under the close envelope                                  |
-| close-resume `RequestNotSubmitted`, write/io response failure                                                                             | `transport-loss`                                                           | 5         | `{stage:"close-resume"}` under the close envelope                                                       |
-| close-resume invalid/unexpected response                                                                                                  | `protocol-invalid`                                                         | 5         | `{stage:"close-resume"}` under the close envelope                                                       |
-| close-resume outcome `Denied`                                                                                                             | `denied`                                                                   | 3         | `{stage:"close-resume"}` under the close envelope                                                       |
-| close-resume outcome `Unavailable`                                                                                                        | `service-unavailable`                                                      | 4         | `{stage:"close-resume",reason:"server-busy"}` under the close envelope                                  |
-| close-resume outcome `Stale`                                                                                                              | `rejected`                                                                 | 3         | `{stage:"close-resume",reason:"stale-generation",attemptGeneration}` under the close envelope           |
-| close-resume outcome `Rejected` (typed reason)                                                                                            | `rejected`                                                                 | 3         | `{stage:"close-resume",reason}` under the close envelope                                                |
-| close-resume `OutcomeUnknown` (any reason)                                                                                                | `outcome-unknown`                                                          | 8         | `{stage:"close-resume",requestId,reason}` under the close envelope                                      |
 | worktree-list `RequestNotSubmitted`, write/io response failure, or the `TransportLoss` outcome (post-delivery response loss)              | `transport-loss`                                                           | 5         | `{stage:"worktree-list"}` under `orchbee.cli.failure.worktree`                                          |
 | worktree-list invalid/unexpected response                                                                                                 | `protocol-invalid`                                                         | 5         | `{stage:"worktree-list"[,reason:"correlation-mismatch"]}` under the worktree envelope                   |
 | worktree-list response deadline, or the shared 5 s command deadline expiring                                                              | `timeout`                                                                  | 7         | `{stage:"worktree-list",timeoutMs:5000}` under the worktree envelope                                    |
@@ -2490,9 +2427,6 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 The dedicated `orchbee.cli.failure.worktree` envelope admits `resource:"directory"` and the
 `worktree-list|probe|list|parse` stage vocabulary documented with its schema above — those
 values belong to that envelope only, not to the generic `orchbee.cli.failure` vocabulary.
-The dedicated `orchbee.cli.failure.close` envelope admits the `close-status|close-resume`
-stage vocabulary documented with its schema above — those values likewise belong to that
-envelope only.
 The source-stage `input` stage lives only in the `orchbee.cli.failure.source` envelope —
 it is not admitted into the standard `orchbee.cli.failure` stage vocabulary.
 Stages and reasons are finite schema values; no exception text becomes a machine field. `details`
@@ -2653,8 +2587,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                                                              | real read-only observation coexisting with the TUI's own viewer                                   | `tests/local_startup_process`                                         |
 | Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                                                                                          | exact parse/failure kinds before runtime access                                                   | `src/invocation` tests                                                |
 | Mutation scripted peers: all fifteen commands, precommit verdicts, ambiguous and unapplied outcomes                                                                                                               | one command per call; `outcome-unknown` never replayed                                            | `tests/cli_mutation.rs`                                               |
-| Workspace close grammar: `close` target+`--confirm`; `close-status`/`close-resume` strict stable IDs, `--request`/`--generation` fences, stale-but-valid generation parses                                        | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                                |
-| Workspace close envelopes: close-status verbatim outcome incl. tombstone, resume source echo, closed close-envelope details                                                                                       | every fixture validates; rejected variants fail                                                   | schema contrast tests                                                 |
+| Workspace close grammar: `close` target+`--confirm`; `status`/`resume` strict request IDs, `--generation` fence, stale-but-valid generation parses                                                                                                | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                                |
 | Worktree list grammar: `--directory` only; Project rejected, strict directory-ID value rule, flag scopes                                                                                                          | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                                |
 | Launch-profile grammar: four command paths, verbatim selector, `--name`/`--exec` required pair, `--profile` exclusivity and scope                                                                                 | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                                |
 | Launch-profile document/failure envelopes: entry member names, closed details vocabulary, dual `source` shapes                                                                                                    | every fixture validates; rejected variants fail                                                   | schema contrast tests                                                 |
@@ -2899,7 +2832,7 @@ JSON carries the value verbatim.
 
 The managed Windows Server saves committed Workbench changes after a 500ms debounce, refreshes sampled per-terminal directories every 30 seconds, and performs a fresh final save before clean-stop terminal disposal. A later admitted start restores layout/Launch Profiles and launches fresh default shells. Saved terminal cwd precedes workspace/home defaults; a missing saved directory falls back to Worker home. Save failure retains preceding valid snapshots, invalid originals and live terminals; explicitly retry after resolving the failure. After the Worker exits, the final save keeps each terminal's last sampled directory, and the stop fails as `host-exit` `refused` while that Worker's Host still runs, because nothing may end it; a Server whose Worker and Host are both gone stops on its own. Startup retains unreadable snapshots and falls back to an older valid copy, or opens an empty workspace with a warning when none remain valid. The owning [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) defines compatibility and recovery limits. Old processes, live Agent state, Client views, terminal screens and history are not restored.
 
-`server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` stops the existing managed Windows Session without activating one. The ID is a nonzero lowercase 128-bit value, generated once if omitted; `--retry` requires it. The CLI issues one start/retry request, then only status reads. `--detach` returns the admitted attempt immediately; otherwise one absolute deadline (65000 ms by default, 1–3600000 ms) covers runtime/cohort admission, request and polling. Cancellation or timeout stops waiting, never rolls back the admitted shutdown. Every runtime answer retains the request ID so `server stop-status <id>` can query it. Status is a fact document, not a second mutation. The `orchbee.server.stop` v1 envelope distinguishes stopped, exited, pending, failed, busy, not-recorded, unmanaged and unavailable/unknown outcomes. Every answer includes `wait`: `null` when no wait disposition exists, or detached, timed-out or cancelled for the applicable pending/transport outcome. Known Server failures preserve attempt, phase, cause and per-attempt disposal count. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt; not-recorded cannot disprove an earlier stop. Linux/macOS return unsupported-platform without runtime effects. In the Windows release build, `server stop`, `session stop` and `session delete` take no `--confirm` and pass the [release confirmation](../README.md#windows-release-destructive-confirmation) first, which also logs every request. `--machine <selector> server stop` is not this request carried to another computer: the [remote Session stop](machines.md#remote-session-stop) owns it.
+`server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` stops the existing managed Windows Session without activating one. The ID is a nonzero lowercase 128-bit value, generated once if omitted; `--retry` requires it. The CLI issues one start/retry request, then only status reads. `--detach` returns the admitted attempt immediately; otherwise one absolute deadline (65000 ms by default, 1–3600000 ms) covers runtime/cohort admission, request and polling. Cancellation or timeout stops waiting, never rolls back the admitted shutdown. Every runtime answer retains the request ID so `server status <id>` can query it. Status is a fact document, not a second mutation. The `orchbee.server.stop` v1 envelope distinguishes stopped, exited, pending, failed, busy, not-recorded, unmanaged and unavailable/unknown outcomes. Every answer includes `wait`: `null` when no wait disposition exists, or detached, timed-out or cancelled for the applicable pending/transport outcome. Known Server failures preserve attempt, phase, cause and per-attempt disposal count. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt; not-recorded cannot disprove an earlier stop. Linux/macOS return unsupported-platform without runtime effects. In the Windows release build, `server stop`, `session stop` and `session delete` take no `--confirm` and pass the [release confirmation](../README.md#windows-release-destructive-confirmation) first, which also logs every request. `--machine <selector> server stop` is not this request carried to another computer: the [remote Session stop](machines.md#remote-session-stop) owns it.
 
 A Session whose Server refuses this build's offer is handled by kind; status reads never take this path. A Session from before the handshake gets `unavailable` `predates-handshake`: no shim speaks to it, so the text names the action, running `server stop` with the Orchbee that started it, as `pnpm desktop` does. A Server that refuses as too old, as another development build, or with `stopping` is asked for its terminal count with one `query` control request. With none open, one `exit` request ends that Server and its Worker, and the CLI waits for the Session lifetime lock to be released before reporting `exited` (exit 0); there is no stop record, and the next start recovers the Session from its last checkpoint as an unclean end. With terminals open the answer is `unavailable` `terminals-open`, or `draining` for a Server that refused with `stopping`, because `exit` never ends a terminal and, until Host `exit` arrives in P1, only the build that started a Session can end its terminals. A Server that answers `exit` `unsupported` gets `exit-unsupported` with the same action. An `exit` whose reply was lost after submission, or whose Session still holds its lifetime lock at the deadline, is `unknown` with reason `transport` or `session-lifetime`.
 
@@ -2913,13 +2846,13 @@ Windows `worktree list` additionally accepts a source Workspace/cwd and optional
 
 ## Project close-all projection
 
-Windows `project close-all <target> --confirm` explicitly closes captured members of one Project, with `--request-id`, `--detach` and `--timeout` (1–3600000 ms, default 120000). `project close-status --request <operation-id>` has a five-second read budget; `project close-resume --request <operation-id> --generation <1..64> --confirm` admits the same detach/timeout options. Ordinary `workspace close` closes only the selected Workspace; retired `--group` forms are rejected. Both preserve Git checkouts/branches. Project close-all retains the Project; dissolve only ungroups and retains Workspaces.
+Windows `project close-all <target> --confirm` explicitly closes captured members of one Project, with `--request-id`, `--detach` and `--timeout` (1–3600000 ms, default 120000). `project status <operation-id>` has a five-second read budget; `project resume <operation-id> --generation <1..64> --confirm` admits the same detach/timeout options. Ordinary `workspace close` closes only the selected Workspace; retired `--group` forms are rejected. Both preserve Git checkouts/branches. Project close-all retains the Project; dissolve only ungroups and retains Workspaces.
 
 `orchbee.project.close-all` v1 separates retained Server truth from nullable wait disposition. Source is `local-workspace-group` with required-nullable Session ID. Results have only a Project scope; at most 256 captured members carry Workspace ID, label and nullable child Close. Empty groups are valid. Start/Resume submits once, followed only by reads of the same attempt/members; unknown effects are never replayed. Exit codes and partial truth follow [Project close-all](windows-worktrees.md#project-close-all). Help, `--skill` and completion declare these commands offline.
 
 ## Windows Client navigation
 
-[Windows Client view control](windows-client-control.md) owns `client list/get/control-status`, `workspace focus`, `tab focus`, `panel focus` and `panel zoom`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. The current catalog includes `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`; view/control are v1, routing failure is v1 and composed Agent Client read failure is v1. No operating-system window activation or Mac/Linux control runtime is added; Linux admits only the read-only `client list` and `client get`.
+[Windows Client view control](windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel zoom`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. The current catalog includes `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`; view/control are v1, routing failure is v1 and composed Agent Client read failure is v1. No operating-system window activation or Mac/Linux control runtime is added; Linux admits only the read-only `client list` and `client get`.
 
 ## Windows offline schema export
 
@@ -3139,7 +3072,7 @@ every thirty minutes when `agent_detection.auto_update` is true (default). Debug
 execution do not schedule checks. Only configuration publication (the Session's sampler or
 `server reload-config`) changes this switch; rule Reload never reads `config.toml`, and a failed rule installation preserves the previous detector. Automatic results use
 a separate latest-result slot without consuming manual receipts.
-`server agent-manifests-status <operation-id>` reads either retained receipt without resubmitting.
+`server status <operation-id>` reads either retained receipt without resubmitting.
 These commands require an already running Session and do not focus a Client or send terminal input.
 
 Each invocation uses one five-second admission/exchange budget. Reload and Update submit once and

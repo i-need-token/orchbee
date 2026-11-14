@@ -5,22 +5,21 @@ use super::{
     AgentIntegrationCommand, AgentNamesCommand, AgentPromptWait, AgentStartCommand,
     AgentStartPlace, CommandPath, CompletionShell, ExpectedValue, FailureEnvelope,
     MAXIMUM_SEND_RECORDS, ManifestCommand, MutationCommand, Options, OutputFormat, OutputTarget,
-    PanelQueryTarget, ParseFailure, QueryCommand, Request, Resource, RuntimeStatusScope,
-    ServerStopCommand, Target, TerminalListFilter, UsageContext, UsageReason,
-    adapter_source_option, agent_after_revision_option, agent_limit_option, agent_name,
-    agent_selector, agent_until_option, agent_view_spec, agent_wait_timeout_option,
-    business_options, check_scope, client_control, close_generation_option, close_request_option,
-    close_wait, configured_commands, confirm_option_required, creation, diagnostics,
-    doctor_asset_roots_option, doctor_providers_option, events, grammar, label_option, layouts,
-    machines, manifest_operation_id, missing_command, missing_required, mutation, named_sessions,
-    operation, pane_graphics, panel_agent, panel_input, panel_metadata, panel_move_destination,
-    panel_relocation, panel_terminal_creation, parse_send_key, path_option, plugins,
-    profile_name_option, profile_selector, provider_option, query, reject_extras,
+    PanelQueryTarget, ParseFailure, QueryCommand, Request, Resource, RuntimeStatusScope, Target,
+    TerminalListFilter, UsageContext, UsageReason, adapter_source_option,
+    agent_after_revision_option, agent_limit_option, agent_name, agent_selector,
+    agent_until_option, agent_view_spec, agent_wait_timeout_option, business_options, check_scope,
+    client_control, close_wait, configured_commands, confirm_option_required, creation,
+    diagnostics, doctor_asset_roots_option, doctor_providers_option, events, grammar, label_option,
+    layouts, machines, manifest_operation_id, missing_command, missing_required, mutation,
+    named_sessions, operation, pane_graphics, panel_agent, panel_input, panel_metadata,
+    panel_move_destination, panel_relocation, panel_terminal_creation, parse_send_key, path_option,
+    plugins, profile_name_option, profile_selector, provider_option, query, reject_extras,
     reject_extras_scope, reject_filters, required, required_launch_option, required_provider,
-    resolve_help_path, schema_export, send_input, stop_command, stop_id, tab_move_command, target,
+    resolve_help_path, schema_export, send_input, stop_command, tab_move_command, target,
     terminal_copy, terminal_links, terminal_output, terminal_run, terminal_selection,
     terminal_stream, terminal_target, unexpected_argument, unknown_command, usage_with,
-    workspace_creation, workspace_group_close, workspace_id_option, workspace_metadata, worktree,
+    workspace_creation, workspace_group_close, workspace_metadata, worktree,
 };
 
 pub(super) fn resolve_words(
@@ -725,54 +724,12 @@ pub(super) fn resolve_words(
             ))
         }
         ["project", "close-all", value] => workspace_group_close::start(value, options, envelope),
-        ["project", verb @ ("close-status" | "close-resume")] => {
-            workspace_group_close::retained(verb, options, envelope)
-        }
         ["workspace", "close", value] => {
             let wait = close_wait(options, UsageContext::Path("workspace close"), envelope)?;
             Ok(mutation(
                 MutationCommand::WorkspaceClose {
                     target: target((*value).to_owned(), Resource::Workspace, envelope)?,
                     wait,
-                },
-                options,
-            ))
-        }
-        ["workspace", "close-status"] => {
-            check_scope(
-                options,
-                UsageContext::Path("workspace close-status"),
-                envelope,
-            )?;
-            Ok(query(
-                QueryCommand::WorkspaceCloseStatus {
-                    workspace: workspace_id_option(
-                        options,
-                        UsageContext::Path("workspace close-status"),
-                        envelope,
-                    )?,
-                },
-                options,
-            ))
-        }
-        ["workspace", "close-resume"] => {
-            check_scope(
-                options,
-                UsageContext::Path("workspace close-resume"),
-                envelope,
-            )?;
-            let context = UsageContext::Path("workspace close-resume");
-            let workspace = workspace_id_option(options, context, envelope)?;
-            let request = close_request_option(options, context, envelope)?;
-            let generation = close_generation_option(options, context, envelope)?;
-            if !options.confirm {
-                return Err(missing_required(context, "'--confirm'", envelope));
-            }
-            Ok(mutation(
-                MutationCommand::WorkspaceCloseResume {
-                    workspace,
-                    request,
-                    generation,
                 },
                 options,
             ))
@@ -1396,21 +1353,6 @@ pub(super) fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["server", "agent-manifests-status", id] => {
-            let context = UsageContext::Path("server agent-manifests-status");
-            reject_filters(options, context, envelope)?;
-            Ok(Request::AgentManifests {
-                command: ManifestCommand::Status {
-                    operation_id: manifest_operation_id(id, context, "<operation-id>", envelope)?,
-                },
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
-        ["server", "agent-manifests-status"] => Err(missing_required(
-            UsageContext::Path("server agent-manifests-status"),
-            "<operation-id>",
-            envelope,
-        )),
         ["server", "diagnose"] => {
             reject_filters(options, UsageContext::Path("server diagnose"), envelope)?;
             Ok(Request::ServerDiagnose {
@@ -1421,21 +1363,6 @@ pub(super) fn resolve_words(
             command: stop_command(options, UsageContext::Path("server stop"), envelope)?,
             format: options.format.unwrap_or(OutputFormat::Text),
         }),
-        ["server", "stop-status", id] => {
-            let context = UsageContext::Path("server stop-status");
-            reject_filters(options, context, envelope)?;
-            Ok(Request::ServerStop {
-                command: ServerStopCommand::Status {
-                    id: stop_id(id, context, "<request-id>", envelope)?,
-                },
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
-        ["server", "stop-status"] => Err(missing_required(
-            UsageContext::Path("server stop-status"),
-            "<request-id>",
-            envelope,
-        )),
         ["completion", shell] => {
             reject_extras(options, UsageContext::Path("completion"), envelope)?;
             let shell = match *shell {
@@ -1566,20 +1493,6 @@ pub(super) fn resolve_words(
             extra,
             envelope,
         )),
-        [
-            "project",
-            verb @ ("close-status" | "close-resume"),
-            extra,
-            ..,
-        ] => Err(unexpected_argument(
-            UsageContext::Path(if *verb == "close-status" {
-                "project close-status"
-            } else {
-                "project close-resume"
-            }),
-            extra,
-            envelope,
-        )),
         ["project", verb, ..] => Err(unknown_command(
             UsageContext::Path("project"),
             verb,
@@ -1633,16 +1546,6 @@ pub(super) fn resolve_words(
         )),
         ["workspace", "close", _, extra, ..] => Err(unexpected_argument(
             UsageContext::Path("workspace close"),
-            extra,
-            envelope,
-        )),
-        ["workspace", "close-status", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("workspace close-status"),
-            extra,
-            envelope,
-        )),
-        ["workspace", "close-resume", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("workspace close-resume"),
             extra,
             envelope,
         )),
@@ -1949,11 +1852,6 @@ pub(super) fn resolve_words(
         )),
         ["server", "stop", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("server stop"),
-            extra,
-            envelope,
-        )),
-        ["server", "stop-status", _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("server stop-status"),
             extra,
             envelope,
         )),

@@ -69,7 +69,7 @@ envelopes, including request identity and outcome-unknown semantics.
 
 JSON emits one complete bounded document to stdout. Failed text output goes to stderr and includes
 known effects. After an incomplete result, inspect the returned identities and current state before
-choosing a follow-up; repeating creation may create another resource. Client control-status can
+choosing a follow-up; repeating creation may create another resource. `client status <id>` can
 observe a submitted Client operation. No durable workflow journal or restart restoration is added.
 The catalog exposes the current documents and command paths.
 

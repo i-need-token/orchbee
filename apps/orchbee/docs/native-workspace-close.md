@@ -35,8 +35,8 @@ navigation as described in [Accepted close leaves navigation](#accepted-close-le
 
 Explicitly confirmed Close uses `WorkbenchAction::WorkspaceClose`; only explicit Project close-all uses group
 Start. Neither path deletes Git data or automatically resumes a failed attempt. Read retained status
-with `workspace close-status --workspace <workspace-id>` or
-`project close-status --request <operation-id>`. Eligible recovery uses explicit CLI Resume;
+with `workspace status <close-request-id>` or
+`project status <operation-id>`. Eligible recovery uses explicit CLI Resume;
 Pending and Unknown permit observation only.
 
 ## Conditional sidebar admission
@@ -73,7 +73,7 @@ Project dissolve keep their existing compatibility semantics and distinct finger
 
 Workspace escalation reports that confirmation is required, rather than displaying an ordinary
 refusal/retry instruction under the fresh decision. This definite no-effect status has no admitted
-Close operation ID or close-status recovery command. Ordinary refusal and unknown outcomes retain
+Close operation ID or status recovery command. Ordinary refusal and unknown outcomes retain
 their separate feedback and recovery rules.
 
 A peer publication can change the snapshot between the Server's reply and the read that follows it.
@@ -117,7 +117,7 @@ from the canonical snapshot, which ends its row's derivation.
 The submission lease ends at acceptance. The worker retains the admission, reads the canonical
 snapshot once and publishes the close result with it; the Client starts the settlement follow and
 installs that snapshot in the same refresh flight. Settlement continues behind it. The Client admits
-one read-only status read at a time, a Workspace close-status read or a Project group `Read`, each in
+one read-only status read at a time, a Workspace close read or a Project group `Read`, each in
 its own short lease that is no barrier, and publishes each observation to itself as a notice, so
 Context selection and publication reads run between reads. No read carries the close request, so a
 close that may already have been delivered is never submitted again.

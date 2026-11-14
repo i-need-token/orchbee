@@ -74,13 +74,12 @@ impl Locale {
         if view.status == WorkspaceCloseStatus::Unknown
             && let Some(id) = view.operation_id
         {
-            if let Some(workspace) = view.workspace_id {
-                text.push_str(&format!(
-                    " · orchbee workspace close-status --workspace {workspace}"
-                ));
+            let family = if view.workspace_id.is_some() {
+                "workspace"
             } else {
-                text.push_str(&format!(" · orchbee project close-status --request {id}"));
-            }
+                "project"
+            };
+            text.push_str(&format!(" · orchbee {family} status {id}"));
         }
         text
     }

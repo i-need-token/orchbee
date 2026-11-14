@@ -18,10 +18,6 @@ pub(crate) const AGENT_NAMES_FAILURE_ID: &str = "orchbee.cli.failure.agent-names
 /// settlements — the generic schema's resource and candidate grammars are
 /// closed without it.
 pub(crate) const LAUNCH_PROFILE_FAILURE_ID: &str = "orchbee.cli.failure.launch-profile";
-/// The dedicated Workspace Close lifecycle envelope: `close-status` and
-/// `close-resume` stages, the resume rejection vocabulary, and the
-/// outcome-unknown request echo — kept off the generic failure schema.
-pub(crate) const CLOSE_FAILURE_ID: &str = "orchbee.cli.failure.close";
 pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
 pub(crate) const PANEL_RENAME_RESULT_ID: &str = "orchbee.panel.rename";
 pub(crate) const WORKSPACE_MOVE_RESULT_ID: &str = "orchbee.workspace.move";
@@ -414,10 +410,6 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.cli.failure.agent.json"),
     ),
     (
-        CLOSE_FAILURE_ID,
-        include_str!("../../cli/schemas/orchbee.cli.failure.close.json"),
-    ),
-    (
         LAUNCH_PROFILE_FAILURE_ID,
         include_str!("../../cli/schemas/orchbee.cli.failure.launch-profile.json"),
     ),
@@ -536,10 +528,6 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
     (
         "orchbee.terminal.wait-output",
         include_str!("../../cli/schemas/orchbee.terminal.wait-output.json"),
-    ),
-    (
-        "orchbee.workspace.close-status",
-        include_str!("../../cli/schemas/orchbee.workspace.close-status.json"),
     ),
     (
         "orchbee.workspace.get",

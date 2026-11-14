@@ -121,7 +121,7 @@ Popup 放置要求当前已就绪客户端和焦点。请移除 `--no-focus`，�
 
 ## 关闭、停止与恢复
 
-破坏性命令要求其声明的 `--confirm`。关闭 Workspace 不删除 Git 检出或分支。回执要求恢复时，使用 close-status/close-resume 或 worktree status/resume，并保留请求 ID 与 generation。不要通过创建第二个操作隐式重试。
+破坏性命令要求其声明的 `--confirm`。关闭 Workspace 不删除 Git 检出或分支。回执要求恢复时，使用 `<family> status|resume <request-id>`（例如 workspace、project 或 worktree），并保留请求 ID 与 generation。不要通过创建第二个操作隐式重试。
 
 仅当用户在当前对话中要求停止时，才停止 Server 或 Session；不要自行添加 `--confirm`。`server stop --confirm` 或 `session stop <name> --confirm` 在最终检查点写入后结束 Session。启动会恢复符合条件的布局和启动事实，不恢复实时屏幕历史或活跃 Agent 状态。CLI 等待失败／取消后，停止操作可能仍在进行；应查询保留的请求身份。`orchbee --machine <name-or-id> server stop --confirm` 通过后台连接进程停止该已保存机器的远端 Session 及其中的所有终端；它不接受请求标识、重试、后台执行或超时选项，因此 `unknown` 结果没有可查询的身份。
 

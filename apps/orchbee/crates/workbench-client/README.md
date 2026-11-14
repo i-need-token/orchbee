@@ -70,7 +70,7 @@ A thread detached at the deadline can abandon this work when the process ends:
   pending until the Server expires it.
 - The last position-cache write.
 - A Windows clipboard delivery.
-- The result of close-status recovery.
+- The result of close status recovery.
 
 The saved-machine Session carrier belongs to the retained-carrier guard of the sibling transport
 and stops with that guard.

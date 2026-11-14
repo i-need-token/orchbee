@@ -94,15 +94,6 @@ pub(crate) struct CliLabels {
     // `agent integration list` columns — provider, its PATH availability,
     // the management mode, the observed state, and the issue when present.
     pub(crate) integration_headers: [&'static str; 5],
-    // `workspace close-status` field labels, the member table columns, and
-    // the empty-record notice.
-    pub(crate) close_request_id: &'static str,
-    pub(crate) workspace_id: &'static str,
-    pub(crate) attempt_generation: &'static str,
-    pub(crate) status: &'static str,
-    pub(crate) members: &'static str,
-    pub(crate) close_not_closing: &'static str,
-    pub(crate) close_member_headers: [&'static str; 4],
 }
 
 const EN_US_LABELS: CliLabels = CliLabels {
@@ -206,13 +197,6 @@ const EN_US_LABELS: CliLabels = CliLabels {
     agent_doctor_asset_roots: "Asset roots",
     agent_doctor_hints: "Hints",
     integration_headers: ["PROVIDER", "AVAILABILITY", "MANAGEMENT", "STATE", "ISSUE"],
-    close_request_id: "Close request ID",
-    workspace_id: "Workspace ID",
-    attempt_generation: "Attempt generation",
-    status: "Status",
-    members: "Members",
-    close_not_closing: "no close operation recorded for this workspace",
-    close_member_headers: ["TAB", "PANEL", "PRESENTATION", "STATUS"],
 };
 
 const ZH_CN_LABELS: CliLabels = CliLabels {
@@ -308,13 +292,6 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     agent_doctor_asset_roots: "资产根",
     agent_doctor_hints: "提示",
     integration_headers: ["提供方", "可用性", "管理方式", "状态", "问题"],
-    close_request_id: "关闭请求 ID",
-    workspace_id: "工作区 ID",
-    attempt_generation: "尝试代次",
-    status: "状态",
-    members: "成员",
-    close_not_closing: "该工作区没有已记录的关闭操作",
-    close_member_headers: ["TAB", "PANEL", "PRESENTATION", "状态"],
 };
 
 impl super::CliText {

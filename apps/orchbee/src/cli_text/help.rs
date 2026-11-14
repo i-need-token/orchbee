@@ -118,10 +118,6 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::ClientGet) => {
                 ("Show one connected client.", "查看一个已连接的客户端。")
             }
-            HelpTopic::Command(CommandPath::ClientControlStatus) => (
-                "Check a client navigation request.",
-                "查看客户端导航请求的状态。",
-            ),
             HelpTopic::Command(CommandPath::WorkspaceFocus) => (
                 "Switch a client to a workspace.",
                 "让客户端切换到指定工作区。",
@@ -389,14 +385,6 @@ impl super::CliText {
                 "Close every workspace in a project.",
                 "关闭项目中的全部工作区。",
             ),
-            HelpTopic::Command(CommandPath::ProjectCloseStatus) => (
-                "Check a project's workspace closure.",
-                "查看项目工作区的关闭状态。",
-            ),
-            HelpTopic::Command(CommandPath::ProjectCloseResume) => (
-                "Resume an unfinished project closure.",
-                "继续尚未完成的项目关闭操作。",
-            ),
             HelpTopic::Command(CommandPath::WorkspaceSetProject) => (
                 "Move a workspace into a project group.",
                 "将工作区归入指定项目。",
@@ -462,13 +450,6 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::WorkspaceClose) => (
                 "Close a workspace and its terminals.",
                 "关闭工作区及其终端。",
-            ),
-            HelpTopic::Command(CommandPath::WorkspaceCloseStatus) => {
-                ("Check a workspace closure.", "查看工作区的关闭状态。")
-            }
-            HelpTopic::Command(CommandPath::WorkspaceCloseResume) => (
-                "Resume an unfinished workspace closure.",
-                "继续尚未完成的工作区关闭操作。",
             ),
             HelpTopic::Command(CommandPath::TabList) => ("List terminal tabs.", "列出终端标签页。"),
             HelpTopic::Command(CommandPath::TabGet) => {
@@ -787,17 +768,10 @@ impl super::CliText {
                 "Reload local Agent detection rules.",
                 "重新加载本地智能体识别规则。",
             ),
-            HelpTopic::Command(CommandPath::ServerAgentManifestsStatus) => (
-                "Check an Agent detection rule update.",
-                "查看智能体识别规则的更新状态。",
-            ),
             HelpTopic::Command(CommandPath::ServerStop) => (
                 "Stop the selected local session and its terminals; requires confirmation (--confirm outside release).",
                 "停止所选本地会话及其终端；需要确认（正式版以外使用 --confirm）。",
             ),
-            HelpTopic::Command(CommandPath::ServerStopStatus) => {
-                ("Check a session stop request.", "查看会话停止请求的状态。")
-            }
         };
         match self.locale {
             Locale::EnUs => english,

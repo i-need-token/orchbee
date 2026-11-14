@@ -1,8 +1,8 @@
-//! Explicit group confirmation and identity-based retained reads; ordinary Close grammar stays separate.
+//! Explicit group confirmation; retained reads and resumes use `project status|resume`.
 use super::{
     ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, Target,
-    UsageContext, UsageReason, check_scope, close_generation_option, close_request_option,
-    missing_required, target, usage_with, wait_timeout_option,
+    UsageContext, UsageReason, check_scope, missing_required, target, usage_with,
+    wait_timeout_option,
 };
 use orchbee_workbench_protocol::WorkbenchRequestId;
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -59,46 +59,6 @@ pub(super) fn start(
         },
         options,
     ))
-}
-pub(super) fn retained(
-    verb: &str,
-    options: &Options,
-    envelope: FailureEnvelope,
-) -> Result<Request, ParseFailure> {
-    let resume = verb == "close-resume";
-    let context = UsageContext::Path(if resume {
-        "project close-resume"
-    } else {
-        "project close-status"
-    });
-    check_scope(options, context, envelope)?;
-    let operation_id = close_request_option(options, context, envelope)?;
-    let command = if resume {
-        if !options.confirm {
-            return Err(missing_required(context, "'--confirm'", envelope));
-        }
-        let generation = close_generation_option(options, context, envelope)?.value();
-        if generation > 64 {
-            return Err(usage_with(
-                UsageReason::InvalidValue {
-                    context,
-                    option: "--generation",
-                    value: generation.to_string(),
-                    expected: ExpectedValue::WorktreeAttempt,
-                },
-                envelope,
-            ));
-        }
-        WorkspaceGroupCloseCommand::Resume {
-            operation_id,
-            expected_attempt: generation as u32,
-            detach: options.detach,
-            timeout_ms: timeout(options, context, envelope)?,
-        }
-    } else {
-        WorkspaceGroupCloseCommand::Status { operation_id }
-    };
-    Ok(request(command, options))
 }
 fn request(command: WorkspaceGroupCloseCommand, options: &Options) -> Request {
     Request::WorkspaceGroupClose {

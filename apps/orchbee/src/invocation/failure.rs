@@ -161,13 +161,10 @@ pub(crate) enum ExpectedValue {
     Provider,
     /// `agent integration --adapter-source <abs>`: a literal absolute path.
     AdapterSource,
-    /// The `workspace close-status|close-resume --workspace` operand: a
-    /// nonzero 32-character lowercase hexadecimal Workspace ID.
-    WorkspaceId,
-    /// The `workspace close-resume --request` operand: the close operation's
+    /// The `<family> status|resume <request-id>` operand: the operation's
     /// own nonzero 32-character lowercase hexadecimal request ID.
     CloseRequestId,
-    /// The `workspace close-resume --generation` operand: the caller's
+    /// The `<family> resume --generation` operand: the caller's
     /// last-observed nonzero attempt generation, canonical decimal text.
     CloseGeneration,
 }

@@ -172,14 +172,10 @@ pub(super) fn parse(
                 envelope,
             ));
         }
-        ["client", verb @ ("get" | "control-status"), _, extra, ..] => {
+        ["client", "get", _, extra, ..] => {
             return Err(usage_with(
                 UsageReason::UnexpectedArgument {
-                    context: UsageContext::Path(if *verb == "get" {
-                        "client get"
-                    } else {
-                        "client control-status"
-                    }),
+                    context: UsageContext::Path("client get"),
                     value: (*extra).into(),
                 },
                 envelope,
@@ -198,19 +194,6 @@ pub(super) fn parse(
                     value,
                     "<client>",
                     ExpectedValue::ClientId,
-                    context,
-                    envelope,
-                )
-            })?)
-        }
-        ["client", "control-status", value] => {
-            let context = UsageContext::Path("client control-status");
-            check_scope(options, context, envelope)?;
-            ClientCommand::ControlStatus(WorkbenchRequestId::parse(value).map_err(|_| {
-                invalid(
-                    value,
-                    "<operation>",
-                    ExpectedValue::ClientOperationId,
                     context,
                     envelope,
                 )
@@ -368,18 +351,10 @@ pub(super) fn parse(
             };
             navigation(target, options, context, envelope)?
         }
-        ["client", verb] if *verb == "get" || *verb == "control-status" => {
+        ["client", "get"] => {
             return Err(missing_required(
-                UsageContext::Path(if *verb == "get" {
-                    "client get"
-                } else {
-                    "client control-status"
-                }),
-                if *verb == "get" {
-                    "<client>"
-                } else {
-                    "<operation>"
-                },
+                UsageContext::Path("client get"),
+                "<client>",
                 envelope,
             ));
         }

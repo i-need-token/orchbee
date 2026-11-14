@@ -20,34 +20,22 @@ impl super::CliText {
             (Locale::EnUs, CommandPath::ServerReloadAgentManifests) => {
                 crate::cli_text::HelpDetails::new(
                     "orchbee server reload-agent-manifests [--request-id <operation-id>] [--format text|json]",
-                    "Reload local detection rules from the configuration directory in the running Windows session; reset screen stabilization. agent_detection.auto_update changes only through server reload-config. Invalid rules retain the previous rules. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query server agent-manifests-status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last for this session generation (maximum 1,024); no remote fetch.",
+                    "Reload local detection rules from the configuration directory in the running Windows session; reset screen stabilization. agent_detection.auto_update changes only through server reload-config. Invalid rules retain the previous rules. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query server status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last for this session generation (maximum 1,024); no remote fetch.",
                 )
             }
             (Locale::ZhCn, CommandPath::ServerReloadAgentManifests) => {
                 crate::cli_text::HelpDetails::new(
                     "orchbee server reload-agent-manifests [--request-id <operation-id>] [--format text|json]",
-                    "在运行中 Windows 会话从配置目录重载本地识别规则，并重置屏幕稳定状态。agent_detection.auto_update 只随 server reload-config 变化。规则无效时保留旧规则。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 server agent-manifests-status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留至此会话代次结束（最多 1,024 条）；不会远程下载。",
-                )
-            }
-            (Locale::EnUs, CommandPath::ServerUpdateAgentManifests) => {
-                crate::cli_text::HelpDetails::new(
-                    "orchbee server update-agent-manifests [--request-id <operation-id>] [--format text|json]",
-                    "Download detection rules from the catalog that ORCHBEE_AGENT_DETECTION_CATALOG_URL set at session startup and activate eligible cached rules. Without a catalog, update is unavailable. Wait up to five seconds; exit 8 retains the operation ID for server agent-manifests-status. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.",
-                )
-            }
-            (Locale::ZhCn, CommandPath::ServerUpdateAgentManifests) => {
-                crate::cli_text::HelpDetails::new(
-                    "orchbee server update-agent-manifests [--request-id <operation-id>] [--format text|json]",
-                    "从会话启动时 ORCHBEE_AGENT_DETECTION_CATALOG_URL 指定的目录源下载识别规则，并启用符合条件的缓存规则；未配置目录源时无法更新。最多等待五秒；退出码 8 会保留操作 ID，可用 server agent-manifests-status 查询。复用 ID 不会重复下载。部分失败返回非零退出码；缓存结果和启用结果分别显示。",
+                    "在运行中 Windows 会话从配置目录重载本地识别规则，并重置屏幕稳定状态。agent_detection.auto_update 只随 server reload-config 变化。规则无效时保留旧规则。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 server status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留至此会话代次结束（最多 1,024 条）；不会远程下载。",
                 )
             }
             (Locale::EnUs, _) => crate::cli_text::HelpDetails::new(
-                "orchbee server agent-manifests-status <operation-id> [--format text|json]",
-                "Read one retained reload or update receipt from the running Windows session without resubmitting it. Unknown IDs are not recorded; receipts do not survive session restart.",
+                "orchbee server update-agent-manifests [--request-id <operation-id>] [--format text|json]",
+                "Download detection rules from the catalog that ORCHBEE_AGENT_DETECTION_CATALOG_URL set at session startup and activate eligible cached rules. Without a catalog, update is unavailable. Wait up to five seconds; exit 8 retains the operation ID for server status <id>. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.",
             ),
             (Locale::ZhCn, _) => crate::cli_text::HelpDetails::new(
-                "orchbee server agent-manifests-status <operation-id> [--format text|json]",
-                "读取运行中 Windows 会话保留的重载或更新回执，不重新提交。未知 ID 表示无记录；回执不跨会话重启保留。",
+                "orchbee server update-agent-manifests [--request-id <operation-id>] [--format text|json]",
+                "从会话启动时 ORCHBEE_AGENT_DETECTION_CATALOG_URL 指定的目录源下载识别规则，并启用符合条件的缓存规则；未配置目录源时无法更新。最多等待五秒；退出码 8 会保留操作 ID，可用 server status <id> 查询。复用 ID 不会重复下载。部分失败返回非零退出码；缓存结果和启用结果分别显示。",
             ),
         }
     }

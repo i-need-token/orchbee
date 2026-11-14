@@ -63,37 +63,13 @@ pub(super) const HELP_WORKSPACE_ACCEPT_DIRECTORY_ZH: crate::cli_text::HelpDetail
 pub(super) const HELP_WORKSPACE_CLOSE_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
-        "Close only the selected Workspace and all its terminals for every Client.\nTargets resolve globally by exact ID, @workspace:0x<hex>, or exact label.\n--confirm is required. Checkout directories and branches remain; other Workspaces\nsharing its repository or Project remain open. By default the command waits until\nthe Workspace is gone (--timeout, default 30000 ms; timeout exits 7 and the close\ncontinues). --detach returns the accepted receipt with the close request ID and\nstable Workspace/context IDs. --dry-run lists the terminals, titles and Agents that\nwould end, without --confirm. Observe with workspace close-status;\nonly an explicit workspace close-resume resumes an eligible retained attempt.\nFor all members of a Project use project close-all --confirm.",
+        "Close only the selected Workspace and all its terminals for every Client.\nTargets resolve globally by exact ID, @workspace:0x<hex>, or exact label.\n--confirm is required. Checkout directories and branches remain; other Workspaces\nsharing its repository or Project remain open. By default the command waits until\nthe Workspace is gone (--timeout, default 30000 ms; timeout exits 7 and the close\ncontinues). --detach returns the accepted receipt with the close request ID and\nstable Workspace/context IDs. --dry-run lists the terminals, titles and Agents that\nwould end, without --confirm. Observe with workspace status <request-id>;\nonly an explicit workspace resume resumes an eligible retained attempt.\nFor all members of a Project use project close-all --confirm.",
     );
 
 pub(super) const HELP_WORKSPACE_CLOSE_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
-        "仅为所有客户端关闭选定工作区及其所有终端。目标按精确 ID、@workspace:0x<hex> 或精确名称全局解析。必须指定 --confirm。checkout 目录与分支保留；同仓库或项目的其他工作区\n继续运行。默认等待工作区消失（--timeout，默认 30000 毫秒；超时以 7 退出，关闭继续进行）。--detach 返回已接纳回执，包含关闭请求 ID 与稳定的工作区/context ID。--dry-run 无需 --confirm，列出将结束的终端、标题与智能体。用 workspace close-status 观测；只有显式 workspace close-resume 才恢复符合条件的保留尝试。关闭项目全部成员使用 project close-all --confirm。",
-    );
-
-pub(super) const HELP_WORKSPACE_CLOSE_STATUS_EN: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee workspace close-status --workspace <id> [--format text|json]",
-        "Read the retained Close operation by complete stable Workspace ID, including after\nthe Workspace disappears. Project membership never participates in this identity.\nThe result carries operation identity, generation, status and member lifecycle facts.\nnot-closing means no retained operation covers this Workspace. JSON: orchbee.workspace.close-status v1.",
-    );
-
-pub(super) const HELP_WORKSPACE_CLOSE_STATUS_ZH: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee workspace close-status --workspace <id> [--format text|json]",
-        "按完整稳定工作区 ID 读取保留的关闭操作，工作区消失后仍可读取。\nProject 归属不参与操作身份。结果携带操作身份、代次、状态与成员生命周期事实。\nnot-closing 表示该工作区没有保留的关闭操作。JSON：orchbee.workspace.close-status v1。",
-    );
-
-pub(super) const HELP_WORKSPACE_CLOSE_RESUME_EN: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee workspace close-resume --workspace <id> --request <close-id> --generation <n> --confirm [--format text|json]",
-        "Open one fresh attempt for an eligible retained Workspace Close. Workspace and request\nselectors are complete stable IDs. --generation is the last observed nonzero generation.\nA stale fence refuses; unknown outcomes cannot resume. --confirm is required.\nThe receipt preserves the operation identity and new generation, without Project scope.",
-    );
-
-pub(super) const HELP_WORKSPACE_CLOSE_RESUME_ZH: crate::cli_text::HelpDetails =
-    crate::cli_text::HelpDetails::new(
-        "orchbee workspace close-resume --workspace <id> --request <close-id> --generation <n> --confirm [--format text|json]",
-        "为符合条件的保留工作区关闭操作开启一次新尝试。工作区与 request\n选择器为完整稳定 ID。--generation 为最近观测到的非零代次。过期栅栏会拒绝；未知结果不可恢复。必须指定 --confirm。回执保留操作身份与新代次，不使用项目作用域。",
+        "仅为所有客户端关闭选定工作区及其所有终端。目标按精确 ID、@workspace:0x<hex> 或精确名称全局解析。必须指定 --confirm。checkout 目录与分支保留；同仓库或项目的其他工作区\n继续运行。默认等待工作区消失（--timeout，默认 30000 毫秒；超时以 7 退出，关闭继续进行）。--detach 返回已接纳回执，包含关闭请求 ID 与稳定的工作区/context ID。--dry-run 无需 --confirm，列出将结束的终端、标题与智能体。用 workspace status <request-id> 观测；只有显式 workspace resume 才恢复符合条件的保留尝试。关闭项目全部成员使用 project close-all --confirm。",
     );
 
 pub(super) const HELP_WORKSPACE_MOVE_EN: crate::cli_text::HelpDetails =

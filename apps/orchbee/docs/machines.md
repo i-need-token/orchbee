@@ -290,7 +290,7 @@ kind this build does not know, with exit 4. The selector
 is a prefix, accepts `--machine=value`, cannot combine with `--session`, and never
 changes the catalog. Help is local. Remote execution admits CLI commands
 for workspace, tab, panel, Client queries/control, terminal queries/send, Agent operations, worktrees,
-notifications, runtime configuration, manifests, `server stop-status`, and supported plugin
+notifications, runtime configuration, manifests, `server status <id>`, and supported plugin
 operations. Local management, installation, TUI, and terminal interactive streams are refused.
 `server stop` is never routed as a command line: with the prefix it is the
 [remote Session stop](#remote-session-stop), and a far end of this build refuses an older near

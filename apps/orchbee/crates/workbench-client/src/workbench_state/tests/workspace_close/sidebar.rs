@@ -150,7 +150,7 @@ fn conditional_delete_refusal_unknown_and_stale_source_never_mint_confirmation_o
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let text = locale.workspace_close_status(status);
             assert!(!text.contains("Confirmation required") && !text.contains("关闭前需要确认"));
-            assert_eq!(text.contains("close-status"), unknown);
+            assert_eq!(text.contains("orchbee workspace status"), unknown);
         }
     }
     let original = background_state(true);

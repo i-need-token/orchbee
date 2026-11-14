@@ -567,7 +567,7 @@ fn lost_submit_preserves_identity_for_explicit_status_without_resolving_again() 
         settled(&mut stream, &request, &command);
         assert_closed(&mut stream);
     });
-    let output = fixture.run(&["client", "control-status", &operation, "--format=json"]);
+    let output = fixture.run(&["client", "status", &operation, "--format=json"]);
     server.join().unwrap();
     assert!(output.status.success());
     receipt(&serde_json::from_slice(&output.stdout).unwrap());

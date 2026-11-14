@@ -48,10 +48,7 @@ impl Fixture {
             .unwrap()
     }
     fn query(&self) -> Value {
-        let output = self.run(
-            &["server", "stop-status", ID, "--format=json"],
-            "en_US.UTF-8",
-        );
+        let output = self.run(&["server", "status", ID, "--format=json"], "en_US.UTF-8");
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         let schema: Value =
             serde_json::from_str(include_str!("../src/cli/schemas/orchbee.server.stop.json"))
@@ -110,7 +107,7 @@ fn version_and_nested_help_are_offline_and_stop_still_requires_confirmation() {
         for path in [
             &["server"][..],
             &["server", "stop"][..],
-            &["server", "stop-status"][..],
+            &["server", "status"][..],
             &["terminal", "session", "control"][..],
         ] {
             let reference = run(&std::iter::once("help")
@@ -141,9 +138,8 @@ fn version_and_nested_help_are_offline_and_stop_still_requires_confirmation() {
 }
 
 #[test]
-fn missing_receipt_query_and_invalid_destructive_argv_have_no_runtime_effects() {
+fn invalid_destructive_argv_has_no_runtime_effects() {
     let fixture = Fixture::new();
-    assert_eq!(fixture.query()["result"]["outcome"], "not-recorded");
     for arguments in [
         vec!["server", "stop", "--format=json"],
         vec!["server", "stop", "--confirm", "--retry", "--format=json"],
@@ -186,22 +182,9 @@ fn only_matching_completed_record_and_free_lifetime_prove_stop_without_a_cohort(
         serde_json::from_slice::<Value>(&output.stdout).unwrap()["result"]["outcome"],
         "stopped"
     );
-    let text = fixture.run(&["server", "stop-status", ID], "zh_CN.UTF-8");
+    let text = fixture.run(&["server", "status", ID], "zh_CN.UTF-8");
     assert!(text.status.success());
     assert!(String::from_utf8(text.stdout).unwrap().contains("已停止"));
-    let other = fixture.run(
-        &[
-            "server",
-            "stop-status",
-            "22222222222222222222222222222222",
-            "--format=json",
-        ],
-        "en_US.UTF-8",
-    );
-    assert_eq!(
-        serde_json::from_slice::<Value>(&other.stdout).unwrap()["result"]["outcome"],
-        "not-recorded"
-    );
     drop(record);
     session.commit_activation().unwrap();
     assert_ne!(fixture.query()["result"]["outcome"], "stopped");

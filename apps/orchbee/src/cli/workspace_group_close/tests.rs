@@ -9,26 +9,12 @@ fn group_grammar_requires_confirmation_and_keeps_retained_selectors_independent(
     for words in [
         vec!["project", "close-all", "demo"],
         vec!["workspace", "close", "demo", "--group", "--confirm"],
-        vec!["project", "close-status"],
-        vec!["project", "close-status", "--request", ID, "--project", ID],
-        vec!["project", "close-status", "--request", ID, "--confirm"],
-        vec!["project", "close-resume", "--request", ID, "--generation=1"],
-        vec![
-            "project",
-            "close-resume",
-            "--request",
-            ID,
-            "--generation=65",
-            "--confirm",
-        ],
-        vec![
-            "project",
-            "close-resume",
-            "--request",
-            ID,
-            "--generation=01",
-            "--confirm",
-        ],
+        vec!["project", "status"],
+        vec!["project", "status", ID, "--project", ID],
+        vec!["project", "status", ID, "--confirm"],
+        vec!["project", "resume", ID, "--generation=1"],
+        vec!["project", "resume", ID, "--generation=65", "--confirm"],
+        vec!["project", "resume", ID, "--generation=01", "--confirm"],
     ] {
         assert!(
             parse_request(words.iter().map(OsString::from)).is_err(),
@@ -46,11 +32,10 @@ fn group_grammar_requires_confirmation_and_keeps_retained_selectors_independent(
             "--timeout=7",
             "--detach",
         ],
-        vec!["project", "close-status", "--request", ID],
+        vec!["project", "status", ID],
         vec![
             "project",
-            "close-resume",
-            "--request",
+            "resume",
             ID,
             "--generation=64",
             "--confirm",
@@ -130,7 +115,7 @@ fn partial_group_truth_and_wait_disposition_survive_schema_and_localized_output(
         let text = String::from_utf8(output.stdout).unwrap();
         assert!(!text.contains('\x1b'));
         assert!(!text.contains("\nspoof"));
-        assert!(text.contains("project close-status --request"));
+        assert!(text.contains("project status "));
         assert!(text.contains("--generation 1 --confirm"));
     }
     for (wait, code) in [

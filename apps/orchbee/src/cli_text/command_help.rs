@@ -127,12 +127,6 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::ClientList) => super::client_control::HELP_CLIENT_LIST_ZH,
             (Locale::EnUs, CommandPath::ClientGet) => super::client_control::HELP_CLIENT_GET_EN,
             (Locale::ZhCn, CommandPath::ClientGet) => super::client_control::HELP_CLIENT_GET_ZH,
-            (Locale::EnUs, CommandPath::ClientControlStatus) => {
-                super::client_control::HELP_CLIENT_CONTROL_STATUS_EN
-            }
-            (Locale::ZhCn, CommandPath::ClientControlStatus) => {
-                super::client_control::HELP_CLIENT_CONTROL_STATUS_ZH
-            }
             (Locale::EnUs, CommandPath::WorkspaceFocus) => super::client_control::HELP_WORKSPACE_FOCUS_EN,
             (Locale::ZhCn, CommandPath::WorkspaceFocus) => super::client_control::HELP_WORKSPACE_FOCUS_ZH,
             (Locale::EnUs, CommandPath::TabFocus) => super::client_control::HELP_TAB_FOCUS_EN,
@@ -168,12 +162,6 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::ProjectGet) => super::project::HELP_PROJECT_GET_ZH,
             (_, CommandPath::ProjectDissolve) => super::organization::Help::ProjectDissolve.text(self.locale),
             (_, CommandPath::ProjectCloseAll) => super::organization::Help::ProjectCloseAll.text(self.locale),
-            (_, CommandPath::ProjectCloseStatus) => {
-                super::organization::Help::ProjectCloseStatus.text(self.locale)
-            }
-            (_, CommandPath::ProjectCloseResume) => {
-                super::organization::Help::ProjectCloseResume.text(self.locale)
-            }
             (_, CommandPath::WorkspaceSetProject) => {
                 super::organization::Help::WorkspaceSetProject.text(self.locale)
             }
@@ -219,10 +207,6 @@ impl super::CliText {
             }
             (Locale::EnUs, CommandPath::WorkspaceClose) => super::workspace::HELP_WORKSPACE_CLOSE_EN,
             (Locale::ZhCn, CommandPath::WorkspaceClose) => super::workspace::HELP_WORKSPACE_CLOSE_ZH,
-            (Locale::EnUs, CommandPath::WorkspaceCloseStatus) => super::workspace::HELP_WORKSPACE_CLOSE_STATUS_EN,
-            (Locale::ZhCn, CommandPath::WorkspaceCloseStatus) => super::workspace::HELP_WORKSPACE_CLOSE_STATUS_ZH,
-            (Locale::EnUs, CommandPath::WorkspaceCloseResume) => super::workspace::HELP_WORKSPACE_CLOSE_RESUME_EN,
-            (Locale::ZhCn, CommandPath::WorkspaceCloseResume) => super::workspace::HELP_WORKSPACE_CLOSE_RESUME_ZH,
             (Locale::EnUs, CommandPath::TabList) => super::tab::HELP_TAB_LIST_EN,
             (Locale::ZhCn, CommandPath::TabList) => super::tab::HELP_TAB_LIST_ZH,
             (Locale::EnUs, CommandPath::TabGet) => super::tab::HELP_TAB_GET_EN,
@@ -467,15 +451,12 @@ Windows 正式版要求在控制台中输入 orchbee；开发和测试构建需�
                 _,
                 CommandPath::ServerAgentManifests
                 | CommandPath::ServerUpdateAgentManifests
-                | CommandPath::ServerReloadAgentManifests
-                | CommandPath::ServerAgentManifestsStatus,
+                | CommandPath::ServerReloadAgentManifests,
             ) => self.cli_agent_manifests_help(path),
             (Locale::EnUs, CommandPath::ServerDiagnose) => super::server::HELP_SERVER_DIAGNOSE_EN,
             (Locale::ZhCn, CommandPath::ServerDiagnose) => super::server::HELP_SERVER_DIAGNOSE_ZH,
             (Locale::EnUs, CommandPath::ServerStop) => super::server::HELP_SERVER_STOP_EN,
             (Locale::ZhCn, CommandPath::ServerStop) => super::server::HELP_SERVER_STOP_ZH,
-            (Locale::EnUs, CommandPath::ServerStopStatus) => super::server::HELP_SERVER_STOP_STATUS_EN,
-            (Locale::ZhCn, CommandPath::ServerStopStatus) => super::server::HELP_SERVER_STOP_STATUS_ZH,
         }
     }
 }

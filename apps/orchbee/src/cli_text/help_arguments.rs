@@ -58,7 +58,6 @@ impl super::CliText {
             CommandPath::PanelGraphicsStream => &[Argument::Panel],
             CommandPath::ClientList => &[],
             CommandPath::ClientGet => &[Argument::Client],
-            CommandPath::ClientControlStatus => &[Argument::Operation],
             CommandPath::WorkspaceFocus => &[Argument::Workspace],
             CommandPath::TabFocus => &[Argument::Tab],
             CommandPath::PanelFocus => &[Argument::Panel],
@@ -119,8 +118,6 @@ impl super::CliText {
             CommandPath::ProjectGet => &[Argument::Project],
             CommandPath::ProjectDissolve => &[Argument::Project],
             CommandPath::ProjectCloseAll => &[Argument::Project],
-            CommandPath::ProjectCloseStatus => &[],
-            CommandPath::ProjectCloseResume => &[],
             CommandPath::WorkspaceSetProject => &[Argument::Workspace],
             CommandPath::WorkspaceCreateProject => &[Argument::Workspace],
             CommandPath::WorkspaceUngroup => &[Argument::Workspace],
@@ -139,8 +136,6 @@ impl super::CliText {
             CommandPath::WorkspaceMoveBlock => &[Argument::Workspaces],
             CommandPath::WorkspaceAcceptDirectory => &[Argument::Workspace],
             CommandPath::WorkspaceClose => &[Argument::Workspace],
-            CommandPath::WorkspaceCloseStatus => &[],
-            CommandPath::WorkspaceCloseResume => &[],
             CommandPath::TabList => &[],
             CommandPath::TabGet => &[Argument::Tab],
             CommandPath::TabCreate => &[],
@@ -220,9 +215,7 @@ impl super::CliText {
             CommandPath::NotificationShow => &[Argument::Title],
             CommandPath::ServerAgentManifests => &[],
             CommandPath::ServerReloadAgentManifests => &[],
-            CommandPath::ServerAgentManifestsStatus => &[Argument::Operation],
             CommandPath::ServerStop => &[],
-            CommandPath::ServerStopStatus => &[Argument::Operation],
         };
         roles.iter().map(|role| {
             let (label, english, chinese) = match *role {

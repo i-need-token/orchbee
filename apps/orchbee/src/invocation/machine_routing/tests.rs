@@ -157,7 +157,7 @@ fn a_remote_stop_is_confirmed_here_and_refuses_the_local_stop_options() {
             [
                 "--machine=work",
                 "server",
-                "stop-status",
+                "status",
                 "0123456789abcdef0123456789abcdef"
             ]
             .into_iter()

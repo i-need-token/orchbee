@@ -17,7 +17,7 @@ export const zhCNDesktopTrayMessages = {
 		'会话已开始停止但未能完成，部分终端可能仍在运行。可以用 server stop --retry 和请求 ID {stopId} 重试。',
 	'desktop.tray.quitAll.failure.title': 'Orchbee 未能停止全部终端',
 	'desktop.tray.quitAll.failure.unconfirmed':
-		'Orchbee 无法确认会话已停止，部分终端可能仍在运行。可以用 server stop-status 和请求 ID {stopId} 查看。',
+		'Orchbee 无法确认会话已停止，部分终端可能仍在运行。可以用 server status 和请求 ID {stopId} 查看。',
 	'desktop.tray.quitAll.failure.unmanaged': '此会话无法从 Orchbee 停止。',
 	'desktop.tray.quitAll.stopping': '正在停止全部终端…',
 	'desktop.tray.quitAll.title': '停止全部终端并退出 Orchbee？',

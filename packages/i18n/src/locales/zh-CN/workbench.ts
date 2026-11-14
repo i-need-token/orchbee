@@ -22,7 +22,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.projects.close.closed': '项目工作区已关闭 · {label}',
 	'workbench.projects.close.closing': '正在关闭项目工作区 · {label}',
 	'workbench.projects.close.outcomeUnknown':
-		'项目全部关闭结果未知；不会重放 · {label} · orchbee project close-status --request {operationId}',
+		'项目全部关闭结果未知；不会重放 · {label} · orchbee project status {operationId}',
 	'workbench.projects.close.refused': '项目全部关闭未提交或被拒绝；刷新后重试 · {label}',
 	'workbench.projects.close.stopped': '项目全部关闭已停止；已知结果保留 · {label}',
 	'workbench.projects.closeAll.description':
@@ -132,7 +132,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.workspaces.close.closed': '工作区已关闭 · {label}',
 	'workbench.workspaces.close.closing': '正在关闭工作区 · {label}',
 	'workbench.workspaces.close.outcomeUnknown':
-		'工作区关闭结果未知；不会重放 · {label} · orchbee workspace close-status --workspace {workspaceId}',
+		'工作区关闭结果未知；不会重放 · {label} · orchbee workspace get {workspaceId}',
 	'workbench.workspaces.close.refused': '工作区关闭未提交或被拒绝；刷新后重试 · {label}',
 	'workbench.workspaces.close.stopped': '工作区关闭已停止；已知结果保留 · {label}',
 	'workbench.workspaces.confirmDelete.description':

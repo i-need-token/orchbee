@@ -21,7 +21,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.close.closed': 'Project Workspaces closed · {label}',
 	'workbench.projects.close.closing': 'Closing Project Workspaces · {label}',
 	'workbench.projects.close.outcomeUnknown':
-		'Project close-all outcome unknown; no replay · {label} · orchbee project close-status --request {operationId}',
+		'Project close-all outcome unknown; no replay · {label} · orchbee project status {operationId}',
 	'workbench.projects.close.refused':
 		'Project close-all was not submitted or was refused; refresh and try again · {label}',
 	'workbench.projects.close.stopped':
@@ -144,7 +144,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.close.closed': 'Workspace closed · {label}',
 	'workbench.workspaces.close.closing': 'Closing Workspace · {label}',
 	'workbench.workspaces.close.outcomeUnknown':
-		'Workspace Close outcome unknown; no replay · {label} · orchbee workspace close-status --workspace {workspaceId}',
+		'Workspace Close outcome unknown; no replay · {label} · orchbee workspace get {workspaceId}',
 	'workbench.workspaces.close.refused':
 		'Workspace Close was not submitted or was refused; refresh and try again · {label}',
 	'workbench.workspaces.close.stopped':

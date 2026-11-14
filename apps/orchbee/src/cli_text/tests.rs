@@ -285,7 +285,7 @@ fn popup_receipt_text_preserves_incomplete_reason_status_and_query_guidance_in_b
         let text = CliText::new(locale).cli_client_control(&document);
         assert!(text.contains(incomplete) && text.contains(reason), "{text}");
         assert!(
-            text.contains(&format!("orchbee client control-status {id}")),
+            text.contains(&format!("orchbee client status {id}")),
             "{text}"
         );
         document["schema"] = serde_json::json!("orchbee.client.control");
@@ -450,9 +450,7 @@ fn close_waits_name_the_closed_member_and_the_status_command() {
     assert!(
         CliText::new(Locale::EnUs)
             .cli_close_wait_hint(true, &id, 500)
-            .ends_with(&format!(
-                "Check with: orchbee workspace close-status --workspace {id}\n"
-            ))
+            .ends_with(&format!("Check with: orchbee workspace status {id}\n"))
     );
     assert!(
         CliText::new(Locale::ZhCn)

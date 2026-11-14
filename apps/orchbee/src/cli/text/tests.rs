@@ -217,7 +217,7 @@ fn server_help_exposes_existing_stop_and_its_confirmation_boundary() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let page = help(HelpTopic::Family(crate::invocation::Family::Server), locale);
         assert!(page.contains("stop"), "{page}");
-        assert!(page.contains("stop-status"), "{page}");
+        assert!(page.contains("status"), "{page}");
         assert!(page.contains("--confirm"), "{page}");
         let command = help(HelpTopic::Command(CommandPath::ServerStop), locale);
         assert!(
@@ -229,7 +229,7 @@ fn server_help_exposes_existing_stop_and_its_confirmation_boundary() {
                 .split_whitespace()
                 .collect::<Vec<_>>()
                 .join(" ")
-                .contains("server stop-status <id>"),
+                .contains("server status <id>"),
             "{command}"
         );
     }

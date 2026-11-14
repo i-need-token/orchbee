@@ -105,11 +105,11 @@ impl super::CliText {
             ),
             (Locale::EnUs, CommandPath::SessionStop) => crate::cli_text::HelpDetails::new(
                 "orchbee session stop <name> --confirm [--request-id <id>] [--detach] [--retry] [--timeout <ms>] [--format text|json]",
-                "Stop the selected managed Windows session and its terminals using the server stop protocol.\n--retry requires the prior --request-id. Default timeout: 65000 ms; bounds: 1..=3600000.\n--detach returns an accepted receipt; inspect it with --session <name> server stop-status <id>.\nClean stop preserves the workbench checkpoint.\nDevelopment and test builds require --confirm; the Windows release build refuses it and runs only in an interactive console after the person types the Session name.",
+                "Stop the selected managed Windows session and its terminals using the server stop protocol.\n--retry requires the prior --request-id. Default timeout: 65000 ms; bounds: 1..=3600000.\n--detach returns an accepted receipt; inspect it with --session <name> server status <id>.\nClean stop preserves the workbench checkpoint.\nDevelopment and test builds require --confirm; the Windows release build refuses it and runs only in an interactive console after the person types the Session name.",
             ),
             (Locale::ZhCn, CommandPath::SessionStop) => crate::cli_text::HelpDetails::new(
                 "orchbee session stop <name> --confirm [--request-id <id>] [--detach] [--retry] [--timeout <ms>] [--format text|json]",
-                "通过 server stop 协议停止所选托管 Windows 会话及其终端。\n--retry 要求提供先前的 --request-id。默认超时 65000 毫秒；范围 1..=3600000。\n--detach 返回已接受回执；用 --session <name> server stop-status <id> 查询。正常停止保留工作区检查点。\n开发版和测试版必须提供 --confirm；Windows 正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行。",
+                "通过 server stop 协议停止所选托管 Windows 会话及其终端。\n--retry 要求提供先前的 --request-id。默认超时 65000 毫秒；范围 1..=3600000。\n--detach 返回已接受回执；用 --session <name> server status <id> 查询。正常停止保留工作区检查点。\n开发版和测试版必须提供 --confirm；Windows 正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行。",
             ),
             (Locale::EnUs, CommandPath::SessionDelete) => crate::cli_text::HelpDetails::new(
                 "orchbee session delete <name> --confirm [--format text|json]",

@@ -105,7 +105,7 @@ derives the icon.
   Esc; its body counts the terminals that stop and the Agents working in them. Cancel changes
   nothing. Only a confirmation stops the Session: Main chooses a stop identity and asks the page
   over the background-status port, the page sends `workbench.session-stop` once through its Server
-  connection and answers, and Main then reads `server stop-status` every half second. Desktop quits
+  connection and answers, and Main then reads `server status` every half second. Desktop quits
   only once a stopped receipt proves the stop, which also ends every Client, an attached TUI
   included. A stop that was refused, never sent, failed, or not proven within 75 seconds shows the
   window with the reason, naming the stop identity when a stop was recorded, and nothing quits.

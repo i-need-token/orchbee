@@ -1,7 +1,7 @@
 //! An admitted Client asks the Server to stop its Session, as `server stop` does: the Server records
 //! the stop under the Client's identity, runs it once, and ends every terminal, the Worker, every
 //! Client connection, and itself. Recording the stop refuses every later record, this connection's
-//! included, so its progress and completion are read with `server stop-status`, never here.
+//! included, so its progress and completion are read with `server status`, never here.
 use crate::{ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchStopId};
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +12,7 @@ pub struct WorkbenchSessionStopRequest {
     pub request_id: WorkbenchRequestId,
     #[serde(rename = "sessionId")]
     pub session_id: SessionId,
-    /// The identity `server stop-status` reads the stop under, chosen by the requester.
+    /// The identity `server status` reads the stop under, chosen by the requester.
     pub stop_id: WorkbenchStopId,
 }
 

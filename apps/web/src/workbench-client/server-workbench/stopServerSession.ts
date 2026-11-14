@@ -26,7 +26,7 @@ const REPLY_MILLISECONDS = 10_000;
 
 /**
  * Asks the Server to stop this Client's Session under `stopId`, as `server stop` does. It is sent
- * once: the recorded stop refuses every later request on this connection, so `server stop-status`
+ * once: the recorded stop refuses every later request on this connection, so `server status`
  * reads its progress, and an answer that never arrives is never repeated.
  */
 export async function stopServerSession(

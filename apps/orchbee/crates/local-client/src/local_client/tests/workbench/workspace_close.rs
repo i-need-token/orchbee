@@ -14,9 +14,8 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceCloseResumeResult,
 };
 
-/// The exact exchange order the local client emits for `workspace close` →
-/// `workspace close-status` → `workspace close-resume` → `workspace
-/// close-status`: one scripted peer sees every real request frame and answers
+/// The exact exchange order the local client emits for a Workspace close →
+/// close read → close resume → close read: one scripted peer sees every real request frame and answers
 /// valid typed responses for an empty Workspace context. This proves the
 /// adapter exchange order only — the CLI command route is covered separately.
 #[test]

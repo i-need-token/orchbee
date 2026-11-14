@@ -17,7 +17,7 @@ const DesktopBackgroundStatusSummarySchema = z.strictObject({
 	workingAgents: DesktopBackgroundCountSchema,
 });
 
-/** The identity Main chose for Quit All's Session stop, which `server stop-status` reads it under. */
+/** The identity Main chose for Quit All's Session stop, which `server status` reads it under. */
 const DesktopSessionStopIdSchema = z.string().regex(/^(?!0{32}$)[0-9a-f]{32}$/u);
 
 /**

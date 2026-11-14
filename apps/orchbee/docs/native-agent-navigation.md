@@ -26,7 +26,7 @@ lifecycle, semantic status and freshness remain Server observations.
 | Identity   | Agent resolver owns name/ID/Panel precedence; Workbench owns primary Presentation and binding; Client owns its view revision and applied focus.                               |
 | Ambiguity  | Missing/ended/non-navigable Agent bindings and multiple matching primary Panels fail before control. Multiple eligible Clients require explicit disambiguation.               |
 | Lifetime   | The CLI releases its Session before presentation and settles signal ownership through the common output finalizer.                                                            |
-| Recovery   | A lost Submit is never repeated; its retained Client operation ID supports `client control-status`. Cancellation/timeout ends observation, not an accepted focus request.     |
+| Recovery   | A lost Submit is never repeated; its retained Client operation ID supports `client status <id>`. Cancellation/timeout ends observation, not an accepted focus request.     |
 | Evidence   | Pure grammar/selection counterexamples, scripted named-pipe traces, real Agent/TUI focus in Windows, locale/schema/completion checks and the root gate.                       |
 
 ## Transition boundaries

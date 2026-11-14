@@ -619,9 +619,6 @@
 					"oneOf": [
 						{
 							"$ref": "#/$defs/mutation/$defs/commandSource"
-						},
-						{
-							"$ref": "#/$defs/mutation/$defs/closeResumeSource"
 						}
 					]
 				},
@@ -645,7 +642,6 @@
 								"tab.rename",
 								"workspace.accept-directory",
 								"workspace.close",
-								"workspace.close-resume",
 								"workspace.create",
 								"workspace.rename",
 								"workspace.set-project",
@@ -654,7 +650,7 @@
 							]
 						},
 						"outcome": {
-							"enum": ["accepted", "committed", "resumed", "unchanged"]
+							"enum": ["accepted", "committed", "unchanged"]
 						},
 						"revision": {
 							"$ref": "#/$defs/mutation/$defs/revision"
@@ -664,9 +660,6 @@
 						},
 						"closeRequestId": {
 							"$ref": "#/$defs/mutation/$defs/id"
-						},
-						"attemptGeneration": {
-							"$ref": "#/$defs/mutation/$defs/revision"
 						},
 						"projectId": {
 							"anyOf": [
@@ -829,32 +822,6 @@
 						{
 							"if": {
 								"properties": {
-									"outcome": {
-										"const": "resumed"
-									}
-								},
-								"required": ["outcome"]
-							},
-							"then": {
-								"required": ["closeRequestId", "attemptGeneration"]
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "workspace.close-resume"
-									}
-								},
-								"required": ["action"]
-							},
-							"then": {
-								"required": ["workspaceId"]
-							}
-						},
-						{
-							"if": {
-								"properties": {
 									"action": {
 										"const": "workspace.close"
 									}
@@ -913,7 +880,6 @@
 									"action": {
 										"enum": [
 											"workspace.close",
-											"workspace.close-resume",
 											"workspace.rename",
 											"workspace.accept-directory"
 										]
@@ -1093,34 +1059,6 @@
 							"$ref": "#/$defs/mutation/$defs/id"
 						},
 						"expectedRevision": {
-							"$ref": "#/$defs/mutation/$defs/revision"
-						}
-					}
-				},
-				"closeResumeSource": {
-					"type": "object",
-					"required": [
-						"kind",
-						"sessionId",
-						"requestId",
-						"closeRequestId",
-						"expectedAttemptGeneration"
-					],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "workspace-close-resume"
-						},
-						"sessionId": {
-							"$ref": "#/$defs/mutation/$defs/id"
-						},
-						"requestId": {
-							"$ref": "#/$defs/mutation/$defs/id"
-						},
-						"closeRequestId": {
-							"$ref": "#/$defs/mutation/$defs/id"
-						},
-						"expectedAttemptGeneration": {
 							"$ref": "#/$defs/mutation/$defs/revision"
 						}
 					}

@@ -8,7 +8,7 @@ use super::{
 use orchbee_workbench_protocol::{
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
     WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabInsertIndex,
-    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry, WorkbenchWorkspaceId,
+    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 
 /// `--label` carries a wire-ready Workbench label: non-empty and at most the
@@ -79,51 +79,7 @@ pub(super) fn directory_option(
     })
 }
 
-/// `workspace close-status|close-resume --project <id>`: the strict stable
-/// Project ID — an ID only, never a label or selector, because the retained
-/// close record outlives the Workspace's active-projection membership.
-pub(super) fn workspace_id_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<WorkbenchWorkspaceId, ParseFailure> {
-    let value = required(&options.workspace, context, "'--workspace'", envelope)?;
-    WorkbenchWorkspaceId::parse(&value).map_err(|_| {
-        usage_with(
-            UsageReason::InvalidValue {
-                context,
-                option: "--workspace",
-                value,
-                expected: ExpectedValue::WorkspaceId,
-            },
-            envelope,
-        )
-    })
-}
-
-/// `workspace close-resume --request <id>`: the close operation's own
-/// request ID — the operation identity the Server re-verifies, never the
-/// resume request's fresh identity.
-pub(super) fn close_request_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<WorkbenchRequestId, ParseFailure> {
-    let value = required(&options.request, context, "'--request'", envelope)?;
-    WorkbenchRequestId::parse(&value).map_err(|_| {
-        usage_with(
-            UsageReason::InvalidValue {
-                context,
-                option: "--request",
-                value,
-                expected: ExpectedValue::CloseRequestId,
-            },
-            envelope,
-        )
-    })
-}
-
-/// `workspace close-resume --generation <n>`: the explicit attempt fence —
+/// `<family> resume <request-id> --generation <n>`: the explicit attempt fence —
 /// the protocol's nonzero generation spelling; a stale-but-valid value is
 /// the Server's settled `stale` answer, while a malformed value is usage.
 pub(super) fn close_generation_option(

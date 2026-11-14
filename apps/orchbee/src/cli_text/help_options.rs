@@ -189,9 +189,7 @@ impl super::CliText {
                 | CommandPath::TabCreate
                 | CommandPath::PanelList
                 | CommandPath::TerminalList
-                | CommandPath::PanelMove
-                | CommandPath::WorkspaceCloseStatus
-                | CommandPath::WorkspaceCloseResume,
+                | CommandPath::PanelMove,
                 "--workspace",
             ) => ("<target>", "Select a workspace.", "选择工作区。"),
             (CommandPath::AgentStart, "--name") => (

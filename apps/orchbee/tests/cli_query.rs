@@ -4947,8 +4947,6 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
         "orchbee.agent.integrations",
         "orchbee.agent.integration.plan",
         "orchbee.agent.integration.mutation",
-        "orchbee.cli.failure.close",
-        "orchbee.workspace.close-status",
         "orchbee.panel.current",
         "orchbee.panel.process-info",
         "orchbee.cli.failure.process-info",

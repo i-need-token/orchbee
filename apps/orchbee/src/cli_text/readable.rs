@@ -145,20 +145,4 @@ impl super::CliText {
             }
         }
     }
-
-    /// The `workspace close-status` conclusion, keyed by the scope status.
-    pub(crate) const fn cli_close_status_verdict(self, status: &str) -> &'static str {
-        match (self.locale, status.as_bytes()) {
-            (Locale::EnUs, b"closed") => "The workspace is closed.\n",
-            (Locale::ZhCn, b"closed") => "工作区已关闭。\n",
-            (Locale::EnUs, b"closing") => "The workspace is closing.\n",
-            (Locale::ZhCn, b"closing") => "工作区正在关闭。\n",
-            (Locale::EnUs, b"cleanup-blocked") => "Closing is blocked while cleaning up.\n",
-            (Locale::ZhCn, b"cleanup-blocked") => "关闭在清理阶段受阻。\n",
-            (Locale::EnUs, b"outcome-unknown") => "The close outcome is unknown.\n",
-            (Locale::ZhCn, b"outcome-unknown") => "关闭结果未知。\n",
-            (Locale::EnUs, _) => "The workspace is gone; its removal is not yet published.\n",
-            (Locale::ZhCn, _) => "工作区已释放，移除尚未发布。\n",
-        }
-    }
 }

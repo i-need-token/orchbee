@@ -1242,7 +1242,7 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.workspaces.close.outcomeUnknown',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.outcomeUnknown'],
 		description:
-			'Status notice when a Workspace close may have taken effect, naming the command that reads its status.',
+			'Status notice when a Workspace close may have taken effect, naming the command that shows whether the Workspace remains.',
 	},
 	workspaceCloseRefused: {
 		id: 'workbench.workspaces.close.refused',

@@ -1141,7 +1141,7 @@ fn close_pending_indicator_uses_injected_time_and_localized_recovery_matches_typ
         for locale in [Locale::EnUs, Locale::ZhCn] {
             // A pending close names no status command; only an unknown outcome needs one.
             let text = locale.workspace_close_status(view);
-            assert!(!text.contains("close-status"), "{text}");
+            assert!(!text.contains("orchbee workspace status"), "{text}");
             assert_eq!(text, locale.workspace_close_status_shorter(view)[0]);
         }
     }

@@ -315,7 +315,6 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
     for words in [
         vec!["client", "list"],
         vec!["client", "get", id],
-        vec!["client", "control-status", id],
         vec!["workspace", "focus", "label:demo"],
         vec!["tab", "focus", "label:shell"],
         vec!["panel", "focus"],
@@ -373,7 +372,7 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
         vec!["client", "get"],
         vec!["client", "list", "extra"],
         vec!["client", "get", id, "extra"],
-        vec!["client", "control-status", "0"],
+        vec!["client", "status", "0"],
         vec!["workspace", "focus"],
         vec!["tab", "focus"],
         vec!["panel", "zoom", "--on", "--off"],

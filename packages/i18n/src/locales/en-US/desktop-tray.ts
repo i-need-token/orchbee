@@ -16,7 +16,7 @@ export const enUSDesktopTrayMessages = {
 		'The Session started stopping but could not finish, so some terminals may still be running. Retry with server stop --retry and request ID {stopId}.',
 	'desktop.tray.quitAll.failure.title': 'Orchbee could not stop all terminals',
 	'desktop.tray.quitAll.failure.unconfirmed':
-		'Orchbee could not confirm that the Session stopped, so some terminals may still be running. Check with server stop-status and request ID {stopId}.',
+		'Orchbee could not confirm that the Session stopped, so some terminals may still be running. Check with server status and request ID {stopId}.',
 	'desktop.tray.quitAll.failure.unmanaged': 'This Session can’t be stopped from Orchbee.',
 	'desktop.tray.quitAll.stopping': 'Stopping all terminals…',
 	'desktop.tray.quitAll.title': 'Stop all terminals and quit Orchbee?',

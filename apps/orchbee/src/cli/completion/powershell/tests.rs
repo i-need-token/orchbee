@@ -96,11 +96,7 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
             true,
         ),
         ("orchbee server agent-manifests --r", "--request-id", false),
-        (
-            "orchbee server agent-manifests-status abc --f",
-            "--format",
-            true,
-        ),
+        ("orchbee server status abc --f", "--format", true),
         (
             "orchbee panel report-agent abc --state done --m",
             "--message",

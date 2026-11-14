@@ -120,7 +120,7 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
         let mut args = vec!["server"];
         match case {
             "current" | "automatic" | "en" | "zh" => args.push("agent-manifests"),
-            "status" => args.extend(["agent-manifests-status", "11111111111111111111111111111111"]),
+            "status" => args.extend(["status", "11111111111111111111111111111111"]),
             _ => args.extend([
                 "reload-agent-manifests",
                 "--request-id",

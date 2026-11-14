@@ -13,8 +13,8 @@ use orchbee_client_server_protocol::{LaunchProfileProvenance, TerminalLaunchFact
 use orchbee_terminal_protocol::MAXIMUM_FRAME_ROWS;
 use orchbee_workbench_protocol::{
     LaunchProfileCatalogRevision, LaunchProfileEntry, PanelNode, PanelSlot, Presentation, Project,
-    Snapshot, Tab, TerminalContext, WorkbenchPanelId, WorkbenchProtocolDocument,
-    WorkbenchWorkspaceCloseReadOutcome, Workspace, WorktreeEntry, WorktreeEntryText,
+    Snapshot, Tab, TerminalContext, WorkbenchPanelId, WorkbenchProtocolDocument, Workspace,
+    WorktreeEntry, WorktreeEntryText,
 };
 use serde_json::{Map, Value, json};
 
@@ -42,7 +42,6 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::ProjectGet(_) => "orchbee.project.get",
         QueryCommand::WorkspaceList { .. } => "orchbee.workspace.list",
         QueryCommand::WorkspaceGet(_) => "orchbee.workspace.get",
-        QueryCommand::WorkspaceCloseStatus { .. } => "orchbee.workspace.close-status",
         QueryCommand::TabList { .. } => "orchbee.tab.list",
         QueryCommand::TabGet(_) => "orchbee.tab.get",
         QueryCommand::PanelList { .. } => "orchbee.panel.list",
@@ -1205,10 +1204,6 @@ pub(crate) enum Projection {
     ProjectGet(ProjectDoc),
     WorkspaceList(Vec<WorkspaceRow>),
     WorkspaceGet(WorkspaceDoc),
-    /// The `workspace close-status` answer: the retained operation record's
-    /// typed outcome verbatim — `not-closing` or the full `available`
-    /// aggregate — never re-projected client-side.
-    WorkspaceCloseStatus(WorkbenchWorkspaceCloseReadOutcome),
     TabList(Vec<TabRow>),
     TabGet(TabDoc),
     PanelList(Vec<PanelRow>),
@@ -1504,7 +1499,6 @@ impl Projection {
             }),
             // The close read outcome is the single serialization truth — the
             // retained record answers verbatim, tombstone included.
-            Self::WorkspaceCloseStatus(outcome) => json!(outcome),
             Self::WorkspaceList(rows) => json!({
                 "workspaces": rows.iter().map(workspace_row_json).collect::<Vec<_>>(),
             }),
@@ -2497,10 +2491,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         | QueryCommand::LaunchProfileList
         | QueryCommand::LaunchProfileGet(_)
         | QueryCommand::ApiSchema { .. }
-        | QueryCommand::ConfigCheck
-        | QueryCommand::WorkspaceCloseStatus { .. } => {
-            Err(Failure::new(FailureKind::InternalFailure))
-        }
+        | QueryCommand::ConfigCheck => Err(Failure::new(FailureKind::InternalFailure)),
     }
 }
 
