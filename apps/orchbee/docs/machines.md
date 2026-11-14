@@ -86,7 +86,7 @@ receipt.
 ## Commands not available yet
 
 `machine add --no-install` and `machine remove --stop-session` belong to later slices of
-remote-machine support. They appear in help and completion, marked not available yet, and their
+remote-machine support. Help and completion leave them out while they do nothing, but their
 whole grammar is validated, so a malformed invocation is still a usage failure with exit 2. A
 well-formed one is refused before it reads the catalog, contacts any machine, or changes anything:
 the `orchbee.machine` receipt names the operation (`add` or `remove`), reports

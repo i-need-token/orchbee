@@ -136,7 +136,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             Ok(())
         },
     },
-    // Parsed in full and refused as not yet available until the slices that implement them land.
+    // `--no-install` and `--stop-session` are parsed in full and refused as not yet available until
+    // the slices that implement them land; discovery leaves them out meanwhile.
     OptionSpec {
         spelling: "--no-install",
         values: &[],

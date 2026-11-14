@@ -153,9 +153,9 @@ impl super::CliText {
                 "读取已保存的机器目录，不连接任何机器，也不创建目录。启用状态是已保存的偏好，不代表实时连接。更新版本保存的、使用此版本不认识的连接方式的机器显示为不支持。",
             ),
             C::MachineAdd => (
-                "orchbee machine add <ssh-target> [--label <label>] [--remote-session <name>] [--no-install] [--format text|json]",
-                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation, --no-install and interactive sign-in are not available yet.",
-                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。准备过程总期限为 60 秒。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序、--no-install 和交互登录暂不可用。",
+                "orchbee machine add <ssh-target> [--label <label>] [--remote-session <name>] [--format text|json]",
+                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation and interactive sign-in are not available yet.",
+                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。准备过程总期限为 60 秒。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序和交互登录暂不可用。",
             ),
             C::MachineRename => (
                 "orchbee machine rename <id|label> --label <label> [--format text|json]",
@@ -163,9 +163,9 @@ impl super::CliText {
                 "重命名具有此 ID 的机器，或唯一使用此完整名称的机器。名称不能为空白或含控制字符，最多 128 UTF-8 字节。",
             ),
             C::MachineRemove => (
-                "orchbee machine remove <id|label> [--stop-session] [--format text|json]",
-                "Remove only the saved machine. Remote sessions and OpenSSH data remain owned by their existing users. --stop-session is not available yet.",
-                "仅删除已保存的机器。远端会话和 OpenSSH 数据仍由原有用户管理。--stop-session 暂不可用。",
+                "orchbee machine remove <id|label> [--format text|json]",
+                "Remove only the saved machine. Remote sessions and OpenSSH data remain owned by their existing users.",
+                "仅删除已保存的机器。远端会话和 OpenSSH 数据仍由原有用户管理。",
             ),
             C::MachineEnable => (
                 "orchbee machine enable <id|label> [--format text|json]",

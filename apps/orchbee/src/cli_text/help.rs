@@ -342,12 +342,12 @@ impl super::CliText {
                 ("Disable a saved remote machine.", "停用已保存的远程机器。")
             }
             HelpTopic::Command(CommandPath::MachineConnect) => (
-                "Connect to a saved remote machine. Not available yet.",
-                "连接已保存的远程机器。暂不可用。",
+                "Connect to a saved remote machine.",
+                "连接已保存的远程机器。",
             ),
             HelpTopic::Command(CommandPath::MachineDisconnect) => (
-                "Disconnect from a saved remote machine. Not available yet.",
-                "断开与已保存远程机器的连接。暂不可用。",
+                "Disconnect from a saved remote machine.",
+                "断开与已保存远程机器的连接。",
             ),
             HelpTopic::Command(CommandPath::ChannelShow) => {
                 ("Show the configured release channel.", "显示当前更新频道。")

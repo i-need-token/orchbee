@@ -5,7 +5,7 @@ use serde_json::json;
 pub(super) fn build() -> serde_json::Value {
     let commands = super::offered_commands().map(|command| json!({
         "words": command.words,
-        "flags": command.flags(),
+        "flags": command.listed_flags(),
         "conflicts": command.flags().iter().copied().chain(command.format.then_some("--format")).map(|flag| json!({"flag":flag,"with":command.conflicts(flag)})).collect::<Vec<_>>(),
         "operand": command.maximum_operands,
         "operandString": string_rule(command.operand_string_rule()),

@@ -50,16 +50,6 @@ impl super::CliText {
                 "Machine name; default: the target's host name.",
                 "机器名称；默认使用目标的主机名。",
             ),
-            (CommandPath::MachineAdd, "--no-install") => (
-                "",
-                "Never install Orchbee on the remote. Not available yet.",
-                "不在远端安装 Orchbee。暂不可用。",
-            ),
-            (CommandPath::MachineRemove, "--stop-session") => (
-                "",
-                "Stop the remote Session first, ending its terminals. Not available yet.",
-                "先停止远端会话，结束其中的终端。暂不可用。",
-            ),
             (CommandPath::MachineConnect, "--remember") => (
                 "",
                 "After a sign-in that succeeds, remember a password or key passphrase typed here in the system credential store. Windows only for now.",

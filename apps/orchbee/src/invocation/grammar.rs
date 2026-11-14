@@ -15,6 +15,15 @@ pub(crate) use options::OPTIONS;
 pub(crate) use release::{Withheld, offered, withheld, withholds_unreleased};
 
 pub(crate) const CARDINAL_DIRECTIONS: &[&str] = &["left", "right", "up", "down"];
+
+/// Options that stay accepted where the grammar admits them but that discovery never names: help
+/// option tables, usage advice and completion leave them out.
+const UNLISTED_OPTIONS: &[&str] = &["--no-install", "--stop-session"];
+
+/// Whether discovery names this admitted option.
+pub(crate) fn option_listed(spelling: &str) -> bool {
+    !UNLISTED_OPTIONS.contains(&spelling)
+}
 pub(crate) const PREFIX_FLAGS: &[&str] = &["--machine"];
 
 pub(crate) struct RootModeFlag {
@@ -146,6 +155,15 @@ impl CommandSpec {
             .1
     }
 
+    /// The admitted flags discovery names; an unlisted option stays accepted.
+    pub(crate) fn listed_flags(&self) -> Vec<&'static str> {
+        self.flags()
+            .iter()
+            .copied()
+            .filter(|flag| option_listed(flag))
+            .collect()
+    }
+
     pub(crate) fn conflicts(&self, flag: &str) -> &'static [&'static str] {
         rules::conflicts(self, flag)
     }
@@ -262,7 +280,7 @@ pub(crate) fn children(key: &str) -> &'static [&'static str] {
 /// Derived help options, including orthogonal root options.
 pub(crate) fn help_flags(path: CommandPath) -> Vec<&'static str> {
     let command = specification(path);
-    let mut flags = command.flags().to_vec();
+    let mut flags = command.listed_flags();
     flags.extend(
         OPTIONS
             .iter()

@@ -85,7 +85,15 @@ pub(super) fn rows() -> BTreeMap<String, Vec<String>> {
             .chain(super::GLOBAL_FLAGS.iter().copied())
             .chain(command.format.then_some("--format"))
             .collect::<Vec<_>>();
-        insert(format!("flags|{key}"), flags.clone());
+        // An unlisted option keeps its value metadata but is never offered as a candidate.
+        insert(
+            format!("flags|{key}"),
+            flags
+                .iter()
+                .copied()
+                .filter(|flag| authority::option_listed(flag))
+                .collect(),
+        );
         insert(
             format!("repeat|{key}"),
             flags
