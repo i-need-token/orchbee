@@ -86,7 +86,7 @@ impl AgentManifestUpdateReport {
         if self.version != 1
             || !valid_agent_manifest_catalog_url(&self.catalog_url)
             || self.checked_unix_seconds > 9_007_199_254_740_991
-            || self.agents.len() > 22
+            || self.agents.len() > super::agent_manifests::MAXIMUM_AGENT_MANIFEST_ROWS
             || self.agents.iter().enumerate().any(|(i, row)| {
                 row.agent.is_empty()
                     || row.agent.len() > 64

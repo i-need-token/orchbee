@@ -198,7 +198,7 @@
 				},
 				"manifests": {
 					"type": "array",
-					"maxItems": 24,
+					"maxItems": 64,
 					"items": {
 						"$ref": "#/$defs/summary"
 					}
@@ -505,7 +505,7 @@
 				},
 				"agents": {
 					"type": "array",
-					"maxItems": 22,
+					"maxItems": 64,
 					"items": {
 						"$ref": "#/$defs/providerUpdate"
 					}

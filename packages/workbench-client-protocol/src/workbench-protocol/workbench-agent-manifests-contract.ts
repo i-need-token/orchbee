@@ -51,7 +51,7 @@ const AgentManifestsSnapshotSchema = z
 			.nullable(),
 		manifests: z
 			.array(summary)
-			.max(24)
+			.max(64)
 			.refine((rows) => new Set(rows.map((m) => m.agent)).size === rows.length)
 			.readonly(),
 	})

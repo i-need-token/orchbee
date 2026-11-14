@@ -71,7 +71,7 @@ const AgentManifestUpdateReportSchema = z
 		checkedUnixSeconds: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
 		agents: z
 			.array(provider)
-			.max(22)
+			.max(64)
 			.refine((rows) => new Set(rows.map((r) => r.agent)).size === rows.length)
 			.readonly(),
 		failure: AgentManifestUpdateFailureSchema.nullable(),

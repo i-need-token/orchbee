@@ -5,6 +5,9 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 pub const MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES: usize = 512 * 1024;
+/// Rows of one per-Agent list: installed manifests or update-report rows. The Server keeps one
+/// row per bundled provider, so this bound stays above every registered provider.
+pub(super) const MAXIMUM_AGENT_MANIFEST_ROWS: usize = 64;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -164,7 +167,7 @@ impl AgentManifestsResult {
                 || snapshot.configuration_root.as_ref().is_some_and(|p| {
                     p.is_empty() || p.len() > 32768 || p.chars().any(char::is_control)
                 })
-                || snapshot.manifests.len() > 24
+                || snapshot.manifests.len() > MAXIMUM_AGENT_MANIFEST_ROWS
                 || snapshot.manifests.iter().enumerate().any(|(i, m)| {
                     m.agent.is_empty()
                         || m.agent.len() > 64

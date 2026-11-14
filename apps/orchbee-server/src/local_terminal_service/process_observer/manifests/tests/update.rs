@@ -107,6 +107,63 @@ fn active_download_keeps_queries_responsive_and_stop_retains_pending_until_join(
         matches!(wake.manifests.execute(&action),Outcome::Operation {status:Operation::Updated {report,activation:Activation::NotAttempted {}},..} if report.failure==Some(UpdateFailure::Cancelled))
     );
 }
+/// The Server keeps one installed manifest and at most one update row per bundled provider; its
+/// largest replies must still pass the wire contract it writes them through.
+#[test]
+fn replies_covering_every_bundled_provider_cross_the_wire() {
+    use orchbee_workbench_protocol::{
+        AgentManifestProviderUpdate, AgentManifestUpdateDisposition, SessionId, WorkbenchResponse,
+        write_workbench_response,
+    };
+    let root = Root::new();
+    let detector = ScreenDetector::bundled().unwrap();
+    let catalog =
+        updating::CatalogUrl::parse("https://example.com/agent-detection/index.toml").unwrap();
+    let registry = Registry::default();
+    registry
+        .initialize_source(Some(root.0.clone()), &detector, Ok(Some(catalog.clone())))
+        .unwrap();
+    registry.execute(&Action::Update {
+        operation_id: id(1),
+    });
+    registry.take().unwrap();
+    let agents = detector
+        .summaries()
+        .into_iter()
+        .map(|summary| AgentManifestProviderUpdate {
+            agent: summary.agent,
+            attempted_version: Some("1".into()),
+            cached_version: Some("1".into()),
+            result: AgentManifestUpdateDisposition::Current,
+            error: None,
+        })
+        .collect();
+    let report = UpdateReport {
+        version: 1,
+        catalog_url: catalog.as_str().into(),
+        checked_unix_seconds: 1,
+        agents,
+        failure: None,
+        status_saved: true,
+    };
+    registry.complete_update(Owner::Manual(id(1)), Ok(report), None, |_| {
+        panic!("no rules to install")
+    });
+    for action in [
+        Action::Current {},
+        Action::Operation {
+            operation_id: id(1),
+        },
+    ] {
+        let reply = WorkbenchResponse::AgentManifests(AgentManifestsResult {
+            protocol_version: ProtocolVersion,
+            request_id: id(2),
+            session_id: SessionId::parse(&format!("{:032x}", 3)).unwrap(),
+            outcome: registry.execute(&action),
+        });
+        write_workbench_response(&mut Vec::new(), &reply).unwrap();
+    }
+}
 #[test]
 fn invalid_source_and_unknown_update_effects_preserve_local_reload() {
     let root = Root::new();
