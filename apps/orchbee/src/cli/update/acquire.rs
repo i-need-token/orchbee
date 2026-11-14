@@ -4,7 +4,7 @@ use super::{
     signature::{DOCUMENT_LIMIT, FEED_LIMIT, MANIFEST_LIMIT},
     source_path::LocalPath,
 };
-use orchbee_local_runtime::UpdateChannel;
+use orchbee_local_runtime::{CommandFailure, UpdateChannel};
 use std::{
     fs::File,
     io::{self, Read, Write},
@@ -349,6 +349,10 @@ fn require_curl(context: &mut Context) -> Result<(), Error> {
     let mut command = curl_base()?;
     command.args(["--disable", "--version"]);
     let result = platform::execute_contained(command, context).map_err(|_| Error::Download)?;
+    // No curl.exe in the system folder: the same answer as a missing tar.exe.
+    if matches!(result.failure, Some(CommandFailure::SpawnUnavailable)) {
+        return Err(Error::DownloadUnavailable);
+    }
     context.command_result(&result)?;
     // Before 8.4, max-filesize did not bound transfers without Content-Length.
     // https://curl.se/docs/manpage.html#--max-filesize
