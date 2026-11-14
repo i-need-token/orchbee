@@ -220,7 +220,7 @@ retires only display state; retained counts and Close recovery facts survive, an
 take display priority. A Tab the set left behind is an ordinary open Tab: its `[x]`, Close Tab key
 and Tab menu work again as soon as the set stops.
 
-## Group cleanup boundary## Group cleanup boundary
+## Group cleanup boundary
 
 Each member's Close publication removes only that Tab's source group when the removal leaves it
 empty. Nonempty source groups and every unrelated group, including empty groups created by a peer
