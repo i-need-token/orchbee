@@ -4,7 +4,7 @@
 use crate::cli_text::{CliText, HelpText};
 use crate::help::{Document, Row, Section, render};
 use crate::{
-    invocation::{Family, HelpPath, HelpTopic, help_paths},
+    invocation::{Family, HelpPath, HelpTopic, grammar::listed, help_paths},
     localization::Locale,
 };
 
@@ -90,6 +90,7 @@ pub(crate) fn root(locale: Locale) -> String {
             .filter_map(|name| {
                 help_paths()
                     .iter()
+                    .filter(|path| listed(path.words()))
                     .find(|path| path.words() == [*name])
                     .map(|path| row(name, CliText::new(locale).cli_help_summary(path.topic())))
             })
@@ -183,7 +184,11 @@ pub(crate) fn directory(topic: HelpTopic, locale: Locale) -> Document {
     let words = path.split(' ').collect::<Vec<_>>();
     let mut children = help_paths()
         .iter()
-        .filter(|child| child.words().len() == words.len() + 1 && child.words().starts_with(&words))
+        .filter(|child| {
+            child.words().len() == words.len() + 1
+                && child.words().starts_with(&words)
+                && listed(child.words())
+        })
         .collect::<Vec<_>>();
     children.sort_by_key(|child| child.words());
     let mut sections = vec![

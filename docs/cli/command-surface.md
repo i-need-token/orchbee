@@ -17,7 +17,12 @@ Each executable has one grammar authority in source: a declarative description o
 path, option, value set, operand limit, target rule, conflict, repeatability rule, and platform availability. Help text, completion scripts, the machine schema
 listing, and the application's reference documentation derive from that authority or are tested
 to agree with it. A command that exists in the binary but not in help, completion, or the
-reference is a defect, and so is the reverse.
+reference is a defect, and so is the reverse, unless the grammar authority marks it unlisted.
+
+The grammar authority may mark a command path or option unlisted when the owning application
+guide names it: plumbing that another program runs, or an option that is parsed but does nothing
+yet. An unlisted surface stays accepted, and an unlisted command still answers its own `--help`,
+but help directories, usage advice, and completion never name it.
 
 A release build may withhold the command surface of a feature that is not yet polished, when the
 owning application guide names it. The grammar authority marks the withheld paths and values; a
@@ -179,8 +184,8 @@ terminal identity. A bare ID that selects different resources across both kinds 
 
 ## Agent discoverability
 
-- The installed binary is the authority for its own grammar. Every command path present in the
-  build is reachable through `--help` descent, `completion`, and the machine schema listing.
+- The installed binary is the authority for its own grammar. Every listed command path present in
+  the build is reachable through `--help` descent, `completion`, and the machine schema listing.
 - An executable that ships an embedded Agent Skill prints it through one offline root option and
   the Skill describes the same build it is embedded in.
 - Help for a family includes a bounded footer pointing to the embedded Skill and command help;

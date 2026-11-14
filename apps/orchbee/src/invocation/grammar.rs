@@ -24,6 +24,18 @@ const UNLISTED_OPTIONS: &[&str] = &["--no-install", "--stop-session"];
 pub(crate) fn option_listed(spelling: &str) -> bool {
     !UNLISTED_OPTIONS.contains(&spelling)
 }
+
+/// Commands that stay callable, `--help` included, but that help directories, usage advice and
+/// completion never name: plumbing for Client shells and installers rather than for people.
+const UNLISTED_COMMANDS: &[CommandPath] = &[CommandPath::ServerConnect, CommandPath::Install];
+
+/// Whether discovery names this command or family path in this build.
+pub(crate) fn listed(words: &[&str]) -> bool {
+    offered(words)
+        && !COMMANDS
+            .iter()
+            .any(|command| command.words == words && UNLISTED_COMMANDS.contains(&command.id))
+}
 pub(crate) const PREFIX_FLAGS: &[&str] = &["--machine"];
 
 pub(crate) struct RootModeFlag {
@@ -259,7 +271,7 @@ static CHILDREN: LazyLock<Vec<(&'static str, Vec<&'static str>)>> = LazyLock::ne
                 .filter(|candidate| {
                     candidate.len() == words.len() + 1
                         && candidate.starts_with(words)
-                        && offered(candidate)
+                        && listed(candidate)
                 })
                 .map(|candidate| candidate[words.len()])
                 .collect::<Vec<_>>();

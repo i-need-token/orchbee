@@ -61,7 +61,7 @@ Windows `channel show [--format text|json]` reads the strict stable/preview pref
 
 Windows `machine list|add|rename|remove|enable|disable` manages saved remote machines, named by ID or exact label, with remote Windows readiness checks before add; `machine connect|disconnect` connect a saved machine through the background machine hub and end that connection, and `connect --remember` remembers a typed sign-in answer; `add --no-install` and `remove --stop-session` are parsed and refused as not yet available, and help and completion leave them out. See [remote machines](docs/machines.md) for the catalog, partial outcomes, command routing, and live TUI switching.
 
-Windows `install` publishes the signed release directory the running Client sits in into the store's `versions\<version>` and makes it the active version through `active.json`; this build has no PATH step, so it always behaves as if `--no-path` were given. `update` and `channel set` share the same verification, immutable publication and activation with explicit release sources. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation). A release build withholds `update` and the whole `channel` family; see [release-withheld surfaces](#release-withheld-surfaces).
+Windows `install` publishes the signed release directory the running Client sits in into the store's `versions\<version>` and makes it the active version through `active.json`; this build has no PATH step, so it always behaves as if `--no-path` were given. Help and completion leave `install` out; it stays callable. `update` and `channel set` share the same verification, immutable publication and activation with explicit release sources. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation). A release build withholds `update` and the whole `channel` family; see [release-withheld surfaces](#release-withheld-surfaces).
 
 Windows `uninstall [--delete-data]` is the inverse: it stops the environment's Sessions, disables every Agent integration, removes the user `Path` entry, the installer entries and the store root, and removes logs, caches and runtime state from the data root; settings and Sessions stay unless `--delete-data` is given. A platform uninstaller runs the hidden `--installer-uninstall-v1 [--delete-data]`, which asks nothing and changes nothing while a terminal is open. See [Windows release uninstall](docs/windows-cli-configuration.md#windows-release-uninstall).
 
@@ -90,7 +90,6 @@ orchbee status                   # the running Session's Workbench snapshot
 orchbee <family> <command>       # queries and Workbench mutations
 orchbee api snapshot|schema      # machine snapshot and embedded schemas
 orchbee server start               # ensure the local Session is running (no TTY)
-orchbee server connect             # relay a Client connection over stdin and stdout (pipes only)
 orchbee server diagnose            # read-only local Session runtime facts
 orchbee server stop --confirm      # stop the Windows Session (release: type its name instead)
 orchbee server status <id>         # inspect a retained stop attempt/receipt
@@ -175,7 +174,8 @@ and it never connects, creates, locks, repairs, or claims any process is alive o
 shell: it runs the same connect-or-activate sequence, admits this process through OBLC, then copies
 the connection's bytes between its standard streams until either side ends. Both streams must be
 pipes, and it takes no `--format` because stdout carries raw protocol bytes. It neither decodes
-those bytes nor reconnects; the parent owns the protocol and any new connection.
+those bytes nor reconnects; the parent owns the protocol and any new connection. Help and
+completion leave it out because Client shells, not people, run it.
 `agent integration` (`list`, `explain`,
 `enable`, `disable`) is the local provider-onboarding family: bounded reads
 and managed mutations of the invoking user's provider configuration on this

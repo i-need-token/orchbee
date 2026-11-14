@@ -12,7 +12,11 @@ pub(super) fn children(context: UsageContext) -> Vec<(&'static str, HelpTopic)> 
     };
     let mut children = help_paths()
         .iter()
-        .filter(|path| path.words().len() == words.len() + 1 && path.words().starts_with(&words))
+        .filter(|path| {
+            path.words().len() == words.len() + 1
+                && path.words().starts_with(&words)
+                && crate::invocation::grammar::listed(path.words())
+        })
         .map(|path| (path.words()[words.len()], path.topic()))
         .collect::<Vec<_>>();
     children.sort_by_key(|(name, _)| *name);

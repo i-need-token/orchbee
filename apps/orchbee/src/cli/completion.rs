@@ -20,7 +20,7 @@ static HELP_TOPICS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
         .iter()
         .map(|family| family.words)
         .chain(offered_commands().map(|command| command.words))
-        .filter(|words| words.len() == 1 && authority::offered(words))
+        .filter(|words| words.len() == 1 && authority::listed(words))
         .map(|words| words[0])
         .collect::<Vec<_>>();
     words.sort_unstable();
@@ -51,11 +51,12 @@ static REPEATABLE_FLAGS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
         .map(|option| option.spelling)
         .collect()
 });
-/// The commands this build offers; a release withholds some, which completion never names.
+/// The commands this build lists; a release withholds some and a few are unlisted in every build,
+/// which completion never names.
 fn offered_commands() -> impl Iterator<Item = &'static authority::CommandSpec> {
     authority::COMMANDS
         .iter()
-        .filter(|command| authority::offered(command.words))
+        .filter(|command| authority::listed(command.words))
 }
 fn agent_target_values() -> Vec<String> {
     AgentReportProvider::ALL

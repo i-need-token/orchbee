@@ -67,6 +67,11 @@ Agent List uses rows with separate canonical, terminal, placement and Client fac
 
 ## Current CLI discovery and platform contracts
 
+Unlisted surfaces stay accepted, but help directories, usage advice and completion never name them:
+`server connect` (the byte relay Client shells run) and `install` are unlisted commands whose own
+`--help` still answers, and `machine add --no-install` and `machine remove --stop-session` are
+unlisted options while they do nothing.
+
 Completion keeps local `--session` selection separate from Agent session selectors. Get/read/prompt/send-keys/wait/focus offer static `@agent:<kind>` provider aliases before a target; they never query runtime state or invent ordinal suggestions. In PowerShell, start an alias with a quote (for example, `'@agent:c`); completion inserts the full target as a safely single-quoted handle because an unquoted `@agent` token is parsed as splatting syntax. POSIX-shell adapters filter remote `--machine` paths using the same static grammar as PowerShell and Elvish, including nested families and root data commands. Known options and operands keep suffix `--help` discoverable; unsupported routing, duplicates and terminated options do not regain candidates.
 
 Snapshot v1 and Tab Get v1 admit the canonical optional split `ratio` (0.1–0.9); omitted means 0.5. Windows Agent Doctor v1 covers all 20 providers.
