@@ -45,7 +45,6 @@ const terminalActionOrder = [
 	TERMINAL_ACTION_IDS.paste,
 	TERMINAL_ACTION_IDS.selectAll,
 	TERMINAL_ACTION_IDS.findOpen,
-	TERMINAL_ACTION_IDS.hintsOpen,
 	TERMINAL_ACTION_IDS.clear,
 ] as const;
 
@@ -58,7 +57,6 @@ const terminalActionIcons: Readonly<Record<TerminalMenuActionId, ProductIconName
 	[TERMINAL_ACTION_IDS.takeControl]: 'terminal',
 	[TERMINAL_ACTION_IDS.copySelection]: 'copy',
 	[TERMINAL_ACTION_IDS.findOpen]: 'search',
-	[TERMINAL_ACTION_IDS.hintsOpen]: 'action',
 	[TERMINAL_ACTION_IDS.openLink]: 'action',
 	[TERMINAL_ACTION_IDS.paste]: 'clipboard',
 	[TERMINAL_ACTION_IDS.selectAll]: 'check',

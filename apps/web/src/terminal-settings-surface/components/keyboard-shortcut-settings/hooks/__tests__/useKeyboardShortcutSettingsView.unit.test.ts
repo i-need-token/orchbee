@@ -87,7 +87,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 			scope: 'Active terminal',
 		});
 		expect(
-			allRows.result.current.rows.find((row) => row.actionName === 'Show terminal hints'),
+			allRows.result.current.rows.find((row) => row.actionName === 'Quick Select'),
 		).toMatchObject({
 			availability: 'When a terminal is focused',
 			chord: 'Ctrl+Shift+O',

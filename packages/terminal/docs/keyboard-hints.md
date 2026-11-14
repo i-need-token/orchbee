@@ -46,9 +46,9 @@ a later replacement cannot relabel that completed effect as cancelled.
 
 ## Action, binding, and persistence
 
-Workbench owns `terminal.hints.open`; Web registers the projected-terminal implementation and
-projects it into the terminal context menu, Action search, shortcut Settings, and localized result
-feedback. Apple and Standard platforms default to `Mod+Shift+O`. Standard `Ctrl+Shift+E` already owns Split Below. The catalog admits one effective binding per Action.
+Workbench owns `terminal.hints.open`, named Quick Select in the product; Web registers the
+projected-terminal implementation and projects it into Action search, shortcut Settings, and
+localized result feedback. The terminal context menu does not offer it. Apple and Standard platforms default to `Mod+Shift+O`. Standard `Ctrl+Shift+E` already owns Split Below. The catalog admits one effective binding per Action.
 
 Adding this Action extends Web's strict device-local shortcut record from version 8 to version 9.
 The version-9 reader migrates an exact v8 catalog and defaults, rejects a new-default conflict,

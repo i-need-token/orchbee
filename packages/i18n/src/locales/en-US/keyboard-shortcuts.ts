@@ -19,7 +19,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.focusPanelVisible': 'Visually focus panel',
 	'keyboard.shortcuts.actions.focusPreviousRegion': 'Focus previous Workbench region',
 	'keyboard.shortcuts.actions.globalSearch': 'Search everything',
-	'keyboard.shortcuts.actions.hints': 'Show terminal hints',
+	'keyboard.shortcuts.actions.hints': 'Quick Select',
 	'keyboard.shortcuts.actions.increaseTerminalFontSize': 'Increase terminal font size',
 	'keyboard.shortcuts.actions.maximizePanel': 'Toggle panel maximization',
 	'keyboard.shortcuts.actions.movePanelDown': 'Move active panel down',

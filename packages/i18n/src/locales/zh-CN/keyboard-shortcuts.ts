@@ -21,7 +21,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.focusPanelVisible': '可视聚焦面板',
 	'keyboard.shortcuts.actions.focusPreviousRegion': '聚焦上一个工作台区域',
 	'keyboard.shortcuts.actions.globalSearch': '搜索全部内容',
-	'keyboard.shortcuts.actions.hints': '显示终端提示标签',
+	'keyboard.shortcuts.actions.hints': '快速选择',
 	'keyboard.shortcuts.actions.increaseTerminalFontSize': '增大终端字号',
 	'keyboard.shortcuts.actions.maximizePanel': '切换面板最大化',
 	'keyboard.shortcuts.actions.movePanelDown': '向下移动活动面板',
