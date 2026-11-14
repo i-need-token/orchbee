@@ -838,9 +838,9 @@ pub(crate) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee help client ", "get", true),
     ("orchbee workspace ", "focus", true),
     ("orchbee tab focus main --c", "--client", true),
-    ("orchbee panel zoom --t", "--toggle", true),
-    ("orchbee panel zoom --on --o", "--off", false),
-    ("orchbee panel zoom --on --toggle ", "--format", false),
+    ("orchbee panel maximize --t", "--toggle", true),
+    ("orchbee panel maximize --on --o", "--off", false),
+    ("orchbee panel maximize --on --toggle ", "--format", false),
     (
         "orchbee panel focus 00000000000000000000000000000001 --p",
         "--panel",

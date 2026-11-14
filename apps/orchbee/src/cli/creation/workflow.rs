@@ -165,7 +165,7 @@ fn execute(
         client_id: selected.as_ref().map(|client| client.client_id.clone()),
         requested_ratio: ratio,
         requested_focus: command.focus,
-        requested_zoom: command.zoom,
+        requested_maximize: command.zoom,
         requested_overlay: command.overlay,
         ratio: None,
         focus: None,

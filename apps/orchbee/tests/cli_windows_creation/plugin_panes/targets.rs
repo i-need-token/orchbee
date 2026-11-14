@@ -520,5 +520,8 @@ fn plugin_zoomed_different_target_reads_that_pane_before_forced_client_focus() {
     );
     assert_eq!(document["version"], 1);
     assert_eq!(document["result"]["postCreate"]["requested"]["focus"], true);
-    assert_eq!(document["result"]["postCreate"]["requested"]["zoom"], true);
+    assert_eq!(
+        document["result"]["postCreate"]["requested"]["maximize"],
+        true
+    );
 }

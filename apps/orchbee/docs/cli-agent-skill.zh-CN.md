@@ -49,7 +49,7 @@ orchbee panel split <panel-id> --direction right
 
 `tab create`、`panel split` 和 `panel create-terminal` 支持其声明的启动选择、cwd 和字面环境条目。保存的 Launch Profile 使用 `--profile`；显式程序使用 `--exec` 和可重复的 `--arg`。目录必须已存在。查看帮助中的 `--cwd home|current|workspace`、绝对路径覆盖、完整终端几何参数及 `--env NAME=VALUE` 边界。这些覆盖不修改保存的 profile。
 
-`panel create-terminal --child` 创建子终端。使用 `workspace`/`tab` move、`panel move --into-tab <tab>`/`swap`、`layout`、`panel resize`、`panel zoom` 和 focus 命令安排布局。客户端 focus 控制 TUI 选择，不激活操作系统窗口。选择当前目标或布局路径前，先阅读命令帮助。
+`panel create-terminal --child` 创建子终端。使用 `workspace`/`tab` move、`panel move --into-tab <tab>`/`swap`、`layout`、`panel resize`、`panel maximize` 和 focus 命令安排布局。客户端 focus 控制 TUI 选择，不激活操作系统窗口。选择当前目标或布局路径前，先阅读命令帮助。
 
 ## 发送输入并读取输出
 
@@ -165,7 +165,7 @@ orchbee workspace list --format json | ConvertFrom-Json
 以及 `panel swap <panel> --with <other-panel>`。共享回执保留规范身份及结果，不声明视口或焦点。
 `layout apply --file layout.json --workspace <workspace>` 也可无头运行；支持显式 Workspace 和已确认的 Tab 目的地。
 添加 `--client` 可获取 Client 几何／观察，应用时添加 `--focus` 可请求 Client 聚焦。
-方向邻居、resize 和 `panel zoom` 需要 Client 几何。只读命令不接受 `--request-id` 或 `--detach`。
+方向邻居、resize 和 `panel maximize` 需要 Client 几何。只读命令不接受 `--request-id` 或 `--detach`。
 修改结果未知时，先检查回执再重新提交。
 
 ## 一致的命令词汇

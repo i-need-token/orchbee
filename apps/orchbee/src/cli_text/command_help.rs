@@ -147,8 +147,8 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::PanelNeighbor) => super::client_layout::HELP_NEIGHBOR_ZH,
             (Locale::EnUs, CommandPath::PanelEdges) => super::client_layout::HELP_EDGES_EN,
             (Locale::ZhCn, CommandPath::PanelEdges) => super::client_layout::HELP_EDGES_ZH,
-            (Locale::EnUs, CommandPath::PanelZoom) => super::client_control::HELP_PANEL_ZOOM_EN,
-            (Locale::ZhCn, CommandPath::PanelZoom) => super::client_control::HELP_PANEL_ZOOM_ZH,
+            (Locale::EnUs, CommandPath::PanelMaximize) => super::client_control::HELP_PANEL_MAXIMIZE_EN,
+            (Locale::ZhCn, CommandPath::PanelMaximize) => super::client_control::HELP_PANEL_MAXIMIZE_ZH,
 
             (Locale::EnUs, CommandPath::Tui) => HELP_TUI_EN,
             (Locale::ZhCn, CommandPath::Tui) => HELP_TUI_ZH,

@@ -430,7 +430,10 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
             }
             assert_eq!(document["version"], 1);
             if zoom {
-                assert_eq!(document["result"]["postCreate"]["requested"]["zoom"], true);
+                assert_eq!(
+                    document["result"]["postCreate"]["requested"]["maximize"],
+                    true
+                );
                 assert_eq!(document["result"]["postCreate"]["requested"]["focus"], true);
                 assert_eq!(document["result"]["outcome"], "committed");
             }

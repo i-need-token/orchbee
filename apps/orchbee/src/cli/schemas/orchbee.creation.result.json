@@ -640,7 +640,7 @@
 								}
 							]
 						},
-						"zoomed": {
+						"maximized": {
 							"type": "boolean"
 						},
 						"panelCount": {
@@ -649,7 +649,7 @@
 							"maximum": 65535
 						}
 					},
-					"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+					"required": ["terminalContextId", "tabId", "panelId", "maximized", "panelCount"],
 					"additionalProperties": false
 				},
 				"view": {
@@ -739,7 +739,7 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "zoom"
+									"const": "maximize"
 								},
 								"terminalContextId": {
 									"$ref": "#/$defs/control/$defs/terminalContextId"
@@ -761,7 +761,7 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "toggle-zoom"
+									"const": "toggle-maximize"
 								},
 								"terminalContextId": {
 									"$ref": "#/$defs/control/$defs/terminalContextId"
@@ -1052,7 +1052,7 @@
 								"presentationId",
 								"expectedBinding",
 								"returnTo",
-								"previouslyZoomed"
+								"previouslyMaximized"
 							],
 							"properties": {
 								"kind": {
@@ -1116,7 +1116,7 @@
 										}
 									}
 								},
-								"previouslyZoomed": {
+								"previouslyMaximized": {
 									"type": "boolean"
 								}
 							}
@@ -1276,7 +1276,7 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "zoom-unchanged"
+									"const": "maximize-unchanged"
 								},
 								"view": {
 									"$ref": "#/$defs/control/$defs/view"
@@ -1289,16 +1289,16 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "zoom-toggled"
+									"const": "maximize-toggled"
 								},
 								"view": {
 									"$ref": "#/$defs/control/$defs/view"
 								},
-								"previouslyZoomed": {
+								"previouslyMaximized": {
 									"type": "boolean"
 								}
 							},
-							"required": ["kind", "view", "previouslyZoomed"],
+							"required": ["kind", "view", "previouslyMaximized"],
 							"additionalProperties": false
 						},
 						{
@@ -1598,7 +1598,7 @@
 						"panelId": {
 							"$ref": "#/$defs/control/$defs/panelId"
 						},
-						"unzoomed": {
+						"unmaximized": {
 							"anyOf": [
 								{
 									"$ref": "#/$defs/control/$defs/cellRect"
@@ -1629,7 +1629,7 @@
 							]
 						}
 					},
-					"required": ["panelId", "unzoomed", "terminal", "displayed"],
+					"required": ["panelId", "unmaximized", "terminal", "displayed"],
 					"additionalProperties": false
 				},
 				"splitArea": {
@@ -1755,7 +1755,7 @@
 						"selected": {
 							"type": "boolean"
 						},
-						"zoomed": {
+						"maximized": {
 							"type": "boolean"
 						},
 						"focusedPanelId": {
@@ -1798,7 +1798,7 @@
 						"viewport",
 						"area",
 						"selected",
-						"zoomed",
+						"maximized",
 						"focusedPanelId",
 						"sourceAvailable",
 						"neighbors",
@@ -3080,7 +3080,7 @@
 								}
 							]
 						},
-						"zoomed": {
+						"maximized": {
 							"type": "boolean"
 						},
 						"panelCount": {
@@ -3089,7 +3089,7 @@
 							"maximum": 65535
 						}
 					},
-					"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+					"required": ["terminalContextId", "tabId", "panelId", "maximized", "panelCount"],
 					"additionalProperties": false
 				},
 				"view": {
@@ -3179,7 +3179,7 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "zoom"
+									"const": "maximize"
 								},
 								"terminalContextId": {
 									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
@@ -3201,7 +3201,7 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "toggle-zoom"
+									"const": "toggle-maximize"
 								},
 								"terminalContextId": {
 									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
@@ -3492,7 +3492,7 @@
 								"presentationId",
 								"expectedBinding",
 								"returnTo",
-								"previouslyZoomed"
+								"previouslyMaximized"
 							],
 							"properties": {
 								"kind": {
@@ -3556,7 +3556,7 @@
 										}
 									}
 								},
-								"previouslyZoomed": {
+								"previouslyMaximized": {
 									"type": "boolean"
 								}
 							}
@@ -3716,7 +3716,7 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "zoom-unchanged"
+									"const": "maximize-unchanged"
 								},
 								"view": {
 									"$ref": "#/$defs/overlayControl/$defs/view"
@@ -3729,16 +3729,16 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "zoom-toggled"
+									"const": "maximize-toggled"
 								},
 								"view": {
 									"$ref": "#/$defs/overlayControl/$defs/view"
 								},
-								"previouslyZoomed": {
+								"previouslyMaximized": {
 									"type": "boolean"
 								}
 							},
-							"required": ["kind", "view", "previouslyZoomed"],
+							"required": ["kind", "view", "previouslyMaximized"],
 							"additionalProperties": false
 						},
 						{
@@ -4038,7 +4038,7 @@
 						"panelId": {
 							"$ref": "#/$defs/overlayControl/$defs/panelId"
 						},
-						"unzoomed": {
+						"unmaximized": {
 							"anyOf": [
 								{
 									"$ref": "#/$defs/overlayControl/$defs/cellRect"
@@ -4069,7 +4069,7 @@
 							]
 						}
 					},
-					"required": ["panelId", "unzoomed", "terminal", "displayed"],
+					"required": ["panelId", "unmaximized", "terminal", "displayed"],
 					"additionalProperties": false
 				},
 				"splitArea": {
@@ -4195,7 +4195,7 @@
 						"selected": {
 							"type": "boolean"
 						},
-						"zoomed": {
+						"maximized": {
 							"type": "boolean"
 						},
 						"focusedPanelId": {
@@ -4238,7 +4238,7 @@
 						"viewport",
 						"area",
 						"selected",
-						"zoomed",
+						"maximized",
 						"focusedPanelId",
 						"sourceAvailable",
 						"neighbors",
@@ -5381,7 +5381,7 @@
 						"requested": {
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["ratio", "focus", "zoom", "overlay"],
+							"required": ["ratio", "focus", "maximize", "overlay"],
 							"properties": {
 								"ratio": {
 									"anyOf": [
@@ -5398,7 +5398,7 @@
 								"focus": {
 									"type": "boolean"
 								},
-								"zoom": {
+								"maximize": {
 									"type": "boolean"
 								},
 								"overlay": {

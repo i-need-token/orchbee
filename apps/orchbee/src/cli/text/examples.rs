@@ -50,7 +50,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::LayoutApply => &["--file", "layout.json", "--workspace", "work"],
         CommandPath::LayoutHistory => &[],
         CommandPath::LayoutReopen => &["1762480800000"],
-        CommandPath::PanelZoom => &["--current", "--toggle"],
+        CommandPath::PanelMaximize => &["--current", "--toggle"],
         CommandPath::PanelLayout => &["--current"],
         CommandPath::PanelNeighbor => &["--current", "--direction", "right"],
         CommandPath::PanelEdges => &["--current"],

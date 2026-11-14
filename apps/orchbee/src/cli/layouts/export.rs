@@ -202,7 +202,7 @@ fn observe(
             "clientId":selected.as_ref().map(|client| &client.client_id),"viewRevision":selected.as_ref().map(|client| client.view_revision)},
         "result":{"layout":{"workspaceId":&workspace.workspace_id,
             "terminalContextId":context.terminal_context_id,"tabId":tab.tab_id,
-            "zoomed":layout.as_ref().map(|layout| layout.zoomed),"focusedPanelId":layout.as_ref().and_then(|layout| layout.focused_panel_id.as_ref()),"root":root}}});
+            "maximized":layout.as_ref().map(|layout| layout.zoomed),"focusedPanelId":layout.as_ref().and_then(|layout| layout.focused_panel_id.as_ref()),"root":root}}});
     if !crate::cli::output::encode_document(&document)
         .is_ok_and(|bytes| bytes.len() <= super::template::MAX_BYTES)
     {

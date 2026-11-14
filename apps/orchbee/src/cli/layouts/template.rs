@@ -214,8 +214,8 @@ fn export_description(mut fields: Object, shared: bool) -> Result<Box<RawValue>,
     fields.decode::<WorkbenchTerminalContextId>("terminalContextId")?;
     fields.decode::<WorkbenchTabId>("tabId")?;
     let focus = fields.decode::<Option<WorkbenchPanelId>>("focusedPanelId")?;
-    let zoom = fields.decode::<Option<bool>>("zoomed")?;
-    if (shared && (focus.is_some() || zoom.is_some())) || (!shared && zoom.is_none()) {
+    let maximized = fields.decode::<Option<bool>>("maximized")?;
+    if (shared && (focus.is_some() || maximized.is_some())) || (!shared && maximized.is_none()) {
         return Err("invalid-layout");
     }
     let root = fields.take("root")?;
@@ -233,8 +233,8 @@ fn description(mut fields: Object) -> Result<Box<RawValue>, &'static str> {
     ] {
         fields.optional_string(name)?;
     }
-    if fields.contains("zoomed") {
-        fields.decode::<Option<bool>>("zoomed")?;
+    if fields.contains("maximized") {
+        fields.decode::<Option<bool>>("maximized")?;
     }
     fields.finish()?;
     Ok(root)

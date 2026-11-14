@@ -179,7 +179,7 @@ fn execute(
             .as_ref()
             .is_some_and(|layout| layout.zoomed)
         {
-            return unchanged(receipt, "zoomed-tab");
+            return unchanged(receipt, "maximized-tab");
         }
     }
     let destination = match &command.destination {
@@ -203,7 +203,7 @@ fn execute(
                     .as_ref()
                     .is_some_and(|layout| layout.zoomed)
                 {
-                    return unchanged(receipt, "zoomed-tab");
+                    return unchanged(receipt, "maximized-tab");
                 }
             }
             if let Some(panel) = panel {

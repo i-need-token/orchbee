@@ -49,7 +49,7 @@ Inspect each creation receipt: committed layout membership does not prove a proc
 
 `tab create`, `panel split` and `panel create-terminal` support the declared launch choices, cwd and literal environment entries. Use `--profile` for a saved Launch Profile or `--exec` with repeatable `--arg` for an explicit program. The directory must already exist. Inspect help for `--cwd home|current|workspace`, absolute overrides, complete terminal geometry and the bounds on `--env NAME=VALUE`. These overrides do not modify a saved profile.
 
-`panel create-terminal --child` creates a child terminal. Use `workspace`/`tab` move commands, `panel move --into-tab <tab>`/`swap`, `layout`, `panel resize`, `panel zoom` and focus commands for arrangement. Client focus controls TUI selection; it does not activate an OS window. Read the command's help before choosing current targets or layout paths.
+`panel create-terminal --child` creates a child terminal. Use `workspace`/`tab` move commands, `panel move --into-tab <tab>`/`swap`, `layout`, `panel resize`, `panel maximize` and focus commands for arrangement. Client focus controls TUI selection; it does not activate an OS window. Read the command's help before choosing current targets or layout paths.
 
 ## Send input and read output
 
@@ -166,7 +166,7 @@ and `panel swap <panel> --with <other-panel>` without `--client`. The shared rec
 canonical identities and outcomes; they make no viewport or focus claim. `layout apply --file
 layout.json --workspace <workspace>` also runs headlessly; explicit Workspace and confirmed Tab destinations
 are supported. Add `--client` for Client geometry/observations, or `--focus` when applying to a
-Client. Directional neighbors, resize and `panel zoom` require Client geometry. Read commands do not
+Client. Directional neighbors, resize and `panel maximize` require Client geometry. Read commands do not
 accept `--request-id` or `--detach`. Inspect unknown mutation receipts before another submission.
 
 ## Consistent command vocabulary

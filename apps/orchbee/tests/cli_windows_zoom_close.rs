@@ -46,12 +46,17 @@ impl Driver {
 
     fn zoom_current(&self, panels: u64) -> String {
         let client = self.tui.client.clone();
-        let zoomed = self
-            .fixture
-            .run(&["panel", "zoom", "--current", "--on", "--client", &client]);
+        let zoomed = self.fixture.run(&[
+            "panel",
+            "maximize",
+            "--current",
+            "--on",
+            "--client",
+            &client,
+        ]);
         assert_eq!(zoomed.code, Some(0), "{zoomed}");
         let selection = self.await_panels(panels);
-        assert_eq!(selection["zoomed"], true, "{selection}");
+        assert_eq!(selection["maximized"], true, "{selection}");
         selection["panelId"].as_str().unwrap().to_owned()
     }
 
@@ -76,7 +81,7 @@ impl Driver {
         let selection = self.await_panels(panels);
         let screen = self.fixture.screen(&self.tui.terminal);
         assert_eq!(
-            selection["zoomed"], false,
+            selection["maximized"], false,
             "{route} left another Panel zoomed: {selection}\n{screen}"
         );
         assert_ne!(selection["panelId"], gone, "{selection}");
@@ -113,7 +118,7 @@ fn the_zoomed_panel_going_away_exits_zoom_from_every_route() {
     let closed = driver.fixture.run(&["panel", "close", &first, "--confirm"]);
     assert_eq!(closed.code, Some(0), "{closed}");
     let selection = driver.await_panels(5);
-    assert_eq!(selection["zoomed"], true, "{selection}");
+    assert_eq!(selection["maximized"], true, "{selection}");
     assert_eq!(selection["panelId"], zoomed.as_str(), "{selection}");
 
     // The close action.

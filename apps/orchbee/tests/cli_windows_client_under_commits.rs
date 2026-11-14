@@ -196,11 +196,11 @@ fn chords(fixture: &Fixture, tui: &Tui) -> Vec<String> {
 
 /// Arms the prefix through `prefix`, then types `z` on its own and waits for the zoom to toggle.
 fn chord(fixture: &Fixture, tui: &Tui, prefix: impl Fn(&Fixture, &Tui)) -> Option<String> {
-    let zoomed = selection(fixture, tui)["zoomed"].clone();
+    let zoomed = selection(fixture, tui)["maximized"].clone();
     prefix(fixture, tui);
     thread::sleep(Duration::from_millis(100));
     fixture.keys(&tui.terminal, &["z"]);
-    let toggled = until(|| selection(fixture, tui)["zoomed"] != zoomed);
+    let toggled = until(|| selection(fixture, tui)["maximized"] != zoomed);
     let (terminal, prompt) = prompt(fixture, tui);
     let leaked = prompt.trim_end().ends_with('z');
     if leaked {
@@ -583,9 +583,9 @@ fn focus(fixture: &Fixture, tui: &Tui, workspace: &Workspace<'_>) {
 fn unzoom(fixture: &Fixture, tui: &Tui, panel: &str) {
     assert!(
         until(|| {
-            selection(fixture, tui)["zoomed"] == false
+            selection(fixture, tui)["maximized"] == false
                 || fixture
-                    .run(&["panel", "zoom", panel, "--off", "--client", &tui.client])
+                    .run(&["panel", "maximize", panel, "--off", "--client", &tui.client])
                     .code
                     == Some(0)
         }),

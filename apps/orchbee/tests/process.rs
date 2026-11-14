@@ -554,14 +554,14 @@ check layout 0 orchbee --direction up panel ''
 check list 1 orchbee client ''
 check get 1 orchbee help client ''
 check --client 1 orchbee tab focus shell --c
-check --toggle 1 orchbee panel zoom --t
-check --off 0 orchbee panel zoom --on --o
-check --format 0 orchbee panel zoom --on --toggle ''
-check --format 0 orchbee panel --on zoom --toggle ''
-check --format 0 orchbee --on panel --toggle zoom ''
+check --toggle 1 orchbee panel maximize --t
+check --off 0 orchbee panel maximize --on --o
+check --format 0 orchbee panel maximize --on --toggle ''
+check --format 0 orchbee panel --on maximize --toggle ''
+check --format 0 orchbee --on panel --toggle maximize ''
 check panel 0 orchbee --on --off ''
-check zoom 0 orchbee panel --on --toggle ''
-check zoom 1 orchbee panel --on ''
+check maximize 0 orchbee panel --on --toggle ''
+check maximize 1 orchbee panel --on ''
 check --panel 0 orchbee panel focus 00000000000000000000000000000001 --p
 check --client 1 orchbee panel focus --current --c
 check --format 0 orchbee panel focus --current 00000000000000000000000000000001 ''

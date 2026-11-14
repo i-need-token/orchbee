@@ -10,7 +10,7 @@ use orchbee_workbench_protocol::{
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ZoomMode {
+pub(crate) enum MaximizeMode {
     Toggle,
     On,
     Off,
@@ -51,9 +51,9 @@ pub(crate) enum ClientNavigationTarget {
         target: Option<Target>,
         direction: ClientPanelDirection,
     },
-    Zoom {
+    Maximize {
         target: Option<Target>,
-        mode: ZoomMode,
+        mode: MaximizeMode,
     },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -201,16 +201,16 @@ pub(super) fn parse(
         }
         [
             family @ ("workspace" | "tab" | "panel"),
-            verb @ ("focus" | "zoom" | "layout" | "neighbor" | "edges" | "resize"),
+            verb @ ("focus" | "maximize" | "layout" | "neighbor" | "edges" | "resize"),
             rest @ ..,
         ] => {
-            let zoom = *verb == "zoom";
+            let maximize = *verb == "maximize";
             let path = match (*family, *verb) {
                 ("workspace", "focus") => "workspace focus",
                 ("tab", "focus") => "tab focus",
                 ("panel", "focus") => "panel focus",
                 ("panel", "resize") => "panel resize",
-                ("panel", "zoom") => "panel zoom",
+                ("panel", "maximize") => "panel maximize",
                 ("panel", "layout") => "panel layout",
                 ("panel", "neighbor") => "panel neighbor",
                 ("panel", "edges") => "panel edges",
@@ -309,11 +309,11 @@ pub(super) fn parse(
                             }
                         };
                         ClientNavigationTarget::Layout { target, query }
-                    } else if zoom {
+                    } else if maximize {
                         let selected: Vec<_> = [
-                            ("--on", options.zoom_on),
-                            ("--off", options.zoom_off),
-                            ("--toggle", options.zoom_toggle),
+                            ("--on", options.maximize_on),
+                            ("--off", options.maximize_off),
+                            ("--toggle", options.maximize_toggle),
                         ]
                         .into_iter()
                         .filter(|(_, present)| *present)
@@ -329,14 +329,14 @@ pub(super) fn parse(
                                 envelope,
                             ));
                         }
-                        ClientNavigationTarget::Zoom {
+                        ClientNavigationTarget::Maximize {
                             target,
-                            mode: if options.zoom_on {
-                                ZoomMode::On
-                            } else if options.zoom_off {
-                                ZoomMode::Off
+                            mode: if options.maximize_on {
+                                MaximizeMode::On
+                            } else if options.maximize_off {
+                                MaximizeMode::Off
                             } else {
-                                ZoomMode::Toggle
+                                MaximizeMode::Toggle
                             },
                         }
                     } else if let Some(value) = options.direction.as_deref() {

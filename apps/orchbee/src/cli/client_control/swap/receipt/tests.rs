@@ -102,7 +102,9 @@ fn terminal_failure_cuts_preserve_canonical_and_focus_evidence_in_both_locales()
                 document["result"]["canonical"],
                 json!({"kind":"committed","revision":"13"})
             );
-            validator.validate(&document).unwrap();
+            validator
+                .validate(&crate::cli::output::public(&document))
+                .unwrap();
             let complete = name == Some("operation-applied") && failure.is_none();
             assert_eq!(receipt.exit_code() == 0, complete, "{name:?}/{failure:?}");
             assert_eq!(
@@ -114,7 +116,7 @@ fn terminal_failure_cuts_preserve_canonical_and_focus_evidence_in_both_locales()
                 assert!(output.stderr.is_empty());
                 assert_eq!(
                     serde_json::from_slice::<Value>(&output.stdout).unwrap(),
-                    document
+                    *crate::cli::output::public(&document)
                 );
                 let output = receipt.emit(OutputFormat::Text, locale);
                 assert_eq!(output.stdout.is_empty(), !complete);

@@ -18,7 +18,7 @@ selected Client Panel. Explicit targets ignore caller metadata. Tab targets admi
 unique label; Panel targets admit ID or suffix. Exporting a Panel exports its containing Tab.
 Export never activates a Tab, changes focus, resizes a Host or acquires terminal control.
 
-The result contains `layout:{workspaceId,terminalContextId,tabId,zoomed,focusedPanelId,root}`.
+The result contains `layout:{workspaceId,terminalContextId,tabId,maximized,focusedPanelId,root}`.
 The Workspace ID is required. Splits contain `type:split`, `direction:right|down`, `ratio`,
 `first` and `second`. Panels contain `type:panel`, descriptive `panelId`, `rightClick`, `primary`
 and ordered `children`. Members contain descriptive `presentationId`, fallback `name`, required-nullable

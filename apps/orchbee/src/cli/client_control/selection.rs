@@ -1,7 +1,7 @@
 //! Pure routing over one canonical snapshot and one bounded Client observation.
 use crate::{
     cli::{Failure, FailureKind, results},
-    invocation::{ClientLayoutTarget, ClientNavigationTarget, Resource, Target, ZoomMode},
+    invocation::{ClientLayoutTarget, ClientNavigationTarget, MaximizeMode, Resource, Target},
 };
 use orchbee_workbench_protocol::{
     ClientViewAvailability, ClientViewIntent, ClientViewPhase, ClientViewRecord, Snapshot,
@@ -214,7 +214,7 @@ pub(in crate::cli) fn intent(
             target: explicit, ..
         }
         | ClientNavigationTarget::Panel(explicit)
-        | ClientNavigationTarget::Zoom {
+        | ClientNavigationTarget::Maximize {
             target: explicit, ..
         } => {
             let current = client
@@ -271,15 +271,15 @@ pub(in crate::cli) fn intent(
                     panel_id,
                 });
             }
-            if let ClientNavigationTarget::Zoom { mode, .. } = target {
-                if *mode == ZoomMode::Toggle {
+            if let ClientNavigationTarget::Maximize { mode, .. } = target {
+                if *mode == MaximizeMode::Toggle {
                     return Ok(ClientViewIntent::ToggleZoom {
                         terminal_context_id: context_id,
                         tab_id,
                         panel_id,
                     });
                 }
-                let enabled = *mode == ZoomMode::On;
+                let enabled = *mode == MaximizeMode::On;
                 Ok(ClientViewIntent::Zoom {
                     terminal_context_id: context_id,
                     tab_id,

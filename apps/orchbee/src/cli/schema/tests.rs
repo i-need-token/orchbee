@@ -110,7 +110,7 @@ fn configured_catalog_and_receipts_publish_closed_native_schema() {
         reply.as_object_mut().unwrap().remove("kind");
         let mut document = serde_json::json!({"schema":"orchbee.command","version":1,"source":{"kind":"local-runtime"},"result":{"operation":"invoke","reply":reply,"followup":null,"complete":true}});
         validator
-            .validate(&document)
+            .validate(&crate::cli::output::public(&document))
             .unwrap_or_else(|error| panic!("{}: {error}", case["name"]));
         document["result"]["reply"]["program"] = "untrusted".into();
         assert!(!validator.is_valid(&document));
@@ -732,13 +732,13 @@ fn popup_receipts_and_client_control_keep_closed_shapes() {
     let schema: Value =
         serde_json::from_str(super::document("orchbee.client.control").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    assert!(validator.is_valid(&document));
+    assert!(validator.is_valid(&crate::cli::output::public(&document)));
     document["schema"] = json!("orchbee.popup.result");
     document["version"] = json!(1);
     let schema: Value =
         serde_json::from_str(super::document("orchbee.popup.result").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    assert!(validator.is_valid(&document));
+    assert!(validator.is_valid(&crate::cli::output::public(&document)));
     document["result"]["observation"]["reply"]["outcome"]["operation"]["command"]["intent"]["spec"]
         .as_object_mut()
         .unwrap()

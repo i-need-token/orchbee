@@ -29,14 +29,14 @@ fn exports_and_templates_keep_literal_launch_values_without_reusing_ids() {
     assert_eq!(leaf.primary.environment.entries()[1].1, "$(not executed)");
     assert_eq!(
         parse_value(json!({"workspaceId":"7".repeat(32), "tabId":"4".repeat(32),
-        "zoomed":true,"focusedPanelId":"5".repeat(32),"root":root}))
+        "maximized":true,"focusedPanelId":"5".repeat(32),"root":root}))
         .expect("description"),
         node
     );
     let export = json!({"schema":"orchbee.layout.export","version":1,
         "source":{"kind":"layout-observation","scope":"client","sessionId":"1".repeat(32),"revision":"1","clientId":"2".repeat(32),"viewRevision":"1"},
         "result":{"layout":{"workspaceId":"7".repeat(32),"terminalContextId":"3".repeat(32),"tabId":"4".repeat(32),
-            "focusedPanelId":null,"zoomed":true,"root":{"type":"panel","panelId":"5".repeat(32),
+            "focusedPanelId":null,"maximized":true,"root":{"type":"panel","panelId":"5".repeat(32),
                 "rightClick":"orchbee","children":[],"primary":{"presentationId":"6".repeat(32),
                     "name":"Retained","label":null,"cwd":null,"command":null,"env":{},"start":false}}}}});
     let mut bytes = vec![0xef, 0xbb, 0xbf];
@@ -58,7 +58,7 @@ fn exports_and_templates_keep_literal_launch_values_without_reusing_ids() {
         ("/source", "scope"),
         ("/source", "clientId"),
         ("/result/layout", "workspaceId"),
-        ("/result/layout", "zoomed"),
+        ("/result/layout", "maximized"),
         ("/result/layout/root", "children"),
         ("/result/layout/root/primary", "label"),
         ("/result/layout/root/primary", "cwd"),

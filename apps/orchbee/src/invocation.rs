@@ -49,7 +49,7 @@ mod terminal_stream;
 mod terminal_target;
 pub(crate) use client_control::ClientLayoutTarget;
 pub(crate) use client_control::{ClientCommand, LayoutQuery};
-pub(crate) use client_control::{ClientNavigationTarget, ZoomMode};
+pub(crate) use client_control::{ClientNavigationTarget, MaximizeMode};
 pub(crate) use client_control::{PanelSwapCommand, PanelSwapDestination};
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
 mod output_cursor;
@@ -1017,9 +1017,9 @@ struct Options {
     client: Option<String>,
     focus: bool,
     no_focus: bool,
-    zoom_on: bool,
-    zoom_off: bool,
-    zoom_toggle: bool,
+    maximize_on: bool,
+    maximize_off: bool,
+    maximize_toggle: bool,
     branch: Option<String>,
     base: Option<String>,
     force: bool,

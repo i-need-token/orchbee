@@ -85,7 +85,7 @@ pub(super) fn resolve_words(
         | ["workspace" | "tab", "focus", ..]
         | [
             "panel",
-            "focus" | "zoom" | "layout" | "neighbor" | "edges" | "resize" | "swap",
+            "focus" | "maximize" | "layout" | "neighbor" | "edges" | "resize" | "swap",
             ..,
         ] => client_control::parse(words, options, envelope),
 

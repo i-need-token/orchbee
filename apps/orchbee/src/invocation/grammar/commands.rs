@@ -43,7 +43,7 @@ commands! {
     LayoutApply => ["layout", "apply"], 0, Operand, Windows, true, false, false;
     LayoutHistory => ["layout", "history"], 0, Operand, Windows, true, true, false;
     LayoutReopen => ["layout", "reopen"], 1, Operand, Windows, true, true, false;
-    PanelZoom => ["panel", "zoom"], 1, Panel, Portable, true, true, false;
+    PanelMaximize => ["panel", "maximize"], 1, Panel, Portable, true, true, false;
     PanelLayout => ["panel", "layout"], 1, Panel, Portable, true, true, false;
     PanelNeighbor => ["panel", "neighbor"], 1, Panel, Portable, true, true, false;
     PanelEdges => ["panel", "edges"], 1, Panel, Portable, true, true, false;

@@ -310,7 +310,7 @@
 								"workspaceId",
 								"terminalContextId",
 								"tabId",
-								"zoomed",
+								"maximized",
 								"focusedPanelId",
 								"root"
 							],
@@ -324,7 +324,7 @@
 								"tabId": {
 									"$ref": "#/$defs/export/$defs/id"
 								},
-								"zoomed": {
+								"maximized": {
 									"type": ["boolean", "null"]
 								},
 								"focusedPanelId": {
@@ -525,7 +525,7 @@
 						"properties": {
 							"layout": {
 								"properties": {
-									"zoomed": {
+									"maximized": {
 										"type": "boolean"
 									}
 								}
@@ -550,7 +550,7 @@
 						"properties": {
 							"layout": {
 								"properties": {
-									"zoomed": {
+									"maximized": {
 										"type": "null"
 									},
 									"focusedPanelId": {
@@ -1326,7 +1326,7 @@
 								}
 							]
 						},
-						"zoomed": {
+						"maximized": {
 							"type": "boolean"
 						},
 						"panelCount": {
@@ -1335,7 +1335,7 @@
 							"maximum": 65535
 						}
 					},
-					"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+					"required": ["terminalContextId", "tabId", "panelId", "maximized", "panelCount"],
 					"additionalProperties": false
 				},
 				"view": {
@@ -1425,7 +1425,7 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "zoom"
+									"const": "maximize"
 								},
 								"terminalContextId": {
 									"$ref": "#/$defs/control/$defs/terminalContextId"
@@ -1447,7 +1447,7 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "toggle-zoom"
+									"const": "toggle-maximize"
 								},
 								"terminalContextId": {
 									"$ref": "#/$defs/control/$defs/terminalContextId"
@@ -1738,7 +1738,7 @@
 								"presentationId",
 								"expectedBinding",
 								"returnTo",
-								"previouslyZoomed"
+								"previouslyMaximized"
 							],
 							"properties": {
 								"kind": {
@@ -1802,7 +1802,7 @@
 										}
 									}
 								},
-								"previouslyZoomed": {
+								"previouslyMaximized": {
 									"type": "boolean"
 								}
 							}
@@ -1962,7 +1962,7 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "zoom-unchanged"
+									"const": "maximize-unchanged"
 								},
 								"view": {
 									"$ref": "#/$defs/control/$defs/view"
@@ -1975,16 +1975,16 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "zoom-toggled"
+									"const": "maximize-toggled"
 								},
 								"view": {
 									"$ref": "#/$defs/control/$defs/view"
 								},
-								"previouslyZoomed": {
+								"previouslyMaximized": {
 									"type": "boolean"
 								}
 							},
-							"required": ["kind", "view", "previouslyZoomed"],
+							"required": ["kind", "view", "previouslyMaximized"],
 							"additionalProperties": false
 						},
 						{
@@ -2284,7 +2284,7 @@
 						"panelId": {
 							"$ref": "#/$defs/control/$defs/panelId"
 						},
-						"unzoomed": {
+						"unmaximized": {
 							"anyOf": [
 								{
 									"$ref": "#/$defs/control/$defs/cellRect"
@@ -2315,7 +2315,7 @@
 							]
 						}
 					},
-					"required": ["panelId", "unzoomed", "terminal", "displayed"],
+					"required": ["panelId", "unmaximized", "terminal", "displayed"],
 					"additionalProperties": false
 				},
 				"splitArea": {
@@ -2441,7 +2441,7 @@
 						"selected": {
 							"type": "boolean"
 						},
-						"zoomed": {
+						"maximized": {
 							"type": "boolean"
 						},
 						"focusedPanelId": {
@@ -2484,7 +2484,7 @@
 						"viewport",
 						"area",
 						"selected",
-						"zoomed",
+						"maximized",
 						"focusedPanelId",
 						"sourceAvailable",
 						"neighbors",

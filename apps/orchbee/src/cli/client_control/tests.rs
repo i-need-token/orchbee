@@ -1,6 +1,6 @@
 use super::*;
 use crate::cli_text::CliText;
-use crate::invocation::{self, ClientNavigationTarget, Request, Target, ZoomMode};
+use crate::invocation::{self, ClientNavigationTarget, MaximizeMode, Request, Target};
 use orchbee_workbench_protocol::{
     ClientViewAvailability, ClientViewIntent, ClientViewRecord, Snapshot, WorkbenchClientId,
     WorkbenchResponse,
@@ -48,7 +48,9 @@ fn physical_attention_receipt_uses_closed_client_control_schema() {
     let schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    validator.validate(&document).unwrap();
+    validator
+        .validate(&crate::cli::output::public(&document))
+        .unwrap();
 }
 
 #[test]
@@ -78,7 +80,9 @@ fn agent_focus_receipts_keep_current_control_shape_closed() {
         let document = answer.document();
         assert_eq!(answer.exit_code(), 0);
         assert_eq!(document["version"], 1);
-        validator.validate(&document).unwrap();
+        validator
+            .validate(&crate::cli::output::public(&document))
+            .unwrap();
     }
 }
 fn record() -> ClientViewRecord {
@@ -318,7 +322,7 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
         vec!["workspace", "focus", "label:demo"],
         vec!["tab", "focus", "label:shell"],
         vec!["panel", "focus"],
-        vec!["panel", "zoom"],
+        vec!["panel", "maximize"],
     ] {
         assert!(
             matches!(parse(&words).unwrap(), Request::Client { .. }),
@@ -340,7 +344,7 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
         format,
     } = parse(&[
         "panel",
-        "zoom",
+        "maximize",
         "--current",
         "--toggle",
         "--client",
@@ -357,9 +361,9 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
     };
     assert_eq!(
         target,
-        ClientNavigationTarget::Zoom {
+        ClientNavigationTarget::Maximize {
             target: None,
-            mode: ZoomMode::Toggle
+            mode: MaximizeMode::Toggle
         }
     );
     assert_eq!(client.unwrap().as_str(), id);
@@ -375,13 +379,13 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
         vec!["client", "status", "0"],
         vec!["workspace", "focus"],
         vec!["tab", "focus"],
-        vec!["panel", "zoom", "--on", "--off"],
-        vec!["panel", "zoom", "--toggle", "--on"],
-        vec!["panel", "zoom", "--off", "--toggle"],
+        vec!["panel", "maximize", "--on", "--off"],
+        vec!["panel", "maximize", "--toggle", "--on"],
+        vec!["panel", "maximize", "--off", "--toggle"],
         vec!["panel", "focus", id, "--current"],
         vec!["panel", "focus", id, "--panel", id],
         vec!["panel", "focus", "--panel", id, "--current"],
-        vec!["panel", "zoom", "--timeout=0"],
+        vec!["panel", "maximize", "--timeout=0"],
         vec!["panel", "focus", "--timeout=3600001"],
         vec!["tab", "focus", "label:a", "--on"],
         vec![
@@ -389,9 +393,9 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
             "focus",
             "--client=00000000000000000000000000000000",
         ],
-        vec!["panel", "zoom", "--client=ABC"],
+        vec!["panel", "maximize", "--client=ABC"],
         vec!["client", "list", "--client", id],
-        vec!["panel", "zoom", "--request-id=invalid"],
+        vec!["panel", "maximize", "--request-id=invalid"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }
@@ -461,9 +465,9 @@ fn client_control_selection_is_exact_fresh_and_never_guesses_between_clients() {
     inactive.view.selection = None;
     assert!(matches!(
         selection::intent(
-            &ClientNavigationTarget::Zoom {
+            &ClientNavigationTarget::Maximize {
                 target: Some(caller),
-                mode: ZoomMode::Toggle
+                mode: MaximizeMode::Toggle
             },
             &inactive,
             None,
@@ -860,7 +864,7 @@ fn directional_focus_grammar_resolves_source_and_explicit_success_variants() {
             wait: None,
         };
         assert_eq!(answer.exit_code(), 0);
-        assert!(validator.is_valid(&answer.document()));
+        assert!(validator.is_valid(&crate::cli::output::public(&answer.document())));
         assert!(
             String::from_utf8(emit(&answer, OutputFormat::Text, Locale::EnUs).stdout)
                 .unwrap()
@@ -1080,7 +1084,9 @@ fn layout_adjustment_receipts_have_closed_json_and_honest_bilingual_text() {
             wait: None,
         };
         assert_eq!(answer.exit_code(), 0);
-        validator.validate(&answer.document()).unwrap();
+        validator
+            .validate(&crate::cli::output::public(&answer.document()))
+            .unwrap();
         for (locale, expected) in [(Locale::EnUs, en), (Locale::ZhCn, zh)] {
             assert!(
                 String::from_utf8(emit(&answer, OutputFormat::Text, locale).stdout)
@@ -1116,7 +1122,9 @@ fn presentation_receipts_keep_bound_and_empty_shapes_closed() {
         let schema: Value =
             serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
         let validator = jsonschema::validator_for(&schema).unwrap();
-        validator.validate(&document).unwrap();
+        validator
+            .validate(&crate::cli::output::public(&document))
+            .unwrap();
     }
 }
 
@@ -1155,7 +1163,9 @@ fn configured_popup_receipt_is_closed() {
     let schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    validator.validate(&document).unwrap();
+    validator
+        .validate(&crate::cli::output::public(&document))
+        .unwrap();
 }
 
 #[test]

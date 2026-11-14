@@ -66,7 +66,7 @@ impl super::CliText {
             CommandPath::LayoutApply => &[],
             CommandPath::LayoutHistory => &[],
             CommandPath::LayoutReopen => &[Argument::SavedAt],
-            CommandPath::PanelZoom => &[Argument::Panel],
+            CommandPath::PanelMaximize => &[Argument::Panel],
             CommandPath::PanelLayout => &[Argument::Panel],
             CommandPath::PanelNeighbor => &[Argument::Panel],
             CommandPath::PanelEdges => &[Argument::Panel],

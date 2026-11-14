@@ -866,7 +866,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::WorkspaceFocus,
             CommandPath::TabFocus,
             CommandPath::PanelFocus,
-            CommandPath::PanelZoom,
+            CommandPath::PanelMaximize,
             CommandPath::AgentList,
             CommandPath::AgentGet,
             CommandPath::AgentFocus,
@@ -906,14 +906,14 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[CommandPath::PanelZoom],
+        commands: &[CommandPath::PanelMaximize],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
         joined: true,
         help: None,
         apply: |options, _, _| {
-            options.zoom_on = true;
+            options.maximize_on = true;
             Ok(())
         },
     },
@@ -922,14 +922,14 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[CommandPath::PanelZoom],
+        commands: &[CommandPath::PanelMaximize],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
         joined: true,
         help: None,
         apply: |options, _, _| {
-            options.zoom_off = true;
+            options.maximize_off = true;
             Ok(())
         },
     },
@@ -938,14 +938,14 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[CommandPath::PanelZoom],
+        commands: &[CommandPath::PanelMaximize],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
         joined: true,
         help: None,
         apply: |options, _, _| {
-            options.zoom_toggle = true;
+            options.maximize_toggle = true;
             Ok(())
         },
     },
@@ -1050,7 +1050,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::WorkspaceFocus,
             CommandPath::TabFocus,
             CommandPath::PanelFocus,
-            CommandPath::PanelZoom,
+            CommandPath::PanelMaximize,
             CommandPath::ServerReloadAgentManifests,
             CommandPath::ServerUpdateAgentManifests,
             CommandPath::ServerStop,
@@ -1099,7 +1099,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::WorkspaceFocus,
             CommandPath::TabFocus,
             CommandPath::PanelFocus,
-            CommandPath::PanelZoom,
+            CommandPath::PanelMaximize,
             CommandPath::ServerStop,
             CommandPath::AgentFocus,
             CommandPath::AgentAttention,
@@ -1501,7 +1501,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::PanelNeighbor,
             CommandPath::PanelEdges,
             CommandPath::PanelFocus,
-            CommandPath::PanelZoom,
+            CommandPath::PanelMaximize,
             CommandPath::AgentStart,
             CommandPath::PanelCreateTerminal,
             CommandPath::PanelInput,
@@ -1836,7 +1836,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::WorkspaceFocus,
             CommandPath::TabFocus,
             CommandPath::PanelFocus,
-            CommandPath::PanelZoom,
+            CommandPath::PanelMaximize,
             CommandPath::ServerStop,
             CommandPath::AgentStart,
             CommandPath::AgentFocus,

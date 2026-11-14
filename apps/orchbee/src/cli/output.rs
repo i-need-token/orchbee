@@ -8,6 +8,9 @@ use std::io::Write;
 
 use serde_json::Value;
 
+mod vocabulary;
+pub(crate) use vocabulary::public;
+
 pub(crate) const LIMIT: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -74,10 +77,12 @@ impl fmt::Write for Bounded {
 }
 
 /// Two-space indented JSON with a trailing newline, built entirely in memory
-/// under the preparation bound. `Err(TooLarge)` means nothing was written.
+/// under the preparation bound and in the CLI's public words. `Err(TooLarge)`
+/// means nothing was written.
 pub(crate) fn encode_document(document: &Value) -> Result<Vec<u8>, TooLarge> {
     let mut bounded = Bounded::new(LIMIT);
-    serde_json::to_writer_pretty(&mut bounded, document).map_err(|_| TooLarge)?;
+    serde_json::to_writer_pretty(&mut bounded, &vocabulary::public(document))
+        .map_err(|_| TooLarge)?;
     bounded.write_all(b"\n").map_err(|_| TooLarge)?;
     Ok(bounded.bytes)
 }
@@ -85,7 +90,7 @@ pub(crate) fn encode_document(document: &Value) -> Result<Vec<u8>, TooLarge> {
 /// One compact NDJSON record, completely prepared under the per-record bound.
 pub(crate) fn encode_record(document: &Value) -> Result<Vec<u8>, TooLarge> {
     let mut bounded = Bounded::new(LIMIT);
-    serde_json::to_writer(&mut bounded, document).map_err(|_| TooLarge)?;
+    serde_json::to_writer(&mut bounded, &vocabulary::public(document)).map_err(|_| TooLarge)?;
     bounded.write_all(b"\n").map_err(|_| TooLarge)?;
     Ok(bounded.bytes)
 }

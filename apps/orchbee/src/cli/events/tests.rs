@@ -27,7 +27,9 @@ fn current_stream_envelopes_validate_without_reopening_historical_event_names() 
         kinds.insert(kind);
         let document = json!({"schema":"orchbee.events.stream","version":1,
             "kind":kind,"source":source,"result":public_reply(&reply).unwrap()});
-        validator.validate(&document).unwrap();
+        validator
+            .validate(&crate::cli::output::public(&document))
+            .unwrap();
     }
     let closed = json!({"schema":"orchbee.events.stream","version":1,"kind":"closed",
         "source":source,"result":{"reason":"completed","cleanup":"closed"}});

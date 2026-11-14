@@ -19,7 +19,7 @@ pub(super) struct Receipt {
     pub(super) client_id: Option<WorkbenchClientId>,
     pub(super) requested_ratio: Option<ClientSplitRatio>,
     pub(super) requested_focus: bool,
-    pub(super) requested_zoom: bool,
+    pub(super) requested_maximize: bool,
     pub(super) requested_overlay: bool,
     pub(super) ratio: Option<Answer>,
     pub(super) focus: Option<Answer>,
@@ -71,7 +71,7 @@ impl Receipt {
         document["result"]["directory"] = self.directory.document();
         document["result"]["postCreate"] = json!({
             "clientId":self.client_id,
-            "requested":{"ratio":self.requested_ratio,"focus":self.requested_focus,"zoom":self.requested_zoom,"overlay":self.requested_overlay},
+            "requested":{"ratio":self.requested_ratio,"focus":self.requested_focus,"maximize":self.requested_maximize,"overlay":self.requested_overlay},
             "ratio":self.ratio.as_ref().map(Answer::document),
             "focus":self.focus.as_ref().map(Answer::document),
             "stage":self.stage,

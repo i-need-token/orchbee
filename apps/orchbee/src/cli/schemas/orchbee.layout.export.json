@@ -63,7 +63,7 @@
 						"workspaceId",
 						"terminalContextId",
 						"tabId",
-						"zoomed",
+						"maximized",
 						"focusedPanelId",
 						"root"
 					],
@@ -77,7 +77,7 @@
 						"tabId": {
 							"$ref": "#/$defs/id"
 						},
-						"zoomed": {
+						"maximized": {
 							"type": ["boolean", "null"]
 						},
 						"focusedPanelId": {
@@ -278,7 +278,7 @@
 				"properties": {
 					"layout": {
 						"properties": {
-							"zoomed": {
+							"maximized": {
 								"type": "boolean"
 							}
 						}
@@ -303,7 +303,7 @@
 				"properties": {
 					"layout": {
 						"properties": {
-							"zoomed": {
+							"maximized": {
 								"type": "null"
 							},
 							"focusedPanelId": {

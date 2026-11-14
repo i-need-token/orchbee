@@ -968,7 +968,7 @@
 						}
 					]
 				},
-				"zoomed": {
+				"maximized": {
 					"type": "boolean"
 				},
 				"panelCount": {
@@ -977,7 +977,7 @@
 					"maximum": 65535
 				}
 			},
-			"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+			"required": ["terminalContextId", "tabId", "panelId", "maximized", "panelCount"],
 			"additionalProperties": false
 		},
 		"physicalClient_view": {

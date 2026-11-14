@@ -349,17 +349,17 @@ const CONFLICTS: &[Conflict] = &[
         incompatible: &["--tab", "--panel"],
     },
     Conflict {
-        commands: &[CommandPath::PanelZoom],
+        commands: &[CommandPath::PanelMaximize],
         flags: &["--on"],
         incompatible: &["--off", "--toggle"],
     },
     Conflict {
-        commands: &[CommandPath::PanelZoom],
+        commands: &[CommandPath::PanelMaximize],
         flags: &["--off"],
         incompatible: &["--on", "--toggle"],
     },
     Conflict {
-        commands: &[CommandPath::PanelZoom],
+        commands: &[CommandPath::PanelMaximize],
         flags: &["--toggle"],
         incompatible: &["--on", "--off"],
     },
@@ -873,7 +873,7 @@ const OPERANDS: &[OperandRule] = &[
         commands: &[
             CommandPath::PanelCurrent,
             CommandPath::PanelFocus,
-            CommandPath::PanelZoom,
+            CommandPath::PanelMaximize,
             CommandPath::PanelLayout,
             CommandPath::PanelNeighbor,
             CommandPath::PanelEdges,

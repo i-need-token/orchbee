@@ -519,7 +519,7 @@
 		},
 		"terminalClientSelection": {
 			"type": "object",
-			"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+			"required": ["terminalContextId", "tabId", "panelId", "maximized", "panelCount"],
 			"additionalProperties": false,
 			"properties": {
 				"terminalContextId": {
@@ -545,7 +545,7 @@
 						}
 					]
 				},
-				"zoomed": {
+				"maximized": {
 					"type": "boolean"
 				},
 				"panelCount": {

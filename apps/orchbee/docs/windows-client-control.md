@@ -23,6 +23,8 @@ A control command contains operation identity, exact Client identity, expected v
 - ToggleZoom: toggle that Tab once from the state observed by its UI owner after target activation.
 - Layout: read exact target geometry without selecting or resizing; the [layout owner](windows-client-layout.md) defines its observation and budget.
 
+`panel maximize` submits Zoom or ToggleZoom. The Server and Clients keep the zoom names on the wire; every CLI machine document says maximize instead: intent kinds `maximize` and `toggle-maximize`, outcomes `maximize-toggled` with `previouslyMaximized` and `maximize-unchanged`, the view selection's `maximized` and the layout's `maximized` and `unmaximized` members.
+
 Toggle resolution belongs to the TUI and is retained for the delivered operation. Equal operation identity and complete command returns its retained observation, including after the Client disconnects. Changed command data conflicts. After receipt expiry, absence does not establish that an earlier command had no effect.
 
 | Transition                 | Guard and observation                                                                                                                                                                                                    |

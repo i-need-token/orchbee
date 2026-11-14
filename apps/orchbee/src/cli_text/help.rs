@@ -153,7 +153,7 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::LayoutApply) => {
                 ("Apply a saved terminal layout.", "应用已保存的终端布局。")
             }
-            HelpTopic::Command(CommandPath::PanelZoom) => (
+            HelpTopic::Command(CommandPath::PanelMaximize) => (
                 "Toggle or set a panel's maximized state.",
                 "切换或设置面板的最大化状态。",
             ),
