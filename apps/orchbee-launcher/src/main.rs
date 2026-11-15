@@ -1,8 +1,13 @@
 //! The Windows launcher, installed by the PATH step as `bin\<name>.exe` in the release store. It
 //! reads the store's `active.json` and runs `versions\<product>\<name>.exe` with the unchanged
 //! command line, console, standard handles and environment, ends that Client when the launcher
-//! itself is ended, and returns its exit code. It reads nothing else.
+//! itself is ended, and returns its exit code. Where automatic updates run, it follows the
+//! relaunch protocol: a Client that asks for it is started again on the active version, and a
+//! relaunched Client that fails to start or to join gives way to the one it replaced. It reads
+//! nothing else.
 mod localization;
+#[cfg(windows)]
+mod relaunch;
 #[cfg(windows)]
 mod resolve;
 #[cfg(windows)]

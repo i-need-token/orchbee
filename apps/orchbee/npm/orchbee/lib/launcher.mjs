@@ -2,7 +2,8 @@
 // sub-package; on each start this finds it, installs it into the per-user store through the carried
 // program's own `install --no-path` when the store has no active version or a lower one, and then runs
 // the store's active program in place of itself. The store's pointer `active.json` alone names the
-// active version. Nothing runs at install time.
+// active version. On Windows, where automatic updates run, it follows the relaunch protocol of
+// `apps/orchbee-launcher` with the same rule. Nothing runs at install time.
 //
 // The launcher is plain JavaScript that runs on the person's own Node, so it uses only Node built-ins
 // available since Node 18 and reads nothing beyond its own package, the sub-package, and the pointer.
@@ -24,6 +25,25 @@ const maximumPointer = 64 * 1024;
 // A concurrent start holds `install.lock` for one install; the install's own deadline is 600 s.
 const busyWaitMilliseconds = 600_000;
 const busyRetryMilliseconds = 250;
+
+// The relaunch protocol, the same as `apps/orchbee-launcher/src/relaunch.rs`: the variable carries the
+// launcher's process id, and a Client uses the statuses below only when that process is its parent.
+const relaunchVariable = 'ORCHBEE_RELAUNCH_V1';
+const relaunchStatus = 75;
+// A Client that could not join its Session; without the protocol it ends as a startup failure.
+const joinFailedStatus = 76;
+const startupFailureStatus = 1;
+// Rust's status for a panic that unwinds out of `main`; no CLI exit code uses it.
+const panicStatus = 101;
+// Error-severity NTSTATUS values end a process that did not choose to end; STATUS_CONTROL_C_EXIT is a
+// console Ctrl+C, Ctrl+Break or close.
+const errorSeverity = 0xc0000000;
+const consoleExitStatus = 0xc000013a;
+const relaunchLimit = 3;
+const relaunchWindowMilliseconds = 10_000;
+// The release-build half of the local runtime's automatic-update switch, `IN_RELEASE_BUILDS` in
+// `crates/local-runtime/src/automatic_updates.rs`: the change that turns one on turns on both.
+const automaticUpdatesInReleaseBuilds = false;
 
 const platformNames = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 const architectureNames = { x64: 'x64', arm64: 'ARM64' };
@@ -257,6 +277,55 @@ function resolveProgram({ root, programName, carriedProgram, carriedVersion, tex
 }
 
 /**
+ * Whether automatic-update behaviors run for this stem, as the local runtime's switch answers for the
+ * same build: always for a development or test stem, and for the release stem once the switch is on.
+ */
+export function automaticUpdatesLive(stem) {
+	return (
+		stem.startsWith('ob-dev-') || stem.startsWith('ob-test-') || automaticUpdatesInReleaseBuilds
+	);
+}
+
+/**
+ * How the protocol reads a Client's exit `code`, or null when no Client started: `relaunch`, `failed`
+ * for a failed start or join, or `normal` for any other end, CLI failures included.
+ */
+export function judgeClientExit(code) {
+	if (code === null) return 'failed';
+	if (code === relaunchStatus) return 'relaunch';
+	if (code === joinFailedStatus || code === panicStatus) return 'failed';
+	// Node reports a Windows status unsigned; either sign reads as the same 32-bit value.
+	const status = code >>> 0;
+	return status >= errorSeverity && status !== consoleExitStatus ? 'failed' : 'normal';
+}
+
+/**
+ * The step after a start (`first`, `relaunch`, or `return` to the version a failed relaunch
+ * replaced) ended with `code`, given the times of the earlier relaunches: `{ step: 'end', status }`,
+ * `{ step: 'unavailable' }`, `{ step: 'relaunch' }`, or `{ step: 'return' }`. A relaunched Client that
+ * fails to start or to join returns to the one it replaced; a fourth relaunch inside ten seconds is
+ * refused.
+ */
+export function nextStart(start, code, relaunches, now) {
+	const verdict = judgeClientExit(code);
+	if (verdict === 'relaunch') {
+		const recent = relaunches.filter((at) => now - at < relaunchWindowMilliseconds).length;
+		return recent < relaunchLimit ? { step: 'relaunch' } : { step: 'end', status: relaunchStatus };
+	}
+	if (verdict === 'failed' && start === 'relaunch') return { step: 'return' };
+	if (code === null) return { step: 'unavailable' };
+	return { step: 'end', status: code === joinFailedStatus ? startupFailureStatus : code };
+}
+
+/** Leaves with a program's exit status, or by the same signal, so the caller sees what it saw. */
+function leave(code, signal) {
+	if (code !== null) process.exit(code);
+	process.removeAllListeners(signal);
+	process.kill(process.pid, signal);
+	process.exit(128 + (constants.signals[signal] ?? 0));
+}
+
+/**
  * Runs `program` with this process's arguments, standard handles and environment and leaves with its
  * exit status. Console signals (Ctrl+C, Ctrl+Break, close) and terminal signals reach the program
  * directly, so the launcher only outlives them; a signal sent to the launcher alone is passed on.
@@ -265,13 +334,57 @@ function run(program, text) {
 	const child = spawn(program, process.argv.slice(2), { stdio: 'inherit' });
 	for (const signal of forwardedSignals) process.on(signal, () => child.kill(signal));
 	child.on('error', (error) => fail(text.startFailed(program, error.code ?? error.message)));
-	child.on('exit', (code, signal) => {
-		if (code !== null) process.exit(code);
-		// Leave by the same signal, so the caller sees what the program saw.
-		process.removeAllListeners(signal);
-		process.kill(process.pid, signal);
-		process.exit(128 + (constants.signals[signal] ?? 0));
-	});
+	child.on('exit', leave);
+}
+
+/**
+ * `run` under the relaunch protocol, on Windows only: each start receives this process's id in the
+ * protocol variable, and `nextStart` decides after each one. A relaunch reads the pointer again; a
+ * pointer that names no version counts as a relaunched Client that did not start.
+ */
+function runWithRelaunch(program, root, programName, text) {
+	const environment = { ...process.env, [relaunchVariable]: String(process.pid) };
+	const relaunches = [];
+	let replaced = null;
+	function decide(current, start, code, error) {
+		const now = performance.now();
+		const next = nextStart(start, code, relaunches, now);
+		if (next.step === 'end') process.exit(next.status);
+		if (next.step === 'unavailable')
+			fail(text.startFailed(current ?? '-', error?.code ?? error?.message ?? 'ENOENT'));
+		if (next.step === 'return') {
+			startClient(replaced, 'return');
+			return;
+		}
+		if (relaunches.length === relaunchLimit) relaunches.shift();
+		relaunches.push(now);
+		replaced = current;
+		const active = readPointer(root);
+		startClient(
+			active === null ? null : path.join(root, 'versions', active, programName),
+			'relaunch',
+		);
+	}
+	function startClient(current, start) {
+		if (current === null) {
+			decide(current, start, null, null);
+			return;
+		}
+		const child = spawn(current, process.argv.slice(2), { stdio: 'inherit', env: environment });
+		let settled = false;
+		child.on('error', (error) => {
+			if (settled) return;
+			settled = true;
+			decide(current, start, null, error);
+		});
+		child.on('exit', (code, signal) => {
+			if (settled) return;
+			settled = true;
+			if (code === null) leave(code, signal);
+			else decide(current, start, code, null);
+		});
+	}
+	startClient(program, 'first');
 }
 
 // Signals the console or terminal delivers to every process attached to it: the program receives
@@ -317,5 +430,7 @@ export function main() {
 		carriedVersion: carried.version,
 		text,
 	});
-	run(program, text);
+	if (process.platform === 'win32' && automaticUpdatesLive(stem))
+		runWithRelaunch(program, storeRoot(stem, process.platform, process.env), programName, text);
+	else run(program, text);
 }

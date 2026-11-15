@@ -626,12 +626,18 @@ A click switches the Client it is in; other open Clients keep their own control.
    and starts the active version with the unchanged command line in the same console. The new TUI
    joins the same Session, and a bare start opens at the saved place.
 
-- A launcher announces the protocol through a variable that carries its own process id, and the
-  TUI uses status 75 only when that process is its parent, so a stale inherited variable does
-  nothing. Status 75 lies outside the [CLI exit codes](../../docs/cli/output.md#exit-codes). A
+- A launcher announces the protocol through `ORCHBEE_RELAUNCH_V1`, which carries its own process
+  id, and the TUI uses status 75 only when that process is its parent, so a stale inherited variable
+  does nothing. Status 75 lies outside the [CLI exit codes](../../docs/cli/output.md#exit-codes). A
   launcher relaunches at most three times in ten seconds.
 - When the new TUI fails to start or to join, the launcher starts the version it replaced, with the
-  same command line, as [make before break](#make-before-break) requires.
+  same command line, as [make before break](#make-before-break) requires. Chosen: the launcher
+  tells a failed start or join by status alone. Under the same parent check, a TUI that cannot join
+  its Session ends with status 76 in place of its startup failure 1, which the launcher returns as 1;
+  no process starting, Rust's panic status 101, and a Windows error status other than a console
+  exit count too. Every CLI exit code is a normal exit, so a command's ordinary failure never counts
+  against a version. The [launcher](../../apps/orchbee-launcher/README.md#relaunch-protocol) gives
+  the rule.
 - A TUI started without such a launcher exits normally and prints one line: "Run orchbee to open
   version {version}."
 - macOS and Linux replace the process in place when they ship, so they need no launcher protocol.

@@ -8,6 +8,8 @@ publish = false
 [target.'cfg(windows)'.dependencies]
 # The console events the Client receives through the shared console must not end the launcher.
 ctrlc.workspace = true
+# The one switch that turns automatic-update behaviors, the relaunch protocol among them, on.
+orchbee-local-runtime = { path = "../../crates/local-runtime" }
 # The store pointer has one parser, shared with the Client's install owner.
 orchbee-release-records = { path = "../../crates/release-records" }
 # A Job that ends the Client with the launcher and keeps the Client's own children out of it.

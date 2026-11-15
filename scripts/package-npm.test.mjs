@@ -14,6 +14,8 @@ import path from 'node:path';
 import test from 'node:test';
 import {
 	compareVersions,
+	judgeClientExit,
+	nextStart,
 	parsePointer,
 	storeRoot,
 } from '../apps/orchbee/npm/orchbee/lib/launcher.mjs';
@@ -259,4 +261,47 @@ test('the launcher reads the store root the install command writes', () => {
 	);
 	assert.equal(storeRoot(stem, 'win32', { ...windows, ORCHBEE_INSTALL_DIR: 'relative' }), null);
 	assert.equal(storeRoot('orchbee', 'linux', { HOME: '/home/a' }), '/home/a/.local/share/orchbee');
+});
+
+test('the launcher tells a failed start or join from a normal exit by status', () => {
+	// Node reports a Windows status unsigned; a negative reading is the same status.
+	for (const code of [null, 76, 101, 0xc0000005, 0xc0000135, 0xc0000409, 0xc00000fd, -1073741819])
+		assert.equal(judgeClientExit(code), 'failed', String(code));
+	assert.equal(judgeClientExit(75), 'relaunch');
+	for (const code of [0, 1, 6, 8, 130, 0xc000013a, 0x80000003])
+		assert.equal(judgeClientExit(code), 'normal', String(code));
+});
+
+const end = (status) => ({ step: 'end', status });
+
+test('the launcher moves on after each start by its verdict', () => {
+	for (const [start, code, step] of [
+		['first', 0, end(0)],
+		['first', 3, end(3)],
+		['first', 75, { step: 'relaunch' }],
+		['first', null, { step: 'unavailable' }],
+		['first', 76, end(1)],
+		['first', 101, end(101)],
+		['relaunch', null, { step: 'return' }],
+		['relaunch', 76, { step: 'return' }],
+		['relaunch', 0xc0000005, { step: 'return' }],
+		['relaunch', 1, end(1)],
+		['relaunch', 75, { step: 'relaunch' }],
+		['return', null, { step: 'unavailable' }],
+		['return', 76, end(1)],
+		['return', 75, { step: 'relaunch' }],
+	])
+		assert.deepEqual(nextStart(start, code, [], 0), step, `${start} ${code}`);
+});
+
+test('the launcher relaunches at most three times in ten seconds', () => {
+	const now = 60_000;
+	for (const [history, step] of [
+		[[now - 9_900, now - 5_000], { step: 'relaunch' }],
+		[[now - 9_900, now - 5_000, now - 100], { step: 'end', status: 75 }],
+		[[now - 10_000, now - 5_000, now - 100], { step: 'relaunch' }],
+		[[now - 30_000, now - 20_000, now - 12_000], { step: 'relaunch' }],
+	])
+		for (const start of ['first', 'relaunch', 'return'])
+			assert.deepEqual(nextStart(start, 75, history, now), step, `${start} ${history}`);
 });

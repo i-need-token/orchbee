@@ -12,7 +12,8 @@ and the PATH step are described in
 
 - From its own path `<root>\bin\<name>.exe` it reads `<root>\active.json` with the Client's pointer
   parser from `orchbee-release-records`, and starts `<root>\versions\<product>\<name>.exe`. It reads
-  no other file and no configuration.
+  no other file and no configuration; the one setting it follows, whether the
+  [relaunch protocol](#relaunch-protocol) runs, is compiled in.
 - The Client receives the launcher's command line after the program name exactly as written, the
   same console and standard handles, the environment, and the working directory. A command line
   that is not valid UTF-16 passes argument by argument instead, so the Client reads the same
@@ -28,6 +29,32 @@ and the PATH step are described in
 - When the pointer is missing, unreadable, or names no valid version, or the active Client cannot
   start, it prints one line on standard error in the locale `LC_ALL`, `LC_MESSAGES` or `LANG`
   selects and exits `1`. If the Client ran but its status cannot be read, it exits `8`.
+
+## Relaunch protocol
+
+Where the local runtime's
+[automatic-update switch](../../crates/local-runtime/README.md#automatic-update-switch) is on, the
+launcher follows the protocol of
+[What a click does](../../proposals/platform/automatic-updates.md#tui); where it is off, it behaves
+as above and sets no variable. The npm launcher follows the same rule on Windows.
+
+- Every Client it starts receives `ORCHBEE_RELAUNCH_V1`, the launcher's own process id in decimal.
+  A Client uses the statuses below only when that process is its parent, so a value it inherited
+  from another launcher does nothing.
+- Status `75`: the Client restored the console and asks for the active version. The launcher reads
+  `active.json` again and starts that version with the same command line in the same console, at
+  most three times in ten seconds; a fourth request inside that time ends the launcher with `75`.
+- Status `76`: the Client could not join its Session. It uses it in place of the startup failure
+  `1` it ends with without a launcher, so a caller still reads `1` once the launcher ends.
+- After every start, the first one or a relaunch, the launcher tells a failed start or join from a
+  normal exit by status alone: no process started, status `76`, Rust's panic status `101`, or an
+  error-severity `NTSTATUS` other than `STATUS_CONTROL_C_EXIT` is a failure; every other status,
+  each CLI exit code included, is a normal exit. Statuses therefore never misread a command's
+  ordinary failure as a broken version.
+- When the Client of a relaunch fails to start or to join, a pointer naming no version included,
+  the launcher starts the version it replaced with the same command line. After a first start, or
+  such a return, a failure ends the launcher with the Client's status as above.
+- The decisions are pure functions in `src/relaunch.rs`, tested in both launchers.
 - On macOS and Linux it prints that it runs only on Windows and exits `4`; those platforms install
   a link instead.
 
@@ -44,5 +71,6 @@ cargo clippy -p orchbee-launcher --all-targets --locked -- -D warnings
 cargo clippy -p orchbee-launcher --all-targets --locked --target x86_64-unknown-linux-gnu -- -D warnings
 ```
 
-The unit tests cover pointer-to-Client resolution and the command-line tail. Console, signal, exit
+The unit tests cover pointer-to-Client resolution, the command-line tail, and the relaunch
+decisions. Console, signal, exit
 code and process-lifetime behavior need a staged test package and a real terminal.

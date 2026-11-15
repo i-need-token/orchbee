@@ -9,7 +9,8 @@ use crate::{EnvironmentKind, environment_kind};
 pub const AUTOMATIC_UPDATE_HELPER: &str = "--automatic-update-v1";
 
 /// Whether release builds run automatic updates. While it is false, a release build neither shows
-/// nor runs any automatic-update behavior.
+/// nor runs any automatic-update behavior. The npm launcher keeps the same value as
+/// `automaticUpdatesInReleaseBuilds`, and a change sets both.
 const IN_RELEASE_BUILDS: bool = false;
 
 /// Whether this build runs automatic-update behaviors. Test builds always do, so tests and

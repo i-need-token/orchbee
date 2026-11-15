@@ -1243,7 +1243,9 @@ true because the switch does not gate development builds, where each behavior ke
 such as never scheduling an update and never showing Update. It decides nothing else: platforms,
 settings and each behavior's own conditions stay with their owners. The
 [automatic updates proposal](../../proposals/platform/automatic-updates.md#phases) says when release
-builds turn it on.
+builds turn it on. The npm launcher, plain JavaScript that cannot read it, keeps the release-build
+half as its own constant, `automaticUpdatesInReleaseBuilds` in
+`apps/orchbee/npm/orchbee/lib/launcher.mjs`; the change that sets `IN_RELEASE_BUILDS` sets both.
 
 `AUTOMATIC_UPDATE_HELPER` is `--automatic-update-v1`, the one argument with which a Session Server
 runs the store's active Client for an automatic update and by which that Client recognizes the
