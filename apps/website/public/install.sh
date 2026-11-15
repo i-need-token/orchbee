@@ -7,6 +7,7 @@
 #
 # 1. Takes the platform token from uname: macos-aarch64, macos-x86_64, linux-x86_64 or
 #    linux-aarch64. A shell under Rosetta on Apple silicon still installs macos-aarch64.
+#    On a Mac older than macOS 13 it stops here, before anything is downloaded.
 # 2. Reads that platform's feed document, https://orchbee.com/update/stable/<platform>/feed.json,
 #    or with --version the feed asset of that GitHub release. A platform without a feed is told so
 #    in one sentence, and nothing is downloaded or installed.
@@ -129,6 +130,20 @@ ob_detect_platform() {
 	if [ -z "$ob_os" ] || [ -z "$ob_cpu" ]; then
 		ob_fail "Orchbee has no build for $(uname -s 2>/dev/null) on $(uname -m 2>/dev/null). Nothing was installed." \
 			"Orchbee 没有适用于 $(uname -m 2>/dev/null) 上的 $(uname -s 2>/dev/null) 的版本。未安装任何内容。"
+	fi
+	if [ "$ob_os" = macos ]; then
+		# A version this script cannot read is not refused; the install goes on.
+		ob_macos_version=$(sw_vers -productVersion 2>/dev/null)
+		ob_macos_major=${ob_macos_version%%.*}
+		case $ob_macos_major in
+		'' | *[!0-9]*) ;;
+		*)
+			if [ "$ob_macos_major" -lt 13 ]; then
+				ob_fail "Orchbee needs macOS 13 or later; this Mac runs macOS $ob_macos_version. Nothing was installed." \
+					"Orchbee 需要 macOS 13 或更高版本；这台 Mac 运行的是 macOS $ob_macos_version。未安装任何内容。"
+			fi
+			;;
+		esac
 	fi
 	ob_platform="$ob_os-$ob_cpu"
 }

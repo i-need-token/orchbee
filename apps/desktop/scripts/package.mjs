@@ -207,6 +207,8 @@ try {
 		asar: true,
 		dir: stagingRoot,
 		electronVersion: electronPackage.version,
+		// The oldest macOS release Orchbee runs on; packager merges this into the application's Info.plist.
+		...(process.platform === 'darwin' ? { extendInfo: { LSMinimumSystemVersion: '13.0' } } : {}),
 		extraResource: [
 			rendererBuild,
 			cohortRoot,

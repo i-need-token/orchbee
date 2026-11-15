@@ -112,7 +112,7 @@ export const enUSWebsiteHomeMessages = {
 	'website.home.install.note':
 		'The installer is not code-signed yet, so Windows SmartScreen may ask you to confirm.',
 	'website.home.install.leadMacos':
-		'Orchbee is in beta. It runs on Windows 11 (x86_64) and macOS today; Linux builds are in progress.',
+		'Orchbee is in beta. It runs on Windows 11 (x86_64) and macOS 13 or later today; Linux builds are in progress.',
 	'website.home.install.appWindows': 'Windows desktop app, terminal and CLI',
 	'website.home.install.macosApp': 'macOS desktop app',
 	'website.home.install.macosAppNote':

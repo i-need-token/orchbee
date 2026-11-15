@@ -100,7 +100,7 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.install.startNote': '打开终端界面。也可以从开始菜单打开 Orchbee。',
 	'website.home.install.note': '安装程序暂未做代码签名，Windows SmartScreen 可能会要求你确认。',
 	'website.home.install.leadMacos':
-		'Orchbee 处于测试阶段，目前支持 Windows 11（x86_64）和 macOS；Linux 版本正在开发中。',
+		'Orchbee 处于测试阶段，目前支持 Windows 11（x86_64）和 macOS 13 或更高版本；Linux 版本正在开发中。',
 	'website.home.install.appWindows': 'Windows 桌面应用、终端和 CLI',
 	'website.home.install.macosApp': 'macOS 桌面应用',
 	'website.home.install.macosAppNote':

@@ -143,6 +143,14 @@ pub fn build(builder: *std.Build) void {
         query.cpu_model = .baseline;
         target = builder.resolveTargetQuery(query);
     }
+    // For the same reason, a macOS build targets the oldest release Orchbee supports, macOS 13
+    // (Zig 0.16's own floor), rather than the building machine's release, which Zig would
+    // otherwise record as the minimum.
+    if (target.result.os.tag == .macos and target.query.os_version_min == null) {
+        var query = target.query;
+        query.os_version_min = .{ .semver = .{ .major = 13, .minor = 0, .patch = 0 } };
+        target = builder.resolveTargetQuery(query);
+    }
     // Zig's bundled MSVC headers fail to compile the Wuffs and Ghostty C/C++
     // sources on some Windows SDK configurations, and Zig links with its own
     // lld anyway, so fall back to the GNU ABI unless one was requested

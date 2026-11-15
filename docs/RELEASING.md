@@ -156,7 +156,7 @@ directory holds `orchbee`, `orchbee-server`, `orchbee-worker` and `orchbee-termi
 adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. The Windows row builds and
 publishes. The macOS rows build in rehearsals only: a macOS release adds the disk image
 `Orchbee-<version>-macos-<cpu>.dmg`, the `.tar.gz` and its feed document, and the platform package
-`@orchbee/cli-darwin-<cpu>`. To publish them, after a rehearsal in which `release-build-macos`,
+`@orchbee/cli-darwin-<cpu>`. The macOS floor is macOS 13: the Terminal Host and the desktop application's `Info.plist` name it as their minimum, whatever release the runner has. To publish them, after a rehearsal in which `release-build-macos`,
 `release-package-macos`, `release-smoke-macos` and `release-join` passed for both rows, set
 `"publish": true` on the `macos-aarch64` and `macos-x86_64` rows of `RELEASE_PLATFORMS` in
 `.github/workflows/release.yml`.
