@@ -122,8 +122,8 @@ enabled filtered group) or `Start` (the executable path, the standard handles, t
 wait failed).
 
 The derived token keeps the user and the logon session. Every group UAC filters from an elevated
-token (BUILTIN `S-1-5-32-544`, `-547` to `-551`, `-553`, `-556`, `-569`, and the domain RIDs 498,
-512, 516 and 518 to 521) becomes deny-only; every privilege except SeChangeNotify, SeShutdown,
+token (BUILTIN `S-1-5-32-544`, `-547` to `-551`, `-553`, `-554`, `-556`, `-569`, and the domain
+RIDs 498, 512, 516 and 518 to 521) becomes deny-only; every privilege except SeChangeNotify, SeShutdown,
 SeUndock, SeIncreaseWorkingSet and SeTimeZone is deleted; the integrity is Medium, the owner is the
 user, and the default DACL grants `GENERIC_ALL` to the user and SYSTEM, so the child's process and
 every object it creates admit a Medium process of the same user. The child stays in the parent's
@@ -156,8 +156,8 @@ admitted by the [Rust policy](../../docs/RUST.md#lint-policy-and-enforcement):
   standard handle the child inherits nothing.
 - **Start.** `CreateProcessAsUserW` receives the executable path as the application name, a
   writable NUL-terminated command line `"<executable>" <argument>`, a pointer that reaches the whole
-  `STARTUPINFOEXW`, `CREATE_NO_WINDOW` without breakaway, and a NULL environment, directory and
-  desktop, which inherit the parent's. A restricted copy of the caller's own token needs no
+  `STARTUPINFOEXW`, `CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT` without breakaway, and a NULL
+  environment, directory and desktop, which inherit the parent's. A restricted copy of the caller's own token needs no
   SeAssignPrimaryToken.
 - **Closing and relay.** Right after the start the parent closes the thread handle, the attribute
   list and its copies of the standard handles, so the child is their only holder and its exit ends

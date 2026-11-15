@@ -34,11 +34,12 @@ use windows::{
                 GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, SetStdHandle,
             },
             Threading::{
-                CREATE_NO_WINDOW, CreateProcessAsUserW, DeleteProcThreadAttributeList,
-                EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess, GetExitCodeProcess, INFINITE,
-                InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST, OpenProcessToken,
-                PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
-                STARTUPINFOEXW, STARTUPINFOW, UpdateProcThreadAttribute, WaitForSingleObject,
+                CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, CreateProcessAsUserW,
+                DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess,
+                GetExitCodeProcess, INFINITE, InitializeProcThreadAttributeList,
+                LPPROC_THREAD_ATTRIBUTE_LIST, OpenProcessToken, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOEXW, STARTUPINFOW,
+                UpdateProcThreadAttribute, WaitForSingleObject,
             },
         },
     },
@@ -55,7 +56,7 @@ const GROUP_INTEGRITY: u32 = 0x20;
 /// The NT identifier authority, big-endian as a SID stores it.
 const NT_AUTHORITY: [u8; 6] = [0, 0, 0, 0, 0, 5];
 /// `S-1-5-32-<RID>`: BUILTIN Administrators and the builtin groups UAC filters with it.
-const FILTERED_BUILTIN: [u32; 9] = [544, 547, 548, 549, 550, 551, 553, 556, 569];
+const FILTERED_BUILTIN: [u32; 10] = [544, 547, 548, 549, 550, 551, 553, 554, 556, 569];
 /// `S-1-5-21-<domain>-<RID>`: the domain groups UAC filters.
 const FILTERED_DOMAIN: [u32; 7] = [498, 512, 516, 518, 519, 520, 521];
 
@@ -535,7 +536,9 @@ pub(crate) fn spawn(
         startup.StartupInfo.hStdOutput,
         startup.StartupInfo.hStdError,
     ] = standard;
-    let mut flags = CREATE_NO_WINDOW;
+    // The inherited environment block is Unicode, and the API requires saying so even when the
+    // block is the parent's own.
+    let mut flags = CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT;
     startup.StartupInfo.cb = match attributes.as_mut() {
         Some(list) => {
             startup.lpAttributeList = list.as_list();
