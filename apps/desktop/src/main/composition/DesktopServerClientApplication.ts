@@ -5,7 +5,9 @@ import {
 	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
 	DESKTOP_SERVER_CONNECTION_PORT_ROLES,
 	DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
+	DESKTOP_WINDOW_CAPTION_IPC_CHANNEL,
 	DesktopServerConnectionDocumentSchema,
+	DesktopWindowCaptionColorSchema,
 	type DesktopServerConnectionBootstrap,
 	type DesktopServerConnectionPortRole,
 	type DesktopServerConnectionReply,
@@ -56,6 +58,8 @@ export interface DesktopServerClientApplicationOptions {
 }
 
 const MACOS_TRAFFIC_LIGHT_POSITION = { x: 12, y: 12 } as const;
+/** The Windows caption buttons show the page's chrome beneath them, in whatever theme it has. */
+const WINDOWS_CAPTION_BACKGROUND = '#00000000';
 const HIDDEN_WINDOW_BOUNDS = { height: 720, width: 1100 } as const;
 /** What a terminal link may open, as the page's own link policy permits. */
 const EXTERNAL_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
@@ -71,6 +75,18 @@ function openExternalLink(address: string): void {
 	if (!EXTERNAL_LINK_PROTOCOLS.has(url.protocol)) return;
 	// The page has already counted the link as opened, as the TUI counts an accepted request.
 	shell.openExternal(url.href).catch(() => undefined);
+}
+
+/**
+ * The Windows caption buttons' symbols take the color the page's theme gives them, each time it
+ * changes; until the first document says, they keep the system's.
+ */
+function followPageCaptionColor(window: BrowserWindow): void {
+	window.webContents.ipc.on(DESKTOP_WINDOW_CAPTION_IPC_CHANNEL, (_event, value) => {
+		const symbolColor = DesktopWindowCaptionColorSchema.safeParse(value);
+		if (!symbolColor.success || window.isDestroyed()) return;
+		window.setTitleBarOverlay({ symbolColor: symbolColor.data });
+	});
 }
 
 /**
@@ -184,7 +200,10 @@ export class DesktopServerClientApplication {
 			show: false,
 			...(options.platform === 'darwin'
 				? { trafficLightPosition: MACOS_TRAFFIC_LIGHT_POSITION }
-				: { titleBarOverlay: true }),
+				: {
+						titleBarOverlay:
+							options.platform === 'win32' ? { color: WINDOWS_CAPTION_BACKGROUND } : true,
+					}),
 			titleBarStyle: 'hidden',
 			webPreferences: {
 				allowRunningInsecureContent: false,
@@ -199,6 +218,7 @@ export class DesktopServerClientApplication {
 			},
 		});
 		this.#window = window;
+		if (options.platform === 'win32') followPageCaptionColor(window);
 		let attachment: DesktopWindowStateAttachment | undefined;
 		if (!options.windowHidden) {
 			attachment = options.windowStateOwner.attach(window);

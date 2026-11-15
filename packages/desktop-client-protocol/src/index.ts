@@ -26,6 +26,13 @@ export type {
 } from './desktop-background-status-contract';
 
 export {
+	DESKTOP_WINDOW_CAPTION_IPC_CHANNEL,
+	DESKTOP_WINDOW_CAPTION_WINDOW_MESSAGE,
+	DesktopWindowCaptionColorSchema,
+	DesktopWindowCaptionWindowMessageSchema,
+} from './desktop-window-caption-contract';
+
+export {
 	DesktopNewProjectFolderNameSchema,
 	DesktopProjectFolderAcquisitionMainEventSchema,
 	DesktopProjectFolderAcquisitionRendererCommandSchema,

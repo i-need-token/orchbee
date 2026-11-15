@@ -55,6 +55,7 @@ import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
 import { SessionDisconnectedStatus } from '../session-disconnected-status';
 import { SessionUnavailable } from '../session-unavailable';
+import { followDesktopWindowCaption } from '../window-caption';
 import { MessagePortServerCarrier } from './MessagePortServerCarrier';
 
 type DocumentElement = Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>;
@@ -399,6 +400,8 @@ export function startDesktopServerWorkbench(
 		throw new Error('The Orchbee Desktop application root element is missing.');
 	}
 	const reactRoot = createRoot(rootElement);
+	// Whatever this document shows, the Windows caption buttons draw in its theme.
+	followDesktopWindowCaption(targetWindow);
 	void run(
 		targetWindow,
 		reactRoot,

@@ -10,6 +10,8 @@ The package owns the announcement of a document's Server connection: its ports, 
 
 Local Project Folder acquisition distinguishes existing-Folder selection, native parent selection, and explicit child creation. Creation commands carry the parent selection identity, a monotonic attempt and one bounded name, never a renderer-selected path. Known no-effect failures permit explicit correction on that parent. Successful or uncertain creation consumes it and requires an exact creation-request acknowledgement before another operation; retirement reports retained receipts only during Main lifetime. Folder acquisition returns a validated path without carrying group membership; Workbench resolves addition through the immutable resource namespace. See the [owning contract](../../apps/desktop/docs/project-folder-acquisition.md).
 
+Outside the ports, the page posts to its own window the color its theme gives the Windows caption buttons' symbols, as `#rrggbb`, whenever that theme changes; the preload forwards only a message that parses, on `DESKTOP_WINDOW_CAPTION_IPC_CHANNEL`, and Main parses the color again before drawing the buttons with it.
+
 Settings data shapes belong to their controls in `apps/web`, and launch profiles to `@orchbee/workbench-client-protocol`; no Electron channel carries them.
 
 It contains no Electron imports, UI, broker, coordinator, transport lifecycle, authentication, terminal projection, PTY, or VT behavior. The contract grants only the scoped capability represented by each port.

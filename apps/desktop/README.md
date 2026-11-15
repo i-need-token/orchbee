@@ -71,6 +71,17 @@ installed release's. A Session already running keeps the configuration it starte
   reserve as wide as the window leaves past `env(titlebar-area-x)` and `env(titlebar-area-width)`;
   Tabs that do not fit overflow within the remaining width, and the New Tab control stays clear of
   the caption buttons at every window width.
+- On Windows, caption buttons in the page's theme. They draw with no background, so the page's own
+  chrome shows beneath them, and their symbols take the color the page's theme gives
+  `--ob-sys-color-icon-primary`, named color themes included. The page posts that color, converted
+  to `#rrggbb`, to its own window whenever its theme attributes change; the preload forwards it to
+  Main, which calls `setTitleBarOverlay`. The buttons therefore follow the application's theme, and
+  the system's when the theme setting follows the system, without a restart. Until a document
+  reports, the symbols keep the system's color. The hover fill behind minimize and maximize stays
+  Electron's. Setting `nativeTheme.themeSource` from the page's theme was rejected: Electron gives
+  the overlay the classic system button colors whatever that source says, so the buttons would not
+  change, and the override would also redefine `prefers-color-scheme`, from which the page resolves
+  a theme that follows the system. Linux keeps the default overlay.
 - The window's title is its page's, which the taskbar and window switcher show; the page follows the
   Session's title policy as the TUI's outer title does.
 - The window's place, restored and recorded as [Window lifecycle](docs/window-lifecycle.md)

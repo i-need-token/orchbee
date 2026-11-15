@@ -1,0 +1,1 @@
+export { followDesktopWindowCaption } from './followDesktopWindowCaption';
