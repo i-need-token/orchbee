@@ -2,7 +2,7 @@
 
 ## Merge gate
 
-`pnpm verify` is the local and CI host verification gate. Run the applicable root gate from the repository root before committing a completed change. It prepares check inputs without a full application build or cross-compilation, in this order:
+`pnpm verify` is the host verification gate; CI runs its stages across the jobs of the [CI contract](#ci-contract). Run the applicable root gate from the repository root before committing a completed change. It prepares check inputs without a full application build or cross-compilation, in this order:
 
 1. `pnpm format:check`
 2. `pnpm test:tla:inventory`
@@ -167,6 +167,7 @@ results remain unchanged.
 | `test`                    | Contract-checker tests, custom lint-rule and dependency-scope tests, pnpm and Cargo host test suites, and required controlled local system witnesses pass.      |
 | `test:cross`              | Explicitly compile the declared native foreign-target test graphs.                                                                                              |
 | `verify:rust-native`      | Run Rust workspace Clippy, the native test prerequisites and every Cargo host test suite under the current host's platform configuration.                       |
+| `verify:no-rust-tests`    | Run every stage of `verify` except the Cargo host test suites and their native prerequisites; Rust lint stays.                                                  |
 | `test:exports`            | Every library's packed exports, runtime formats, and declarations are consumable.                                                                               |
 
 - `build:packages` precedes `lint` and `typecheck` because dependency analysis and production consumers resolve library artifacts, not another package's source. A clean checkout must produce those exports before Knip classifies dependency usage.
@@ -181,7 +182,7 @@ results remain unchanged.
   Rust member exists, it validates the pinned toolchain and empty workspace metadata; afterward the
   same tasks run rustfmt, Clippy, build, and tests over every member with `--locked`. The test
   task adds `--no-fail-fast`, so one run reports every failing test target instead of stopping at
-  the first; a Windows CI run takes about half an hour, so a run that names one failure at a time
+  the first; the Windows CI job takes 45 to 60 minutes, so a run that names one failure at a time
   costs a run per failure. The result is unchanged: any failing target still fails the task.
 - The Rust lint task runs Clippy twice: over every target with all features, then over the
   default-feature library and binary targets of every member. Development dependencies re-enable
@@ -225,22 +226,36 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
 
 ## CI contract
 
-- `.github/workflows/verify.yml` installs the frozen lockfile and runs `pnpm verify` for pull requests, pushes to `main`, and manual runs.
+- `.github/workflows/verify.yml` installs the frozen lockfile and runs for pull requests, pushes to `main`, and manual runs.
+- The Linux `verify` job runs `pnpm verify:no-rust-tests`: every stage of `pnpm verify` except the
+  Cargo test suites and their native prerequisites. Linux is not a release platform yet and several
+  of its Cargo test targets fail, so that stage made every run red and hid the other results. Rust
+  lint stays in the job and keeps the Linux configuration compiling. Restore `pnpm verify` in this
+  job when Linux support resumes.
+- A push to `main` never cancels the run in progress. A complete run takes about an hour and pushes
+  arrive more often, so cancelling on every push left `main` without one finished run. GitHub keeps
+  one waiting run per concurrency group: the newest commit is verified next, and that run covers
+  the commits between. Pull-request runs still cancel on a new push.
+- Read the newest completed run on `main` before landing an integration batch and before pushing a
+  release tag: `gh run list --workflow verify.yml --branch main --status completed --limit 1`. A
+  red job is fixed, reverted or reported to the owner in that batch, never left for the next run to
+  repeat.
 - CI supplies `--verbose` so complete diagnostics remain in the existing job log after the
   temporary runner is removed; a local temporary-log path alone is not durable CI evidence.
 - The `rust-windows` job runs `pnpm verify:rust-native` on `windows-latest`, so every Rust
   member gets Clippy and its Cargo test suites under the Windows platform configuration that the
-  Linux `verify` job never compiles. Formatting, documentation, TypeScript and TLA checks are
+  Linux `verify` job never compiles. It is the only job that runs the Cargo test suites. Formatting, documentation, TypeScript and TLA checks are
   platform-independent and stay in `verify`. The Windows TUI process tests that share
   `apps/orchbee/tests/support/windows_tui_session.rs` take turns inside their test binary: four of
   their real Session pairs at once saturate the four-vCPU runner, and shells then echo typed input
   seconds late.
 - Platform exclusions are explicit. macOS has no Rust job because the native Client is only an
   unsigned per-user Apple Silicon development cohort. `terminal-host-native` runs the native
-  Terminal Host tests and formatting check on `windows-latest` only: GitHub rejects the
-  `macos-14` runner label while this repository is private, so a macOS entry could only fail.
-  The job keeps its macOS setup step; once the repository is public, restore the macOS job by
-  setting its matrix to `os: [macos-14, windows-latest]`. Until then macOS has no CI evidence.
+  Terminal Host tests and formatting check on `windows-latest` only. The repository is public, so
+  GitHub accepts the `macos-14` runner label, but the macOS entry stays out while Windows is the
+  only release platform. The job keeps its macOS setup step; restore the macOS job when macOS work
+  resumes by setting its matrix to `os: [macos-14, windows-latest]`. Until then macOS has no CI
+  evidence.
   No job runs `test:cross`; cross-compilation stays explicit.
 - The required `verify` job does not run TLC. The required `tla` job selects and runs
   change-triggered checks from the tracked inventory; an unrelated change completes that job

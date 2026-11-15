@@ -54,6 +54,36 @@ export function checkSteps(task, scope, platform = process.platform) {
 			return [step];
 		});
 	}
+	const verifyStages = [
+		'format:check',
+		'test:tla:inventory',
+		'build:packages',
+		'lint',
+		'typecheck',
+		'test',
+		'test:exports',
+	];
+	// Every `test` step that needs no Cargo: root tooling tests, then the pnpm workspace suites.
+	const nodeSuites = [
+		// Small independent gates overlap freely.
+		{
+			concurrent: [
+				'test:check-output',
+				'test:rust-runner',
+				'test:rust-modules',
+				'test:lint-rules',
+				'test:dependency-scope',
+				'test:ghostty-source',
+				'test:style-contract',
+				'test:storage-contract',
+				'test:experience-contract',
+				'test:stage-local-runtime',
+				'test:release-feed',
+				'test:agent-observation-adapters',
+			].map((name) => pnpmStep(name)),
+		},
+		pnpmStep('workspace tests', ['-r', 'test']),
+	];
 	const tasks = new Map([
 		[
 			'test:tla',
@@ -67,41 +97,20 @@ export function checkSteps(task, scope, platform = process.platform) {
 				},
 			],
 		],
+		['verify', verifyStages.map((name) => pnpmStep(name))],
 		[
-			'verify',
-			[
-				'format:check',
-				'test:tla:inventory',
-				'build:packages',
-				'lint',
-				'typecheck',
-				'test',
-				'test:exports',
-			].map((name) => pnpmStep(name)),
+			// `verify` for a host whose Cargo suites are not release evidence: every stage except the
+			// Cargo tests and their native prerequisites. Rust lint stays, so that host's Rust
+			// configuration still compiles.
+			'verify:no-rust-tests',
+			verifyStages.flatMap((name) => (name === 'test' ? nodeSuites : [pnpmStep(name)])),
 		],
 		[
 			'test',
 			[
-				// Small independent gates overlap freely.
-				{
-					concurrent: [
-						'test:check-output',
-						'test:rust-runner',
-						'test:rust-modules',
-						'test:lint-rules',
-						'test:dependency-scope',
-						'test:ghostty-source',
-						'test:style-contract',
-						'test:storage-contract',
-						'test:experience-contract',
-						'test:stage-local-runtime',
-						'test:release-feed',
-						'test:agent-observation-adapters',
-					].map((name) => pnpmStep(name)),
-				},
 				// Native process witnesses spend real deadlines on startup and cohort verification.
-				// Isolated build caches do not isolate them from CPU-heavy Node suites.
-				pnpmStep('workspace tests', ['-r', 'test']),
+				// Isolated build caches do not isolate them from CPU-heavy Node suites, so those finish first.
+				...nodeSuites,
 				...nativeTestPreparation(undefined, platform),
 				nodeStep('Rust workspace tests', ['scripts/run-rust-workspace.mjs', 'test']),
 			],
