@@ -44,7 +44,9 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.collaboration.window': 'Claude Code 用 orchbee 命令启动 Codex 并向它提交 prompt',
 	'website.home.collaboration.caption':
 		'<b>每一步都是一条 <code>orchbee</code> 命令。</b>左侧的 Claude Code 通过自己的 Shell 工具执行这些命令，Codex 在右侧的面板中启动。',
-	'website.home.collaboration.step1': '在右侧的新面板中启动 Codex。',
+	'website.home.collaboration.captionStacked':
+		'<b>每一步都是一条 <code>orchbee</code> 命令。</b>上方的 Claude Code 通过自己的 Shell 工具执行这些命令，Codex 在下方的面板中启动。',
+	'website.home.collaboration.step1': '在新面板中启动 Codex。',
 	'website.home.collaboration.step2': '列出每个 Agent 的句柄，例如 <code>@panel:0x36</code>。',
 	'website.home.collaboration.step3': '把 prompt 提交给这个 Agent。',
 	'website.home.collaboration.step4': '等到这个 Agent 回到空闲状态，最多等两分钟。',

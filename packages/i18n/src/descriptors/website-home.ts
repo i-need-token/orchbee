@@ -134,6 +134,10 @@ export const websiteHomeMessages = defineMessages({
 		'website.home.collaboration.caption',
 		'Caption under the collaboration figure; <b> marks its label, <code> a command name.',
 	),
+	collaborationCaptionStacked: message(
+		'website.home.collaboration.captionStacked',
+		'Caption under the collaboration figure while its Panels stand one above the other; <b> marks its label, <code> a command name.',
+	),
 	collaborationStep1: message(
 		'website.home.collaboration.step1',
 		'What the first command of the collaboration figure does.',

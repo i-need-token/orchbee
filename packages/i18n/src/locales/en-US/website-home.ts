@@ -47,7 +47,9 @@ export const enUSWebsiteHomeMessages = {
 		'Claude Code starting and prompting Codex with orchbee commands',
 	'website.home.collaboration.caption':
 		'<b>Each step is one <code>orchbee</code> command.</b>On the left, Claude Code runs them through its shell tool. Codex starts in the Panel on the right.',
-	'website.home.collaboration.step1': 'Starts Codex in a new Panel on the right.',
+	'website.home.collaboration.captionStacked':
+		'<b>Each step is one <code>orchbee</code> command.</b>In the upper Panel, Claude Code runs them through its shell tool. Codex starts in the Panel below it.',
+	'website.home.collaboration.step1': 'Starts Codex in a new Panel.',
 	'website.home.collaboration.step2':
 		'Prints the handle of each agent, such as <code>@panel:0x36</code>.',
 	'website.home.collaboration.step3': 'Submits the prompt to that agent.',

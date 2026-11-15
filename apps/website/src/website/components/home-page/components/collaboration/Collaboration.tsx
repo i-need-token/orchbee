@@ -41,11 +41,16 @@ export function Collaboration(): ReactElement {
 				title={t(messages.collaborationTitle)}
 				lead={t(messages.collaborationLead)}
 			/>
-			<div data-reveal='' data-scene='collaboration'>
+			<div className={styles['figure']} data-reveal='' data-scene='collaboration'>
 				<WindowFit>
 					<CollaborationWindow frame={collaborationFrame(state)} />
 				</WindowFit>
-				<FigureCaption>{t(messages.collaborationCaption, richText)}</FigureCaption>
+				<FigureCaption>
+					<span className={styles['sideBySide']}>{t(messages.collaborationCaption, richText)}</span>
+					<span className={styles['stacked']}>
+						{t(messages.collaborationCaptionStacked, richText)}
+					</span>
+				</FigureCaption>
 				<ol className={styles['rail']}>
 					{STEPS.map(({ command, what }, index) => (
 						<li

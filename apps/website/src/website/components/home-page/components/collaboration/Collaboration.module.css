@@ -1,6 +1,22 @@
 .section {
 	composes: section from '../../../page-shell/PageShell.module.css';
 }
+/* The figure is as wide as its window's slot, so the caption names the Panels where the window
+   shows them: side by side, or one above the other once the window stands upright. */
+.figure {
+	container: collaboration / inline-size;
+}
+.stacked {
+	display: none;
+}
+@container collaboration (max-width: 48rem) {
+	.sideBySide {
+		display: none;
+	}
+	.stacked {
+		display: inline;
+	}
+}
 /* The five steps under the figure. A line along each step's top fills while the step plays, over
    the step's length that script sets, and stays full once it has run. */
 .rail {
