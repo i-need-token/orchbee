@@ -19,6 +19,7 @@ import { desktopFilesDocument } from './desktop-files.mjs';
 import { checkArtifacts } from './release-artifacts.mjs';
 import { feedDocument, gateFeed, sha256 } from './release-feed.mjs';
 import { FEED_DOMAIN, loadKey, signatureDocument } from './sign-release-manifest.mjs';
+import { tarGzip } from './tar-gzip.mjs';
 
 // The repository's public test key, which TEST_KEYS trusts; nothing here is a release key.
 const testKey = loadKey(
@@ -239,6 +240,79 @@ test('check refuses a window archive that its list or the feed does not describe
 	);
 	assert.deepEqual(unbound, [
 		`${feedFile}: extensions.desktop.manifest.sha256 does not match ${folder}.zip's list`,
+	]);
+});
+
+/**
+ * A small test-stem macOS artifacts directory, its tar.gz written with `workerMode` for the worker
+ * program; the Mac that builds real ones is not at hand where these tests run.
+ */
+function macosArtifacts(t, workerMode) {
+	const root = scratch(t);
+	const macosBase = `${stem}-${version}-macos-aarch64`;
+	const programs = ['', '-server', '-worker', '-terminal-host'].map((suffix) => [
+		`${stem}${suffix}`,
+		Buffer.from(`program${suffix}`),
+	]);
+	const manifest = Buffer.from(
+		JSON.stringify({
+			schemaVersion: 2,
+			product: 'orchbee',
+			channel: 'stable',
+			platform: 'macos-aarch64',
+			version,
+			buildId: 'test.1',
+			files: programs.map(([name, bytes]) => ({
+				path: name,
+				url: name,
+				sha256: sha256(bytes),
+				size: bytes.length,
+			})),
+			components: [],
+		}),
+	);
+	const signature = Buffer.from('not checked here');
+	mkdirSync(path.join(root, macosBase));
+	for (const [name, bytes] of [
+		...programs,
+		['release.json', manifest],
+		['release.json.sig', signature],
+	])
+		writeFileSync(path.join(root, macosBase, name), bytes);
+	const archive = tarGzip([
+		{ path: macosBase, directory: true, mode: 0o755, mtime: 0 },
+		...[...programs, ['release.json', manifest], ['release.json.sig', signature]].map(
+			([name, bytes]) => ({
+				path: `${macosBase}/${name}`,
+				mode: name.startsWith(stem) ? (name.endsWith('-worker') ? workerMode : 0o755) : 0o644,
+				mtime: 0,
+				bytes,
+			}),
+		),
+	]);
+	writeFileSync(path.join(root, `${macosBase}.tar.gz`), archive);
+	const document = feedDocument({
+		channel: 'stable',
+		platform: 'macos-aarch64',
+		version,
+		buildId: 'test.1',
+		manifestSha256: sha256(manifest),
+		archive: { url: `${macosBase}.tar.gz`, size: archive.length, sha256: sha256(archive) },
+	});
+	writeFileSync(path.join(root, `${macosBase}.feed.json`), document);
+	writeFileSync(
+		path.join(root, `${macosBase}.feed.json.sig`),
+		signatureDocument(document, [testKey], FEED_DOMAIN),
+	);
+	writeSums(root);
+	return { root, archiveName: `${macosBase}.tar.gz` };
+}
+
+test('check admits a macOS tar.gz whose programs are executable and refuses one that is not', (t) => {
+	assert.deepEqual(checkArtifacts(macosArtifacts(t, 0o755).root), []);
+	const { root, archiveName } = macosArtifacts(t, 0o644);
+	assert.deepEqual(checkArtifacts(root), [
+		`${archiveName} holds ${stem}-worker without its executable bit`,
 	]);
 });
 

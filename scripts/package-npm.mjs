@@ -84,14 +84,23 @@ export function readRelease(directory, version) {
 	if (lstatSync(manifestPath).size > maximumManifest)
 		throw new Error('Release manifest exceeds 1 MiB');
 	const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+	return { manifest, ...describeRelease(manifest, version, manifestPath) };
+}
+
+/**
+ * The platform, program stem and programs of the parsed release manifest `manifest`, named `label`
+ * in errors, checked against the version this run publishes. `programs` are the four cohort
+ * programs at the release directory's top level, which must stay executable off Windows.
+ */
+export function describeRelease(manifest, version, label) {
 	if (
-		manifest.schemaVersion !== 2 ||
+		manifest?.schemaVersion !== 2 ||
 		manifest.product !== 'orchbee' ||
 		!Array.isArray(manifest.files)
 	)
-		throw new Error(`${manifestPath} is not an Orchbee release manifest`);
+		throw new Error(`${label} is not an Orchbee release manifest`);
 	if (manifest.version !== version)
-		throw new Error(`${manifestPath} is version ${manifest.version}, not ${version}`);
+		throw new Error(`${label} is version ${manifest.version}, not ${version}`);
 	const platform = platforms.get(manifest.platform);
 	if (platform === undefined) throw new Error(`Unknown release platform ${manifest.platform}`);
 	const executable = platform.os === 'win32' ? '.exe' : '';
@@ -114,8 +123,10 @@ export function readRelease(directory, version) {
 		.map((name) => name.slice(0, name.length - executable.length))
 		.filter((name) => packagedStem.test(name));
 	if (stems.length !== 1)
-		throw new Error(`${manifestPath} must list exactly one orchbee or ob-test-<16 hex> program`);
-	return { manifest, platform, stem: stems[0], executable };
+		throw new Error(`${label} must list exactly one orchbee or ob-test-<16 hex> program`);
+	const stem = stems[0];
+	const programs = programSuffixes.map((suffix) => stem + suffix + executable);
+	return { platform, stem, executable, programs };
 }
 
 /** Copies the signed release directory into `destination`, checking every copy against the manifest. */
@@ -138,9 +149,9 @@ export function copyRelease(directory, release, destination) {
 	if (release.platform.os === 'win32') return;
 	// npm keeps a file's executable bit from the packed folder to the installed one, and sets it
 	// itself only for `bin` entries, which a sub-package has none of.
-	for (const suffix of programSuffixes) {
-		const program = path.join(destination, release.stem + suffix);
-		if (!existsSync(program)) throw new Error(`Missing release program ${release.stem + suffix}`);
+	for (const name of release.programs) {
+		const program = path.join(destination, name);
+		if (!existsSync(program)) throw new Error(`Missing release program ${name}`);
 		chmodSync(program, 0o755);
 	}
 }

@@ -2,7 +2,9 @@
 // names one archive by address, exact size and SHA-256. `orchbee update` verifies its signature,
 // then downloads the archive and checks size and digest before unpacking it. The format, the
 // signature domain (sign-release-manifest.mjs) and the served address are frozen from the first
-// version that ships them; see proposals/platform/release-distribution.md#release-feed.
+// version that ships them; see proposals/platform/release-distribution.md#release-feed. The
+// archive's `format`, which is also its file extension, follows the platform: `zip` on Windows,
+// `tar.gz` on macOS and Linux.
 //
 // The written form is `JSON.stringify` of the members below in this order, then one LF. A reader
 // accepts any JSON spelling of the same members, and the signature covers the exact bytes, so a
@@ -49,6 +51,17 @@ const reservedLeaf = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/u;
 /** The release asset name of the feed document of one version and platform. */
 export function feedName(stem, version, platform) {
 	return `${stem}-${version}-${platform}.feed.json`;
+}
+
+/**
+ * The format, and file extension, of the runtime archive of the release platform `platform`:
+ * `zip` on Windows, `tar.gz` on macOS and Linux, none otherwise.
+ */
+export function archiveFormat(platform) {
+	if (typeof platform !== 'string') return undefined;
+	if (platform.startsWith('windows-')) return 'zip';
+	if (platform.startsWith('macos-') || platform.startsWith('linux-')) return 'tar.gz';
+	return undefined;
 }
 
 /** What the gate copy's name ends with, in place of the feed's `.feed.json`. */
@@ -125,12 +138,17 @@ function validReleasePath(value) {
 	);
 }
 
-/** Every rule the archive member `archive`, named `name` in the problems, breaks. */
-function archiveProblems(archive, name) {
+/**
+ * Every rule the archive member `archive`, named `name` in the problems, breaks; `format` is the
+ * one format it may name.
+ */
+function archiveProblems(archive, name, format) {
 	if (!closed(archive, ['format', 'url', 'size', 'sha256']))
 		return [`${name} must have exactly format, url, size and sha256`];
 	const problems = [];
-	if (archive.format !== 'zip') problems.push(`${name}.format is not zip`);
+	if (format === undefined)
+		problems.push(`${name}.format cannot be right: the platform has no archive format`);
+	else if (archive.format !== format) problems.push(`${name}.format is not ${format}`);
 	if (!validHttps(archive.url) && !validReleasePath(archive.url))
 		problems.push(
 			`${name}.url is neither an HTTPS address without a query nor a relative release path`,
@@ -157,7 +175,8 @@ export function desktopProblems(desktop) {
 		problems.push(`${name}.version is not a SemVer version of at most 64 bytes`);
 	if (!closed(desktop.manifest, ['sha256']) || !sha256Hex.test(desktop.manifest.sha256))
 		problems.push(`${name}.manifest must be exactly a lowercase sha256`);
-	problems.push(...archiveProblems(desktop.archive, `${name}.archive`));
+	// The window archive is a zip on every platform that has one.
+	problems.push(...archiveProblems(desktop.archive, `${name}.archive`, 'zip'));
 	return problems;
 }
 
@@ -190,7 +209,7 @@ export function readFeed(bytes, { channel, platform } = {}) {
 		closed(feed.manifest, ['sha256']) && sha256Hex.test(feed.manifest.sha256),
 		'manifest must be exactly a lowercase sha256',
 	);
-	problems.push(...archiveProblems(feed.archive, 'archive'));
+	problems.push(...archiveProblems(feed.archive, 'archive', archiveFormat(feed.platform)));
 	if (channel !== undefined && feed.channel !== channel)
 		problems.push(`The feed is for the channel ${feed.channel}, not ${channel}`);
 	if (platform !== undefined && feed.platform !== platform)
@@ -203,9 +222,9 @@ export function absoluteArchive(url) {
 	return validHttps(url);
 }
 
-/** The written archive member of an archive's address, size and SHA-256. */
-function zip({ url, size, sha256: digest }) {
-	return { format: 'zip', url, size, sha256: digest };
+/** The written archive member of an archive's format, address, size and SHA-256. */
+function archiveMember(format, { url, size, sha256: digest }) {
+	return { format, url, size, sha256: digest };
 }
 
 /**
@@ -231,7 +250,7 @@ export function feedDocument({
 			version,
 			buildId,
 			manifest: { sha256: manifestSha256 },
-			archive: zip(archive),
+			archive: archiveMember(archiveFormat(platform), archive),
 			...(desktop === undefined
 				? {}
 				: {
@@ -239,7 +258,7 @@ export function feedDocument({
 							desktop: {
 								version: desktop.version,
 								manifest: { sha256: desktop.manifestSha256 },
-								archive: zip(desktop.archive),
+								archive: archiveMember('zip', desktop.archive),
 							},
 						},
 					}),

@@ -57,17 +57,17 @@ reset, is what keeps the first candidate safe:
 `<version>` and `<platform>` are the values above. Every name is a GitHub Release asset of the
 version; the [feed](#release-feed) names the archive by its address.
 
-| File                                          | Platforms            | Holds                                                                                                           | Basis                                                                                           |
-| --------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `Orchbee-<version>-<platform>-setup.exe`      | `windows-*`          | The per-user installer: window application, runtime, and the `orchbee` command                                  | Chosen                                                                                          |
-| `Orchbee-<version>-<platform>.dmg`            | `macos-*`            | `Orchbee.app`, ad-hoc signed, with its runtime inside                                                           | Chosen                                                                                          |
-| `orchbee-desktop-<version>-<platform>.tar.gz` | `linux-*`            | The window application's per-user tree; `.deb` and AppImage are not built                                       | Chosen; the product owner still decides between this and the earlier AppImage and `.deb` choice |
-| `orchbee-desktop-<version>-<platform>.zip`    | `windows-*`          | The packaged window application directory, which `update` installs beside a running window                      | Chosen in [automatic updates](automatic-updates.md#how-the-window-updates); built, not yet read |
-| `orchbee-<version>-<platform>.zip`            | `windows-*`          | The signed release directory, for the command line alone                                                        | Chosen                                                                                          |
-| `orchbee-<version>-<platform>.tar.gz`         | `macos-*`, `linux-*` | The same, with executable modes kept                                                                            | Chosen                                                                                          |
-| `orchbee-<version>-<platform>.feed.json`      | `windows-*`          | The [feed document](#feed-document-version-1) naming that `.zip`                                                | Chosen                                                                                          |
-| `orchbee-<version>-<platform>.feed.json.sig`  | `windows-*`          | Its signature document, the one file `SHA256SUMS` does not list                                                 | Chosen                                                                                          |
-| `SHA256SUMS`                                  | One per version      | One `sha256sum` line, `<64 hex>`, two spaces, file name, LF, for every other file of the version, in name order | Chosen                                                                                          |
+| File                                          | Platforms              | Holds                                                                                                           | Basis                                                                                           |
+| --------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `Orchbee-<version>-<platform>-setup.exe`      | `windows-*`            | The per-user installer: window application, runtime, and the `orchbee` command                                  | Chosen                                                                                          |
+| `Orchbee-<version>-<platform>.dmg`            | `macos-*`              | `Orchbee.app`, ad-hoc signed, with its runtime inside                                                           | Chosen                                                                                          |
+| `orchbee-desktop-<version>-<platform>.tar.gz` | `linux-*`              | The window application's per-user tree; `.deb` and AppImage are not built                                       | Chosen; the product owner still decides between this and the earlier AppImage and `.deb` choice |
+| `orchbee-desktop-<version>-<platform>.zip`    | `windows-*`            | The packaged window application directory, which `update` installs beside a running window                      | Chosen in [automatic updates](automatic-updates.md#how-the-window-updates); built, not yet read |
+| `orchbee-<version>-<platform>.zip`            | `windows-*`            | The signed release directory, for the command line alone                                                        | Chosen                                                                                          |
+| `orchbee-<version>-<platform>.tar.gz`         | `macos-*`, `linux-*`   | The same, with executable modes kept                                                                            | Chosen                                                                                          |
+| `orchbee-<version>-<platform>.feed.json`      | `windows-*`, `macos-*` | The [feed document](#feed-document-version-1) naming that `.zip` or `.tar.gz`                                   | Chosen                                                                                          |
+| `orchbee-<version>-<platform>.feed.json.sig`  | `windows-*`, `macos-*` | Its signature document, the one file `SHA256SUMS` does not list                                                 | Chosen                                                                                          |
+| `SHA256SUMS`                                  | One per version        | One `sha256sum` line, `<64 hex>`, two spaces, file name, LF, for every other file of the version, in name order | Chosen                                                                                          |
 
 - An archive holds one top-level directory named like the archive without its extension.
 - A signed release directory is `release.json`, `release.json.sig`, and every file the manifest
@@ -269,21 +269,21 @@ document is never reformatted.
 {"schemaVersion":1,"product":"orchbee","channel":"stable","platform":"windows-x86_64","version":"0.1.0-beta.2","buildId":"<label>","manifest":{"sha256":"<64 hex>"},"archive":{"format":"zip","url":"https://github.com/i-need-token/orchbee/releases/download/v0.1.0-beta.2/orchbee-0.1.0-beta.2-windows-x86_64.zip","size":27000000,"sha256":"<64 hex>"}}
 ```
 
-| Member           | Rule                                                                                                                               |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| top level        | Closed: exactly the eight members above, plus an optional `extensions` object that readers check is an object and otherwise ignore |
-| `schemaVersion`  | The number `1`                                                                                                                     |
-| `product`        | `orchbee`                                                                                                                          |
-| `channel`        | `stable` or `preview`; must equal the selected channel                                                                             |
-| `platform`       | A platform token; must equal the updater's own                                                                                     |
-| `version`        | SemVer, at most 64 bytes, no build metadata                                                                                        |
-| `buildId`        | The manifest's `buildId` grammar                                                                                                   |
-| `manifest`       | Closed object; `sha256` is the lowercase SHA-256 of the `release.json` inside the archive, the identity the store pointer records  |
-| `archive`        | Closed object of exactly `format`, `url`, `size`, `sha256`                                                                         |
-| `archive.format` | `zip` on Windows; any other value is refused                                                                                       |
-| `archive.url`    | An HTTPS address without a query, or a relative release path resolved beside the feed                                              |
-| `archive.size`   | An integer from 1 to 1 GiB                                                                                                         |
-| `archive.sha256` | 64 lowercase hexadecimal digits                                                                                                    |
+| Member           | Rule                                                                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| top level        | Closed: exactly the eight members above, plus an optional `extensions` object that readers check is an object and otherwise ignore                                                                |
+| `schemaVersion`  | The number `1`                                                                                                                                                                                    |
+| `product`        | `orchbee`                                                                                                                                                                                         |
+| `channel`        | `stable` or `preview`; must equal the selected channel                                                                                                                                            |
+| `platform`       | A platform token; must equal the updater's own                                                                                                                                                    |
+| `version`        | SemVer, at most 64 bytes, no build metadata                                                                                                                                                       |
+| `buildId`        | The manifest's `buildId` grammar                                                                                                                                                                  |
+| `manifest`       | Closed object; `sha256` is the lowercase SHA-256 of the `release.json` inside the archive, the identity the store pointer records                                                                 |
+| `archive`        | Closed object of exactly `format`, `url`, `size`, `sha256`                                                                                                                                        |
+| `archive.format` | `zip` on Windows, `tar.gz` on macOS and Linux, the archive's file extension; any other value is refused. The release tooling writes macOS feeds; `orchbee update` reads only Windows feeds so far |
+| `archive.url`    | An HTTPS address without a query, or a relative release path resolved beside the feed                                                                                                             |
+| `archive.size`   | An integer from 1 to 1 GiB                                                                                                                                                                        |
+| `archive.sha256` | 64 lowercase hexadecimal digits                                                                                                                                                                   |
 
 - Signed bytes: UTF-8 `orchbee-update-feed-v1`, LF, then the exact feed document. The manifest's
   domain is `orchbee-release-manifest-v2`, so a feed signature never verifies as a manifest
@@ -295,9 +295,10 @@ document is never reformatted.
   pair signed with the test key. The release tooling's tests reproduce both byte for byte and the
   updater's tests read them, so both sides test against the same bytes. `.signed` keeps the
   formatter away from the exact bytes.
-- The archive is the `.zip` releases already upload: the signed release directory as its one
-  top-level folder. Release assets: `<stem>-<version>-<platform>.zip`,
-  `<stem>-<version>-<platform>.feed.json`, and `<stem>-<version>-<platform>.feed.json.sig`.
+- The archive is the `.zip` (Windows) or `.tar.gz` (macOS) releases already upload: the signed
+  release directory as its one top-level folder. Release assets:
+  `<stem>-<version>-<platform>.zip` or `.tar.gz`, `<stem>-<version>-<platform>.feed.json`, and
+  `<stem>-<version>-<platform>.feed.json.sig`.
 - Chosen in [automatic updates](automatic-updates.md#window-archive-and-file-list):
   `extensions.desktop` names the window archive `orchbee-desktop-<version>-<platform>.zip` of the
   same version, a closed object of `version`, `manifest` (the SHA-256 of the archive's
@@ -317,6 +318,15 @@ document is never reformatted.
   from the workflow run's repository or `--repository-url`; the test profile by the bare archive
   name, so a test feed works from a folder, and signs it with the test key. `SHA256SUMS` lists the
   feed document like any other file.
+- On macOS, `collect` writes the `.tar.gz` in place of the `.zip`, with `scripts/tar-gzip.mjs`
+  rather than the runner's tar: owner and group 0 without names, no extended attributes, and mode
+  0755 for directories and the four programs `release.json` names, whatever the copy on disk says,
+  because `upload-artifact` drops modes. It copies the `.dmg` that
+  `apps/desktop/scripts/package.mjs --installer` wrote and packs the darwin npm platform package;
+  there is no window archive. `check` reads the `.tar.gz` and every macOS or Linux npm platform
+  package: the release inside must be exactly the signed release directory, file by file, with each
+  program executable. It does not check the modes of the release directory beside the archive,
+  which a moved copy has lost.
 - `collect` also zips the packaged window directory, with the `desktop-files.json` that
   `apps/desktop/scripts/package.mjs` wrote into it, as the window archive and names it in the
   feed's `extensions.desktop` by the same kind of address. `check` confirms that archive's one
