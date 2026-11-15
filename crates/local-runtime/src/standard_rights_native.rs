@@ -59,6 +59,9 @@ const NT_AUTHORITY: [u8; 6] = [0, 0, 0, 0, 0, 5];
 const FILTERED_BUILTIN: [u32; 10] = [544, 547, 548, 549, 550, 551, 553, 554, 556, 569];
 /// `S-1-5-21-<domain>-<RID>`: the domain groups UAC filters.
 const FILTERED_DOMAIN: [u32; 7] = [498, 512, 516, 518, 519, 520, 521];
+/// `S-1-5-114`, "Local account and member of Administrators group", which UAC also leaves for deny
+/// only in an administrator's filtered token.
+const LOCAL_ACCOUNT_AND_ADMINISTRATOR: u32 = 114;
 
 /// A primary token derived from this process's own token whose re-read showed Medium integrity and
 /// no enabled administrator-equivalent group.
@@ -261,6 +264,7 @@ fn is_filtered_group(sid: &[u8]) -> bool {
         return false;
     }
     match sub_authorities(sid).as_deref() {
+        Some([LOCAL_ACCOUNT_AND_ADMINISTRATOR]) => true,
         Some([32, rid]) => FILTERED_BUILTIN.contains(rid),
         Some([21, _, _, _, rid]) => FILTERED_DOMAIN.contains(rid),
         _ => false,

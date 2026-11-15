@@ -122,8 +122,9 @@ enabled filtered group) or `Start` (the executable path, the standard handles, t
 wait failed).
 
 The derived token keeps the user and the logon session. Every group UAC filters from an elevated
-token (BUILTIN `S-1-5-32-544`, `-547` to `-551`, `-553`, `-554`, `-556`, `-569`, and the domain
-RIDs 498, 512, 516 and 518 to 521) becomes deny-only; every privilege except SeChangeNotify, SeShutdown,
+token (BUILTIN `S-1-5-32-544`, `-547` to `-551`, `-553`, `-554`, `-556`, `-569`, the local
+administrator account group `S-1-5-114`, and the domain RIDs 498, 512, 516 and 518 to 521) becomes
+deny-only; every privilege except SeChangeNotify, SeShutdown,
 SeUndock, SeIncreaseWorkingSet and SeTimeZone is deleted; the integrity is Medium, the owner is the
 user, and the default DACL grants `GENERIC_ALL` to the user and SYSTEM, so the child's process and
 every object it creates admit a Medium process of the same user. The child stays in the parent's
