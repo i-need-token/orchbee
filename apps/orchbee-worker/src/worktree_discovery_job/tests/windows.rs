@@ -7,11 +7,13 @@ fn id(n: u8) -> JobId {
 fn shell(script: &str) -> CommandSpec {
     CommandSpec {
         git_context: None,
-        program: std::env::var_os("SystemRoot")
-            .map(std::path::PathBuf::from)
-            .unwrap()
-            .join("System32/WindowsPowerShell/v1.0/powershell.exe")
-            .into_os_string(),
+        program: Program::Exact(
+            std::env::var_os("SystemRoot")
+                .map(std::path::PathBuf::from)
+                .unwrap()
+                .join("System32/WindowsPowerShell/v1.0/powershell.exe")
+                .into_os_string(),
+        ),
         args: [
             "-NoLogo",
             "-NoProfile",
@@ -255,9 +257,11 @@ fn native_missing_executable_invalid_directory_and_unknown_job_are_typed() {
         );
     }
     let mut cmds = commands("exit 0", "exit 0");
-    cmds.probe.program = std::env::temp_dir()
-        .join(format!("orchbee-no-executable-{}.exe", std::process::id()))
-        .into_os_string();
+    cmds.probe.program = Program::Exact(
+        std::env::temp_dir()
+            .join(format!("orchbee-no-executable-{}.exe", std::process::id()))
+            .into_os_string(),
+    );
     start(&slot, 1, JOB_TTL, cmds);
     assert_eq!(
         settle(&slot, 1),

@@ -114,13 +114,23 @@ pub(crate) enum CancelOutcome {
 
 struct CommandSpec {
     git_context: Option<(std::path::PathBuf, bool)>,
-    program: OsString,
+    program: Program,
     args: Vec<OsString>,
+}
+
+enum Program {
+    /// Git for a read that starts no helper program, chosen by the platform adapter while the
+    /// owner prepares the command.
+    GitRead,
+    Exact(OsString),
 }
 
 impl CommandSpec {
     fn prepare(&self) -> io::Result<Command> {
-        let mut command = Command::new(&self.program);
+        let mut command = match &self.program {
+            Program::GitRead => Command::new(crate::git_repository::read_program()),
+            Program::Exact(program) => Command::new(program),
+        };
         if let Some((path, trust)) = &self.git_context {
             let invalid = || io::Error::new(io::ErrorKind::InvalidInput, "invalid Git repository");
             let canonical = crate::git_repository::canonical_path(path).map_err(|()| invalid())?;
@@ -230,7 +240,7 @@ fn git_commands(directory: &Path) -> JobCommands {
         source: false,
         probe: CommandSpec {
             git_context: None,
-            program: "git".into(),
+            program: Program::GitRead,
             args: vec![
                 "--no-optional-locks".into(),
                 "-C".into(),
@@ -242,7 +252,7 @@ fn git_commands(directory: &Path) -> JobCommands {
         },
         list: Some(CommandSpec {
             git_context: None,
-            program: "git".into(),
+            program: Program::GitRead,
             args: vec![
                 "--no-optional-locks".into(),
                 "-C".into(),
@@ -261,7 +271,7 @@ fn git_commands(directory: &Path) -> JobCommands {
 fn source_commands(directory: &Path, trust: bool) -> JobCommands {
     let git = |args: &[&str]| CommandSpec {
         git_context: Some((directory.to_owned(), trust)),
-        program: crate::git_repository::GIT_PROGRAM.into(),
+        program: Program::GitRead,
         args: args.iter().map(OsString::from).collect(),
     };
     // One Git start answers both questions: every start pays for process creation.
@@ -284,7 +294,8 @@ fn status_commands(directory: &Path) -> JobCommands {
         source: false,
         probe: CommandSpec {
             git_context: Some((directory.to_owned(), false)),
-            program: crate::git_repository::GIT_PROGRAM.into(),
+            // Status can start clean filters, which may need the launcher's search path.
+            program: Program::Exact(crate::git_repository::GIT_PROGRAM.into()),
             args: [
                 "-c",
                 "core.fsmonitor=false",

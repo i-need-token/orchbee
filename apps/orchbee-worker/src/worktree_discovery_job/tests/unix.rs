@@ -24,7 +24,7 @@ fn id(n: u8) -> JobId {
 fn sh(script: &str) -> super::super::CommandSpec {
     super::super::CommandSpec {
         git_context: None,
-        program: OsString::from("/bin/sh"),
+        program: super::super::Program::Exact(OsString::from("/bin/sh")),
         args: vec![OsString::from("-c"), OsString::from(script)],
     }
 }
@@ -312,7 +312,7 @@ fn spawn_unavailable_is_distinct_from_other_failures() -> TestResult {
         source: false,
         probe: super::super::CommandSpec {
             git_context: None,
-            program: OsString::from("/nonexistent-orchbee-fixture"),
+            program: super::super::Program::Exact(OsString::from("/nonexistent-orchbee-fixture")),
             args: Vec::new(),
         },
         list: Some(sh("true")),

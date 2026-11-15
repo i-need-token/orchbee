@@ -1,8 +1,13 @@
 //! Unix repository paths: absolute UTF-8 paths, compared byte for byte.
 use orchbee_capability_node_protocol::AbsoluteCwd;
-use std::path::Path;
+use std::{ffi::OsString, path::Path};
 
 pub(crate) const GIT_PROGRAM: &str = "git";
+
+/// The Git a read that starts no helper program runs: the name, which process creation resolves.
+pub(crate) fn read_program() -> OsString {
+    GIT_PROGRAM.into()
+}
 
 pub(crate) fn is_admissible_path(path: &Path) -> bool {
     path.is_absolute()

@@ -25,19 +25,27 @@ use super::LocalTerminalService;
 const SERVER_WORKTREE_LIST_BUDGET: Duration = Duration::from_secs(5);
 const WORKTREE_JOB_FIRST_POLL: Duration = Duration::from_millis(2);
 const WORKTREE_JOB_LAST_POLL: Duration = Duration::from_millis(50);
+const WORKTREE_JOB_SLOW_AFTER: Duration = Duration::from_secs(2);
+const WORKTREE_JOB_SLOW_POLL: Duration = Duration::from_millis(100);
 // Starts (including definite Busy refusals) and polls share this bound, leaving
 // room in the reserved identity block for exact-job cancellation. The poll
-// schedule spends about 113 requests across the whole budget.
+// schedule spends about 97 requests across the whole budget.
 pub(super) const WORKTREE_JOB_MAXIMUM_REQUESTS: u32 = 120;
 const WORKTREE_LIST_IDENTITY_RESERVE: u128 = 128;
 
-/// The pause before the next poll of a Worker job: a quarter of the time the job has
-/// run, so a short Git job is seen within a few milliseconds of finishing and a slow
-/// one costs few requests. The Worker cannot signal completion without a protocol change.
+/// The pause before the next poll of a Worker job: an eighth of the time the job has
+/// run, from 2 ms up to 50 ms, so a Git job of a few hundred milliseconds is seen within
+/// an eighth of its time; a job past two seconds is polled every 100 ms, which keeps the
+/// whole budget within the request bound. The Worker cannot signal completion without a
+/// protocol change.
 pub(super) fn worktree_job_poll_pause(started: Instant, deadline: Instant) -> Duration {
-    (started.elapsed() / 4)
-        .clamp(WORKTREE_JOB_FIRST_POLL, WORKTREE_JOB_LAST_POLL)
-        .min(deadline.saturating_duration_since(Instant::now()))
+    let elapsed = started.elapsed();
+    let pause = if elapsed < WORKTREE_JOB_SLOW_AFTER {
+        (elapsed / 8).clamp(WORKTREE_JOB_FIRST_POLL, WORKTREE_JOB_LAST_POLL)
+    } else {
+        WORKTREE_JOB_SLOW_POLL
+    };
+    pause.min(deadline.saturating_duration_since(Instant::now()))
 }
 
 #[derive(Default)]

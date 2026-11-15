@@ -175,7 +175,12 @@ The serialized request loop admits OBCN worktree-job requests (start/poll/cancel
 `worktree list` Server flow both before the first Launch and after Host admission. One process-level slot runs one discovery job at a time — a
 `git rev-parse --path-format=absolute --git-common-dir` probe followed by `git worktree list
 --porcelain -z` inside the Server-supplied directory; a source query adds `--show-toplevel`
-to the same probe and splits its two lines, so one Git start answers both — under a fixed five-second TTL counted
+to the same probe and splits its two lines, so one Git start answers both. Neither read starts
+a helper program, so on Windows, when the first `git.exe` process creation would find (in the
+Worker's folder, the system folders, then `PATH`) is the Git for Windows launcher
+(`<installation>\cmd\git.exe` or `<installation>\bin\git.exe`), they start the one
+`<installation>\<architecture>\bin\git.exe` that launcher would start; any other first match
+or any doubt keeps `git.exe`. Status reads and mutations keep `git.exe`. Both reads run under a fixed five-second TTL counted
 from admission and one shared 64 KiB stdout budget across both stages; the stage that crosses
 the combined budget owns the `too-large` attribution. Every request is fenced by the exact
 `{workerId, generation, jobId}` tuple and answers a typed result frame; `rejected-fencing`,

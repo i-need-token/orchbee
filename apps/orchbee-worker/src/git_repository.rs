@@ -1,5 +1,5 @@
 //! Literal repository selection and command-local Git trust shared by reads and mutations. Path
-//! syntax, canonical spelling and the Git program name belong to the platform adapter.
+//! syntax, canonical spelling and the Git program belong to the platform adapter.
 use std::{path::Path, process::Command};
 
 #[cfg(unix)]
@@ -7,9 +7,13 @@ mod unix;
 #[cfg(windows)]
 mod windows;
 #[cfg(unix)]
-pub(crate) use unix::{GIT_PROGRAM, canonical_path, checkout_spelling, is_admissible_path};
+pub(crate) use unix::{
+    GIT_PROGRAM, canonical_path, checkout_spelling, is_admissible_path, read_program,
+};
 #[cfg(windows)]
-pub(crate) use windows::{GIT_PROGRAM, canonical_path, checkout_spelling, is_admissible_path};
+pub(crate) use windows::{
+    GIT_PROGRAM, canonical_path, checkout_spelling, is_admissible_path, read_program,
+};
 
 pub(crate) fn configure(command: &mut Command, at: &Path, trust: bool) -> Result<(), ()> {
     // A long-lived Worker must not inherit repository selection or config injection.
