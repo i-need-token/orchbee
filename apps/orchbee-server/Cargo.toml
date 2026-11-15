@@ -32,7 +32,8 @@ orchbee-local-worker-protocol = { path = "../../crates/local-worker-protocol" }
 orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 
 [target.'cfg(unix)'.dependencies]
-nix = { workspace = true, features = ["fs", "poll", "process", "signal"] }
+nix = { workspace = true, features = ["fs", "poll", "process"] }
+signal-hook.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 # Owned inbox-curl Jobs reuse the workspace-pinned, patched child-settlement adapter.

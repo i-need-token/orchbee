@@ -317,8 +317,10 @@ complete snapshot boundary publication. Push subscription remains unfinished.
 
 The private `--runtime-directory <absolute-runtime-directory>` entry consumes the
 [shared runtime contract](../../crates/local-runtime/README.md).
-Before it starts any thread, Server blocks `SIGTERM`, `SIGINT` and `SIGHUP`, so one signal thread
-alone receives them; on macOS a signal the Server inherited as ignored stays ignored. It verifies the four-artifact cohort, runtime, and immutable activation marker
+First, Server catches `SIGTERM`, `SIGINT` and `SIGHUP`, even one it inherited as ignored, and
+hands each to one signal thread. It catches them rather than blocking them, because a blocked mask
+passes to the Worker, the Host and every terminal process, while a caught signal starts at its
+default action in each of them. It verifies the four-artifact cohort, runtime, and immutable activation marker
 before taking the exclusive lifetime guard, holds the socket folder's lock, retains the active
 activation record and the durable Session record, and removes the socket files a Session that ended
 without its stop left behind: no listener can serve them while this Server holds the lifetime lock,

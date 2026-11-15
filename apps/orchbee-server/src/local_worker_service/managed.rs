@@ -31,9 +31,9 @@ pub(super) fn run(
     runtime: &Path,
     #[cfg(windows)] configuration: orchbee_local_runtime::UserSettingsLoad,
 ) -> io::Result<()> {
-    // Before any thread starts, so only the signal thread receives them.
+    // First, so a stop signal that arrives during startup waits for the signal thread.
     #[cfg(unix)]
-    let signals = signals::block()?;
+    let signals = signals::catch()?;
     let deadline = Instant::now() + Duration::from_secs(20);
     let cohort = Cohort::current(deadline)?;
     let session = ModeCheckedLocalSessionRendezvous::from_runtime_directory(runtime)
