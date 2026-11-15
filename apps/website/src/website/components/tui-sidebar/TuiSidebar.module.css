@@ -1,0 +1,61 @@
+.sidebar {
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
+	min-height: 0;
+	padding: var(--ob-ref-length-website-8) 0;
+	border-right: var(--ob-ref-length-website-1) solid var(--ob-comp-website-terminal-line);
+}
+.action {
+	display: flex;
+	justify-content: space-between;
+	padding: 0 var(--ob-ref-length-website-12);
+	white-space: nowrap;
+}
+.dim {
+	color: var(--ob-comp-website-terminal-dim);
+}
+.tree {
+	overflow: hidden;
+	padding-top: var(--ob-ref-length-website-20);
+}
+.project,
+.workspace,
+.selectedWorkspace {
+	padding: 0 var(--ob-ref-length-website-12);
+	white-space: nowrap;
+}
+.project {
+	color: var(--ob-comp-website-terminal-dim);
+}
+.selectedWorkspace {
+	background: var(--ob-comp-website-terminal-row-selection);
+}
+.agent {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-1ch);
+	padding: 0 var(--ob-ref-length-website-12) 0
+		calc(var(--ob-ref-length-website-12) + 3 * var(--ob-ref-length-website-1ch));
+	white-space: nowrap;
+}
+.title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.provider {
+	flex: none;
+	color: var(--ob-comp-website-terminal-dim);
+}
+.unread {
+	margin-left: auto;
+	color: var(--ob-comp-website-terminal-ansi-12);
+}
+/* The mini layout drops the provider names and one step of indent. */
+@container window-fit (max-width: 48rem) {
+	[data-size='full'] .agent {
+		padding-left: calc(var(--ob-ref-length-website-12) + 2 * var(--ob-ref-length-website-1ch));
+	}
+	[data-size='full'] .provider {
+		display: none;
+	}
+}

@@ -1,0 +1,33 @@
+.caption {
+	display: flex;
+}
+.caption i {
+	display: grid;
+	place-items: center;
+	width: var(--ob-ref-length-website-46);
+	color: var(--ob-sys-color-website-host-caption);
+}
+.narrow i {
+	width: var(--ob-ref-length-website-42);
+}
+.caption svg {
+	width: var(--ob-ref-length-website-10);
+	height: var(--ob-ref-length-website-10);
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1;
+}
+.overlay {
+	position: absolute;
+	inset: 0 0 0 auto;
+}
+.end {
+	align-self: stretch;
+	margin-left: auto;
+}
+/* A window drawn at phone width tightens the glyphs that close its row of tabs. */
+@container window-fit (max-width: 40rem) {
+	.end i {
+		width: var(--ob-ref-length-website-38);
+	}
+}

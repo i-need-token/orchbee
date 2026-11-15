@@ -1,0 +1,94 @@
+import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
+import type { ReactElement } from 'react';
+
+import { StateGlyph, type AgentState } from '../state-glyph/StateGlyph';
+import styles from './TuiSidebar.module.css';
+
+/** An Agent row. `bind` names the scene values script writes into it; `shown` hides the row. */
+interface TuiSidebarAgent {
+	readonly title: string;
+	readonly provider: string;
+	readonly state: AgentState;
+	readonly unread: boolean;
+	readonly shown?: boolean;
+	readonly bind?: {
+		readonly state?: string;
+		readonly unread?: string;
+		readonly title?: string;
+		readonly shown?: string;
+	};
+}
+
+export interface TuiSidebarWorkspace {
+	readonly name: string;
+	readonly branch: string;
+	readonly selected?: boolean;
+	readonly agents: readonly TuiSidebarAgent[];
+}
+
+/**
+ * The sidebar of the terminal interface: New workspace, one Project with its Workspaces and their
+ * Agents, and Settings. The two actions are product chrome and follow the page language.
+ */
+export function TuiSidebar({
+	project,
+	workspaces,
+}: {
+	project: string;
+	workspaces: readonly TuiSidebarWorkspace[];
+}): ReactElement {
+	const { formatMessage: t } = useOrchbeeIntl();
+	return (
+		<div className={styles['sidebar']}>
+			<div className={styles['action']}>
+				<span>[ {t(workbenchMessages.sidebarNewWorkspace)} ]</span>
+				<span className={styles['dim']}>[«]</span>
+			</div>
+			<div className={styles['tree']}>
+				<div className={styles['project']}>{project} ▾</div>
+				{workspaces.map((workspace) => (
+					<WorkspaceRows key={workspace.name} workspace={workspace} />
+				))}
+			</div>
+			<div className={styles['action']}>
+				<span>[ {t(workbenchMessages.settings)} ]</span>
+				<span className={styles['dim']}>[?]</span>
+			</div>
+		</div>
+	);
+}
+
+function WorkspaceRows({ workspace }: { workspace: TuiSidebarWorkspace }): ReactElement {
+	return (
+		<>
+			<div className={workspace.selected ? styles['selectedWorkspace'] : styles['workspace']}>
+				<div>
+					{workspace.name}
+					{workspace.agents.length > 0 ? ' ▾' : ''}
+				</div>
+				<div className={styles['dim']}>{workspace.branch}</div>
+			</div>
+			{workspace.agents.map((agent) => (
+				<div
+					key={`${agent.provider} ${agent.title}`}
+					className={styles['agent']}
+					hidden={agent.shown === false}
+					data-scene-show={agent.bind?.shown}
+				>
+					<StateGlyph state={agent.state} bind={agent.bind?.state} />
+					<span className={styles['title']} data-scene-text={agent.bind?.title}>
+						{agent.title}
+					</span>
+					<span className={styles['provider']}>· {agent.provider}</span>
+					<span
+						className={styles['unread']}
+						hidden={!agent.unread}
+						data-scene-show={agent.bind?.unread}
+					>
+						•
+					</span>
+				</div>
+			))}
+		</>
+	);
+}

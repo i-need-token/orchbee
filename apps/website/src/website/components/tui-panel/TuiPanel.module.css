@@ -1,0 +1,35 @@
+.cell {
+	display: flex;
+	overflow: hidden;
+	min-height: 0;
+	padding: var(--ob-ref-length-website-10) var(--ob-ref-length-website-2) 0;
+}
+.panel,
+.focusedPanel {
+	position: relative;
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	border: var(--ob-ref-length-website-1) solid var(--ob-comp-website-terminal-line);
+}
+.focusedPanel {
+	border-color: var(--ob-comp-website-terminal-ansi-12);
+}
+.header {
+	position: absolute;
+	top: calc(-1 * var(--ob-ref-length-website-11));
+	left: var(--ob-ref-length-website-12);
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-1ch);
+	max-width: calc(100% - var(--ob-ref-length-website-28));
+	overflow: hidden;
+	padding: 0 var(--ob-ref-length-website-1ch);
+	background: var(--ob-comp-website-terminal-background);
+	color: var(--ob-comp-website-terminal-dim);
+	white-space: nowrap;
+}
+.focusedPanel > .header {
+	color: var(--ob-comp-website-terminal-ansi-12);
+	font: var(--ob-sys-typography-website-terminal-strong);
+}

@@ -1,0 +1,85 @@
+/* The text area of a drawn terminal. Its colors are the --ob-comp-website-terminal-* palette, which
+   a window may re-theme; a console host keeps the colors of the terminal that draws it. */
+.area {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	container-type: size;
+}
+.panel {
+	padding: var(--ob-ref-length-website-12) var(--ob-ref-length-website-10)
+		var(--ob-ref-length-website-6);
+}
+.console {
+	padding: var(--ob-ref-length-website-10) var(--ob-ref-length-website-14)
+		var(--ob-ref-length-website-8);
+}
+/* A terminal shows whole rows only: the view rounds its height down to whole rows (a row is one
+   line height), and the newest rows stay at the bottom. */
+.view {
+	display: flex;
+	flex-direction: column-reverse;
+	overflow: hidden;
+	height: 100%;
+	height: round(down, 100cqh, 1lh);
+}
+.rows {
+	margin-bottom: auto;
+	transition: opacity var(--ob-sys-motion-duration-website-250)
+		var(--ob-sys-motion-easing-website-ease);
+}
+/* A scene fades its terminals out before it starts again. */
+:global([data-scene-fading]) .rows {
+	opacity: 0;
+}
+.row {
+	min-height: 1lh;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.row[data-input] {
+	margin: 0 calc(-1 * var(--ob-ref-length-website-4));
+	padding: 0 var(--ob-ref-length-website-4);
+	background: var(--ob-comp-website-terminal-input);
+}
+.console .row[data-input] {
+	background: var(--ob-sys-color-website-console-input);
+}
+.row b {
+	color: var(--ob-comp-website-terminal-bold);
+}
+.row [data-tone='dim'] {
+	color: var(--ob-comp-website-terminal-dim);
+}
+.console .row [data-tone='dim'] {
+	color: var(--ob-sys-color-website-console-dim);
+}
+.row [data-tone='yellow'] {
+	color: var(--ob-comp-website-terminal-ansi-3);
+}
+.row [data-tone='green'] {
+	color: var(--ob-comp-website-terminal-ansi-10);
+}
+.row [data-tone='cyan'] {
+	color: var(--ob-comp-website-terminal-ansi-14);
+}
+.row [data-tone='blue'] {
+	color: var(--ob-comp-website-terminal-ansi-12);
+}
+.cursor {
+	display: inline-block;
+	width: var(--ob-ref-length-website-1ch);
+	height: calc(1lh - var(--ob-ref-length-website-3));
+	background: var(--ob-comp-website-terminal-cursor);
+	vertical-align: calc(-1 * var(--ob-ref-length-website-3));
+}
+/* An idle cursor blinks while the page may move; without script it holds still. */
+:global(html[data-motion]) .cursor[data-blink] {
+	animation: blink var(--ob-sys-motion-duration-website-1100)
+		var(--ob-sys-motion-easing-website-steps) infinite;
+}
+@keyframes blink {
+	50% {
+		opacity: 0;
+	}
+}

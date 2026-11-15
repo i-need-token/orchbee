@@ -1,0 +1,72 @@
+/* The window keeps the product's pixel size and zooms to its WindowFit; a narrower fit gets the
+   mini layout (one column of Panels, a narrower sidebar), then the phone layout (no sidebar). */
+.window {
+	display: grid;
+	grid-template-rows: var(--ob-ref-length-website-32) minmax(0, 1fr);
+	width: var(--ob-ref-length-website-1180);
+	height: var(--ob-ref-length-website-640);
+	zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-1180))), 1.3);
+	overflow: hidden;
+	border-radius: var(--ob-ref-length-website-10);
+	background: var(--ob-comp-website-terminal-background);
+	box-shadow: var(--ob-sys-shadow-website-window);
+	color: var(--ob-comp-website-terminal-foreground);
+	font: var(--ob-sys-typography-website-terminal);
+	font-variant-ligatures: none;
+	text-align: left;
+	cursor: default;
+	-webkit-user-select: none;
+	user-select: none;
+}
+.window * {
+	min-width: 0;
+}
+.bar {
+	position: relative;
+	display: grid;
+	place-items: center;
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-host-edge);
+	background: var(--ob-sys-color-website-host-bar);
+	color: var(--ob-sys-color-website-host-title);
+	font: var(--ob-sys-typography-website-terminal-title);
+}
+.screen,
+.screenWithSidebar {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	min-height: 0;
+}
+.screenWithSidebar {
+	grid-template-columns: var(--ob-ref-length-website-262) minmax(0, 1fr);
+}
+.sidebar {
+	display: contents;
+}
+.main {
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr);
+	min-height: 0;
+}
+@container window-fit (max-width: 48rem) {
+	.window[data-size='full'] {
+		width: var(--ob-ref-length-website-660);
+		height: var(--ob-ref-length-website-400);
+		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-660))), 1.3);
+	}
+	[data-size='full'] .screenWithSidebar {
+		grid-template-columns: var(--ob-ref-length-website-206) minmax(0, 1fr);
+	}
+}
+@container window-fit (max-width: 40rem) {
+	.window[data-size='full'] {
+		width: var(--ob-ref-length-website-430);
+		height: var(--ob-ref-length-website-430);
+		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-430))), 1.3);
+	}
+	[data-size='full'] .screenWithSidebar {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	[data-size='full'] .sidebar {
+		display: none;
+	}
+}
