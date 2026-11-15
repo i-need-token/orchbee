@@ -46,6 +46,7 @@ mod agent_observation_endpoint;
 
 #[cfg(windows)]
 mod configuration_windows;
+mod connection_end;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -143,7 +144,9 @@ pub(crate) fn run(
 
     loop {
         match listener.accept() {
-            Ok((stream, _address)) => handle_candidate(stream, &registry, expected_cohort, None),
+            Ok((stream, _address)) => {
+                handle_candidate(stream, &registry, expected_cohort, None, None);
+            }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) => return Err(error),
         }
@@ -220,15 +223,19 @@ fn handle_candidate(
     registry: &Arc<Mutex<WorkerRegistry>>,
     expected_cohort: &str,
     agents: Option<&Arc<AgentService>>,
+    worker: Option<u32>,
 ) {
-    let _owner = admit_candidate(stream, registry, expected_cohort, agents);
+    let _owner = admit_candidate(stream, registry, expected_cohort, agents, worker);
 }
 
+/// `worker` is the process identifier of the Worker this Server started, while the Server still
+/// holds that process's handle; the admitted wire then records the Worker's exit with its own end.
 fn admit_candidate(
     mut stream: UnixStream,
     registry: &Arc<Mutex<WorkerRegistry>>,
     expected_cohort: &str,
     agents: Option<&Arc<AgentService>>,
+    worker: Option<u32>,
 ) -> Option<thread::JoinHandle<()>> {
     // The handshake waits through these timeouts, which only blocking mode honors. The managed
     // listener is nonblocking, and macOS hands that flag to every socket it accepts, so a hello
@@ -313,12 +320,18 @@ fn admit_candidate(
         cancel_pending_admission(registry, generation);
         return None;
     };
-    thread::Builder::new()
+    let process = connection_end::WorkerProcess::open(worker);
+    match thread::Builder::new()
         .name("orchbee-local-worker".to_owned())
-        .spawn(move || {
-            let _exit = registered_owner.run(stream);
-        })
-        .ok()
+        .spawn(move || connection_end::serve(registered_owner, stream, process))
+    {
+        Ok(wire) => Some(wire),
+        Err(error) => {
+            // The unstarted closure dropped the wire owner, which retired this generation.
+            connection_end::not_started(error.kind(), &connection_end::WorkerProcess::open(worker));
+            None
+        }
+    }
 }
 
 fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {

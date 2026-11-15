@@ -62,6 +62,7 @@ use crate::agent::{
     native_observation::{Binding, CarrierIdentity},
 };
 use crate::agent_service::{AgentService, DrainExpectation, DrainPageOutcome, PreparedUnavailable};
+use crate::fault_records::RecordedLock;
 use crate::session_coordinator::SessionCoordinator;
 use crate::worker_obcn_carrier::{
     ExchangeWait, PendingExchange, WorkerOperationResult, WorkerRequestError,
@@ -86,7 +87,7 @@ enum Provenance {
 /// — the executor maps it to the existing `RuntimeUnavailable` wire arm.
 pub(crate) fn agent_drain_prepare(
     workers: &Mutex<WorkerRegistry>,
-    coordinator: &Mutex<SessionCoordinator>,
+    coordinator: &RecordedLock<SessionCoordinator>,
     agents: &AgentService,
     deadline: Instant,
     retry: Duration,
@@ -103,7 +104,7 @@ pub(crate) fn agent_drain_prepare(
 
 pub(super) fn agent_drain_finish<R>(
     workers: &Mutex<WorkerRegistry>,
-    coordinator: &Mutex<SessionCoordinator>,
+    coordinator: &RecordedLock<SessionCoordinator>,
     agents: &AgentService,
     deadline: Instant,
     retry: Duration,

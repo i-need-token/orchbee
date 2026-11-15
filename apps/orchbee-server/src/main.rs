@@ -15,6 +15,8 @@ mod client_connection_registry;
 #[cfg(any(unix, windows))]
 mod client_view_registry;
 #[cfg(any(unix, windows))]
+mod fault_records;
+#[cfg(any(unix, windows))]
 mod frame_directory;
 #[cfg(any(unix, windows))]
 mod local_client_service;
@@ -63,6 +65,9 @@ fn main() -> ExitCode {
     }
     #[cfg(any(unix, windows))]
     orchbee_local_runtime::install_diagnostic_log(orchbee_local_runtime::LogRole::Server);
+    // A panic ends only its own thread, so its site is the only trace a silent partial outage leaves.
+    #[cfg(any(unix, windows))]
+    fault_records::install_panic_hook();
     #[cfg(any(unix, windows))]
     if local_worker_service::run(env::args_os().skip(1), env!("CARGO_PKG_VERSION")).is_ok() {
         return ExitCode::SUCCESS;

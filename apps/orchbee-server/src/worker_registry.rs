@@ -20,8 +20,10 @@ use orchbee_workbench_protocol::PresentationLaunchProgram;
 
 use crate::agent::native_observation::CarrierIdentity;
 use crate::agent_service::AgentService;
+#[cfg(test)]
+use crate::worker_obcn_carrier::WorkerWireExit;
 use crate::worker_obcn_carrier::{
-    WorkerCarrier, WorkerCarrierShutdown, WorkerRequestHandle, WorkerWireExit, WorkerWireOwner,
+    WorkerCarrier, WorkerCarrierShutdown, WorkerRequestHandle, WorkerWireEnd, WorkerWireOwner,
 };
 use crate::{
     agent_catalog::AgentCatalog, terminal_titles::TerminalTitles, viewer_ready::ViewerReadyRoutes,
@@ -62,12 +64,18 @@ pub(crate) struct RegisteredWorkerWireOwner {
 }
 
 impl RegisteredWorkerWireOwner {
-    pub(crate) fn run(mut self, stream: orchbee_local_ipc::LocalStream) -> WorkerWireExit {
+    /// Serves the wire until it ends; the generation retires before this returns.
+    pub(crate) fn run_to_end(mut self, stream: orchbee_local_ipc::LocalStream) -> WorkerWireEnd {
         let wire_owner = self
             .wire_owner
             .take()
             .unwrap_or_else(|| unreachable!("registered Worker must own its wire"));
-        wire_owner.run(stream)
+        wire_owner.run_to_end(stream)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn run(self, stream: orchbee_local_ipc::LocalStream) -> WorkerWireExit {
+        self.run_to_end(stream).exit
     }
 
     #[cfg(test)]

@@ -29,6 +29,91 @@ fn exchange(endpoint: &Path, request: LocalClientMessage) -> LocalClientMessage 
     read_message(&mut client).unwrap()
 }
 
+/// Steps that fail once each time the test arms them: a failed accept drops the candidate it was
+/// admitting, and a failed spawn drops the handler it was handed.
+fn faulty_steps(accept_fault: Arc<AtomicBool>, spawn_fault: Arc<AtomicBool>) -> Steps {
+    Steps {
+        accept: Box::new(move |listener| {
+            let (stream, ()) = listener.accept()?;
+            if accept_fault.swap(false, Ordering::AcqRel) {
+                drop(stream);
+                return Err(io::ErrorKind::PermissionDenied.into());
+            }
+            Ok(stream)
+        }),
+        spawn: Box::new(move |handler| {
+            if spawn_fault.swap(false, Ordering::AcqRel) {
+                drop(handler);
+                return Err(io::ErrorKind::OutOfMemory.into());
+            }
+            thread::Builder::new()
+                .name("orchbee-local-client".into())
+                .spawn(handler)
+        }),
+    }
+}
+
+/// Reads the Workbench snapshot on an admitted connection; any snapshot answer proves service.
+fn answers_snapshot_read(client: &mut UnixStream) -> bool {
+    use orchbee_workbench_protocol::{
+        WorkbenchResponse, parse_workbench_request, read_workbench_response,
+        write_workbench_request,
+    };
+    let read = parse_workbench_request(
+        br#"{"kind":"workbench.snapshot.read","protocolVersion":1,"requestId":"11111111111111111111111111111111"}"#,
+    )
+    .unwrap();
+    write_workbench_request(client, &read).is_ok()
+        && matches!(
+            read_workbench_response(client),
+            Ok(WorkbenchResponse::Snapshot(_))
+        )
+}
+
+#[test]
+fn one_failed_accept_and_one_failed_handler_start_drop_only_their_candidates() {
+    let endpoint = crate::tests::endpoint();
+    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+        crate::worker_registry::WorkerRegistry::new(),
+    ))));
+    let agents = Arc::new(
+        AgentService::open(crate::agent_service::AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
+    let accept_fault = Arc::new(AtomicBool::new(false));
+    let spawn_fault = Arc::new(AtomicBool::new(false));
+    let mut service = start_with(
+        &endpoint,
+        ServerIdentity::local(None, None),
+        terminals,
+        agents,
+        Arc::new(SessionShutdown::default()),
+        faulty_steps(Arc::clone(&accept_fault), Arc::clone(&spawn_fault)),
+    )
+    .unwrap();
+    let mut admitted = connect(&endpoint);
+    handshake_client::admit(&mut admitted).unwrap();
+    assert!(answers_snapshot_read(&mut admitted));
+
+    accept_fault.store(true, Ordering::Release);
+    assert!(handshake_client::answered(&mut connect(&endpoint)).is_err());
+    assert!(!accept_fault.load(Ordering::Acquire));
+    spawn_fault.store(true, Ordering::Release);
+    assert!(handshake_client::answered(&mut connect(&endpoint)).is_err());
+    assert!(!spawn_fault.load(Ordering::Acquire));
+
+    assert!(answers_snapshot_read(&mut admitted));
+    let mut later = connect(&endpoint);
+    handshake_client::admit(&mut later).unwrap();
+    assert!(answers_snapshot_read(&mut later));
+    service
+        .stop_before(Instant::now() + Duration::from_secs(5))
+        .unwrap();
+}
+
 #[test]
 fn control_fences_admission_freezes_new_hellos_and_joins_idle_and_partial_clients() {
     let endpoint = crate::tests::endpoint();

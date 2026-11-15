@@ -16,8 +16,27 @@ The Server installs its role in the
 as a managed Session Server, records `started` with its version and `exited` with an outcome or
 closed I/O error kind. Each [Agent catalog](#agent-catalog) lookup that ends records
 `agent-catalog-lookup` with its outcome, `complete`, `failed` or `unsupported`, and how many
-commands were found, missing or unavailable. It records nothing about Clients, terminals or
-requests.
+commands were found, missing or unavailable.
+
+Faults the Server survives, and the ones it cannot contain, are recorded too. A record holds static
+tokens, counts and flags only: never a panic message, request or terminal content, a path, or an
+error's text.
+
+| Record                    | Written when                                                                                                                                                                                                                                                          | Fields                                                                                                                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `listener-fault`          | The Client listener or the Agent observation endpoint fails to accept, admit or start a handler for one candidate, or its wait fails, and pauses before accepting again                                                                                               | `listener` (`client`, `agent-observation`), `stage`, `error` (I/O error kind or `none`), `pauseMs`, `suppressed`                                                          |
+| `candidate-dropped`       | A candidate is closed before it is served: Client handshake transport setup, peer credentials, a poisoned registry, an exhausted generation, an unencodable reply or query result; an observation connection that cannot be made nonblocking or arrives over capacity | `operation`, `stage`, `cause` (I/O error kind, `protocol` or `none`), `suppressed`                                                                                        |
+| `worker-connection-ended` | The Worker connection ends, or its thread cannot start                                                                                                                                                                                                                | `exit`, `failure`, `error`, `request` with `elapsedMs` since it was sent, `afterShutdown`, `workerProcess` (`not-held`, `running`, `exited`, `unknown`), `workerExitCode` |
+| `panicked`                | Any Server thread panics; the panic still ends only that thread                                                                                                                                                                                                       | `thread` (the program's own thread names, else `other` or `unnamed`), `file` stem, `line`, `suppressed`                                                                   |
+| `state-poisoned`          | The Session coordinator or the Agent fold lock is first observed poisoned                                                                                                                                                                                             | `lock` (`coordinator`, `agent-fold`)                                                                                                                                      |
+
+`listener-fault`, `candidate-dropped` and `panicked` are written at most once a minute per site,
+and `suppressed` counts the records left out since the last one. `worker-connection-ended` is
+`info` when the Server ended the connection or the Worker left after answering a shutdown, and
+`error` otherwise. Only a Windows Session holds its Worker's handle after admission; there the
+record waits up to two seconds for a Worker that ended its own connection to exit, so it can carry
+the exit code. Without that handle the record says `not-held`. The log records nothing else about
+Clients, terminals or requests.
 
 ## Client handshake and process query
 
@@ -374,9 +393,12 @@ slice. Abrupt process termination or a post-bind setup failure may leave the sup
 for its external owner to remove.
 
 When selected, Client listener bind or listener-thread spawn failure occurs before readiness and
-fails Server startup. An unexpected Client listener accept failure after readiness ends that
-listener but is not yet coordinated with the Worker loop; production fault supervision and restart
-remain reserved.
+fails Server startup. After readiness, a failure costs at most the candidate it touches: a failed
+accept or a handler thread that cannot start drops only that candidate, writes a `listener-fault`
+record, and pauses the listener for 100 ms, doubling while faults repeat within five seconds, up to
+one second, before it accepts again. The managed Windows listener treats an exhausted connection
+identity and a stream it cannot clone the same way. The listener never ends on its own, so admitted
+Connections and the Agent runtime it owns stay until Session stop.
 
 The private [`orchbee-local-worker-protocol`](../../crates/local-worker-protocol/README.md) crate owns
 Worker framing, handshake, cohort rejection, and bounds;
@@ -425,6 +447,10 @@ stage. Session stop and a departed peer (end of stream, reset, abort, broken pip
 and are not reported. The line carries no record bytes, terminal content, paths, credentials,
 environment values, or nested error text, and changes no peer-visible outcome. Managed launch binds
 the Server's standard error to the null device, so only a harness that owns it reads these lines.
+A failure that drops a candidate before it is served, or stops the listener's accept, also writes
+the same tokens to the [daily diagnostic log](#windows-diagnostic-log) as `candidate-dropped` or
+`listener-fault`, at most once a minute per operation and stage; a Connection that ends on a fault
+stays a standard-error line only.
 
 The private [`orchbee-local-client-protocol`](../../crates/local-client-protocol/README.md) owns
 Client framing and its connecting adapter. The independent

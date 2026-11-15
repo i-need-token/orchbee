@@ -1,8 +1,9 @@
 //! Owns the Client Connection service's controlled diagnostic exit for internal failures that have
 //! no caller left to receive them. A report is one bounded, locale-neutral standard-error line built
-//! only from static identifiers, a numeric Connection generation, and an I/O error kind. It never
-//! formats record bytes, terminal content, paths, credentials, environment values, or arbitrary
-//! error text, and it never changes the failure's external classification or the peer's outcome.
+//! only from static identifiers, a numeric Connection generation, and an I/O error kind; a report
+//! of a dropped candidate also writes those tokens to the daily log. It never formats record bytes,
+//! terminal content, paths, credentials, environment values, or arbitrary error text, and it never
+//! changes the failure's external classification or the peer's outcome.
 
 use std::{
     error::Error,
@@ -86,6 +87,18 @@ pub(super) fn report(diagnostic: &Diagnostic) {
     // A failed diagnostic write has no further owner; the failure it describes already settled
     // its own external outcome.
     let _unobserved = writeln!(io::stderr().lock(), "{line}");
+}
+
+/// Reports a candidate the listener closed before admission: the standard-error line, and a
+/// `candidate-dropped` record in the daily log, at most one a minute per operation and stage.
+pub(super) fn drop_candidate(diagnostic: &Diagnostic) {
+    report(diagnostic);
+    let cause = match diagnostic.cause {
+        Cause::None => "none",
+        Cause::Protocol => "protocol",
+        Cause::Io(kind) => crate::fault_records::io_token(kind),
+    };
+    crate::fault_records::candidate_dropped(diagnostic.operation, diagnostic.stage, cause);
 }
 
 #[cfg(test)]

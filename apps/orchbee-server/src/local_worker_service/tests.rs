@@ -112,7 +112,7 @@ fn rejects_an_unmappable_zero_worker_id_before_acceptance() -> TestResult {
         &LocalWorkerMessage::WorkerHello(WorkerHello::new(COHORT, WorkerId::from_bytes([0; 16]))?),
     )?;
 
-    handle_candidate(server, &registry, COHORT, None);
+    handle_candidate(server, &registry, COHORT, None, None);
 
     assert_eq!(
         read_session_message(&mut worker)?,
@@ -132,6 +132,67 @@ fn rejects_an_unmappable_zero_worker_id_before_acceptance() -> TestResult {
     Ok(())
 }
 
+#[test]
+fn a_worker_connection_end_writes_one_record_with_its_exit_and_failure() -> TestResult {
+    let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
+    let admission = registry
+        .lock()
+        .map_err(|_poisoned| io::Error::other("Worker registry was poisoned"))?
+        .admit(FIRST_WORKER, None);
+    let crate::worker_registry::WorkerAdmission::Accepted { generation } = admission else {
+        return Err(
+            io::Error::other(format!("fake Worker was not admitted: {admission:?}")).into(),
+        );
+    };
+    let carrier = crate::worker_obcn_carrier::create_worker_carrier(FIRST_WORKER, generation);
+    let owner = WorkerRegistry::register_carrier(&registry, generation, carrier)
+        .ok_or_else(|| io::Error::other("Worker carrier was not registered"))?;
+    let handle = request_handle(&registry)?;
+    let (mut worker, server) = UnixStream::pair()?;
+    worker.set_read_timeout(Some(COMPLETION_TIMEOUT))?;
+    // The fake Worker reads one request and leaves without answering it.
+    let peer = thread::spawn(move || read_capability_message(&mut worker).map(drop));
+    let request = launch_request(FIRST_WORKER, generation, 1)?;
+    let requester = thread::spawn(move || handle.request(WorkerOperationRequest::Launch(request)));
+
+    let ((), records) = crate::fault_records::capture::records(|| {
+        super::connection_end::serve(
+            owner,
+            server,
+            super::connection_end::WorkerProcess::open(None),
+        );
+    });
+
+    assert!(matches!(
+        requester.join().map_err(|_panic| "requester panicked")?,
+        Err(crate::worker_obcn_carrier::WorkerRequestError::PostDeliveryOutcomeUnknown(_))
+    ));
+    peer.join().map_err(|_panic| "fake Worker panicked")??;
+    let [record] = records.as_slice() else {
+        return Err(io::Error::other(format!("expected one record: {records:?}")).into());
+    };
+    assert_eq!(record.event, "worker-connection-ended");
+    let mut fields = record.fields.clone();
+    assert!(matches!(
+        fields.get(4),
+        Some(("elapsedMs", orchbee_local_runtime::LogValue::Count(_)))
+    ));
+    fields.remove(4);
+    use orchbee_local_runtime::LogValue::{Flag, Token};
+    assert_eq!(
+        fields,
+        [
+            ("exit", Token("request-failed")),
+            ("failure", Token("outcome-unknown.disconnected")),
+            ("error", Token("none")),
+            ("request", Token("launch")),
+            ("afterShutdown", Flag(false)),
+            ("workerProcess", Token("not-held")),
+        ]
+    );
+    Ok(())
+}
+
 fn admit_worker(
     registry: &Arc<Mutex<WorkerRegistry>>,
     worker_id: WorkerId,
@@ -143,7 +204,7 @@ fn admit_worker(
         &mut worker,
         &LocalWorkerMessage::WorkerHello(WorkerHello::new(COHORT, worker_id)?),
     )?;
-    handle_candidate(server, registry, COHORT, None);
+    handle_candidate(server, registry, COHORT, None, None);
     let reply = read_session_message(&mut worker)?;
     let LocalWorkerMessage::WorkerAccepted { generation } = reply else {
         return Err(io::Error::other(format!(

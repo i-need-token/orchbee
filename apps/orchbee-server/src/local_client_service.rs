@@ -32,6 +32,7 @@ use self::application_connection::ApplicationConnectionError;
 use self::diagnostic::Diagnostic;
 use crate::agent_service::{AgentPolicy, AgentService};
 use crate::client_connection_registry::{ClientConnectionAdmission, ClientConnectionRegistry};
+use crate::fault_records::ListenerRecovery;
 use crate::viewer_ready::ConnectionViewerReady;
 
 use crate::local_terminal_service::LocalTerminalService;
@@ -219,6 +220,9 @@ fn serve(
     // the guard disposes it so already-admitted connections observe genuine
     // `runtime-unavailable` rather than fabricated state.
     let _runtime_owner = AgentRuntimeOwner::new(Arc::clone(&agents));
+    // One failed accept or handler start drops only that candidate; the loop records it, pauses,
+    // and keeps listening, so it never ends on its own.
+    let mut recovery = ListenerRecovery::new("client");
     loop {
         match listener.accept() {
             Ok((stream, _address)) => {
@@ -248,10 +252,14 @@ fn serve(
                     diagnostic::report(
                         &Diagnostic::new("accept", "spawn-handler").caused_by(&error),
                     );
+                    thread::sleep(recovery.fault("spawn-handler", Some(error.kind())));
                 }
             }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) => return Err(error),
+            Err(error) => {
+                diagnostic::report(&Diagnostic::new("accept", "listener").caused_by(&error));
+                thread::sleep(recovery.fault("accept", Some(error.kind())));
+            }
         }
     }
 }
@@ -291,11 +299,13 @@ fn handle_candidate_control(
         .set_read_timeout(Some(CANDIDATE_DEADLINE))
         .and_then(|()| stream.set_write_timeout(Some(CANDIDATE_DEADLINE)))
     {
-        diagnostic::report(&Diagnostic::new("handshake", "transport-setup").caused_by(&error));
+        diagnostic::drop_candidate(
+            &Diagnostic::new("handshake", "transport-setup").caused_by(&error),
+        );
         return;
     }
     if require_same_effective_user(&stream).is_err() {
-        diagnostic::report(&Diagnostic::new("handshake", "peer-credentials"));
+        diagnostic::drop_candidate(&Diagnostic::new("handshake", "peer-credentials"));
         return;
     }
     let profile = &identity.profile;
@@ -327,7 +337,7 @@ fn handle_candidate_control(
     let session_slot_free = match registry.lock() {
         Ok(registry) => registry.has_capacity(),
         Err(_poisoned) => {
-            diagnostic::report(&Diagnostic::new("admission", "registry-poisoned"));
+            diagnostic::drop_candidate(&Diagnostic::new("admission", "registry-poisoned"));
             return;
         }
     };
@@ -433,7 +443,7 @@ fn handle_candidate_control(
     let admission = match registry.lock() {
         Ok(mut registry) => registry.admit(),
         Err(_poisoned) => {
-            diagnostic::report(&Diagnostic::new("admission", "registry-poisoned"));
+            diagnostic::drop_candidate(&Diagnostic::new("admission", "registry-poisoned"));
             return;
         }
     };
@@ -444,7 +454,7 @@ fn handle_candidate_control(
             return;
         }
         ClientConnectionAdmission::GenerationExhausted => {
-            diagnostic::report(&Diagnostic::new("admission", "generation-exhausted"));
+            diagnostic::drop_candidate(&Diagnostic::new("admission", "generation-exhausted"));
             return;
         }
     };
@@ -588,7 +598,7 @@ fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {
 fn send_handshake(stream: &mut UnixStream, message: &AcceptorMessage) -> bool {
     use std::io::Write;
     let Ok(frame) = encode_acceptor_frame(message) else {
-        diagnostic::report(&Diagnostic::new("handshake", "encode-reply"));
+        diagnostic::drop_candidate(&Diagnostic::new("handshake", "encode-reply"));
         return false;
     };
     stream

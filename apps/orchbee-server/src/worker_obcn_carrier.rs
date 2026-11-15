@@ -34,6 +34,8 @@ mod lifecycle;
 pub(crate) use lifecycle::PendingLifecycleResult;
 #[cfg(any(windows, test))]
 mod handoff;
+mod wire_end;
+pub(crate) use wire_end::WorkerWireEnd;
 
 const HIGH_LANE_CAPACITY: usize = 8;
 const LOW_LANE_CAPACITY: usize = 8;
@@ -1053,6 +1055,12 @@ pub(crate) struct WorkerWireOwner {
     queue: Arc<CarrierQueue>,
     viewer_ready: Option<Arc<ViewerReadyRoutes>>,
     titles: Option<TitleNotes>,
+    /// When the request in flight left the queue.
+    dispatched: Option<Instant>,
+    /// The request completed in the current turn, kept only to state how the wire ended.
+    ended_request: Option<wire_end::EndedRequest>,
+    /// Whether the Worker answered a shutdown request.
+    shutdown_answered: bool,
 }
 
 /// Where this wire's Worker notes title changes: the Session registry, for this generation.
@@ -1104,6 +1112,9 @@ fn create_worker_carrier_with_limits(
             queue: Arc::clone(&queue),
             viewer_ready: None,
             titles: None,
+            dispatched: None,
+            ended_request: None,
+            shutdown_answered: false,
         },
         shutdown: WorkerCarrierShutdown {
             active: Arc::clone(&active),
@@ -1135,11 +1146,23 @@ impl WorkerWireOwner {
         self
     }
 
-    pub(crate) fn run(mut self, mut stream: UnixStream) -> WorkerWireExit {
-        match configure_idle_stream(&stream) {
+    /// Serves the wire until it ends and states how: the exit, the request whose completion ended
+    /// it, and whether the Worker had answered a shutdown.
+    pub(crate) fn run_to_end(mut self, mut stream: UnixStream) -> WorkerWireEnd {
+        let exit = match configure_idle_stream(&stream) {
             Ok(()) => self.run_configured(&mut stream),
             Err(failure) => WorkerWireExit::Transport(failure),
+        };
+        WorkerWireEnd {
+            exit,
+            request: self.ended_request.take(),
+            after_shutdown: self.shutdown_answered,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn run(self, stream: UnixStream) -> WorkerWireExit {
+        self.run_to_end(stream).exit
     }
 
     #[cfg(test)]
@@ -1155,12 +1178,15 @@ impl WorkerWireOwner {
         Stream: AsLocalIo + Read + Write,
     {
         loop {
+            // A request completed in an earlier turn did not end the wire.
+            self.ended_request = None;
             if !self.active.load(Ordering::Acquire) {
                 return WorkerWireExit::Shutdown;
             }
             debug_assert!(self.in_flight.is_none());
             match self.queue.take_next(Duration::ZERO, &mut self.in_flight) {
                 TakeNext::Dispatched => {
+                    self.dispatched = Some(Instant::now());
                     if !self.active.load(Ordering::Acquire) {
                         self.complete_in_flight(Err(WorkerRequestError::Unavailable));
                         return WorkerWireExit::Shutdown;
@@ -1295,7 +1321,22 @@ impl WorkerWireOwner {
                 self.active.store(false, Ordering::Release);
             }
         }
-        send_completion(pending, result)
+        #[cfg(any(windows, test))]
+        if matches!(&result, Ok(WorkerOperationResult::Shutdown(_))) {
+            self.shutdown_answered = true;
+        }
+        let kind = pending.request.kind_token();
+        let failure = result.as_ref().err().copied();
+        let delivered = send_completion(pending, result);
+        self.ended_request = Some(wire_end::EndedRequest {
+            kind,
+            failure,
+            delivered,
+            elapsed: self
+                .dispatched
+                .map_or(Duration::ZERO, |dispatched| dispatched.elapsed()),
+        });
+        delivered
     }
 
     fn drain_unavailable(&mut self) {

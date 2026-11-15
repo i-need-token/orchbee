@@ -629,9 +629,16 @@ connection required. The cap bounds staleness; it is not a latency guarantee.
 
 Failure ownership is split deliberately: per-connection and per-fold errors destroy only
 that connection (`next_deadline` errors contribute no deadline, `tick` errors are
-skipped, admission errors close the current stream), while non-`WouldBlock` listener
-accept failures and permanent poll errors terminate the endpoint thread and `EINTR`
-retries. `BoundEndpoint` owns the listener, stop pipe, path, and recorded identity until
+skipped, admission errors close the current stream). A listener fault — a non-`WouldBlock`
+accept failure, or an error or hang-up reported on the listener, which on Windows is one
+failed admission — drops at most the candidate it touched, writes a `listener-fault` record,
+and leaves the listener out of the poll set for 100 ms, doubling while faults repeat up to
+one second, while live connections, settlement and stop keep running. A failed poll is
+recorded and retried after the same pause, during which the stop pipe is still read.
+`EINTR` retries at once. A connection dropped at accept, because it cannot be made
+nonblocking or arrives over capacity, writes a `candidate-dropped` record. Only stop ends
+the thread, named `orchbee-agent-observation`. These records follow the
+[Server diagnostic log](../README.md#windows-diagnostic-log) limits. `BoundEndpoint` owns the listener, stop pipe, path, and recorded identity until
 `start` moves the listener into the poll thread and disarms the identity after a
 successful spawn; `AgentObservationEndpoint::drop` writes the stop byte, unconditionally
 joins the thread, then unlinks the path only when its current metadata still matches the

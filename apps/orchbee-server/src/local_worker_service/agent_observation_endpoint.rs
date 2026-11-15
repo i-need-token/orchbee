@@ -29,6 +29,7 @@ struct BoundIdentity;
 
 use crate::agent::HookGeneration;
 use crate::agent_service::AgentService;
+use crate::fault_records::{self, ListenerRecovery};
 
 /// `server.maxConnections` — oracle `MAX_ACTIVE_CONNECTIONS`.
 const MAX_ACTIVE_CONNECTIONS: usize = 64;
@@ -171,7 +172,11 @@ impl BoundEndpoint {
     pub(crate) fn start(mut self, agents: Arc<AgentService>) -> AgentObservationEndpoint {
         let listener = self.listener.take().expect("bound listener present");
         let stop_reader = self.stop_reader.take().expect("stop reader present");
-        let thread = thread::spawn(move || endpoint_loop(listener, stop_reader, agents));
+        // Named so a panic record can name this thread.
+        let thread = thread::Builder::new()
+            .name("orchbee-agent-observation".to_owned())
+            .spawn(move || endpoint_loop(listener, stop_reader, agents))
+            .expect("failed to spawn the Agent observation thread");
         AgentObservationEndpoint {
             path: std::mem::take(&mut self.path),
             bound_identity: self.bound_identity.take().expect("bound identity present"),
@@ -447,14 +452,20 @@ fn conn_step(conn: &mut Conn, ready: PollFlags, agents: &AgentService) -> bool {
 /// never retained: `conn_step` issues reads and ACK writes off
 /// readiness and synthetic POLLOUT, so a possibly-blocking fd could
 /// wedge the whole loop. Over-cap accepts are likewise dropped — the
-/// oracle `maxConnections` shape. `WouldBlock` means the queue is
-/// drained; any other accept error is a listener failure and surfaces
-/// to the caller, which owns the exit decision.
+/// oracle `maxConnections` shape. Each dropped candidate writes a
+/// `candidate-dropped` record. `WouldBlock` means the queue is
+/// drained; any other accept error surfaces to the caller, which
+/// pauses the listener and keeps serving.
 fn accept_batch(listener: &UnixListener, conns: &mut Vec<Conn>, budget: usize) -> io::Result<()> {
     for _ in 0..budget {
         match listener.accept() {
             Ok((stream, _)) => {
-                if stream.set_nonblocking(true).is_err() {
+                if let Err(error) = stream.set_nonblocking(true) {
+                    fault_records::candidate_dropped(
+                        "observation",
+                        "set-nonblocking",
+                        fault_records::io_token(error.kind()),
+                    );
                     continue;
                 }
                 if conns.len() < MAX_ACTIVE_CONNECTIONS {
@@ -463,6 +474,8 @@ fn accept_batch(listener: &UnixListener, conns: &mut Vec<Conn>, budget: usize) -
                         deadline: Instant::now() + CONNECTION_DEADLINE,
                         state: ConnState::Reading { body: Vec::new() },
                     });
+                } else {
+                    fault_records::candidate_dropped("observation", "capacity", "none");
                 }
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(()),
@@ -472,17 +485,46 @@ fn accept_batch(listener: &UnixListener, conns: &mut Vec<Conn>, budget: usize) -
     Ok(())
 }
 
-fn endpoint_loop(listener: UnixListener, stop_reader: UnixStream, agents: Arc<AgentService>) {
+/// Sleeps `pause` in short steps while the poll cannot run, and reports
+/// whether the owner asked the loop to stop meanwhile: a stop byte, the
+/// owner's closed end, or a failed stop pipe, as the poll would.
+fn pause_unless_stopped(stop_reader: &mut UnixStream, pause: Duration) -> bool {
+    let until = Instant::now() + pause;
+    loop {
+        match stop_reader.read(&mut [0_u8]) {
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Ok(_) | Err(_) => return true,
+        }
+        let remaining = until.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return false;
+        }
+        thread::sleep(remaining.min(Duration::from_millis(10)));
+    }
+}
+
+fn endpoint_loop(listener: UnixListener, mut stop_reader: UnixStream, agents: Arc<AgentService>) {
     let mut conns: Vec<Conn> = Vec::new();
+    let mut recovery = ListenerRecovery::new("agent-observation");
+    // A listener fault leaves the listener out of the poll set until
+    // this instant; live connections, settlement and stop keep running.
+    let mut paused_until: Option<Instant> = None;
     'poll: loop {
         // Absolute-deadline sweep — every state, including AckPending.
         let now = Instant::now();
         conns.retain(|conn| conn.deadline > now);
+        if paused_until.is_some_and(|until| until <= now) {
+            paused_until = None;
+        }
+        let listening = paused_until.is_none();
 
         let revents = {
             let mut fds = Vec::with_capacity(conns.len() + 2);
-            fds.push(PollFd::new(listener.as_local_io(), PollFlags::POLLIN));
             fds.push(PollFd::new(stop_reader.as_local_io(), PollFlags::POLLIN));
+            if listening {
+                fds.push(PollFd::new(listener.as_local_io(), PollFlags::POLLIN));
+            }
             for conn in &conns {
                 let flags = match conn.state {
                     ConnState::Reading { .. } => PollFlags::POLLIN,
@@ -494,35 +536,47 @@ fn endpoint_loop(listener: UnixListener, stop_reader: UnixStream, agents: Arc<Ag
                 Ok(_) => {}
                 // Signal-interrupted wait — retry the bounded poll.
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => continue 'poll,
-                // A permanent poll failure can never serve again —
-                // stop the owner rather than hot-spinning on revents
-                // that stay empty forever. Per-connection and fold
-                // failures below still never kill the loop; this is
-                // the loop's own liveness contract.
-                Err(_) => break 'poll,
+                // A failed wait is recorded and retried after a pause
+                // that still answers stop, so it never ends the
+                // endpoint and never hot-spins.
+                Err(error) => {
+                    let pause = recovery.fault("poll", Some(error.kind()));
+                    drop(fds);
+                    if pause_unless_stopped(&mut stop_reader, pause) {
+                        break 'poll;
+                    }
+                    continue 'poll;
+                }
             }
             fds.iter()
                 .map(|fd| fd.revents().unwrap_or(PollFlags::empty()))
                 .collect::<Vec<_>>()
         };
 
-        // Stop-pipe wake wins over everything else; a dead listener fd
-        // is the only other exit — the thread never dies on a
-        // connection- or service-fold failure.
-        if revents[1].intersects(PollFlags::POLLIN | PollFlags::POLLERR | PollFlags::POLLHUP)
-            || revents[0].intersects(PollFlags::POLLERR | PollFlags::POLLHUP | PollFlags::POLLNVAL)
-        {
+        // Stop-pipe wake wins over everything else and is the loop's
+        // only exit — the thread never dies on a listener, connection
+        // or service-fold failure.
+        if revents[0].intersects(PollFlags::POLLIN | PollFlags::POLLERR | PollFlags::POLLHUP) {
             break;
         }
+        let first_connection = 1 + usize::from(listening);
 
-        if revents[0].contains(PollFlags::POLLIN)
-            && accept_batch(&listener, &mut conns, MAX_ACTIVE_CONNECTIONS).is_err()
-        {
-            // A non-transient accept failure is a listener failure —
-            // the oracle `server.on('error') -> close` shape; the
-            // thread exits rather than hot-spinning on an fd that can
-            // never serve again.
-            break 'poll;
+        // A listener fault drops at most the candidate it was admitting
+        // (Windows reports a failed admission as POLLERR): it is
+        // recorded, and the listener pauses before it accepts again.
+        if listening {
+            let listener_events = revents[1];
+            if listener_events
+                .intersects(PollFlags::POLLERR | PollFlags::POLLHUP | PollFlags::POLLNVAL)
+            {
+                let pause = recovery.fault("poll-listener", None);
+                paused_until = Some(Instant::now() + pause);
+            } else if listener_events.contains(PollFlags::POLLIN)
+                && let Err(error) = accept_batch(&listener, &mut conns, MAX_ACTIVE_CONNECTIONS)
+            {
+                let pause = recovery.fault("accept", Some(error.kind()));
+                paused_until = Some(Instant::now() + pause);
+            }
         }
 
         // The endpoint-owned clock drives settlement: fire the tick
@@ -539,13 +593,17 @@ fn endpoint_loop(listener: UnixListener, stop_reader: UnixStream, agents: Arc<Ag
         // Destruction is deferred until the scan completes: removing a
         // conn mid-scan would shift `conns[]` out of alignment with the
         // fixed `revents[]` slots.
-        let stepped = revents.len().saturating_sub(2).min(conns.len());
+        let stepped = revents
+            .len()
+            .saturating_sub(first_connection)
+            .min(conns.len());
         let mut destroy: Vec<usize> = Vec::new();
         for index in 0..stepped {
-            if revents[2 + index].is_empty() {
+            let events = revents[first_connection + index];
+            if events.is_empty() {
                 continue;
             }
-            if conn_step(&mut conns[index], revents[2 + index], &agents) {
+            if conn_step(&mut conns[index], events, &agents) {
                 destroy.push(index);
             }
         }

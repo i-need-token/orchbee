@@ -43,7 +43,7 @@ pub(super) fn respond(
             let _delivered = send_handshake(stream, &AcceptorMessage::QueryResult(result));
         }
         Err(InvalidValue) => {
-            diagnostic::report(&diagnostic::Diagnostic::new("query", "build-result"));
+            diagnostic::drop_candidate(&diagnostic::Diagnostic::new("query", "build-result"));
         }
     }
 }

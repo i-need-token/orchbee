@@ -111,8 +111,16 @@ pub(super) fn run(
             }
             match listener.accept() {
                 Ok((stream, _)) => {
+                    // A POSIX Session lets its Worker go after admission, so only Windows keeps a
+                    // handle the wire can record the Worker's exit through.
                     #[cfg(not(windows))]
-                    super::handle_candidate(stream, &registry, cohort.identity(), Some(&agents));
+                    super::handle_candidate(
+                        stream,
+                        &registry,
+                        cohort.identity(),
+                        Some(&agents),
+                        None,
+                    );
                     #[cfg(windows)]
                     {
                         carrier = super::admit_candidate(
@@ -120,6 +128,7 @@ pub(super) fn run(
                             &registry,
                             cohort.identity(),
                             Some(&agents),
+                            worker.id(),
                         );
                     }
                 }

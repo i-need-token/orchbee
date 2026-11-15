@@ -335,7 +335,8 @@ impl AgentService {
     /// unwinds through the guard drop, permanently poisons the cell, and
     /// surfaces as `AgentFoldUnavailable` without crossing the caller's
     /// outer guards. The cell is never unpoisoned — no `into_inner` or
-    /// `clear_poison` exists. `f` performs CPU work on the state only:
+    /// `clear_poison` exists; the first poisoned acquisition writes one
+    /// `state-poisoned` record. `f` performs CPU work on the state only:
     /// no outer guards, no socket/ACK/timer I/O. `AssertUnwindSafe` is
     /// sound because a panicked state stays unreachable behind the
     /// permanently poisoned mutex, so no partial mutation is observable.
@@ -344,7 +345,10 @@ impl AgentService {
         f: impl FnOnce(&mut AgentState) -> R,
     ) -> Result<R, AgentFoldUnavailable> {
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut state = self.state.lock().map_err(|_| AgentFoldUnavailable)?;
+            let mut state = self.state.lock().map_err(|_| {
+                crate::fault_records::state_poisoned(crate::fault_records::GuardedLock::AgentFold);
+                AgentFoldUnavailable
+            })?;
             let previous = (
                 state.runtime.snapshot().revision,
                 state.runtime.is_disposed(),

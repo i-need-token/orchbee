@@ -26,6 +26,7 @@ use orchbee_client_server_protocol::{
 use crate::{
     agent::AgentRuntimeSnapshot,
     agent_service::{AgentService, PreparedUnavailable},
+    fault_records::{GuardedLock, RecordedLock},
     session_coordinator::SessionCoordinator,
     terminal_coordinator::{Completion, LaunchCapture, PreparedOperation, WorkerPlacement},
     worker_obcn_carrier::{
@@ -115,7 +116,7 @@ pub(crate) struct LocalTerminalService {
     #[cfg(windows)]
     terminal_output: std::sync::OnceLock<Arc<crate::terminal_output::TerminalOutput>>,
     workers: Arc<Mutex<WorkerRegistry>>,
-    coordinator: Mutex<SessionCoordinator>,
+    coordinator: RecordedLock<SessionCoordinator>,
     controllers: Mutex<
         std::collections::BTreeMap<
             controller_connection::ControlTarget,
@@ -183,7 +184,10 @@ impl LocalTerminalService {
             #[cfg(windows)]
             terminal_output: std::sync::OnceLock::new(),
             workers,
-            coordinator: Mutex::new(SessionCoordinator::new(workbench).with_agent_catalog(catalog)),
+            coordinator: RecordedLock::new(
+                SessionCoordinator::new(workbench).with_agent_catalog(catalog),
+                GuardedLock::Coordinator,
+            ),
             controllers: Mutex::new(std::collections::BTreeMap::new()),
         }
     }

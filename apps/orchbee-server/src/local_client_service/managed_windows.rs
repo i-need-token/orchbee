@@ -6,10 +6,11 @@ use crate::session_shutdown::SessionShutdown;
 use crate::{
     agent_service::AgentService,
     client_connection_registry::ClientConnectionRegistry,
+    fault_records::ListenerRecovery,
     local_terminal_service::LocalTerminalService,
     workbench_service::{WorkbenchPolicy, WorkbenchService},
 };
-use orchbee_local_ipc::LocalStream as UnixStream;
+use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 use std::{
     io,
     path::Path,
@@ -82,6 +83,45 @@ impl Drop for Registration {
     }
 }
 
+/// A handler the listener starts for one accepted candidate.
+type Handler = Box<dyn FnOnce() + Send>;
+/// Accepts the next candidate, or reports why none was accepted.
+type AcceptStep = Box<dyn FnMut(&UnixListener) -> io::Result<UnixStream> + Send>;
+/// Starts one candidate's handler thread.
+type SpawnStep = Box<dyn FnMut(Handler) -> io::Result<thread::JoinHandle<()>> + Send>;
+
+/// The two steps of the listener loop that can fail for one candidate: accepting it and starting
+/// its handler thread. Tests substitute a step that fails once.
+struct Steps {
+    accept: AcceptStep,
+    spawn: SpawnStep,
+}
+
+impl Steps {
+    fn system() -> Self {
+        Self {
+            accept: Box::new(|listener| listener.accept().map(|(stream, ())| stream)),
+            spawn: Box::new(|handler| {
+                thread::Builder::new()
+                    .name("orchbee-local-client".into())
+                    .spawn(handler)
+            }),
+        }
+    }
+}
+
+/// Sleeps for `pause` in short steps, returning early once the owner asks the listener to stop.
+fn pause_unless_stopped(control: &Control, pause: Duration) {
+    let until = Instant::now() + pause;
+    while !control.stop.load(Ordering::Acquire) {
+        let remaining = until.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return;
+        }
+        thread::sleep(remaining.min(Duration::from_millis(10)));
+    }
+}
+
 /// Starts the retained same-user handshake listener; every accepted stream remains owned until
 /// join.
 /// Returns listener or thread-creation errors without claiming readiness.
@@ -91,6 +131,26 @@ pub(crate) fn start(
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
     shutdown: Arc<SessionShutdown>,
+) -> io::Result<ManagedClients> {
+    start_with(
+        endpoint,
+        identity,
+        terminals,
+        agents,
+        shutdown,
+        Steps::system(),
+    )
+}
+
+/// One failed accept or handler start drops only that candidate, records it, and pauses the
+/// listener before it accepts again; admitted Clients keep their connections until Session stop.
+fn start_with(
+    endpoint: &Path,
+    identity: ServerIdentity,
+    terminals: Arc<LocalTerminalService>,
+    agents: Arc<AgentService>,
+    shutdown: Arc<SessionShutdown>,
+    mut steps: Steps,
 ) -> io::Result<ManagedClients> {
     terminals.bind_agent_names(&agents)?;
     let listener = bind_managed(endpoint)?;
@@ -116,7 +176,8 @@ pub(crate) fn start(
             let _runtime_owner = AgentRuntimeOwner::new(Arc::clone(&agents));
             let mut handlers: Vec<thread::JoinHandle<()>> = vec![];
             let mut serial = 0_u64;
-            let result = loop {
+            let mut recovery = ListenerRecovery::new("client");
+            loop {
                 let mut index = 0;
                 while index < handlers.len() {
                     if handlers[index].is_finished() {
@@ -126,20 +187,26 @@ pub(crate) fn start(
                     }
                 }
                 if owner.stop.load(Ordering::Acquire) {
-                    break Ok(());
+                    break;
                 }
-                match listener.accept() {
-                    Ok((stream, _)) => {
+                match (steps.accept)(&listener) {
+                    Ok(stream) => {
                         let Some(slot) = slots.acquire() else {
                             continue;
                         };
                         let Some(id) = serial.checked_add(1) else {
-                            break Err(io::Error::other("Client connection identity exhausted"));
+                            let pause = recovery.fault("identity-exhausted", None);
+                            pause_unless_stopped(&owner, pause);
+                            continue;
                         };
                         serial = id;
                         let cloned = match stream.try_clone() {
                             Ok(cloned) => cloned,
-                            Err(error) => break Err(error),
+                            Err(error) => {
+                                let pause = recovery.fault("clone-stream", Some(error.kind()));
+                                pause_unless_stopped(&owner, pause);
+                                continue;
+                            }
                         };
                         owner
                             .streams
@@ -156,34 +223,42 @@ pub(crate) fn start(
                         let workbench = Arc::clone(&workbench);
                         let agents = Arc::clone(&agents);
                         let shutdown = Arc::clone(&shutdown);
-                        match thread::Builder::new()
-                            .name("orchbee-local-client".into())
-                            .spawn(move || {
-                                let _registration = registration;
-                                handle_candidate_control(
-                                    stream,
-                                    &registry,
-                                    &identity,
-                                    slot,
-                                    &terminals,
-                                    &workbench,
-                                    super::stop_control::StopControl {
-                                        agents: &agents,
-                                        shutdown: Some(&shutdown),
-                                    },
-                                );
-                            }) {
+                        let handler: Handler = Box::new(move || {
+                            let _registration = registration;
+                            handle_candidate_control(
+                                stream,
+                                &registry,
+                                &identity,
+                                slot,
+                                &terminals,
+                                &workbench,
+                                super::stop_control::StopControl {
+                                    agents: &agents,
+                                    shutdown: Some(&shutdown),
+                                },
+                            );
+                        });
+                        match (steps.spawn)(handler) {
                             Ok(handler) => handlers.push(handler),
-                            Err(error) => break Err(error),
+                            // The unstarted handler dropped its stream, slot and registration.
+                            Err(error) => {
+                                let pause = recovery.fault("spawn-handler", Some(error.kind()));
+                                pause_unless_stopped(&owner, pause);
+                            }
                         }
                     }
                     Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                         thread::sleep(Duration::from_millis(10))
                     }
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                    Err(error) => break Err(error),
+                    // A failed accept drops at most the candidate it was admitting; the listener
+                    // keeps its pipe and accepts the next one.
+                    Err(error) => {
+                        let pause = recovery.fault("accept", Some(error.kind()));
+                        pause_unless_stopped(&owner, pause);
+                    }
                 }
-            };
+            }
             drop(listener);
             {
                 let streams = owner.streams.lock().unwrap_or_else(|e| e.into_inner());
@@ -194,7 +269,7 @@ pub(crate) fn start(
             for handler in handlers {
                 let _joined = handler.join();
             }
-            result
+            Ok(())
         })?;
     Ok(ManagedClients {
         control,
