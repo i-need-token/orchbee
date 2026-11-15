@@ -14,8 +14,8 @@ pub const file_name = "host-diagnostics.jsonl";
 pub const max_file_bytes: u32 = 256 * 1024;
 /// A dispatch turn longer than this is recorded.
 pub const slow_turn_threshold_ns: u64 = 250 * std.time.ns_per_ms;
-/// Each slow-turn kind, the dropped-reply count, and accept failures are recorded at most once
-/// per window.
+/// Each slow-turn kind, the dropped-reply count, accept failures, and refused runtime observations
+/// are recorded at most once per window.
 pub const rate_window_ns: u64 = 60 * std.time.ns_per_s;
 const max_line_bytes = 320;
 const rate_slots = 32;
@@ -38,14 +38,35 @@ const RateSlot = struct {
     recorded_at_ns: u64,
 };
 
+/// One event written at most once per window; its next line counts the events since the
+/// previous line that were not written, so a repeating fault cannot fill the log.
+const Windowed = struct {
+    recorded_at_ns: ?u64 = null,
+    suppressed: u64 = 0,
+
+    /// Without a clock every event is written; the file's own bound still holds.
+    fn allows(self: *Windowed, now: ?u64) bool {
+        const current = now orelse return true;
+        const recorded_at = self.recorded_at_ns orelse return true;
+        if (current -| recorded_at >= rate_window_ns) return true;
+        self.suppressed +|= 1;
+        return false;
+    }
+
+    fn recorded(self: *Windowed, now: ?u64) void {
+        self.recorded_at_ns = now;
+        self.suppressed = 0;
+    }
+};
+
 var path: ?record_file.Path = null;
 var clock: ?monotonic.Timer = null;
 var slow_turns: [rate_slots]?RateSlot = @splat(null);
 var dropped_replies = std.atomic.Value(u64).init(0);
 var recorded_dropped_replies: u64 = 0;
 var dropped_recorded_at_ns: ?u64 = null;
-var accept_recorded_at_ns: ?u64 = null;
-var suppressed_accept_failures: u64 = 0;
+var accept_failures: Windowed = .{};
+var observation_refusals: Windowed = .{};
 
 /// Arms the log in `runtime_directory`, which this Host must already hold exclusively.
 pub fn arm(runtime_directory: []const u8) void {
@@ -70,33 +91,62 @@ pub const AcceptFailure = struct {
 /// previous line that were not written, so a failing endpoint cannot fill the log.
 pub fn acceptFailure(failure: AcceptFailure) void {
     if (path == null) return;
-    // Without a clock every failure is written; the file's own bound still holds.
     const now = nowNs();
-    if (now) |current| {
-        if (accept_recorded_at_ns) |recorded_at| {
-            if (current -| recorded_at < rate_window_ns) {
-                suppressed_accept_failures +|= 1;
-                return;
-            }
-        }
-    }
+    if (!accept_failures.allows(now)) return;
     var buffer: [max_line_bytes]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buffer);
-    const name = if (isIdentifier(failure.error_name)) failure.error_name else "Unnamed";
     writer.print(
         "{{\"time_unix_ms\":{d},\"event\":\"accept-failure\",\"error\":\"{s}\",\"system_code\":",
-        .{ record_file.unixMilliseconds(), name },
+        .{ record_file.unixMilliseconds(), identifierOrUnnamed(failure.error_name) },
     ) catch return;
     writeOptionalCode(&writer, failure.system_code) catch return;
     writer.writeAll(",\"renew_system_code\":") catch return;
     writeOptionalCode(&writer, failure.renew_system_code) catch return;
     writer.print(
         ",\"retry_after_ms\":{d},\"suppressed\":{d}}}\n",
-        .{ failure.retry_after_ms, suppressed_accept_failures },
+        .{ failure.retry_after_ms, accept_failures.suppressed },
     ) catch return;
-    accept_recorded_at_ns = now;
-    suppressed_accept_failures = 0;
+    accept_failures.recorded(now);
     writeLine(writer.buffered());
+}
+
+/// Records a terminal the Host failed and closed while its other terminals kept running.
+/// `failure` is the runtime failure class the Worker also receives.
+pub fn terminalFailed(failure: []const u8) void {
+    if (path == null) return;
+    var buffer: [max_line_bytes]u8 = undefined;
+    const line = std.fmt.bufPrint(
+        &buffer,
+        "{{\"time_unix_ms\":{d},\"event\":\"terminal-failed\",\"failure\":\"{s}\"}}\n",
+        .{ record_file.unixMilliseconds(), identifierOrUnnamed(failure) },
+    ) catch return;
+    writeLine(line);
+}
+
+/// Records a runtime observation Core refused, at most once per window. `error` is Core's
+/// refusal and `phase` the terminal's lifecycle phase, which decides whether the terminal was
+/// closed or kept its last accepted observation.
+pub fn observationRefused(error_name: []const u8, phase: []const u8) void {
+    if (path == null) return;
+    const now = nowNs();
+    if (!observation_refusals.allows(now)) return;
+    var buffer: [max_line_bytes]u8 = undefined;
+    const line = std.fmt.bufPrint(
+        &buffer,
+        "{{\"time_unix_ms\":{d},\"event\":\"observation-refused\",\"error\":\"{s}\",\"phase\":\"{s}\",\"suppressed\":{d}}}\n",
+        .{
+            record_file.unixMilliseconds(),
+            identifierOrUnnamed(error_name),
+            identifierOrUnnamed(phase),
+            observation_refusals.suppressed,
+        },
+    ) catch return;
+    observation_refusals.recorded(now);
+    writeLine(line);
+}
+
+fn identifierOrUnnamed(name: []const u8) []const u8 {
+    return if (isIdentifier(name)) name else "Unnamed";
 }
 
 fn writeOptionalCode(writer: *std.Io.Writer, code: ?u32) std.Io.Writer.Error!void {

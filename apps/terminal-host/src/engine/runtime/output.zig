@@ -298,8 +298,16 @@ fn commitObservedReaderBatch(
     }
 
     const current_revision = self.revision.load(.monotonic);
+    // An exhausted counter, or batch state an earlier batch failed to clear, fails this terminal
+    // alone; asserting it would end the Host and every terminal on it.
     if (current_revision == std.math.maxInt(u64) or
-        self.generation == std.math.maxInt(u64))
+        self.generation == std.math.maxInt(u64) or
+        self.reader_commit_in_progress or
+        self.bell_sequence_overflow_pending or
+        self.feedback_sequence_overflow_pending or
+        self.mouse_input_epoch_exhausted or
+        self.terminal_resize_failure_pending or
+        self.terminal_driven_resize_target != null)
     {
         const won = failure_ops.closeFailureFenceLocked(self, .worker_integrity);
         self.terminal_mutex.unlock();
@@ -308,13 +316,7 @@ fn commitObservedReaderBatch(
         return .runtime_failed;
     }
 
-    std.debug.assert(!self.reader_commit_in_progress);
     self.reader_commit_in_progress = true;
-    std.debug.assert(!self.bell_sequence_overflow_pending);
-    std.debug.assert(!self.feedback_sequence_overflow_pending);
-    std.debug.assert(!self.mouse_input_epoch_exhausted);
-    std.debug.assert(!self.terminal_resize_failure_pending);
-    std.debug.assert(self.terminal_driven_resize_target == null);
     self.stream.handler.beginBatch();
     feedback_ops.beginReaderBatch(self);
     const previous_screen = self.terminal.screens.active_key;

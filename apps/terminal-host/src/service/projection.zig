@@ -152,10 +152,13 @@ pub const Scheduler = struct {
             used_terminal_captures[used_terminal_count] = captures;
             used_terminal_count += 1;
             scheduled += 1;
-            const geometry = aggregate.synchronizeRuntimeObservation(
-                terminal.terminal_id,
-                runtime,
-            ) catch unreachable;
+            // A refused observation is logged and skips this terminal; the maintenance pass fails
+            // a live terminal whose engine disagrees with Core.
+            const geometry = aggregate.observeRuntime(terminal.terminal_id, runtime) orelse {
+                used_terminal_count -= 1;
+                scheduled -= 1;
+                continue :scan;
+            };
             const force_snapshot = ready.forceSnapshot() or ready_base == null or
                 ready_base.?.generation != geometry.generation or
                 terminal.observedGeometryRevision() > ready_base.?.revision;
@@ -187,10 +190,11 @@ pub const Scheduler = struct {
                         .capture_allocation_failed => .capture_allocation_failed,
                         .projection_too_large => .projection_too_large,
                     };
-                    _ = aggregate.synchronizeRuntimeObservation(
-                        attachment.terminal_id,
-                        runtime,
-                    ) catch unreachable;
+                    if (aggregate.observeRuntime(attachment.terminal_id, runtime) == null) {
+                        used_terminal_count -= 1;
+                        scheduled -= 1;
+                        continue :scan;
+                    }
                     const append_outcome = try appendProjectionBlocked(
                         allocator,
                         core.epoch,
@@ -234,7 +238,12 @@ pub const Scheduler = struct {
                 encoded.cell_pixel_width,
                 encoded.cell_pixel_height,
                 encoded.revision,
-            ) catch unreachable;
+            ) catch |err| {
+                aggregate.noteRefusedObservation(attachment.terminal_id, err);
+                used_terminal_count -= 1;
+                scheduled -= 1;
+                continue :scan;
+            };
             const message_kind = switch (encoded.kind) {
                 .snapshot => MessageKind.snapshot_frame,
                 .delta => MessageKind.delta_frame,

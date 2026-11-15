@@ -33,10 +33,13 @@ pub fn applyTerminalControl(
     }
     // The PTY reader keeps committing output after the control releases the terminal, so the
     // observation may already be newer than the control's own commit; Core adopts that newer
-    // state. Both counters only grow under the terminal mutex, so it is never older.
-    const observation = self.synchronizeRuntimeObservation(terminal_id, runtime) catch unreachable;
-    std.debug.assert(observation.generation >= update.generation);
-    std.debug.assert(observation.revision >= update.revision);
+    // state. Both counters only grow under the terminal mutex, so it is never older. The control
+    // is committed either way: a refused observation leaves Core's last one, and the maintenance
+    // pass fails this terminal alone if the engine still disagrees.
+    if (self.observeRuntime(terminal_id, runtime)) |observation| {
+        std.debug.assert(observation.generation >= update.generation);
+        std.debug.assert(observation.revision >= update.revision);
+    }
     return .{
         .attachment_id = attachment_id,
         .generation = update.generation,

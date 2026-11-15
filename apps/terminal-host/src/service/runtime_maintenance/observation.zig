@@ -1,5 +1,6 @@
 const std = @import("std");
 const core_module = @import("terminal-host-core").state;
+const diagnostic_log = @import("terminal-host-platform").diagnostic_log;
 const pty_process = @import("terminal-host-platform").process;
 const terminal_runtime = @import("terminal-host-engine").runtime;
 const contracts = @import("contracts.zig");
@@ -22,6 +23,43 @@ pub fn synchronizeRuntimeObservation(
         geometry.revision,
     );
     return geometry;
+}
+
+/// Copies the engine's observation into Core where nothing can refuse the work any more: after
+/// a committed change and in the maintenance pass. Core refuses an observation its lifecycle
+/// cannot accept: a revision past a settled final revision, a revision that moved backward, or
+/// geometry that changed without one. Ending the Host over that would end every terminal, so a
+/// refusal keeps Core's last accepted observation, is logged, and returns null; the maintenance
+/// pass then fails a live terminal and leaves a settled one as it settled.
+pub fn observeRuntime(
+    core: *core_module.HostCore,
+    terminal_id: core_module.TerminalId,
+    runtime: *terminal_runtime.TerminalRuntime,
+) ?terminal_runtime.Geometry {
+    return synchronizeRuntimeObservation(core, terminal_id, runtime) catch |err| {
+        noteRefusedObservation(core, terminal_id, err);
+        return null;
+    };
+}
+
+pub fn noteRefusedObservation(
+    core: *core_module.HostCore,
+    terminal_id: core_module.TerminalId,
+    err: core_module.CoreError,
+) void {
+    const phase = if (core.findTerminal(terminal_id)) |terminal| @tagName(terminal.phase()) else "missing";
+    diagnostic_log.observationRefused(@errorName(err), phase);
+}
+
+/// Moves one live terminal into failure containment and logs its class when it leaves its live
+/// phase; a terminal already failing or settled keeps its outcome.
+pub fn recordRuntimeFailure(
+    core: *core_module.HostCore,
+    terminal_id: core_module.TerminalId,
+    failure: core_module.RuntimeFailure,
+) void {
+    const transition = core.runtimeFailed(terminal_id, failure) catch return;
+    if (transition == .applied) diagnostic_log.terminalFailed(@tagName(failure));
 }
 
 pub fn cleanupFailure(
@@ -103,12 +141,16 @@ pub fn synchronizeRuntimeCompletion(
         .failed => return null,
     };
     const terminal = core.findTerminal(terminal_id) orelse return null;
+    // A settled outcome is final; an engine revision that moved past it was refused and logged
+    // by the observation that met it.
     if (terminal.settledFinalRevision()) |final_revision| {
-        std.debug.assert(final_revision == completion.final_revision);
         std.debug.assert(final_revision == terminal.observedRevision());
         return null;
     }
-    _ = core.synchronizeRevision(terminal_id, completion.final_revision) catch unreachable;
+    _ = core.synchronizeRevision(terminal_id, completion.final_revision) catch |err| {
+        noteRefusedObservation(core, terminal_id, err);
+        return null;
+    };
     if (completion.pty_drained and !terminal.ptyDrained()) {
         if (!terminal.childExited() or normal_completion_ready) {
             _ = core.ptyDrained(terminal_id) catch unreachable;

@@ -51,9 +51,9 @@ pub fn applyTerminalTheme(
     }
 
     self.core_state.commitTerminalTheme(terminal_id, operation_id, next_theme);
-    if (retained.runtime) |runtime| {
-        _ = self.synchronizeRuntimeObservation(terminal_id, runtime) catch unreachable;
-    }
+    // The theme is committed either way: a refused observation leaves Core's last one, and the
+    // maintenance pass fails this terminal alone if the engine still disagrees.
+    if (retained.runtime) |runtime| _ = self.observeRuntime(terminal_id, runtime);
     return result(self, terminal_id, operation_id, .applied);
 }
 

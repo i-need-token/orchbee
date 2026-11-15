@@ -2,6 +2,7 @@ const std = @import("std");
 
 const fatal_record = @import("terminal-host-platform").fatal_record;
 const thread_sync = @import("terminal-host-platform").thread_sync;
+const completion_ops = @import("completion.zig");
 const failure_ops = @import("failure.zig");
 const scrollback_compression_ops = @import("scrollback_compression.zig");
 const state = @import("state.zig");
@@ -29,6 +30,8 @@ pub fn requestWakeLocked(self: *state.State) void {
 /// terminal_mutex; a displayed-frame change becomes one Host revision and one
 /// monotonic animation tick regardless of how many images advance together.
 pub fn tickLockedAt(self: *state.State, now_milliseconds: u64) error{CounterExhausted}!TickResult {
+    // A settled terminal shows its final frame; the thread waits for shutdown.
+    if (completion_ops.settledLocked(self)) return .{ .changed = false, .next_delay_milliseconds = null };
     const storage = &self.terminal.screens.active.kitty_images;
     const previous_generation = storage.generation;
     const next_delay = storage.animationTick(thread_sync.io(), now_milliseconds);

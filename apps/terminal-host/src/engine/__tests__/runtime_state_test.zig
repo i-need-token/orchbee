@@ -53,6 +53,7 @@ const resizePtyWithRollback = harness.resizePtyWithRollback;
 const RuntimeTestingHooks = harness.RuntimeTestingHooks;
 const Geometry = harness.Geometry;
 const requireProjectionFrame = harness.requireProjectionFrame;
+const GatedPtyProbe = harness.GatedPtyProbe;
 const TestGate = harness.TestGate;
 const TestSignal = harness.TestSignal;
 const exerciseOwnedProfileAllocations = harness.exerciseOwnedProfileAllocations;
@@ -550,6 +551,68 @@ test "visible Kitty animation ticks monotonically advance Host revision and hist
     try std.testing.expectEqual(baseline_batches + 1, runtime_state.output_batches_since_sync.load(.acquire));
     try std.testing.expectEqual(@as(u64, 1), runtime_state.animation_tick);
     try std.testing.expectEqual(@as(u64, 1), runtime_state.history.animation_tick);
+}
+/// A monotonic clock the test sets, so a synchronized update's deadline can pass on demand.
+const SettableClockProbe = struct {
+    now_ns: std.atomic.Value(u64) = .init(0),
+
+    pub fn hooks(self: *SettableClockProbe) RuntimeTestingHooks {
+        return .{ .context = self, .monotonic_time_nanoseconds = monotonicTimeNanoseconds };
+    }
+
+    fn monotonicTimeNanoseconds(context: *anyopaque) u64 {
+        const self: *SettableClockProbe = @ptrCast(@alignCast(context));
+        return self.now_ns.load(.acquire);
+    }
+};
+test "a settled terminal keeps its final revision through a looping animation and an open synchronized update" {
+    var probe: GatedPtyProbe(SettableClockProbe) = .{ .probe = .{} };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer runtime.destroy();
+    probe.runtime = runtime;
+    probe.reader.wait();
+    defer probe.reader.release();
+    const runtime_state = runtimeState(runtime);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(
+            runtime,
+            "\x1b_Ga=T,t=d,f=24,s=1,v=1,i=1,p=1,C=1;/wAA\x1b\\" ++
+                "\x1b_Ga=f,i=1,f=24,s=1,v=1;AAD/\x1b\\" ++
+                "\x1b_Ga=a,i=1,s=3\x1b\\" ++
+                "\x1b[?2026h",
+        ),
+    );
+    // A contained failure settles the terminal and keeps its state readable. Core settles on
+    // this revision and refuses any later one.
+    recordWorkerIntegrityFailure(runtime);
+    try std.testing.expect(runtime_state.containment_confirmed.load(.acquire));
+    const final_revision = runtime.completion().final_revision;
+
+    runtime_state.terminal_mutex.lock();
+    const tick = tickAnimationLockedAt(runtime_state, 0);
+    runtime_state.terminal_mutex.unlock();
+    try std.testing.expect(!(try tick).changed);
+    try std.testing.expectEqual(final_revision, runtime_state.revision.load(.acquire));
+
+    probe.probe.now_ns.store(10 * std.time.ns_per_s, .release);
+    const frame = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = AttachmentId.fromBytes([_]u8{0x5e} ** 16),
+            .base_generation = null,
+            .base_revision = null,
+            .force_snapshot = true,
+            .host_epoch = HostEpoch.fromBytes([_]u8{0x5f} ** 16),
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 1,
+        },
+    ));
+    defer std.testing.allocator.free(frame.allocation);
+    try std.testing.expectEqual(final_revision, frame.revision);
+    try std.testing.expectEqual(final_revision, runtime_state.revision.load(.acquire));
 }
 test "only Kitty graphics mutations request an animation scheduler wake" {
     var probe: AnimationWakeProbe = .{};

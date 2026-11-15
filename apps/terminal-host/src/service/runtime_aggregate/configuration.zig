@@ -74,14 +74,14 @@ pub fn updateTerminalConfiguration(
         terminal_id,
         configuration,
     ) catch unreachable;
-    const runtime_geometry = self.synchronizeRuntimeObservation(
-        terminal_id,
-        runtime,
-    ) catch unreachable;
-    std.debug.assert(configurationObservationIsCompatible(
-        runtime_update.revision,
-        runtime_geometry.revision,
-    ));
+    // The update is committed either way: a refused observation leaves Core's last one, and the
+    // maintenance pass fails this terminal alone if the engine still disagrees.
+    if (self.observeRuntime(terminal_id, runtime)) |runtime_geometry| {
+        std.debug.assert(configurationObservationIsCompatible(
+            runtime_update.revision,
+            runtime_geometry.revision,
+        ));
+    }
     const updated_terminal = self.core_state.findTerminal(terminal_id).?;
     return .{
         .configuration = updated_terminal.effectiveConfiguration(),

@@ -14,6 +14,9 @@ pub const scrollback_compression_opportunity_interval_ns =
     maintenance.scrollback_compression_opportunity_interval_ns;
 pub const Maintenance = maintenance.Maintenance;
 pub const synchronizeRuntimeObservation = observation.synchronizeRuntimeObservation;
+pub const observeRuntime = observation.observeRuntime;
+pub const noteRefusedObservation = observation.noteRefusedObservation;
+pub const recordRuntimeFailure = observation.recordRuntimeFailure;
 pub const cleanupFailure = observation.cleanupFailure;
 pub const cleanupFailureFromPhase = observation.cleanupFailureFromPhase;
 pub const runtimeFailureFromObservation = observation.runtimeFailureFromObservation;

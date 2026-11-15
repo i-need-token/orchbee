@@ -28,6 +28,18 @@ pub fn completion(self: *const state.State) contracts.Completion {
     };
 }
 
+/// Whether the terminal's revision is final: its first outcome is classified or a failure fence
+/// closed it. Core settles on that revision and refuses a later one, so nothing the program left
+/// behind (a looping animation, an unfinished synchronized update) may advance it. The caller
+/// holds terminal_mutex.
+pub fn settledLocked(self: *const state.State) bool {
+    if (self.failure_fenced) return true;
+    return switch (self.completion_classification.load()) {
+        .pending => false,
+        .normal, .failed => true,
+    };
+}
+
 pub fn waitForCompletion(self: *state.State) !contracts.Completion {
     self.input_mutex.lock();
     defer self.input_mutex.unlock();

@@ -105,6 +105,8 @@ pub const HostRuntimeAggregate = struct {
 
     // maintenance boundary.
     pub const synchronizeRuntimeObservation = maintenance_api.synchronizeRuntimeObservation;
+    pub const observeRuntime = maintenance_api.observeRuntime;
+    pub const noteRefusedObservation = maintenance_api.noteRefusedObservation;
     pub const synchronizeRuntimes = maintenance_api.synchronizeRuntimes;
     pub const synchronizeTerminalRange = maintenance_api.synchronizeTerminalRange;
     pub const pendingOutcomes = maintenance_api.pendingOutcomes;

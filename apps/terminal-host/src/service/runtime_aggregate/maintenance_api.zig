@@ -17,6 +17,22 @@ pub fn synchronizeRuntimeObservation(
     );
 }
 
+pub fn observeRuntime(
+    self: anytype,
+    terminal_id: core_module.TerminalId,
+    runtime: *terminal_runtime.TerminalRuntime,
+) ?terminal_runtime.Geometry {
+    return host_runtime_maintenance.observeRuntime(&self.core_state, terminal_id, runtime);
+}
+
+pub fn noteRefusedObservation(
+    self: anytype,
+    terminal_id: core_module.TerminalId,
+    err: core_module.CoreError,
+) void {
+    host_runtime_maintenance.noteRefusedObservation(&self.core_state, terminal_id, err);
+}
+
 pub fn synchronizeRuntimes(self: anytype) void {
     self.maintenance.synchronizeRuntimes(self);
 }

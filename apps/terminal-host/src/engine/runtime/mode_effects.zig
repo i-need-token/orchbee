@@ -4,6 +4,7 @@ const terminal_input_encoding = @import("../input_encoding.zig");
 const engine_profile = @import("../profile.zig");
 const terminal_theme = @import("terminal-host-model").theme;
 const clock = @import("clock.zig");
+const completion_ops = @import("completion.zig");
 const process_io_ops = @import("process_io.zig");
 const state = @import("state.zig");
 const terminal_reply = @import("terminal_reply.zig");
@@ -129,6 +130,12 @@ pub fn cursorPaintRemainingLocked(self: *state.State) ?u64 {
 pub fn projectionSuppressedLocked(self: *state.State) bool {
     if (!self.terminal.modes.get(.synchronized_output)) {
         self.synchronized_output_deadline_ns = null;
+        return false;
+    }
+    // No further output can finish the update of a settled terminal, and its revision is
+    // final, so the suppression ends without a new revision.
+    if (completion_ops.settledLocked(self)) {
+        clearSynchronizedOutputLocked(self);
         return false;
     }
     const deadline = self.synchronized_output_deadline_ns orelse {

@@ -105,11 +105,7 @@ pub const Maintenance = struct {
             if (core.findTerminal(terminal_id).?.settledFinalRevision() == null) {
                 switch (completion.classification) {
                     .normal => {
-                        _ = runtime_observation.synchronizeRuntimeObservation(
-                            core,
-                            terminal_id,
-                            runtime,
-                        ) catch unreachable;
+                        _ = runtime_observation.observeRuntime(core, terminal_id, runtime);
                         _ = runtime_observation.synchronizeRuntimeCompletion(core, terminal_id, completion);
                     },
                     .pending, .failed => {},
@@ -128,7 +124,7 @@ pub const Maintenance = struct {
                 .failed => |kind| runtime_observation.runtimeFailureFromEngineKind(kind),
                 .pending, .normal => .observe_process,
             };
-            _ = core.runtimeFailed(terminal_id, primary_failure) catch unreachable;
+            runtime_observation.recordRuntimeFailure(core, terminal_id, primary_failure);
             _ = core.failureContainmentBlocked(
                 terminal_id,
                 cleanup_failure,
@@ -259,7 +255,18 @@ pub const Maintenance = struct {
         terminal_id: core_module.TerminalId,
         runtime: *terminal_runtime.TerminalRuntime,
     ) void {
-        _ = core.runtimeFailed(terminal_id, .apply_resize) catch unreachable;
+        self.failRuntime(core, terminal_id, runtime, .apply_resize);
+    }
+
+    /// Fails one live terminal and contains it; every other terminal keeps running.
+    pub fn failRuntime(
+        self: *Maintenance,
+        core: *core_module.HostCore,
+        terminal_id: core_module.TerminalId,
+        runtime: *terminal_runtime.TerminalRuntime,
+        failure: core_module.RuntimeFailure,
+    ) void {
+        runtime_observation.recordRuntimeFailure(core, terminal_id, failure);
         self.containRuntimeFailure(core, terminal_id, runtime) catch {};
     }
 
@@ -269,7 +276,13 @@ pub const Maintenance = struct {
         terminal_id: core_module.TerminalId,
         runtime: *terminal_runtime.TerminalRuntime,
     ) !void {
-        _ = runtime_observation.synchronizeRuntimeObservation(core, terminal_id, runtime) catch unreachable;
+        // The containment transitions below refuse a terminal that is not failing.
+        const terminal = core.findTerminal(terminal_id) orelse return;
+        switch (terminal.phase()) {
+            .containing_failure, .failed => {},
+            .awaiting_start, .running, .finishing, .exited => return,
+        }
+        _ = runtime_observation.observeRuntime(core, terminal_id, runtime);
         runtime.shutdown() catch |err| {
             _ = core.failureContainmentBlocked(
                 terminal_id,
@@ -279,12 +292,10 @@ pub const Maintenance = struct {
             return err;
         };
         const completion = runtime.completion();
-        const geometry = runtime_observation.synchronizeRuntimeObservation(
-            core,
-            terminal_id,
-            runtime,
-        ) catch unreachable;
-        std.debug.assert(geometry.revision == completion.final_revision);
+        // Shutdown joined every engine thread, so an accepted observation is the final one.
+        if (runtime_observation.observeRuntime(core, terminal_id, runtime)) |geometry| {
+            std.debug.assert(geometry.revision == completion.final_revision);
+        }
         const observation: core_module.ProcessObservation = if (completion.child_exited)
             .{ .observed = runtime_observation.exitResult(completion.exit_result.?) }
         else
@@ -423,43 +434,33 @@ pub const Maintenance = struct {
             },
             .complete, .exhausted => return,
         }
-        _ = runtime_observation.synchronizeRuntimeObservation(core, terminal_id, runtime) catch unreachable;
+        if (runtime_observation.observeRuntime(core, terminal_id, runtime) == null) {
+            // Core and the engine disagree, so a live terminal fails alone; a settled terminal
+            // keeps the outcome it settled on.
+            switch (retained_terminal.phase()) {
+                .running, .finishing => runtime_observation.recordRuntimeFailure(core, terminal_id, .synchronize_worker),
+                .awaiting_start, .containing_failure, .exited, .failed => {},
+            }
+        }
         const terminal = core.findTerminal(terminal_id).?;
         if (terminal.lifecycle.needsContainmentWork()) {
             self.containRuntimeFailure(core, terminal_id, runtime) catch {};
         } else switch (terminal.phase()) {
             .containing_failure => {},
             .exited => {
-                const completion = runtime.completion();
-                switch (completion.classification) {
+                switch (runtime.completion().classification) {
                     .normal => {},
                     .pending, .failed => unreachable,
                 }
-                std.debug.assert(completion.final_revision == terminal.observedRevision());
                 std.debug.assert(terminal.settledFinalRevision().? == terminal.observedRevision());
             },
-            .failed => {
-                const completion = runtime.completion();
-                switch (completion.classification) {
-                    // A Host-side effect failure (for example termination
-                    // dispatch) may retain a failed outcome without asking the
-                    // engine to classify its own completion. Runtime shutdown
-                    // has still joined every worker, so all three engine
-                    // classifications are immutable at this Host state.
-                    .pending, .normal, .failed => {},
-                }
-                std.debug.assert(completion.final_revision == terminal.observedRevision());
-                std.debug.assert(terminal.settledFinalRevision().? == terminal.observedRevision());
-            },
+            // A Host-side effect failure (for example termination dispatch) may retain a failed
+            // outcome without the engine classifying its own completion.
+            .failed => std.debug.assert(terminal.settledFinalRevision().? == terminal.observedRevision()),
             else => {
                 const completion = runtime.completion();
                 if (runtime_observation.runtimeFailureFromObservation(completion)) |failure| {
-                    std.debug.assert(
-                        completion.final_revision ==
-                            core.findTerminal(terminal_id).?.observedRevision(),
-                    );
-                    _ = core.runtimeFailed(terminal_id, failure) catch unreachable;
-                    self.containRuntimeFailure(core, terminal_id, runtime) catch {};
+                    self.failRuntime(core, terminal_id, runtime, failure);
                 } else {
                     _ = runtime_observation.synchronizeRuntimeCompletion(core, terminal_id, completion);
                 }

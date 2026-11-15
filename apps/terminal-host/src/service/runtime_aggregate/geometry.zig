@@ -54,15 +54,12 @@ pub fn resizeTerminal(
         if (err == error.TerminalRuntimeUnavailable) return error.TerminalRuntimeUnavailable;
         if (!runtime.isResizeFenced()) return error.RuntimeResizeFailed;
         const failure = runtime.primaryFailure() orelse .resize;
-        _ = self.core_state.runtimeFailed(
-            terminal_id,
-            host_runtime_maintenance.runtimeFailureFromEngineKind(failure),
-        ) catch unreachable;
-        self.maintenance.containRuntimeFailure(
+        self.maintenance.failRuntime(
             &self.core_state,
             terminal_id,
             runtime,
-        ) catch {};
+            host_runtime_maintenance.runtimeFailureFromEngineKind(failure),
+        );
         return error.UnsafeRuntimeAfterResizeFailure;
     };
     if (comptime target_builtin.is_test) {
