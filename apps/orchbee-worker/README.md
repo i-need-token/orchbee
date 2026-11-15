@@ -98,9 +98,9 @@ check. Explicit-endpoint mode does not start a Host; managed Linux mode uses the
 Connection retry, restart, inventory adoption, PTY/VT operations, Agent behavior, service installation,
 and recovery remain excluded.
 
-## Managed Windows explicit shutdown
+## Managed explicit shutdown
 
-The managed Windows Worker retains its exact Host child handle until completion. A generation-fenced
+The managed Worker retains its exact Host child handle until completion. A generation-fenced
 shutdown request permanently closes ordinary operation admission; unmanaged and wrong-generation
 requests refuse before effects. Shutdown first stops every [background job owner](#background-job-owners-and-exit), then uses the
 existing Host inventory, force and dispose contracts under one request deadline (at most 60 seconds).
@@ -126,7 +126,8 @@ A shutdown with the Keep terminal disposition, sent for a Server `exit`, stops t
 job owners and then only closes the Host broker connection: no inventory, force, dispose or Host
 exit wait follows, and the retained Host child is released without termination. The Host keeps
 every terminal, and the Worker ends after answering Released, or NoHost before any Host started.
-This Windows lifecycle does not add a Linux or macOS stop path.
+The managed Linux and macOS Worker runs the same shutdown with no plugin job owner, and its Server
+sends only the Dispose disposition, so a Host never outlives a stopped Session there.
 
 ## Managed Linux lazy Host startup
 

@@ -45,16 +45,12 @@ pub(crate) enum Site {
     #[cfg(windows)]
     Handoff,
     HostStart,
-    #[cfg(windows)]
     Shutdown,
 }
 
 /// Each site keeps its own once-a-minute slot for `host-slow` and for `host-unexpected`.
 const SITE_SLOTS: usize = 16;
-#[cfg(windows)]
 const _: () = assert!((Site::Shutdown as usize) < SITE_SLOTS);
-#[cfg(not(windows))]
-const _: () = assert!((Site::HostStart as usize) < SITE_SLOTS);
 
 impl Site {
     const fn token(self) -> &'static str {
@@ -76,7 +72,6 @@ impl Site {
             #[cfg(windows)]
             Self::Handoff => "handoff",
             Self::HostStart => "host-start",
-            #[cfg(windows)]
             Self::Shutdown => "shutdown",
         }
     }

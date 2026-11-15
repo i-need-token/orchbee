@@ -199,6 +199,11 @@ fn activate(
         };
         (base, location.scope)
     };
+    #[cfg(windows)]
+    let name = &selection.name;
+    #[cfg(unix)]
+    let name = &orchbee_local_runtime::SessionName::parse(&scope_text)
+        .map_err(runtime_location_failure)?;
     let scope = SessionScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
@@ -212,8 +217,7 @@ fn activate(
         &cohort.executable(CohortArtifact::Client),
         deadline,
     )?;
-    // Every Windows Session is one catalog entry, named by its folders.
-    #[cfg(windows)]
+    // Every Session is one catalog entry, named by its folders.
     let catalog = {
         let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
             .map_err(|_| runtime_location_failure(io::ErrorKind::NotFound.into()))?;
@@ -225,9 +229,7 @@ fn activate(
                 Err(error) => return Err(runtime_location_failure(error)),
             }
         };
-        catalog
-            .prepare_activation(&selection.name)
-            .map_err(recovery_failure)?;
+        catalog.prepare_activation(name).map_err(recovery_failure)?;
         catalog
     };
     let session =
@@ -250,7 +252,6 @@ fn activate(
         &session,
         &cohort,
         deadline,
-        #[cfg(windows)]
         &catalog,
         #[cfg(windows)]
         server_job,
@@ -277,7 +278,7 @@ fn connect_or_activate(
     session: &ModeCheckedLocalSessionRendezvous,
     cohort: &Cohort,
     deadline: Instant,
-    #[cfg(windows)] catalog: &orchbee_local_runtime::SessionCatalog,
+    catalog: &orchbee_local_runtime::SessionCatalog,
     #[cfg(windows)] server_job: ServerJob,
 ) -> Result<(LocalClient, bool), ActivationFailure> {
     loop {
@@ -306,15 +307,17 @@ fn connect_or_activate(
         .map_err(lock_failure)?
         {
             LockAttempt::Acquired(lifetime) => {
-                #[cfg(windows)]
-                catalog
-                    .recover_inactive(session, &_activation, &lifetime)
-                    .map_err(recovery_failure)?;
+                recover_inactive(catalog, session, &_activation, &lifetime, deadline)?;
                 let marker = session.activation_started().map_err(runtime_failure)?;
-                if marker
+                // A POSIX socket file outlives its listener, so only the marker refuses there; the
+                // Server removes stale sockets under the lifetime lock before it binds.
+                #[cfg(windows)]
+                let refused = marker
                     || session.client_socket_exists().map_err(runtime_failure)?
-                    || session.worker_socket_exists().map_err(runtime_failure)?
-                {
+                    || session.worker_socket_exists().map_err(runtime_failure)?;
+                #[cfg(unix)]
+                let refused = marker;
+                if refused {
                     return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
                 }
                 // Activation refuses only a location it cannot admit, and freezes it: a file that
@@ -344,15 +347,12 @@ fn connect_or_activate(
                         )),
                     ));
                 }
-                #[cfg(windows)]
-                {
-                    let mut activation_id = [0; 16];
-                    getrandom::fill(&mut activation_id)
-                        .map_err(|error| runtime_failure(io::Error::other(error.to_string())))?;
-                    catalog
-                        .begin_activation(session, activation_id)
-                        .map_err(runtime_failure)?;
-                }
+                let mut activation_id = [0; 16];
+                getrandom::fill(&mut activation_id)
+                    .map_err(|error| runtime_failure(io::Error::other(error.to_string())))?;
+                catalog
+                    .begin_activation(session, activation_id)
+                    .map_err(runtime_failure)?;
                 drop(lifetime);
                 check_deadline(deadline)?;
                 session.commit_activation().map_err(runtime_failure)?;
@@ -406,12 +406,14 @@ fn connect_or_activate(
                     )
                 })?)
             }
+            // A POSIX Server that holds the lifetime lock without an active marker is completing
+            // its stop; the wait below starts again once it releases the lock.
             LockAttempt::Contended => {
-                if session.activation_started().map_err(runtime_failure)? {
-                    None
-                } else {
+                #[cfg(windows)]
+                if !session.activation_started().map_err(runtime_failure)? {
                     return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
                 }
+                None
             }
         };
         loop {
@@ -438,11 +440,60 @@ fn connect_or_activate(
                     .map_err(lock_failure)?,
                 LockAttempt::Acquired(_)
             ) {
+                // A POSIX Server that ended, by its stop or a signal it could not handle, left a
+                // stopped or recoverable Session, which this activation starts again from the top.
+                #[cfg(unix)]
+                break;
+                #[cfg(windows)]
                 return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
             }
             pause(deadline)?;
         }
     }
+}
+
+/// How long a POSIX activation waits for the Worker and Host of a Server that just ended to
+/// follow it before the Host's lock refuses recovery.
+#[cfg(unix)]
+const HOST_EXIT_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// Recovers a Session whose Server ended without its stop. A POSIX Worker ends once its Server wire
+/// does, and a Host that retains no terminal once its Worker leaves, so a Host lock that frees
+/// within [`HOST_EXIT_GRACE`] still admits recovery; one that stays held belongs to a Host that
+/// keeps terminals running.
+#[cfg(unix)]
+fn recover_inactive(
+    catalog: &orchbee_local_runtime::SessionCatalog,
+    session: &ModeCheckedLocalSessionRendezvous,
+    activation: &orchbee_local_runtime::ModeCheckedSessionLock,
+    lifetime: &orchbee_local_runtime::ModeCheckedSessionLock,
+    deadline: Instant,
+) -> Result<(), ActivationFailure> {
+    let grace = Instant::now() + HOST_EXIT_GRACE;
+    loop {
+        match catalog.recover_inactive(session, activation, lifetime) {
+            Ok(_recovered) => return Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock && Instant::now() < grace => {
+                pause(deadline)?;
+            }
+            Err(error) => return Err(recovery_failure(error)),
+        }
+    }
+}
+
+/// Recovers a Session whose Server ended without its stop once every registered process is gone.
+#[cfg(windows)]
+fn recover_inactive(
+    catalog: &orchbee_local_runtime::SessionCatalog,
+    session: &ModeCheckedLocalSessionRendezvous,
+    activation: &orchbee_local_runtime::ModeCheckedSessionLock,
+    lifetime: &orchbee_local_runtime::ModeCheckedSessionLock,
+    _deadline: Instant,
+) -> Result<(), ActivationFailure> {
+    catalog
+        .recover_inactive(session, activation, lifetime)
+        .map(|_recovered| ())
+        .map_err(recovery_failure)
 }
 
 /// Writes `server-job`: `outcome` `outside` for a Server created outside the activating process's
@@ -574,7 +625,6 @@ fn runtime_verdict(_refusal: Option<orchbee_local_runtime::AdmissionRefusal>) ->
     StartupFailure::Runtime
 }
 
-#[cfg(windows)]
 fn recovery_failure(error: io::Error) -> ActivationFailure {
     match error.kind() {
         io::ErrorKind::InvalidData | io::ErrorKind::WouldBlock => {

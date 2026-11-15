@@ -66,7 +66,7 @@ pub(super) fn query(
 
 /// Sends one `exit` request; its reply follows the Server's settlement, so the caller reads it
 /// with [`exit_reply`] under its own deadline.
-#[cfg(windows)]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(super) fn request_exit(
     transport: &mut impl Write,
     environment: EnvironmentName,
@@ -83,7 +83,7 @@ pub(super) fn request_exit(
 
 /// Accepts the `exit-result`, or the Server's `unsupported` reply from a build that serves no
 /// `exit`.
-#[cfg(windows)]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(super) fn exit_reply(
     transport: &mut impl Read,
 ) -> Result<super::ExitReply, ConnectClientError> {

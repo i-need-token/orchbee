@@ -40,7 +40,7 @@ pub fn exchange_query_before(
 
 /// Retains whether a complete stop control record, or an `exit` request, was submitted before
 /// exchange failure.
-#[cfg(windows)]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[derive(Debug)]
 pub struct SessionStopExchangeError {
     pub failure: ConnectClientError,
@@ -49,22 +49,27 @@ pub struct SessionStopExchangeError {
 
 /// One same-user stop/status control exchange after a handshake answer, with no activation or
 /// mutation retry.
-#[cfg(windows)]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub fn exchange_session_stop_before(
     endpoint: &Path,
     offer: &Offer,
     request: crate::SessionStopRequest,
     deadline: std::time::Instant,
-    wake: Option<LocalIo<'_>>,
+    wake: Option<orchbee_local_ipc::LocalIo<'_>>,
 ) -> Result<crate::SessionStopResult, SessionStopExchangeError> {
-    windows_admission::session_stop(endpoint, offer, request, deadline, wake)
+    #[cfg(windows)]
+    return windows_admission::session_stop(endpoint, offer, request, deadline, wake);
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    return admission_deadline::session_stop_before_cancellable(
+        endpoint, offer, request, deadline, wake,
+    );
 }
 
 /// The same stop/status exchange over `transport`, a byte stream the caller already joined to a
 /// Session's Client endpoint and bounds itself: the `offer`, then, once answered, `request` and its
 /// result. `admitted` runs between the answer and the request's write, so a caller can set the
 /// bounds or the bookkeeping that apply once the request may be sent.
-#[cfg(windows)]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub fn exchange_session_stop_over<T: Read + Write>(
     transport: &mut T,
     offer: &Offer,
@@ -100,23 +105,27 @@ pub fn exchange_session_stop_over<T: Read + Write>(
 /// What a Server answered an `exit` request.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExitReply {
-    /// The Server settled its work, ended its Worker and ends next; terminals keep running.
+    /// The Server settled its work, ended its Worker and ends next; Windows terminals keep running,
+    /// while a Linux or macOS Server ends its terminals first, since no later Server adopts them.
     Ending,
     /// The Server serves no `exit`.
     Unsupported,
 }
 
 /// Asks the same-user Server to end itself and its Worker with one `exit` control request, which
-/// never ends a terminal. The connection never enters the Client phase; the reply arrives after
-/// the Server settles, inside `deadline`.
-#[cfg(windows)]
+/// never ends a Windows terminal. The connection never enters the Client phase; the reply arrives
+/// after the Server settles, inside `deadline`.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub fn exchange_exit_before(
     endpoint: &Path,
     environment: orchbee_connection_handshake::EnvironmentName,
     deadline: std::time::Instant,
-    wake: Option<LocalIo<'_>>,
+    wake: Option<orchbee_local_ipc::LocalIo<'_>>,
 ) -> Result<ExitReply, SessionStopExchangeError> {
-    windows_admission::exit(endpoint, environment, deadline, wake)
+    #[cfg(windows)]
+    return windows_admission::exit(endpoint, environment, deadline, wake);
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    return admission_deadline::exit_before_cancellable(endpoint, environment, deadline, wake);
 }
 
 /// Byte capacity of a filesystem-path Unix socket address on this platform's

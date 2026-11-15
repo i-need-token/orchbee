@@ -127,7 +127,6 @@ impl ProcessObserver {
         }
         Ok(())
     }
-    #[cfg(windows)]
     fn stop_before(&self, deadline: Instant) -> io::Result<()> {
         self.cancel();
         loop {
@@ -233,12 +232,10 @@ impl LocalTerminalService {
         self.process_observer.start(self, configuration, background)
     }
     /// Stops new sampling and joins admitted work; unresolved viewer cleanup transfers to Session shutdown.
-    #[cfg(windows)]
     pub(crate) fn stop_process_observer_before(&self, deadline: Instant) -> io::Result<()> {
         self.process_observer.stop_before(deadline)
     }
     /// Only the managed Session owner calls this after matching Worker/Host stop plus actual Worker exit.
-    #[cfg(windows)]
     pub(crate) fn finish_process_observer_after_worker_exit(
         &self,
         worker: &crate::worker_obcn_carrier::WorkerRequestHandle,

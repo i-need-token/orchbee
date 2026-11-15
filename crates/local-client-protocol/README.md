@@ -53,7 +53,8 @@ output.
 
 ## Server exit
 
-`exchange_exit_before(endpoint, environment, deadline, wake)` (Windows) sends one `exit` request,
+`exchange_exit_before(endpoint, environment, deadline, wake)` (Linux, macOS and Windows) sends one
+`exit` request,
 which the handshake answers whatever the Server's generation or development fingerprint, and
 returns `Ending` for the `exit-result` or `Unsupported` for a Server that serves no `exit`. The
 candidate deadline bounds the connection; once the request is written, the reply is due by the
@@ -69,12 +70,14 @@ within the 256-byte bound. A request contains a nonzero 128-bit stop identity an
 start/status/explicit-retry action. Responses echo that identity and distinguish not-recorded,
 pending, failed, another active identity and unmanaged mode. Pending/failed states retain a positive
 attempt (at most 64), a closed phase, and failures retain their reason and known disposal count for
-that attempt. A response never claims final process exit: the admitted Windows activation record is
+that attempt. A response never claims final process exit: the admitted activation record is
 the completion receipt after the managed owner settles its resources. Duplicate start never retries
 effects; only explicit retry of the same failed identity may advance the attempt. A Client hello
 after a recorded stop receives the typed stopping rejection. Unknown tags, zero identities, invalid
 attempts and trailing payload bytes fail decoding. The codec itself neither starts nor stops a
-process, and only Windows has a stop adapter.
+process; Linux, macOS and Windows have a stop adapter. On Linux and macOS the stop and `exit`
+exchanges share the Client admission deadline adapter: the offer's answer is due within the
+candidate deadline and the result within the caller's, and a wake descriptor cancels either.
 
 `exchange_session_stop_before` dials the endpoint and runs one stop or status exchange through
 `exchange_session_stop_over`, which is the exchange alone over a byte stream its caller already

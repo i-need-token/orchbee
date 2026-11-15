@@ -19,6 +19,8 @@ mod crash_recovery;
 mod durable_sessions;
 #[cfg(windows)]
 mod named_catalog;
+#[cfg(unix)]
+mod posix_recovery;
 pub(crate) mod record_migration;
 #[cfg(windows)]
 mod rendezvous;

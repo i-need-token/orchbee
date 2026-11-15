@@ -7,7 +7,6 @@ use orchbee_workbench_protocol::{
     WorkspaceGroupCloseUnavailable as Unavailable,
 };
 use std::sync::{Arc, atomic::AtomicBool};
-#[cfg(windows)]
 use std::{io, time::Instant};
 mod driver;
 impl LocalTerminalService {
@@ -71,7 +70,6 @@ impl LocalTerminalService {
         }
         result
     }
-    #[cfg(windows)]
     pub(crate) fn stop_workspace_groups_before(&self, deadline: Instant) -> io::Result<()> {
         self.group_close_maintenance.stop_before(deadline)
     }

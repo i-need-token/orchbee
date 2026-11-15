@@ -149,7 +149,7 @@ impl SessionCatalog {
                 let storage = storage_guard(&checkpoint)?;
                 match record.as_ref().and_then(Record::activation) {
                     Some(ActivationState::Stopped { .. }) => {
-                        stopped_checkpoint_evidence(&checkpoint)?;
+                        stopped_evidence(&checkpoint)?;
                     }
                     Some(ActivationState::Active | ActivationState::Crashed { .. }) => {
                         let _writer = self.durable.try_writer(scope)?;
@@ -283,7 +283,7 @@ impl SessionCatalog {
                 return Err(io::ErrorKind::InvalidData.into());
             }
             if matches!(previous.lifecycle, Lifecycle::Stopped { .. }) {
-                stopped_checkpoint_evidence(&checkpoint)?;
+                stopped_evidence(&checkpoint)?;
             }
         }
         // A Session keeps the spelling it was created with.
@@ -760,8 +760,8 @@ impl NamedSessionEntry {
             Err(error) => return Err(error),
         };
         match self.retained {
-            Some(stopped @ ActivationState::Stopped { .. }) if storage => {
-                match stopped_checkpoint_evidence(&self.checkpoint) {
+            Some(stopped @ ActivationState::Stopped { .. }) if storage || cfg!(unix) => {
+                match stopped_evidence(&self.checkpoint) {
                     Ok(_) => Ok(Some(stopped)),
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {
                         Ok(Some(ActivationState::Active))
@@ -813,6 +813,9 @@ fn stopped_checkpoint_evidence(path: &Path) -> io::Result<()> {
     Err(io::ErrorKind::NotFound.into())
 }
 
+/// Refuses with `WouldBlock` while a process of the Session may still serve. On Windows that is
+/// any Client, Worker, Host or observation pipe of this runtime.
+#[cfg(windows)]
 fn no_endpoints(runtime: &Path) -> io::Result<()> {
     for endpoint in Rendezvous::socket_budget_paths(runtime)
         .into_iter()
@@ -823,6 +826,30 @@ fn no_endpoints(runtime: &Path) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+/// On POSIX a socket path is never evidence, since a socket file outlives its listener. Every
+/// caller holds the Session lifetime lock, so no Server lives and no Worker can start a Host; a
+/// Terminal Host that still holds its lock is the one process that may serve.
+#[cfg(unix)]
+fn no_endpoints(runtime: &Path) -> io::Result<()> {
+    if crate::rendezvous::host_lock_held(runtime)? {
+        return Err(io::ErrorKind::WouldBlock.into());
+    }
+    Ok(())
+}
+
+/// The evidence a clean stop leaves beside its matching receipt. A Windows Server publishes its
+/// final checkpoint before the receipt, so a missing one means lost layout data. A POSIX Server
+/// publishes no checkpoint yet, so there the matching receipt is the whole evidence.
+fn stopped_evidence(checkpoint: &Path) -> io::Result<()> {
+    #[cfg(windows)]
+    return stopped_checkpoint_evidence(checkpoint);
+    #[cfg(unix)]
+    {
+        let _published_by_no_posix_server = checkpoint;
+        Ok(())
+    }
 }
 struct IdleStorage {
     /// The Session folder holds checkpoint storage: its lock, a slot or a corrupt original.

@@ -216,7 +216,6 @@ impl Drop for AgentObservationEndpoint {
     }
 }
 
-#[cfg(windows)]
 impl AgentObservationEndpoint {
     /// Signals the owned ingress and joins it without renewing the Session stop deadline.
     pub(crate) fn stop_before(&mut self, deadline: std::time::Instant) -> io::Result<()> {

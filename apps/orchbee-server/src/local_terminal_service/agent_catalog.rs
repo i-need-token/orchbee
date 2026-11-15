@@ -31,7 +31,6 @@ impl LocalTerminalService {
     }
 
     /// Stops the probe pump and joins its thread within the Session owner's deadline.
-    #[cfg(windows)]
     pub(crate) fn stop_agent_catalog_before(&self, deadline: Instant) -> io::Result<()> {
         let catalog = self
             .workers

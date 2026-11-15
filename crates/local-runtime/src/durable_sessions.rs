@@ -3,8 +3,7 @@
 //! runtime folder. Effects derive their paths from admission.
 use crate::{
     ActivationState, DataRoot, ModeCheckedLocalSessionRendezvous as Rendezvous, SessionName,
-    private_filesystem as permissions,
-    process_registration::{ProcessRole, SessionProcesses},
+    private_filesystem as permissions, process_registration::SessionProcesses,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -502,8 +501,9 @@ impl RetainedSessionRecord {
         })
     }
     /// Whether this generation's Terminal Host was never started or its exact process is gone.
-    /// A reserved spawn or an unknown observation answers false. Observation grants no
-    /// termination authority.
+    /// A reserved spawn or an unknown observation answers false. POSIX registers no Host, so there
+    /// it is gone once no process holds the Host lock; the caller asks only after its Worker
+    /// exited, when no Host can start. Observation grants no termination authority.
     pub fn host_absent(&self) -> io::Result<bool> {
         let current = self
             .directory
@@ -512,10 +512,13 @@ impl RetainedSessionRecord {
         if !current.same_active_generation(&self.active) {
             return Err(io::ErrorKind::InvalidData.into());
         }
-        Ok(crate::process_observation::role_absent(
+        #[cfg(windows)]
+        return Ok(crate::process_observation::role_absent(
             &current.processes,
-            ProcessRole::Host,
-        ))
+            crate::process_registration::ProcessRole::Host,
+        ));
+        #[cfg(unix)]
+        return Ok(!crate::rendezvous::host_lock_held(current.runtime())?);
     }
     /// Only after confirmed child exit and listener cleanup, before the runtime stop receipt.
     pub fn complete(&mut self, request_id: [u8; 16]) -> io::Result<()> {

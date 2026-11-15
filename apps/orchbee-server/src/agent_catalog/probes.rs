@@ -46,7 +46,6 @@ impl AgentCatalog {
 
     /// Stops the probe pump and joins it within the Session owner's deadline. A Worker job still
     /// running is left to the Worker, which ends it at its own deadline or its exit.
-    #[cfg(windows)]
     pub(crate) fn stop_probes_before(&self, deadline: Instant) -> io::Result<()> {
         self.stop();
         loop {

@@ -30,7 +30,6 @@ impl PendingCleanup {
     ) -> bool {
         self.target == target
     }
-    #[cfg(windows)]
     pub(in crate::local_terminal_service) fn matches_worker(
         &self,
         handle: &WorkerRequestHandle,

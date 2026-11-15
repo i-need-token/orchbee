@@ -7,7 +7,6 @@ use orchbee_workbench_protocol::{
     TabDuplicateUnavailable as Unavailable, WorkbenchTabDuplicateRequest,
     WorkbenchTabDuplicateResult,
 };
-#[cfg(windows)]
 use std::io;
 use std::{
     sync::{Arc, atomic::AtomicBool},
@@ -51,7 +50,6 @@ impl LocalTerminalService {
         authority.tab_duplicate(Some(&grant), request, owner_available)
     }
 
-    #[cfg(windows)]
     pub(crate) fn stop_tab_duplicates_before(&self, deadline: Instant) -> io::Result<()> {
         self.tab_duplicate_maintenance.stop_before(deadline)
     }

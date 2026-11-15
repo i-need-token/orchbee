@@ -43,7 +43,6 @@ impl TerminalTitles {
     }
 
     /// Stops the read pump and joins it within the Session owner's deadline.
-    #[cfg(any(windows, test))]
     pub(crate) fn stop_reads_before(&self, deadline: Instant) -> io::Result<()> {
         self.stop();
         loop {

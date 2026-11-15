@@ -123,7 +123,6 @@ pub(crate) fn run(
                 )?;
                 continue;
             }
-            #[cfg(windows)]
             if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
                 site.set(Site::Shutdown);
                 if let Some(reason) = super::shutdown::refusal(request, worker_id, generation, true)
@@ -153,6 +152,7 @@ pub(crate) fn run(
                         integrations: &agent_integrations,
                         probes: &agent_probes,
                         mutations: &mutation_slot,
+                        #[cfg(windows)]
                         plugins: &plugin_jobs,
                     },
                     None,
@@ -300,7 +300,7 @@ pub(crate) fn run(
             site.set(Site::HostStart);
             let started =
                 start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host));
-            let (prepared, (mut host, _child)) = match started {
+            let (prepared, (mut host, child)) = match started {
                 Ok(started) => {
                     crate::diagnostic_events::host_started();
                     started
@@ -346,8 +346,7 @@ pub(crate) fn run(
                 }
                 Err(error) => return Err(super::exit_cause::attach(error, &host)),
             }
-            #[cfg(windows)]
-            let mut managed_host = super::shutdown::ManagedHost::new(_child);
+            let mut managed_host = super::shutdown::ManagedHost::new(child);
             return super::run_admitted_with_handoff(
                 server,
                 &mut host,
@@ -364,7 +363,6 @@ pub(crate) fn run(
                     #[cfg(windows)]
                     plugin_jobs: &plugin_jobs,
                     session_runtime: Some(runtime),
-                    #[cfg(windows)]
                     managed_host: Some(&mut managed_host),
                 },
                 #[cfg(windows)]

@@ -1,6 +1,7 @@
-//! Retained Windows Client listener and handlers, closed only by the managed Session owner.
+//! Retained Client listener and handlers, closed only by the managed Session owner.
 use super::{
-    AgentRuntimeOwner, ConnectionSlots, ServerIdentity, bind_managed, handle_candidate_control,
+    AgentRuntimeOwner, ConnectionSlots, ManagedEndpoint, ServerIdentity, bind_managed,
+    handle_candidate_control,
 };
 use crate::session_shutdown::SessionShutdown;
 use crate::{
@@ -13,7 +14,6 @@ use crate::{
 use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 use std::{
     io,
-    path::Path,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -100,7 +100,7 @@ struct Steps {
 impl Steps {
     fn system() -> Self {
         Self {
-            accept: Box::new(|listener| listener.accept().map(|(stream, ())| stream)),
+            accept: Box::new(|listener| listener.accept().map(|(stream, _address)| stream)),
             spawn: Box::new(|handler| {
                 thread::Builder::new()
                     .name("orchbee-local-client".into())
@@ -126,7 +126,7 @@ fn pause_unless_stopped(control: &Control, pause: Duration) {
 /// join.
 /// Returns listener or thread-creation errors without claiming readiness.
 pub(crate) fn start(
-    endpoint: &Path,
+    endpoint: ManagedEndpoint<'_>,
     identity: ServerIdentity,
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
@@ -145,7 +145,7 @@ pub(crate) fn start(
 /// One failed accept or handler start drops only that candidate, records it, and pauses the
 /// listener before it accepts again; admitted Clients keep their connections until Session stop.
 fn start_with(
-    endpoint: &Path,
+    endpoint: ManagedEndpoint<'_>,
     identity: ServerIdentity,
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
@@ -277,5 +277,5 @@ fn start_with(
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;

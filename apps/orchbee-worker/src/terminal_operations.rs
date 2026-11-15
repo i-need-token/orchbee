@@ -39,7 +39,6 @@ pub(crate) use lazy::run as run_lazy;
 #[cfg(windows)]
 mod handoff;
 mod server_transport;
-#[cfg(windows)]
 mod shutdown;
 mod title_changes;
 #[cfg(windows)]
@@ -82,7 +81,6 @@ pub(crate) fn run(
             #[cfg(windows)]
             plugin_jobs: &plugin_jobs,
             session_runtime: None,
-            #[cfg(windows)]
             managed_host: None,
         },
     );
@@ -111,7 +109,6 @@ pub(crate) struct AdmittedAux<'a> {
     #[cfg(windows)]
     pub(crate) plugin_jobs: &'a crate::plugin_jobs::PluginJobs,
     pub(crate) session_runtime: Option<&'a std::path::Path>,
-    #[cfg(windows)]
     pub(super) managed_host: Option<&'a mut shutdown::ManagedHost>,
 }
 
@@ -221,7 +218,6 @@ fn serve(
             }
             continue;
         }
-        #[cfg(windows)]
         if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
             host.pacing.set_site(Site::Shutdown);
             if let Some(reason) =
@@ -254,6 +250,7 @@ fn serve(
                     integrations: aux.agent_integrations,
                     probes: aux.agent_probes,
                     mutations: aux.mutation_slot,
+                    #[cfg(windows)]
                     plugins: aux.plugin_jobs,
                 },
                 aux.managed_host.map(|owner| (&*host, owner)),

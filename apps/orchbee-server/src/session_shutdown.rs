@@ -110,6 +110,7 @@ impl SessionShutdown {
         }
     }
 
+    #[cfg(any(windows, test))]
     pub(crate) fn stopping(&self) -> bool {
         self.state
             .lock()
@@ -205,7 +206,6 @@ impl SessionShutdown {
     }
 
     /// Admits the lifecycle owner's own stop under `id` when no stop exists yet.
-    #[cfg(windows)]
     pub(crate) fn begin(&self, id: StopId) -> bool {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if state.entry.is_some() {

@@ -149,11 +149,7 @@ fn hosts_follow_the_worker_in_its_order_without_capabilities_and_at_most_256() {
 
 #[test]
 fn query_bypasses_connection_admission_without_allocating_a_generation_or_stop_lease() {
-    #[cfg(windows)]
-    let modes = [None, Some(false), Some(true)];
-    #[cfg(not(windows))]
-    let modes = [None::<bool>];
-    for mode in modes {
+    for mode in [None, Some(false), Some(true)] {
         let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
         for _ in 0..MAXIMUM_ACTIVE_CLIENT_CONNECTIONS {
             assert!(matches!(
@@ -186,9 +182,7 @@ fn query_bypasses_connection_admission_without_allocating_a_generation_or_stop_l
                 },
                 Arc::clone(&terminals),
             );
-            #[cfg(windows)]
             let shutdown = crate::session_shutdown::SessionShutdown::default();
-            #[cfg(windows)]
             if mode == Some(true) {
                 use orchbee_local_client_protocol::{SessionStopRequest, StopAction, StopId};
                 shutdown.request(&SessionStopRequest {
@@ -206,15 +200,11 @@ fn query_bypasses_connection_admission_without_allocating_a_generation_or_stop_l
                 &workbench,
                 StopControl {
                     agents: &agents,
-                    #[cfg(windows)]
                     shutdown: mode.map(|_| &shutdown),
                 },
             );
-            #[cfg(windows)]
-            {
-                assert_eq!(shutdown.stopping(), mode == Some(true));
-                assert!(shutdown.settle_records(std::time::Instant::now()));
-            }
+            assert_eq!(shutdown.stopping(), mode == Some(true));
+            assert!(shutdown.settle_records(std::time::Instant::now()));
         });
         let reply = handshake_client::query(&mut client, orchbee_local_runtime::environment_name())
             .unwrap();

@@ -29,7 +29,6 @@ impl LocalTerminalService {
     }
 
     /// Stops the title reads and joins their thread within the Session owner's deadline.
-    #[cfg(any(windows, test))]
     pub(crate) fn stop_title_reads_before(
         &self,
         deadline: std::time::Instant,

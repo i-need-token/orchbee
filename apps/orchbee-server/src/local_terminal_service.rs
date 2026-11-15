@@ -392,7 +392,6 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
     match handle.request(request) {
         #[cfg(any(windows, test))]
         Ok(WorkerOperationResult::Handoff(_)) => Completion::Unknown,
-        #[cfg(any(windows, test))]
         Ok(WorkerOperationResult::Shutdown(_)) => Completion::Unknown,
         Ok(WorkerOperationResult::Launch(result)) => Completion::Launch(result),
         Ok(WorkerOperationResult::Start(result)) => Completion::Start(result),

@@ -5,7 +5,7 @@ use std::{
     io::{self, Write},
     os::unix::{
         ffi::{OsStrExt, OsStringExt},
-        fs::{MetadataExt, PermissionsExt, symlink},
+        fs::{MetadataExt, OpenOptionsExt, PermissionsExt, symlink},
     },
     path::{Path, PathBuf},
     sync::{
@@ -810,5 +810,64 @@ fn lifetime_observation_reports_held_free_and_unsafe() -> TestResult {
         observer.observe_session_lifetime_lock()?,
         SessionLifetimeObservation::Free
     );
+    Ok(())
+}
+
+/// Stale sockets go only through the lifetime owner, and a Host that still holds its lock keeps
+/// its endpoint; a socket path alone never proves a listener.
+#[test]
+fn lifetime_owner_removes_stale_sockets_but_not_a_held_hosts() -> TestResult {
+    let fixture = TestDirectory::new("stale-sockets")?;
+    let session = ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
+        fixture.path(),
+        SessionScope::parse("orchbee-stale")?,
+    )?;
+    let runtime = session.runtime_directory().to_path_buf();
+    let host = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&runtime);
+    let others = [
+        session.client_socket_path().to_path_buf(),
+        session.worker_socket_path().to_path_buf(),
+        ModeCheckedLocalSessionRendezvous::client_pending_socket_path(&runtime),
+        ModeCheckedLocalSessionRendezvous::observation_endpoint_path(&runtime),
+    ];
+    // Every listener is gone; only its socket file remains.
+    for path in others.iter().chain([&host]) {
+        drop(std::os::unix::net::UnixListener::bind(path)?);
+    }
+    assert!(!host_lock_held(&runtime)?);
+
+    let activation = acquired(session.try_acquire_activation_lock()?)?;
+    assert!(session.remove_endpoints(&activation).is_err());
+    assert!(others.iter().chain([&host]).all(|path| path.exists()));
+
+    let host_directory = runtime.join(HOST_SCOPE_NAME);
+    fs::create_dir(&host_directory)?;
+    fs::set_permissions(&host_directory, fs::Permissions::from_mode(0o700))?;
+    let host_lock = host_directory.join(format!(
+        "{}.l",
+        ModeCheckedLocalSessionRendezvous::host_endpoint_id(&runtime)
+    ));
+    let held = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&host_lock)?;
+    held.try_lock()?;
+    assert!(host_lock_held(&runtime)?);
+
+    let lifetime = acquired(session.try_acquire_session_lifetime_lock()?)?;
+    session.remove_endpoints(&lifetime)?;
+    assert!(others.iter().all(|path| !path.exists()));
+    assert!(host.exists());
+
+    // A released Host lock frees its name; anything that is not a socket stays.
+    drop(held);
+    assert!(!host_lock_held(&runtime)?);
+    fs::write(&others[0], b"not a socket")?;
+    session.remove_endpoints(&lifetime)?;
+    assert!(!host.exists());
+    assert_eq!(fs::read(&others[0])?, b"not a socket");
+    fs::remove_file(&others[0])?;
     Ok(())
 }

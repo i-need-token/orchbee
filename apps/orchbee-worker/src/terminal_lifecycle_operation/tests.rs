@@ -565,7 +565,6 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
             #[cfg(windows)]
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
             session_runtime: None,
-            #[cfg(windows)]
             managed_host: None,
         },
     );

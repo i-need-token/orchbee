@@ -59,6 +59,65 @@ pub(super) fn query_before_cancellable(
     .map_err(translate_wake)
 }
 
+/// One stop/status exchange: the offer's answer is due within the candidate deadline, the request's
+/// result within the caller's.
+pub(super) fn session_stop_before_cancellable(
+    endpoint: &Path,
+    offer: &Offer,
+    request: crate::SessionStopRequest,
+    expires_at: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<crate::SessionStopResult, super::SessionStopExchangeError> {
+    let (mut stream, deadline) =
+        open(endpoint, expires_at, wake).map_err(|failure| super::SessionStopExchangeError {
+            failure: translate_wake(failure),
+            submitted: false,
+        })?;
+    let mut transport = DeadlineIo {
+        stream: &mut stream,
+        deadline: Deadline {
+            expires_at: expires_at.min(Instant::now() + CANDIDATE_DEADLINE),
+            ..deadline
+        },
+    };
+    super::exchange_session_stop_over(&mut transport, offer, request, |transport| {
+        transport.deadline = deadline;
+    })
+    .map_err(|error| super::SessionStopExchangeError {
+        failure: translate_wake(error.failure),
+        submitted: error.submitted,
+    })
+}
+
+/// Sends one `exit` request; its reply follows the Server's settlement, so it is due by the
+/// caller's deadline rather than the candidate deadline.
+pub(super) fn exit_before_cancellable(
+    endpoint: &Path,
+    environment: EnvironmentName,
+    expires_at: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<super::ExitReply, super::SessionStopExchangeError> {
+    let mut submitted = false;
+    let result = (|| {
+        let (mut stream, deadline) = open(endpoint, expires_at, wake)?;
+        let mut transport = DeadlineIo {
+            stream: &mut stream,
+            deadline: Deadline {
+                expires_at: expires_at.min(Instant::now() + CANDIDATE_DEADLINE),
+                ..deadline
+            },
+        };
+        handshake::request_exit(&mut transport, environment)?;
+        submitted = true;
+        transport.deadline = deadline;
+        handshake::exit_reply(&mut transport)
+    })();
+    result.map_err(|failure| super::SessionStopExchangeError {
+        failure: translate_wake(failure),
+        submitted,
+    })
+}
+
 fn admit(
     endpoint: &Path,
     offer: &Offer,

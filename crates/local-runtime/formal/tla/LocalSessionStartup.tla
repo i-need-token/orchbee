@@ -38,6 +38,10 @@ Wait(c) ==
   /\ phase' = [phase EXCEPT ![c] = "waiting"]
   /\ UNCHANGED <<guard, marker, launches, server, worker, authorized, hostAttempts, host, lifetime, workerAttempts, dispatch>>
   /\ action' = "Wait"
+\* An attempt that launches nothing in this generation: with the marker and a free lifetime lock the
+\* generation ended without its stop, and the catalog closes it once the Host lock is also free;
+\* with no marker and a held lifetime lock, a Server is completing its stop. A later attempt then
+\* starts the next generation, a fresh instance of this model.
 Recovery(c) ==
   /\ phase[c] = "locked" /\ ((marker /\ ~lifetime) \/ (~marker /\ lifetime))
   /\ phase' = [phase EXCEPT ![c] = "failed"] /\ guard' = Nobody

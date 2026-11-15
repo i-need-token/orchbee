@@ -116,7 +116,7 @@ fn managed_socket_publication_has_final_permissions_and_never_replaces_an_entry(
     fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))?;
     let endpoint = directory.join("client.sock");
     let pending = directory.join("pending.sock");
-    let listener = super::bind_managed(&endpoint, &pending)?;
+    let listener = super::bind_managed((&endpoint, &pending))?;
     assert_eq!(
         fs::metadata(&endpoint)?.permissions().mode() & 0o7777,
         0o600
@@ -126,7 +126,9 @@ fn managed_socket_publication_has_final_permissions_and_never_replaces_an_entry(
     drop(client);
     drop(listener);
     assert_eq!(
-        super::bind_managed(&endpoint, &pending).unwrap_err().kind(),
+        super::bind_managed((&endpoint, &pending))
+            .unwrap_err()
+            .kind(),
         std::io::ErrorKind::AlreadyExists
     );
     assert!(endpoint.exists());
@@ -147,7 +149,7 @@ fn managed_socket_path_has_final_permissions_and_never_replaces_an_entry() -> st
     fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))?;
     let endpoint = directory.join("client.sock");
     let pending = directory.join("pending.sock");
-    let listener = super::bind_managed(&endpoint, &pending)?;
+    let listener = super::bind_managed((&endpoint, &pending))?;
     assert_eq!(
         fs::symlink_metadata(&endpoint)?.permissions().mode() & 0o7777,
         0o600
@@ -156,7 +158,9 @@ fn managed_socket_path_has_final_permissions_and_never_replaces_an_entry() -> st
     drop(client);
     drop(listener);
     assert_eq!(
-        super::bind_managed(&endpoint, &pending).unwrap_err().kind(),
+        super::bind_managed((&endpoint, &pending))
+            .unwrap_err()
+            .kind(),
         std::io::ErrorKind::AddrInUse
     );
     assert_eq!(

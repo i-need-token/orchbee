@@ -12,7 +12,6 @@ use super::WorkerOperationRequest;
 pub(super) enum ReplyKey {
     #[cfg(any(windows, test))]
     Handoff(OperationId),
-    #[cfg(any(windows, test))]
     Shutdown(OperationId),
     CwdValidation(OperationId),
     HostQuery(OperationId),
@@ -49,7 +48,6 @@ impl ReplyKey {
         match request {
             #[cfg(any(windows, test))]
             WorkerOperationRequest::Handoff(request) => Self::Handoff(request.operation_id),
-            #[cfg(any(windows, test))]
             WorkerOperationRequest::Shutdown(request) => Self::Shutdown(request.operation_id),
             WorkerOperationRequest::CwdValidation(request) => {
                 Self::CwdValidation(request.operation_id)
@@ -103,7 +101,6 @@ impl ReplyKey {
             (Self::Handoff(id), Message::WorkerHandoffResult(result)) => {
                 result.request().operation_id == id
             }
-            #[cfg(any(windows, test))]
             (Self::Shutdown(id), Message::WorkerShutdownResult(result)) => {
                 result.request.operation_id == id
             }

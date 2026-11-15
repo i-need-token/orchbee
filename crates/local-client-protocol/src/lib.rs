@@ -26,7 +26,7 @@ pub use connection::{
     ClientConnection, ConnectClientError, ExitReply, UNIX_SOCKET_PATH_CAPACITY,
     unix_socket_path_fits,
 };
-#[cfg(windows)]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub use connection::{
     SessionStopExchangeError, exchange_exit_before, exchange_session_stop_before,
     exchange_session_stop_over,

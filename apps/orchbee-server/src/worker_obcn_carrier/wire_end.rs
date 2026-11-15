@@ -110,7 +110,6 @@ impl WorkerOperationRequest {
         match self {
             #[cfg(any(windows, test))]
             Self::Handoff(_) => "handoff",
-            #[cfg(any(windows, test))]
             Self::Shutdown(_) => "shutdown",
             Self::CwdValidation(_) => "cwd-validation",
             Self::Lifecycle(_) => "lifecycle",

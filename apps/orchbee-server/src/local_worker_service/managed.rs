@@ -2,11 +2,10 @@
 //! service, and checkpoint lifecycle for a managed Session. It does not define domain
 //! transitions or adopt an unregistered process as the Session owner.
 
-#[cfg(not(windows))]
-use crate::local_client_service;
 use crate::{
     agent_service::{AgentPolicy, AgentService},
     local_terminal_service::LocalTerminalService,
+    session_shutdown::SessionShutdown,
     worker_registry::WorkerRegistry,
 };
 use orchbee_local_ipc::LocalListener as UnixListener;
@@ -24,13 +23,17 @@ use std::{
 };
 #[cfg(windows)]
 mod checkpoint_windows;
-#[cfg(windows)]
-mod stop_windows;
+#[cfg(unix)]
+mod signals;
+mod stop;
 
 pub(super) fn run(
     runtime: &Path,
     #[cfg(windows)] configuration: orchbee_local_runtime::UserSettingsLoad,
 ) -> io::Result<()> {
+    // Before any thread starts, so only the signal thread receives them.
+    #[cfg(unix)]
+    let signals = signals::block()?;
     let deadline = Instant::now() + Duration::from_secs(20);
     let cohort = Cohort::current(deadline)?;
     let session = ModeCheckedLocalSessionRendezvous::from_runtime_directory(runtime)
@@ -39,7 +42,7 @@ pub(super) fn run(
         return Err(io::Error::other("Session activation was not committed"));
     }
     // An observer probes this lock for an instant; only a lock still held past that is owned.
-    let LockAttempt::Acquired(_lifetime) =
+    let LockAttempt::Acquired(lifetime) =
         orchbee_local_runtime::acquire_past_probes(|| session.try_acquire_session_lifetime_lock())
             .map_err(io::Error::other)?
     else {
@@ -48,14 +51,33 @@ pub(super) fn run(
     // A temporary-file cleaner that honours locks leaves the socket folder alone while this
     // Session lives.
     #[cfg(unix)]
-    let _sockets = session.hold_socket_root()?;
-    #[cfg(windows)]
+    let socket_root = session.hold_socket_root()?;
     let record = session.retain_active_record()?;
     #[cfg(windows)]
     let (checkpoint_store, checkpoint, session_record, suppress_initial_empty) =
         checkpoint_windows::load(&session)?;
     #[cfg(unix)]
+    let session_record = orchbee_local_runtime::RetainedSessionRecord::retain(
+        &orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+            .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?,
+        &session,
+    )?;
+    // A Session that ended without its stop left its socket files, and no listener can serve
+    // them while this Server holds the lifetime lock.
+    #[cfg(unix)]
+    session.remove_endpoints(&lifetime)?;
+    #[cfg(unix)]
     nix::unistd::setsid()?;
+    let shutdown = Arc::new(SessionShutdown::default());
+    // Every stop this Server begins, on a signal or after losing its Worker, uses one identity.
+    #[cfg(unix)]
+    let own = {
+        let mut bytes = [0; 16];
+        getrandom::fill(&mut bytes).map_err(|error| io::Error::other(error.to_string()))?;
+        orchbee_local_client_protocol::StopId::new(bytes).map_err(io::Error::other)?
+    };
+    #[cfg(unix)]
+    signals.forward(Arc::clone(&shutdown), own)?;
     // The observation endpoint binds and starts before the Worker socket
     // or any emitter can exist; a bind/start failure fails the whole Session
     // start loudly under the held lifetime lock rather than publishing a
@@ -73,7 +95,7 @@ pub(super) fn run(
         },
         socket_path,
     )?);
-    let _endpoint = bound.start(Arc::clone(&agents));
+    let endpoint = bound.start(Arc::clone(&agents));
     let listener = UnixListener::bind(session.worker_socket_path())?;
     #[cfg(unix)]
     std::fs::set_permissions(
@@ -99,7 +121,6 @@ pub(super) fn run(
     )?;
     #[cfg(not(windows))]
     let mut worker = orchbee_local_runtime::spawn_retained(&executable, &arguments)?;
-    #[cfg(windows)]
     let mut carrier = None;
     let admitted = (|| -> io::Result<()> {
         loop {
@@ -111,26 +132,13 @@ pub(super) fn run(
             }
             match listener.accept() {
                 Ok((stream, _)) => {
-                    // A POSIX Session lets its Worker go after admission, so only Windows keeps a
-                    // handle the wire can record the Worker's exit through.
-                    #[cfg(not(windows))]
-                    super::handle_candidate(
+                    carrier = super::admit_candidate(
                         stream,
                         &registry,
                         cohort.identity(),
                         Some(&agents),
-                        None,
+                        worker.id(),
                     );
-                    #[cfg(windows)]
-                    {
-                        carrier = super::admit_candidate(
-                            stream,
-                            &registry,
-                            cohort.identity(),
-                            Some(&agents),
-                            worker.id(),
-                        );
-                    }
                 }
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                     thread::sleep(Duration::from_millis(10))
@@ -158,10 +166,6 @@ pub(super) fn run(
     }
     #[cfg(not(windows))]
     admitted?;
-    #[cfg(not(windows))]
-    let worker_process = worker.id();
-    #[cfg(not(windows))]
-    drop(worker);
     #[cfg(windows)]
     let initialized = (|| {
         let handle = registry
@@ -174,6 +178,29 @@ pub(super) fn run(
         terminals.configure_graphics_files(runtime);
         Ok::<_, io::Error>((handle, Arc::new(terminals), pending))
     })();
+    #[cfg(windows)]
+    let (handle, terminals, pending) = match initialized {
+        Ok(initialized) => initialized,
+        Err(error) => {
+            return Err(checkpoint_windows::abort_before_launch(
+                worker, carrier, error,
+            ));
+        }
+    };
+    #[cfg(windows)]
+    let Some(carrier) = carrier else {
+        return Err(checkpoint_windows::abort_before_launch(
+            worker,
+            None,
+            io::Error::other("Worker wire owner did not start"),
+        ));
+    };
+    #[cfg(not(windows))]
+    let handle = registry
+        .lock()
+        .map_err(|_| io::Error::other("Worker registry failed"))?
+        .request_handle()
+        .ok_or_else(|| io::Error::other("Worker carrier disappeared"))?;
     // File frames refuse at the frame directory adapter here; creation stays lazy.
     #[cfg(not(windows))]
     let terminals = {
@@ -182,76 +209,39 @@ pub(super) fn run(
         Arc::new(terminals)
     };
     #[cfg(not(windows))]
-    terminals.start_close_maintenance()?;
-    #[cfg(not(windows))]
-    terminals.start_title_reads()?;
-    #[cfg(not(windows))]
-    terminals.start_agent_catalog()?;
-    // Hosts here cannot sample processes: the observer refuses after installing the startup read
-    // as the Session's configuration. A file that cannot be read starts the Session with the
-    // defaults, published as unreadable.
-    #[cfg(not(windows))]
-    match terminals.start_process_observer(
-        || {
-            orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name))
-                .map_err(io::Error::other)
-        },
-        true,
-    ) {
-        Err(error) if error.kind() == io::ErrorKind::Unsupported => {}
-        started => started?,
-    }
-    #[cfg(windows)]
-    {
-        let (handle, terminals, pending) = match initialized {
-            Ok(initialized) => initialized,
-            Err(error) => {
-                return Err(checkpoint_windows::abort_before_launch(
-                    worker, carrier, error,
-                ));
-            }
-        };
-        let Some(carrier) = carrier else {
-            return Err(checkpoint_windows::abort_before_launch(
-                worker,
-                None,
-                io::Error::other("Worker wire owner did not start"),
-            ));
-        };
-        stop_windows::run(
-            stop_windows::Owners {
-                session,
-                lifetime: _lifetime,
-                record,
-                worker,
-                carrier,
-                handle,
-                ingress: _endpoint,
-                terminals,
-                agents,
-                checkpoint_store: Arc::new(Mutex::new(checkpoint_store)),
-                checkpoint_saver: None,
-                automatic_updates: None,
-                suppress_initial_empty,
-                session_record,
-            },
-            cohort.identity(),
-            pending,
-            deadline,
-            configuration,
-        )
-    }
-    #[cfg(not(windows))]
-    {
-        let _clients = local_client_service::start_managed(
-            session.client_socket_path(),
-            &ModeCheckedLocalSessionRendezvous::client_pending_socket_path(runtime),
-            local_client_service::ServerIdentity::local(Some(cohort.identity()), worker_process),
+    let carrier = carrier.ok_or_else(|| io::Error::other("Worker wire owner did not start"))?;
+    stop::run(
+        stop::Owners {
+            session,
+            lifetime,
+            #[cfg(unix)]
+            socket_root,
+            record,
+            worker,
+            carrier,
+            handle,
+            ingress: endpoint,
             terminals,
             agents,
-        )?;
-        loop {
-            thread::park();
-        }
-    }
+            #[cfg(windows)]
+            checkpoint_store: Arc::new(Mutex::new(checkpoint_store)),
+            #[cfg(windows)]
+            checkpoint_saver: None,
+            #[cfg(windows)]
+            automatic_updates: None,
+            #[cfg(windows)]
+            suppress_initial_empty,
+            session_record,
+        },
+        shutdown,
+        #[cfg(unix)]
+        own,
+        cohort.identity(),
+        #[cfg(windows)]
+        pending,
+        #[cfg(windows)]
+        deadline,
+        #[cfg(windows)]
+        configuration,
+    )
 }

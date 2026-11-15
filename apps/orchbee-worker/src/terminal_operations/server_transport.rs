@@ -23,7 +23,6 @@ const RECORD_BUDGET: Duration = Duration::from_secs(2);
 /// Whole Host events read per wake-up before the Server is looked at again.
 const EVENTS_PER_WAKE: usize = 64;
 
-#[cfg(windows)]
 pub(super) fn receive(
     server: &UnixStream,
     host: Option<&HostBrokerConnection>,

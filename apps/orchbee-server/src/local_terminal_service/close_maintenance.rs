@@ -82,7 +82,6 @@ impl Drop for RunningOwner {
 
 impl LocalTerminalService {
     /// Stops the maintenance submitter and joins it within the Session owner's deadline.
-    #[cfg(windows)]
     pub(crate) fn stop_close_before(&self, deadline: Instant) -> io::Result<()> {
         self.close_maintenance
             .wake

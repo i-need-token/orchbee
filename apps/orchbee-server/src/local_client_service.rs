@@ -40,14 +40,12 @@ use crate::workbench_service::{WorkbenchPolicy, WorkbenchService};
 
 mod application_connection;
 mod diagnostic;
-#[cfg(windows)]
-mod managed_windows;
+mod managed;
 mod multiplex;
 mod query;
 mod record_stream;
 mod stop_control;
-#[cfg(windows)]
-pub(crate) use managed_windows::{ManagedClients, start as start_managed_windows};
+pub(crate) use managed::{ManagedClients, start as start_managed};
 
 const MAXIMUM_CLIENT_CONNECTIONS: usize = 48;
 
@@ -100,26 +98,17 @@ pub(crate) fn start(
     start_listener(listener, identity, terminals, agents)
 }
 
+/// Where the managed Client listener binds: its endpoint, and on POSIX also the pending path,
+/// beside the endpoint, that Linux binds first.
+#[cfg(unix)]
+pub(crate) type ManagedEndpoint<'a> = (&'a Path, &'a Path);
+#[cfg(windows)]
+pub(crate) type ManagedEndpoint<'a> = &'a Path;
+
 /// Binds the managed Client endpoint. On Linux the socket is bound at `pending`, beside the
 /// endpoint, and renamed onto it once private, so the endpoint appears ready in one step.
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-pub(crate) fn start_managed(
-    endpoint: &Path,
-    pending: &Path,
-    identity: ServerIdentity,
-    terminals: Arc<LocalTerminalService>,
-    agents: Arc<AgentService>,
-) -> io::Result<thread::JoinHandle<io::Result<()>>> {
-    start_listener(
-        bind_managed(endpoint, pending)?,
-        identity,
-        terminals,
-        agents,
-    )
-}
-
 #[cfg(target_os = "linux")]
-fn bind_managed(endpoint: &Path, pending: &Path) -> io::Result<UnixListener> {
+fn bind_managed((endpoint, pending): ManagedEndpoint<'_>) -> io::Result<UnixListener> {
     use nix::fcntl::{OFlag, RenameFlags, open, renameat2};
     let parent = endpoint.parent().ok_or(io::ErrorKind::InvalidInput)?;
     let name = endpoint.file_name().ok_or(io::ErrorKind::InvalidInput)?;
@@ -146,7 +135,7 @@ fn bind_managed(endpoint: &Path, pending: &Path) -> io::Result<UnixListener> {
 }
 
 #[cfg(target_os = "macos")]
-fn bind_managed(endpoint: &Path, _pending: &Path) -> io::Result<UnixListener> {
+fn bind_managed((endpoint, _pending): ManagedEndpoint<'_>) -> io::Result<UnixListener> {
     let listener = UnixListener::bind(endpoint)?;
     use nix::unistd::geteuid;
 
@@ -693,6 +682,6 @@ impl Drop for ConnectionSlot {
 pub(crate) mod tests;
 
 #[cfg(windows)]
-fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
+fn bind_managed(endpoint: ManagedEndpoint<'_>) -> io::Result<UnixListener> {
     UnixListener::bind(endpoint)
 }

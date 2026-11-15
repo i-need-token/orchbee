@@ -1,4 +1,4 @@
-//! Windows managed shutdown retains creation-owned resources across explicit attempts.
+//! Managed shutdown retains creation-owned resources across explicit attempts.
 use super::{background_jobs::BackgroundJobs, server_transport};
 use crate::host_connection::HostBrokerConnection;
 use orchbee_capability_node_protocol::{
@@ -208,5 +208,5 @@ fn pause_before(deadline: Instant) -> bool {
     true
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;

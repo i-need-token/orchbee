@@ -34,7 +34,7 @@ mod localization;
 mod notification_registry;
 #[cfg(any(unix, windows))]
 mod session_coordinator;
-#[cfg(any(windows, test))]
+#[cfg(any(unix, windows))]
 mod session_shutdown;
 #[cfg(any(unix, windows))]
 mod terminal_coordinator;

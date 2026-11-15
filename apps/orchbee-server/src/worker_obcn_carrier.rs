@@ -52,7 +52,6 @@ const OWNER_POLL_INTERVAL: Duration = Duration::from_millis(250);
 // Without a wake channel, an idle wait must still notice a queued request promptly.
 const UNWOKEN_OWNER_POLL_INTERVAL: Duration = Duration::from_millis(2);
 // A shutdown may spend its whole budget before it answers; its reply wait adds this margin.
-#[cfg(any(windows, test))]
 const SHUTDOWN_REPLY_MARGIN: Duration = Duration::from_secs(5);
 // A Worker answers in order, so a reply to an older failed request has almost surely been dropped
 // or will never come; the bound keeps the remembered keys small.
@@ -62,7 +61,6 @@ const ABANDONED_REQUEST_LIMIT: usize = 8;
 pub(crate) enum WorkerOperationRequest {
     #[cfg(any(windows, test))]
     Handoff(orchbee_capability_node_protocol::WorkerHandoffRequest),
-    #[cfg(any(windows, test))]
     Shutdown(orchbee_capability_node_protocol::WorkerShutdownRequest),
     CwdValidation(TerminalCwdValidationRequest),
     Lifecycle(orchbee_capability_node_protocol::TerminalLifecycleRequest),
@@ -101,7 +99,6 @@ impl WorkerOperationRequest {
         match self {
             #[cfg(any(windows, test))]
             Self::Handoff(request) => (request.worker_id, request.worker_generation),
-            #[cfg(any(windows, test))]
             Self::Shutdown(request) => (request.worker_id, request.worker_generation),
             Self::CwdValidation(request) => (request.worker_id, request.worker_generation),
             Self::Lifecycle(request) => (
@@ -137,7 +134,8 @@ impl WorkerOperationRequest {
     const fn ends_wire_on_failure(&self) -> bool {
         match self {
             #[cfg(any(windows, test))]
-            Self::Handoff(_) | Self::Shutdown(_) => true,
+            Self::Handoff(_) => true,
+            Self::Shutdown(_) => true,
             _ => false,
         }
     }
@@ -149,7 +147,6 @@ impl WorkerOperationRequest {
             Self::AgentDrain(_) | Self::Titles(_) | Self::HostQuery(_) => RequestLane::Low,
             Self::Viewer(_) | Self::GraphicsDecode(_) | Self::AgentProbeJob(_) => RequestLane::Low,
             Self::TitleChanges(_) => RequestLane::Idle,
-            #[cfg(any(windows, test))]
             Self::Shutdown(_) => RequestLane::High,
             Self::CwdValidation(_)
             | Self::Lifecycle(_)
@@ -168,7 +165,6 @@ impl WorkerOperationRequest {
         match self {
             #[cfg(any(windows, test))]
             Self::Handoff(request) => CapabilityNodeMessage::WorkerHandoffRequest(*request),
-            #[cfg(any(windows, test))]
             Self::Shutdown(request) => CapabilityNodeMessage::WorkerShutdownRequest(*request),
             Self::CwdValidation(request) => {
                 CapabilityNodeMessage::TerminalCwdValidationRequest(request.clone())
@@ -213,7 +209,6 @@ impl WorkerOperationRequest {
 pub(crate) enum WorkerOperationResult {
     #[cfg(any(windows, test))]
     Handoff(orchbee_capability_node_protocol::WorkerHandoffResult),
-    #[cfg(any(windows, test))]
     Shutdown(orchbee_capability_node_protocol::WorkerShutdownResult),
     CwdValidation(TerminalCwdValidationResult),
     Lifecycle(orchbee_capability_node_protocol::TerminalLifecycleResult),
@@ -535,7 +530,6 @@ impl WorkerRequestHandle {
         let admitted = match (&pending.request, admission) {
             #[cfg(any(windows, test))]
             (WorkerOperationRequest::Handoff(_), _) => self.queue.admit_handoff(pending),
-            #[cfg(any(windows, test))]
             (WorkerOperationRequest::Shutdown(_), _) => self.queue.admit_shutdown(pending),
             (_, Admission::Try) => self.queue.try_admit(lane, pending),
             // A payload still waiting at the deadline stays queued; its result is the exchange's.
@@ -717,7 +711,6 @@ impl PendingRequest {
             return None;
         };
         let window = match &self.request {
-            #[cfg(any(windows, test))]
             WorkerOperationRequest::Shutdown(request) => {
                 Duration::from_millis(u64::from(request.budget.milliseconds()))
             }
@@ -1117,10 +1110,10 @@ impl CarrierQueue {
         }
     }
 
-    #[cfg(any(windows, test))]
     fn admit_shutdown(&self, request: PendingRequest) -> AdmitOutcome {
         let pending = {
             let mut state = self.lock();
+            #[cfg(any(windows, test))]
             if state.handoff.is_some() {
                 return AdmitOutcome::Full;
             }
@@ -1148,7 +1141,6 @@ impl CarrierQueue {
 
     /// A shutdown that failed before any byte was written left the Worker serving, so admission
     /// reopens as before it.
-    #[cfg(any(windows, test))]
     fn release_unwritten_shutdown(&self) {
         self.lock().stopping = false;
         self.publish_change();
@@ -1559,7 +1551,6 @@ impl WorkerWireOwner {
         let generation_scoped = pending.request.ends_wire_on_failure();
 
         let response_window = match &pending.request {
-            #[cfg(any(windows, test))]
             WorkerOperationRequest::Shutdown(request) => self.limits.response_timeout.max(
                 Duration::from_millis(u64::from(request.budget.milliseconds()))
                     + SHUTDOWN_REPLY_MARGIN,
@@ -1680,8 +1671,8 @@ impl WorkerWireOwner {
             pending.unwritten_deadline(owed_since, response_timeout)
         });
         for pending in expired {
-            #[cfg(any(windows, test))]
             match &pending.request {
+                #[cfg(any(windows, test))]
                 WorkerOperationRequest::Handoff(request) => {
                     self.queue.release_unwritten_handoff(request);
                 }
@@ -1813,7 +1804,6 @@ impl WorkerWireOwner {
                 self.active.store(false, Ordering::Release);
             }
         }
-        #[cfg(any(windows, test))]
         if matches!(&result, Ok(WorkerOperationResult::Shutdown(_))) {
             self.shutdown_answered = true;
         }
@@ -2104,7 +2094,6 @@ fn validate_response(
         }
         #[cfg(any(windows, test))]
         (WorkerOperationRequest::Handoff(_), _) => Err(WorkerResponseFailure::WrongResultKind),
-        #[cfg(any(windows, test))]
         (
             WorkerOperationRequest::Shutdown(expected),
             CapabilityNodeMessage::WorkerShutdownResult(actual),
@@ -2146,7 +2135,6 @@ fn validate_response(
         (_, CapabilityNodeMessage::WorkerShutdownResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
-        #[cfg(any(windows, test))]
         (WorkerOperationRequest::Shutdown(_), _) => Err(WorkerResponseFailure::WrongResultKind),
         (
             WorkerOperationRequest::CwdValidation(expected),

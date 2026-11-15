@@ -1,4 +1,4 @@
-//! Client admission adapter: only the managed Windows composition supplies a lifecycle owner, which
+//! Client admission adapter: only the managed Session composition supplies a lifecycle owner, which
 //! records Session stops and serves the `drain` and `exit` control requests.
 use super::application_connection::{Effect, Refusal};
 use crate::agent_service::AgentService;
@@ -13,12 +13,10 @@ use orchbee_workbench_protocol::{
 
 pub(super) struct StopControl<'a> {
     pub(super) agents: &'a AgentService,
-    #[cfg(windows)]
     pub(super) shutdown: Option<&'a crate::session_shutdown::SessionShutdown>,
 }
 
 pub(super) struct Lease<'a> {
-    #[cfg(windows)]
     _record: Option<crate::session_shutdown::RecordLease<'a>>,
     _control: &'a StopControl<'a>,
 }
@@ -26,7 +24,6 @@ pub(super) struct Lease<'a> {
 // Keep the same explicit admission-release boundary on adapters with no lifecycle owner.
 impl Drop for Lease<'_> {
     fn drop(&mut self) {
-        #[cfg(windows)]
         self._record.take();
     }
 }
@@ -34,7 +31,6 @@ impl Drop for Lease<'_> {
 impl<'a> StopControl<'a> {
     /// The state a `query` reports; a Server without a lifecycle owner is always `ready`.
     pub(super) fn process_state(&self) -> ProcessState {
-        #[cfg(windows)]
         if let Some(owner) = self.shutdown {
             return owner.process_state();
         }
@@ -43,7 +39,6 @@ impl<'a> StopControl<'a> {
 
     /// The state the handshake weighs an offer against.
     pub(super) fn offer_state(&self) -> ProcessState {
-        #[cfg(windows)]
         if let Some(owner) = self.shutdown {
             return owner.offer_state();
         }
@@ -53,7 +48,6 @@ impl<'a> StopControl<'a> {
     /// Serves `drain` and returns the state its result reports, or `None` without a lifecycle
     /// owner.
     pub(super) fn drain(&self) -> Option<ProcessState> {
-        #[cfg(windows)]
         if let Some(owner) = self.shutdown {
             return Some(owner.drain());
         }
@@ -64,7 +58,6 @@ impl<'a> StopControl<'a> {
     /// process may end. No reply follows when the end does not arrive by `deadline`. Returns false
     /// without a lifecycle owner, having recorded nothing.
     pub(super) fn exit_before(&self, deadline: std::time::Instant, reply: impl FnOnce()) -> bool {
-        #[cfg(windows)]
         if let Some(owner) = self.shutdown {
             let slot = owner.exit();
             if slot.ended_before(deadline) {
@@ -79,13 +72,11 @@ impl<'a> StopControl<'a> {
     pub(super) fn unmanaged(agents: &'a AgentService) -> Self {
         Self {
             agents,
-            #[cfg(windows)]
             shutdown: None,
         }
     }
 
     pub(super) fn request(&self, request: &SessionStopRequest) -> SessionStopResult {
-        #[cfg(windows)]
         if let Some(owner) = self.shutdown {
             return owner.request(request);
         }
@@ -138,7 +129,6 @@ impl<'a> StopControl<'a> {
     /// Admits one application record. A `drain` refuses intents only; a Session stop or an `exit`
     /// refuses every record.
     pub(super) fn admit(&'a self, effect: Effect) -> Result<Lease<'a>, Refusal> {
-        #[cfg(windows)]
         let record = match self.shutdown {
             Some(owner) => Some(match effect {
                 Effect::Read => owner.enter_read().ok_or(Refusal::Stopping)?,
@@ -150,10 +140,7 @@ impl<'a> StopControl<'a> {
             }),
             None => None,
         };
-        #[cfg(not(windows))]
-        let _ = effect;
         Ok(Lease {
-            #[cfg(windows)]
             _record: record,
             _control: self,
         })
@@ -161,13 +148,11 @@ impl<'a> StopControl<'a> {
 
     /// Admits a new Client connection, which a `drain` refuses like an intent.
     pub(super) fn enter(&'a self) -> Option<Lease<'a>> {
-        #[cfg(windows)]
         let record = match self.shutdown {
             Some(owner) => Some(owner.enter()?),
             None => None,
         };
         Some(Lease {
-            #[cfg(windows)]
             _record: record,
             _control: self,
         })

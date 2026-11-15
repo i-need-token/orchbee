@@ -1,6 +1,5 @@
 //! Owned retained-operation wakeup, cancellation and explicit thread joining.
 use super::LocalTerminalService;
-#[cfg(windows)]
 use std::time::{Duration, Instant};
 use std::{
     io,
@@ -74,7 +73,6 @@ impl OperationMaintenance {
             }
         }
     }
-    #[cfg(windows)]
     pub(super) fn stop_before(&self, deadline: Instant) -> io::Result<()> {
         self.wake.available.store(false, Ordering::Release);
         self.wake.stop.store(true, Ordering::Release);

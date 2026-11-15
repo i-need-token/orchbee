@@ -115,7 +115,6 @@ impl TerminalTitles {
     }
 
     /// Only a Windows Session stop joins the pump; elsewhere it lives as long as the process.
-    #[cfg(any(windows, test))]
     pub(crate) fn stop(&self) {
         self.lock().stopped = true;
         self.pump.notify_all();

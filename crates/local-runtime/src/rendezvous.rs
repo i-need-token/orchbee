@@ -16,7 +16,7 @@ pub use unix::{
     HOST_SCOPE_NAME, LockAttempt, ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock,
 };
 #[cfg(unix)]
-pub(crate) use unix::{endpoint_exists, open_runtime_base};
+pub(crate) use unix::{host_lock_held, open_runtime_base};
 #[cfg(windows)]
 pub(crate) use windows::endpoint_exists;
 #[cfg(windows)]

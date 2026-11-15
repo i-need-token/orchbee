@@ -366,10 +366,10 @@ flush is best effort.
 Process registration is not ported. On macOS and Linux a durable record's Server, Worker and Host
 registry stays `not-started`, no observation ever reports a role absent, and `spawn_server` and
 `spawn_session_child` return `io::ErrorKind::Unsupported`. Recovering an Active Session there rests
-on its free lifetime lock and absent endpoints alone. An endpoint is absent there when nothing
-occupies its socket path, observed without connecting. A socket outlives its listener until its
-owner removes it, unlike a Windows pipe, so a Session whose Server left its sockets behind is
-refused recovery, activation and deletion until they are gone.
+on its free activation and lifetime locks and a free Host lock. A socket outlives its listener until
+its owner removes it, unlike a Windows pipe, so socket files never count as a live process: the
+Server removes the Session's stale ones under its lifetime lock before it binds, and its own once its
+stop completes, and only a held Host lock refuses recovery, activation and deletion.
 
 ## Windows user path operands
 
@@ -480,6 +480,9 @@ route. Stopped records may use any fixed slot or exactly named owned corrupt ori
 recovery requires all exact registered identities gone, complete registration, free guards and absent
 endpoints. Recovery publishes Crashed before reconciling its marker and beginning a fresh generation.
 Live/unknown identity, incomplete registration, pending deletion and orphan storage refuse recovery.
+macOS and Linux register no process identities, so there recovery requires the free activation and
+lifetime guards and a free Host lock, which the Host holds for its whole life; socket files are
+never evidence, and a Stopped record needs only its receipt until those platforms keep checkpoints.
 A record that names another runtime folder, after `ORCHBEE_RUNTIME_BASE` changed, starts through the
 new folder only once Stopped; Active and Crashed refuse until their own folder recovers them.
 Activation atomically publishes the current Active record before marker, Server or storage effects.
@@ -671,15 +674,18 @@ kernel/filesystem stalls and process suspension. Timeout closes only the Client 
 | Admitted compatible Client socket                                          | Reuse that exact connection; no process launch                                               |
 | Definite absent/refused socket, activation lock contended                  | Wait and retry connection until the original deadline                                        |
 | Activation lock acquired                                                   | Recheck socket and lifetime before any launch                                                |
-| No marker, no socket residue, lifetime free                                | Client exclusively creates `activation.started`, then spawns Server once                     |
+| No marker, lifetime free                                                   | Client exclusively creates `activation.started`, then spawns Server once                     |
 | Marker present, lifetime held                                              | Wait for compatible Server + Worker readiness                                                |
-| Marker present, lifetime free; or no marker with lifetime held             | RecoveryRequired; never launch                                                               |
+| Marker present, lifetime and Host lock free                                | Catalog records Crashed, then a fresh generation commits and spawns Server once              |
+| Marker present, lifetime free, Host lock held past 3 s                     | RecoveryRequired; never launch                                                               |
+| No marker, lifetime held                                                   | A Server is completing its stop; wait, then start again once it releases the lifetime lock   |
 | Invalid socket / cohort / permissions, incompatible or ambiguous admission | Explicit failure; no fallback                                                                |
-| Launch failure after marker creation                                       | Retain marker; this and later attempts require explicit recovery                             |
+| Launch failure after marker creation                                       | Retain marker; this attempt reports RecoveryRequired and a later one recovers it as above    |
 | Server + Worker ready                                                      | Release activation lock, read Workspace membership, attach an existing binding when selected |
 | First validated frame applied before deadline                              | Enter TUI with the same inherited TTY and prepared Session                                   |
 | Client exit / deadline                                                     | Release Client resources; retain Server, Worker, Host, and terminal                          |
 | Worker / Host loss                                                         | Unavailable or unknown outcome; never respawn, adopt, or replay                              |
+| Server `SIGTERM` / `SIGINT`, Worker exited and Host gone                   | Server's normal stop; Stopped receipt, socket files removed, lifetime released               |
 
 `activation.started` is an immutable, empty, regular, single-link, effective-user-owned 0600
 file. The Client is its sole writer, using descriptor-relative O_EXCL, CLOEXEC, and NOFOLLOW.
@@ -769,21 +775,26 @@ a coherent exact artifact set, not publisher authenticity.
 The LS claims below describe the Linux and macOS development startup boundary. Managed Windows cold recovery
 has the separate [generation and process registration contract](docs/windows-crash-recovery.md).
 
-| Claim                                                                 | Owner / refinement                                                  | Evidence                                                               |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| LS01 at most one launch attempt per runtime lifetime                  | Exclusive activation marker; Client under activation guard          | LocalSessionStartup model; contention and failed-marker process traces |
-| LS02 no implicit recovery or Client-owned termination                 | Persistent marker, Server lifetime guard, dropped Client connection | Model losses/timeouts; disconnect/reopen real process trace            |
-| LS03 no Host before authorized Launch; one retained dispatch          | Worker authorization kernel and lazy startup adapter                | Model authorization; Worker invalid/valid Launch process tests         |
-| LS04 coherent roles and private rendezvous before effects             | Cohort and ModeCheckedLocalSessionRendezvous                        | Manifest corruption, mode, symlink, and existing lock tests            |
-| LS05 startup readiness includes a valid first frame within one budget | Client deadline, TerminalSession projection, same TTY handoff       | Admission/submission deadline tests and bare TTY process tests         |
+| Claim                                                                                      | Owner / refinement                                                                       | Evidence                                                                   |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| LS01 at most one launch attempt per activation generation                                  | Exclusive activation marker; Client under activation guard                               | LocalSessionStartup model; contention and failed-marker process traces     |
+| LS02 no recovery while a generation's Server or Host may live; no Client-owned termination | Lifetime guard, Host lock, catalog recovery under both guards, dropped Client connection | Model losses/timeouts; injected-lock recovery tests; signal process traces |
+| LS03 no Host before authorized Launch; one retained dispatch                               | Worker authorization kernel and lazy startup adapter                                     | Model authorization; Worker invalid/valid Launch process tests             |
+| LS04 coherent roles and private rendezvous before effects                                  | Cohort and ModeCheckedLocalSessionRendezvous                                             | Manifest corruption, mode, symlink, and existing lock tests                |
+| LS05 startup readiness includes a valid first frame within one budget                      | Client deadline, TerminalSession projection, same TTY handoff                            | Admission/submission deadline tests and bare TTY process tests             |
 
-`formal/tla/LocalSessionStartup.tla` bounds two Clients, one Server launch attempt, and one Host
-attempt. It abstracts filesystem checks as admitted facts, abstracts deadline observation as an expiry event, and
-checks safety without scheduler fairness. Per-Client timeout fairness supports bounded-attempt
-termination only, not service availability. Real kernel locks, peers, hashing, PTYs, and
-cancellation are exercised by Linux and macOS tests. Remote, Workbench membership, daemon restart,
-automatic cleanup/recovery, persistence across Server loss, and other Unix targets are
-outside this contract.
+`formal/tla/LocalSessionStartup.tla` bounds one activation generation: two Clients, one Server
+launch attempt, and one Host attempt. Its `Recovery` is an attempt that launches nothing in that
+generation; the [catalog](#durable-session-catalog) closes a generation that ended without its stop
+and the next one starts as a fresh instance. It abstracts filesystem checks as admitted facts,
+abstracts deadline observation as an expiry event, and checks safety without scheduler fairness.
+Per-Client timeout fairness supports bounded-attempt termination only, not service availability.
+Real kernel locks, peers, hashing, PTYs, signals and cancellation are exercised by Linux and macOS
+tests. A Server whose activating Client ended before that Server took the lifetime lock looks lost
+until it takes it; a recovery in that window lets the two generations' Servers race for the lock,
+which keeps one owner, and the recovering attempt then reports RecoveryRequired. Remote, Workbench
+membership, daemon restart, persistence across Server loss, and other Unix targets are outside this
+contract.
 
 ## POSIX local Session rendezvous foundation
 
@@ -820,7 +831,7 @@ socket folder as 0700 when it is missing; every open requires a real folder of t
 with exact mode `0700`, and refuses anything else as `UnsafeSocketFolder` without repair. A
 validation finds no folder before an activation has created one. The Server holds a shared lock on
 the folder while the Session lives, so a temporary-file cleaner that honours locks leaves it alone.
-Nothing removes a socket another Session left behind.
+Only `remove_endpoints`, below, removes a socket file.
 
 `ModeCheckedLocalSessionRendezvous` retains its mode-checked name for other Unix targets. Preparation
 creates only the scope directory and socket folder when absent. Preparation and validation open `/`
@@ -850,8 +861,8 @@ retry, or infer process health. File creation and advisory-lock acquisition are 
 returning `Contended` may have created and normalized a previously missing durable lock inode before
 another descriptor won the lock. A contended attempt never truncates, replaces, unlinks, or changes
 the ownership of an existing inode, and never repairs a pre-existing invalid entry. Dropping a guard
-releases only its advisory lock. The runtime directory, durable lock files, socket paths, and any
-entries at those paths are never removed by this module.
+releases only its advisory lock. The runtime directory and durable lock files are never removed by
+this module.
 
 `observe_*` entry probes expose the same finite names to read-only diagnostics: a
 descriptor-relative `fstatat` with `AT_SYMLINK_NOFOLLOW` answers each entry's raw kind,
@@ -869,8 +880,11 @@ Server takes it. A missing activation lock is `NoActivation`, a held one `Activa
 file is created. The machine hub reads Sessions this way.
 
 Socket metadata and same-user peer proof are enforced by the managed consumers. Client, Server, and
-Worker share this crate, and Server owns the lifetime guard. The primitive does not itself select
-application startup policy, retry, remove stale endpoints, or grant recovery authority.
+Worker share this crate, and Server owns the lifetime guard. `remove_endpoints` takes that held guard
+and unlinks only a socket owned by the effective user at the Session's five derived names, inspected
+with `fstatat` without following links; another entry kind stays, and the Host endpoint stays while
+another descriptor holds the Host's lock. The primitive does not itself select application startup
+policy, retry, or grant recovery authority.
 
 ### Modeling and evidence
 

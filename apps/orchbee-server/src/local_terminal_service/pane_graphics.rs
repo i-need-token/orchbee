@@ -328,7 +328,6 @@ impl LocalTerminalService {
         pending.then(|| Instant::now() + Duration::from_millis(250))
     }
     /// Settles all preparing/read tokens and owned directories before managed clean-stop publication.
-    #[cfg(windows)]
     pub(crate) fn stop_graphics_before(&self, deadline: Instant) -> io::Result<()> {
         self.graphics_stopping.store(true, Ordering::Release);
         loop {

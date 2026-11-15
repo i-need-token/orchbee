@@ -54,7 +54,6 @@ pub(crate) struct HostExchange<'a> {
 
 impl<'a> HostExchange<'a> {
     /// Shares an existing caller deadline without renewing its budget.
-    #[cfg(windows)]
     pub(crate) fn before(
         host: &'a HostBrokerConnection,
         server: &'a UnixStream,

@@ -10,7 +10,6 @@ use orchbee_workbench_protocol::{
     ProtocolVersion, TabSetCloseAction as Action, TabSetCloseOutcome as Outcome,
     TabSetCloseUnavailable as Unavailable, WorkbenchTabSetCloseRequest, WorkbenchTabSetCloseResult,
 };
-#[cfg(windows)]
 use std::io;
 use std::{
     sync::{Arc, atomic::AtomicBool},
@@ -100,7 +99,6 @@ impl LocalTerminalService {
             .unwrap_or_else(|| unavailable(&request))
     }
 
-    #[cfg(windows)]
     pub(crate) fn stop_tab_sets_before(&self, deadline: Instant) -> io::Result<()> {
         self.tab_set_maintenance.stop_before(deadline)
     }

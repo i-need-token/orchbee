@@ -301,7 +301,6 @@ impl AgentCatalog {
     }
 
     /// Only a Windows Session stop joins the pump; elsewhere it lives as long as the process.
-    #[cfg(windows)]
     pub(crate) fn stop(&self) {
         let mut state = self.lock();
         let before = state.published();

@@ -1774,8 +1774,7 @@ fn empty_lists_say_how_to_create_their_first_entry() {
 #[test]
 fn unsupported_commands_share_the_platform_failure_contract() {
     use crate::invocation::{
-        ClientCommand, ManifestCommand, ServerStopCommand, WorkspaceGroupCloseCommand,
-        WorktreeCommand,
+        ClientCommand, ManifestCommand, WorkspaceGroupCloseCommand, WorktreeCommand,
     };
     use orchbee_workbench_protocol::WorkbenchRequestId;
     let schema: Value =
@@ -1785,17 +1784,6 @@ fn unsupported_commands_share_the_platform_failure_contract() {
         for format in [OutputFormat::Json, OutputFormat::Text] {
             let operation_id = WorkbenchRequestId::parse(ID).unwrap();
             for output in [
-                super::server_stop::run(
-                    &ServerStopCommand::Stop {
-                        id: None,
-                        confirm: true,
-                        retry: false,
-                        detach: false,
-                        timeout_ms: 1,
-                    },
-                    format,
-                    locale,
-                ),
                 super::worktree_operation::run(
                     WorktreeCommand::Status {
                         operation_id: operation_id.clone(),

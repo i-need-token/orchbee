@@ -25,7 +25,7 @@ use nix::{
     errno::Errno,
     fcntl::{AtFlags, OFlag, open, openat},
     sys::stat::{FchmodatFlags, FileStat, Mode, SFlag, fchmod, fchmodat, fstat, fstatat, mkdirat},
-    unistd::geteuid,
+    unistd::{UnlinkatFlags, geteuid, unlinkat},
 };
 
 const ACTIVATION_LOCK_NAME: &str = "activation.lock";
@@ -506,6 +506,51 @@ impl ModeCheckedLocalSessionRendezvous {
         }
     }
 
+    /// Removes the sockets a Session that ended without its stop left behind: the Client, pending,
+    /// Worker and Agent observation sockets, and the Host's while no Terminal Host holds its lock.
+    /// Only the Session lifetime owner removes them, before it binds and once more as it stops, so
+    /// a socket a live Server or Host still serves is never touched. An entry goes only when it is
+    /// a socket of this user; anything else stays and makes the bind fail.
+    pub fn remove_endpoints(&self, lifetime: &ModeCheckedSessionLock) -> std::io::Result<()> {
+        self.require_lock(lifetime, LockKind::SessionLifetime)?;
+        let Some(sockets) = &self.sockets else {
+            return Ok(());
+        };
+        for role in [
+            SocketRole::Client,
+            SocketRole::Pending,
+            SocketRole::Worker,
+            SocketRole::Agent,
+        ] {
+            self.remove_socket(sockets, role)?;
+        }
+        // A starting Host removes a stale endpoint itself while it holds this lock, so whoever
+        // holds the lock owns that name.
+        let host = host_lock(&self.paths.runtime_directory, self.expected_uid)?;
+        if matches!(host, HostLock::Free { .. }) {
+            self.remove_socket(sockets, SocketRole::Host)?;
+        }
+        drop(host);
+        Ok(())
+    }
+
+    fn remove_socket(&self, sockets: &OwnedFd, role: SocketRole) -> std::io::Result<()> {
+        let leaf = socket_leaf(&self.paths.endpoint_id, role);
+        match fstatat(sockets, leaf.as_str(), AtFlags::AT_SYMLINK_NOFOLLOW) {
+            Ok(status)
+                if SFlag::from_bits_truncate(status.st_mode) == SFlag::S_IFSOCK
+                    && status.st_uid == self.expected_uid =>
+            {
+                match unlinkat(sockets, leaf.as_str(), UnlinkatFlags::NoRemoveDir) {
+                    Ok(()) | Err(Errno::ENOENT) => Ok(()),
+                    Err(error) => Err(error.into()),
+                }
+            }
+            Ok(_) | Err(Errno::ENOENT) => Ok(()),
+            Err(error) => Err(error.into()),
+        }
+    }
+
     fn try_acquire(&self, kind: LockKind) -> Result<LockAttempt, RendezvousError> {
         self.try_acquire_for_user(kind, self.expected_uid)
     }
@@ -735,14 +780,64 @@ fn effective_uid() -> u32 {
     geteuid().as_raw()
 }
 
-/// Whether any object occupies a socket path, observed without following it or connecting; a
-/// missing socket folder holds none.
-pub(crate) fn endpoint_exists(path: &Path) -> std::io::Result<bool> {
-    match std::fs::symlink_metadata(path) {
-        Ok(_) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error),
+/// The Terminal Host lock of a runtime directory: free, and then held by the caller for as long
+/// as the file lives (none when no Host ever created it), or held by a Host.
+enum HostLock {
+    Free { _held: Option<File> },
+    Held,
+}
+
+/// Probes `<runtime>/host/<id>.l`, the `flock` a Terminal Host holds for its whole life and takes
+/// before it binds or removes its endpoint. A free lock is taken for the caller, so a Host that
+/// starts meanwhile fails to take it; callers therefore probe only while no Worker of this Session
+/// can start a Host: under the Session lifetime lock, or after the Session's Worker exited.
+fn host_lock(runtime_directory: &Path, expected_uid: u32) -> std::io::Result<HostLock> {
+    let absent = || Ok(HostLock::Free { _held: None });
+    let runtime = match open(runtime_directory, DIRECTORY_OPEN_FLAGS, Mode::empty()) {
+        Ok(descriptor) => descriptor,
+        Err(Errno::ENOENT) => return absent(),
+        Err(error) => return Err(error.into()),
+    };
+    let host = match openat(
+        &runtime,
+        HOST_SCOPE_NAME,
+        DIRECTORY_OPEN_FLAGS,
+        Mode::empty(),
+    ) {
+        Ok(descriptor) => descriptor,
+        Err(Errno::ENOENT) => return absent(),
+        Err(error) => return Err(error.into()),
+    };
+    let name = format!("{}.l", runtime_endpoint_id(runtime_directory));
+    let descriptor = match openat(&host, name.as_str(), LOCK_OPEN_FLAGS, Mode::empty()) {
+        Ok(descriptor) => descriptor,
+        Err(Errno::ENOENT) => return absent(),
+        Err(error) => return Err(error.into()),
+    };
+    let status = fstat(&descriptor)?;
+    if SFlag::from_bits_truncate(status.st_mode) != SFlag::S_IFREG || status.st_uid != expected_uid
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "invalid Terminal Host lock",
+        ));
     }
+    let file = File::from(descriptor);
+    match file.try_lock() {
+        Ok(()) => Ok(HostLock::Free { _held: Some(file) }),
+        Err(TryLockError::WouldBlock) => Ok(HostLock::Held),
+        Err(TryLockError::Error(source)) => Err(source),
+    }
+}
+
+/// Whether a Terminal Host of this runtime directory still holds its lock. On POSIX this, not a
+/// socket path, is a Host's presence: a socket file outlives its listener. The probe follows the
+/// rule of [`host_lock`].
+pub(crate) fn host_lock_held(runtime_directory: &Path) -> std::io::Result<bool> {
+    Ok(matches!(
+        host_lock(runtime_directory, effective_uid())?,
+        HostLock::Held
+    ))
 }
 
 /// The socket name prefix of a runtime directory, from its canonical base and its Session name.

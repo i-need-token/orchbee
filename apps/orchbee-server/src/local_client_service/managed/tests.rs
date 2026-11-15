@@ -8,7 +8,7 @@ use orchbee_local_client_protocol::{
     LocalClientMessage, RejectionReason, SessionStopRequest, SessionStopStatus, StopAction, StopId,
     read_message, write_message,
 };
-use std::io::Read;
+use std::{io::Read, path::Path};
 
 fn connect(endpoint: &Path) -> UnixStream {
     let client = UnixStream::connect(endpoint).unwrap();

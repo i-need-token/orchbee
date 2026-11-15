@@ -9,17 +9,11 @@ use crate::{
 use orchbee_local_client_protocol::{ConnectClientError, StopId};
 use serde_json::{Value, json};
 
+mod native;
 mod reply;
-#[cfg(windows)]
-mod windows;
 mod workflow;
-#[cfg(windows)]
-use windows as platform;
-#[cfg(not(windows))]
-mod unix;
+use native as platform;
 use reply::{Answer, Observation, render};
-#[cfg(not(windows))]
-use unix as platform;
 
 /// Submission truth survives native exchange failure so the workflow never replays a mutation.
 struct ExchangeFailure {

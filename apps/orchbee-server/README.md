@@ -183,8 +183,8 @@ Agent observation and Client listeners, waking and joining retained Client handl
 the stopped activation record. An activation guard excludes concurrent restart during publication
 and lifetime-lock release. Pipe absence or lost replies cannot prove completion. Failed attempts
 remain queryable while the control listener survives; after listener closure, the strict activation
-record remains a positive receipt. No process discovery, adoption, path removal or platform stop
-implementation for Linux/macOS is part of this owner.
+record remains a positive receipt. Linux and macOS run this owner without the checkpoint stages;
+[their startup](#managed-linux-and-macos-session-startup) describes what differs.
 
 A Worker that already exited can neither sample a directory nor stop its Host. A stop then
 continues only once the retained record observes that Worker's Host gone, or never started, and its
@@ -317,21 +317,40 @@ complete snapshot boundary publication. Push subscription remains unfinished.
 
 The private `--runtime-directory <absolute-runtime-directory>` entry consumes the
 [shared runtime contract](../../crates/local-runtime/README.md).
-Server verifies the four-artifact cohort, runtime, and immutable activation marker before taking
-the exclusive lifetime guard and detaching from the Client terminal session with `setsid`.
-On Linux it binds the 0600 Worker socket with no-replace publication; on macOS it binds the final
-socket path inside the private runtime directory, applies mode `0600`, and verifies the path is a
-single-link socket owned by the effective user. It starts one exact cohort Worker. After
-registration it permanently closes Worker admission, so no replacement generation can enroll, then
-atomically publishes the permission-complete Client listener. Server startup has its own 20-second budget; the Client retains
-its independent total startup deadline. This readiness means registered Server + Worker, not an
-existing Host or terminal. Managed standard streams are null; this mode emits no explicit-endpoint
-stdout readiness marker.
+Before it starts any thread, Server blocks `SIGTERM`, `SIGINT` and `SIGHUP`, so one signal thread
+alone receives them. It verifies the four-artifact cohort, runtime, and immutable activation marker
+before taking the exclusive lifetime guard, holds the socket folder's lock, retains the active
+activation record and the durable Session record, and removes the socket files a Session that ended
+without its stop left behind: no listener can serve them while this Server holds the lifetime lock,
+and a Host socket stays while that Host holds its own lock. It then detaches from the Client
+terminal session with `setsid`. On Linux it binds the 0600 Worker socket with no-replace
+publication; on macOS it binds the final socket path inside the private runtime directory, applies
+mode `0600`, and verifies the path is a single-link socket owned by the effective user. It starts
+one exact cohort Worker. After registration it permanently closes Worker admission, so no
+replacement generation can enroll, then atomically publishes the permission-complete Client
+listener, the same listener Windows retains. Server startup has its own 20-second budget; the
+Client retains its independent total startup deadline. This readiness means registered Server +
+Worker, not an existing Host or terminal. Managed standard streams are null; this mode emits no
+explicit-endpoint stdout readiness marker.
 
-Client exit does not end the Session. Worker loss makes its capabilities unavailable without starting
-a replacement; Server loss leaves the attempt marker and retained Host terminals for explicit
-recovery. This entry implements no recovery, automatic cleanup, service-manager installation, or
-restart. The ordinary explicit-endpoint test entry retains the behavior below.
+Client exit does not end the Session, and neither does `SIGHUP`. `server stop`, an admitted
+Client's `workbench.session-stop`, `SIGTERM` and `SIGINT` all reach the
+[managed stop owner](#managed-windows-session-shutdown), so a logout or a system shutdown, which
+sends `SIGTERM`, stops the Session normally. The owner runs as on Windows without the checkpoint
+saver, final capture, plugin hooks, automatic updates or Agent resume: the Worker shutdown request
+disposes every terminal, and after the Client listeners stop the owner removes the Session's
+socket files before it publishes the Stopped record, which is the receipt the next start consumes.
+Every stop the Server begins itself, on a signal or once its Worker exited and its Host is gone,
+uses one identity, and a later signal or loss check retries that identity once its attempt failed.
+An `exit` request also disposes the terminals: no later Linux or macOS Server can adopt a Host
+that keeps them, and that Host's lock would refuse every recovery while it runs.
+
+A Server ended by `SIGKILL` or a crash leaves an Active record and stale socket files. The next
+activation recovers that record to Crashed under the activation and lifetime locks once the Host's
+lock is free, and starts the Session again; socket files never count as a live process. A Host that
+still holds its lock keeps the Session's terminals and refuses recovery until it ends. This entry
+implements no service-manager installation or automatic restart. The ordinary explicit-endpoint
+test entry retains the behavior below.
 
 Linux and macOS compile the same Workbench dispatch as Windows. A Windows-only capability runs
 until its platform adapter or an owner this startup never initializes refuses it with that
@@ -345,8 +364,8 @@ reports and process observation, so none exist here. Client view, semantic event
 requests are admitted as on Windows: their state lives in Server memory for the connection or its
 subscription, and nothing of it is saved. Terminal editor, Panel Agent, configured command, Panel
 graphics, Agent view, Workspace and Panel metadata and notification requests keep their earlier
-refusal at admission until their behavior off Windows is decided. Checkpoint, stop and handoff
-remain Windows-only because only the Windows startup constructs their owners.
+refusal at admission until their behavior off Windows is decided. Checkpoint and handoff remain
+Windows-only because only the Windows startup constructs their owners.
 
 ## Local Worker service
 
