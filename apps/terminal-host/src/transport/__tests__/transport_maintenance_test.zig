@@ -35,9 +35,171 @@ const WindowsTestRuntimeDirectory = harness.WindowsTestRuntimeDirectory;
 const PosixTestClient = harness.PosixTestClient;
 const WindowsTestClient = harness.WindowsTestClient;
 const expectHandshakeAccepted = harness.expectHandshakeAccepted;
+const handshake = harness.handshake;
+const workerOffer = harness.workerOffer;
 const ServeThreadContext = harness.ServeThreadContext;
 const serveTestConnection = harness.serveTestConnection;
 const serveTestUntilIdle = harness.serveTestUntilIdle;
+
+/// Counts maintenance passes: each pass reads the cleanup clock once while a terminal is retained.
+const MaintenancePasses = struct {
+    count: usize = 0,
+
+    fn read(clock: *host_runtime_aggregate.testing.CleanupClockType) i128 {
+        const self: *MaintenancePasses = @ptrCast(@alignCast(clock.context.?));
+        self.count += 1;
+        return 0;
+    }
+};
+
+const WorkerStall = enum { reading, mid_send };
+
+/// A Worker that completes its Hello and then stalls: it takes no more Host records, or it stops
+/// partway through a record of its own. The Host's `exit` arrives at its `exit_at`th wait.
+const StalledWorker = struct {
+    input: []const u8,
+    stall: WorkerStall,
+    service: *host_service.HostService,
+    passes: *const MaintenancePasses,
+    exit_at: usize,
+    offset: usize = 0,
+    records_taken: usize = 0,
+    waits: usize = 0,
+    passes_at_first_wait: usize = 0,
+    cancelled: bool = false,
+
+    pub fn read(self: *StalledWorker, bytes: []u8) !usize {
+        const length = @min(bytes.len, self.input.len - self.offset);
+        @memcpy(bytes[0..length], self.input[self.offset..][0..length]);
+        self.offset += length;
+        return length;
+    }
+
+    pub fn waitReadable(self: *StalledWorker) !bool {
+        if (self.offset < self.input.len) return true;
+        self.wait();
+        return false;
+    }
+
+    /// Only the handshake answer is written whole; session records go through `writeSome`.
+    pub fn writeAll(_: *StalledWorker, bytes: []const u8) !void {
+        if (!std.mem.startsWith(u8, bytes, handshake.frame.magic)) return error.TestUnexpectedWrite;
+    }
+
+    pub fn writeSome(self: *StalledWorker, bytes: []const u8, _: u32) !usize {
+        // The Hello reply is taken; a Worker that stopped reading takes nothing after it.
+        if (self.stall == .reading and self.records_taken != 0) {
+            self.wait();
+            return 0;
+        }
+        self.records_taken += 1;
+        return bytes.len;
+    }
+
+    pub fn cancelPendingWrite(self: *StalledWorker) void {
+        self.cancelled = true;
+    }
+
+    fn wait(self: *StalledWorker) void {
+        self.waits += 1;
+        if (self.waits == 1) self.passes_at_first_wait = self.passes.count;
+        if (self.waits == self.exit_at) _ = self.service.applyControlRequest(.exit);
+    }
+};
+
+fn expectStalledWorkerEndsOnExit(stall: WorkerStall) !void {
+    var service = host_service.HostService.init(std.testing.allocator);
+    defer service.deinit();
+    const setup_connection: host_core.ConnectionId = 9;
+    _ = try serviceCore(&service).connect(
+        setup_connection,
+        host_core.ClientId.fromBytes([_]u8{1} ** 16),
+    );
+    _ = try createModel(
+        serviceCore(&service),
+        setup_connection,
+        host_core.CreationId.fromBytes([_]u8{2} ** 16),
+        host_core.TerminalId.fromBytes([_]u8{3} ** 16),
+        [_]u8{4} ** 32,
+        80,
+        24,
+    );
+    _ = serviceCore(&service).disconnect(setup_connection);
+    var passes: MaintenancePasses = .{};
+    host_runtime_aggregate.testing.setCleanupClockForTesting(
+        serviceAggregate(&service),
+        MaintenancePasses.read,
+        &passes,
+    );
+
+    const offer = try handshake.encode.initiatorFrame(std.testing.allocator, .{ .offer = workerOffer() });
+    defer std.testing.allocator.free(offer);
+    const hello_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"clientId\":\"22222222222222222222222222222222\",\"frameBytes\":1024,\"inputBytes\":1024,\"protocol\":{{\"major\":{d},\"minor\":{d},\"patch\":{d}}},\"rowWindowBytes\":1024,\"supportedOptionalFeatures\":[]}}",
+        .{
+            protocol.current_protocol_major,
+            protocol.current_protocol_minor,
+            protocol.current_protocol_patch,
+        },
+    );
+    defer std.testing.allocator.free(hello_payload);
+    const hello = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        protocol.MessageKind.hello,
+        .control_json,
+        hello_payload,
+        null,
+        null,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(hello);
+    const ping = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        protocol.MessageKind.ping,
+        .control_json,
+        "{}",
+        [_]u8{0x5b} ** 16,
+        serviceAggregate(&service).hostEpoch().bytes,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(ping);
+    const sent = switch (stall) {
+        // The whole ping, whose answer the Worker never takes.
+        .reading => ping,
+        // Part of the ping's header, and then nothing.
+        .mid_send => ping[0..30],
+    };
+    const input = try std.mem.concat(std.testing.allocator, u8, &.{ offer, hello, sent });
+    defer std.testing.allocator.free(input);
+
+    var worker: StalledWorker = .{
+        .input = input,
+        .stall = stall,
+        .service = &service,
+        .passes = &passes,
+        .exit_at = 5,
+    };
+    try std.testing.expectError(error.ConnectionClosed, serveConnection(&worker, &service));
+    // The session ends in the step `exit` arrived in, with no deadline involved.
+    try std.testing.expectEqual(worker.exit_at, worker.waits);
+    // Every wait for the stalled Worker maintained the retained terminal.
+    try std.testing.expect(passes.count - worker.passes_at_first_wait >= worker.exit_at - 1);
+    // Only a write left pending is cancelled, which ends the stream partway.
+    try std.testing.expectEqual(stall == .reading, worker.cancelled);
+    try std.testing.expectEqual(@as(usize, 0), serviceCore(&service).connectionCount());
+    try std.testing.expectEqual(@as(usize, 1), serviceCore(&service).terminalCount());
+}
+
+test "a Worker that stops reading holds its session until exit cancels the pending write, and terminals are maintained meanwhile" {
+    try expectStalledWorkerEndsOnExit(.reading);
+}
+
+test "a Worker that stops partway through a record holds its session until exit, and terminals are maintained meanwhile" {
+    try expectStalledWorkerEndsOnExit(.mid_send);
+}
 
 test "partial handshakes cannot gate broker-independent cleanup maintenance" {
     const PartialTransport = struct {
