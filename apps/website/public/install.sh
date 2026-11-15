@@ -87,7 +87,7 @@ ob_cleanup() {
 			ob_mount=''
 		else
 			ob_say "The disk image stays attached at $ob_mount; detach it in Finder." \
-				"磁盘映像仍挂载在 $ob_mount，请在访达中推出它。" >&2
+				"磁盘映像仍挂载在 ${ob_mount}，请在访达中推出它。" >&2
 		fi
 	fi
 	# Interrupted between the two moves: put the older application back.
@@ -166,7 +166,7 @@ ob_download() {
 	200 | 000) ;;
 	*)
 		ob_fail "$1 answered $ob_status. Nothing was installed." \
-			"$1 返回了 $ob_status。未安装任何内容。"
+			"$1 返回了 ${ob_status}。未安装任何内容。"
 		;;
 	esac
 }
@@ -237,7 +237,7 @@ $ob_fields
 EOF
 	if [ -n "$ob_wanted" ] && [ "$ob_wanted" != "$ob_version" ]; then
 		ob_fail "The feed names version $ob_version, not $ob_wanted. Nothing was installed." \
-			"发布源给出的版本是 $ob_version，不是 $ob_wanted。未安装任何内容。"
+			"发布源给出的版本是 ${ob_version}，不是 ${ob_wanted}。未安装任何内容。"
 	fi
 }
 
@@ -263,13 +263,13 @@ ob_fetch_archive() {
 	mkdir "$ob_tmp/unpacked" || exit 1
 	if ! tar -x -z -f "$ob_tmp/$ob_archive_name" -C "$ob_tmp/unpacked" </dev/null; then
 		ob_fail "Could not unpack $ob_archive_name. Nothing was installed." \
-			"无法解压 $ob_archive_name。未安装任何内容。"
+			"无法解压 ${ob_archive_name}。未安装任何内容。"
 	fi
 	ob_folder="$ob_tmp/unpacked/$ob_stem-$ob_version-$ob_platform"
 	ob_client="$ob_folder/$ob_stem"
 	if [ ! -f "$ob_client" ] || [ ! -x "$ob_client" ]; then
 		ob_fail "$ob_archive_name holds no runnable $ob_stem. Nothing was installed." \
-			"$ob_archive_name 中没有可运行的 $ob_stem。未安装任何内容。"
+			"$ob_archive_name 中没有可运行的 ${ob_stem}。未安装任何内容。"
 	fi
 }
 
@@ -323,7 +323,7 @@ ob_applications() {
 	fi
 	mkdir -p "$ob_destination" ||
 		ob_fail "Could not create $ob_destination; the command line is installed, the desktop app is not." \
-			"无法创建 $ob_destination；命令行已安装，桌面应用未安装。"
+			"无法创建 ${ob_destination}；命令行已安装，桌面应用未安装。"
 }
 
 ob_install_desktop() {
@@ -334,48 +334,48 @@ ob_install_desktop() {
 	if ! hdiutil attach "$ob_tmp/$ob_image_name" -readonly -nobrowse -noautoopen \
 		-mountpoint "$ob_mount" </dev/null >/dev/null; then
 		[ -n "$(ls -A "$ob_mount" 2>/dev/null)" ] || ob_mount=''
-		ob_fail "Could not attach $ob_image_name; $ob_partial." "无法挂载 $ob_image_name；$ob_partial_zh。"
+		ob_fail "Could not attach $ob_image_name; $ob_partial." "无法挂载 ${ob_image_name}；${ob_partial_zh}。"
 	fi
 	ob_application=''
 	for ob_entry in "$ob_mount"/*.app; do
 		if [ -d "$ob_entry" ]; then
 			[ -z "$ob_application" ] ||
-				ob_fail "$ob_image_name holds more than one application; $ob_partial." "$ob_image_name 中有多个应用；$ob_partial_zh。"
+				ob_fail "$ob_image_name holds more than one application; $ob_partial." "$ob_image_name 中有多个应用；${ob_partial_zh}。"
 			ob_application=$ob_entry
 		fi
 	done
 	[ -n "$ob_application" ] ||
-		ob_fail "$ob_image_name holds no application; $ob_partial." "$ob_image_name 中没有应用；$ob_partial_zh。"
+		ob_fail "$ob_image_name holds no application; $ob_partial." "$ob_image_name 中没有应用；${ob_partial_zh}。"
 	ob_name=${ob_application##*/}
 	ob_applications "$ob_name"
 	ob_target="$ob_destination/$ob_name"
 	if [ -e "$ob_target" ] && pgrep -f "$ob_target/Contents/" >/dev/null 2>&1; then
 		ob_fail "$ob_target is running. Quit Orchbee and run this again; $ob_partial." \
-			"$ob_target 正在运行。请退出 Orchbee 后重新运行；$ob_partial_zh。"
+			"$ob_target 正在运行。请退出 Orchbee 后重新运行；${ob_partial_zh}。"
 	fi
 	ob_staged="$ob_destination/.$ob_name.install-$$"
 	rm -rf "$ob_staged"
 	if ! ditto "$ob_application" "$ob_staged" </dev/null ||
 		! codesign --verify --deep --strict "$ob_staged" </dev/null >/dev/null 2>&1; then
 		ob_fail "Could not copy $ob_name into $ob_destination with its signature intact; $ob_partial." \
-			"无法把 $ob_name 完整（含签名）复制到 $ob_destination；$ob_partial_zh。"
+			"无法把 $ob_name 完整（含签名）复制到 ${ob_destination}；${ob_partial_zh}。"
 	fi
 	if [ -e "$ob_target" ]; then
 		ob_previous="$ob_destination/.$ob_name.previous-$$"
 		mv "$ob_target" "$ob_previous" ||
-			ob_fail "Could not replace $ob_target; $ob_partial." "无法替换 $ob_target；$ob_partial_zh。"
+			ob_fail "Could not replace $ob_target; $ob_partial." "无法替换 ${ob_target}；${ob_partial_zh}。"
 	fi
 	mv "$ob_staged" "$ob_target" ||
-		ob_fail "Could not move $ob_name into $ob_destination; $ob_partial." "无法把 $ob_name 移入 $ob_destination；$ob_partial_zh。"
+		ob_fail "Could not move $ob_name into $ob_destination; $ob_partial." "无法把 $ob_name 移入 ${ob_destination}；${ob_partial_zh}。"
 	ob_staged=''
 	if [ -n "$ob_previous" ]; then
 		rm -rf "$ob_previous" ||
 			ob_say "Could not remove the older copy $ob_previous; delete it by hand." \
-				"无法删除旧副本 $ob_previous，请手动删除。" >&2
+				"无法删除旧副本 ${ob_previous}，请手动删除。" >&2
 		ob_previous=''
 	fi
 	hdiutil detach "$ob_mount" -quiet </dev/null >/dev/null 2>&1 && ob_mount=''
-	ob_say "Installed $ob_name in $ob_destination." "已将 $ob_name 安装到 $ob_destination。"
+	ob_say "Installed $ob_name in $ob_destination." "已将 $ob_name 安装到 ${ob_destination}。"
 }
 
 ob_main() {
@@ -415,12 +415,12 @@ ob_main() {
 
 	for ob_program in curl tar uname sed awk cut wc mktemp; do
 		command -v "$ob_program" >/dev/null 2>&1 ||
-			ob_fail "This script needs $ob_program. Nothing was installed." "本脚本需要 $ob_program。未安装任何内容。"
+			ob_fail "This script needs $ob_program. Nothing was installed." "本脚本需要 ${ob_program}。未安装任何内容。"
 	done
 	ob_detect_platform
 	if [ "$ob_desktop" = 1 ] && [ "$ob_os" != macos ]; then
 		ob_fail "--desktop is not available on $ob_platform yet. Nothing was installed." \
-			"--desktop 暂不支持 $ob_platform。未安装任何内容。"
+			"--desktop 暂不支持 ${ob_platform}。未安装任何内容。"
 	fi
 
 	ob_proto='=https'
@@ -460,7 +460,7 @@ ob_main() {
 			"Orchbee 还没有适用于 $ob_platform 的发布版本。未安装任何内容。"
 		;;
 	*)
-		ob_fail "$ob_feed_url answered $ob_status. Nothing was installed." "$ob_feed_url 返回了 $ob_status。未安装任何内容。"
+		ob_fail "$ob_feed_url answered $ob_status. Nothing was installed." "$ob_feed_url 返回了 ${ob_status}。未安装任何内容。"
 		;;
 	esac
 	ob_read_feed
