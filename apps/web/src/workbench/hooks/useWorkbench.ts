@@ -133,6 +133,11 @@ import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
 import { useWorkbenchAgentNavigation } from './useWorkbenchAgentNavigation';
 import { useWorkbenchTabSelectionFocus } from './useWorkbenchTabSelectionFocus';
 import { useWorkbenchTerminalLocationActivation } from './useWorkbenchTerminalLocationActivation';
+import {
+	useWorkbenchClientUpdate,
+	type WorkbenchClientUpdateView,
+} from './useWorkbenchClientUpdate';
+import type { WorkbenchClientUpdate } from '../types/workbench-client-update';
 import type { WorkbenchAgentNavigationInput } from '../model/project-workbench-agent-overview';
 import {
 	terminalCloseWarningValues,
@@ -291,6 +296,8 @@ interface WorkbenchView {
 	readonly shortcutsLabel: string;
 	readonly shortcutsShortcutId: string;
 	readonly shortcutsShortcutLabel: string | undefined;
+	/** The footer's Update control, present only while a newer version is offered. */
+	readonly update: WorkbenchClientUpdateView | undefined;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string | undefined;
 	readonly sidebarFocusRequest: number;
@@ -342,6 +349,8 @@ interface UseWorkbenchOptions {
 	readonly actionRuntime: ActionRuntime;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority: WorkbenchAuthority;
+	/** A newer version of this window its host can switch to; absent where the host offers none. */
+	readonly clientUpdate?: WorkbenchClientUpdate | undefined;
 	readonly configuredCommandCatalog: readonly WorkbenchConfiguredCommand[];
 	readonly configuredCommandKeys: WorkbenchConfiguredCommandKeys;
 	readonly isShortcutScopeActive: boolean;
@@ -366,6 +375,7 @@ export function useWorkbench({
 	actionRuntime,
 	agentObservationSource,
 	authority,
+	clientUpdate,
 	configuredCommandCatalog,
 	configuredCommandKeys,
 	isShortcutScopeActive,
@@ -683,6 +693,12 @@ export function useWorkbench({
 		tabStripOrientation,
 		toggleSidebar,
 		worktreeLabel,
+	});
+	const update = useWorkbenchClientUpdate({
+		clientUpdate,
+		reportWaiting: authorityNotice.reportUpdateWaiting,
+		runtime: actionRuntime,
+		scope: actions.scope,
 	});
 	const startAgent = useMemoizedFn((input: WorkbenchAgentStartInput) => {
 		// No stacked dialogs: New Worktree… closes Start Agent and its form opens in its place.
@@ -1189,6 +1205,7 @@ export function useWorkbench({
 		shortcutsShortcutLabel: visibleShortcutLabel(
 			formatWorkbenchShortcut('shortcuts', shortcutPlatform, shortcutBindings),
 		),
+		update,
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: visibleShortcutLabel(
 			formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),

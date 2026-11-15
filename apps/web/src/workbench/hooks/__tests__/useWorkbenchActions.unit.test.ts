@@ -318,6 +318,8 @@ describe('useWorkbenchActions', () => {
 						actionId !== WORKBENCH_ACTION_IDS.increaseTerminalFontSize &&
 						actionId !== WORKBENCH_ACTION_IDS.decreaseTerminalFontSize &&
 						actionId !== WORKBENCH_ACTION_IDS.resetTerminalFontSize &&
+						// Only a host that offers a newer Client version registers Update.
+						actionId !== WORKBENCH_ACTION_IDS.updateClient &&
 						// A composite whose lower Action no surface here registers has nothing to lend.
 						actionId !== WORKBENCH_ACTION_IDS.focusActivePanelByPosition &&
 						actionId !== WORKBENCH_ACTION_IDS.closeActiveTab &&

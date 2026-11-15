@@ -33,6 +33,15 @@ export {
 } from './desktop-window-caption-contract';
 
 export {
+	DesktopWindowUpdateMainMessageSchema,
+	DesktopWindowUpdateRendererMessageSchema,
+} from './desktop-window-update-contract';
+export type {
+	DesktopWindowUpdateMainMessage,
+	DesktopWindowUpdateRendererMessage,
+} from './desktop-window-update-contract';
+
+export {
 	DesktopNewProjectFolderNameSchema,
 	DesktopProjectFolderAcquisitionMainEventSchema,
 	DesktopProjectFolderAcquisitionRendererCommandSchema,

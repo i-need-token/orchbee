@@ -1,8 +1,18 @@
 import type { DesktopSessionRefusal } from '@orchbee/desktop-client-protocol';
 import { z } from 'zod';
 
+/** A capability name of the handshake: 1 to 64 lowercase letters, digits, and hyphens. */
+const CapabilityNameSchema = z.string().regex(/^[a-z0-9-]{1,64}$/u);
+
+/**
+ * `negotiatedCapabilities` names what both sides listed in the `client-server` handshake; a Client
+ * that predates it answers none.
+ */
 const ServerStartDocumentSchema = z.looseObject({
-	result: z.looseObject({ restoreNotice: z.enum(['recovered', 'empty']).nullable() }),
+	result: z.looseObject({
+		negotiatedCapabilities: z.array(CapabilityNameSchema).max(256).optional(),
+		restoreNotice: z.enum(['recovered', 'empty']).nullable(),
+	}),
 });
 
 /** The refusal `server start` answers until a Session it cannot prove stopped is recovered. */
@@ -33,19 +43,31 @@ const IncompatibleFailureSchema = z.looseObject({
 	}),
 });
 
-export type ServerRestoreState =
+type ServerRestoreState =
 	| { readonly kind: 'intact' }
 	| { readonly kind: 'lost-or-unknown' }
 	| { readonly kind: 'refused'; readonly refusal: DesktopSessionRefusal };
 
-const LOST_OR_UNKNOWN: ServerRestoreState = { kind: 'lost-or-unknown' };
+/**
+ * What one `server start` said: how the Session's restore went, and the capabilities its handshake
+ * negotiated, which only a successful start names.
+ */
+export interface ServerStartAnswer {
+	readonly negotiatedCapabilities: readonly string[];
+	readonly restore: ServerRestoreState;
+}
+
+const LOST_OR_UNKNOWN: ServerStartAnswer = {
+	negotiatedCapabilities: [],
+	restore: { kind: 'lost-or-unknown' },
+};
 
 /**
  * Reads `server start --format json`. A refusal is named only when the answer says why, because
  * only then can the window say what would help; any other failure, and an answer that cannot be
  * read, counts as a restore that may have lost everything.
  */
-export function interpretServerStartAnswer(stdout: string, failed: boolean): ServerRestoreState {
+export function interpretServerStartAnswer(stdout: string, failed: boolean): ServerStartAnswer {
 	let document: unknown;
 	try {
 		document = JSON.parse(stdout);
@@ -54,15 +76,22 @@ export function interpretServerStartAnswer(stdout: string, failed: boolean): Ser
 	}
 	if (!failed) {
 		const answer = ServerStartDocumentSchema.safeParse(document);
-		return answer.success && answer.data.result.restoreNotice !== 'empty'
-			? { kind: 'intact' }
-			: LOST_OR_UNKNOWN;
+		if (!answer.success) return LOST_OR_UNKNOWN;
+		const { negotiatedCapabilities = [], restoreNotice } = answer.data.result;
+		return {
+			negotiatedCapabilities,
+			restore: restoreNotice === 'empty' ? { kind: 'lost-or-unknown' } : { kind: 'intact' },
+		};
 	}
+	return { negotiatedCapabilities: [], restore: interpretRefusal(document) };
+}
+
+function interpretRefusal(document: unknown): ServerRestoreState {
 	if (RecoveryRequiredFailureSchema.safeParse(document).success) {
 		return { kind: 'refused', refusal: { reason: 'recovery-required' } };
 	}
 	const incompatible = IncompatibleFailureSchema.safeParse(document);
-	if (!incompatible.success) return LOST_OR_UNKNOWN;
+	if (!incompatible.success) return { kind: 'lost-or-unknown' };
 	const details = incompatible.data.failure.details;
 	switch (details.reason) {
 		case 'client-too-old':

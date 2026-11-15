@@ -32,8 +32,9 @@ import {
 	DesktopProjectFolderAcquisitionBroker,
 	DesktopProjectFolderAcquisitionRuntime,
 } from '../project-folder-acquisition';
-import { ServerConnectionRelay, readServerRestoreState } from '../server-connection';
+import { ServerConnectionRelay, readServerStartAnswer } from '../server-connection';
 import type { DesktopWindowStateAttachment, DesktopWindowStateOwner } from '../window-state';
+import type { DesktopWindowUpdatePort } from '../window-update';
 
 /** What the window's Client processes run under, and where its page comes from. */
 export interface DesktopServerClientApplicationOptions {
@@ -55,6 +56,8 @@ export interface DesktopServerClientApplicationOptions {
 	/** A window started hidden for automation is never shown and neither restores nor records its place. */
 	readonly windowHidden: boolean;
 	readonly windowStateOwner: DesktopWindowStateOwner;
+	/** Serves a document's window-update port; what it returns ends that service. */
+	readonly windowUpdate: { serve(port: DesktopWindowUpdatePort): { close(): void } };
 }
 
 const MACOS_TRAFFIC_LIGHT_POSITION = { x: 12, y: 12 } as const;
@@ -90,13 +93,14 @@ function followPageCaptionColor(window: BrowserWindow): void {
 }
 
 /**
- * What Main holds for one document: its Client connection, the folder picker it may open, and its
- * background-status port.
+ * What Main holds for one document: its Client connection, the folder picker it may open, its
+ * background-status port, and its window-update port.
  */
 interface DocumentConnection {
 	readonly backgroundStatus: DesktopBackgroundStatusPort;
 	readonly folderAcquisition: DesktopProjectFolderAcquisitionBroker;
 	readonly relay: ServerConnectionRelay;
+	readonly windowUpdate: { close(): void };
 }
 
 /** Electron rejects a load that another navigation of the same window replaced with `ERR_ABORTED`. */
@@ -283,6 +287,7 @@ export class DesktopServerClientApplication {
 			requests += 1;
 			current?.relay.close();
 			current?.backgroundStatus.close();
+			current?.windowUpdate.close();
 			if (this.#document === current) this.#document = undefined;
 			// A folder made for a Project the document never confirmed is reported to the person here.
 			current?.folderAcquisition.dispose();
@@ -293,11 +298,11 @@ export class DesktopServerClientApplication {
 			if (!document.success) return;
 			end();
 			const request = requests;
-			void readServerRestoreState(
+			void readServerStartAnswer(
 				options.clientExecutable,
 				options.sessionArguments,
 				options.clientEnvironment,
-			).then((restore) => {
+			).then(({ restore }) => {
 				if (request !== requests || window.isDestroyed()) return;
 				current = this.#connect(window, {
 					bootstrap: {
@@ -329,6 +334,7 @@ export class DesktopServerClientApplication {
 		const connection = new MessageChannelMain();
 		const folders = new MessageChannelMain();
 		const backgroundStatus = new MessageChannelMain();
+		const windowUpdate = new MessageChannelMain();
 		const relay = new ServerConnectionRelay(relayProcess, connection.port1);
 		const folderAcquisition = new DesktopProjectFolderAcquisitionBroker(
 			folders.port1,
@@ -339,16 +345,23 @@ export class DesktopServerClientApplication {
 			backgroundStatus.port1,
 			options.background,
 		);
+		const windowUpdatePort = options.windowUpdate.serve(windowUpdate.port1);
 		const pagePorts: Readonly<Record<DesktopServerConnectionPortRole, MessagePortMain>> = {
 			'background-status': backgroundStatus.port2,
 			'project-folder-acquisition': folders.port2,
 			'server-connection': connection.port2,
+			'window-update': windowUpdate.port2,
 		};
 		window.webContents.postMessage(
 			DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
 			reply,
 			DESKTOP_SERVER_CONNECTION_PORT_ROLES.map((role) => pagePorts[role]),
 		);
-		return { backgroundStatus: backgroundStatusPort, folderAcquisition, relay };
+		return {
+			backgroundStatus: backgroundStatusPort,
+			folderAcquisition,
+			relay,
+			windowUpdate: windowUpdatePort,
+		};
 	}
 }

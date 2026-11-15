@@ -24,7 +24,7 @@ stops the Session, and it asks first.
 
 ## Server connection
 
-Each document gets one `orchbee server connect` process and three transferred ports, in the order
+Each document gets one `orchbee server connect` process and four transferred ports, in the order
 `DESKTOP_SERVER_CONNECTION_PORT_ROLES` fixes. `ServerConnectionRelay` moves bytes between the
 process and the first port without reading any; the second is the document's
 [Project Folder acquisition](docs/project-folder-acquisition.md) port, served by a broker that lives
@@ -33,7 +33,8 @@ many terminals run and which Agent states need the person, and asks for the wind
 notification is clicked. Main parses each report and counts nothing itself; where no
 notification-area icon is kept, it closes that port. Over the same port Main asks the page for Quit
 All's Session stop, which the page sends through its Server connection because Main never speaks
-the Client protocol. The process owns activation, peer validation and admission, and the page
+the Client protocol. The fourth is its window-update port, described under
+[Window Update](#window-update). The process owns activation, peer validation and admission, and the page
 owns the protocol. A document asks for its connection once it is listening, through the preload,
 under an identity the reply must repeat: a reload can hand the next document what Main meant for the
 last one, and a load event cannot tell them apart. Its asking ends the previous document's
@@ -48,6 +49,21 @@ then ends before the page reads anything and only Main saw why: until the Sessio
 by the Session's handshake as the CLI reports it, with this Desktop too old, the Session too old,
 another environment, or a development build of another protocol. A version refusal carries the
 bundled Client's version and the Session's, which a Session older than the handshake never states.
+
+## Window Update
+
+A window that runs from `desktop\versions\<its own version>\` offers Update in the sidebar footer
+while the window pointer `desktop\active.json` names a version of higher precedence than its own,
+unless that is the version a `--fallback-from-v1=<version>` start came back from. A development
+build, a flat layout, and a build's output folder never offer it. `src/main/window-update/` watches
+the pointer's folder, because the pointer is replaced by a rename, reads at most 16 KiB of it, and
+pushes the offer, or none, to every document's window-update port. A press first runs the new
+version's bundled Client with this window's Session arguments, `server start --format json`; the
+switch goes ahead only when the start succeeds and its `negotiatedCapabilities` include
+`compatibility-window`. Otherwise the page shows that the update applies when no terminal runs, and
+the diagnostic log records why. The switch itself, through the window entry, is not wired yet: a
+joinable version is only recorded. The maintained design is the
+[automatic-update proposal](../../proposals/platform/automatic-updates.md#window).
 
 The page has the Client authority of the Session it joined. That adds nothing to what it could
 already do by typing into a terminal. A link the page opens asks for a window, which Main refuses,

@@ -12,6 +12,7 @@ export {
 } from './model/workbench-client-selection';
 export type { WorkbenchClientTarget } from './model/workbench-client-selection';
 export type { WorkbenchAgentCatalogSource } from './types/workbench-agent-start';
+export type { WorkbenchClientUpdate } from './types/workbench-client-update';
 export type { WorkbenchEnvironmentMarker } from './types/workbench-environment-marker';
 export type {
 	WorkbenchConfiguredCommandOutcome,

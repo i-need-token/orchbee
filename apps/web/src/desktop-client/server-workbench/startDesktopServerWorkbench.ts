@@ -51,6 +51,7 @@ import {
 	type ServerWorkbenchRuntime,
 } from '../../workbench-client';
 import { bindDesktopBackgroundStatus, DesktopBackgroundStatusClient } from '../background-status';
+import { DesktopWindowUpdateClient } from '../window-update';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
 import { SessionDisconnectedStatus } from '../session-disconnected-status';
@@ -70,6 +71,7 @@ interface DesktopServerConnectionAnnouncement {
 	readonly bootstrap: DesktopServerConnectionBootstrap;
 	readonly connectionPort: MessagePort;
 	readonly projectFolderPort: MessagePort;
+	readonly windowUpdatePort: MessagePort;
 }
 
 function receiveConnection(targetWindow: Window): Promise<DesktopServerConnectionAnnouncement> {
@@ -82,19 +84,22 @@ function receiveConnection(targetWindow: Window): Promise<DesktopServerConnectio
 			const connectionPort = portFor('server-connection');
 			const projectFolderPort = portFor('project-folder-acquisition');
 			const backgroundStatusPort = portFor('background-status');
+			const windowUpdatePort = portFor('window-update');
 			const message = DesktopServerConnectionWindowMessageSchema.safeParse(event.data);
 			if (
 				message.success &&
 				event.ports.length === DESKTOP_SERVER_CONNECTION_PORT_ROLES.length &&
 				connectionPort !== undefined &&
 				projectFolderPort !== undefined &&
-				backgroundStatusPort !== undefined
+				backgroundStatusPort !== undefined &&
+				windowUpdatePort !== undefined
 			) {
 				resolve({
 					backgroundStatusPort,
 					bootstrap: message.data.bootstrap,
 					connectionPort,
 					projectFolderPort,
+					windowUpdatePort,
 				});
 				return;
 			}
@@ -175,10 +180,12 @@ async function run(
 	ctrlCCopiesSelection: boolean,
 	storage: DesktopServerWorkbenchStorage,
 ): Promise<void> {
-	const { backgroundStatusPort, bootstrap, connectionPort, projectFolderPort } =
+	const { backgroundStatusPort, bootstrap, connectionPort, projectFolderPort, windowUpdatePort } =
 		await receiveConnection(targetWindow);
 	const backgroundStatus = new DesktopBackgroundStatusClient(backgroundStatusPort);
 	targetWindow.addEventListener('unload', () => backgroundStatus.dispose(), { once: true });
+	const windowUpdate = new DesktopWindowUpdateClient(windowUpdatePort);
+	targetWindow.addEventListener('unload', () => windowUpdate.dispose(), { once: true });
 	const connection = new ServerConnection(new MessagePortServerCarrier(connectionPort));
 	targetWindow.addEventListener('unload', () => connection.close(), { once: true });
 	const session = await ServerWorkbenchSession.open(connection).catch(() => null);
@@ -332,6 +339,7 @@ async function run(
 			agentObservationSource: runtime.agentObservationSource,
 			applicationLocaleController,
 			authority: runtime.authority,
+			clientUpdate: windowUpdate,
 			environmentMarker,
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,

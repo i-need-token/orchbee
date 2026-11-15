@@ -92,6 +92,13 @@ interface WorkbenchSidebarProps {
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
+	/**
+	 * The footer's Update control between Settings and Help, present only while a newer version is
+	 * offered: its label, the tooltip that names the version, and what a press invokes.
+	 */
+	readonly update?:
+		| { readonly label: string; readonly onUpdate: () => void; readonly tooltip: string }
+		| undefined;
 	readonly updateWorkspace: (workspaceId: string, name: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
@@ -139,6 +146,7 @@ export function WorkbenchSidebar({
 	toggleProjectExpansion,
 	toggleRecentsExpansion,
 	toggleWorkspaceAgents,
+	update,
 	updateWorkspace,
 	workspaceAgentOverviews,
 	workspaceLocationSource,
@@ -346,7 +354,7 @@ export function WorkbenchSidebar({
 				</div>
 				{/* Holds the raised copy of a dragged row, so it outlives the row's move between lists. */}
 				<div aria-hidden='true' className={styles['dragLayer']} data-sidebar-drag-layer='true' />
-				<div className={styles['footer']}>
+				<div className={styles['footer']} data-update={update === undefined ? undefined : ''}>
 					<Button
 						aria-disabled={onSettings === undefined}
 						className={styles['primaryItem']}
@@ -364,6 +372,23 @@ export function WorkbenchSidebar({
 							<Kbd className={styles['shortcut']}>{settingsShortcutLabel}</Kbd>
 						)}
 					</Button>
+					{update === undefined ? null : (
+						<Tooltip>
+							<TooltipTrigger
+								render={
+									<button
+										className={styles['update']}
+										data-slot='workbench-sidebar-update'
+										type='button'
+										onClick={update.onUpdate}
+									/>
+								}
+							>
+								<span className={styles['updateText']}>{update.label}</span>
+							</TooltipTrigger>
+							<TooltipContent side='top'>{update.tooltip}</TooltipContent>
+						</Tooltip>
+					)}
 					{environmentMarker === undefined ? null : (
 						<Tooltip disabled={environmentMarker.description === null}>
 							<TooltipTrigger

@@ -1,5 +1,6 @@
 import {
 	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
+	DESKTOP_SERVER_CONNECTION_PORT_ROLES,
 	DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
 	DESKTOP_SERVER_CONNECTION_WINDOW_REQUEST,
 } from '@orchbee/desktop-client-protocol';
@@ -25,8 +26,8 @@ const ISOLATED = { contextIsolated: true, sandboxed: true };
 const DOCUMENT = '00000000-0000-4000-8000-000000000001';
 const OTHER_DOCUMENT = '00000000-0000-4000-8000-000000000002';
 
-/** The connection, Project folder picker, and background-status ports Main sends with a reply. */
-function documentPorts(count = 3): MessagePort[] {
+/** The ports Main sends with a reply, one for each role. */
+function documentPorts(count: number = DESKTOP_SERVER_CONNECTION_PORT_ROLES.length): MessagePort[] {
 	return Array.from({ length: count }, () => new MessageChannel().port1);
 }
 
@@ -148,7 +149,10 @@ describe('installDesktopServerConnectionBridge', () => {
 		for (const close of closes) expect(close).toHaveBeenCalledOnce();
 	});
 
-	it.each([2, 4])('closes every port when Main sends %i instead of one per role', (count) => {
+	it.each([
+		DESKTOP_SERVER_CONNECTION_PORT_ROLES.length - 1,
+		DESKTOP_SERVER_CONNECTION_PORT_ROLES.length + 1,
+	])('closes every port when Main sends %i instead of one per role', (count) => {
 		const { mainAnswers, pageAsks, targetWindow } = install(ISOLATED);
 		pageAsks();
 		const ports = documentPorts(count);

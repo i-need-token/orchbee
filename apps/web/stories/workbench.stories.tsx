@@ -6,6 +6,7 @@ import type {
 	WorkbenchAgentObservation,
 	WorkbenchAgentSnapshot,
 	WorkbenchAuthority,
+	WorkbenchClientUpdate,
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalSurfaceProps,
 	WorkbenchWorkspaceLocation,
@@ -551,6 +552,53 @@ export const DevelopmentEnvironmentMarker: Story = {
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+/** A Desktop window whose host offers a newer version; Update answers that the switch waits. */
+function storyClientUpdate(version: string): WorkbenchClientUpdate {
+	const waiting = new Set<() => void>();
+	return {
+		getSnapshot: () => version,
+		request: () => {
+			for (const listener of waiting) listener();
+		},
+		subscribe: () => () => undefined,
+		subscribeWaiting: (listener) => {
+			waiting.add(listener);
+			return () => waiting.delete(listener);
+		},
+	};
+}
+
+export const ClientUpdateOffered: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		clientUpdate: storyClientUpdate('0.2.0-beta.5'),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1']),
+		shortcutPlatform: 'standard',
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const ClientUpdateOfferedChinese: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		clientUpdate: storyClientUpdate('0.2.0-beta.5'),
+		environmentMarker: { checkoutName: 'orchbee', environment: 'test' },
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1']),
+		shortcutPlatform: 'standard',
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='zh-CN'>
 			<Workbench {...arguments_} />
 		</OrchbeeI18nProvider>
 	),

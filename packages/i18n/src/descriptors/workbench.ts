@@ -1138,6 +1138,24 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Command and sidebar footer button that opens the keyboard shortcut reference in Settings.',
 	},
+	update: {
+		id: 'workbench.sidebar.items.update',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.update'],
+		description:
+			'Sidebar footer button and Action, shown only while a newer Orchbee version is installed, that reopens the window on that version.',
+	},
+	updateTooltip: {
+		id: 'workbench.sidebar.items.updateTooltip',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.updateTooltip'],
+		description:
+			'Tooltip of the Update button; version is the installed Orchbee version the window switches to. Terminals keep running through the switch.',
+	},
+	updateWaiting: {
+		id: 'workbench.update.waiting',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.waiting'],
+		description:
+			'Status notice after Update when the new version cannot join the running terminals yet; it takes effect once no terminal runs.',
+	},
 	environmentDevelopment: {
 		id: 'workbench.sidebar.environment.development',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.environment.development'],

@@ -179,6 +179,51 @@
 	);
 }
 
+/* While Update shows, Settings is the one to give up width, ellipsizing its label, so Update and
+   Shortcuts keep theirs. */
+.footer[data-update] .primaryItem {
+	flex-shrink: 1;
+	max-width: none;
+}
+
+/* Update, between Settings and Shortcuts while a newer version is offered: its label in the primary
+   action role, a 28 px tall target that keeps its label whole. */
+.update {
+	display: inline-flex;
+	height: var(--ob-ref-size-control-sm);
+	flex: none;
+	align-items: center;
+	margin: var(--ob-ref-space-0);
+	padding-block: var(--ob-ref-space-0);
+	padding-inline: var(--ob-ref-space-2);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: none;
+	color: var(--ob-sys-color-action-primary);
+	font: var(--ob-sys-typography-body-sm);
+	white-space: nowrap;
+}
+
+.update:hover,
+.update:focus-visible {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+.update:active {
+	background: var(--ob-sys-color-surface-pressed);
+}
+
+.update:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+/* The label sits on the Settings label's line, as the environment marker's text does (G19). */
+.updateText {
+	text-box: trim-both cap alphabetic;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
+}
+
 /* A development or test build's marker between Settings and Shortcuts: its word, then the checkout
    name. It alone shrinks, and whatever no longer fits wraps onto a second line it clips, so the name
    drops whole, then the word, before Settings gives up width. It is no target and carries no fill. */

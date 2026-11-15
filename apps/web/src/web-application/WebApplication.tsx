@@ -5,6 +5,7 @@ import {
 	type WorkbenchAgentNameSource,
 	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
+	type WorkbenchClientUpdate,
 	type WorkbenchEnvironmentMarker,
 	type WorkbenchNavigationPort,
 	type WorkbenchProjectWorkspaceRuntime,
@@ -50,6 +51,8 @@ export interface WebApplicationProps {
 	readonly agentNameSource?: WorkbenchAgentNameSource | undefined;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority: WorkbenchAuthority;
+	/** A newer version the Desktop window can switch to; a served Web Client has none. */
+	readonly clientUpdate?: WorkbenchClientUpdate | undefined;
 	/** The build the sidebar marks; a release window and a served Web Client have none. */
 	readonly environmentMarker?: WorkbenchEnvironmentMarker | undefined;
 	readonly keyboardShortcutSettingsController: KeyboardShortcutSettingsController;
@@ -81,6 +84,7 @@ export function WebApplication({
 	agentNameSource,
 	agentObservationSource,
 	authority,
+	clientUpdate,
 	environmentMarker,
 	keyboardShortcutSettingsController,
 	layoutStorage,
@@ -158,6 +162,7 @@ export function WebApplication({
 					agentNotificationObserver={terminalFeedbackSettingsController}
 					agentObservationSource={agentObservationSource}
 					authority={authority}
+					clientUpdate={clientUpdate}
 					configuredCommandKeys={configuredCommandKeys}
 					environmentMarker={environmentMarker}
 					isShortcutScopeActive={!view.settingsOpen}

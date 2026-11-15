@@ -33,7 +33,7 @@ import {
 	DesktopSecureKeyboardEntry,
 	DesktopSecureKeyboardEntryActions,
 } from '../secure-keyboard-entry';
-import { readServerStopStatus } from '../server-connection';
+import { readServerStartAnswer, readServerStopStatus } from '../server-connection';
 import { createUpgradeBackup } from '../upgrade-backup';
 import { DesktopWindowActions } from '../window-actions';
 import {
@@ -41,6 +41,13 @@ import {
 	type DesktopWindowStateRecordReporter,
 	FileDesktopWindowStateStore,
 } from '../window-state';
+import {
+	DesktopWindowUpdate,
+	locateWindowDesktopRoot,
+	readFallbackFromVersion,
+	readWindowPointer,
+	watchWindowPointer,
+} from '../window-update';
 import { DesktopDataRootRefusal } from './data-root-version-record';
 import { DesktopServerClientApplication } from './DesktopServerClientApplication';
 import { isPackagedDesktop } from './isPackagedDesktop';
@@ -183,6 +190,39 @@ function resolveClientExecutable(): string {
 	);
 }
 
+/**
+ * The window's Update control: the newer window version its pointer names, offered only to a window
+ * that runs from `desktop\versions\<its own version>\` and never to a development build. The join
+ * check runs that version's bundled Client with this window's Session arguments and environment.
+ */
+function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowUpdate {
+	const desktopRoot = locateWindowDesktopRoot({
+		development: !packaged || distribution.dataScope.kind === 'development',
+		executablePath: process.execPath,
+		ownVersion: app.getVersion(),
+		platform: process.platform,
+	});
+	const stem = distribution.artifactStem;
+	const clientName = process.platform === 'win32' ? `${stem}.exe` : stem;
+	return new DesktopWindowUpdate({
+		desktopRoot,
+		fallbackFrom: readFallbackFromVersion(process.argv),
+		// The relaunch through the window entry arrives with the window self-update release's next
+		// phase; until then a joinable version is only recorded.
+		onJoinable: () => undefined,
+		ownVersion: app.getVersion(),
+		readPointer: readWindowPointer,
+		recordEvent,
+		startVersionClient: (root, version) =>
+			readServerStartAnswer(
+				path.join(root, 'versions', version, 'resources', PACKAGED_COHORT_DIRECTORY, clientName),
+				sessionArguments,
+				resolveClientEnvironment(),
+			),
+		watchPointer: watchWindowPointer,
+	});
+}
+
 /** The notification-area icons: the package's copy, or in a checkout the generated brand assets. */
 function resolveTrayIconDirectory(): string {
 	if (packaged || distribution.dataScope.kind !== 'development') {
@@ -321,6 +361,7 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 let application: DesktopServerClientApplication | undefined;
 let background: DesktopBackgroundRuntime | undefined;
 let removePlatformActions: (() => void) | undefined;
+let windowUpdate: DesktopWindowUpdate | undefined;
 let saveDiagnosticBundle: (() => boolean) | undefined;
 /** A Save Diagnostic Bundle task that started Orchbee waits for the Action to be installed. */
 let diagnosticBundleRequested = process.argv.includes(SAVE_DIAGNOSTIC_BUNDLE_SWITCH);
@@ -345,6 +386,8 @@ async function start(): Promise<void> {
 		automationEnvironment[SESSION_ENVIRONMENT_KEY] ?? resolveDesktopSessionName(distribution);
 	const sessionArguments = session === undefined ? [] : ['--session', session];
 	background = await createBackground(sessionArguments);
+	windowUpdate = createWindowUpdate(sessionArguments);
+	windowUpdate.start();
 	const started = new DesktopServerClientApplication({
 		background,
 		checkoutName: resolveDesktopCheckoutName(distribution, process.platform),
@@ -364,6 +407,7 @@ async function start(): Promise<void> {
 			process.platform,
 			reportWindowStateRecord,
 		),
+		windowUpdate,
 	});
 	application = started;
 	app.on('activate', () => void started.openWindow().catch(() => undefined));
@@ -428,5 +472,6 @@ app.once('will-quit', () => {
 	removePlatformActions?.();
 	removePlatformActions = undefined;
 	background?.dispose();
+	windowUpdate?.dispose();
 	recordEvent('info', 'exited');
 });

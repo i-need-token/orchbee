@@ -42,6 +42,7 @@ import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShort
 import type { WorkbenchConfiguredCommandKeysView } from './hooks/useWorkbenchConfiguredCommandKeys';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
 import type { WorkbenchAuthority } from './types/workbench-authority';
+import type { WorkbenchClientUpdate } from './types/workbench-client-update';
 import type { WorkbenchTerminalActionShortcutLabels } from './types/workbench-terminal-action-shortcut-labels';
 import type {
 	WorkbenchHostActionCallback,
@@ -81,6 +82,8 @@ interface WorkbenchProps {
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	/** Decides the shared Workbench structure. */
 	readonly authority: WorkbenchAuthority;
+	/** A newer version of this window its host can switch to; absent where the host offers none. */
+	readonly clientUpdate?: WorkbenchClientUpdate | undefined;
 	/**
 	 * What `useWorkbenchConfiguredCommandKeys` follows for the authority's configured commands, so the
 	 * shortcut settings read the same result; without it the window offers no configured command.
@@ -114,6 +117,7 @@ export function Workbench({
 	agentNotificationObserver,
 	agentObservationSource,
 	authority,
+	clientUpdate,
 	configuredCommandKeys = NO_CONFIGURED_COMMAND_KEYS,
 	environmentMarker,
 	isShortcutScopeActive = true,
@@ -147,6 +151,7 @@ export function Workbench({
 		actionRuntime,
 		agentObservationSource,
 		authority,
+		clientUpdate,
 		configuredCommandCatalog: configuredCommandKeys.catalog,
 		configuredCommandKeys: configuredCommandKeys.keys,
 		isShortcutScopeActive,
@@ -240,6 +245,7 @@ export function Workbench({
 				toggleProjectExpansion={view.toggleProjectExpansion}
 				toggleRecentsExpansion={view.toggleRecentsExpansion}
 				toggleWorkspaceAgents={agentPresentation.toggleWorkspaceAgents}
+				update={view.update}
 				updateWorkspace={view.updateWorkspace}
 				workspaceLocationSource={workspaceLocationSource}
 				worktreeCommands={view.worktreeCommands}

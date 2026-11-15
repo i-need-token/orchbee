@@ -76,13 +76,15 @@ export const DesktopServerConnectionReplySchema = z.strictObject({
 
 /**
  * What the ports transferred with a reply carry, in this order: the document's Client connection
- * bytes, the native folder picker a new Project starts from, which only Main can open, and the
- * summary of terminals and Agents the page reports for the notification-area icon.
+ * bytes, the native folder picker a new Project starts from, which only Main can open, the
+ * summary of terminals and Agents the page reports for the notification-area icon, and the newer
+ * window version Main offers to switch to.
  */
 export const DESKTOP_SERVER_CONNECTION_PORT_ROLES = [
 	'server-connection',
 	'project-folder-acquisition',
 	'background-status',
+	'window-update',
 ] as const;
 
 export type DesktopServerConnectionPortRole = (typeof DESKTOP_SERVER_CONNECTION_PORT_ROLES)[number];
