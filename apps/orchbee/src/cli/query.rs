@@ -1181,7 +1181,20 @@ fn read_settled<T>(
             .frame()
             .cloned()
             .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
-        match read(client, &frame, sequence)? {
+        // A deadline that lapses inside the rows exchange ends it as a read
+        // failure; the last aged answer still names why the read never settled.
+        let outcome = match read(client, &frame, sequence) {
+            Ok(outcome) => outcome,
+            Err(failure) => {
+                return Err(match aged {
+                    Some(reason) if Instant::now() >= deadline => {
+                        classify_rows_rejected(reason, "read-history")
+                    }
+                    _ => failure,
+                });
+            }
+        };
+        match outcome {
             Ok(value) => return Ok((frame, value)),
             Err(reason) if Instant::now() >= deadline => {
                 return Err(classify_rows_rejected(reason, "read-history"));
