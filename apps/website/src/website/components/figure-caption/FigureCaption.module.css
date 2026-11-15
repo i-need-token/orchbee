@@ -1,0 +1,14 @@
+.caption {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: var(--ob-ref-length-website-8) var(--ob-ref-length-website-24);
+	margin-top: var(--ob-ref-length-website-16);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-caption);
+}
+.caption b {
+	margin-right: var(--ob-ref-length-website-12);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-caption-strong);
+}

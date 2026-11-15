@@ -14,17 +14,38 @@ export const websiteHomeMessages = defineMessages({
 		'website.home.metaDescription',
 		'Search and link-preview description of the home page.',
 	),
-	statusDone: message(
-		'website.home.status.done',
-		'Part of the status line above the headline: how many agents are done.',
-	),
-	statusReady: message(
-		'website.home.status.ready',
-		'Part of the status line above the headline: how many agents are ready.',
-	),
 	title: message('website.home.title', 'Headline of the home page.'),
 	lead: message('website.home.lead', 'Paragraph beside the headline.'),
 	beta: message('website.home.beta', 'Line under the download button.'),
+	stageView: message(
+		'website.home.stage.view',
+		'Label before the buttons that switch the drawn Session between the clients.',
+	),
+	stageCloseHint: message(
+		'website.home.stage.closeHint',
+		'Note beside the button that closes the drawn client window.',
+	),
+	stageClose: message('website.home.stage.close', 'Button that closes the drawn client window.'),
+	stageAwayTitle: message(
+		'website.home.stage.awayTitle',
+		'Heading shown where the drawn window was, after it is closed.',
+	),
+	stageAwayBody: message(
+		'website.home.stage.awayBody',
+		'Paragraph under the closed-window heading.',
+	),
+	stageClosedFor: message(
+		'website.home.stage.closedFor',
+		'Label before the minutes and seconds since the drawn window was closed.',
+	),
+	stageReattach: message(
+		'website.home.stage.reattach',
+		'Button that opens the drawn client window again.',
+	),
+	stageCaption: message(
+		'website.home.stage.caption',
+		'Caption under the drawn Session; <b> marks the word that labels it a demo.',
+	),
 	clientsKicker: message(
 		'website.home.clients.kicker',
 		'Lowercase label above the client index heading.',

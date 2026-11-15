@@ -1,0 +1,203 @@
+.bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ob-ref-length-website-12) var(--ob-ref-length-website-16);
+	margin-bottom: var(--ob-ref-length-website-14);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-label);
+}
+.switch {
+	display: inline-flex;
+	padding: var(--ob-ref-length-website-3);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-radius: var(--ob-ref-length-website-9);
+	background: var(--ob-sys-color-website-surface);
+}
+.switch button {
+	height: var(--ob-ref-length-website-28);
+	padding: 0 var(--ob-ref-length-website-12);
+	border-radius: var(--ob-ref-length-website-6);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-label);
+	white-space: nowrap;
+	transition:
+		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+.switch button:hover {
+	color: var(--ob-sys-color-website-fg);
+}
+.switch button[aria-pressed='true'] {
+	background: var(--ob-sys-color-website-pressed);
+	color: var(--ob-sys-color-website-fg);
+}
+.shortName {
+	display: none;
+}
+.barEnd {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ob-ref-length-website-10) var(--ob-ref-length-website-14);
+	margin-left: auto;
+}
+.close {
+	height: var(--ob-ref-length-website-30);
+	padding: 0 var(--ob-ref-length-website-12);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	border-radius: var(--ob-ref-length-website-8);
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-label);
+	white-space: nowrap;
+	transition: background var(--ob-sys-motion-duration-website-150)
+		var(--ob-sys-motion-easing-website-ease);
+}
+.close:hover {
+	background: var(--ob-sys-color-website-hover-soft);
+}
+.close:disabled {
+	opacity: var(--ob-ref-opacity-website-45);
+}
+
+.stage {
+	position: relative;
+}
+:global(html[data-motion]) .stage {
+	animation: rise var(--ob-sys-motion-duration-website-1000)
+		var(--ob-sys-motion-easing-website-settle) var(--ob-sys-motion-duration-website-100) both;
+}
+@keyframes rise {
+	from {
+		opacity: 0;
+		transform: translateY(var(--ob-ref-length-website-22));
+	}
+}
+.views {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+}
+/* The client views share one cell; the chosen one is shown. */
+.view {
+	grid-area: 1 / 1;
+	opacity: 0;
+	visibility: hidden;
+	transform: scale(0.985);
+	transition:
+		opacity var(--ob-sys-motion-duration-website-400) var(--ob-sys-motion-easing-website-ease),
+		transform var(--ob-sys-motion-duration-website-500) var(--ob-sys-motion-easing-website-settle),
+		visibility var(--ob-sys-motion-duration-instant) var(--ob-sys-motion-easing-website-ease)
+			var(--ob-sys-motion-duration-website-400);
+}
+.view[data-on] {
+	opacity: var(--ob-ref-opacity-website-100);
+	visibility: visible;
+	transform: none;
+	transition:
+		opacity var(--ob-sys-motion-duration-website-400) var(--ob-sys-motion-easing-website-ease),
+		transform var(--ob-sys-motion-duration-website-500) var(--ob-sys-motion-easing-website-settle),
+		visibility var(--ob-sys-motion-duration-instant) var(--ob-sys-motion-easing-website-ease);
+}
+.stage[data-closed] .view {
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY(var(--ob-ref-length-website-14)) scale(0.97);
+	transition:
+		opacity var(--ob-sys-motion-duration-website-300) var(--ob-sys-motion-easing-website-ease),
+		transform var(--ob-sys-motion-duration-website-400) var(--ob-sys-motion-easing-website-drop),
+		visibility var(--ob-sys-motion-duration-instant) var(--ob-sys-motion-easing-website-ease)
+			var(--ob-sys-motion-duration-website-400);
+}
+
+/* Where the window was, after it is closed: the Session goes on without a client. */
+.away {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	padding-bottom: 9%;
+	border: var(--ob-ref-length-website-1) dashed var(--ob-sys-color-website-line-strong);
+	border-radius: var(--ob-ref-length-website-12);
+	opacity: 0;
+	visibility: hidden;
+	transition:
+		opacity var(--ob-sys-motion-duration-website-250) var(--ob-sys-motion-easing-website-ease),
+		visibility var(--ob-sys-motion-duration-instant) var(--ob-sys-motion-easing-website-ease)
+			var(--ob-sys-motion-duration-website-250);
+}
+.stage[data-closed] .away {
+	opacity: var(--ob-ref-opacity-website-100);
+	visibility: visible;
+	transition:
+		opacity var(--ob-sys-motion-duration-website-500) var(--ob-sys-motion-easing-website-ease)
+			var(--ob-sys-motion-duration-website-250),
+		visibility var(--ob-sys-motion-duration-instant) var(--ob-sys-motion-easing-website-ease);
+}
+.awayContent {
+	width: min(var(--ob-ref-length-website-470), 100% - var(--ob-ref-length-website-32));
+}
+.awayTitle {
+	margin-bottom: var(--ob-ref-length-website-6);
+	font: var(--ob-sys-typography-website-away-title);
+}
+.awayBody {
+	margin-bottom: var(--ob-ref-length-website-20);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-away-body);
+}
+.agents {
+	border-top: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+}
+.agent {
+	display: grid;
+	grid-template-columns: var(--ob-ref-length-website-14) minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--ob-ref-length-website-12);
+	height: var(--ob-ref-length-website-44);
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	font: var(--ob-sys-typography-website-away-row);
+}
+.agentName {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+.provider {
+	color: var(--ob-sys-color-website-fg3);
+	font-style: normal;
+}
+.word {
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-label);
+}
+.awayFoot {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: var(--ob-ref-length-website-12);
+	margin-top: var(--ob-ref-length-website-20);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-label);
+	font-variant-numeric: tabular-nums;
+}
+.reattach {
+	composes: button small from '../../../../../link-button/LinkButton.module.css';
+}
+
+@media (max-width: 48rem) {
+	.barEnd {
+		margin-left: 0;
+	}
+}
+@media (max-width: 40rem) {
+	.switch {
+		max-width: 100%;
+		overflow-x: auto;
+	}
+	.name {
+		display: none;
+	}
+	.shortName {
+		display: inline;
+	}
+}

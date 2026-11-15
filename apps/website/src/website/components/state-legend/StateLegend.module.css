@@ -1,0 +1,13 @@
+.legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-length-website-6) var(--ob-ref-length-website-18);
+}
+.entry {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-7);
+}
+.entry svg {
+	animation: none;
+}

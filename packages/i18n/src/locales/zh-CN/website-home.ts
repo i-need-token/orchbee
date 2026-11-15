@@ -4,12 +4,19 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.metaTitle': 'Orchbee — 运行和编排 AI Agent 的现代多路复用终端',
 	'website.home.metaDescription':
 		'会话在后台持续运行，可同时从终端界面、桌面应用和命令行访问，为人与 Agent 提供共同的工作环境。',
-	'website.home.status.done': '{count} 个完成',
-	'website.home.status.ready': '{count} 个就绪',
 	'website.home.title': '一个运行和编排 AI\u00A0Agent 的现代多路复用终端。',
 	'website.home.lead':
 		'会话在后台持续运行，可同时从终端界面、桌面应用和命令行访问，为人与 Agent 提供共同的工作环境。',
 	'website.home.beta': '测试版。目前支持 Windows 11（x86_64）；macOS 和 Linux 版本正在开发中。',
+	'website.home.stage.view': '查看这个会话的客户端',
+	'website.home.stage.closeHint': '关闭窗口不会结束会话。',
+	'website.home.stage.close': '关闭窗口',
+	'website.home.stage.awayTitle': '会话正在后台运行。',
+	'website.home.stage.awayBody': '没有客户端接入时，其中的 Shell 与 Agent 照常运行。',
+	'website.home.stage.closedFor': '窗口已关闭',
+	'website.home.stage.reattach': '重新接入',
+	'website.home.stage.caption':
+		'<b>演示</b>一个会话，里面有一个 Shell 和两个 Agent；画面按真实界面绘制，按脚本播放。',
 	'website.home.clients.kicker': '客户端',
 	'website.home.clients.title': '各客户端详解',
 	'website.home.clients.lead': '终端界面、桌面应用与命令行呈现并控制同一个会话，各有一页单独介绍。',

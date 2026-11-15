@@ -3,14 +3,21 @@ export const enUSWebsiteHomeMessages = {
 		'Orchbee — A modern, multiplexed terminal for running and orchestrating AI agents',
 	'website.home.metaDescription':
 		'Sessions persist in the background and remain accessible from the terminal, the desktop, and the command line simultaneously, giving people and agents a shared environment to work in.',
-	'website.home.status.done': '{count} done',
-	'website.home.status.ready': '{count} ready',
 	'website.home.title':
 		'A modern, multiplexed terminal for running and orchestrating AI\u00A0agents.',
 	'website.home.lead':
 		'Sessions persist in the background and remain accessible from the terminal, the desktop, and the command line simultaneously, giving people and agents a shared environment to work in.',
 	'website.home.beta':
 		'Beta. Runs on Windows 11 (x86_64) today; macOS and Linux builds are in progress.',
+	'website.home.stage.view': 'Viewing this Session in the',
+	'website.home.stage.closeHint': 'Closing the window does not end the Session.',
+	'website.home.stage.close': 'Close window',
+	'website.home.stage.awayTitle': 'The Session is running in the background.',
+	'website.home.stage.awayBody': 'Its shells and agents continue while no client is attached.',
+	'website.home.stage.closedFor': 'Window closed for',
+	'website.home.stage.reattach': 'Reattach',
+	'website.home.stage.caption':
+		'<b>Demo</b>One Session with a shell and two agents, drawn from the real interface and played from a script.',
 	'website.home.clients.kicker': 'clients',
 	'website.home.clients.title': 'Each client in detail',
 	'website.home.clients.lead':
