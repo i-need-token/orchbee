@@ -1,0 +1,76 @@
+.panel,
+.focusedPanel {
+	position: relative;
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+	isolation: isolate;
+	background: var(--ob-sys-color-surface-canvas);
+}
+/* A Panel without focus lies under the product's focus scrim. */
+.panel::after {
+	position: absolute;
+	inset: 0;
+	z-index: var(--ob-ref-layer-raised);
+	background: var(--ob-sys-color-surface-inactive);
+	content: '';
+}
+.header {
+	display: grid;
+	flex: none;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	align-items: center;
+	height: var(--ob-comp-workbench-panel-header-height);
+	color: var(--ob-sys-color-text-primary);
+}
+.titleGroup,
+.titleGroupWithGlyph {
+	display: flex;
+	grid-column: 2;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	max-width: 100%;
+	padding-inline: var(--ob-ref-space-2);
+}
+/* The glyph takes its slot and the gap ahead of the title; the trailing side reserves the same
+   width, so the title keeps the header's center. */
+.titleGroupWithGlyph {
+	padding-inline-end: calc(
+		var(--ob-ref-space-2) + var(--ob-ref-size-icon-xs) + var(--ob-ref-space-1)
+	);
+}
+.title {
+	overflow: hidden;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-xs);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.titleGroupWithGlyph .title {
+	padding-block: var(--ob-ref-space-1);
+	text-box: trim-both cap alphabetic;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
+}
+.actions {
+	display: flex;
+	grid-column: 3;
+	justify-content: flex-end;
+	align-items: center;
+	padding-inline: var(--ob-ref-space-1);
+}
+.action {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: var(--ob-ref-size-control-xs);
+	height: var(--ob-ref-size-control-xs);
+	color: var(--ob-sys-color-icon-muted);
+}
+/* A Tab with a single Panel shows no Panel header. */
+@container window-fit (max-width: 48rem) {
+	[data-size='full'] [data-panel-column]:not([data-open]) .header {
+		display: none;
+	}
+}

@@ -1,0 +1,245 @@
+/* The desktop sidebar as the product lays it out (its workbench sidebar, Project, Workspace and
+   Agent rows), in the product's tokens. Text beside an icon sits on the icon's center line as the
+   product sets it: trimmed to cap height and raised by the shared shift, padded so ascenders and
+   descenders stay inside the truncation clip. */
+.sidebar {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+	border-right: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	background-color: var(--ob-sys-color-surface-raised);
+	background-image: linear-gradient(
+		var(--ob-sys-color-surface-subtle),
+		var(--ob-sys-color-surface-subtle)
+	);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+}
+.top {
+	flex: none;
+	height: var(--ob-comp-workbench-horizontal-chrome-height);
+	padding: calc(
+			(var(--ob-comp-workbench-horizontal-chrome-height) - var(--ob-ref-size-control-sm)) / 2
+		)
+		var(--ob-ref-space-2);
+}
+.iconButton {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: var(--ob-ref-size-control-sm);
+	height: var(--ob-ref-size-control-sm);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-icon-secondary);
+}
+.newWorkspace,
+.settings {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-size-control-navigation);
+	padding: 0 var(--ob-ref-space-2) 0 var(--ob-ref-space-1);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	color: var(--ob-sys-color-text-secondary);
+	white-space: nowrap;
+}
+.newWorkspace {
+	flex: none;
+	margin: 0 var(--ob-ref-space-2);
+}
+.itemIcon {
+	display: flex;
+	flex: none;
+	justify-content: center;
+	align-items: center;
+	width: var(--ob-ref-size-icon-lg);
+	color: var(--ob-sys-color-icon-secondary);
+}
+.label,
+.projectName,
+.name,
+.lineText,
+.title,
+.provider {
+	padding-block: var(--ob-ref-space-1);
+	overflow: hidden;
+	text-box: trim-both cap alphabetic;
+	text-overflow: ellipsis;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
+	white-space: nowrap;
+}
+.tree {
+	flex: 1;
+	min-height: 0;
+	margin-top: var(--ob-ref-space-6);
+	padding: 0 var(--ob-ref-space-2) var(--ob-ref-space-2);
+	overflow: hidden;
+}
+.project {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-0-5);
+	height: var(--ob-ref-size-control-sm);
+	margin-bottom: var(--ob-ref-space-0-5);
+	padding: 0 var(--ob-ref-space-1) 0 var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+.chevron {
+	display: inline-flex;
+	flex: none;
+	justify-content: center;
+	align-items: center;
+	width: var(--ob-ref-size-control-2xs);
+	height: var(--ob-ref-size-control-2xs);
+	color: var(--ob-sys-color-icon-muted);
+}
+/* Codicon draws › right of center, at 8.75 of its 16 units; the open chevron turns about that. */
+.chevronIcon {
+	display: inline-flex;
+	transform: rotate(90deg);
+	transform-origin: calc(100% * 8.75 / 16) 50%;
+}
+.list,
+.workspace,
+.agents {
+	display: grid;
+	gap: var(--ob-ref-space-0-5);
+}
+/* 38 px = 4 + 18 + 12 + 4: the name line holds the row's tools, the branch line runs 4 px under its
+   type's line height; the end keeps 58 px for ↑N ↓N and the dot. */
+.row,
+.selectedRow {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	padding: var(--ob-ref-space-1)
+		calc(var(--ob-ref-space-12) + var(--ob-ref-space-2) + var(--ob-ref-space-0-5))
+		var(--ob-ref-space-1) var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-text-secondary);
+}
+.selectedRow {
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-text-primary);
+}
+.line1,
+.line2 {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-0-5);
+}
+.line1 {
+	height: var(--ob-ref-size-control-2xs);
+}
+.line2 {
+	height: var(--ob-ref-space-3);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-xs);
+}
+.endInfo {
+	position: absolute;
+	top: var(--ob-ref-space-1);
+	right: var(--ob-ref-space-2);
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	height: var(--ob-ref-size-control-2xs);
+	font: var(--ob-sys-typography-label-xs);
+	font-variant-numeric: tabular-nums;
+}
+.ahead {
+	color: var(--ob-sys-color-status-success-text);
+}
+.behind {
+	color: var(--ob-sys-color-status-warning-text);
+}
+/* An Agent row stands under a 1 px guide at the Workspace name's start. */
+.agent {
+	position: relative;
+	display: grid;
+	grid-template-columns: var(--ob-ref-size-icon-sm) minmax(0, 1fr) auto;
+	column-gap: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-size-control-sm);
+	margin-left: var(--ob-ref-space-3);
+	padding: 0 var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-text-secondary);
+}
+.agent::before {
+	position: absolute;
+	inset-block: calc(var(--ob-ref-space-0-5) / -2);
+	inset-inline-start: calc(var(--ob-ref-space-1) * -1);
+	width: var(--ob-ref-border-width-default);
+	background: var(--ob-sys-color-border-subtle);
+	content: '';
+}
+.agent:first-child::before {
+	inset-block-start: var(--ob-ref-space-0-5);
+}
+.agent:not(:has(~ .agent:not([hidden])))::before {
+	inset-block-end: var(--ob-ref-space-0-5);
+}
+.glyph,
+.text,
+.unread {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+.glyph {
+	justify-content: center;
+}
+.text {
+	font: var(--ob-sys-typography-label-sm);
+}
+.title {
+	flex: 0 1 auto;
+}
+/* The provider stays whole while the title truncates first. */
+.provider {
+	flex: 0 0 auto;
+	max-width: 70%;
+	color: var(--ob-sys-color-text-muted);
+}
+.provider::before {
+	padding-inline: var(--ob-ref-space-1);
+	content: '·';
+}
+.unread {
+	margin-inline: calc(var(--ob-ref-space-1) * -1);
+	padding-inline: var(--ob-ref-space-1);
+}
+.dot {
+	flex: none;
+	width: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-space-1-5);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-status-unread);
+}
+/* Settings grows to the width the row leaves beside Shortcuts and the room the product keeps for
+   a development build's marker; Shortcuts follows it. */
+.footer {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-0-5);
+	padding: var(--ob-ref-space-2);
+}
+.settings {
+	flex: 1 0 auto;
+	max-width: calc(
+		100% - var(--ob-ref-size-control-sm) - var(--ob-ref-space-0-5) - var(--ob-ref-space-0-5) -
+			var(--ob-ref-space-2) - var(--ob-ref-space-1)
+	);
+}
+/* The mini layout drops the provider names and half the space above the Projects. */
+@container window-fit (max-width: 48rem) {
+	[data-size='full'] .tree {
+		margin-top: var(--ob-ref-space-3);
+	}
+	[data-size='full'] .provider {
+		display: none;
+	}
+}

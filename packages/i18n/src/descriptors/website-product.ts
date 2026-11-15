@@ -10,6 +10,10 @@ export const websiteProductMessages = defineMessages({
 		'website.product.terminalInterface',
 		'Accessible name of a drawn picture of the Orchbee terminal interface.',
 	),
+	desktopApplication: message(
+		'website.product.desktopApplication',
+		'Accessible name of a drawn picture of the Orchbee desktop application.',
+	),
 	commandLine: message(
 		'website.product.commandLine',
 		'Accessible name of a drawn picture of a plain terminal running orchbee commands.',

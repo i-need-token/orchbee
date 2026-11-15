@@ -39,6 +39,30 @@
 .glyph[data-state='idle'] .ring {
 	display: inline;
 }
+/* In a drawn desktop application the glyph takes the product's icon size and status colors. */
+.product {
+	width: var(--ob-ref-size-icon-sm);
+	height: var(--ob-ref-size-icon-sm);
+}
+.productSmall {
+	width: var(--ob-ref-size-icon-xs);
+	height: var(--ob-ref-size-icon-xs);
+}
+.product[data-state='working'] {
+	color: var(--ob-sys-color-status-working);
+}
+.product[data-state='attention'] {
+	color: var(--ob-sys-color-status-attention);
+}
+.product[data-state='done'] {
+	color: var(--ob-sys-color-status-agent-done);
+}
+.product[data-state='failed'] {
+	color: var(--ob-sys-color-status-agent-error);
+}
+.product[data-state='idle'] {
+	color: var(--ob-sys-color-status-agent-idle);
+}
 @keyframes breathe {
 	50% {
 		opacity: var(--ob-ref-opacity-website-40);

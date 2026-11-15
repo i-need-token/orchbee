@@ -374,7 +374,7 @@ imply endorsement by their creators.
 - Creator: Microsoft Corporation and contributors
 - Source: <https://github.com/microsoft/vscode-codicons>
 - License: [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/)
-- Use in Orchbee: unmodified glyphs rendered with Orchbee theme colors and sizes
+- Use in Orchbee: unmodified glyphs rendered with Orchbee theme colors and sizes, in the product and in the website's drawings of the desktop application
 
 Codicons is licensed separately from Orchbee. The upstream copyright and license remain with their respective owners.
 

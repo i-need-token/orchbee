@@ -1,5 +1,6 @@
 export const enUSWebsiteProductMessages = {
 	'website.product.terminalInterface': 'The Orchbee terminal interface',
+	'website.product.desktopApplication': 'The Orchbee desktop application',
 	'website.product.commandLine': 'A terminal running orchbee commands',
 	'website.product.summary.attention':
 		'{count, plural, one {# needs attention} other {# need attention}}',

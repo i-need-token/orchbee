@@ -8,6 +8,7 @@ import { useId, type ReactElement } from 'react';
 import { richText } from '../../../../../../rich-text';
 import { FigureCaption } from '../../../../../figure-caption/FigureCaption';
 import { SessionCommandLine } from '../../../../../session-command-line/SessionCommandLine';
+import { SessionDesktopApplication } from '../../../../../session-desktop-application/SessionDesktopApplication';
 import { sessionAgents } from '../../../../../session-scene/session';
 import { useSessionFrame } from '../../../../../session-scene/useSessionFrame';
 import { SessionTerminalInterface } from '../../../../../session-terminal-interface/SessionTerminalInterface';
@@ -24,6 +25,12 @@ const VIEWS = [
 		name: websiteShellMessages.clientTerminal,
 		shortName: websiteShellMessages.navTerminal,
 		Window: SessionTerminalInterface,
+	},
+	{
+		id: 'desktop',
+		name: websiteShellMessages.clientDesktop,
+		shortName: websiteShellMessages.navDesktop,
+		Window: SessionDesktopApplication,
 	},
 	{
 		id: 'cli',

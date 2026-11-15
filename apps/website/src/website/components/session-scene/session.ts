@@ -13,7 +13,7 @@ import {
 	yellow,
 	type TerminalRow,
 } from '../terminal-text/terminal-row';
-import type { TuiSidebarWorkspace } from '../tui-sidebar/TuiSidebar';
+import type { DesktopSidebarWorkspace } from '../desktop-sidebar/DesktopSidebar';
 
 // The Session the home page plays: a shell Panel, Claude Code, Codex (started by a command), and
 // OpenCode in another Workspace. The command line outside Orchbee asks the same Session and prints
@@ -483,11 +483,12 @@ export function sessionAgents(
 	];
 }
 
-/** The sidebar list of the Session: Claude Code and Codex in one Workspace, OpenCode in another. */
-export function sessionWorkspaces(frame: SessionFrame): readonly TuiSidebarWorkspace[] {
+/** The sidebar list of the Session: Claude Code and Codex in one Workspace, OpenCode in another.
+ * The shop-api branch is one commit ahead of its upstream, which the desktop sidebar shows. */
+export function sessionWorkspaces(frame: SessionFrame): readonly DesktopSidebarWorkspace[] {
 	const [claude, codex, openCode] = sessionAgents(frame);
 	return [
-		{ name: 'shop-api', branch: 'main', selected: true, agents: [claude, codex] },
+		{ name: 'shop-api', branch: 'main', selected: true, ahead: 1, agents: [claude, codex] },
 		{ name: 'shop-web', branch: 'main', agents: [openCode] },
 		{ name: 'docs', branch: 'main', agents: [] },
 	];

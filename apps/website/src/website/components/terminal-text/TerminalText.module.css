@@ -10,6 +10,16 @@
 	padding: var(--ob-ref-length-website-12) var(--ob-ref-length-website-10)
 		var(--ob-ref-length-website-6);
 }
+/* The desktop application sets its own terminal type; the terminal paints its theme background
+   under the Panel header. */
+.desktop {
+	padding: var(--ob-ref-length-website-2) var(--ob-ref-length-website-4)
+		var(--ob-ref-length-website-3);
+	background: var(--ob-comp-website-terminal-background);
+	color: var(--ob-comp-website-terminal-foreground);
+	font: var(--ob-sys-typography-website-terminal-desktop);
+	font-variant-ligatures: none;
+}
 .console {
 	padding: var(--ob-ref-length-website-10) var(--ob-ref-length-website-14)
 		var(--ob-ref-length-website-8);

@@ -1,0 +1,44 @@
+/* Panels stand 1 px apart on the product's split divider: its border color on the canvas. */
+.panels,
+.column,
+.secondColumn {
+	min-height: 0;
+	background-color: var(--ob-sys-color-surface-canvas);
+	background-image: linear-gradient(
+		var(--ob-sys-color-border-default),
+		var(--ob-sys-color-border-default)
+	);
+}
+.panels {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	gap: var(--ob-ref-border-width-default);
+}
+.column,
+.secondColumn {
+	display: grid;
+	grid-template-rows: minmax(0, 1fr) minmax(0, 0fr);
+}
+/* Codex's Panel opens below the shell when the command starts it. */
+.column {
+	transition: grid-template-rows var(--ob-sys-motion-duration-website-340)
+		var(--ob-sys-motion-easing-website-split);
+}
+.column[data-open] {
+	grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+	gap: var(--ob-ref-border-width-default);
+}
+.column:not([data-open]) > :last-child {
+	visibility: hidden;
+}
+.secondColumn {
+	grid-template-rows: minmax(0, 1fr);
+}
+@container window-fit (max-width: 48rem) {
+	[data-size='full'] .panels {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	[data-size='full'] .secondColumn {
+		display: none;
+	}
+}

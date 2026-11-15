@@ -1,0 +1,68 @@
+/* The horizontal Tab strip on the product's track color; the selected Tab is raised from it with a
+   hairline on three sides. */
+.strip {
+	display: flex;
+	align-items: stretch;
+	padding-left: var(--ob-ref-space-2);
+	background-color: var(--ob-sys-color-surface-canvas);
+	background-image: linear-gradient(
+		var(--ob-sys-color-surface-subtle),
+		var(--ob-sys-color-surface-subtle)
+	);
+	color: var(--ob-sys-color-text-secondary);
+	white-space: nowrap;
+}
+.tab {
+	display: flex;
+	flex: none;
+	align-items: center;
+	width: var(--ob-ref-length-website-182);
+	padding: 0 var(--ob-ref-length-website-1) 0 var(--ob-ref-length-website-9);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-bottom-width: 0;
+	background: var(--ob-sys-color-surface-raised);
+	color: var(--ob-sys-color-text-primary);
+}
+.icon {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: var(--ob-ref-size-icon-md);
+	height: var(--ob-ref-size-icon-md);
+}
+.title {
+	flex: 1;
+	margin-left: var(--ob-ref-space-2);
+	overflow: hidden;
+	mask-image: linear-gradient(
+		to right,
+		var(--ob-sys-color-text-primary) 0,
+		var(--ob-sys-color-text-primary) calc(100% - var(--ob-ref-space-3)),
+		transparent 100%
+	);
+}
+.unread {
+	flex: none;
+	margin: 0 var(--ob-ref-space-0-5) 0 var(--ob-ref-space-1);
+	color: var(--ob-sys-color-status-unread);
+	font: var(--ob-sys-typography-label-sm);
+}
+.button,
+.newTab {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: var(--ob-ref-size-control-sm);
+	height: var(--ob-ref-size-control-sm);
+	color: var(--ob-sys-color-icon-secondary);
+}
+.newTab {
+	align-self: center;
+	margin-left: var(--ob-ref-length-website-13);
+}
+/* The phone layout narrows the Tab. */
+@container window-fit (max-width: 40rem) {
+	[data-size='full'] .tab {
+		width: var(--ob-ref-length-website-150);
+	}
+}

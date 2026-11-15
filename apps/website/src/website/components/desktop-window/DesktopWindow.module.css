@@ -1,0 +1,59 @@
+/* The window keeps the product's pixel size and zooms to its WindowFit; a narrower fit gets the
+   mini layout (a narrower sidebar), then the phone layout (no sidebar). Colors and type are the
+   product's tokens, so the drawing follows the product and the appearance its root carries. */
+.window,
+.windowWithSidebar {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	width: var(--ob-ref-length-website-1180);
+	height: var(--ob-ref-length-website-640);
+	zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-1180))), 1.3);
+	overflow: hidden;
+	border-radius: var(--ob-ref-length-website-10);
+	background: var(--ob-sys-color-surface-raised);
+	box-shadow: var(--ob-sys-shadow-website-window);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	text-align: left;
+	cursor: default;
+	-webkit-user-select: none;
+	user-select: none;
+}
+.windowWithSidebar {
+	grid-template-columns: var(--ob-ref-length-website-250) minmax(0, 1fr);
+}
+.window *,
+.windowWithSidebar * {
+	min-width: 0;
+}
+.sidebar {
+	display: contents;
+}
+.main {
+	display: grid;
+	grid-template-rows: var(--ob-comp-workbench-horizontal-chrome-height) minmax(0, 1fr);
+	min-height: 0;
+}
+@container window-fit (max-width: 48rem) {
+	[data-size='full']:is(.window, .windowWithSidebar) {
+		width: var(--ob-ref-length-website-660);
+		height: var(--ob-ref-length-website-400);
+		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-660))), 1.3);
+	}
+	.windowWithSidebar[data-size='full'] {
+		grid-template-columns: var(--ob-ref-length-website-200) minmax(0, 1fr);
+	}
+}
+@container window-fit (max-width: 40rem) {
+	[data-size='full']:is(.window, .windowWithSidebar) {
+		width: var(--ob-ref-length-website-430);
+		height: var(--ob-ref-length-website-430);
+		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-430))), 1.3);
+	}
+	.windowWithSidebar[data-size='full'] {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	[data-size='full'] > .sidebar {
+		display: none;
+	}
+}

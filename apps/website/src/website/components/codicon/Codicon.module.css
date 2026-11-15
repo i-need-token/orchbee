@@ -1,0 +1,11 @@
+.icon,
+.disclosure {
+	flex: none;
+	width: var(--ob-ref-size-icon-sm);
+	height: var(--ob-ref-size-icon-sm);
+	fill: currentColor;
+}
+.disclosure {
+	width: var(--ob-ref-size-icon-xs);
+	height: var(--ob-ref-size-icon-xs);
+}

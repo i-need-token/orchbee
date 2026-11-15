@@ -1265,6 +1265,8 @@
 	--ob-sys-typography-website-terminal: 400 13px / 20px var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-terminal-compact: 400 11px / 17px
 		var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-terminal-desktop: 400 13px / 17px
+		var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-terminal-strong: 700 13px / 20px
 		var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-terminal-title: 400 12px / 20px
@@ -1342,6 +1344,7 @@
 	--ob-ref-length-website-10: 10px;
 	--ob-ref-length-website-11: 11px;
 	--ob-ref-length-website-12: 12px;
+	--ob-ref-length-website-13: 13px;
 	--ob-ref-length-website-14: 14px;
 	--ob-ref-length-website-15: 15px;
 	--ob-ref-length-website-16: 16px;
@@ -1375,7 +1378,10 @@
 	--ob-ref-length-website-130: 130px;
 	--ob-ref-length-website-132: 132px;
 	--ob-ref-length-website-150: 150px;
+	--ob-ref-length-website-182: 182px;
+	--ob-ref-length-website-200: 200px;
 	--ob-ref-length-website-206: 206px;
+	--ob-ref-length-website-250: 250px;
 	--ob-ref-length-website-262: 262px;
 	--ob-ref-length-website-400: 400px;
 	--ob-ref-length-website-430: 430px;

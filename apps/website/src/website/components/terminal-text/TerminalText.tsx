@@ -4,8 +4,9 @@ import { joinClassNames } from '../../joinClassNames';
 import styles from './TerminalText.module.css';
 import type { TerminalRow, TerminalSegment } from './terminal-row';
 
-/** Who draws the terminal: a Panel of Orchbee, or the plain console of another terminal. */
-export type TerminalHost = 'panel' | 'console';
+/** Who draws the terminal: a Panel of the Orchbee terminal interface or of the desktop application,
+ * or the plain console of another terminal. */
+export type TerminalHost = 'panel' | 'desktop' | 'console';
 
 function Segment({ segment }: { segment: TerminalSegment }): ReactElement | string {
 	if (typeof segment === 'string') return segment;

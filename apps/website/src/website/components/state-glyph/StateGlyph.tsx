@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 
+import { joinClassNames } from '../../joinClassNames';
 import styles from './StateGlyph.module.css';
 
 // The Agent states the product shows, in the product's fixed status colors.
@@ -7,18 +8,26 @@ export type AgentState = 'working' | 'attention' | 'done' | 'failed' | 'idle';
 
 /**
  * The product's hexagon status glyph. Working breathes slowly and attention quickly; idle is an
- * outline. `bind` names the scene state that script writes into `data-state`.
+ * outline. `bind` names the scene state that script writes into `data-state`. Inside a drawn
+ * desktop application, `product` draws it at the product's icon size (`regular`, or `small` in
+ * Tabs and Panel headers) in the product's status colors, which follow the window's appearance.
  */
 export function StateGlyph({
 	state,
 	bind,
+	product,
 }: {
 	state: AgentState;
 	bind?: string | undefined;
+	product?: 'regular' | 'small';
 }): ReactElement {
 	return (
 		<svg
-			className={styles['glyph']}
+			className={joinClassNames(
+				styles['glyph'],
+				product !== undefined && styles['product'],
+				product === 'small' && styles['productSmall'],
+			)}
 			viewBox='0 0 14 14'
 			data-state={state}
 			data-scene-state={bind}

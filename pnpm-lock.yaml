@@ -331,6 +331,9 @@ importers:
       '@orchbee/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@vscode/codicons':
+        specifier: 'catalog:'
+        version: 0.0.45
       react:
         specifier: 'catalog:'
         version: 19.2.7
