@@ -324,6 +324,41 @@ fn wait_for_contents(path: &Path, expected: &str) -> TestResult<()> {
     }
 }
 
+/// Waits until each bound shell has run a command at its prompt.
+///
+/// A Close begins with a hangup. A shell at its prompt exits on it at once, but macOS `/bin/sh` can
+/// miss one that lands while it is still starting, and then waits for the Close's five-second
+/// Force, which outlasts a test's wait for Closed. Each binding uses three request values from
+/// `request_base`.
+fn wait_for_prompts(
+    client: &mut UnixStream,
+    snapshot: &Snapshot,
+    bindings: &[&PresentationBinding],
+    marker: &Path,
+    request_base: u128,
+) -> TestResult {
+    for (binding, offset) in bindings.iter().zip(0_u128..) {
+        let request_value = request_base + 3 * offset;
+        let witness = marker.with_file_name(format!("prompt-{request_value:x}"));
+        let attachment = attach_binding(client, snapshot, binding, request_value)?;
+        let controller = acquire_controller(client, &attachment, request_value + 1)?;
+        input(
+            client,
+            &attachment,
+            &controller,
+            request_value + 2,
+            1,
+            format!(
+                "printf 'ready\\n' > {}\n",
+                single_quote(witness.to_string_lossy().as_ref())
+            )
+            .into_bytes(),
+        )?;
+        wait_for_contents(&witness, "ready\n")?;
+    }
+    Ok(())
+}
+
 fn wait_for_pid(path: &Path) -> TestResult<u32> {
     let deadline = Instant::now() + PROCESS_TIMEOUT;
     loop {
@@ -476,6 +511,7 @@ fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> T
             fixture.directory.to_string_lossy().into_owned(),
         ]
     );
+    wait_for_prompts(&mut first, &after_split, &bindings, &fixture.marker, 0x130)?;
 
     let closed = exchange_command(
         &mut first,
@@ -958,6 +994,13 @@ fn real_workspace_close_preserves_sibling_and_can_recreate() -> TestResult {
         .iter()
         .find(|workspace| workspace.terminal_context_id == setup.sibling_context_id)
         .ok_or("missing sibling Workspace")?;
+    // A first shell that reports another path than its Workspace's primary Directory makes the
+    // Server publish that terminal directory in a revision of its own, which the exact revisions
+    // below cannot admit. `/tmp` is a link on macOS, so the primary names the path it reaches.
+    let sibling_directory = fs::canonicalize("/tmp")?;
+    let sibling_directory = sibling_directory
+        .to_str()
+        .ok_or_else(|| io::Error::other("sibling directory path was not UTF-8"))?;
     let associated = exchange_command(
         &mut first,
         &command(
@@ -965,7 +1008,7 @@ fn real_workspace_close_preserves_sibling_and_can_recreate() -> TestResult {
             &after_workspace_create,
             WorkbenchAction::WorkspacePrimaryDirectoryAccept {
                 workspace_id: sibling_workspace.workspace_id.clone(),
-                path: WorkbenchDirectoryPath::parse("/tmp")?,
+                path: WorkbenchDirectoryPath::parse(sibling_directory)?,
             },
         ),
     )?;
@@ -1301,6 +1344,36 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
     // all three started shells report their launch before the Close.
     wait_for_marker(&fixture.marker, 3)?;
     let pending_close = read_snapshot(&mut second, 0x205)?;
+    let source_tab = workspace_context(&pending_close)?
+        .tabs
+        .iter()
+        .find(|tab| tab.tab_id == tab_id)
+        .ok_or_else(|| io::Error::other("Workspace fenced source Tab was not projected"))?;
+    let PanelNode::Split { children, .. } = &source_tab.root else {
+        return Err("Workspace fenced source Tab did not project a split root".into());
+    };
+    let source_bindings = children
+        .iter()
+        .map(|slot| match &slot.node {
+            PanelNode::Panel {
+                primary_presentation,
+                ..
+            } => primary_presentation
+                .binding
+                .as_ref()
+                .ok_or_else(|| io::Error::other("Workspace fenced source leaf is not bound")),
+            PanelNode::Split { .. } => Err(io::Error::other(
+                "Workspace fenced PanelSplit produced an unexpected nested split",
+            )),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    wait_for_prompts(
+        &mut second,
+        &pending_close,
+        &source_bindings,
+        &fixture.marker,
+        0x230,
+    )?;
     let closed = exchange_command(
         &mut second,
         &command(
