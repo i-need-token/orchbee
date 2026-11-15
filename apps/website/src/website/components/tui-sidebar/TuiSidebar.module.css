@@ -65,3 +65,11 @@
 [data-size='mini'] .provider {
 	display: none;
 }
+/* The sidebar alone has no edge to the main area, and more room around its tree. */
+[data-size='side'] .sidebar {
+	padding: var(--ob-ref-length-website-10) 0;
+	border-right: none;
+}
+[data-size='side'] .tree {
+	padding: var(--ob-ref-length-website-20) 0 var(--ob-ref-length-website-28);
+}

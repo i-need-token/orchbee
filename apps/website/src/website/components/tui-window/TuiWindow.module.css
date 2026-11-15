@@ -123,3 +123,19 @@
 		font: var(--ob-sys-typography-website-terminal-compact);
 	}
 }
+/* `side` is the sidebar alone, drawn at its real size outside a WindowFit: no title bar and no main
+   area, as tall as the figure it stands in. */
+.window[data-size='side'] {
+	grid-template-rows: minmax(0, 1fr);
+	width: var(--ob-ref-length-website-262);
+	height: auto;
+	zoom: 1;
+	border-radius: var(--ob-ref-length-website-8);
+}
+[data-size='side'] .bar,
+[data-size='side'] .main {
+	display: none;
+}
+[data-size='side'] .screenWithSidebar {
+	grid-template-columns: minmax(0, 1fr);
+}

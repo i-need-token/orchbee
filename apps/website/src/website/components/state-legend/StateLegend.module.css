@@ -8,6 +8,14 @@
 	align-items: center;
 	gap: var(--ob-ref-length-website-7);
 }
-.entry svg {
+.legend .entry svg {
 	animation: none;
+}
+.list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-length-website-10) var(--ob-ref-length-website-26);
+}
+.list .entry {
+	gap: var(--ob-ref-length-website-8);
 }

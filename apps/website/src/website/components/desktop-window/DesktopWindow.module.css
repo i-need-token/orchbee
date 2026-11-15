@@ -97,3 +97,15 @@
 		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-430))), 1.3);
 	}
 }
+/* `side` is the sidebar alone, drawn at its real size outside a WindowFit, as tall as the figure
+   it stands in. */
+[data-size='side']:is(.window, .windowWithSidebar) {
+	grid-template-columns: minmax(0, 1fr);
+	width: var(--ob-ref-length-website-250);
+	height: auto;
+	zoom: 1;
+	border-radius: var(--ob-ref-length-website-8);
+}
+[data-size='side'] > .main {
+	display: none;
+}
