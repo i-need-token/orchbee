@@ -296,6 +296,7 @@
 				"InputLocalFault",
 				"DetachExact",
 				"DetachRefused",
+				"DetachMismatch",
 				"DetachUnreachable",
 				"DetachLocalFault",
 				"ServerLostBeforeInputFact",

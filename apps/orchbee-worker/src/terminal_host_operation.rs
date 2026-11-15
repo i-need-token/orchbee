@@ -185,27 +185,32 @@ impl PreparedHostOperation {
             protocol: CURRENT_PROTOCOL_VERSION,
             role: MessageRole::Request,
         })?;
-        let mut exchange =
-            HostExchange::new(host, server, budget).ok_or(HostOperationError::InvalidBudget)?;
-        if let Err(failure) = exchange.prepare() {
-            exchange.close(failure);
-            if failure == PeerFailure::Server {
-                return Ok(HostOperationDisposition::ServerClosed);
-            }
-            kernel.record_pre_handoff_failure(&self.dispatch, now_unix_milliseconds())?;
-            return Ok(HostOperationDisposition::HostClosed);
+        if budget.is_zero() {
+            return Err(HostOperationError::InvalidBudget);
         }
+        // Staging earlier output and creating the terminal are two exchanges, each with the whole
+        // `budget`, and each starts only if that bound ends within the request's bound. A stage
+        // with no room is skipped, since earlier output is optional; a creation with no room is
+        // never sent, also after a successful stage, and the Launch fails before handoff, with no
+        // effect, for the Client to ask again. The seed such a stage left is inert: the Host keeps
+        // one staged seed, gives it only to a creation of the same identity on the same
+        // connection, and discards it at the next creation on this connection or the next stage.
         if let (Some(seed), ExpectedResponse::Created(creation)) =
             (self.output_seed.as_deref(), self.expected)
+            && let Ok(mut stage) = HostExchange::new(host, server, budget)
         {
-            match stage_output(&mut exchange, epoch, creation, seed) {
+            let staged = stage
+                .prepare()
+                .map_err(StageFailure::Peer)
+                .and_then(|()| stage_output(&mut stage, epoch, creation, seed));
+            match staged {
                 Ok(()) => {}
                 // Earlier output is optional: the terminal still starts, only without it.
                 Err(StageFailure::Refused) => eprintln!(
                     "orchbee-worker diagnostic component=terminal-launch operation=stage-output stage=host cause=refused"
                 ),
                 Err(StageFailure::Peer(failure)) => {
-                    exchange.close(failure);
+                    stage.close(failure);
                     if failure == PeerFailure::Server {
                         return Ok(HostOperationDisposition::ServerClosed);
                     }
@@ -213,6 +218,18 @@ impl PreparedHostOperation {
                     return Ok(HostOperationDisposition::HostClosed);
                 }
             }
+        }
+        let Ok(mut exchange) = HostExchange::new(host, server, budget) else {
+            kernel.record_pre_handoff_failure(&self.dispatch, now_unix_milliseconds())?;
+            return Ok(HostOperationDisposition::ResultReady);
+        };
+        if let Err(failure) = exchange.prepare() {
+            exchange.close(failure);
+            if failure == PeerFailure::Server {
+                return Ok(HostOperationDisposition::ServerClosed);
+            }
+            kernel.record_pre_handoff_failure(&self.dispatch, now_unix_milliseconds())?;
+            return Ok(HostOperationDisposition::HostClosed);
         }
         let capability_epoch = CapabilityHostEpoch::from_bytes(*epoch.as_bytes())
             .map_err(AuthorizationKernelError::from)?;

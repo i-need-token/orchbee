@@ -4,8 +4,8 @@
 
 use crate::{
     diagnostic_events::{self, Site},
-    host_connection::{HostBrokerConnection, exchange},
-    terminal_viewer_operation::{UnexpectedAnswer, set_attachment_demand},
+    host_connection::{HostBrokerConnection, NotStarted, exchange},
+    terminal_viewer_operation::{DemandAnswer, UnexpectedAnswer, set_attachment_demand},
     worker_identity::fresh_identity,
 };
 mod host_colors;
@@ -45,6 +45,7 @@ pub(crate) fn execute(
     } else {
         match apply(&request, host, server) {
             Ok(outcome) => outcome,
+            Err(error) if NotStarted::is(error.as_ref()) => not_started(&request.action),
             Err(error) => contain(error, host, server, request.viewer_id)?,
         }
     };
@@ -53,6 +54,23 @@ pub(crate) fn execute(
         viewer_id: request.viewer_id,
         controller_id: request.controller_id,
         outcome,
+    })
+}
+
+/// The answer to a control request whose own Host exchange had no room in the request. Nothing
+/// reached the Host and the grant stays as it was. A request's own exchange starts within the
+/// record budget of its arrival, well inside the start limit, so only a Worker that stalled for
+/// seconds meets this.
+const fn not_started(action: &Action) -> Outcome {
+    Outcome::Rejected(match action {
+        Action::Acquire | Action::Takeover { .. } => Rejection::ControllerBusy,
+        Action::SemanticInput { .. } | Action::Paste { .. } => Rejection::HostInputBackpressure,
+        Action::Resize { .. } => Rejection::HostRejected,
+        Action::Input { .. }
+        | Action::Release
+        | Action::Clear
+        | Action::Reset
+        | Action::HostColors { .. } => Rejection::HostInputUnavailable,
     })
 }
 /// An unexpected answer refuses this request and releases its viewer's controller, so a Client
@@ -100,7 +118,9 @@ fn apply(
     let id = AttachmentId::from_bytes(request.controller_id.as_bytes())?;
     let correlation = CorrelationId::from_bytes(request.request_id.as_bytes())?;
     if matches!(request.action, Action::Acquire | Action::Takeover { .. }) {
-        if host.viewers.borrow().contains(request.controller_id) {
+        // While Detaches wait for cleanup, the Host still holds those attachments; no new
+        // controller is opened until cleanup has caught up.
+        if host.viewers.borrow().contains(request.controller_id) || host.detach_backlog_full() {
             return Ok(Outcome::Rejected(Rejection::ControllerBusy));
         }
         if let Action::Takeover {
@@ -115,7 +135,12 @@ fn apply(
             );
             match incumbent {
                 Err(reason) => return Ok(Outcome::Rejected(reason)),
-                Ok(Some(grant)) => release_viewer(host, server, grant.viewer_id)?,
+                // The incumbent keeps control unless its Detach starts; this is the request's
+                // first exchange.
+                Ok(Some(grant)) => {
+                    detach_controller(host, server, grant.controller_id)?;
+                    host.forget_controller(grant.controller_id);
+                }
                 Ok(None) => (),
             }
         }
@@ -139,14 +164,20 @@ fn apply(
                 capabilities,
                 request_resize_lease: true,
             }))?;
-        let response = exchange(
+        let Some(response) = NotStarted::optional(exchange(
             host,
             server,
             correlation,
             command.kind,
             &command.payload,
             PayloadEncoding::ControlJson,
-        )?;
+        ))?
+        else {
+            // Only a Takeover's slow incumbent Detach leaves no room for this Attach: control is
+            // free now, and the Client may ask again.
+            host.controllers.borrow_mut().remove(request.controller_id);
+            return Ok(Outcome::Rejected(Rejection::ControllerBusy));
+        };
         let envelope = decode_transport_envelope(&response)?;
         if matches!(
             decode_connection_control(envelope.kind, envelope.role, envelope.payload),
@@ -172,12 +203,26 @@ fn apply(
             .borrow_mut()
             .commit(request.controller_id, accepted.capability_revision);
         // A controller has no projection and starts paused; its focus claim follows its viewer.
+        // When this request has no room left for that, a later cleanup sets it.
         let demand = host.viewers.borrow().demand(request.viewer_id);
-        if demand == Some(ProjectionDemand::Active)
-            && !set_attachment_demand(host, server, correlation, id, ProjectionDemand::Active)?
-        {
-            release_viewer(host, server, request.viewer_id)?;
-            return Ok(Outcome::Rejected(Rejection::HostRejected));
+        if demand == Some(ProjectionDemand::Active) {
+            match NotStarted::optional(set_attachment_demand(
+                host,
+                server,
+                correlation,
+                id,
+                ProjectionDemand::Active,
+            ))? {
+                Some(DemandAnswer::Accepted) => host
+                    .controllers
+                    .borrow_mut()
+                    .set_demand(request.controller_id, ProjectionDemand::Active),
+                Some(DemandAnswer::Refused(_)) => {
+                    release_viewer(host, server, request.viewer_id)?;
+                    return Ok(Outcome::Rejected(Rejection::HostRejected));
+                }
+                None => {}
+            }
         }
         return Ok(Outcome::Acquired);
     }
@@ -389,7 +434,8 @@ fn controlled_semantic_input(
 
 /// Releases the controller attached for `viewer`, if any. Any correlated answer ends the
 /// controller: a refusal counts as released, and another answer is recorded and the controller
-/// forgotten all the same. Only a failed exchange is an error.
+/// forgotten all the same. A Detach the request has no room for is left to a later cleanup; the
+/// controller is released here all the same. Only a failed exchange is an error.
 pub(crate) fn release_viewer(
     host: &HostBrokerConnection,
     server: &UnixStream,
@@ -398,8 +444,22 @@ pub(crate) fn release_viewer(
     let Some(grant) = host.controllers.borrow().for_viewer(viewer) else {
         return Ok(());
     };
+    if NotStarted::optional(detach_controller(host, server, grant.controller_id))?.is_none() {
+        host.defer_detach(grant.controller_id.as_bytes());
+    }
+    host.forget_controller(grant.controller_id);
+    Ok(())
+}
+
+/// Detaches one controller now: any correlated answer ends it, and one other than the exact
+/// acceptance is recorded.
+fn detach_controller(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    controller: OperationId,
+) -> Result<(), Box<dyn Error>> {
     let target = AttachmentTarget {
-        attachment_id: AttachmentId::from_bytes(grant.controller_id.as_bytes())?,
+        attachment_id: AttachmentId::from_bytes(controller.as_bytes())?,
     };
     let command = encode_attachment_control(&AttachmentControl::DetachTerminal(target))?;
     let response = exchange(
@@ -416,7 +476,6 @@ pub(crate) fn release_viewer(
     {
         diagnostic_events::host_unexpected(host.pacing.site(), envelope.kind);
     }
-    host.forget_controller(grant.controller_id);
     Ok(())
 }
 fn host_geometry(

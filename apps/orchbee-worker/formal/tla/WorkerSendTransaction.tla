@@ -24,11 +24,21 @@ EXTENDS Naturals, FiniteSets, TLC
 \* separate Host-side event that eventually releases orphaned attachments.
 \* Interleaved Host events drained by the exchange are legal stutters, never
 \* errors, bounded by eventDrains.
+\*
+\* An intact Host answer never retires the carrier: an answer that contradicts
+\* the attach or the input settles that stage and the attachment is detached,
+\* and a Detach answered otherwise than by the acknowledgement or a refusal is
+\* left to a later cleanup on the kept carrier (deferred), which lies outside
+\* this one-request model. Only a malformed envelope or a lost stream retires
+\* the carrier. The Host refuses a Detach only for an attachment it no longer
+\* holds, since its Detach is idempotent, so a refusal settles cleanup like
+\* the acknowledgement: a trusted Host assumption, disclosed here.
 
 Phases == {"idle", "attach-sent", "attached", "input-sent", "input-accepted",
-           "input-rejected", "detach-sent", "result-ready", "done", "closed"}
+           "input-rejected", "detach-pending", "detach-sent", "result-ready",
+           "done", "closed"}
 Outcomes == {"none", "rejected", "accepted", "unavailable", "unknown"}
-RejectReasons == {"none", "attach", "input"}
+RejectReasons == {"none", "attach", "attach-desync", "input"}
 UnavailableReasons == {"none", "host-unavailable", "host-protocol-fault"}
 Cleanups == {"none", "not-needed", "confirmed", "unconfirmed"}
 ByteCounts == {0, 1, 2}
@@ -41,7 +51,11 @@ PayloadKinds == {"text", "key"}
 ValidAcks(payload) == IF payload = "text" THEN {1} ELSE {0, 1}
 SingletonAcks(payload) == { {b} : b \in ValidAcks(payload) }
 SentPhases == {"attach-sent", "input-sent", "detach-sent"}
-BetweenPhases == {"idle", "attached", "input-accepted", "input-rejected"}
+\* A stage has settled and the detach comes next: an accepted or refused
+\* input, or a contradicting attach or input answer, or an unsent input record
+\* (detach-pending, whose outcome is already set).
+DetachPhases == {"input-accepted", "input-rejected", "detach-pending"}
+BetweenPhases == {"idle", "attached"} \cup DetachPhases
 
 VARIABLES payload, s
 vars == <<payload, s>>
@@ -52,7 +66,7 @@ Init ==
   /\ s = [phase |-> "idle", outcome |-> "none", rejectReason |-> "none",
           unavailReason |-> "none", cleanup |-> "none",
           acceptedBytes |-> {}, inputAcked |-> FALSE, detachAcked |-> FALSE,
-          untrusted |-> FALSE, hostAttachments |-> {"tui"},
+          untrusted |-> FALSE, deferred |-> FALSE, hostAttachments |-> {"tui"},
           hostInputApplied |-> FALSE, teardownPending |-> FALSE,
           carrierAlive |-> TRUE, serverAlive |-> TRUE,
           attachSent |-> 0, inputSent |-> 0, detachSent |-> 0,
@@ -78,7 +92,7 @@ SendInput ==
   /\ UNCHANGED fixed
 
 SendDetach ==
-  /\ s.phase \in {"input-accepted", "input-rejected"}
+  /\ s.phase \in DetachPhases
   /\ s.carrierAlive /\ s.serverAlive
   /\ s' = [s EXCEPT !.phase = "detach-sent", !.detachSent = @ + 1,
                     !.last = "send-detach"]
@@ -115,8 +129,10 @@ HostTeardown ==
 
 \* ---------------------------------------------------------------------
 \* Attach stage answers. An exact echo requires the host to have applied
-\* the attachment; a typed refusal means it never was. Desync and malformed
-\* envelopes are both protocol-class faults that retire the carrier.
+\* the attachment; a typed refusal means it never was. A desync, an intact
+\* answer that grants something else, refuses the send and the attachment
+\* asked for is detached, whether or not the Host applied it; a malformed
+\* envelope or a lost stream retires the carrier.
 \* ---------------------------------------------------------------------
 
 AttachExact ==
@@ -133,11 +149,8 @@ AttachRefused ==
 
 AttachDesync ==
   /\ s.phase = "attach-sent"
-  /\ s' = [s EXCEPT !.phase = "result-ready", !.outcome = "unavailable",
-                    !.unavailReason = "host-protocol-fault",
-                    !.cleanup = "unconfirmed", !.untrusted = TRUE,
-                    !.carrierAlive = FALSE, !.teardownPending = TRUE,
-                    !.last = "attach-desync"]
+  /\ s' = [s EXCEPT !.phase = "detach-pending", !.outcome = "rejected",
+                    !.rejectReason = "attach-desync", !.last = "attach-desync"]
   /\ UNCHANGED fixed
 
 AttachMalformed ==
@@ -158,20 +171,21 @@ AttachLost ==
                     !.last = "attach-lost"]
   /\ UNCHANGED fixed
 
-\* LocalFault before the attach record leaves: provably unsent, but the
-\* carrier is still retired conservatively.
+\* LocalFault before the attach record leaves: provably unsent, so nothing
+\* needs cleanup and the carrier stays in step.
 AttachLocalFault ==
   /\ s.phase = "idle" /\ s.carrierAlive
   /\ s' = [s EXCEPT !.phase = "result-ready", !.outcome = "unavailable",
                     !.unavailReason = "host-unavailable",
-                    !.cleanup = "unconfirmed", !.carrierAlive = FALSE,
-                    !.teardownPending = TRUE, !.last = "attach-local-fault"]
+                    !.cleanup = "not-needed", !.last = "attach-local-fault"]
   /\ UNCHANGED fixed
 
 \* ---------------------------------------------------------------------
 \* Input stage answers. Exact requires the host to have applied the input;
-\* a typed refusal means it never did. Everything uncertain settles
-\* OutcomeUnknown and retires the carrier without a detach.
+\* a typed refusal means it never did. A desync, an intact answer that
+\* contradicts the input, settles OutcomeUnknown and the attachment is
+\* detached; a malformed envelope or a lost stream settles OutcomeUnknown and
+\* retires the carrier without a detach. No input is ever sent again.
 \* ---------------------------------------------------------------------
 
 InputExact(bytes) ==
@@ -189,9 +203,7 @@ InputRefused ==
 
 InputDesync ==
   /\ s.phase = "input-sent"
-  /\ s' = [s EXCEPT !.phase = "result-ready", !.outcome = "unknown",
-                    !.cleanup = "unconfirmed", !.untrusted = TRUE,
-                    !.carrierAlive = FALSE, !.teardownPending = TRUE,
+  /\ s' = [s EXCEPT !.phase = "detach-pending", !.outcome = "unknown",
                     !.last = "input-desync"]
   /\ UNCHANGED fixed
 
@@ -212,21 +224,21 @@ InputLost ==
   /\ UNCHANGED fixed
 
 \* LocalFault before the input record leaves: the input is provably unsent,
-\* so the outcome is Unavailable, not Unknown -- but the already-committed
-\* attachment makes the carrier unrecoverable, so it still retires.
+\* so the outcome is Unavailable, not Unknown; the carrier stays in step and
+\* the committed attachment is detached.
 InputLocalFault ==
   /\ s.phase = "attached" /\ s.carrierAlive
-  /\ s' = [s EXCEPT !.phase = "result-ready", !.outcome = "unavailable",
+  /\ s' = [s EXCEPT !.phase = "detach-pending", !.outcome = "unavailable",
                     !.unavailReason = "host-unavailable",
-                    !.cleanup = "unconfirmed", !.carrierAlive = FALSE,
-                    !.teardownPending = TRUE, !.last = "input-local-fault"]
+                    !.last = "input-local-fault"]
   /\ UNCHANGED fixed
 
 \* ---------------------------------------------------------------------
-\* Detach stage answers. Only a positively echoed DetachTerminalAccepted
-\* confirms cleanup; a typed refusal and every uncertain outcome are both
-\* Unconfirmed and both retire the carrier -- refused stays a distinct
-\* action name because it is a legible typed failure, not stream decay.
+\* Detach stage answers. The echoed DetachTerminalAccepted and a typed
+\* refusal confirm cleanup: the Host holds the attachment no longer. Another
+\* intact answer leaves it Unconfirmed and deferred to a later cleanup on the
+\* kept carrier; a malformed envelope or a lost stream leaves it Unconfirmed
+\* and retires the carrier.
 \* ---------------------------------------------------------------------
 
 DetachExact ==
@@ -236,10 +248,15 @@ DetachExact ==
   /\ UNCHANGED fixed
 
 DetachRefused ==
-  /\ s.phase = "detach-sent" /\ "send" \in s.hostAttachments
+  /\ s.phase = "detach-sent" /\ "send" \notin s.hostAttachments
+  /\ s' = [s EXCEPT !.phase = "result-ready", !.cleanup = "confirmed",
+                    !.detachAcked = TRUE, !.last = "detach-refused"]
+  /\ UNCHANGED fixed
+
+DetachMismatch ==
+  /\ s.phase = "detach-sent"
   /\ s' = [s EXCEPT !.phase = "result-ready", !.cleanup = "unconfirmed",
-                    !.carrierAlive = FALSE, !.teardownPending = TRUE,
-                    !.last = "detach-refused"]
+                    !.deferred = TRUE, !.last = "detach-mismatch"]
   /\ UNCHANGED fixed
 
 DetachUnreachable ==
@@ -249,22 +266,22 @@ DetachUnreachable ==
                     !.last = "detach-unreachable"]
   /\ UNCHANGED fixed
 
-\* LocalFault before the detach record leaves: provably unsent (detachSent
-\* stays 0), folded into the same unreachable cleanup settlement -- the
-\* committed input fact is preserved and the result is still produced.
+\* LocalFault before the detach record leaves, or no room left for it in the
+\* request: provably unsent (detachSent stays 0), so the carrier stays in step
+\* and the attachment is deferred to a later cleanup -- the committed input
+\* fact is preserved and the result is still produced.
 DetachLocalFault ==
-  /\ s.phase \in {"input-accepted", "input-rejected"} /\ s.carrierAlive
+  /\ s.phase \in DetachPhases /\ s.carrierAlive
   /\ s' = [s EXCEPT !.phase = "result-ready", !.cleanup = "unconfirmed",
-                    !.carrierAlive = FALSE, !.teardownPending = TRUE,
-                    !.last = "detach-local-fault"]
+                    !.deferred = TRUE, !.last = "detach-local-fault"]
   /\ UNCHANGED fixed
 
 \* ---------------------------------------------------------------------
 \* Peer losses and local aborts.
 \* ServerLost is phase-asymmetric: inside attach/input exchanges the error
-\* propagates and the Worker dies with no result; from a committed input
-\* fact onward the pending detach folds it into Unreachable and the result
-\* is still produced -- delivery is then best-effort.
+\* propagates and the Worker dies with no result; once a stage has settled
+\* the pending detach folds it into Unreachable and the result is still
+\* produced -- delivery is then best-effort.
 \* ---------------------------------------------------------------------
 
 ServerLostBeforeInputFact ==
@@ -277,7 +294,7 @@ ServerLostBeforeInputFact ==
 
 ServerLostAfterInputFact ==
   /\ s.serverAlive
-  /\ s.phase \in {"input-accepted", "input-rejected", "detach-sent"}
+  /\ s.phase \in DetachPhases \cup {"detach-sent"}
   /\ s' = [s EXCEPT !.phase = "result-ready", !.serverAlive = FALSE,
                     !.cleanup = "unconfirmed", !.carrierAlive = FALSE,
                     !.teardownPending = TRUE, !.last = "server-lost-late"]
@@ -291,11 +308,11 @@ ServerLostAtResult ==
 \* Carrier death between exchanges is discovered at the next write; the
 \* settlement equals that stage's transport-loss outcome: Unavailable before
 \* any record left, Unknown while the input was still unwritten, and the
-\* committed input fact preserved once it exists.
+\* settled stage's outcome preserved once it exists.
 CarrierLost ==
   /\ s.carrierAlive /\ s.phase \in BetweenPhases
   /\ s' = [s EXCEPT !.phase = "result-ready",
-                    !.outcome = IF s.phase \in {"input-accepted", "input-rejected"}
+                    !.outcome = IF s.phase \in DetachPhases
                                   THEN s.outcome
                                   ELSE IF s.phase = "idle"
                                          THEN "unavailable" ELSE "unknown",
@@ -347,7 +364,8 @@ Next ==
   \/ AttachLost \/ AttachLocalFault
   \/ (\E bytes \in {0, 1, 2} : InputExact(bytes)) \/ InputRefused
   \/ InputDesync \/ InputMalformed \/ InputLost \/ InputLocalFault
-  \/ DetachExact \/ DetachRefused \/ DetachUnreachable \/ DetachLocalFault
+  \/ DetachExact \/ DetachRefused \/ DetachMismatch \/ DetachUnreachable
+  \/ DetachLocalFault
   \/ ServerLostBeforeInputFact \/ ServerLostAfterInputFact \/ ServerLostAtResult
   \/ CarrierLost \/ PostAttachAbort \/ DrainHostEvent
   \/ DeliverResult \/ AbandonResult
@@ -374,8 +392,9 @@ TypeOK ==
   \* by the type domain.
   /\ s.attachSent \in 0..2 /\ s.inputSent \in 0..2 /\ s.detachSent \in 0..2
   /\ s.deliveries \in 0..2 /\ s.eventDrains \in 0..3
-  /\ \A field \in {"inputAcked", "detachAcked", "untrusted", "hostInputApplied",
-       "teardownPending", "carrierAlive", "serverAlive", "delivered"} :
+  /\ \A field \in {"inputAcked", "detachAcked", "untrusted", "deferred",
+       "hostInputApplied", "teardownPending", "carrierAlive", "serverAlive",
+       "delivered"} :
        s[field] \in BOOLEAN
 
 AttachAtMostOnce == s.attachSent <= 1
@@ -384,7 +403,8 @@ DetachAtMostOnce == s.detachSent <= 1
 
 \* outcome/cleanup pairings that cannot arise from attach -> input -> detach
 \* are unreachable once the result is settled; Accepted + NotNeeded is
-\* impossible because an accepted input required a real attachment. Cleanup
+\* impossible because an accepted input required a real attachment, and
+\* NotNeeded otherwise needs an attach that was refused or never sent. Cleanup
 \* is "none" until the detach axis resolves, so the matrix applies only to
 \* settled phases.
 PairingMatrix ==
@@ -392,11 +412,14 @@ PairingMatrix ==
     /\ s.outcome = "accepted" =>
          s.cleanup \in {"confirmed", "unconfirmed"} /\
          s.acceptedBytes \in SingletonAcks(payload)
-    /\ s.outcome = "unknown" => s.cleanup = "unconfirmed"
+    /\ s.outcome = "unknown" => s.cleanup \in {"confirmed", "unconfirmed"}
     /\ s.outcome = "unavailable" =>
-         s.cleanup = "unconfirmed" /\ s.unavailReason # "none"
-    /\ s.cleanup = "not-needed" => s.outcome = "rejected" /\ s.rejectReason = "attach"
-    /\ s.outcome = "rejected" /\ s.rejectReason = "input" =>
+         /\ s.unavailReason # "none"
+         /\ s.cleanup = "not-needed" => s.attachSent = 0
+    /\ s.cleanup = "not-needed" =>
+         \/ s.outcome = "rejected" /\ s.rejectReason = "attach"
+         \/ s.outcome = "unavailable" /\ s.attachSent = 0
+    /\ s.outcome = "rejected" /\ s.rejectReason \in {"input", "attach-desync"} =>
          s.cleanup \in {"confirmed", "unconfirmed"}
 
 \* Once the input fact is committed it survives every later cleanup outcome.
@@ -411,18 +434,29 @@ AcceptedBytesMatchesPayload ==
 
 ConfirmedRequiresDetachAck == s.cleanup = "confirmed" => s.detachAcked
 
+\* Confirmed cleanup is never a false claim: the Host holds no send attachment.
+ConfirmedMeansReleased == s.cleanup = "confirmed" => "send" \notin s.hostAttachments
+
 AttachRefusalNeedsNoDetach ==
   s.rejectReason = "attach" => s.detachSent = 0 /\ s.cleanup = "not-needed" /\ s.carrierAlive
 
-\* A desynchronized, malformed, or lost stream never carries another record:
-\* no detach is attempted and no input is re-sent.
+\* A malformed or lost stream never carries another record: no detach is
+\* attempted and no input is re-sent.
 UntrustedStreamNoDetach ==
   s.untrusted => s.detachSent = 0 /\ (s.phase = "input-sent" => s.inputSent <= 1)
 
-\* Cleanup that was never confirmed retires the carrier: the result is the
-\* last record this Host session produces.
-UnconfirmedCleanupClosesCarrier ==
-  s.phase = "done" /\ s.cleanup = "unconfirmed" => ~s.carrierAlive
+\* An intact Host answer, or a record that never left, never retires the
+\* carrier.
+IntactAnswerKeepsCarrier ==
+  s.last \in {"attach-desync", "attach-local-fault", "input-desync",
+             "input-local-fault", "detach-refused", "detach-mismatch",
+             "detach-local-fault"} => s.carrierAlive
+
+\* Cleanup that was never confirmed is handed on: either the carrier retires
+\* and the Host's teardown releases the attachment, or the kept carrier's
+\* later cleanup detaches it.
+UnconfirmedCleanupIsHandedOn ==
+  s.phase = "done" /\ s.cleanup = "unconfirmed" => ~s.carrierAlive \/ s.deferred
 
 \* The TUI controller's authorization is never taken by the send attachment;
 \* only carrier death can release it.
@@ -447,14 +481,16 @@ EventualSettlement == <>(s.phase \in {"done", "closed"})
 TeardownEventuallyReleasesAttachments ==
   s.teardownPending ~> (s.hostAttachments = {})
 
-\* A detach record is emitted only after the input fact is committed one
-\* way or the other -- never into an unresolved stream.
-DetachOnlyAfterCommittedInputFact ==
-  [][s'.detachSent > s.detachSent => s.phase \in {"input-accepted", "input-rejected"}]_vars
+\* A detach record is emitted only after a stage has settled one way or the
+\* other -- never into an unresolved stream.
+DetachOnlyAfterSettledStage ==
+  [][s'.detachSent > s.detachSent => s.phase \in DetachPhases]_vars
 
-\* An untrusted stream never gains another send of any kind.
+\* An untrusted stream never gains another send of any kind, and an input
+\* whose outcome is unknown is never sent again.
 UnknownNeverResends ==
-  [][s.untrusted => s'.inputSent = s.inputSent /\ s'.detachSent = s.detachSent]_vars
+  [][/\ s.untrusted => s'.inputSent = s.inputSent /\ s'.detachSent = s.detachSent
+     /\ s.outcome = "unknown" => s'.inputSent = s.inputSent]_vars
 
 \* The accepted input fact, once observed, is never reverted.
 AcceptedNeverDowngraded == [][s.inputAcked => s'.inputAcked]_vars

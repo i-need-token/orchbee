@@ -1,14 +1,14 @@
 //! One transient input capability owns a prompt-preserving clear or a full reset and its cleanup.
+//! A step the request has no room for reaches nothing: the clear or reset is refused as
+//! unavailable, and a transient attachment that exists is left to a later cleanup.
 use super::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
-    ConnectionControl, CorrelationId, Error, HostBrokerConnection, NonZeroU64, OperationId,
-    Outcome, PayloadEncoding, Rejection, TerminalControlRequest, TerminalId, UnixStream,
-    decode_attachment_control, decode_connection_control, decode_transport_envelope,
-    diagnostic_events, encode_attachment_control, fresh_identity,
+    ConnectionControl, CorrelationId, Error, HostBrokerConnection, NonZeroU64, NotStarted,
+    OperationId, Outcome, PayloadEncoding, Rejection, TerminalControlRequest, TerminalId,
+    UnixStream, decode_attachment_control, decode_connection_control, decode_transport_envelope,
+    diagnostic_events, encode_attachment_control, exchange, fresh_identity,
 };
 use crate::diagnostic_events::Site;
-use crate::host_connection::exchange_before;
-use orchbee_terminal_protocol::{CURRENT_PROTOCOL_VERSION, Envelope, MessageRole};
 use orchbee_terminal_protocol::{
     ClearTerminal, ScreenControl, ScreenControlOperation, decode_screen_control,
     encode_screen_control,
@@ -102,7 +102,8 @@ impl Drop for Transient<'_> {
 }
 impl Transient<'_> {
     /// Detaches the transient attachment. Any correlated answer settles it; only the exact
-    /// acknowledgement confirms the cleanup.
+    /// acknowledgement confirms the cleanup. A Detach the request has no room for is left to a
+    /// later cleanup, unconfirmed.
     fn detach(&mut self) -> bool {
         let target = AttachmentTarget {
             attachment_id: self.id,
@@ -123,8 +124,14 @@ impl Transient<'_> {
                 envelope.kind,
             ))
         })();
-        let Ok((confirmed, kind)) = answered else {
-            return false;
+        let (confirmed, kind) = match answered {
+            Ok(answered) => answered,
+            Err(error) if NotStarted::is(error.as_ref()) => {
+                self.host.defer_detach(self.controller.as_bytes());
+                self.may_exist = false;
+                return false;
+            }
+            Err(_) => return false,
         };
         if !confirmed {
             diagnostic_events::host_unexpected(Site::Control, kind);
@@ -146,6 +153,10 @@ pub(super) fn apply(
     };
     if request.viewer_id == request.controller_id || host.disposed_terminal(target) {
         return Ok(Outcome::Rejected(Rejection::ViewerUnavailable));
+    }
+    // While Detaches wait for cleanup, no further transient attachment is opened.
+    if host.detach_backlog_full() {
+        return Ok(Outcome::Rejected(Rejection::HostInputUnavailable));
     }
     let terminal_id = TerminalId::from_bytes(target.as_bytes())?;
     let id = AttachmentId::from_bytes(request.controller_id.as_bytes())?;
@@ -201,6 +212,10 @@ pub(super) fn apply(
             transient.detach();
             return Ok(Outcome::Rejected(Rejection::HostRejected));
         }
+        Err(error) if NotStarted::is(error.as_ref()) => {
+            transient.may_exist = false;
+            return Ok(Outcome::Rejected(Rejection::HostInputUnavailable));
+        }
         Err(_) => return Ok(Outcome::Rejected(Rejection::HostInputUnavailable)),
     }
     let command = encode_screen_control(operation.command(id))?;
@@ -247,9 +262,15 @@ pub(super) fn apply(
         }
     })();
     // A failed exchange leaves the stream out of step, and dropping the transient ends the
-    // connection; a correlated answer leaves it in step, so the attachment is detached.
-    let Ok(acknowledged) = acknowledged else {
-        return Ok(operation.unknown());
+    // connection; a correlated answer leaves it in step, so the attachment is detached. A screen
+    // step that did not start changed nothing.
+    let acknowledged = match acknowledged {
+        Ok(acknowledged) => acknowledged,
+        Err(error) if NotStarted::is(error.as_ref()) => {
+            transient.detach();
+            return Ok(Outcome::Rejected(Rejection::HostInputUnavailable));
+        }
+        Err(_) => return Ok(operation.unknown()),
     };
     let cleanup_confirmed = transient.detach();
     Ok(match acknowledged {
@@ -270,22 +291,12 @@ fn control_exchange(
     kind: u16,
     payload: &[u8],
 ) -> Result<Vec<u8>, Box<dyn Error>> {
-    let deadline = host
-        .pacing
-        .deadline(Instant::now(), host.pacing.exchange_bound());
-    exchange_before(
+    exchange(
         host,
         server,
-        Envelope {
-            correlation_id: Some(correlation),
-            host_epoch: Some(host.host_epoch()),
-            kind,
-            optional_message: false,
-            payload,
-            payload_encoding: PayloadEncoding::ControlJson,
-            protocol: CURRENT_PROTOCOL_VERSION,
-            role: MessageRole::Request,
-        },
-        deadline,
+        correlation,
+        kind,
+        payload,
+        PayloadEncoding::ControlJson,
     )
 }

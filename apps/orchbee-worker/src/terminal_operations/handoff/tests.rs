@@ -341,7 +341,7 @@ fn handoff_commit_emits_exact_owned_on_new_wire_and_closes_old_wire() {
 fn handoff_idle_cutoff_and_partial_record_have_distinct_retirement_results() {
     let (worker, mut peer) = pair();
     assert_eq!(
-        server_transport::receive_until(
+        server_transport::receive_until_timed(
             &worker,
             None,
             Some(Instant::now() + Duration::from_millis(20))
@@ -351,7 +351,7 @@ fn handoff_idle_cutoff_and_partial_record_have_distinct_retirement_results() {
     );
     peer.write_all(b"O").unwrap();
     assert!(
-        server_transport::receive_until(
+        server_transport::receive_until_timed(
             &worker,
             None,
             Some(Instant::now() + Duration::from_millis(20))

@@ -3,6 +3,7 @@
 //! granting Server authorization or performing Host I/O.
 
 use orchbee_capability_node_protocol::{ControlRejection, HostTerminalId, OperationId};
+use orchbee_terminal_protocol::ProjectionDemand;
 use std::{collections::BTreeMap, num::NonZeroU64};
 
 const MAXIMUM_CONTROLLERS: usize = 8;
@@ -13,6 +14,9 @@ pub(crate) struct ControlGrant {
     pub(crate) controller_id: OperationId,
     pub(crate) terminal_id: HostTerminalId,
     pub(crate) capability_revision: Option<NonZeroU64>,
+    /// The demand the Host holds for this controller attachment. Cleanup brings it in line with
+    /// its viewer's demand when a request had no room to.
+    pub(crate) demand: ProjectionDemand,
     sequence: u64,
 }
 #[derive(Default)]
@@ -49,6 +53,8 @@ impl HostControllers {
                 controller_id,
                 terminal_id,
                 capability_revision: None,
+                // A new Host attachment starts paused.
+                demand: ProjectionDemand::Paused,
                 sequence: 0,
             },
         );
@@ -58,6 +64,15 @@ impl HostControllers {
         if let Some(grant) = self.grants.get_mut(&id.as_bytes()) {
             grant.capability_revision = Some(revision);
         }
+    }
+    /// Records the demand the Host accepted for a controller.
+    pub(crate) fn set_demand(&mut self, id: OperationId, demand: ProjectionDemand) {
+        if let Some(grant) = self.grants.get_mut(&id.as_bytes()) {
+            grant.demand = demand;
+        }
+    }
+    pub(crate) fn grants(&self) -> Vec<ControlGrant> {
+        self.grants.values().copied().collect()
     }
     pub(crate) fn for_viewer(&self, id: OperationId) -> Option<ControlGrant> {
         self.grants

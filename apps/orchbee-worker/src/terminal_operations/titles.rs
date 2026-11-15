@@ -14,7 +14,7 @@ pub(super) fn execute(
     let current = request.worker_id.as_bytes() == worker.as_bytes()
         && request.worker_generation.get() == generation.get();
     if current && let Some(host) = host {
-        let observation = crate::host_connection::HostExchange::open(host, server);
+        let observation = crate::host_connection::HostExchange::observer(host, server);
         observation
             .observe_pending(32)
             .map_err(|class| observation.error(class))?;

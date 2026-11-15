@@ -31,9 +31,10 @@ use crate::agent_drain::AgentDrain;
 mod admission;
 
 mod events;
-pub(crate) use events::{consume_event, validate_event};
+pub(crate) use events::{drain_events, validate_event};
 
 mod controllers;
+pub(crate) use controllers::ControlGrant;
 mod exchange;
 mod host_colors;
 mod offer;
@@ -46,11 +47,11 @@ mod viewers;
 
 #[cfg(test)]
 mod tests;
-pub(crate) use exchange::{HostExchange, PeerFailure, exchange, exchange_before};
+pub(crate) use exchange::{HostExchange, PeerFailure, exchange};
 pub(crate) use host_colors::HostColors;
 #[cfg(test)]
 pub(crate) use offer::answer_test_offer;
-pub(crate) use pacing::{HostFailure, Pacing};
+pub(crate) use pacing::{HostFailure, NotStarted, Pacing};
 pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;
 
@@ -66,6 +67,8 @@ pub(crate) struct HostBrokerConnection {
     /// The Host's answer listed `prompt-gated-input`.
     prompt_gated_input: bool,
     stream: UnixStream,
+    /// The Host record every reader of `stream` continues.
+    inbound: RefCell<events::PartialRecord>,
     pub(crate) viewers: RefCell<HostViewers>,
     pub(crate) controllers: RefCell<controllers::HostControllers>,
     retired_targets: RefCell<target_cleanup::RetiredTargets>,
@@ -133,6 +136,7 @@ impl HostBrokerConnection {
             negotiated_limits,
             prompt_gated_input,
             stream: transport.stream,
+            inbound: RefCell::default(),
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
@@ -181,6 +185,7 @@ impl HostBrokerConnection {
             negotiated_limits,
             prompt_gated_input,
             stream,
+            inbound: RefCell::default(),
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
@@ -325,6 +330,32 @@ impl HostBrokerConnection {
 
     pub(crate) const fn stream(&self) -> &UnixStream {
         &self.stream
+    }
+
+    /// When the Host record it has begun must be complete: past this, the Host has stopped inside
+    /// a record for longer than an exchange may wait.
+    pub(crate) fn partial_deadline(&self) -> Option<Instant> {
+        self.inbound
+            .borrow()
+            .began()
+            .map(|began| began + self.pacing.exchange_bound())
+    }
+
+    /// Records that the Host stopped inside a record past its bound, and returns that error.
+    pub(crate) fn stalled(&self) -> io::Error {
+        let waited = self
+            .inbound
+            .borrow()
+            .began()
+            .map_or(Duration::ZERO, |began| began.elapsed());
+        let failure = HostFailure {
+            class: PeerFailure::Host,
+            deadline: true,
+            waited,
+            budget: self.pacing.exchange_bound(),
+        };
+        self.pacing.note_failure(failure);
+        failure.into_io()
     }
 }
 

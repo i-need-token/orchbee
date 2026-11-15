@@ -2,15 +2,18 @@
 //! classifying failure before or after possible delivery. It owns exchange I/O, not operation
 //! authorization, effect replay, or Host process lifetime.
 //!
-//! Bytes that have already arrived are read before a deadline is checked, so a late Worker never
-//! refuses an answer that is waiting, and a deadline ends an exchange only while it waits for
-//! bytes that have not come.
+//! An exchange starts only if its whole bound fits in the request it serves ([`Pacing::start`]);
+//! one that cannot start writes nothing and records no failure. Bytes that have already arrived
+//! are read before a deadline is checked, so a late Worker never refuses an answer that is
+//! waiting, and a deadline ends an exchange only while it waits for bytes that have not come.
+//!
+//! [`Pacing::start`]: super::Pacing::start
 
 use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     error::Error,
-    io::{self, Read, Write},
+    io::{self, Write},
     net::Shutdown,
     time::{Duration, Instant},
 };
@@ -18,12 +21,12 @@ use std::{
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MAXIMUM_TERMINAL_FRAME_BYTES, MessageRole,
-    PayloadEncoding, TRANSPORT_ENVELOPE_HEADER_BYTES, decode_transport_envelope,
-    encode_transport_envelope,
+    PayloadEncoding, decode_transport_envelope, encode_transport_envelope,
 };
 
-use super::pacing::{HostFailure, SLOW_EXCHANGE};
-use crate::host_connection::{HostBrokerConnection, consume_event};
+use super::events::read_failure;
+use super::pacing::{HostFailure, NotStarted, SLOW_EXCHANGE};
+use crate::host_connection::{HostBrokerConnection, drain_events};
 
 /// A preflight drain reads at most this many queued events, then lets the request go ahead; the
 /// exchange reads any later event while it waits for its answer.
@@ -65,33 +68,40 @@ impl<'a> HostExchange<'a> {
         }
     }
 
-    /// An exchange with at most `budget`, never past the connection's exchange bound or the
-    /// current request's deadline.
+    /// An exchange with at most `budget`, never past the connection's exchange bound. It starts
+    /// only if that whole bound ends within the current request.
     pub(crate) fn new(
         host: &'a HostBrokerConnection,
         server: &'a UnixStream,
         budget: Duration,
-    ) -> Option<Self> {
-        if budget.is_zero() {
-            return None;
-        }
+    ) -> Result<Self, NotStarted> {
         let started = Instant::now();
-        Some(Self {
+        Ok(Self {
             host,
             server,
             started,
-            deadline: host.pacing.deadline(started, budget),
+            deadline: host.pacing.start(started, budget)?,
         })
     }
 
-    /// An exchange with the connection's whole exchange bound, within the current request.
-    pub(crate) fn open(host: &'a HostBrokerConnection, server: &'a UnixStream) -> Self {
+    /// An exchange with the connection's whole exchange bound, if that fits in the current
+    /// request.
+    pub(crate) fn open(
+        host: &'a HostBrokerConnection,
+        server: &'a UnixStream,
+    ) -> Result<Self, NotStarted> {
+        Self::new(host, server, host.pacing.exchange_bound())
+    }
+
+    /// Observes events that have already arrived and writes no request, so no start limit applies.
+    #[cfg(windows)]
+    pub(crate) fn observer(host: &'a HostBrokerConnection, server: &'a UnixStream) -> Self {
         let started = Instant::now();
         Self {
             host,
             server,
             started,
-            deadline: host.pacing.deadline(started, host.pacing.exchange_bound()),
+            deadline: started,
         }
     }
 
@@ -105,32 +115,25 @@ impl<'a> HostExchange<'a> {
         self.consume_pending(maximum_events)
     }
 
-    /// Reads whole queued events, at most `maximum_events`, and returns at a record boundary.
+    /// Reads queued events that have arrived, at most `maximum_events` whole ones, without
+    /// waiting; one the Host has only begun stays partial for the exchange to finish.
     fn consume_pending(&self, maximum_events: usize) -> Result<(), PeerFailure> {
         self.host
             .stream()
             .set_nonblocking(true)
             .map_err(|_error| self.fail(PeerFailure::Host))?;
-        for _ in 0..maximum_events {
-            let (server, host) = self.poll(PollFlags::POLLIN, PollTimeout::ZERO)?;
-            if !server.is_empty() {
-                return Err(self.fail(PeerFailure::Server));
-            }
-            if host.contains(PollFlags::POLLIN) {
-                if consume_event(self.host, self.server, self.deadline).is_err() {
-                    let (server, _) = self.poll(PollFlags::POLLIN, PollTimeout::ZERO)?;
-                    return Err(self.fail(if server.is_empty() {
-                        PeerFailure::Host
-                    } else {
-                        PeerFailure::Server
-                    }));
-                }
-                continue;
-            }
-            if !host.is_empty() {
-                return Err(self.fail(PeerFailure::Host));
-            }
-            return Ok(());
+        let (server, host) = self.poll(PollFlags::POLLIN, PollTimeout::ZERO)?;
+        if !server.is_empty() {
+            return Err(self.fail(PeerFailure::Server));
+        }
+        if host.intersects(PollFlags::POLLERR | PollFlags::POLLNVAL) {
+            return Err(self.fail(PeerFailure::Host));
+        }
+        if host.intersects(PollFlags::POLLIN | PollFlags::POLLHUP)
+            && drain_events(self.host, maximum_events).is_err()
+        {
+            // The drain recorded its own failure first; this exchange reports the Host.
+            return Err(self.fail(PeerFailure::Host));
         }
         Ok(())
     }
@@ -147,31 +150,7 @@ impl<'a> HostExchange<'a> {
         record: &[u8],
         maximum_response_payload: usize,
     ) -> Result<Vec<u8>, PeerFailure> {
-        // No request leaves once its bound has passed: the stream stays in step.
-        if self.deadline_elapsed() {
-            return Err(self.fail(PeerFailure::Host));
-        }
-        let mut remaining = record;
-        while !remaining.is_empty() {
-            // The Host may be writing to this Worker while its own input is full; reading its
-            // events here keeps both directions moving instead of stalling the Host's writer.
-            let ready = self.wait(PollFlags::POLLOUT | PollFlags::POLLIN)?;
-            if ready.contains(PollFlags::POLLOUT) {
-                match self.host.stream().write(remaining) {
-                    Ok(0) => return Err(self.fail(PeerFailure::Host)),
-                    Ok(count) => {
-                        remaining = &remaining[count..];
-                        continue;
-                    }
-                    Err(error) if transient(&error) => {}
-                    Err(_error) => return Err(self.fail(PeerFailure::Host)),
-                }
-            }
-            if ready.contains(PollFlags::POLLIN) {
-                let event = self.read_record(maximum_response_payload)?;
-                self.receive_interleaved(event, false)?;
-            }
-        }
+        self.write_request(record, maximum_response_payload)?;
         let mut late = 0_usize;
         loop {
             let record = self.read_record(maximum_response_payload)?;
@@ -189,6 +168,54 @@ impl<'a> HostExchange<'a> {
                 }
             }
         }
+    }
+
+    /// Writes the whole request. A request abandoned part way, at its deadline or on an error,
+    /// leaves the Host stream out of step for good, so the connection is closed at once and never
+    /// used again.
+    fn write_request(
+        &self,
+        record: &[u8],
+        maximum_response_payload: usize,
+    ) -> Result<(), PeerFailure> {
+        let mut written = 0;
+        while let Some(remaining) = record.get(written..).filter(|rest| !rest.is_empty()) {
+            match self.write_step(remaining, maximum_response_payload) {
+                Ok(count) => written += count,
+                Err(failure) => {
+                    if written > 0 {
+                        let _closed = self.host.stream().shutdown(Shutdown::Both);
+                    }
+                    return Err(failure);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Writes what the Host takes now and returns how much that was. The Host may be writing to
+    /// this Worker while its own input is full; reading its events here keeps both directions
+    /// moving instead of stalling the Host's writer.
+    fn write_step(
+        &self,
+        remaining: &[u8],
+        maximum_response_payload: usize,
+    ) -> Result<usize, PeerFailure> {
+        let ready = self.wait(PollFlags::POLLOUT | PollFlags::POLLIN)?;
+        if ready.contains(PollFlags::POLLOUT) {
+            match self.host.stream().write(remaining) {
+                Ok(0) => return Err(self.fail(PeerFailure::Host)),
+                Ok(count) => return Ok(count),
+                Err(error) if transient(&error) => {}
+                Err(_error) => return Err(self.fail(PeerFailure::Host)),
+            }
+        }
+        if ready.contains(PollFlags::POLLIN)
+            && let Some(event) = self.advance(maximum_response_payload)?
+        {
+            self.receive_interleaved(event, false)?;
+        }
+        Ok(0)
     }
 
     /// Routes one record read during the exchange: an event goes to connection state; a response
@@ -216,44 +243,24 @@ impl<'a> HostExchange<'a> {
         Ok(None)
     }
 
-    fn read_record(&mut self, maximum_response_payload: usize) -> Result<Vec<u8>, PeerFailure> {
-        let mut header = [0_u8; TRANSPORT_ENVELOPE_HEADER_BYTES];
-        self.read_exact(&mut header)?;
-        let length = usize::try_from(u32::from_le_bytes([
-            header[8], header[9], header[10], header[11],
-        ]))
-        .map_err(|_error| self.fail(PeerFailure::Host))?;
-        // Events can carry one bounded opaque OBTF record between control
-        // responses; anything else is a response bounded by this exchange's
-        // declared payload budget.
-        let event = u16::from_le_bytes([header[6], header[7]]) & (1 << 2) != 0;
-        let bound = TRANSPORT_ENVELOPE_HEADER_BYTES
-            .checked_add(if event {
-                MAXIMUM_TERMINAL_FRAME_BYTES
-            } else {
-                maximum_response_payload
-            })
-            .ok_or_else(|| self.fail(PeerFailure::Protocol))?;
-        if !(TRANSPORT_ENVELOPE_HEADER_BYTES..=bound).contains(&length) {
-            return Err(self.fail(PeerFailure::Protocol));
+    /// Reads the next whole record, continuing one the connection has begun.
+    fn read_record(&self, maximum_response_payload: usize) -> Result<Vec<u8>, PeerFailure> {
+        loop {
+            if let Some(record) = self.advance(maximum_response_payload)? {
+                return Ok(record);
+            }
+            self.wait(PollFlags::POLLIN)?;
         }
-        let mut record = vec![0; length];
-        record[..TRANSPORT_ENVELOPE_HEADER_BYTES].copy_from_slice(&header);
-        self.read_exact(&mut record[TRANSPORT_ENVELOPE_HEADER_BYTES..])?;
-        Ok(record)
     }
 
-    fn read_exact(&mut self, mut destination: &mut [u8]) -> Result<(), PeerFailure> {
-        while !destination.is_empty() {
-            self.wait(PollFlags::POLLIN)?;
-            match self.host.stream().read(destination) {
-                Ok(0) => return Err(self.fail(PeerFailure::Host)),
-                Ok(count) => destination = &mut destination[count..],
-                Err(error) if transient(&error) => {}
-                Err(_error) => return Err(self.fail(PeerFailure::Host)),
-            }
-        }
-        Ok(())
+    /// Reads what has arrived of the connection's current record without waiting.
+    fn advance(&self, maximum_response_payload: usize) -> Result<Option<Vec<u8>>, PeerFailure> {
+        let advanced = self
+            .host
+            .inbound
+            .borrow_mut()
+            .advance(self.host.stream(), maximum_response_payload);
+        advanced.map_err(|error| self.fail(read_failure(&error)))
     }
 
     /// Waits until the Host stream is ready for one of `interest` and returns its readiness.
@@ -360,6 +367,9 @@ fn transient(error: &io::Error) -> bool {
     )
 }
 
+/// One correlated request and its ControlJson answer, with the connection's whole exchange bound.
+/// [`NotStarted`] is returned, boxed, when the request has no room left for it; nothing was
+/// written then.
 pub(crate) fn exchange(
     host: &HostBrokerConnection,
     server: &UnixStream,
@@ -368,10 +378,23 @@ pub(crate) fn exchange(
     payload: &[u8],
     encoding: PayloadEncoding,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
-    exchange_before(
-        host,
-        server,
-        Envelope {
+    let mut exchange = HostExchange::open(host, server)?;
+    exchange.prepare().map_err(|class| exchange.error(class))?;
+    exchange.request(correlation, kind, payload, encoding)
+}
+
+impl HostExchange<'_> {
+    /// Writes one correlated request and returns its ControlJson answer, whose envelope must be in
+    /// step with it.
+    pub(crate) fn request(
+        &mut self,
+        correlation: CorrelationId,
+        kind: u16,
+        payload: &[u8],
+        encoding: PayloadEncoding,
+    ) -> Result<Vec<u8>, Box<dyn Error>> {
+        let host = self.host;
+        let record = encode_transport_envelope(&Envelope {
             correlation_id: Some(correlation),
             host_epoch: Some(host.host_epoch()),
             kind,
@@ -380,58 +403,21 @@ pub(crate) fn exchange(
             payload_encoding: encoding,
             protocol: CURRENT_PROTOCOL_VERSION,
             role: MessageRole::Request,
-        },
-        host.pacing
-            .deadline(Instant::now(), host.pacing.exchange_bound()),
-    )
-}
-
-pub(crate) fn exchange_before(
-    host: &HostBrokerConnection,
-    server: &UnixStream,
-    request: Envelope<'_>,
-    deadline: Instant,
-) -> Result<Vec<u8>, Box<dyn Error>> {
-    let correlation = request.correlation_id;
-    if correlation.is_none()
-        || request.host_epoch != Some(host.host_epoch())
-        || request.protocol != CURRENT_PROTOCOL_VERSION
-        || request.role != MessageRole::Request
-        || request.optional_message
-    {
-        return Err(io::Error::other("invalid Host request envelope").into());
+        })?;
+        let record = self
+            .round_trip(&record)
+            .map_err(|class| self.error(class))?;
+        let envelope = decode_transport_envelope(&record)?;
+        if envelope.correlation_id != Some(correlation)
+            || envelope.host_epoch != Some(host.host_epoch())
+            || envelope.role != MessageRole::Response
+            || envelope.protocol != CURRENT_PROTOCOL_VERSION
+            || envelope.optional_message
+            || envelope.payload_encoding != PayloadEncoding::ControlJson
+        {
+            self.note(PeerFailure::Protocol);
+            return Err(io::Error::other("unexpected Host request response envelope").into());
+        }
+        Ok(record)
     }
-    let record = encode_transport_envelope(&request)?;
-    let mut exchange = HostExchange::new(
-        host,
-        server,
-        deadline.saturating_duration_since(Instant::now()),
-    )
-    .ok_or_else(|| {
-        // The request's bound passed before this exchange could start; nothing is written.
-        let failure = HostFailure {
-            class: PeerFailure::Host,
-            deadline: true,
-            waited: Duration::ZERO,
-            budget: Duration::ZERO,
-        };
-        host.pacing.note_failure(failure);
-        failure.into_io()
-    })?;
-    exchange.prepare().map_err(|class| exchange.error(class))?;
-    let record = exchange
-        .round_trip(&record)
-        .map_err(|class| exchange.error(class))?;
-    let envelope = decode_transport_envelope(&record)?;
-    if envelope.correlation_id != correlation
-        || envelope.host_epoch != Some(host.host_epoch())
-        || envelope.role != MessageRole::Response
-        || envelope.protocol != CURRENT_PROTOCOL_VERSION
-        || envelope.optional_message
-        || envelope.payload_encoding != PayloadEncoding::ControlJson
-    {
-        exchange.note(PeerFailure::Protocol);
-        return Err(io::Error::other("unexpected Host request response envelope").into());
-    }
-    Ok(record)
 }

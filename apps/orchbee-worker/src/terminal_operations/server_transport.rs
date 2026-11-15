@@ -1,6 +1,8 @@
 //! Reads and writes one Server protocol record under bounded deadlines while continuing to
-//! consume admitted Host events. It owns transport progress without dispatching requests,
-//! issuing authorization, or recovering a lost connection.
+//! consume admitted Host events. Host events are read as they arrive, never waited for, so a Host
+//! pausing inside one cannot hold a Server record; a Host stopped inside one past the exchange
+//! bound is lost. It owns transport progress without dispatching requests, issuing
+//! authorization, or recovering a lost connection.
 
 use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
@@ -15,29 +17,41 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 
-use crate::host_connection::{HostBrokerConnection, consume_event};
+use crate::host_connection::{HostBrokerConnection, drain_events};
 
 const RECORD_BUDGET: Duration = Duration::from_secs(2);
+/// Whole Host events read per wake-up before the Server is looked at again.
+const EVENTS_PER_WAKE: usize = 64;
 
+#[cfg(windows)]
 pub(super) fn receive(
     server: &UnixStream,
     host: Option<&HostBrokerConnection>,
 ) -> Result<CapabilityNodeMessage, ReadMessageError> {
-    receive_until(server, host, None)?.ok_or_else(|| super::peer_closed().into())
+    receive_timed(server, host).map(|(request, _readable)| request)
+}
+
+/// A request with the instant its first bytes became readable, which starts its bound.
+pub(super) fn receive_timed(
+    server: &UnixStream,
+    host: Option<&HostBrokerConnection>,
+) -> Result<(CapabilityNodeMessage, Instant), ReadMessageError> {
+    receive_until_timed(server, host, None)?.ok_or_else(|| super::peer_closed().into())
 }
 
 /// Only an idle cutoff can return None. Once input is readable, a partial record
 /// remains a fatal record-budget failure and cannot be discarded as lease expiry.
-pub(super) fn receive_until(
+pub(super) fn receive_until_timed(
     server: &UnixStream,
     host: Option<&HostBrokerConnection>,
     idle_deadline: Option<Instant>,
-) -> Result<Option<CapabilityNodeMessage>, ReadMessageError> {
+) -> Result<Option<(CapabilityNodeMessage, Instant)>, ReadMessageError> {
     let mut transport = ServerRecord {
         server,
         host,
         deadline: idle_deadline,
         host_closed: false,
+        readable: None,
     };
     // Idle has no deadline. Once a record begins, every fragment shares one budget.
     if let Err(error) = transport.wait(PollFlags::POLLIN) {
@@ -48,8 +62,9 @@ pub(super) fn receive_until(
         }
         return Err(error.into());
     }
-    transport.deadline = Some(Instant::now() + RECORD_BUDGET);
-    read_message(&mut transport).map(Some)
+    let readable = transport.readable.unwrap_or_else(Instant::now);
+    transport.deadline = Some(readable + RECORD_BUDGET);
+    read_message(&mut transport).map(|request| Some((request, readable)))
 }
 
 pub(super) fn send(
@@ -77,6 +92,7 @@ pub(super) fn send_until(
         host,
         deadline: Some(deadline),
         host_closed: host.is_none(),
+        readable: None,
     };
     write_message(&mut transport, result)?;
     if Instant::now() >= deadline {
@@ -90,6 +106,8 @@ struct ServerRecord<'a> {
     host: Option<&'a HostBrokerConnection>,
     deadline: Option<Instant>,
     host_closed: bool,
+    /// When the Server's bytes were first seen readable.
+    readable: Option<Instant>,
 }
 
 impl ServerRecord<'_> {
@@ -127,16 +145,24 @@ impl ServerRecord<'_> {
             if self.deadline.is_none() && interest == PollFlags::POLLIN {
                 self.send_ready_hints()?;
             }
-            let timeout = match self.deadline {
+            let now = Instant::now();
+            if self.deadline.is_some_and(|deadline| now >= deadline) {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            // A Host record begun but not finished also wakes the wait when its bound passes.
+            let stall = self.host.and_then(HostBrokerConnection::partial_deadline);
+            let wake = match (self.deadline, stall) {
+                (Some(deadline), Some(stall)) => Some(deadline.min(stall)),
+                (deadline, stall) => deadline.or(stall),
+            };
+            let timeout = match wake {
                 None => PollTimeout::NONE,
-                Some(deadline) => {
-                    let remaining = deadline.saturating_duration_since(Instant::now());
-                    if remaining.is_zero() {
-                        return Err(io::ErrorKind::TimedOut.into());
-                    }
-                    PollTimeout::try_from(remaining.as_millis().saturating_add(1))
-                        .map_err(io::Error::other)?
-                }
+                Some(wake) => PollTimeout::try_from(
+                    wake.saturating_duration_since(now)
+                        .as_millis()
+                        .saturating_add(1),
+                )
+                .map_err(io::Error::other)?,
             };
             let mut descriptors = vec![PollFd::new(
                 self.server.as_local_io(),
@@ -156,21 +182,29 @@ impl ServerRecord<'_> {
             {
                 return Err(super::peer_closed());
             }
-            if self.deadline.is_none() && events.contains(PollFlags::POLLIN) {
-                self.deadline = Some(Instant::now() + RECORD_BUDGET);
+            if events.contains(PollFlags::POLLIN) {
+                let now = Instant::now();
+                if interest == PollFlags::POLLIN {
+                    self.readable.get_or_insert(now);
+                }
+                if self.deadline.is_none() {
+                    self.deadline = Some(now + RECORD_BUDGET);
+                }
             }
-            if descriptors
-                .get(1)
-                .is_some_and(|host| host.revents().is_none_or(|events| !events.is_empty()))
-            {
-                let event = self.host.ok_or_else(super::peer_closed).and_then(|host| {
-                    // One event that has begun arrives within the Host exchange bound, and never
-                    // past an open record's own deadline.
-                    let event_deadline = Instant::now() + host.pacing.exchange_bound();
-                    let deadline = event_deadline.min(self.deadline.unwrap_or(event_deadline));
-                    consume_event(host, self.server, deadline)
+            if let Some(host) = self.host {
+                let ready = descriptors
+                    .get(1)
+                    .is_some_and(|host| host.revents().is_none_or(|events| !events.is_empty()));
+                let read = if ready {
+                    drain_events(host, EVENTS_PER_WAKE)
+                } else {
+                    Ok(())
+                };
+                let read = read.and_then(|()| match host.partial_deadline() {
+                    Some(stall) if Instant::now() >= stall => Err(host.stalled()),
+                    _ => Ok(()),
                 });
-                if event.is_err() {
+                if read.is_err() {
                     if interest == PollFlags::POLLIN {
                         return Err(super::peer_closed());
                     }

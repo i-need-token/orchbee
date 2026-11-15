@@ -40,6 +40,7 @@ fn host(row_window_bytes: u32) -> TestResult<(HostBrokerConnection, UnixStream)>
             host_colors: RefCell::new(crate::host_connection::HostColors::default()),
             drain: Rc::new(RefCell::new(crate::agent_drain::AgentDrain::new())),
             pacing: crate::host_connection::Pacing::default(),
+            inbound: Default::default(),
         },
         peer,
     ))

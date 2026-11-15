@@ -1174,11 +1174,12 @@ under the same deadline. A `--text`/`--key` invocation has no materialization st
    child process read or executed it; `rejected`/`not-submitted` mean the record provably never
    reached the queue; `unknown` means it may already have landed) and `cleanupStatus`
    (`not-needed`/`confirmed`/`unconfirmed`, where `unconfirmed` means the temporary input-only
-   attachment may persist until carrier teardown or Host-epoch end — never a claim of
-   release). The send rides the shared Worker↔Host link: when that connection fails, or when
-   its cleanup cannot be confirmed, other viewers on the same Host may be interrupted — a
+   attachment may persist until a later Worker cleanup detaches it, carrier teardown or
+   Host-epoch end — never a claim of release; a Host that refuses the Detach no longer holds the
+   attachment, so that cleanup is `confirmed`). The send rides the shared Worker↔Host link:
+   when that connection fails, other viewers on the same Host may be interrupted — a
    transport-level side effect of the underlying connection, not a normal send seizing
-   control. The result's physical `target` (`workerGeneration`, `hostEpoch`,
+   control. An intact Host answer that contradicts the send never fails that connection. The result's physical `target` (`workerGeneration`, `hostEpoch`,
    `hostTerminalId`) is the incarnation the Server actually admitted, projected verbatim;
    pre-admission refusals carry none. Exit mapping: `accepted`+`confirmed` → 0;
    `accepted`+`unconfirmed` → 5 with a do-not-resend warning (the input may already have

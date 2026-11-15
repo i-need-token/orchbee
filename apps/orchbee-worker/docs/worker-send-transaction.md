@@ -43,17 +43,21 @@
 - Fence checks → excluded by the scope boundary above; `Rejected` +
   `NotNeeded` is reachable in-model only through `AttachRefused`.
 - `exchange_fresh` per step → `SendAttach`/`SendInput`/`SendDetach` plus the
-  response family: `*Exact`, `*Refused` (TypedFailure), `*Desync` (payload-level
-  echo or bound violation), `*Malformed` (envelope contract violation),
-  `*Lost` (EOF/write failure/step deadline), `*LocalFault` (pre-write), and
-  `ServerLost`/`CarrierLost` peer events. `StepAnswer` mapping: Record→exact,
-  TypedFailure→refused, Desync and ProtocolFault both close the carrier but are
-  recorded as distinct actions; at detach, everything non-`Released` is
-  `Unreachable` — refused vs unreachable are kept distinct because refused is
-  typed while unreachable folds desync/malformed/lost failures. A detach-stage
-  LocalFault is a pre-send failure (`DetachLocalFault`, `detachSent` stays 0)
-  folded into the same unreachable settlement — it must not be written as an
-  emitted detach.
+  response family: `*Exact`, `*Refused` (TypedFailure), `*Desync` (an intact
+  answer that contradicts the stage: another message, an echo mismatch or a
+  bound violation), `*Malformed` (envelope contract violation), `*Lost`
+  (EOF/write failure/step deadline), `*LocalFault` (pre-write, or no room left
+  in the request), and `ServerLost`/`CarrierLost` peer events. An intact answer
+  never retires the carrier: `AttachDesync` refuses the send and `InputDesync`
+  settles it unknown, and both detach the attachment (`detach-pending`), as
+  `InputLocalFault` does. At detach, `DetachRefused` confirms cleanup like
+  `DetachExact`: the Host's Detach is idempotent, so it refuses only an
+  attachment it no longer holds (a trusted Host assumption). `DetachMismatch`,
+  another intact answer, leaves the attachment `deferred` to a later cleanup on
+  the kept carrier. Only `*Malformed` and `*Lost` retire the carrier, as
+  `DetachUnreachable` does at detach. A detach-stage LocalFault is a pre-send
+  failure (`DetachLocalFault`, `detachSent` stays 0) deferred the same way — it
+  must not be written as an emitted detach.
 - Host apply vs worker-observed reply are independent variables:
   `hostAttachments`/`hostInputApplied` advance via `HostApply*` actions that
   may interleave with any response loss — an applied-but-unacknowledged input
@@ -71,27 +75,29 @@
 ## Invariants and progress
 
 `PairingMatrix`, `AcceptedFactSurvivesCleanup`, `AcceptedBytesMatchesPayload`,
-`ConfirmedRequiresDetachAck`, `AttachRefusalNeedsNoDetach`,
-`UntrustedStreamNoDetach`, `UnconfirmedCleanupClosesCarrier`,
+`ConfirmedRequiresDetachAck`, `ConfirmedMeansReleased`, `AttachRefusalNeedsNoDetach`,
+`UntrustedStreamNoDetach`, `IntactAnswerKeepsCarrier`, `UnconfirmedCleanupIsHandedOn`,
 `TuiLossOnlyViaCarrierDeath`, `SendAttachmentMatchesAdmission`,
 `NoResultOnEarlyServerLoss`, `ResultProducedOnce`, `*AtMostOnce` per stage.
 Temporal: `EventualSettlement`, `TeardownEventuallyReleasesAttachments`,
-`DetachOnlyAfterCommittedInputFact`, `UnknownNeverResends`,
+`DetachOnlyAfterSettledStage`, `UnknownNeverResends`,
 `AcceptedNeverDowngraded`, `AcceptedBytesStable`. Progress is weak fairness on
 `Next` — every continuously enabled resolution (reply, expiry, loss, or local
 settle) may fire; no peer is assumed to answer successfully.
 
 `PairingMatrix` applies only once settled (`result-ready`/`done`): cleanup is
-`none` while the detach axis is unresolved. The healthy carrier survives only
-two settlements — `AttachRefused` and `DetachExact`; every other terminal path
-retires it, and unconfirmed cleanup at `done` implies a dead carrier.
+`none` while the detach axis is unresolved. Only a malformed or lost answer,
+carrier loss, Server loss and the post-attach abort retire the carrier; every
+settlement reached through an intact answer or an unsent record keeps it, and
+unconfirmed cleanup at `done` implies a dead carrier or a `deferred`
+attachment.
 
 ## Bounds and evidence consumers
 
 One request, one terminal pair, one TUI attachment, byte domain 0..2
 (`acceptedBytes` is a singleton set once the input is acked, `{}` before),
 per-stage send counters ≤1, event drains ≤3. Refinement consumers are the
-scripted-Host suite (`tests/process/terminal_operations/send.rs`, 14 cases)
+scripted-Host suite (`tests/process/terminal_operations/send.rs`, 12 cases)
 and the public send tests; this model does not replace them — they pin wire
 bytes it abstracts.
 
@@ -107,10 +113,10 @@ java -Xmx512m -XX:+UseParallelGC -jar tla2tools-1.7.4.jar \
   -metadir <dir> -config WorkerSendTransaction.cfg WorkerSendTransaction.tla
 ```
 
-Outcome: exit 0, 2688 generated / 1834 distinct states, depth 15, every
-action covered (no zero-coverage line). Logs and the child exit code live in
-the batch evidence directory `a3/evidence-14/positive/` (earlier
-`a3/evidence-13/` runs predate the counter fix and are retained as-is).
+Outcome: exit 0, 4872 generated / 3400 distinct states, depth 15, every
+action covered (no zero-coverage line). The batch evidence directories
+`a3/evidence-13/` and `a3/evidence-14/` predate the revision in which an
+intact answer keeps the carrier.
 
 The authoritative run uses the existing runner resource budget — currently a
 2048 MiB heap, one worker, and a 120 s ceiling, as recorded in
@@ -119,23 +125,23 @@ capped by `maximumHeapMiB` in `scripts/tla/model-checks.mjs`.
 
 ## Negative controls
 
-Mutant modules are produced out-of-tree per batch, each one guard or action
-edit, each run separately under the same lock with full counterexamples and
-exit codes preserved. Current batch: `a3/evidence-14/mutants/` on the frozen
-module digest.
+Mutant modules are produced out-of-tree, each one guard or action edit, each
+run separately with the configuration above. The current revision's controls:
 
-- `m1-detach-after-desync` — `InputDesync` still emits the detach record:
-  violates `UntrustedStreamNoDetach` (exit 12).
-- `m2-erase-accepted-fact` — `DetachUnreachable` erases the committed input
-  fact: violates `AcceptedFactSurvivesCleanup` (exit 12).
-- `m3-duplicate-input-guard-only` — guard-only relaxation of `SendInput`
-  (re-entry while one input is in flight; baseline `@ + 1` counting
-  untouched): `inputSent = 2` is caught by `InputAtMostOnce`, not `TypeOK`
+- `refused-while-held` — `DetachRefused` is enabled while the Host still holds
+  the attachment: violates `ConfirmedMeansReleased` (exit 12).
+- `desync-retires-carrier` — `InputDesync` retires the carrier: violates
+  `IntactAnswerKeepsCarrier` (exit 12).
+- `mismatch-not-deferred` — `DetachMismatch` drops the deferral: violates
+  `UnconfirmedCleanupIsHandedOn` (exit 12).
+- `desync-resends-input` — `SendInput` is enabled again after an unknown
+  input: `inputSent = 2` is caught by `InputAtMostOnce`, not `TypeOK`
   (exit 12). This is the load-bearing replay check — a counter bit would make
   the same guard mutation stutter invisibly.
-- (earlier batch `a3/evidence-13/` also carried `m4-tui-takeover`, violating
-  `TuiLossOnlyViaCarrierDeath`; its counterexample predates the counter fix
-  and is retained as-is.)
+
+The earlier batches' controls (`m1`–`m4` under `a3/evidence-13/` and
+`a3/evidence-14/`) ran against the previous revision; its
+`m1-detach-after-desync` is now the specified behavior.
 
 Named reachability witnesses (probe invariants negating the target state, run
 out-of-tree under `a3/evidence-14/named-traces/` on the frozen module digest;
@@ -158,6 +164,13 @@ acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
   next write" into a lossless transition; the dominant real trace (zero-byte
   discovery inside `prepare`) is covered, while the write-halfway-failed
   sub-case is abstracted away.
+- A `deferred` attachment is detached by a later request's cleanup, outside
+  this one-request model. The Worker's backlog of eight deferred Detaches,
+  which refuses new sends while full, is not counted here.
+- A step with no room left in the request or past the send's input budget is
+  modeled as `*LocalFault`; the implementation reports it as
+  `InputBudgetExhausted` rather than `HostUnavailable`, a reason the model
+  abstracts.
 
 ## Inventory recommendation (for A6)
 
@@ -173,12 +186,13 @@ acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
   `AttachExact`, `AttachRefused`, `AttachDesync`, `AttachMalformed`,
   `AttachLost`, `AttachLocalFault`, `InputExact`, `InputRefused`,
   `InputDesync`, `InputMalformed`, `InputLost`, `InputLocalFault`,
-  `DetachExact`, `DetachRefused`, `DetachUnreachable`, `DetachLocalFault`,
+  `DetachExact`, `DetachRefused`, `DetachMismatch`, `DetachUnreachable`,
+  `DetachLocalFault`,
   `ServerLostBeforeInputFact`, `ServerLostAfterInputFact`,
   `ServerLostAtResult`, `CarrierLost`, `PostAttachAbort`, `DrainHostEvent`,
   `DeliverResult`, `AbandonResult`.
-- Author's control bound: 1 worker / 512 MiB / 120 s (observed: <1 s, 1834
-  distinct states); the authoritative run uses the runner budget above.
+- Author's control bound: 1 worker / 512 MiB / 120 s (observed: about 1 s,
+  3400 distinct states); the authoritative run uses the runner budget above.
 - Known exclusions: pre-admission fence (deterministic, zero Host bytes;
   scripted test `send_fence_rejections_never_reach_the_host` owns it), fresh-ID
   collision freedom (trusted oracle, disclosed), real byte counts and wire

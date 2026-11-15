@@ -1,5 +1,9 @@
 //! One deadline for same-user standby admission and exact handoff-ticket authentication.
-use crate::host_connection::{HostBrokerConnection, consume_event};
+//!
+//! The Host is only watched for hang-up here, never read: the handshake deadline is shorter than
+//! the Host's tolerance for a Worker that does not read, and a Host record left half read would
+//! break the stream the Worker keeps serving when the handoff is refused.
+use crate::host_connection::HostBrokerConnection;
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage as Message, WorkerHandoffPeer, WorkerHandoffRefusal as Refusal,
     read_message, write_message,
@@ -82,7 +86,7 @@ impl Handshake<'_> {
                 PollFd::new(self.old.as_local_io(), PollFlags::POLLIN),
             ];
             if let Some(host) = self.host {
-                descriptors.push(PollFd::new(host.stream().as_local_io(), PollFlags::POLLIN));
+                descriptors.push(PollFd::new(host.stream().as_local_io(), PollFlags::empty()));
             }
             match poll(&mut descriptors, timeout) {
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
@@ -102,7 +106,7 @@ impl Handshake<'_> {
                 .get(2)
                 .is_some_and(|host| host.revents().is_none_or(|events| !events.is_empty()))
             {
-                consume_event(self.host.expect("polled Host"), self.old, self.deadline)?;
+                return Err(io::Error::other("Host closed during handoff preparation"));
             }
             let events = descriptors[0]
                 .revents()

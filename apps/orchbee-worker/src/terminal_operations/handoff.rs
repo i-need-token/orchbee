@@ -136,7 +136,13 @@ impl Handoff {
                         // If this delivery fails, the loop exits and drops the standby.
                         reply(server, host, request, Outcome::Prepared)
                     }
-                    Err(reason) => reply(server, host, request, Outcome::Refused(reason)),
+                    // A refused handoff keeps serving, so nothing it met may label a later exit.
+                    Err(reason) => {
+                        if let Some(host) = host {
+                            host.pacing.clear_failure();
+                        }
+                        reply(server, host, request, Outcome::Refused(reason))
+                    }
                 }
             }
             Action::Abort => {

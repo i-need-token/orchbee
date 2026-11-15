@@ -20,7 +20,7 @@ use orchbee_local_worker_protocol::WorkerId;
 #[cfg(unix)]
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::{
-    cell::{Cell, RefCell},
+    cell::RefCell,
     error::Error,
     io,
     num::NonZeroU64,
@@ -58,22 +58,21 @@ pub(crate) fn run(
     let mutation_slot =
         crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
     // Where the pre-Host loop was when it ended; the admitted loop classifies its own end.
-    let site = Cell::new(Site::ServerReceive);
+    let site = crate::diagnostic_events::ServingSite::new(Site::ServerReceive);
     let outcome = (|| {
         loop {
             site.set(Site::ServerReceive);
             #[cfg(not(windows))]
-            let request = server_transport::receive(&server, None)?;
+            let (request, arrived) = server_transport::receive_timed(&server, None)?;
             #[cfg(windows)]
-            let request = loop {
-                if let Some(request) =
-                    server_transport::receive_until(&server, None, handoff.deadline())?
+            let (request, arrived) = loop {
+                if let Some(received) =
+                    server_transport::receive_until_timed(&server, None, handoff.deadline())?
                 {
-                    break request;
+                    break received;
                 }
                 handoff.expire(Instant::now());
             };
-            let arrived = Instant::now();
             #[cfg(windows)]
             handoff.expire(std::time::Instant::now());
             #[cfg(windows)]
@@ -320,7 +319,7 @@ pub(crate) fn run(
                 }
             };
             host.stream().set_nonblocking(true)?;
-            // The Launch's bound runs from its arrival, which the Host start already used.
+            // The Launch's bound runs from when it became readable; the Host start used part of it.
             host.pacing.begin_request_at(arrived);
             host.pacing.set_site(Site::Launch);
             let bound = host.pacing.exchange_bound();

@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_terminal_protocol::{
-    ClearTerminal, ScreenControl, ScreenControlOperation, TerminalControlAccepted, TerminalId,
-    decode_screen_control, encode_screen_control,
+    AttachmentId, ClearTerminal, ScreenControl, ScreenControlOperation, TerminalControlAccepted,
+    TerminalId, decode_screen_control, encode_screen_control,
 };
 
 #[test]
@@ -15,6 +15,7 @@ fn clear_pipe_owns_one_input_attachment_preserves_controller_and_reports_effect_
         "wrong-operation",
         "zero-revision",
         "alternate",
+        "attach-mismatch",
     ] {
         let (host, mut peer) = fixture()?;
         let (server, _quiet) = UnixStream::pair()?;
@@ -35,9 +36,14 @@ fn clear_pipe_owns_one_input_attachment_preserves_controller_and_reports_effect_
                         && !attach.capabilities.resize
                         && !attach.request_resize_lease
                 );
+                // A grant for another attachment is never used: the one asked for is detached.
                 let granted = encode_attachment_control(
                     &AttachmentControl::AttachmentCapabilities(AttachmentCapabilities {
-                        attachment_id: attach.attachment_id,
+                        attachment_id: if mode == "attach-mismatch" {
+                            AttachmentId::from_bytes([22; 16]).unwrap()
+                        } else {
+                            attach.attachment_id
+                        },
                         terminal_id: attach.terminal_id,
                         capability_revision: NonZeroU64::MIN,
                         capabilities: attach.capabilities,
@@ -52,6 +58,29 @@ fn clear_pipe_owns_one_input_attachment_preserves_controller_and_reports_effect_
                     &granted.payload,
                     PayloadEncoding::ControlJson,
                 );
+                if mode == "attach-mismatch" {
+                    let record = read_transport_record(&mut peer).unwrap();
+                    let envelope = decode_transport_envelope(&record).unwrap();
+                    let AttachmentControl::DetachTerminal(target) =
+                        decode_attachment_control(envelope.kind, envelope.role, envelope.payload)
+                            .unwrap()
+                    else {
+                        panic!("the mismatched grant's Detach")
+                    };
+                    assert_eq!(target.attachment_id, attach.attachment_id);
+                    let ack = encode_attachment_control(
+                        &AttachmentControl::DetachTerminalAccepted(target),
+                    )
+                    .unwrap();
+                    respond(
+                        &mut peer,
+                        &envelope,
+                        ack.kind,
+                        &ack.payload,
+                        PayloadEncoding::ControlJson,
+                    );
+                    return;
+                }
                 let record = read_transport_record(&mut peer).unwrap();
                 let envelope = decode_transport_envelope(&record).unwrap();
                 assert_eq!(
@@ -147,6 +176,11 @@ fn clear_pipe_owns_one_input_attachment_preserves_controller_and_reports_effect_
                     result,
                     Outcome::Rejected(ControlRejection::HostClearAlternateScreen)
                 ),
+                // The refusal is contained: the connection keeps serving.
+                "attach-mismatch" => {
+                    assert_eq!(result, Outcome::Rejected(ControlRejection::HostRejected));
+                    assert_eq!(host.pacing.failure(), None);
+                }
                 _ => assert_eq!(result, Outcome::ClearOutcomeUnknown),
             }
             let incumbent = host.controllers.borrow().for_viewer(id(10)).unwrap();

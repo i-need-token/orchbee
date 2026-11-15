@@ -119,12 +119,12 @@ pub(super) fn snapshot(
 /// Walks the Host inventory page by page until it ends. Every accepted page advances the cursor
 /// ([`valid_page`]), so the walk ends with the inventory or with its budget.
 ///
-/// The inner refusal concerns only this walk, and the Host stream stays in step: the budget passed
-/// before the last page (`CapacityExceeded`), or the Host refused a page with a correlated typed
-/// failure (`HostRejected`). A correlated page that breaks the paging or identity contract is an
-/// [`UnexpectedAnswer`], which refuses the request and closes its viewer. Any other error ends the
-/// connection: the exchange failed, including a sent page the Host left unanswered past its bound,
-/// or the Host broke the envelope.
+/// The inner refusal concerns only this walk, and the Host stream stays in step: the budget passed,
+/// or the request had no room, before the last page (`CapacityExceeded`), or the Host refused a
+/// page with a correlated typed failure (`HostRejected`). A correlated page that breaks the paging
+/// or identity contract is an [`UnexpectedAnswer`], which refuses the request and closes its
+/// viewer. Any other error ends the connection: the exchange failed, including a sent page the
+/// Host left unanswered past its bound, or the Host broke the envelope.
 fn inventory(
     host: &HostBrokerConnection,
     server: &UnixStream,
@@ -132,7 +132,10 @@ fn inventory(
     creation: Option<&[u8; 16]>,
 ) -> Walked<Option<TerminalSummary>> {
     let deadline = Instant::now() + INVENTORY_BUDGET;
-    let preflight = HostExchange::open(host, server);
+    // A page the request has no room for ends the walk like a spent budget.
+    let Ok(preflight) = HostExchange::open(host, server) else {
+        return Ok(Err(ViewerRejection::CapacityExceeded));
+    };
     preflight
         .prepare()
         .map_err(|class| preflight.error(class))?;
@@ -144,7 +147,9 @@ fn inventory(
         if Instant::now() >= deadline {
             return Ok(Err(ViewerRejection::CapacityExceeded));
         }
-        let mut exchange = HostExchange::open(host, server);
+        let Ok(mut exchange) = HostExchange::open(host, server) else {
+            return Ok(Err(ViewerRejection::CapacityExceeded));
+        };
         let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
         let command = encode_inventory_control(&InventoryControl::ListTerminals(ListTerminals {
             cursor,

@@ -1,6 +1,8 @@
 //! Idle-prompt send witness: the whole prompt line is one Host `PromptLineInput` between the
-//! transient attach and detach, the Host's refusal state comes back with zero progress, and a
-//! Host without `prompt-gated-input` is refused before any record reaches it.
+//! transient attach and detach, the Host's refusal state comes back with zero progress, a refused
+//! Detach counts as released while another answer leaves it unconfirmed and the carrier serves the
+//! next send either way, and a Host without `prompt-gated-input` is refused before any record
+//! reaches it.
 use super::super::*;
 use orchbee_capability_node_protocol::{
     HostCreationId, HostTerminalId, HostTerminalIdentity, OperationId, SendCleanupStatus, SendKey,
@@ -9,10 +11,10 @@ use orchbee_capability_node_protocol::{
     WorkerGeneration, WorkerId,
 };
 use orchbee_terminal_protocol::{
-    AttachmentCapabilities, AttachmentControl, ConnectionControl, Envelope, HostEpoch,
-    InputAccepted, InputMessage, MessageRole, PROMPT_UNCONFIRMED_FAILURE_CODE, PayloadEncoding,
-    PromptLineInput, PromptUnconfirmedReason, TRANSPORT_ENVELOPE_HEADER_BYTES, TypedFailure,
-    decode_attachment_control, decode_input_message, decode_transport_envelope,
+    AttachmentCapabilities, AttachmentControl, AttachmentId, AttachmentTarget, ConnectionControl,
+    Envelope, HostEpoch, InputAccepted, InputMessage, MessageRole, PROMPT_UNCONFIRMED_FAILURE_CODE,
+    PayloadEncoding, PromptLineInput, PromptUnconfirmedReason, TRANSPORT_ENVELOPE_HEADER_BYTES,
+    TypedFailure, decode_attachment_control, decode_input_message, decode_transport_envelope,
     encode_attachment_control, encode_connection_control, encode_input_message,
     encode_transport_envelope,
 };
@@ -52,6 +54,7 @@ fn host(prompt_gated_input: bool) -> TestResult<(HostBrokerConnection, UnixStrea
             host_colors: RefCell::new(crate::host_connection::HostColors::default()),
             drain: Rc::new(RefCell::new(crate::agent_drain::AgentDrain::new())),
             pacing: crate::host_connection::Pacing::default(),
+            inbound: Default::default(),
         },
         peer,
     ))
@@ -133,10 +136,21 @@ fn reply(
     Ok(())
 }
 
-/// Serves attach, one input, and detach; `answer` decides the input's reply. Returns the input.
+/// How the scripted Host answers a send's Detach.
+#[derive(Clone, Copy)]
+enum Detach {
+    Accept,
+    Refuse,
+    /// Accepts the Detach of another attachment.
+    Mismatch,
+}
+
+/// Serves attach, one input, and detach; `answer` decides the input's reply and `detach` the
+/// Detach's. Returns the input.
 fn serve_one_send(
     peer: &mut UnixStream,
     answer: impl FnOnce(&PromptLineInput) -> PeerResult<(u16, MessageRole, Vec<u8>)>,
+    detach: Detach,
 ) -> PeerResult<InputMessage> {
     let record = read_record(peer)?;
     let envelope = decode_transport_envelope(&record)?;
@@ -179,39 +193,64 @@ fn serve_one_send(
     else {
         return Err("the send did not close with DetachTerminal".into());
     };
-    let released = encode_attachment_control(&AttachmentControl::DetachTerminalAccepted(target))?;
-    reply(
-        peer,
-        &record,
-        released.kind,
-        released.role,
-        &released.payload,
-    )?;
+    let (kind, role, payload) = match detach {
+        Detach::Accept => {
+            let released =
+                encode_attachment_control(&AttachmentControl::DetachTerminalAccepted(target))?;
+            (released.kind, released.role, released.payload)
+        }
+        Detach::Mismatch => {
+            let other = encode_attachment_control(&AttachmentControl::DetachTerminalAccepted(
+                AttachmentTarget {
+                    attachment_id: AttachmentId::from_bytes([0x12; 16])?,
+                },
+            ))?;
+            (other.kind, other.role, other.payload)
+        }
+        Detach::Refuse => {
+            let refused =
+                encode_connection_control(&ConnectionControl::TypedFailure(TypedFailure {
+                    code: "attachment-unavailable".to_owned(),
+                    message: "no such attachment".to_owned(),
+                    retryable: false,
+                    reason: None,
+                }))?;
+            (refused.kind, refused.role, refused.payload)
+        }
+    };
+    reply(peer, &record, kind, role, &payload)?;
     Ok(input)
+}
+
+/// Accepts a whole prompt line.
+fn accept_line(line: &PromptLineInput) -> PeerResult<(u16, MessageRole, Vec<u8>)> {
+    let accepted = encode_input_message(&InputMessage::InputAccepted(InputAccepted {
+        accepted_bytes: 40,
+        attachment_id: line.attachment_id,
+        capability_revision: line.capability_revision,
+    }))?;
+    Ok((accepted.kind, accepted.role, accepted.payload))
 }
 
 #[test]
 fn idle_prompt_send_types_one_prompt_line_and_returns_the_host_refusal() -> TestResult {
     let (host, mut peer) = host(true)?;
     let served = thread::spawn(move || -> PeerResult<Vec<InputMessage>> {
-        let accepted = serve_one_send(&mut peer, |line| {
-            let accepted = encode_input_message(&InputMessage::InputAccepted(InputAccepted {
-                accepted_bytes: 40,
-                attachment_id: line.attachment_id,
-                capability_revision: line.capability_revision,
-            }))?;
-            Ok((accepted.kind, accepted.role, accepted.payload))
-        })?;
-        let refused = serve_one_send(&mut peer, |_| {
-            let failure =
-                encode_connection_control(&ConnectionControl::TypedFailure(TypedFailure {
-                    code: PROMPT_UNCONFIRMED_FAILURE_CODE.to_owned(),
-                    message: "the prompt is still settling".to_owned(),
-                    retryable: true,
-                    reason: Some(PromptUnconfirmedReason::Settling),
-                }))?;
-            Ok((failure.kind, failure.role, failure.payload))
-        })?;
+        let accepted = serve_one_send(&mut peer, accept_line, Detach::Accept)?;
+        let refused = serve_one_send(
+            &mut peer,
+            |_| {
+                let failure =
+                    encode_connection_control(&ConnectionControl::TypedFailure(TypedFailure {
+                        code: PROMPT_UNCONFIRMED_FAILURE_CODE.to_owned(),
+                        message: "the prompt is still settling".to_owned(),
+                        retryable: true,
+                        reason: Some(PromptUnconfirmedReason::Settling),
+                    }))?;
+                Ok((failure.kind, failure.role, failure.payload))
+            },
+            Detach::Accept,
+        )?;
         Ok(vec![accepted, refused])
     });
 
@@ -243,6 +282,48 @@ fn idle_prompt_send_types_one_prompt_line_and_returns_the_host_refusal() -> Test
         assert!(line.right_arrow);
         assert_eq!(line.capability_revision.get(), REVISION);
     }
+    Ok(())
+}
+
+#[test]
+fn a_send_detach_refused_or_answered_otherwise_keeps_the_carrier_for_the_next_send() -> TestResult {
+    let (host, mut peer) = host(true)?;
+    let served = thread::spawn(move || -> PeerResult<UnixStream> {
+        for detach in [Detach::Refuse, Detach::Mismatch, Detach::Accept] {
+            serve_one_send(&mut peer, accept_line, detach)?;
+        }
+        Ok(peer)
+    });
+    let accepted = |cleanup| TerminalSendOutcome::Accepted {
+        progress: SendProgress::complete(3, 40),
+        cleanup,
+    };
+    // The Host no longer holds the attachment it refuses to detach: nothing waits for cleanup.
+    assert_eq!(
+        execute(gated(40)?, &host)?,
+        accepted(SendCleanupStatus::Confirmed)
+    );
+    assert!(host.pending_detaches().is_empty());
+    // Another answer leaves the attachment to a later cleanup, unconfirmed.
+    assert_eq!(
+        execute(gated(41)?, &host)?,
+        accepted(SendCleanupStatus::Unconfirmed)
+    );
+    assert_eq!(host.pending_detaches(), [[141; 16]]);
+    assert_eq!(
+        execute(gated(42)?, &host)?,
+        accepted(SendCleanupStatus::Confirmed)
+    );
+    let mut peer = served
+        .join()
+        .map_err(|_| "the scripted Host panicked")?
+        .map_err(|error| -> Box<dyn Error> { error })?;
+    assert_eq!(host.pacing.failure(), None);
+    peer.set_nonblocking(true)?;
+    assert_eq!(
+        peer.read(&mut [0]).unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
     Ok(())
 }
 

@@ -1,7 +1,8 @@
 //! Prepares and commits retirement of a disposed physical target's viewer, controller, title,
 //! and color state, retaining bounded tombstones for late events. It also remembers attachments
-//! detached in this Host epoch, so their late events are dropped. It does not dispose the Host
-//! terminal or publish cleanup before its owner confirms the physical outcome.
+//! detached in this Host epoch, so their late events are dropped, and attachments whose Detach no
+//! request had room for, which later cleanups detach. It does not dispose the Host terminal or
+//! publish cleanup before its owner confirms the physical outcome.
 
 use std::{collections::VecDeque, io};
 
@@ -27,6 +28,10 @@ struct RemovedTarget {
 
 /// Detached attachments remembered for their late events; the oldest is forgotten first.
 const MAXIMUM_DETACHED_ATTACHMENTS: usize = 256;
+/// While this many Detaches wait for cleanup, a request that would open another controller or
+/// transient attachment is refused before it asks the Host. Each controller is released once and
+/// at most eight exist, so the backlog never holds more than seventeen.
+const DETACH_BACKLOG_LIMIT: usize = 8;
 
 #[derive(Default)]
 pub(super) struct RetiredTargets {
@@ -36,6 +41,9 @@ pub(super) struct RetiredTargets {
     /// Viewer and controller attachments detached in this Host epoch. The Host may still have
     /// sent events for them before it handled the Detach.
     detached: VecDeque<[u8; 16]>,
+    /// Controller and transient attachments this Worker no longer uses whose Detach did not fit
+    /// in a request, oldest first.
+    pending: VecDeque<[u8; 16]>,
 }
 
 #[derive(Clone, Copy)]
@@ -123,6 +131,40 @@ impl HostBrokerConnection {
         self.retired_targets.borrow_mut().note_detached(id);
     }
 
+    /// Leaves the Detach of an attachment this Worker no longer uses to the next cleanups. Its late
+    /// events are dropped meanwhile.
+    pub(crate) fn defer_detach(&self, id: [u8; 16]) {
+        let mut retired = self.retired_targets.borrow_mut();
+        retired.note_detached_bytes(id);
+        if !retired.pending.contains(&id) {
+            retired.pending.push_back(id);
+        }
+    }
+
+    /// The deferred Detaches, oldest first.
+    pub(crate) fn pending_detaches(&self) -> Vec<[u8; 16]> {
+        self.retired_targets
+            .borrow()
+            .pending
+            .iter()
+            .copied()
+            .collect()
+    }
+
+    /// A deferred Detach that a cleanup has settled, whatever the Host answered.
+    pub(crate) fn settle_detach(&self, id: [u8; 16]) {
+        self.retired_targets
+            .borrow_mut()
+            .pending
+            .retain(|pending| *pending != id);
+    }
+
+    /// Whether a request that would open another controller or transient attachment waits until
+    /// cleanup has caught up.
+    pub(crate) fn detach_backlog_full(&self) -> bool {
+        self.retired_targets.borrow().pending.len() >= DETACH_BACKLOG_LIMIT
+    }
+
     pub(crate) fn disposed_viewer(&self, id: OperationId) -> bool {
         self.retired_targets.borrow().viewer(id.as_bytes())
     }
@@ -138,7 +180,10 @@ impl HostBrokerConnection {
 
 impl RetiredTargets {
     fn note_detached(&mut self, id: OperationId) {
-        let id = id.as_bytes();
+        self.note_detached_bytes(id.as_bytes());
+    }
+
+    fn note_detached_bytes(&mut self, id: [u8; 16]) {
         if self.detached.contains(&id) {
             return;
         }
@@ -163,10 +208,10 @@ impl RetiredTargets {
             })
     }
 
-    /// An attachment whose late events are dropped: a disposed target's viewer or one this Worker
-    /// detached.
+    /// An attachment whose late events are dropped: a disposed target's viewer, or one this Worker
+    /// detached or no longer uses.
     fn retired_viewer(&self, id: [u8; 16]) -> bool {
-        self.detached.contains(&id) || self.viewer(id)
+        self.detached.contains(&id) || self.pending.contains(&id) || self.viewer(id)
     }
 
     pub(super) fn accept_event(&self, record: &[u8], epoch: HostEpoch) -> io::Result<bool> {
@@ -203,7 +248,9 @@ impl RetiredTargets {
             else {
                 return Ok(false);
             };
-            if self.detached.contains(event.attachment_id.as_bytes()) {
+            if self.detached.contains(event.attachment_id.as_bytes())
+                || self.pending.contains(event.attachment_id.as_bytes())
+            {
                 return Ok(true);
             }
             return Ok(self.targets.iter().any(|target| {

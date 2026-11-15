@@ -104,8 +104,15 @@ impl PreparedLifecycleOperation {
         now: impl FnOnce() -> u64,
         budget: Duration,
     ) -> Result<HostOperationDisposition, Box<dyn Error>> {
-        let mut exchange = HostExchange::new(host, server, budget)
-            .ok_or_else(|| io::Error::other("invalid lifecycle Host budget"))?;
+        if budget.is_zero() {
+            return Err(io::Error::other("invalid lifecycle Host budget").into());
+        }
+        // With no room left in the request nothing reaches the Host, and the operation fails
+        // before handoff for the Client to ask again.
+        let Ok(mut exchange) = HostExchange::new(host, server, budget) else {
+            kernel.lifecycle_pre_handoff_failure(self.dispatch, now())?;
+            return Ok(HostOperationDisposition::ResultReady);
+        };
         if let Err(failure) = exchange.prepare() {
             exchange.close(failure);
             if failure == PeerFailure::Server {

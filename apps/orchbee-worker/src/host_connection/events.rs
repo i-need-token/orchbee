@@ -1,15 +1,14 @@
-//! Validates Host event envelopes against the admitted epoch and reads one bounded event under
-//! a caller deadline. It routes the validated record to connection state without issuing
-//! operations or interpreting Agent semantics.
+//! Validates Host event envelopes against the admitted epoch and reads Host records
+//! incrementally: a record the Host has only begun stays partial across reads, so a Host pausing
+//! inside one never holds the serving thread. It routes validated events to connection state
+//! without issuing operations or interpreting Agent semantics.
 
-use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     io::{self, Read},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
-use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, HostEpoch, LifecycleControl, MAXIMUM_TERMINAL_FRAME_BYTES,
     MessageRole, PayloadEncoding, TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalEffectEvent,
@@ -49,124 +48,146 @@ pub(crate) fn validate_event(record: &[u8], epoch: HostEpoch) -> io::Result<()> 
     Ok(())
 }
 
-/// Reads one whole event and routes it. Bytes that have already arrived are read before the
-/// deadline is checked, so the deadline ends the read only while the Host has sent nothing more.
-/// A failure is recorded on the connection with its class.
-pub(crate) fn consume_event(
-    connection: &super::HostBrokerConnection,
-    server: &UnixStream,
-    deadline: Instant,
-) -> io::Result<()> {
-    let started = Instant::now();
-    let mut reader = EventReader {
-        host: connection.stream(),
-        server,
-        deadline,
-        server_lost: false,
-    };
-    let failure = |class, error: &io::Error| HostFailure {
-        class,
-        deadline: error.kind() == io::ErrorKind::TimedOut,
-        waited: started.elapsed(),
-        budget: deadline.saturating_duration_since(started),
-    };
-    let record = match read_event(&mut reader) {
-        Ok(record) => record,
-        Err(error) => {
-            let class = if reader.server_lost {
-                PeerFailure::Server
-            } else if error.kind() == io::ErrorKind::InvalidData {
-                PeerFailure::Protocol
-            } else {
-                PeerFailure::Host
-            };
-            connection.pacing.note_failure(failure(class, &error));
-            return Err(error);
+/// The Host record being read. Every reader of the Host stream continues it, so a record is
+/// never split between readers and no reader waits for the rest of one.
+pub(crate) struct PartialRecord {
+    header: [u8; TRANSPORT_ENVELOPE_HEADER_BYTES],
+    header_filled: usize,
+    record: Vec<u8>,
+    filled: usize,
+    /// When the record's first byte arrived.
+    began: Option<Instant>,
+}
+
+impl Default for PartialRecord {
+    fn default() -> Self {
+        Self {
+            header: [0; TRANSPORT_ENVELOPE_HEADER_BYTES],
+            header_filled: 0,
+            record: Vec::new(),
+            filled: 0,
+            began: None,
         }
-    };
-    connection.receive_event(record).inspect_err(|error| {
-        connection
-            .pacing
-            .note_failure(failure(PeerFailure::Protocol, error));
-    })
-}
-
-fn read_event(reader: &mut EventReader<'_>) -> io::Result<Vec<u8>> {
-    let mut header = [0; TRANSPORT_ENVELOPE_HEADER_BYTES];
-    reader.read_exact(&mut header)?;
-    let length = usize::try_from(u32::from_le_bytes([
-        header[8], header[9], header[10], header[11],
-    ]))
-    .map_err(invalid)?;
-    if !(TRANSPORT_ENVELOPE_HEADER_BYTES
-        ..=TRANSPORT_ENVELOPE_HEADER_BYTES + MAXIMUM_TERMINAL_FRAME_BYTES)
-        .contains(&length)
-    {
-        return Err(invalid(
-            "Host event exceeds the live projection record bound",
-        ));
     }
-    let mut record = vec![0; length];
-    record[..TRANSPORT_ENVELOPE_HEADER_BYTES].copy_from_slice(&header);
-    reader.read_exact(&mut record[TRANSPORT_ENVELOPE_HEADER_BYTES..])?;
-    Ok(record)
 }
 
-struct EventReader<'a> {
-    host: &'a UnixStream,
-    server: &'a UnixStream,
-    deadline: Instant,
-    server_lost: bool,
-}
-
-impl Read for EventReader<'_> {
-    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+impl PartialRecord {
+    /// Reads what has arrived of the current record without waiting, never past its end. Returns
+    /// the whole record once it is complete, or `None` when the Host has sent nothing more for
+    /// now. A record that is not an event is bounded by `maximum_response_payload`.
+    pub(crate) fn advance(
+        &mut self,
+        stream: &UnixStream,
+        maximum_response_payload: usize,
+    ) -> io::Result<Option<Vec<u8>>> {
         loop {
-            let remaining = self.deadline.saturating_duration_since(Instant::now());
-            let milliseconds = if remaining.is_zero() {
-                0
-            } else {
-                remaining.as_millis().saturating_add(1)
-            };
-            let timeout = PollTimeout::try_from(milliseconds).map_err(invalid)?;
-            let mut descriptors = [
-                PollFd::new(self.host.as_local_io(), PollFlags::POLLIN),
-                // A Server request may already be queued while idle; observe loss
-                // without consuming or treating those request bytes as a response.
-                PollFd::new(self.server.as_local_io(), PollFlags::empty()),
-            ];
-            match poll(&mut descriptors, timeout) {
-                Ok(_) => {}
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-                Err(error) => return Err(error),
-            }
-            if descriptors[1]
-                .revents()
-                .is_none_or(|events| !events.is_empty())
-            {
-                self.server_lost = true;
-                return Err(io::ErrorKind::ConnectionAborted.into());
-            }
-            let events = descriptors[0]
-                .revents()
-                .ok_or_else(|| invalid("invalid Host descriptor"))?;
-            if events.intersects(PollFlags::POLLERR | PollFlags::POLLNVAL) {
-                return Err(io::ErrorKind::ConnectionAborted.into());
-            }
-            if events.contains(PollFlags::POLLIN) {
-                match self.host.read(bytes) {
-                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => continue,
-                    result => return result,
+            if self.header_filled < TRANSPORT_ENVELOPE_HEADER_BYTES {
+                let Some(count) = read_available(stream, &mut self.header[self.header_filled..])?
+                else {
+                    return Ok(None);
+                };
+                self.began.get_or_insert_with(Instant::now);
+                self.header_filled += count;
+                if self.header_filled < TRANSPORT_ENVELOPE_HEADER_BYTES {
+                    continue;
                 }
+                let length = usize::try_from(u32::from_le_bytes([
+                    self.header[8],
+                    self.header[9],
+                    self.header[10],
+                    self.header[11],
+                ]))
+                .map_err(invalid)?;
+                // Events can carry one bounded opaque OBTF record between control responses;
+                // anything else is a response bounded by its exchange's declared payload budget.
+                let event = u16::from_le_bytes([self.header[6], self.header[7]]) & (1 << 2) != 0;
+                let bound = TRANSPORT_ENVELOPE_HEADER_BYTES
+                    .checked_add(if event {
+                        MAXIMUM_TERMINAL_FRAME_BYTES
+                    } else {
+                        maximum_response_payload
+                    })
+                    .ok_or_else(|| invalid("Host record bound overflows"))?;
+                if !(TRANSPORT_ENVELOPE_HEADER_BYTES..=bound).contains(&length) {
+                    return Err(invalid("Host record exceeds its bound"));
+                }
+                self.record = vec![0; length];
+                self.record[..TRANSPORT_ENVELOPE_HEADER_BYTES].copy_from_slice(&self.header);
+                self.filled = TRANSPORT_ENVELOPE_HEADER_BYTES;
             }
-            if events.contains(PollFlags::POLLHUP) {
-                return Err(io::ErrorKind::UnexpectedEof.into());
+            if self.filled == self.record.len() {
+                self.header_filled = 0;
+                self.filled = 0;
+                self.began = None;
+                return Ok(Some(std::mem::take(&mut self.record)));
             }
-            if remaining.is_zero() {
-                return Err(io::ErrorKind::TimedOut.into());
-            }
+            let Some(count) = read_available(stream, &mut self.record[self.filled..])? else {
+                return Ok(None);
+            };
+            self.filled += count;
         }
     }
+
+    pub(crate) const fn began(&self) -> Option<Instant> {
+        self.began
+    }
+}
+
+/// One read of bytes that have arrived; `None` when none have.
+fn read_available(mut stream: &UnixStream, bytes: &mut [u8]) -> io::Result<Option<usize>> {
+    loop {
+        match stream.read(bytes) {
+            Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()),
+            Ok(count) => return Ok(Some(count)),
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(None),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+/// The class of a failed Host read: a record outside the protocol, or a Host that went away.
+pub(crate) fn read_failure(error: &io::Error) -> PeerFailure {
+    if error.kind() == io::ErrorKind::InvalidData {
+        PeerFailure::Protocol
+    } else {
+        PeerFailure::Host
+    }
+}
+
+/// Reads Host events that have arrived, without waiting, and routes each whole one, at most
+/// `maximum_events`; an event the Host has only begun stays partial for the next read. A failure
+/// is recorded on the connection with its class.
+pub(crate) fn drain_events(
+    connection: &super::HostBrokerConnection,
+    maximum_events: usize,
+) -> io::Result<()> {
+    let failed = |class| HostFailure {
+        class,
+        deadline: false,
+        waited: Duration::ZERO,
+        budget: Duration::ZERO,
+    };
+    for _ in 0..maximum_events {
+        let advanced = connection
+            .inbound
+            .borrow_mut()
+            .advance(connection.stream(), MAXIMUM_TERMINAL_FRAME_BYTES);
+        let record = match advanced {
+            Ok(Some(record)) => record,
+            Ok(None) => return Ok(()),
+            Err(error) => {
+                connection.pacing.note_failure(failed(read_failure(&error)));
+                return Err(error);
+            }
+        };
+        connection.receive_event(record).inspect_err(|_error| {
+            connection
+                .pacing
+                .note_failure(failed(PeerFailure::Protocol));
+        })?;
+    }
+    Ok(())
 }
 
 fn invalid(error: impl std::fmt::Display) -> io::Error {

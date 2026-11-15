@@ -165,7 +165,7 @@ impl HostViewers {
     }
 
     /// Closes one viewer whose Host answer this Worker could not accept. Its Client learns of the
-    /// close by Poll, and the next request detaches it before anything else.
+    /// close by Poll, and a later cleanup, after a request's own work, detaches it.
     pub(crate) fn close(&mut self, id: OperationId) {
         if let Some(viewer) = self.viewers.get_mut(&id.as_bytes()) {
             self.retained_record_bytes -= viewer.close();

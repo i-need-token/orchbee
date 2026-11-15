@@ -161,8 +161,10 @@ fn run_admitted_with_handoff(
     outcome.map_err(|error| exit_cause::attach(error, host))
 }
 
-/// Each Server request bounds its Host exchanges from its arrival ([`Pacing`]), and names the
-/// site its failure would be recorded at.
+/// Each Server request bounds its Host exchanges from when its bytes first became readable
+/// ([`Pacing`]), and names the site its failure would be recorded at. Cleanup of what the
+/// connection no longer uses runs after the request's own work, so it never takes the request's
+/// room, and before the result, while the Server sends nothing.
 ///
 /// [`Pacing`]: crate::host_connection::Pacing
 fn serve(
@@ -181,17 +183,17 @@ fn serve(
         host.pacing.end_request();
         host.pacing.set_site(Site::ServerReceive);
         #[cfg(not(windows))]
-        let request = server_transport::receive(&server, Some(host))?;
+        let (request, readable) = server_transport::receive_timed(&server, Some(host))?;
         #[cfg(windows)]
-        let request = loop {
-            if let Some(request) =
-                server_transport::receive_until(&server, Some(host), handoff.deadline())?
+        let (request, readable) = loop {
+            if let Some(received) =
+                server_transport::receive_until_timed(&server, Some(host), handoff.deadline())?
             {
-                break request;
+                break received;
             }
             handoff.expire(std::time::Instant::now());
         };
-        host.pacing.begin_request();
+        host.pacing.begin_request_at(readable);
         #[cfg(windows)]
         handoff.expire(std::time::Instant::now());
         #[cfg(windows)]
@@ -423,19 +425,16 @@ fn serve(
             }
             continue;
         }
-        crate::terminal_viewer_operation::cleanup_closed(host, &server)?;
         if let CapabilityNodeMessage::TerminalControlRequest(request) = request {
             host.pacing.set_site(Site::Control);
             let result = crate::terminal_control_operation::execute(
                 request, worker_id, generation, host, &server,
             )?;
-            if server_transport::send(
+            clean_and_send(
                 &server,
-                Some(host),
+                host,
                 &CapabilityNodeMessage::TerminalControlResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) = request {
@@ -443,13 +442,11 @@ fn serve(
             let result = crate::terminal_viewer_operation::decode_graphics(
                 request, worker_id, generation, host, &server,
             )?;
-            if server_transport::send(
+            clean_and_send(
                 &server,
-                Some(host),
+                host,
                 &CapabilityNodeMessage::TerminalViewerResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::TerminalViewerRequest(request) = request {
@@ -457,13 +454,11 @@ fn serve(
             let result = crate::terminal_viewer_operation::execute(
                 request, worker_id, generation, host, &server,
             )?;
-            if server_transport::send(
+            clean_and_send(
                 &server,
-                Some(host),
+                host,
                 &CapabilityNodeMessage::TerminalViewerResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::TerminalSendRequest(request) = request {
@@ -471,17 +466,15 @@ fn serve(
             let execution = crate::terminal_send_operation::execute(
                 request, worker_id, generation, host, &server,
             )?;
-            // A failed Host carrier still gets its result written; that write
-            // is the last record this session produces and the loop exits
-            // explicitly instead of discovering the dead stream later.
-            let host_closed = server_transport::send(
-                &server,
-                (!execution.host_failed).then_some(&*host),
-                &CapabilityNodeMessage::TerminalSendResult(execution.result),
-            )?;
-            if host_closed || execution.host_failed {
+            let result = CapabilityNodeMessage::TerminalSendResult(execution.result);
+            if execution.host_failed {
+                // A failed Host carrier still gets its result written; that write
+                // is the last record this session produces and the loop exits
+                // explicitly instead of discovering the dead stream later.
+                let _host_closed = server_transport::send(&server, None, &result)?;
                 return Err(peer_closed().into());
             }
+            clean_and_send(&server, host, &result)?;
             continue;
         }
         let now = unix_milliseconds();
@@ -574,15 +567,29 @@ fn serve(
         let result = take_result(&mut kernel)?;
         // No next admission occurs while this exact result is being delivered. A
         // failed write abandons the process; it never causes a Host retry.
-        let host_closed = server_transport::send(
-            &server,
-            (disposition == HostOperationDisposition::ResultReady).then_some(&*host),
-            &result,
-        )?;
-        if host_closed {
+        if disposition == HostOperationDisposition::ResultReady {
+            clean_and_send(&server, host, &result)?;
+        } else {
+            let _host_closed = server_transport::send(&server, None, &result)?;
             return Err(peer_closed().into());
         }
     }
+}
+
+/// Runs cleanup after a request's own work, then delivers its result. A cleanup that lost the
+/// Host still delivers the result before the connection ends with that failure.
+fn clean_and_send(
+    server: &UnixStream,
+    host: &HostBrokerConnection,
+    result: &CapabilityNodeMessage,
+) -> Result<(), Box<dyn Error>> {
+    let cleaned = crate::terminal_viewer_operation::cleanup(host, server);
+    let host_closed = server_transport::send(server, cleaned.is_ok().then_some(host), result)?;
+    cleaned?;
+    if host_closed {
+        return Err(peer_closed().into());
+    }
+    Ok(())
 }
 
 /// One Agent Drain request dispatched on the serialized Server connection.

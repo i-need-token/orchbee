@@ -3,7 +3,12 @@
 //! projections without rendering them or deciding product exposure and Client authorization.
 
 use orchbee_local_ipc::LocalStream as UnixStream;
-use std::{error::Error, fmt, num::NonZeroU64};
+use std::{
+    error::Error,
+    fmt,
+    num::NonZeroU64,
+    time::{Duration, Instant},
+};
 
 use orchbee_capability_node_protocol::{
     MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
@@ -34,7 +39,10 @@ use orchbee_terminal_protocol::{
     encode_transport_envelope, message_contract,
 };
 
-use crate::host_connection::{HostBrokerConnection, HostExchange, PeerFailure, exchange};
+use crate::diagnostic_events::Site;
+use crate::host_connection::{
+    HostBrokerConnection, HostExchange, NotStarted, PeerFailure, exchange,
+};
 use crate::worker_identity::fresh_identity;
 
 mod graphics_decode;
@@ -85,6 +93,7 @@ pub(crate) fn execute(
     } else {
         match apply(request, host, server) {
             Ok(outcome) => outcome,
+            Err(error) if NotStarted::is(error.as_ref()) => not_started(request.action),
             Err(error) => contain(error, host, request.attachment_id)?,
         }
     };
@@ -95,7 +104,24 @@ pub(crate) fn execute(
     })
 }
 
-/// An unexpected answer refuses this request and closes its viewer, which the next request
+/// The answer to a viewer request whose first Host exchange had no room in the request. A
+/// request's first exchange starts within the record budget of its arrival, well inside the start
+/// limit, so this answers only a Worker that stalled for seconds; nothing reached the Host and the
+/// viewer stays as it was.
+const fn not_started(action: TerminalViewerAction) -> TerminalViewerOutcome {
+    match action {
+        // The Server answers this one as busy, and both Clients attach again.
+        TerminalViewerAction::Attach { .. } => {
+            TerminalViewerOutcome::Rejected(ViewerRejection::CapacityExceeded)
+        }
+        TerminalViewerAction::ReadRows { .. } | TerminalViewerAction::ReadViewportRows { .. } => {
+            TerminalViewerOutcome::RowsRejected(ViewerRowsRejectedReason::ResourceExhausted)
+        }
+        _ => TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected),
+    }
+}
+
+/// An unexpected answer refuses this request and closes its viewer, which a later cleanup
 /// detaches; every other failure still ends the connection.
 fn contain(
     error: Box<dyn Error>,
@@ -110,38 +136,107 @@ fn contain(
     ))
 }
 
-// Queue saturation retires only that viewer. Cleanup runs before the next Server
-// operation, through the same Host writer; it cannot retain another output frame.
-// Any correlated answer ends the viewer: a refused Detach counts as detached, and another answer
-// is recorded and the viewer forgotten all the same.
-pub(crate) fn cleanup_closed(
+/// Cleanup starts Host exchanges only within this share of time after it begins, and only while
+/// the request's bound has room. It runs after the request's own work, so it never takes that
+/// work's room; whatever it does not reach waits for the next cleanup.
+pub(crate) const CLEANUP_SHARE: Duration = Duration::from_secs(2);
+
+/// Detaches what the connection no longer uses — deferred Detaches first, then closed viewers
+/// with their controllers — and brings each controller's demand in line with its viewer.
+///
+/// Queue saturation retires only that viewer, through the same Host writer; it cannot retain
+/// another output frame. Any correlated answer ends an attachment: a refused Detach counts as
+/// detached, and another answer is recorded and the attachment forgotten all the same. Only a
+/// failed exchange is an error.
+pub(crate) fn cleanup(
     host: &HostBrokerConnection,
     server: &UnixStream,
 ) -> Result<(), Box<dyn Error>> {
-    let ids = host.viewers.borrow().closed_ids();
-    if ids.is_empty() {
-        return Ok(());
-    }
     let site = host.pacing.site();
-    host.pacing
-        .set_site(crate::diagnostic_events::Site::Cleanup);
-    for bytes in ids {
-        let id = orchbee_capability_node_protocol::OperationId::from_bytes(bytes)?;
-        crate::terminal_control_operation::release_viewer(host, server, id)?;
-        let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
-        match detach_attachment(host, server, correlation, AttachmentId::from_bytes(bytes)?)? {
-            DetachAnswer::Detached => {}
-            DetachAnswer::Refused(kind) | DetachAnswer::Unexpected(UnexpectedAnswer { kind }) => {
-                crate::diagnostic_events::host_unexpected(
-                    crate::diagnostic_events::Site::Cleanup,
-                    kind,
-                );
-            }
+    host.pacing.set_site(Site::Cleanup);
+    let cleaned = clean(host, server, Instant::now() + CLEANUP_SHARE);
+    host.pacing.set_site(site);
+    NotStarted::optional(cleaned).map(drop)
+}
+
+fn clean(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    share: Instant,
+) -> Result<(), Box<dyn Error>> {
+    let within = || {
+        if Instant::now() < share {
+            Ok(())
+        } else {
+            Err(Box::new(NotStarted) as Box<dyn Error>)
         }
+    };
+    for id in host.pending_detaches() {
+        within()?;
+        let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
+        let answer = detach_attachment(host, server, correlation, AttachmentId::from_bytes(id)?)?;
+        record_cleanup_answer(&answer);
+        host.settle_detach(id);
+    }
+    let closed = host.viewers.borrow().closed_ids();
+    for bytes in closed {
+        let id = orchbee_capability_node_protocol::OperationId::from_bytes(bytes)?;
+        within()?;
+        crate::terminal_control_operation::release_viewer(host, server, id)?;
+        within()?;
+        let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
+        let answer =
+            detach_attachment(host, server, correlation, AttachmentId::from_bytes(bytes)?)?;
+        record_cleanup_answer(&answer);
         host.forget_viewer(id);
     }
-    host.pacing.set_site(site);
+    let grants = host.controllers.borrow().grants();
+    for grant in grants {
+        let viewer = host.viewers.borrow().demand(grant.viewer_id);
+        let Some(demand) =
+            viewer.filter(|demand| grant.capability_revision.is_some() && *demand != grant.demand)
+        else {
+            continue;
+        };
+        within()?;
+        let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
+        follow_viewer_demand(host, server, correlation, grant, demand)?;
+    }
     Ok(())
+}
+
+fn record_cleanup_answer(answer: &DetachAnswer) {
+    match answer {
+        DetachAnswer::Detached => {}
+        DetachAnswer::Refused(kind) | DetachAnswer::Unexpected(UnexpectedAnswer { kind }) => {
+            crate::diagnostic_events::host_unexpected(Site::Cleanup, *kind);
+        }
+    }
+}
+
+/// Sets a controller's demand to its viewer's. A refusal or another answer means the controller
+/// can no longer follow its viewer: it is recorded and released. [`NotStarted`] leaves it for a
+/// later cleanup.
+fn follow_viewer_demand(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    correlation: CorrelationId,
+    grant: crate::host_connection::ControlGrant,
+    demand: ProjectionDemand,
+) -> Result<(), Box<dyn Error>> {
+    let controller = AttachmentId::from_bytes(grant.controller_id.as_bytes())?;
+    let kind = match set_attachment_demand(host, server, correlation, controller, demand) {
+        Ok(DemandAnswer::Accepted) => {
+            host.controllers
+                .borrow_mut()
+                .set_demand(grant.controller_id, demand);
+            return Ok(());
+        }
+        Ok(DemandAnswer::Refused(kind)) => kind,
+        Err(error) => error.downcast::<UnexpectedAnswer>()?.kind,
+    };
+    crate::diagnostic_events::host_unexpected(host.pacing.site(), kind);
+    crate::terminal_control_operation::release_viewer(host, server, grant.viewer_id)
 }
 
 fn apply(
@@ -189,14 +284,22 @@ fn apply(
                     request_resize_lease: false,
                     terminal_id,
                 }))?;
-            let response = exchange(
+            let Some(response) = NotStarted::optional(exchange(
                 host,
                 server,
                 correlation,
                 command.kind,
                 &command.payload,
                 PayloadEncoding::ControlJson,
-            )?;
+            ))?
+            else {
+                // Nothing reached the Host. The Server answers this as busy and the Client
+                // attaches again.
+                host.viewers.borrow_mut().remove(request.attachment_id);
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::CapacityExceeded,
+                ));
+            };
             let envelope = decode_transport_envelope(&response)?;
             if matches!(
                 decode_connection_control(envelope.kind, envelope.role, envelope.payload),
@@ -227,14 +330,22 @@ fn apply(
             let command = encode_projection_demand_control(
                 &ProjectionDemandControl::SetProjectionDemand(demand),
             )?;
-            let response = exchange(
+            let Some(response) = NotStarted::optional(exchange(
                 host,
                 server,
                 correlation,
                 command.kind,
                 &command.payload,
                 PayloadEncoding::ControlJson,
-            )?;
+            ))?
+            else {
+                // The new Host attachment stays paused until a later cleanup detaches it; the
+                // Client attaches again as for any busy refusal.
+                host.viewers.borrow_mut().close(request.attachment_id);
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::CapacityExceeded,
+                ));
+            };
             let envelope = decode_transport_envelope(&response)?;
             let Ok(ProjectionDemandControl::ProjectionDemandAccepted(accepted)) =
                 decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)
@@ -258,8 +369,7 @@ fn apply(
                 Ok(None) => {}
                 // A refused Attach grants nothing, so the new Host attachment goes first.
                 Err(reason) => {
-                    detach_viewer(host, server, correlation, id)?;
-                    host.forget_viewer(request.attachment_id);
+                    retire_viewer(host, server, correlation, request.attachment_id)?;
                     return Ok(TerminalViewerOutcome::Rejected(reason));
                 }
             }
@@ -357,8 +467,7 @@ fn apply(
                 ));
             }
             crate::terminal_control_operation::release_viewer(host, server, request.attachment_id)?;
-            detach_viewer(host, server, correlation, id)?;
-            host.forget_viewer(request.attachment_id);
+            retire_viewer(host, server, correlation, request.attachment_id)?;
             Ok(TerminalViewerOutcome::Detached)
         }
         TerminalViewerAction::SetProjectionDemand { demand } => {
@@ -376,17 +485,28 @@ fn apply(
             let grant = host.controllers.borrow().for_viewer(request.attachment_id);
             if let Some(grant) = grant {
                 let controller = AttachmentId::from_bytes(grant.controller_id.as_bytes())?;
-                if !set_attachment_demand(host, server, correlation, controller, demand)? {
-                    return Ok(TerminalViewerOutcome::Rejected(
-                        ViewerRejection::HostRejected,
-                    ));
+                match set_attachment_demand(host, server, correlation, controller, demand)? {
+                    DemandAnswer::Accepted => host
+                        .controllers
+                        .borrow_mut()
+                        .set_demand(grant.controller_id, demand),
+                    DemandAnswer::Refused(_) => {
+                        return Ok(TerminalViewerOutcome::Rejected(
+                            ViewerRejection::HostRejected,
+                        ));
+                    }
                 }
             }
-            if !set_attachment_demand(host, server, correlation, id, demand)? {
+            // A slow controller answer can leave the viewer's own change no room: nothing of the
+            // viewer changes, the request is refused for the Client to send again, and a later
+            // cleanup brings the controller back in line with its viewer.
+            let Some(DemandAnswer::Accepted) =
+                NotStarted::optional(set_attachment_demand(host, server, correlation, id, demand))?
+            else {
                 return Ok(TerminalViewerOutcome::Rejected(
                     ViewerRejection::HostRejected,
                 ));
-            }
+            };
             host.viewers
                 .borrow_mut()
                 .set_demand(request.attachment_id, demand);
@@ -672,12 +792,12 @@ fn apply(
             Ok(TerminalViewerOutcome::Record(response))
         }
         TerminalViewerAction::FrameApplied { .. } | TerminalViewerAction::NeedSnapshot { .. } => {
-            // Drain pending events before changing feedback state. HostExchange's preflight
-            // repeats this check to preserve the shared broker's no-pipelining boundary.
-            let preflight = HostExchange::open(host, server);
-            preflight
+            // The exchange starts, and pending events drain, before feedback state changes, so a
+            // feedback the request had no room for leaves that state as it was.
+            let mut feedback_exchange = HostExchange::open(host, server)?;
+            feedback_exchange
                 .prepare()
-                .map_err(|class| preflight.error(class))?;
+                .map_err(|class| feedback_exchange.error(class))?;
             let admission = host.viewers.borrow_mut().feedback(&request);
             if let Err(reason) = admission {
                 return Ok(TerminalViewerOutcome::Rejected(reason));
@@ -714,9 +834,7 @@ fn apply(
                 _ => unreachable!("feedback action was matched"),
             };
             let command = encode_projection_feedback_control(&command)?;
-            let response = exchange(
-                host,
-                server,
+            let response = feedback_exchange.request(
                 correlation,
                 command.kind,
                 &command.payload,
@@ -775,6 +893,23 @@ fn detach_attachment(
             _ => DetachAnswer::Unexpected(UnexpectedAnswer::of(&response)),
         },
     )
+}
+
+/// Detaches a viewer this Worker no longer uses and forgets it. A Detach the request has no room
+/// for is left to a later cleanup, the viewer closed meanwhile.
+fn retire_viewer(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    correlation: CorrelationId,
+    attachment: orchbee_capability_node_protocol::OperationId,
+) -> Result<(), Box<dyn Error>> {
+    let id = AttachmentId::from_bytes(attachment.as_bytes())?;
+    if NotStarted::optional(detach_viewer(host, server, correlation, id))?.is_some() {
+        host.forget_viewer(attachment);
+    } else {
+        host.viewers.borrow_mut().close(attachment);
+    }
+    Ok(())
 }
 
 /// Detaches a viewer for its own request: a refusal counts as detached and is recorded, and
@@ -967,25 +1102,42 @@ fn ack_round_trip(
     Ok(Some(response))
 }
 
-/// Answers whether the Host accepted the demand; its typed failure means the attachment is gone.
+/// The Host's answer to a demand change.
+pub(crate) enum DemandAnswer {
+    Accepted,
+    /// A correlated typed failure of this kind: the attachment is gone or cannot take the demand.
+    Refused(u16),
+}
+
+/// Sets an attachment's demand; another correlated answer is an [`UnexpectedAnswer`].
 pub(crate) fn set_attachment_demand(
     host: &HostBrokerConnection,
     server: &UnixStream,
     correlation: CorrelationId,
     attachment_id: AttachmentId,
     demand: ProjectionDemand,
-) -> Result<bool, Box<dyn Error>> {
+) -> Result<DemandAnswer, Box<dyn Error>> {
     let command = encode_projection_demand_control(&ProjectionDemandControl::SetProjectionDemand(
         SetProjectionDemand {
             attachment_id,
             demand,
         },
     ))?;
-    let Some(response) = ack_round_trip(host, server, correlation, command.kind, &command.payload)?
-    else {
-        return Ok(false);
-    };
+    let response = exchange(
+        host,
+        server,
+        correlation,
+        command.kind,
+        &command.payload,
+        PayloadEncoding::ControlJson,
+    )?;
     let envelope = decode_transport_envelope(&response)?;
+    if matches!(
+        decode_connection_control(envelope.kind, envelope.role, envelope.payload),
+        Ok(ConnectionControl::TypedFailure(_))
+    ) {
+        return Ok(DemandAnswer::Refused(envelope.kind));
+    }
     let Ok(ProjectionDemandControl::ProjectionDemandAccepted(accepted)) =
         decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)
     else {
@@ -994,7 +1146,7 @@ pub(crate) fn set_attachment_demand(
     if accepted.attachment_id != attachment_id || accepted.demand != demand {
         return Err(UnexpectedAnswer::of(&response).into());
     }
-    Ok(true)
+    Ok(DemandAnswer::Accepted)
 }
 
 enum SelectionReply {
@@ -1097,7 +1249,7 @@ fn exchange_rows(
         protocol: CURRENT_PROTOCOL_VERSION,
         role: MessageRole::Request,
     })?;
-    let mut exchange = HostExchange::open(host, server);
+    let mut exchange = HostExchange::open(host, server)?;
     exchange.prepare().map_err(|class| exchange.error(class))?;
     let record = exchange
         .round_trip_bounded(&record, maximum_record_bytes)

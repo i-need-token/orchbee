@@ -26,13 +26,18 @@ A failed `exited` also names where and why the Worker stopped: `site`, the step 
 `send`, `launch`, `start`, `drain`, `titles`, `cleanup`, `handoff`, `host-start` or `shutdown`);
 `reason`, one of `deadline` (a peer stayed silent past its bound), `host-closed`, `host-protocol`
 (the Host broke its framing or a contract the Worker cannot contain), `server-closed`,
-`server-protocol`, `state` (a Worker invariant refused to continue) or `local`; `peer`, `host`,
-`server` or `none`; and, for a bound that passed, `waitedMs` and `budgetMs`. `host-slow` records a
-Host exchange that succeeded after more than a second, with its `site` and `waitedMs`;
-`host-unexpected` records an intact Host message the Worker dropped or refused instead of ending,
-with its `site` and `kind`, the Host message kind number. Each of the two is written at most once a
-minute. `panicked` records the `file` stem and `line` of a Worker panic, never its message. These
-are the only Host diagnostics the log holds; terminal content, input and paths never reach it.
+`server-protocol`, `state` (a Worker invariant refused to continue), `local` or `panic` (the
+serving thread panicked); `peer`, `host`, `server` or `none`; and, for a bound that passed,
+`waitedMs` and `budgetMs`. A run writes one `exited` record. `host-slow` records a Host exchange
+that succeeded after more than a second, with its `site` and `waitedMs`; `host-unexpected` records
+an intact Host message the Worker dropped or refused instead of ending, with its `site` and `kind`,
+the Host message kind number. Each of the two is written at most once a minute for each site, with
+`suppressed`, the number of that site's records left out since the last one written. `panicked`
+records the `file` stem and `line` of a Worker panic, never its message. A panic on the serving
+thread ends the Worker, so it also writes the run's `exited` record, with `error` `other`, the site
+it was serving, `reason` `panic` and `peer` `none`; a panic on any other thread writes `panicked`
+alone. These are the only Host diagnostics the log holds; terminal content, input and paths never
+reach it.
 
 ## Child CLI routing
 
@@ -294,17 +299,21 @@ model is the [viewer capacity and record budget reference](docs/viewer-capacity-
 A missing or contradictory feedback never acknowledges a Host frame.
 `NeedSnapshot` preserves its reason and sequence; `ProjectionBlocked` remains an attachment event.
 A full delivery slot closes only that viewer and releases its queued bytes, and a valid record
-that would cross the aggregate budget retires only its addressed viewer the same way. Its Host detach runs
-before the next ordinary Server operation; lifecycle steps bypass this cleanup. Late events for that closing viewer are drained without retaining
-another frame. No blocked event or frame is silently replaced; only a newer selection snapshot
-supersedes a queued one of the same viewer. The broker's `host_connection`
+that would cross the aggregate budget retires only its addressed viewer the same way. Its Host
+detach runs in a later cleanup, after an ordinary Server operation's own work and before its reply;
+lifecycle steps bypass this cleanup. Late events for that closing viewer are drained without
+retaining another frame. No blocked event or frame is silently replaced; only a newer selection
+snapshot supersedes a queued one of the same viewer. The broker's `host_connection`
 module owns event routing, viewer slots, controller grants, and the shared deadline exchange; `terminal_viewer_operation`
 maps admitted read-only commands and validates their exact Host responses. No viewer-state borrow
 survives Host I/O. Attach performs two sequential bounded exchanges (capabilities, then active
-projection demand); cleanup may perform up to thirty-two bounded viewer/control detach exchanges before a request.
-Server now budgets twenty seconds for those exchanges and OBNR record delivery. A correlated Host
-refusal or other answer than the exact acknowledgement refuses only that request as `HostRejected`
-and closes that viewer, which the next request detaches; a refused Detach counts as detached.
+projection demand). Cleanup detaches closed viewers and their controllers after a request's own
+work, within its own share of the request bound (see
+[the request loop](#integrated-authorized-request-loop)); what it does not
+reach waits for a later request. Server budgets twenty seconds for a request's exchanges and OBNR
+record delivery. A correlated Host refusal or other answer than the exact acknowledgement refuses
+only that request as `HostRejected` and closes that viewer, which a later cleanup detaches; a
+refused Detach counts as detached.
 Lifecycle and
 metadata notifications are validated and drained, while application-signal effects use the Agent
 drain. Bell, clipboard-write, selection-changed, selection-export-chunk, and
@@ -699,20 +708,52 @@ two-second budget. Both waits observe Host loss. Host loss during result deliver
 bounded delivery attempt, then ends the Worker; Server loss abandons delivery and closes Host.
 
 A Host that answers slowly is waited for; only one that stays silent past a hard bound is lost.
-Each Host exchange, its request written and its answer read, ends within ten seconds, and every
-exchange of one Server request ends within fifteen seconds of the request's arrival, leaving time
-for result delivery inside the Server carrier's twenty-second result wait. Smaller budgets an
-operation keeps for itself, such as the input step of a send or the inventory walk of a viewer
-attachment, only decide whether it starts or continues; they never end the Worker. While it writes
-a request and waits for the answer, the Worker reads the Host's events, so a Host writing to a
-full stream is never stalled by a Worker waiting on it. Bytes that have already arrived are read
-before a bound is checked: a late Worker never refuses an answer that is waiting, and a bound ends
-an exchange only while the Host has sent nothing more. Before a request, the Worker drains at most
-64 queued events, and after the bound it reads at most 64 more records that have already arrived,
-so a Host that floods events cannot hold the serving thread. A bound that passes in the middle of
-a record ends the connection, never leaving half a record for a later read. An exchange that
-succeeds after more than a second writes `host-slow`. The serving thread stops reading the Host
-only for Worker work between exchanges, for local resolution below, and for the directory check of
+Each Host exchange, its request written and its answer read, ends within ten seconds. The request
+bound is a start limit: an exchange of one Server request starts only if its whole ten seconds end
+within fifteen seconds of the moment the request's first bytes became readable, so none starts
+later than five seconds in, and one that has started keeps its whole bound. With the two-second
+result write, the reply leaves by seventeen seconds, three seconds inside the Server carrier's
+twenty-second result wait. Work that no longer fits is never sent and never counts against the
+Host; the request is refused with an answer the Server and its Clients treat as transient, and
+nothing retries it automatically:
+
+| Request                                       | Answer when its exchange cannot start           |
+| --------------------------------------------- | ----------------------------------------------- |
+| Viewer Attach                                 | `CapacityExceeded`                              |
+| Viewer row reads                              | `RowsRejected` with `ResourceExhausted`         |
+| Other viewer requests                         | `HostRejected`; the Worker keeps the viewer     |
+| Acquire, Takeover                             | `ControllerBusy`; an existing grant is kept     |
+| Semantic input, paste                         | `HostInputBackpressure`                         |
+| Resize                                        | `HostRejected`; the grant is kept               |
+| Raw input, Release, Clear, Reset, Host colors | `HostInputUnavailable`; the grant is kept       |
+| Send                                          | `InputBudgetExhausted` with the progress so far |
+| Launch, Start, lifecycle requests             | a failure before handoff, with no effect        |
+
+A request reaches its first exchange within its two-second record read, so these answers need a
+Worker stalled for seconds; later steps of one request and its cleanup meet the limit sooner, and a
+send detaches an attachment it already made. Cleanup of closed viewers and controllers runs after
+the request's own work, so it never takes that work's room, and starts exchanges only within its
+own two-second share and while the request bound has room; ids it does not reach wait for the next
+request. Launch stages earlier output and creates the
+terminal as two exchanges, each with its own whole bound: a stage with no room is skipped, since
+earlier output is optional, and a creation with no room is never sent, also after a successful
+stage, so the Launch fails before handoff with no effect. A stage that no creation followed is
+inert: the Host keeps one staged seed, gives it only to a creation of the same identity on the same
+connection, and discards it at the next creation or stage on that connection or when the
+connection ends. Smaller budgets an operation keeps for itself, such as the input step of a send or
+the inventory walk of a viewer attachment, only decide whether it starts or continues; they never
+end the Worker. While it writes a request and waits for the answer, the Worker reads the Host's
+events, so a Host writing to a full stream is never stalled by a Worker waiting on it. Bytes that
+have already arrived are read before a bound is checked: a late Worker never refuses an answer that
+is waiting, and a bound ends an exchange only while the Host has sent nothing more. A request the
+Worker abandons part way, at its bound or on an error, closes the Host connection at once, since
+the stream is out of step for good. Host records are read incrementally: a record the Host has
+only begun stays with the connection and the next read continues it, so a Host that pauses inside
+an event never holds a Server record or the next request. Before a request, the Worker drains at
+most 64 queued events, and after the bound it reads at most 64 more records that have already
+arrived, so a Host that floods events cannot hold the serving thread. An exchange that succeeds
+after more than a second writes `host-slow`. The serving thread stops reading the Host only for
+Worker work between exchanges, for local resolution below, and for the directory check of
 `TerminalCwdValidation`, which runs on a helper thread and answers inaccessible after two seconds,
 discarding a late result. These are experimental local bounds, not a measured release
 performance claim. Local account/filesystem resolution is synchronous;
@@ -756,10 +797,12 @@ a fake Host checks omitted/explicit cwd, launch environment, profile, and indepe
 Further partitions cover authorization rejection with no command, wrong-direction/oversized/partial/
 pipelined OBCN, and exact result delivery after Host closes immediately after its response. The
 Host bounds have unit witnesses with injected bounds, so none waits ten seconds:
-`src/host_connection/tests/host_pacing.rs` covers a drain resumed after its deadline, a busy Host
-and a Host that pauses mid-record, and a late event, refused Detach and refused feedback that leave
-the Worker serving; `src/terminal_operations/tests/host_bound.rs` covers a silent Host ending the
-connection with reason `deadline`.
+`src/host_connection/tests/host_pacing.rs` covers a drain resumed after its deadline, a busy Host,
+a Host that pauses mid-record and a partial event continued by the next read, and a late event,
+refused Detach and refused feedback that leave the Worker serving;
+`src/terminal_operations/tests/host_bound.rs` covers a silent Host ending the connection with reason
+`deadline` and a slow Host whose answered exchanges together pass the request bound while every
+request is still served.
 These are concrete admission, delivery, loss and no-retry witnesses on the actual carrier. They do not
 prove Server Client Session viewer routing, activation, restart reconciliation, or another OS platform.
 The viewer process trace separately proves two read attachments, a stalled viewer, exact feedback,

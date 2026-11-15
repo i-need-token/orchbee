@@ -58,8 +58,9 @@ release performance budgets and not a process RSS limit.
 - A record that would push the aggregate above the ceiling retires only the
   addressed viewer through the existing `Viewer::close`: its record and flight
   are dropped, `closed` is set, and the ordinary `closed_ids` →
-  `cleanup_closed` path detaches it from the Host before the next ordinary
-  Server operation. Poll and feedback then return the existing
+  `cleanup_closed` path detaches it from the Host in a later cleanup, after
+  an ordinary Server operation's own work and before its reply; one it does
+  not reach waits for the next. Poll and feedback then return the existing
   `AttachmentUnavailable`; the Client may attach a fresh Server-issued
   identity. No other viewer is evicted, and neither the Host nor the retained
   terminal is harmed.

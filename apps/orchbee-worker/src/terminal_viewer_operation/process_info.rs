@@ -45,7 +45,7 @@ pub(super) fn read(
     })?;
     host.pacing
         .set_site(crate::diagnostic_events::Site::ProcessRead);
-    let mut exchange = HostExchange::open(host, server);
+    let mut exchange = HostExchange::open(host, server)?;
     exchange.prepare().map_err(|class| exchange.error(class))?;
     let record = exchange
         .round_trip_bounded(&record, MAXIMUM_CONTROL_JSON_BYTES)

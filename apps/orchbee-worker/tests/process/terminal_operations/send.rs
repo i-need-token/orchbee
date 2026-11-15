@@ -552,11 +552,12 @@ fn send_input_typed_failure_still_detaches_and_reports_cleanup() -> TestResult {
     Ok(())
 }
 
-/// A corrupt input acknowledgement is desynchronization: the Worker never
-/// resends and never issues another exchange on the stream — the peer must
-/// observe that no third Host request ever left.
+/// A corrupt input acknowledgement may follow typed input: the send's outcome is unknown and the
+/// record is never sent again. The answer arrived intact, so the attachment is detached and the
+/// carrier serves the next send.
 #[test]
-fn send_corrupt_input_acknowledgement_never_resends_and_closes_host() -> TestResult {
+fn send_corrupt_input_acknowledgement_is_unknown_never_resent_and_keeps_the_carrier() -> TestResult
+{
     for (wrong_attachment, wrong_revision, wrong_bytes) in [
         (true, false, false),
         (false, true, false),
@@ -582,8 +583,11 @@ fn send_corrupt_input_acknowledgement_never_resends_and_closes_host() -> TestRes
             let bytes = if wrong_bytes { 1 } else { 2 };
             respond_input_accepted(&mut host, correlation, attachment, revision, bytes)
                 .map_err(protocol_io)?;
-            // No DetachTerminal and no resend: the desynchronized stream is
-            // shut down without any further exchange.
+            // No resend: the Detach comes next, and then the next send.
+            let (target, correlation) = expect_detach(&mut host).map_err(protocol_io)?;
+            assert_eq!(target.attachment_id, attach.attachment_id);
+            respond_detach(&mut host, correlation, target).map_err(protocol_io)?;
+            drive_send_happy_path(&mut host, 2).map_err(protocol_io)?;
             require_connection_closed(&mut host)
         });
         let worker = RunningWorker::start(&fixture)?;
@@ -597,21 +601,21 @@ fn send_corrupt_input_acknowledgement_never_resends_and_closes_host() -> TestRes
             .outcome(),
             TerminalSendOutcome::OutcomeUnknown {
                 progress: SendProgress::none(),
-                cleanup: SendCleanupStatus::Unconfirmed,
+                cleanup: SendCleanupStatus::Confirmed,
             }
         );
-        // A second request must never be answered: the session ended with the
-        // first result instead of discovering the dead carrier on a later poll.
-        let _written = write_obcn(
-            &mut server,
-            &CapabilityNodeMessage::TerminalSendRequest(send_request(
-                9,
-                7,
-                identity(SCRIPT_EPOCH, TERMINAL)?,
-                text("ls", false)?,
-            )?),
+        assert_eq!(
+            send(
+                &mut server,
+                send_request(9, 7, identity(SCRIPT_EPOCH, TERMINAL)?, text("ls", false)?)?,
+            )?
+            .outcome(),
+            TerminalSendOutcome::Accepted {
+                progress: SendProgress::complete(1, 2),
+                cleanup: SendCleanupStatus::Confirmed,
+            }
         );
-        require_connection_closed(&mut server)?;
+        drop(server);
         assert_failed_after_exact_readiness(worker.finish()?);
         join_peer(host, "Host desync observer")?;
     }
@@ -717,87 +721,102 @@ fn send_host_closure_positions_map_to_unavailable_or_unknown() -> TestResult {
     Ok(())
 }
 
-/// A typed detach refusal is legible but proves nothing about cleanup: the
-/// attachment may linger, so the carrier is closed — the accepted input fact
-/// and the unconfirmed cleanup are still reported, and no further send may
-/// stack another input-only attachment on this Host.
+/// An attach acknowledgement that grants something other than the attachment asked for, or
+/// answers with another message, is never used: the send is refused, the attachment asked for is
+/// detached, and the carrier serves the next send.
 #[test]
-fn send_detach_typed_failure_reports_unconfirmed_and_closes_the_carrier() -> TestResult {
-    let fixture = RuntimeFixture::new()?;
-    let listener = fixture.bind_host_listener()?;
-    let host = thread::spawn(move || -> io::Result<()> {
-        let mut host = admit_host(&listener)?;
-        let (attach, correlation) = expect_attach(&mut host).map_err(protocol_io)?;
-        respond_capabilities(&mut host, correlation, &attach).map_err(protocol_io)?;
-        let (_input, correlation) = expect_input(&mut host).map_err(protocol_io)?;
-        respond_input_accepted(&mut host, correlation, attach.attachment_id, REVISION, 2)
+fn send_attach_desync_refuses_the_send_detaches_and_keeps_the_carrier() -> TestResult {
+    // A granted resize lease without resize capability is already rejected by the sanctioned
+    // encoder, so only constructible mismatches are covered.
+    #[derive(Clone, Copy)]
+    enum Desync {
+        Attachment,
+        Capabilities,
+        TerminalId,
+        Kind,
+    }
+    for desync in [
+        Desync::Attachment,
+        Desync::Capabilities,
+        Desync::TerminalId,
+        Desync::Kind,
+    ] {
+        let fixture = RuntimeFixture::new()?;
+        let listener = fixture.bind_host_listener()?;
+        let host = thread::spawn(move || -> io::Result<()> {
+            let mut host = admit_host(&listener)?;
+            let (attach, correlation) = expect_attach(&mut host).map_err(protocol_io)?;
+            match desync {
+                Desync::Attachment => {
+                    respond_desynced_capabilities(&mut host, correlation, &attach)
+                }
+                Desync::Capabilities => respond_capabilities_with(
+                    &mut host,
+                    correlation,
+                    attach.attachment_id,
+                    AttachmentCapabilityState {
+                        read: true,
+                        input: true,
+                        resize: false,
+                    },
+                    false,
+                    attach.terminal_id,
+                ),
+                Desync::TerminalId => respond_capabilities_with(
+                    &mut host,
+                    correlation,
+                    attach.attachment_id,
+                    attach.capabilities,
+                    false,
+                    HostTerminalId::from_bytes([0x99; 16]).map_err(protocol_io)?,
+                ),
+                // A different, well-formed response kind: legible on the wire but not the
+                // attach acknowledgement.
+                Desync::Kind => respond_detach(
+                    &mut host,
+                    correlation,
+                    AttachmentTarget {
+                        attachment_id: attach.attachment_id,
+                    },
+                ),
+            }
             .map_err(protocol_io)?;
-        let (_target, correlation) = expect_detach(&mut host).map_err(protocol_io)?;
-        respond_failure(&mut host, correlation, "invalid-phase").map_err(protocol_io)?;
-        // The unconfirmed cleanup ends the carrier; nothing else is exchanged.
-        require_connection_closed(&mut host)
-    });
-    let worker = RunningWorker::start(&fixture)?;
-    let (mut server, _) = admit_worker(&fixture.server_listener)?;
-    assert_eq!(worker.await_readiness()?, Some(*b"ready\n"));
-    assert_eq!(
-        send(
-            &mut server,
-            send_request(1, 7, identity(SCRIPT_EPOCH, TERMINAL)?, text("ls", false)?)?,
-        )?
-        .outcome(),
-        TerminalSendOutcome::Accepted {
-            progress: SendProgress::complete(1, 2),
-            cleanup: SendCleanupStatus::Unconfirmed,
-        }
-    );
-    let _written = write_obcn(
-        &mut server,
-        &CapabilityNodeMessage::TerminalSendRequest(send_request(
-            9,
-            7,
-            identity(SCRIPT_EPOCH, TERMINAL)?,
-            text("ls", false)?,
-        )?),
-    );
-    require_connection_closed(&mut server)?;
-    assert_failed_after_exact_readiness(worker.finish()?);
-    join_peer(host, "Host detach-refusal observer")?;
-    Ok(())
-}
-
-/// A desynchronized attach acknowledgement is a protocol fault: the stream is
-/// shut down immediately — the peer must observe that no DetachTerminal or
-/// any other request followed.
-#[test]
-fn send_attach_desync_shuts_down_without_another_exchange() -> TestResult {
-    let fixture = RuntimeFixture::new()?;
-    let listener = fixture.bind_host_listener()?;
-    let host = thread::spawn(move || -> io::Result<()> {
-        let mut host = admit_host(&listener)?;
-        let (attach, correlation) = expect_attach(&mut host).map_err(protocol_io)?;
-        // Acknowledge the wrong attachment identity: desync, not a refusal.
-        respond_desynced_capabilities(&mut host, correlation, &attach).map_err(protocol_io)?;
-        require_connection_closed(&mut host)
-    });
-    let worker = RunningWorker::start(&fixture)?;
-    let (mut server, _) = admit_worker(&fixture.server_listener)?;
-    assert_eq!(worker.await_readiness()?, Some(*b"ready\n"));
-    assert_eq!(
-        send(
-            &mut server,
-            send_request(1, 7, identity(SCRIPT_EPOCH, TERMINAL)?, text("ls", false)?)?,
-        )?
-        .outcome(),
-        TerminalSendOutcome::Unavailable {
-            progress: SendProgress::none(),
-            reason: SendUnavailable::HostProtocolFault,
-            cleanup: SendCleanupStatus::Unconfirmed,
-        }
-    );
-    require_connection_closed(&mut server)?;
-    assert_failed_after_exact_readiness(worker.finish()?);
-    join_peer(host, "Host attach-desync observer")?;
+            let (target, correlation) = expect_detach(&mut host).map_err(protocol_io)?;
+            assert_eq!(target.attachment_id, attach.attachment_id);
+            respond_detach(&mut host, correlation, target).map_err(protocol_io)?;
+            drive_send_happy_path(&mut host, 2).map_err(protocol_io)?;
+            require_connection_closed(&mut host)
+        });
+        let worker = RunningWorker::start(&fixture)?;
+        let (mut server, _) = admit_worker(&fixture.server_listener)?;
+        assert_eq!(worker.await_readiness()?, Some(*b"ready\n"));
+        assert_eq!(
+            send(
+                &mut server,
+                send_request(1, 7, identity(SCRIPT_EPOCH, TERMINAL)?, text("ls", false)?)?,
+            )?
+            .outcome(),
+            TerminalSendOutcome::Rejected {
+                reason: SendRejection::HostRejected,
+                progress: SendProgress::none(),
+                cleanup: SendCleanupStatus::Confirmed,
+            }
+        );
+        assert_eq!(
+            send(
+                &mut server,
+                send_request(9, 7, identity(SCRIPT_EPOCH, TERMINAL)?, text("ls", false)?)?,
+            )?
+            .outcome(),
+            TerminalSendOutcome::Accepted {
+                progress: SendProgress::complete(1, 2),
+                cleanup: SendCleanupStatus::Confirmed,
+            }
+        );
+        drop(server);
+        assert_failed_after_exact_readiness(worker.finish()?);
+        join_peer(host, "Host attach-desync observer")?;
+    }
     Ok(())
 }
 
@@ -941,14 +960,12 @@ fn send_attach_response_envelope_violations_are_protocol_faults() -> TestResult 
         Epoch,
         Role,
         Encoding,
-        Kind,
     }
     for corruption in [
         Corrupt::Correlation,
         Corrupt::Epoch,
         Corrupt::Role,
         Corrupt::Encoding,
-        Corrupt::Kind,
     ] {
         let fixture = RuntimeFixture::new()?;
         let listener = fixture.bind_host_listener()?;
@@ -1022,30 +1039,6 @@ fn send_attach_response_envelope_violations_are_protocol_faults() -> TestResult 
                     record[ENCODING_OFFSET] = RAW_BYTES_CODE;
                     host.write_all(&record)?;
                 }
-                Corrupt::Kind => {
-                    // A different, well-formed response kind: legible on the
-                    // wire but not the attach acknowledgement.
-                    let EncodedAttachmentControl {
-                        kind,
-                        role,
-                        payload,
-                    } = encode_attachment_control(&AttachmentControl::DetachTerminalAccepted(
-                        AttachmentTarget {
-                            attachment_id: attach.attachment_id,
-                        },
-                    ))
-                    .map_err(protocol_io)?;
-                    host.write_all(
-                        &host_record(
-                            kind,
-                            role,
-                            &payload,
-                            scripted_epoch().map_err(protocol_io)?,
-                            correlation,
-                        )
-                        .map_err(protocol_io)?,
-                    )?;
-                }
             }
             require_connection_closed(&mut host)
         });
@@ -1067,72 +1060,6 @@ fn send_attach_response_envelope_violations_are_protocol_faults() -> TestResult 
         require_connection_closed(&mut server)?;
         assert_failed_after_exact_readiness(worker.finish()?);
         join_peer(host, "Host echo-violation observer")?;
-    }
-    Ok(())
-}
-
-/// Capability echo mismatches on the attach response are the same protocol
-/// desync class: the acknowledgement does not echo what was requested.
-#[test]
-fn send_attach_capability_echo_mismatches_are_protocol_faults() -> TestResult {
-    // A granted resize lease without resize capability is already rejected by
-    // the sanctioned encoder, so only constructible mismatches are covered.
-    #[derive(Clone, Copy)]
-    enum Mismatch {
-        Capabilities,
-        TerminalId,
-    }
-    for mismatch in [Mismatch::Capabilities, Mismatch::TerminalId] {
-        let fixture = RuntimeFixture::new()?;
-        let listener = fixture.bind_host_listener()?;
-        let host = thread::spawn(move || -> io::Result<()> {
-            let mut host = admit_host(&listener)?;
-            let (attach, correlation) = expect_attach(&mut host).map_err(protocol_io)?;
-            let (capabilities, resize_lease, terminal_id) = match mismatch {
-                Mismatch::Capabilities => (
-                    AttachmentCapabilityState {
-                        read: true,
-                        input: true,
-                        resize: false,
-                    },
-                    false,
-                    attach.terminal_id,
-                ),
-                Mismatch::TerminalId => (
-                    attach.capabilities,
-                    false,
-                    HostTerminalId::from_bytes([0x99; 16]).map_err(protocol_io)?,
-                ),
-            };
-            respond_capabilities_with(
-                &mut host,
-                correlation,
-                attach.attachment_id,
-                capabilities,
-                resize_lease,
-                terminal_id,
-            )
-            .map_err(protocol_io)?;
-            require_connection_closed(&mut host)
-        });
-        let worker = RunningWorker::start(&fixture)?;
-        let (mut server, _) = admit_worker(&fixture.server_listener)?;
-        assert_eq!(worker.await_readiness()?, Some(*b"ready\n"));
-        assert_eq!(
-            send(
-                &mut server,
-                send_request(1, 7, identity(SCRIPT_EPOCH, TERMINAL)?, text("ls", false)?)?,
-            )?
-            .outcome(),
-            TerminalSendOutcome::Unavailable {
-                progress: SendProgress::none(),
-                reason: SendUnavailable::HostProtocolFault,
-                cleanup: SendCleanupStatus::Unconfirmed,
-            }
-        );
-        require_connection_closed(&mut server)?;
-        assert_failed_after_exact_readiness(worker.finish()?);
-        join_peer(host, "Host capability-mismatch observer")?;
     }
     Ok(())
 }
@@ -1177,7 +1104,8 @@ fn send_input_response_echo_violation_is_unknown_and_never_resent() -> TestResul
 
 /// Semantic-key acknowledgements echo the Host-encoded byte count: zero is a
 /// legal count (a mode may swallow the key), while a count beyond the
-/// protocol bound is desync — unknown, never resent, carrier closed.
+/// protocol bound is desync — unknown and never resent; the attachment is
+/// detached and the carrier kept.
 #[test]
 fn send_key_acknowledgement_byte_bounds() -> TestResult {
     for (acknowledged, expected) in [
@@ -1192,7 +1120,7 @@ fn send_key_acknowledgement_byte_bounds() -> TestResult {
             SendAcceptedBytes::MAXIMUM + 1,
             TerminalSendOutcome::OutcomeUnknown {
                 progress: SendProgress::none(),
-                cleanup: SendCleanupStatus::Unconfirmed,
+                cleanup: SendCleanupStatus::Confirmed,
             },
         ),
     ] {
@@ -1242,10 +1170,6 @@ fn send_key_acknowledgement_byte_bounds() -> TestResult {
                 )
                 .map_err(protocol_io)?;
             }
-            if desynced {
-                // The desynced stream ends without a third request.
-                return require_connection_closed(&mut host);
-            }
             let (target, correlation) = expect_detach(&mut host).map_err(protocol_io)?;
             respond_detach(&mut host, correlation, target).map_err(protocol_io)?;
             require_connection_closed(&mut host)
@@ -1266,13 +1190,9 @@ fn send_key_acknowledgement_byte_bounds() -> TestResult {
             .outcome(),
             expected
         );
-        if desynced {
-            require_connection_closed(&mut server)?;
-        } else {
-            // A clean acknowledgement keeps the carrier: the session ends
-            // when the Server side drops, not through Worker shutdown.
-            drop(server);
-        }
+        // Either acknowledgement keeps the carrier: the session ends when the
+        // Server side drops, not through Worker shutdown.
+        drop(server);
         assert_failed_after_exact_readiness(worker.finish()?);
         join_peer(host, "Host key-bound observer")?;
     }

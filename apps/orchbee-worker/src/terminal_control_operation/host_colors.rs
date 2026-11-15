@@ -1,8 +1,8 @@
 //! Applies the controlling Client's effective query colors to its terminal, independently of the
 //! launch's display mode. Unknown outer ANSI colors keep the current fallback.
 use super::{
-    ConnectionControl, CorrelationId, Error, HostBrokerConnection, Outcome, PayloadEncoding,
-    TerminalId, UnixStream, decode_connection_control, decode_transport_envelope,
+    ConnectionControl, CorrelationId, Error, HostBrokerConnection, NotStarted, Outcome,
+    PayloadEncoding, TerminalId, UnixStream, decode_connection_control, decode_transport_envelope,
     diagnostic_events, exchange, fresh_identity,
 };
 use crate::diagnostic_events::Site;
@@ -14,7 +14,8 @@ use orchbee_terminal_protocol::{
 };
 
 /// Best effort: a rejected or exited target stops following and keeps its current colors, and so
-/// does a target whose Host answer this Worker cannot accept.
+/// does a target whose Host answer this Worker cannot accept. A change the request has no room for
+/// waits for the next colors.
 pub(super) fn apply(
     host: &HostBrokerConnection,
     server: &UnixStream,
@@ -45,14 +46,17 @@ pub(super) fn apply(
                 terminal: next,
                 terminal_id,
             }))?;
-        let response = exchange(
+        let Some(response) = NotStarted::optional(exchange(
             host,
             server,
             CorrelationId::from_bytes(fresh_identity()?)?,
             command.kind,
             &command.payload,
             PayloadEncoding::ControlJson,
-        )?;
+        ))?
+        else {
+            break;
+        };
         let envelope = decode_transport_envelope(&response)?;
         if matches!(
             decode_connection_control(envelope.kind, envelope.role, envelope.payload),

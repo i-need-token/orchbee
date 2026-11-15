@@ -52,6 +52,7 @@ fn host(pacing: Pacing) -> TestResult<(HostBrokerConnection, UnixStream)> {
             host_colors: RefCell::new(crate::host_connection::HostColors::default()),
             drain: Rc::new(RefCell::new(crate::agent_drain::AgentDrain::new())),
             pacing,
+            inbound: Default::default(),
         },
         peer,
     ))
@@ -299,14 +300,13 @@ fn busy_host(peer: UnixStream, answers: Vec<(Answer, Duration)>) -> TestResult<B
 }
 
 #[test]
-fn a_drain_past_its_deadline_reads_whole_queued_events_and_never_resumes_a_partial_record()
--> TestResult {
+fn a_drain_reads_whole_queued_events_and_keeps_a_partial_one_for_the_next_read() -> TestResult {
     let (host, mut peer) = host(Pacing::default())?;
     let (server, _server_peer) = UnixStream::pair()?;
     peer.write_all(&signal(1))?;
     peer.write_all(&signal(2))?;
     thread::sleep(Duration::from_millis(50));
-    let late = HostExchange::new(&host, &server, Duration::from_millis(20)).ok_or("budget")?;
+    let late = HostExchange::new(&host, &server, Duration::from_millis(20))?;
     // The Worker loses the CPU past the deadline before it drains.
     thread::sleep(Duration::from_millis(80));
     assert_eq!(late.prepare(), Ok(()));
@@ -317,17 +317,19 @@ fn a_drain_past_its_deadline_reads_whole_queued_events_and_never_resumes_a_parti
     );
     assert_eq!(host.pacing.failure(), None);
 
-    // A record cut short past the deadline is never left for a later read: the whole event before
-    // it is read, and the cut one ends the connection as a deadline.
+    // A record the Host has only begun never holds the reader: the whole event before it is read,
+    // the begun one stays partial, and a later read finishes it.
+    let cut = signal(4);
     peer.write_all(&signal(3))?;
-    peer.write_all(&signal(4)[..12])?;
+    peer.write_all(&cut[..12])?;
     thread::sleep(Duration::from_millis(50));
-    let late = HostExchange::new(&host, &server, Duration::from_millis(20)).ok_or("budget")?;
-    thread::sleep(Duration::from_millis(80));
-    assert_eq!(late.prepare(), Err(PeerFailure::Host));
+    assert_eq!(late.prepare(), Ok(()));
     assert_eq!(host.drain.borrow().snapshot().1, 3);
-    let failure = host.pacing.failure().ok_or("recorded failure")?;
-    assert!(failure.deadline && failure.class == PeerFailure::Host);
+    peer.write_all(&cut[12..])?;
+    thread::sleep(Duration::from_millis(50));
+    assert_eq!(late.prepare(), Ok(()));
+    assert_eq!(host.drain.borrow().snapshot().1, 4);
+    assert_eq!(host.pacing.failure(), None);
     Ok(())
 }
 

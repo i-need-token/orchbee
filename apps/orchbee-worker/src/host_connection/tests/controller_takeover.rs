@@ -138,6 +138,7 @@ fn fixture() -> Result<(HostBrokerConnection, UnixStream), Box<dyn Error>> {
         host_colors: RefCell::new(crate::host_connection::HostColors::default()),
         drain: Rc::new(RefCell::new(AgentDrain::new())),
         pacing: crate::host_connection::Pacing::default(),
+        inbound: Default::default(),
     };
     for viewer in [10, 20] {
         host.viewers
@@ -227,6 +228,128 @@ fn accept_demand(peer: &mut UnixStream, attachment: u8, demand: ProjectionDemand
         &response.payload,
         PayloadEncoding::ControlJson,
     );
+}
+
+#[test]
+fn contradictory_input_or_paste_answer_is_refused_releases_the_grant_and_is_never_replayed()
+-> TestResult {
+    let actions = [
+        Action::Input {
+            sequence: NonZeroU64::MIN,
+            bytes: ControlInput::new(vec![0, 0x1b, 0xff])?,
+        },
+        Action::Paste {
+            sequence: NonZeroU64::MIN,
+            content: orchbee_capability_node_protocol::PasteContent::new(
+                b"\x00paste\xff".to_vec(),
+            )?,
+        },
+    ];
+    for action in actions {
+        let (host, mut peer) = fixture()?;
+        let (server, _quiet) = UnixStream::pair()?;
+        thread::scope(|scope| -> TestResult {
+            let script = scope.spawn(move || {
+                // The input or paste, acknowledged with a count that contradicts it.
+                let record = read_transport_record(&mut peer).unwrap();
+                let envelope = decode_transport_envelope(&record).unwrap();
+                let (attachment_id, capability_revision) =
+                    match decode_input_message(envelope.kind, envelope.role, envelope.payload)
+                        .unwrap()
+                    {
+                        InputMessage::WriteInput(input) => {
+                            (input.attachment_id, input.capability_revision)
+                        }
+                        InputMessage::PasteAutoInput(paste) => {
+                            (paste.attachment_id, paste.capability_revision)
+                        }
+                        _ => panic!("expected the input or paste"),
+                    };
+                assert_eq!(*attachment_id.as_bytes(), id(11).as_bytes());
+                let contradiction =
+                    encode_input_message(&InputMessage::InputAccepted(InputAccepted {
+                        attachment_id,
+                        capability_revision,
+                        accepted_bytes: 0,
+                    }))
+                    .unwrap();
+                respond(
+                    &mut peer,
+                    &envelope,
+                    contradiction.kind,
+                    &contradiction.payload,
+                    PayloadEncoding::ControlJson,
+                );
+                // The grant is released at once, and nothing is sent again.
+                let record = read_transport_record(&mut peer).unwrap();
+                let envelope = decode_transport_envelope(&record).unwrap();
+                let AttachmentControl::DetachTerminal(target) =
+                    decode_attachment_control(envelope.kind, envelope.role, envelope.payload)
+                        .unwrap()
+                else {
+                    panic!("expected the controller's Detach")
+                };
+                assert_eq!(*target.attachment_id.as_bytes(), id(11).as_bytes());
+                let released =
+                    encode_attachment_control(&AttachmentControl::DetachTerminalAccepted(target))
+                        .unwrap();
+                respond(
+                    &mut peer,
+                    &envelope,
+                    released.kind,
+                    &released.payload,
+                    PayloadEncoding::ControlJson,
+                );
+                // The Client acquires control anew.
+                let record = read_transport_record(&mut peer).unwrap();
+                let envelope = decode_transport_envelope(&record).unwrap();
+                let AttachmentControl::AttachTerminal(attach) =
+                    decode_attachment_control(envelope.kind, envelope.role, envelope.payload)
+                        .unwrap()
+                else {
+                    panic!("expected a new Attach")
+                };
+                assert_eq!(*attach.attachment_id.as_bytes(), id(12).as_bytes());
+                let granted = encode_attachment_control(
+                    &AttachmentControl::AttachmentCapabilities(AttachmentCapabilities {
+                        attachment_id: attach.attachment_id,
+                        terminal_id: attach.terminal_id,
+                        capabilities: attach.capabilities,
+                        capability_revision: NonZeroU64::MIN,
+                        resize_lease: true,
+                    }),
+                )
+                .unwrap();
+                respond(
+                    &mut peer,
+                    &envelope,
+                    granted.kind,
+                    &granted.payload,
+                    PayloadEncoding::ControlJson,
+                );
+                accept_demand(&mut peer, 12, ProjectionDemand::Active);
+                peer
+            });
+            assert_eq!(
+                execute(&host, &server, request(10, 11, action.clone()))?,
+                Outcome::Rejected(ControlRejection::HostRejected)
+            );
+            assert!(host.controllers.borrow().for_viewer(id(10)).is_none());
+            assert_eq!(
+                execute(&host, &server, request(10, 12, Action::Acquire))?,
+                Outcome::Acquired
+            );
+            let mut peer = script.join().map_err(|_| "the scripted Host panicked")?;
+            assert_eq!(host.pacing.failure(), None);
+            peer.set_nonblocking(true)?;
+            assert_eq!(
+                peer.read(&mut [0]).unwrap_err().kind(),
+                std::io::ErrorKind::WouldBlock
+            );
+            Ok(())
+        })?;
+    }
+    Ok(())
 }
 
 #[test]

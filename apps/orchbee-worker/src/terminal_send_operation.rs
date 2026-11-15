@@ -30,6 +30,7 @@ use orchbee_terminal_protocol::{
     encode_attachment_control, encode_input_message, encode_transport_envelope,
 };
 
+use crate::diagnostic_events::{Site, host_unexpected};
 use crate::host_connection::{HostBrokerConnection, HostExchange, HostFailure, PeerFailure};
 use crate::worker_identity::fresh_identity;
 
@@ -57,12 +58,15 @@ pub(crate) struct SendExecution {
     pub(crate) host_failed: bool,
 }
 
-/// One Host step's answer, classified by where the exchange ended. Only a
-/// well-formed correlated response lets the operation continue; every other
-/// answer ends the carrier without another exchange on the same stream.
+/// One Host step's answer, classified by where the exchange ended. A
+/// well-formed correlated response lets the operation continue, and a step that
+/// wrote nothing leaves the carrier in step; every other answer ends the
+/// carrier without another exchange on the same stream.
 enum StepAnswer {
     /// A complete correlated response record to interpret.
     Record(Vec<u8>),
+    /// The request had no room left for this exchange; nothing was written.
+    NotStarted,
     /// The request could not even be constructed locally — a failed identity
     /// draw or envelope encoding. The request provably never reached the Host.
     LocalFault,
@@ -78,31 +82,39 @@ enum StepAnswer {
 enum AttachOutcome {
     Revision(NonZeroU64),
     Refused(SendRejection),
-    Desync,
+    /// An intact correlated answer, of this message kind, that grants something
+    /// other than the attachment asked for.
+    Desync(u16),
 }
 
 enum InputOutcome {
     Accepted(SendAcceptedBytes),
     Refused(SendRejection),
-    Desync,
+    /// An intact correlated answer, of this message kind, that contradicts the
+    /// record.
+    Desync(u16),
 }
 
 #[derive(Clone, Copy)]
 enum DetachOutcome {
+    /// The Host accepted the Detach, or refused it: the attachment is gone.
     Released,
-    Refused,
-    Unreachable,
+    /// The attachment may remain, and a later cleanup detaches it; the carrier
+    /// stays in step.
+    Unconfirmed,
+    /// The carrier failed while detaching.
+    Lost,
 }
 
 impl DetachOutcome {
-    /// Only a confirmed release keeps the carrier healthy. A typed refusal or
-    /// an unreachable cleanup both leave the attachment's fate unknown, and an
-    /// unconfirmed cleanup must not keep accepting sends that would stack
-    /// more input-only attachments on the same carrier — the Host is closed.
+    /// The cleanup status, and whether the carrier must end. An attachment
+    /// left for cleanup counts toward the detach backlog, which refuses new
+    /// sends while full instead of stacking input-only attachments.
     fn cleanup(self) -> (SendCleanupStatus, bool) {
         match self {
             Self::Released => (SendCleanupStatus::Confirmed, false),
-            Self::Refused | Self::Unreachable => (SendCleanupStatus::Unconfirmed, true),
+            Self::Unconfirmed => (SendCleanupStatus::Unconfirmed, false),
+            Self::Lost => (SendCleanupStatus::Unconfirmed, true),
         }
     }
 }
@@ -196,8 +208,8 @@ fn apply(
         request_resize_lease: false,
         terminal_id,
     }))?;
-    if !may_start(input_deadline) {
-        return respond(
+    let not_started = || {
+        respond(
             &request,
             TerminalSendOutcome::Unavailable {
                 reason: SendUnavailable::InputBudgetExhausted,
@@ -206,7 +218,11 @@ fn apply(
             },
             host,
             false,
-        );
+        )
+    };
+    // While Detaches wait for cleanup, no further input-only attachment is opened.
+    if !may_start(input_deadline) || host.detach_backlog_full() {
+        return not_started();
     }
     let capability_revision = match exchange_fresh(
         host,
@@ -229,18 +245,37 @@ fn apply(
                     false,
                 );
             }
-            AttachOutcome::Desync => {
-                return close(
+            // A grant other than the one asked for is never used: this send is refused and
+            // the attachment detached. The answer arrived intact, so the carrier stays in step.
+            AttachOutcome::Desync(kind) => {
+                host_unexpected(Site::Send, kind);
+                let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
+                return respond(
                     &request,
-                    TerminalSendOutcome::Unavailable {
-                        reason: SendUnavailable::HostProtocolFault,
+                    TerminalSendOutcome::Rejected {
+                        reason: SendRejection::HostRejected,
                         progress: SendProgress::none(),
-                        cleanup: SendCleanupStatus::Unconfirmed,
+                        cleanup,
                     },
                     host,
+                    host_failed,
                 );
             }
         },
+        StepAnswer::NotStarted => return not_started(),
+        // The Attach provably never reached the Host, so the carrier stays in step.
+        StepAnswer::LocalFault => {
+            return respond(
+                &request,
+                TerminalSendOutcome::Unavailable {
+                    reason: SendUnavailable::HostUnavailable,
+                    progress: SendProgress::none(),
+                    cleanup: SendCleanupStatus::NotNeeded,
+                },
+                host,
+                false,
+            );
+        }
         StepAnswer::ProtocolFault => {
             return close(
                 &request,
@@ -252,7 +287,7 @@ fn apply(
                 host,
             );
         }
-        StepAnswer::LocalFault | StepAnswer::TransportLost => {
+        StepAnswer::TransportLost => {
             // Nothing trustworthy came back; the attachment may exist on the
             // Host but the stream can never carry a reliable DetachTerminal.
             // Shutdown lets the pending attachment die with the connection.
@@ -336,17 +371,38 @@ fn apply(
                             host_failed,
                         );
                     }
-                    InputOutcome::Desync => {
-                        return close(
+                    // The record may have been typed, so its outcome is unknown and it is
+                    // never sent again. The answer arrived intact, so the carrier stays in
+                    // step and the attachment is detached.
+                    InputOutcome::Desync(kind) => {
+                        host_unexpected(Site::Send, kind);
+                        let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
+                        return respond(
                             &request,
                             TerminalSendOutcome::OutcomeUnknown {
                                 progress: SendProgress::stopped(index, accepted_encoded_bytes),
-                                cleanup: SendCleanupStatus::Unconfirmed,
+                                cleanup,
                             },
                             host,
+                            host_failed,
                         );
                     }
                 }
+            }
+            // The request had no room for this record: a determinate stop, as at the input
+            // deadline.
+            StepAnswer::NotStarted => {
+                let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
+                return respond(
+                    &request,
+                    TerminalSendOutcome::Unavailable {
+                        reason: SendUnavailable::InputBudgetExhausted,
+                        progress: SendProgress::stopped(index, accepted_encoded_bytes),
+                        cleanup,
+                    },
+                    host,
+                    host_failed,
+                );
             }
             // The record may have been applied before the carrier failed or
             // the response desynced; it is never resent and no further
@@ -361,16 +417,18 @@ fn apply(
                     host,
                 );
             }
-            // The record provably never left this Worker.
+            // The record provably never left this Worker, so the carrier stays in step.
             StepAnswer::LocalFault => {
-                return close(
+                let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
+                return respond(
                     &request,
                     TerminalSendOutcome::Unavailable {
                         reason: SendUnavailable::HostUnavailable,
                         progress: SendProgress::stopped(index, accepted_encoded_bytes),
-                        cleanup: SendCleanupStatus::Unconfirmed,
+                        cleanup,
                     },
                     host,
+                    host_failed,
                 );
             }
         }
@@ -421,7 +479,9 @@ fn exchange_fresh(
     let Ok((correlation, record)) = local else {
         return Ok(StepAnswer::LocalFault);
     };
-    let mut exchange = HostExchange::open(host, server);
+    let Ok(mut exchange) = HostExchange::open(host, server) else {
+        return Ok(StepAnswer::NotStarted);
+    };
     match exchange.prepare() {
         Ok(()) => {}
         Err(PeerFailure::Host) => return Ok(StepAnswer::TransportLost),
@@ -464,14 +524,14 @@ fn attach_outcome(
     let Ok(AttachmentControl::AttachmentCapabilities(accepted)) =
         decode_attachment_control(envelope.kind, envelope.role, envelope.payload)
     else {
-        return Ok(AttachOutcome::Desync);
+        return Ok(AttachOutcome::Desync(envelope.kind));
     };
     if accepted.attachment_id != attachment_id
         || accepted.terminal_id != terminal_id
         || accepted.capabilities != INPUT_CAPABILITIES
         || accepted.resize_lease
     {
-        return Ok(AttachOutcome::Desync);
+        return Ok(AttachOutcome::Desync(envelope.kind));
     }
     Ok(AttachOutcome::Revision(accepted.capability_revision))
 }
@@ -498,7 +558,7 @@ fn input_outcome(
         capability_revision: accepted_revision,
     })) = decode_input_message(envelope.kind, envelope.role, envelope.payload)
     else {
-        return Ok(InputOutcome::Desync);
+        return Ok(InputOutcome::Desync(envelope.kind));
     };
     // A raw write is admitted byte-exact or not at all; a semantic key and a
     // mode-encoded paste report whatever byte count the Host produced under
@@ -508,28 +568,35 @@ fn input_outcome(
         || accepted_revision != capability_revision
         || expected_bytes.is_some_and(|expected| accepted_bytes != expected)
     {
-        return Ok(InputOutcome::Desync);
+        return Ok(InputOutcome::Desync(envelope.kind));
     }
     let Ok(bytes) = SendAcceptedBytes::new(accepted_bytes) else {
-        return Ok(InputOutcome::Desync);
+        return Ok(InputOutcome::Desync(envelope.kind));
     };
     Ok(InputOutcome::Accepted(bytes))
 }
 
-/// Best-effort detach under the exchange bound for the paths where
-/// the carrier stayed healthy enough to try: a typed input refusal, a
-/// validated InputAccepted, or a determinate budget stop between records. A
-/// local construction failure still counts as unreachable — the resulting
-/// shutdown drops the lingering attachment with the connection instead of
-/// silently retaining it.
+/// Detaches the send's attachment under the exchange bound, on the paths where
+/// the carrier stayed in step: a typed input refusal, a validated
+/// InputAccepted, an intact answer this Worker could not accept, or a
+/// determinate stop between records. The Host's acceptance or refusal ends the
+/// attachment; a refusal is recorded. Another intact answer, a Detach the
+/// request has no room for, or one that could not be built leaves the
+/// attachment to a later cleanup. Only a carrier that failed while detaching
+/// is lost; a Server-side failure here ends the session through that loss, so
+/// the pending result is never fabricated.
 fn detach(
     host: &HostBrokerConnection,
     server: &UnixStream,
     attachment_id: AttachmentId,
 ) -> DetachOutcome {
+    let deferred = || {
+        host.defer_detach(*attachment_id.as_bytes());
+        DetachOutcome::Unconfirmed
+    };
     let target = AttachmentTarget { attachment_id };
     let Ok(command) = encode_attachment_control(&AttachmentControl::DetachTerminal(target)) else {
-        return DetachOutcome::Unreachable;
+        return deferred();
     };
     let answer = match exchange_fresh(
         host,
@@ -539,35 +606,33 @@ fn detach(
         PayloadEncoding::ControlJson,
     ) {
         Ok(answer) => answer,
-        Err(error) => return unreachable_detach(error),
+        Err(_server) => return DetachOutcome::Lost,
     };
-    let StepAnswer::Record(record) = answer else {
-        return DetachOutcome::Unreachable;
+    let record = match answer {
+        StepAnswer::Record(record) => record,
+        StepAnswer::NotStarted | StepAnswer::LocalFault => return deferred(),
+        StepAnswer::TransportLost | StepAnswer::ProtocolFault => return DetachOutcome::Lost,
     };
     let Ok(envelope) = decode_transport_envelope(&record) else {
-        return DetachOutcome::Unreachable;
+        return DetachOutcome::Lost;
     };
     if matches!(
         decode_connection_control(envelope.kind, envelope.role, envelope.payload),
         Ok(ConnectionControl::TypedFailure(_))
     ) {
-        return DetachOutcome::Refused;
+        host_unexpected(Site::Send, envelope.kind);
+        return DetachOutcome::Released;
     }
     match decode_attachment_control(envelope.kind, envelope.role, envelope.payload) {
         Ok(AttachmentControl::DetachTerminalAccepted(accepted)) if accepted == target => {
             DetachOutcome::Released
         }
         // Only the requested Host acknowledgment can confirm this attachment/process operation.
-        _ => DetachOutcome::Unreachable,
+        _ => {
+            host_unexpected(Site::Send, envelope.kind);
+            deferred()
+        }
     }
-}
-
-/// A Server-side exchange failure while detaching is fatal to the session
-/// anyway; it is reported through the operation's error path so the pending
-/// result is never fabricated.
-fn unreachable_detach(error: Box<dyn Error>) -> DetachOutcome {
-    let _ = error;
-    DetachOutcome::Unreachable
 }
 
 /// One Host input exchange: a single record, or an idle-prompt send's whole line.
@@ -699,7 +764,7 @@ const fn prompt_state(reason: PromptUnconfirmedReason) -> SendPromptState {
 }
 
 /// A healthy-carrier result: the connection stays usable for the next Server
-/// operation. `host_failed` here means the cleanup detach itself desynced.
+/// operation. `host_failed` here means the carrier failed while detaching.
 fn respond(
     request: &TerminalSendRequest,
     outcome: TerminalSendOutcome,

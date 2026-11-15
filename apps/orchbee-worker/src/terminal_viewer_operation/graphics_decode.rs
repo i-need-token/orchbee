@@ -65,7 +65,10 @@ fn read(
         protocol: CURRENT_PROTOCOL_VERSION,
         role: MessageRole::Request,
     })?;
-    let mut exchange = HostExchange::open(host, server);
+    // A decode the request has no room for fails only this image, like a refused one.
+    let Ok(mut exchange) = HostExchange::open(host, server) else {
+        return Ok(Outcome::Rejected(ViewerRejection::HostRejected));
+    };
     exchange.prepare().map_err(|class| exchange.error(class))?;
     let record = exchange
         .round_trip_bounded(
