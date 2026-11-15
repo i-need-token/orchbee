@@ -1,6 +1,10 @@
 //! Windows update effects: declared inputs, no-follow source admission, owned process execution,
 //! and the user `Path` value the PATH step edits.
-use super::{Context, path_value::Edit};
+use super::{
+    Context,
+    acquire::system_proxy::{Settings, Value},
+    path_value::Edit,
+};
 use orchbee_local_runtime::{CommandOutput, EnvironmentKind, environment_kind};
 use std::{
     ffi::OsString,
@@ -97,6 +101,35 @@ pub(super) fn curl_command_from(
         }
     }
     Ok(command)
+}
+
+/// The per-user key whose manual proxy values a download reads when the environment names no
+/// proxy. Only `ProxyEnable`, `ProxyServer` and `ProxyOverride` are read; `AutoConfigURL`,
+/// automatic detection and the binary `Connections` values are not.
+const INTERNET_SETTINGS: &str = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
+
+/// The manual proxy values of `HKEY_CURRENT_USER\<INTERNET_SETTINGS>`, read without writing; none
+/// when the key cannot be opened. A value of an unexpected type or that cannot be read is
+/// [`Value::Other`], which the mapping treats as no proxy.
+pub(super) fn system_proxy() -> Option<Settings> {
+    let key = w::HKEY::CURRENT_USER
+        .RegOpenKeyEx(
+            Some(INTERNET_SETTINGS),
+            co::REG_OPTION::default(),
+            co::KEY::QUERY_VALUE,
+        )
+        .ok()?;
+    let value = |name: &str| match key.RegQueryValueEx(Some(name)) {
+        Ok(w::RegistryValue::Dword(number)) => Value::Number(number),
+        Ok(w::RegistryValue::Sz(text)) => Value::Text(text),
+        Err(error) if error == co::ERROR::FILE_NOT_FOUND => Value::Absent,
+        Ok(_) | Err(_) => Value::Other,
+    };
+    Some(Settings {
+        enabled: value("ProxyEnable"),
+        server: value("ProxyServer"),
+        bypass: value("ProxyOverride"),
+    })
 }
 
 /// The system `tar.exe` with a cleared environment holding only `SystemRoot`. Its arguments and

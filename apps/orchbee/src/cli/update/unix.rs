@@ -1,5 +1,5 @@
 //! No update effects are implemented on Unix; every port refuses without observation or mutation.
-use super::{Context, path_value::Edit};
+use super::{Context, acquire::system_proxy::Settings, path_value::Edit};
 use orchbee_local_runtime::CommandOutput;
 use std::{
     fs::File,
@@ -27,6 +27,11 @@ pub(super) fn open_source_file(_path: &Path) -> io::Result<File> {
 
 pub(super) fn curl_command() -> io::Result<Command> {
     Err(io::ErrorKind::Unsupported.into())
+}
+
+/// No per-user system proxy is read on Unix, where no download runs; curl reads the environment.
+pub(super) fn system_proxy() -> Option<Settings> {
+    None
 }
 
 pub(super) fn tar_command() -> io::Result<Command> {

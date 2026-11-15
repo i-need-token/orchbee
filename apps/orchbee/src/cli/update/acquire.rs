@@ -1,4 +1,6 @@
 //! Bounded explicit release acquisition. Every subprocess belongs to the invocation's Job.
+pub(super) mod system_proxy;
+
 use super::{
     Context, Error, manifest, platform,
     signature::{DOCUMENT_LIMIT, FEED_LIMIT, MANIFEST_LIMIT},
@@ -282,8 +284,9 @@ enum Transfer {
     /// [`transfer_seconds`] of its `--max-filesize`, the signed size.
     Archive,
 }
-/// One bounded transfer: HTTPS only, at most five redirects, each to HTTPS. A loopback source
-/// instead allows plain HTTP to 127.0.0.1 and no proxy; only a test build ever has one.
+/// One bounded transfer: HTTPS only, at most five redirects, each to HTTPS, through the proxy the
+/// environment names or else the per-user system proxy. A loopback source instead allows plain
+/// HTTP to 127.0.0.1 and no proxy; only a test build ever has one.
 fn curl(url: &str, limit: u64, loopback: bool, transfer: Transfer) -> Result<Command, Error> {
     let protocol = if loopback { "=http" } else { "=https" };
     let mut command = curl_base()?;
@@ -315,6 +318,11 @@ fn curl(url: &str, limit: u64, loopback: bool, transfer: Transfer) -> Result<Com
     };
     if loopback {
         command.args(["--noproxy", "127.0.0.1"]);
+    } else {
+        command.args(system_proxy::arguments(
+            &|name| std::env::var_os(name),
+            platform::system_proxy,
+        ));
     }
     command
         .arg("--max-filesize")
