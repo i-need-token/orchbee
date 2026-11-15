@@ -1043,8 +1043,8 @@ running. The action menu entry carries the same sentence, so it stays reachable 
   plan.
 - Archives come from GitHub Releases only when a new version appears: 24.9 MB for the 0.1.0-beta.2
   runtime and, for window users from the window self-update release on, the window archive, about
-  100–130 MB (unmeasured). The owner's release-often rule accepts that size; a release whose window
-  did not change may later name the previous window archive. Nothing costs the project money.
+  175 MB as a test package zips. The owner's release-often rule accepts that size; a release whose
+  window did not change may later name the previous window archive. Nothing costs the project money.
 - Offline or failing: nothing on screen, and the next hour retries. A cut download starts over,
   since neither resume nor retry is frozen.
 - Proxy: the helper passes `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` from the Server's environment
@@ -1069,7 +1069,8 @@ Rule: each step reuses a store rule.
 - Bounded disk: after each install the helper deletes, under `install.lock`, every runtime and
   window version that is neither active nor previous, runs no process, and is referenced by no
   Session, Host, or Capsule. A store therefore holds the active and previous versions plus whatever
-  still runs. Unmeasured: about 60 MB per runtime version and 300 MB per window version, unpacked.
+  still runs. Unpacked, a window version takes about 449 MB, as a test package does, and a runtime
+  version about 60 MB (unmeasured).
 - A switch never touches a running file, and a failed install leaves both pointers where they were.
 
 ## Phases
