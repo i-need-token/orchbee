@@ -496,14 +496,15 @@ jobs:
           include-hidden-files: true
           retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
 
-      # The feed job receives only the feed document it signs.
+      # The feed job receives only the feed document it signs. A tag run keeps it as long as the
+      # release artifacts, so a failed feed job can run again.
       - name: Upload the feed to sign
         uses: actions/upload-artifact@v4
         with:
           name: release-feed-${{ matrix.platform }}
           path: ${{ runner.temp }}\release-artifacts\orchbee-${{ needs.release-plan.outputs.version }}-${{ matrix.platform }}.feed.json
           if-no-files-found: error
-          retention-days: 1
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
 
   # Signs the update feed document and the release gate's copy of it, which names the archive by its
   # file name. Every release-path run signs, so a rehearsal proves this job before a tag does. Like
