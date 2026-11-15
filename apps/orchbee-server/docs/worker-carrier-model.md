@@ -93,7 +93,23 @@ The only unsolicited kinds are `TerminalViewerRecordReady` and `TerminalTitlesCh
 idle and while a response is awaited. The owner routes each viewer hint, and each title note to the
 Session title registry for its own generation, and keeps waiting; a wire without a registry drops
 the note, which costs only latency. A hint never completes a request and changes no dispatch
-position, so the bounds above are unchanged; any other unsolicited bytes still retire the carrier.
+position, so the bounds above are unchanged. Any other whole frame read while idle, a late reply
+to a request that already failed among them, is dropped and recorded; only bytes that do not begin
+a frame, or a frame that stops arriving, retire the carrier.
+
+## Failure scope
+
+A failed exchange fails only its own request unless the wire itself is lost. A reply that misses
+its window, a whole frame with invalid content, a wrong kind or direction, and an echo mismatch
+complete that request with `PostDeliveryOutcomeUnknown` and the owner dispatches the next one. The
+carrier retires only when the frame boundary is lost (a bad header or length, or a started frame
+unfinished by the later of the response window and its I/O timeout after the first byte), the
+transport closes or fails, a request write
+is incomplete, an in-flight `Required` completion cannot be delivered, or a `Handoff` or
+`Shutdown` fails, since both belong to the generation. The owner remembers the last eight requests
+that failed while the wire kept serving; a later reply that echoes one is dropped and recorded,
+whether it arrives during another exchange or while idle, so it never stands in for another
+request's result.
 
 ## Drain and tombstone
 
@@ -109,8 +125,8 @@ Completion ownership is one of `Required`, `DiscardableDrain` or `Detached`, fix
 admitted request kind at admission construction: `Detached` cleanup requests settle by drop;
 losing the reply receiver of an in-flight `Required` request still retires the carrier
 conservatively; an abandoned `DiscardableDrain` exchange consumes and discards the valid reply
-so healthy carrier traffic survives — malformed frames, wrong kinds or directions, echo
-mismatches and transport failures stay fatal exactly as before. The `NotDelivered` versus
+so healthy carrier traffic survives; its invalid or mismatched reply fails only that request, as
+[failure scope](#failure-scope) describes. The `NotDelivered` versus
 `PostDeliveryOutcomeUnknown` distinction across the complete-write boundary is unchanged.
 
 ## Drain target

@@ -57,14 +57,14 @@ pub(super) fn decode_paste_record(record: &[u8]) -> Result<CapabilityNodeMessage
 pub(super) fn read_paste_record(
     reader: &mut impl Read,
     prefix: [u8; 8],
-) -> Result<CapabilityNodeMessage, ReadMessageError> {
+) -> Result<Result<CapabilityNodeMessage, ProtocolError>, ReadMessageError> {
     let mut header = [0; PASTE_RECORD_HEADER_BYTES];
     header[..8].copy_from_slice(&prefix);
     reader.read_exact(&mut header[8..])?;
     let body_length = paste_record_body_length(&header)?;
     let mut body = vec![0; body_length];
     reader.read_exact(&mut body)?;
-    decode_paste_record_body(&body).map_err(Into::into)
+    Ok(decode_paste_record_body(&body))
 }
 
 fn paste_record_body_length(header: &[u8]) -> Result<usize, ProtocolError> {

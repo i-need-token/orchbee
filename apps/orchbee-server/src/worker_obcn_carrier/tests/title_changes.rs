@@ -138,7 +138,7 @@ fn notes_reach_the_registry_while_idle_and_while_a_read_is_answered() -> TestRes
 }
 
 #[test]
-fn a_read_answer_echoing_another_request_retires_the_carrier() -> TestResult {
+fn a_read_answer_echoing_another_request_fails_only_the_read() -> TestResult {
     let request = read_request(6, 4)?;
     assert_post_delivery_failure(
         WorkerOperationRequest::TitleChanges(request),

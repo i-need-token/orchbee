@@ -1,7 +1,8 @@
 //! Owns one Worker wire with bounded priority admission, serialized exchanges, exact response
-//! validation, and explicit queued versus uncertain-delivery failures. Handles submit work
-//! without owning the socket, and the carrier does not authorize product operations or replay
-//! effects.
+//! validation, and explicit queued versus uncertain-delivery failures. A late, invalid, or
+//! mismatched reply fails only its own request; only lost framing or a failed transport ends the
+//! wire. Handles submit work without owning the socket, and the carrier does not authorize product
+//! operations or replay effects.
 
 use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
@@ -22,7 +23,8 @@ use orchbee_capability_node_protocol::{
     AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage, FRAME_MAGIC,
     ProtocolError, ReadMessageError, TerminalCwdValidationRequest, TerminalCwdValidationResult,
     TerminalLaunchResult, TerminalOperationAuthorization, TerminalStartResult,
-    TerminalViewerRecordReady, WorktreeJobRequest, WorktreeJobResult, encode_message, read_message,
+    TerminalViewerRecordReady, WorktreeJobRequest, WorktreeJobResult, encode_message,
+    read_framed_message,
 };
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_local_worker_protocol::WorkerId;
@@ -34,6 +36,8 @@ mod lifecycle;
 pub(crate) use lifecycle::PendingLifecycleResult;
 #[cfg(any(windows, test))]
 mod handoff;
+mod reply_key;
+use reply_key::ReplyKey;
 mod wire_end;
 pub(crate) use wire_end::WorkerWireEnd;
 
@@ -48,6 +52,9 @@ const UNWOKEN_OWNER_POLL_INTERVAL: Duration = Duration::from_millis(2);
 // A shutdown may spend its whole budget before it answers; its reply wait adds this margin.
 #[cfg(any(windows, test))]
 const SHUTDOWN_REPLY_MARGIN: Duration = Duration::from_secs(5);
+// A Worker answers in order, so a reply to an older failed request has almost surely been dropped
+// or will never come; the bound keeps the remembered keys small.
+const ABANDONED_REQUEST_LIMIT: usize = 8;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationRequest {
@@ -120,6 +127,16 @@ impl WorkerOperationRequest {
             Self::Titles(request) => (request.worker_id, request.worker_generation),
             Self::TitleChanges(request) => (request.worker_id, request.worker_generation),
             Self::HostQuery(request) => (request.worker_id, request.worker_generation),
+        }
+    }
+
+    /// A handoff holds the admission fence and a shutdown ends the generation, so a failed one
+    /// retires the wire; every other failed request ends alone.
+    const fn ends_wire_on_failure(&self) -> bool {
+        match self {
+            #[cfg(any(windows, test))]
+            Self::Handoff(_) | Self::Shutdown(_) => true,
+            _ => false,
         }
     }
 
@@ -1061,6 +1078,16 @@ pub(crate) struct WorkerWireOwner {
     ended_request: Option<wire_end::EndedRequest>,
     /// Whether the Worker answered a shutdown request.
     shutdown_answered: bool,
+    /// Requests that failed while the wire kept serving, oldest first, whose replies may still
+    /// come.
+    abandoned: VecDeque<AbandonedRequest>,
+}
+
+/// A request that failed without ending the wire; the Worker may still answer it.
+struct AbandonedRequest {
+    key: ReplyKey,
+    kind: &'static str,
+    failed: Instant,
 }
 
 /// Where this wire's Worker notes title changes: the Session registry, for this generation.
@@ -1080,9 +1107,19 @@ struct WorkerCarrierLimits {
 pub(crate) enum WorkerWireExit {
     Shutdown,
     PeerClosed,
-    UnexpectedPeerData,
+    /// The Worker's bytes no longer locate the next frame.
+    BrokenFraming(FramingBreak),
     Transport(WorkerTransportFailure),
     RequestFailed,
+}
+
+/// How the frame boundary on a Worker wire was lost.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FramingBreak {
+    /// A header whose magic, version, or length cannot locate the next frame.
+    Header(ProtocolError),
+    /// A frame that started but did not complete in time.
+    Incomplete,
 }
 
 pub(crate) fn create_worker_carrier(worker_id: WorkerId, generation: NonZeroU64) -> WorkerCarrier {
@@ -1115,6 +1152,7 @@ fn create_worker_carrier_with_limits(
             dispatched: None,
             ended_request: None,
             shutdown_answered: false,
+            abandoned: VecDeque::new(),
         },
         shutdown: WorkerCarrierShutdown {
             active: Arc::clone(&active),
@@ -1191,12 +1229,7 @@ impl WorkerWireOwner {
                         self.complete_in_flight(Err(WorkerRequestError::Unavailable));
                         return WorkerWireExit::Shutdown;
                     }
-                    match drain_idle_stream(
-                        stream,
-                        self.viewer_ready.as_deref(),
-                        self.titles.as_ref(),
-                        self.limits.io_timeout,
-                    ) {
+                    match self.drain_idle_stream(stream) {
                         Ok(IdleStreamState::Open) => {}
                         Ok(IdleStreamState::Closed) => {
                             self.complete_in_flight(Err(WorkerRequestError::NotDelivered(
@@ -1204,11 +1237,11 @@ impl WorkerWireOwner {
                             )));
                             return WorkerWireExit::PeerClosed;
                         }
-                        Ok(IdleStreamState::UnexpectedData) => {
+                        Ok(IdleStreamState::Broken(framing)) => {
                             self.complete_in_flight(Err(WorkerRequestError::NotDelivered(
                                 WorkerTransportFailure::UnexpectedPeerData,
                             )));
-                            return WorkerWireExit::UnexpectedPeerData;
+                            return WorkerWireExit::BrokenFraming(framing);
                         }
                         Err(failure) => {
                             self.complete_in_flight(Err(WorkerRequestError::NotDelivered(failure)));
@@ -1216,8 +1249,8 @@ impl WorkerWireOwner {
                         }
                     }
 
-                    if !self.exchange_in_flight(stream) {
-                        return WorkerWireExit::RequestFailed;
+                    if let Err(exit) = self.exchange_in_flight(stream) {
+                        return exit;
                     }
                 }
                 TakeNext::Idle => {
@@ -1227,16 +1260,11 @@ impl WorkerWireOwner {
                     {
                         return WorkerWireExit::Transport(failure);
                     }
-                    match drain_idle_stream(
-                        stream,
-                        self.viewer_ready.as_deref(),
-                        self.titles.as_ref(),
-                        self.limits.io_timeout,
-                    ) {
+                    match self.drain_idle_stream(stream) {
                         Ok(IdleStreamState::Open) => {}
                         Ok(IdleStreamState::Closed) => return WorkerWireExit::PeerClosed,
-                        Ok(IdleStreamState::UnexpectedData) => {
-                            return WorkerWireExit::UnexpectedPeerData;
+                        Ok(IdleStreamState::Broken(framing)) => {
+                            return WorkerWireExit::BrokenFraming(framing);
                         }
                         Err(failure) => return WorkerWireExit::Transport(failure),
                     }
@@ -1246,7 +1274,11 @@ impl WorkerWireOwner {
         }
     }
 
-    fn exchange_in_flight<Stream>(&mut self, stream: &mut Stream) -> bool
+    /// Writes the request in flight and reads its result. A wire that can still locate its next
+    /// frame keeps serving after a late, invalid, or mismatched reply, which fails only this
+    /// request. The wire ends only on lost framing, a closed or failed transport, a failed handoff
+    /// or shutdown, or a required completion nobody receives.
+    fn exchange_in_flight<Stream>(&mut self, stream: &mut Stream) -> Result<(), WorkerWireExit>
     where
         Stream: AsLocalIo + Read + Write,
     {
@@ -1257,9 +1289,11 @@ impl WorkerWireOwner {
         if let Err(failure) = write_complete_frame(stream, &pending.encoded, self.limits.io_timeout)
         {
             self.complete_in_flight(Err(WorkerRequestError::NotDelivered(failure)));
-            return false;
+            return Err(WorkerWireExit::RequestFailed);
         }
         pending.complete_write.store(true, Ordering::Release);
+        let key = ReplyKey::of(&pending.request);
+        let generation_scoped = pending.request.ends_wire_on_failure();
 
         let response_window = match &pending.request {
             #[cfg(any(windows, test))]
@@ -1275,34 +1309,176 @@ impl WorkerWireOwner {
                 self.complete_in_flight(Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
                     WorkerResponseFailure::Io(io::ErrorKind::InvalidInput),
                 )));
-                return false;
+                return Err(WorkerWireExit::RequestFailed);
             }
         };
-        // A hint written just before the Worker read this request can still precede its result.
-        let response = loop {
-            match read_message(&mut DeadlineReader {
-                deadline: response_deadline,
-                stream: &mut *stream,
-            }) {
-                Ok(CapabilityNodeMessage::TerminalViewerRecordReady(hint)) => {
+        // A hint written just before the Worker read this request can still precede its result,
+        // and so can a late reply to a request that already failed.
+        let (response, consumed, exit) = loop {
+            match read_frame(stream, response_deadline, self.limits.io_timeout) {
+                Ok(Ok(CapabilityNodeMessage::TerminalViewerRecordReady(hint))) => {
                     deliver_hint(self.viewer_ready.as_deref(), hint);
                 }
-                Ok(CapabilityNodeMessage::TerminalTitlesChanged(note)) => {
+                Ok(Ok(CapabilityNodeMessage::TerminalTitlesChanged(note))) => {
                     deliver_note(self.titles.as_ref(), note);
                 }
-                Ok(message) => {
+                Ok(Ok(message)) => {
+                    if self.drop_late_reply(&message) {
+                        continue;
+                    }
+                    let consumed = key.answered_by(&message);
                     let pending = self.in_flight.as_ref().unwrap_or_else(|| {
                         unreachable!("result validation requires one in-flight request")
                     });
-                    break validate_response(&pending.request, message);
+                    break (validate_response(&pending.request, message), consumed, None);
                 }
-                Err(error) => break Err(response_read_failure(error)),
+                Ok(Err(error)) => {
+                    break (Err(WorkerResponseFailure::InvalidFrame(error)), false, None);
+                }
+                Err(FrameEnd::Silent) => break (Err(WorkerResponseFailure::TimedOut), false, None),
+                Err(FrameEnd::Closed) => {
+                    let exit = Some(WorkerWireExit::RequestFailed);
+                    break (Err(WorkerResponseFailure::Disconnected), false, exit);
+                }
+                Err(FrameEnd::Io(kind)) => {
+                    let exit = Some(WorkerWireExit::RequestFailed);
+                    break (Err(WorkerResponseFailure::Io(kind)), false, exit);
+                }
+                Err(FrameEnd::Broken(framing)) => {
+                    let failure = match framing {
+                        FramingBreak::Header(error) => WorkerResponseFailure::InvalidFrame(error),
+                        FramingBreak::Incomplete => WorkerResponseFailure::TimedOut,
+                    };
+                    break (
+                        Err(failure),
+                        false,
+                        Some(WorkerWireExit::BrokenFraming(framing)),
+                    );
+                }
             }
         };
-        let keep_alive = response.is_ok();
-        let completion_delivered = self
+        let failed = response.is_err();
+        let delivered = self
             .complete_in_flight(response.map_err(WorkerRequestError::PostDeliveryOutcomeUnknown));
-        keep_alive && completion_delivered
+        if let Some(exit) = exit {
+            return Err(exit);
+        }
+        // A handoff fence or a shutdown belongs to this generation; its failure retires it.
+        if !delivered || (failed && generation_scoped) {
+            return Err(WorkerWireExit::RequestFailed);
+        }
+        if failed && let Some(ended) = self.ended_request {
+            ended.record_contained();
+            // A reply that echoed this request was this request's answer; any other may still be
+            // on its way.
+            if !consumed {
+                self.abandon(key, ended.kind);
+            }
+        }
+        Ok(())
+    }
+
+    /// Drops a reply to a request that already failed, recording how late it came, so it never
+    /// stands in for another request's result.
+    fn drop_late_reply(&mut self, message: &CapabilityNodeMessage) -> bool {
+        let Some(index) = self
+            .abandoned
+            .iter()
+            .position(|abandoned| abandoned.key.answered_by(message))
+        else {
+            return false;
+        };
+        if let Some(abandoned) = self.abandoned.remove(index) {
+            crate::fault_records::worker_reply_dropped(
+                crate::fault_records::DroppedReply::Late(abandoned.failed.elapsed()),
+                abandoned.kind,
+                "none",
+            );
+        }
+        true
+    }
+
+    fn abandon(&mut self, key: ReplyKey, kind: &'static str) {
+        if self.abandoned.len() >= ABANDONED_REQUEST_LIMIT {
+            self.abandoned.pop_front();
+        }
+        self.abandoned.push_back(AbandonedRequest {
+            key,
+            kind,
+            failed: Instant::now(),
+        });
+    }
+
+    /// Between requests a Worker may only hint or note. Any other whole frame, a late reply among
+    /// them, is dropped and recorded; only lost framing or a closed or failed transport ends the
+    /// wire.
+    fn drain_idle_stream<Stream>(
+        &mut self,
+        stream: &mut Stream,
+    ) -> Result<IdleStreamState, WorkerTransportFailure>
+    where
+        Stream: AsLocalIo + Read,
+    {
+        let mut byte = [0_u8; 1];
+        loop {
+            match stream.read(&mut byte) {
+                Ok(0) => return Ok(IdleStreamState::Closed),
+                Ok(_) if byte[0] != FRAME_MAGIC[0] => {
+                    return Ok(IdleStreamState::Broken(FramingBreak::Header(
+                        ProtocolError::InvalidMagic,
+                    )));
+                }
+                Ok(_) => {
+                    let Some(deadline) = Instant::now().checked_add(self.limits.io_timeout) else {
+                        return Err(WorkerTransportFailure::Io(io::ErrorKind::InvalidInput));
+                    };
+                    let mut reader = FrameReader {
+                        stream: &mut *stream,
+                        first_byte: deadline,
+                        frame_timeout: self.limits.io_timeout,
+                        deadline: Some(deadline),
+                    };
+                    let read = read_framed_message(&mut (&byte[..]).chain(&mut reader));
+                    match classify_frame_read(read, true) {
+                        Ok(Ok(CapabilityNodeMessage::TerminalViewerRecordReady(hint))) => {
+                            deliver_hint(self.viewer_ready.as_deref(), hint);
+                        }
+                        Ok(Ok(CapabilityNodeMessage::TerminalTitlesChanged(note))) => {
+                            deliver_note(self.titles.as_ref(), note);
+                        }
+                        Ok(Ok(message)) => {
+                            if !self.drop_late_reply(&message) {
+                                crate::fault_records::worker_reply_dropped(
+                                    crate::fault_records::DroppedReply::Unmatched,
+                                    "none",
+                                    "none",
+                                );
+                            }
+                        }
+                        Ok(Err(error)) => {
+                            crate::fault_records::worker_reply_dropped(
+                                crate::fault_records::DroppedReply::Invalid,
+                                "none",
+                                wire_end::protocol_error(error),
+                            );
+                        }
+                        Err(FrameEnd::Silent) => {
+                            return Ok(IdleStreamState::Broken(FramingBreak::Incomplete));
+                        }
+                        Err(FrameEnd::Broken(framing)) => {
+                            return Ok(IdleStreamState::Broken(framing));
+                        }
+                        Err(FrameEnd::Closed) => return Ok(IdleStreamState::Closed),
+                        Err(FrameEnd::Io(kind)) => return Err(WorkerTransportFailure::Io(kind)),
+                    }
+                }
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    return Ok(IdleStreamState::Open);
+                }
+                Err(error) => return Err(classify_transport_error(&error)),
+            }
+        }
     }
 
     fn complete_in_flight(
@@ -1474,11 +1650,93 @@ fn remaining_until(deadline: Instant) -> io::Result<Duration> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "Worker carrier deadline elapsed"))
 }
 
+/// Reads one frame, waiting for its first byte until `first_byte`. Once a frame starts it may take
+/// `frame_timeout` to complete even past that deadline: a reply that starts late is late, not
+/// broken.
+struct FrameReader<'a, Stream> {
+    stream: &'a mut Stream,
+    first_byte: Instant,
+    frame_timeout: Duration,
+    /// The deadline for the rest of the frame, set when its first byte arrives.
+    deadline: Option<Instant>,
+}
+
+impl<Stream> Read for FrameReader<'_, Stream>
+where
+    Stream: AsLocalIo + Read,
+{
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        let read = DeadlineReader {
+            deadline: self.deadline.unwrap_or(self.first_byte),
+            stream: &mut *self.stream,
+        }
+        .read(buffer)?;
+        if read > 0 && self.deadline.is_none() {
+            self.deadline = Some(
+                Instant::now()
+                    .checked_add(self.frame_timeout)
+                    .map_or(self.first_byte, |end| end.max(self.first_byte)),
+            );
+        }
+        Ok(read)
+    }
+}
+
+/// One frame read from the Worker, classified by what it leaves of the wire. A whole frame may
+/// still hold invalid content, but the next frame is located.
+type FrameRead = Result<Result<CapabilityNodeMessage, ProtocolError>, FrameEnd>;
+
+/// Why no whole frame was read.
+enum FrameEnd {
+    /// No byte arrived before the deadline; the wire is intact.
+    Silent,
+    Closed,
+    Broken(FramingBreak),
+    Io(io::ErrorKind),
+}
+
+fn read_frame<Stream>(
+    stream: &mut Stream,
+    first_byte: Instant,
+    frame_timeout: Duration,
+) -> FrameRead
+where
+    Stream: AsLocalIo + Read,
+{
+    let mut reader = FrameReader {
+        stream,
+        first_byte,
+        frame_timeout,
+        deadline: None,
+    };
+    let read = read_framed_message(&mut reader);
+    classify_frame_read(read, reader.deadline.is_some())
+}
+
+fn classify_frame_read(
+    read: Result<Result<CapabilityNodeMessage, ProtocolError>, ReadMessageError>,
+    started: bool,
+) -> FrameRead {
+    read.map_err(|error| match error {
+        ReadMessageError::Protocol(error) => FrameEnd::Broken(FramingBreak::Header(error)),
+        ReadMessageError::Io(error) => match classify_transport_error(&error) {
+            WorkerTransportFailure::TimedOut if started => {
+                FrameEnd::Broken(FramingBreak::Incomplete)
+            }
+            WorkerTransportFailure::TimedOut => FrameEnd::Silent,
+            WorkerTransportFailure::Closed => FrameEnd::Closed,
+            WorkerTransportFailure::UnexpectedPeerData | WorkerTransportFailure::Io(_) => {
+                FrameEnd::Io(error.kind())
+            }
+        },
+    })
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum IdleStreamState {
     Open,
     Closed,
-    UnexpectedData,
+    Broken(FramingBreak),
 }
 
 fn deliver_hint(routes: Option<&ViewerReadyRoutes>, hint: TerminalViewerRecordReady) {
@@ -1494,49 +1752,6 @@ fn deliver_note(
 ) {
     if let Some(route) = titles {
         route.titles.note(route.generation, note.through);
-    }
-}
-
-/// Between requests a Worker may only hint; anything else, or a record that never completes, is a
-/// peer breaking the exchange.
-fn drain_idle_stream<Stream>(
-    stream: &mut Stream,
-    routes: Option<&ViewerReadyRoutes>,
-    titles: Option<&TitleNotes>,
-    record_timeout: Duration,
-) -> Result<IdleStreamState, WorkerTransportFailure>
-where
-    Stream: AsLocalIo + Read,
-{
-    let mut byte = [0_u8; 1];
-    loop {
-        match stream.read(&mut byte) {
-            Ok(0) => return Ok(IdleStreamState::Closed),
-            Ok(_) if byte[0] != FRAME_MAGIC[0] => return Ok(IdleStreamState::UnexpectedData),
-            Ok(_) => {
-                let Some(deadline) = Instant::now().checked_add(record_timeout) else {
-                    return Err(WorkerTransportFailure::Io(io::ErrorKind::InvalidInput));
-                };
-                let mut record = (&byte[..]).chain(DeadlineReader {
-                    deadline,
-                    stream: &mut *stream,
-                });
-                match read_message(&mut record) {
-                    Ok(CapabilityNodeMessage::TerminalViewerRecordReady(hint)) => {
-                        deliver_hint(routes, hint);
-                    }
-                    Ok(CapabilityNodeMessage::TerminalTitlesChanged(note)) => {
-                        deliver_note(titles, note);
-                    }
-                    Ok(_) | Err(_) => return Ok(IdleStreamState::UnexpectedData),
-                }
-            }
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                return Ok(IdleStreamState::Open);
-            }
-            Err(error) => return Err(classify_transport_error(&error)),
-        }
     }
 }
 
@@ -1996,33 +2211,6 @@ fn validate_authorization(
         return Err(WorkerResponseFailure::MismatchedAuthorization);
     }
     Ok(())
-}
-
-fn response_read_failure(error: ReadMessageError) -> WorkerResponseFailure {
-    match error {
-        ReadMessageError::Protocol(error) => WorkerResponseFailure::InvalidFrame(error),
-        ReadMessageError::Io(error)
-            if matches!(
-                error.kind(),
-                io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
-            ) =>
-        {
-            WorkerResponseFailure::TimedOut
-        }
-        ReadMessageError::Io(error)
-            if matches!(
-                error.kind(),
-                io::ErrorKind::UnexpectedEof
-                    | io::ErrorKind::ConnectionAborted
-                    | io::ErrorKind::ConnectionReset
-                    | io::ErrorKind::BrokenPipe
-                    | io::ErrorKind::NotConnected
-            ) =>
-        {
-            WorkerResponseFailure::Disconnected
-        }
-        ReadMessageError::Io(error) => WorkerResponseFailure::Io(error.kind()),
-    }
 }
 
 fn classify_transport_error(error: &io::Error) -> WorkerTransportFailure {

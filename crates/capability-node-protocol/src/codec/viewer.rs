@@ -704,14 +704,14 @@ pub(super) fn decode_record(bytes: &[u8]) -> Result<CapabilityNodeMessage, Proto
 pub(super) fn read_record(
     reader: &mut impl Read,
     header: [u8; 8],
-) -> Result<CapabilityNodeMessage, ReadMessageError> {
+) -> Result<Result<CapabilityNodeMessage, ProtocolError>, ReadMessageError> {
     let mut full_header = [0; 12];
     full_header[..8].copy_from_slice(&header);
     reader.read_exact(&mut full_header[8..])?;
     let length = record_length(&full_header)?;
     let mut bytes = vec![0; length];
     reader.read_exact(&mut bytes)?;
-    record_payload(&bytes).map_err(Into::into)
+    Ok(record_payload(&bytes))
 }
 
 fn record_payload(bytes: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {

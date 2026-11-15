@@ -19,21 +19,21 @@ mod worktree_mutation;
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage,
     HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity,
-    LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, SendCleanupStatus, SendKey, SendProgress,
-    SendRecord, SendRecords, SendRejection, SendText, SendTextInput, TerminalCwdValidationOutcome,
-    TerminalCwdValidationRequest, TerminalCwdValidationResult, TerminalFence, TerminalId,
-    TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
-    TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
-    TerminalSendOutcome, TerminalSendRequest, TerminalSendResult, TerminalStartOutcome,
-    TerminalStartRejection, TerminalStartResult, WorkerGeneration, WorkerId as CapabilityWorkerId,
-    read_message, write_message,
+    LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, ProtocolError, SendCleanupStatus,
+    SendKey, SendProgress, SendRecord, SendRecords, SendRejection, SendText, SendTextInput,
+    TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalCwdValidationResult,
+    TerminalFence, TerminalId, TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchRejection,
+    TerminalLaunchResult, TerminalOperationAuthorization, TerminalOperationLease,
+    TerminalPixelGeometry, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
+    TerminalStartOutcome, TerminalStartRejection, TerminalStartResult, WorkerGeneration,
+    WorkerId as CapabilityWorkerId, read_message, write_message,
 };
 use orchbee_local_worker_protocol::WorkerId;
 
 use crate::worker_registry::{RegisteredWorkerWireOwner, WorkerAdmission, WorkerRegistry};
 
 use super::{
-    AdmitOutcome, CompletionDelivery, ExchangeWait, PendingRequest, RequestLane,
+    AdmitOutcome, CompletionDelivery, ExchangeWait, FramingBreak, PendingRequest, RequestLane,
     WorkerCarrierLimits, WorkerCarrierShutdown, WorkerOperationRequest, WorkerOperationResult,
     WorkerRequestError, WorkerRequestHandle, WorkerResponseFailure, WorkerTransportFailure,
     WorkerWireExit, WorkerWireOwner, create_worker_carrier_with_limits, send_completion,
@@ -590,9 +590,10 @@ fn distinguishes_response_timeout_and_disconnect_after_complete_delivery() -> Te
     worker_thread
         .join()
         .map_err(|_panic| "fake Worker panicked")??;
+    // The timeout failed only its request; the wire ends when the Worker leaves.
     assert_eq!(
         exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
-        WorkerWireExit::RequestFailed
+        WorkerWireExit::PeerClosed
     );
     owner_thread
         .join()
@@ -655,7 +656,10 @@ fn reports_a_preexisting_peer_record_before_any_request_byte_as_not_delivered() 
         LOCAL_WORKER_ID,
     )?)?);
     let receiver = enqueue_request(&handle, request)?;
-    assert_eq!(owner.run(server), WorkerWireExit::UnexpectedPeerData);
+    assert_eq!(
+        owner.run(server),
+        WorkerWireExit::BrokenFraming(FramingBreak::Header(ProtocolError::InvalidMagic))
+    );
     assert_eq!(
         receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
         Err(WorkerRequestError::NotDelivered(
@@ -697,7 +701,7 @@ fn partial_request_frame_write_is_not_delivered() -> TestResult {
     let (_handle, _shutdown, mut owner) = carrier.into_parts();
     owner.in_flight = Some(pending);
 
-    assert!(!owner.exchange_in_flight(&mut stream));
+    assert!(owner.exchange_in_flight(&mut stream).is_err());
     assert_eq!(stream.bytes_written, 1);
     assert_eq!(
         result.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
@@ -973,23 +977,43 @@ fn a_signal_racing_a_drain_still_ends_a_later_wait() -> TestResult {
 }
 
 #[test]
-fn idle_peer_data_is_rejected_and_explicit_shutdown_is_bounded() -> TestResult {
+fn idle_stray_frames_are_dropped_and_explicit_shutdown_is_bounded() -> TestResult {
     let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
     let (exit_sender, exit_receiver) = mpsc::channel();
     let owner_thread = spawn_owner(owner, server, exit_sender);
-    let request = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let stray = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
     write_message(
         &mut worker,
-        &CapabilityNodeMessage::AuthorizedTerminalLaunch(request),
+        &CapabilityNodeMessage::AuthorizedTerminalLaunch(stray),
     )?;
+    // A whole frame that answers no request is dropped, and the wire keeps serving.
+    let request = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let expected = request.clone();
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(expected.clone())
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&expected)),
+        )?;
+        Ok(())
+    });
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Launch(request.clone()))?,
+        WorkerOperationResult::Launch(launch_result(&request))
+    );
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
     assert_eq!(
         exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
-        WorkerWireExit::UnexpectedPeerData
+        WorkerWireExit::PeerClosed
     );
     owner_thread
         .join()
         .map_err(|_panic| "wire owner panicked")?;
-    assert!(!handle.is_active());
 
     let (_handle, owner, shutdown, server, _worker) = test_carrier()?;
     let (exit_sender, exit_receiver) = mpsc::channel();
@@ -1030,7 +1054,118 @@ fn partial_response_cannot_extend_the_finite_read() -> TestResult {
         .map_err(|_panic| "fake Worker panicked")??;
     assert_eq!(
         exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
-        WorkerWireExit::RequestFailed
+        WorkerWireExit::BrokenFraming(FramingBreak::Incomplete)
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn a_late_reply_is_dropped_and_never_answers_the_next_request() -> TestResult {
+    use orchbee_local_runtime::LogValue;
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = thread::spawn(move || {
+        let (exit, records) = crate::fault_records::capture::records(|| owner.run(server));
+        let _ignored = exit_sender.send(exit);
+        records
+    });
+    let late = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let next = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let (failed_sender, failed_receiver) = mpsc::channel();
+    let (worker_late, worker_next) = (late.clone(), next.clone());
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(worker_late.clone())
+        );
+        failed_receiver.recv()?;
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(worker_next.clone())
+        );
+        // The first answer arrives after its request failed for time, right before the second.
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&worker_late)),
+        )?;
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&worker_next)),
+        )?;
+        Ok(())
+    });
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Launch(late)),
+        Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
+            WorkerResponseFailure::TimedOut
+        ))
+    );
+    failed_sender.send(())?;
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Launch(next.clone()))?,
+        WorkerOperationResult::Launch(launch_result(&next))
+    );
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
+    );
+    let records = owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    assert!(records.iter().any(|record| {
+        record.event == "worker-reply-dropped"
+            && record.fields.contains(&("cause", LogValue::Token("late")))
+            && record
+                .fields
+                .contains(&("request", LogValue::Token("launch")))
+    }));
+    Ok(())
+}
+
+#[test]
+fn a_whole_invalid_frame_fails_only_its_request() -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let first = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let second = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let worker_second = second.clone();
+    let worker_thread = thread::spawn(move || -> TestResult {
+        let _first = read_message(&mut worker)?;
+        // A valid header and length around a payload of an unknown kind.
+        worker.write_all(b"OBCN\x00\x01\x00\x01\xff")?;
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(worker_second.clone())
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&worker_second)),
+        )?;
+        Ok(())
+    });
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Launch(first)),
+        Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
+            WorkerResponseFailure::InvalidFrame(ProtocolError::InvalidPayload)
+        ))
+    );
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Launch(second.clone()))?,
+        WorkerOperationResult::Launch(launch_result(&second))
+    );
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
     );
     owner_thread
         .join()
@@ -1239,9 +1374,10 @@ fn assert_post_delivery_failure(
     worker_thread
         .join()
         .map_err(|_panic| "fake Worker panicked")??;
+    // The bad reply failed only its request; the wire ends when the Worker leaves.
     assert_eq!(
         exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
-        WorkerWireExit::RequestFailed
+        WorkerWireExit::PeerClosed
     );
     owner_thread
         .join()
@@ -1695,7 +1831,7 @@ fn queued_detach_waits_fifo_when_the_high_lane_is_full() -> TestResult {
 }
 
 #[test]
-fn viewer_scope_and_outcome_mismatch_retire_the_carrier() -> TestResult {
+fn viewer_scope_and_outcome_mismatch_fail_only_the_request() -> TestResult {
     use orchbee_capability_node_protocol::{
         TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult,
     };
@@ -2141,7 +2277,7 @@ fn send_result_correlation_mismatch_is_post_delivery_unknown() -> TestResult {
 }
 
 #[test]
-fn send_wrong_result_kind_and_direction_retire_the_carrier() -> TestResult {
+fn send_wrong_result_kind_and_direction_fail_only_the_request() -> TestResult {
     let request = send_request(
         10,
         11,
@@ -2239,9 +2375,10 @@ fn send_on_a_retired_carrier_is_unavailable_not_reused() -> TestResult {
     worker_thread
         .join()
         .map_err(|_panic| "fake Worker panicked")??;
+    // The mismatch failed only the send; the carrier retires when the Worker leaves.
     assert_eq!(
         exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
-        WorkerWireExit::RequestFailed
+        WorkerWireExit::PeerClosed
     );
     // The retired carrier never serves another send on the same stream.
     assert_eq!(
@@ -2697,7 +2834,7 @@ fn in_flight_abandoned_required_exchange_retires_the_carrier() -> TestResult {
 }
 
 #[test]
-fn drain_echo_mismatches_retire_the_carrier() -> TestResult {
+fn drain_echo_mismatches_fail_only_the_request() -> TestResult {
     for (request, reply) in [
         // token_echo must equal the request token exactly.
         (drain_request(1, 0)?, drain_reply(2, 0, 0, Vec::new())?),
@@ -2727,7 +2864,7 @@ fn drain_echo_mismatches_retire_the_carrier() -> TestResult {
             .map_err(|_panic| "fake Worker panicked")??;
         assert_eq!(
             exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
-            WorkerWireExit::RequestFailed
+            WorkerWireExit::PeerClosed
         );
         owner_thread
             .join()
@@ -2737,7 +2874,7 @@ fn drain_echo_mismatches_retire_the_carrier() -> TestResult {
 }
 
 #[test]
-fn drain_wrong_result_kind_direction_and_malformed_frame_retire_the_carrier() -> TestResult {
+fn drain_wrong_replies_fail_only_the_request_and_a_truncated_frame_ends_the_wire() -> TestResult {
     // A well-formed frame of another result kind is rejected like every
     // existing request kind.
     let drain = drain_request(1, 0)?;
@@ -2761,7 +2898,7 @@ fn drain_wrong_result_kind_direction_and_malformed_frame_retire_the_carrier() ->
         )
     })?;
 
-    // A malformed frame keeps the existing fatal wire behavior.
+    // Bytes that never complete a header lose the frame boundary, so the wire ends.
     let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
     let (exit_sender, exit_receiver) = mpsc::channel();
     let owner_thread = spawn_owner(owner, server, exit_sender);
@@ -2819,9 +2956,10 @@ fn assert_drain_delivery_failure(
     worker_thread
         .join()
         .map_err(|_panic| "fake Worker panicked")??;
+    // The bad reply failed only the drain; the wire ends when the Worker leaves.
     assert_eq!(
         exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
-        WorkerWireExit::RequestFailed
+        WorkerWireExit::PeerClosed
     );
     owner_thread
         .join()

@@ -206,14 +206,14 @@ pub(super) fn decode(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErro
 pub(super) fn read(
     reader: &mut impl Read,
     prefix: [u8; 8],
-) -> Result<CapabilityNodeMessage, ReadMessageError> {
+) -> Result<Result<CapabilityNodeMessage, ProtocolError>, ReadMessageError> {
     let mut header = [0; 12];
     header[..8].copy_from_slice(&prefix);
     reader.read_exact(&mut header[8..])?;
     let size = length(&header)?;
     let mut body = vec![0; size];
     reader.read_exact(&mut body)?;
-    decode_body(&body).map_err(Into::into)
+    Ok(decode_body(&body))
 }
 fn take_bytes(r: &mut PayloadReader<'_>, cap: usize) -> Result<Vec<u8>, ProtocolError> {
     let n = r.read_u32()? as usize;

@@ -26,12 +26,16 @@ error's text.
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `listener-fault`          | The Client listener or the Agent observation endpoint fails to accept, admit or start a handler for one candidate, or its wait fails, and pauses before accepting again                                                                                               | `listener` (`client`, `agent-observation`), `stage`, `error` (I/O error kind or `none`), `pauseMs`, `suppressed`                                                          |
 | `candidate-dropped`       | A candidate is closed before it is served: Client handshake transport setup, peer credentials, a poisoned registry, an exhausted generation, an unencodable reply or query result; an observation connection that cannot be made nonblocking or arrives over capacity | `operation`, `stage`, `cause` (I/O error kind, `protocol` or `none`), `suppressed`                                                                                        |
+| `worker-request-failed`   | One Worker request failed while its connection kept serving: no reply within its window, an invalid whole frame, or a mismatched reply                                                                                                                                | `request`, `failure`, `error` (I/O error kind, protocol error or `none`), `elapsedMs`, `suppressed`                                                                       |
+| `worker-reply-dropped`    | The Worker connection dropped a whole frame that answered no request and kept serving: a late reply to a request that already failed, an unmatched reply, or invalid content                                                                                          | `cause` (`late`, `unmatched`, `invalid`), `request` (`none` when unknown), `error`, `lateMs` for a late reply, `suppressed`                                               |
+| `client-stream-failed`    | The Server closed one Client stream while that Client's connection kept serving: its request did not decode, its read failed, or its record could not be delivered                                                                                                    | `stage` (`open`, `job-read`, `update`, `resnapshot`), `failure` (the connection stage, `invalid-request`, `record-size`, `budget`), `suppressed`                          |
 | `worker-connection-ended` | The Worker connection ends, or its thread cannot start                                                                                                                                                                                                                | `exit`, `failure`, `error`, `request` with `elapsedMs` since it was sent, `afterShutdown`, `workerProcess` (`not-held`, `running`, `exited`, `unknown`), `workerExitCode` |
 | `panicked`                | Any Server thread panics; the panic still ends only that thread                                                                                                                                                                                                       | `thread` (the program's own thread names, else `other` or `unnamed`), `file` stem, `line`, `suppressed`                                                                   |
 | `state-poisoned`          | The Session coordinator or the Agent fold lock is first observed poisoned                                                                                                                                                                                             | `lock` (`coordinator`, `agent-fold`)                                                                                                                                      |
 
-`listener-fault`, `candidate-dropped` and `panicked` are written at most once a minute per site,
-and `suppressed` counts the records left out since the last one. `worker-connection-ended` is
+`listener-fault`, `candidate-dropped`, `worker-request-failed`, `worker-reply-dropped`,
+`client-stream-failed` and `panicked` are written at most once a minute per site, and `suppressed`
+counts the records left out since the last one. `worker-connection-ended` is
 `info` when the Server ended the connection or the Worker left after answering a shutdown, and
 `error` otherwise. Only a Windows Session holds its Worker's handle after admission; there the
 record waits up to two seconds for a Worker that ended its own connection to exit, so it can carry
@@ -344,9 +348,11 @@ high-lane requests while the low lane is non-empty, then serves one low-lane req
 complete-write boundary. The [carrier scheduling model](docs/worker-carrier-model.md) owns
 lane classification, admission, dispatch bounds, drain and failure settlement. The owner writes one complete OBCN Launch,
 Start, or viewer request before reading exactly one result. It accepts only the matching result direction and
-kind, operation ID, complete authorization echo, and, for Start, target identity. A malformed,
-mismatched, timed-out, or disconnected exchange retires that Worker generation and makes queued
-work unavailable.
+kind, operation ID, complete authorization echo, and, for Start, target identity. A reply that
+misses its window, a whole frame with invalid content, and a mismatched reply fail only that
+request, and the connection keeps serving the queue. Only a lost frame boundary, a closed or
+failed transport, an incomplete request write, or a failed handoff or shutdown retires that Worker
+generation and makes queued work unavailable.
 
 Close uses the lifecycle-only `submit_lifecycle` boundary to distinguish successful queue admission
 from later settlement. Validation, frame encoding and completion storage preparation happen before
@@ -373,18 +379,26 @@ request from its complete-write marker, and drains the submitted slot. Only then
 registration guard remove the matching generation; that removal is the retirement linearization
 point at which replacement becomes admissible. A stale guard cannot remove a replacement.
 
-Each complete request write has a two-second and each complete result read a twenty-second monotonic deadline;
-partial progress does not restart either deadline. Failure before the request frame is completely
-written is reported as `NotDelivered` and is known unchanged: strict Worker decoding cannot dispatch
-an incomplete frame, and the owner retires that connection. After the complete write, any failure is
-the distinct `PostDeliveryOutcomeUnknown` carrier error: Server neither fabricates the semantic OBCN
+Each complete request write has a two-second deadline, and each result has twenty seconds to start
+arriving. A result frame that has started has at least two seconds to finish, even past that
+window: time is not evidence, so a late reply is late, not corrupt. Partial progress does not
+restart either deadline. Failure before the request frame is completely written is reported as
+`NotDelivered` and is known unchanged: strict Worker decoding cannot dispatch an incomplete frame,
+and the owner retires that connection. After the complete write, any failure is the distinct
+`PostDeliveryOutcomeUnknown` carrier error: Server neither fabricates the semantic OBCN
 `OutcomeUnknown` value nor retries the request. An exact Worker result, including a Worker-reported
 semantic unknown outcome, is preserved; the carrier does not interpret launch capability-version or
-lifecycle outcome variants. Viewer results additionally match the attachment identity and action/outcome kind. Bytes received while no request is outstanding are invalid and retire the
-connection. Dropping the whole registry requests private shutdown but cannot admit a replacement;
-the owner's queue wake reaches it at once, or it observes it after the bounded current exchange, which has
-at most its remaining write deadline plus one result-read deadline. There is no unbounded connection
-thread or message queue.
+lifecycle outcome variants. Viewer results additionally match the attachment identity and
+action/outcome kind. A request that failed while the connection kept serving is recorded as
+`worker-request-failed`. The owner remembers the last eight such requests: a reply that echoes one
+of them, whether it arrives while another request waits or between requests, is dropped and
+recorded as a late `worker-reply-dropped`, never taken as another request's result. Between
+requests the Worker may only hint or note; any other whole frame is dropped and recorded, and only
+bytes that do not begin a frame, or a frame that stops arriving, retire the connection. Dropping
+the whole registry requests private shutdown but cannot admit a replacement; the owner's queue wake
+reaches it at once, or it observes it after the bounded current exchange, which has at most its
+remaining write deadline plus one result window and the two seconds a started frame may take.
+There is no unbounded connection thread or message queue.
 
 The endpoint path is supplied by the controlled development witness. Discovery, stale-endpoint
 recovery, a default runtime directory, singleton activation across candidate paths, daemonization,
@@ -442,9 +456,10 @@ Failures no peer can receive — a handler that cannot spawn, handshake transpor
 peer-credential refusal, a poisoned registry, an exhausted generation, an undeliverable stop result,
 and a Connection that ends on a fault — go through the service's private `diagnostic` exit: one
 locale-neutral standard-error line naming `operation`, `stage`, an I/O error-kind or `protocol`
-`cause`, and the Connection generation when one exists. A multiplexed handler failure keeps its own
-stage. Session stop and a departed peer (end of stream, reset, abort, broken pipe) are ordinary ends
-and are not reported. The line carries no record bytes, terminal content, paths, credentials,
+`cause`, and the Connection generation when one exists. A multiplexed handler failure that ends its
+Connection keeps its own stage; one that closes only its stream is written to the daily log as
+`client-stream-failed` instead. Session stop and a departed peer (end of stream, reset, abort,
+broken pipe) are ordinary ends and are not reported. The line carries no record bytes, terminal content, paths, credentials,
 environment values, or nested error text, and changes no peer-visible outcome. Managed launch binds
 the Server's standard error to the null device, so only a harness that owns it reads these lines.
 A failure that drops a candidate before it is served, or stops the listener's accept, also writes
@@ -813,6 +828,19 @@ runs those in arrival order and hands each finished result back to the dispatche
 There are at most 64 active streams and 64 explicit lanes, plus root lane 1. After a `drain`, a
 request stream carrying an intent closes with `stopping` before the intent takes effect, and the
 Client reports that request as not submitted.
+
+One stream's failure closes only that stream, in a way its Client already handles, and every other
+stream and lane keeps serving. A request record that does not decode inside an intact frame closes
+with `invalid-request`. A read whose execution fails, or whose record is larger than one frame or
+than the connection's remaining budget, closes with `capacity`; a failed subscription update or
+resnapshot also releases that subscription's listener. The failure's class goes to the daily log as
+`client-stream-failed`, never to the Client. An intent that fails after it ran still ends the
+connection: a closed request stream tells the Client the request was never submitted, which would
+hide an outcome that is unknown. Only the carrier itself ends a connection: a message a Client may
+not send, a reused stream ID, an unknown lane, a full inbox or budget at the reader, a lane limit,
+root lane closure,
+sustained resnapshots, retained records over budget, a maintenance failure, a Session stop, or a
+failed socket write.
 
 A Worker's `TerminalViewerRecordReady` becomes this connection's `ViewerRecordReady`. A viewer
 connection registers its attachment in `ViewerReadyRoutes` before it sends Attach, and dropping the

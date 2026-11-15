@@ -83,13 +83,13 @@ pub(super) fn decode_result(record: &[u8]) -> Result<CapabilityNodeMessage, Prot
 pub(super) fn read_result(
     reader: &mut impl Read,
     header: [u8; 8],
-) -> Result<CapabilityNodeMessage, ReadMessageError> {
+) -> Result<Result<CapabilityNodeMessage, ProtocolError>, ReadMessageError> {
     let mut prefix = [0; RECORD_PREFIX_BYTES];
     prefix[..8].copy_from_slice(&header);
     reader.read_exact(&mut prefix[8..])?;
     let mut body = vec![0; body_length(&prefix)?];
     reader.read_exact(&mut body)?;
-    decode_body(&body).map_err(Into::into)
+    Ok(decode_body(&body))
 }
 
 fn body_length(prefix: &[u8; RECORD_PREFIX_BYTES]) -> Result<usize, ProtocolError> {

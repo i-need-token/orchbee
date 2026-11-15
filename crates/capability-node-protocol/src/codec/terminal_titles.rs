@@ -95,7 +95,7 @@ pub(super) fn decode_result(frame: &[u8]) -> Result<CapabilityNodeMessage, Proto
 pub(super) fn read_result(
     reader: &mut impl Read,
     header: [u8; 8],
-) -> Result<CapabilityNodeMessage, ReadMessageError> {
+) -> Result<Result<CapabilityNodeMessage, ProtocolError>, ReadMessageError> {
     let body = read_record_body(
         reader,
         header,
@@ -103,7 +103,7 @@ pub(super) fn read_result(
         MINIMUM_RESULT_BYTES,
         MAXIMUM_RESULT_BYTES,
     )?;
-    result_payload(&body).map_err(Into::into)
+    Ok(result_payload(&body))
 }
 fn result_payload(body: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
     let mut r = PayloadReader::whole(body);
@@ -183,7 +183,7 @@ pub(super) fn decode_changes_result(frame: &[u8]) -> Result<CapabilityNodeMessag
 pub(super) fn read_changes_result(
     reader: &mut impl Read,
     header: [u8; 8],
-) -> Result<CapabilityNodeMessage, ReadMessageError> {
+) -> Result<Result<CapabilityNodeMessage, ProtocolError>, ReadMessageError> {
     let body = read_record_body(
         reader,
         header,
@@ -191,7 +191,7 @@ pub(super) fn read_changes_result(
         MINIMUM_CHANGES_BYTES,
         MAXIMUM_CHANGES_BYTES,
     )?;
-    changes_payload(&body).map_err(Into::into)
+    Ok(changes_payload(&body))
 }
 fn changes_payload(body: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
     let mut r = PayloadReader::whole(body);

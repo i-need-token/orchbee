@@ -305,13 +305,14 @@ fn silent_worker_timeout_settles_both_owners() -> TestResult {
             terminal_outcome: WorkbenchTerminalOutcome::OutcomeUnknown {},
         }
     );
+    // The timeout failed only the Launch; the wire owner settles when the Worker leaves.
+    drop(worker_peer);
     assert_eq!(
         owner_thread
             .join()
             .map_err(|_panic| "Worker owner panicked")?,
-        WorkerWireExit::RequestFailed
+        WorkerWireExit::PeerClosed
     );
-    drop(worker_peer);
     Ok(())
 }
 

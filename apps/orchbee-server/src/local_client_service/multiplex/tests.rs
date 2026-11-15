@@ -76,6 +76,101 @@ fn a_drain_refuses_one_intent_stream_while_the_connection_keeps_serving() {
     let _closed = task.join().unwrap();
 }
 
+/// One failed read, one undecodable request, one undeliverable record, and one failed subscription
+/// update each close only their own stream; the connection keeps serving and the log keeps the
+/// failure's class.
+#[test]
+fn a_failed_stream_closes_alone_while_the_connection_keeps_serving() {
+    let (mut peer, server) = bounded_pair();
+    let signal = Arc::new(SessionChangeSignal::default());
+    let publisher = Arc::clone(&signal);
+    let cancelled = Arc::new(AtomicUsize::new(0));
+    let cancels = Arc::clone(&cancelled);
+    let task = thread::spawn(move || {
+        let mut executions = 0;
+        crate::fault_records::capture::records(|| {
+            run(
+                &server,
+                open(1, 1, StreamMode::State),
+                signal,
+                move |_, _| {
+                    executions += 1;
+                    match executions {
+                        2 | 4 => Err(ApplicationConnectionError::WorkbenchOutcomeUnknown),
+                        3 => Ok(vec![0; MAXIMUM_STREAM_RECORD_BYTES + 1]),
+                        value => Ok(vec![value]),
+                    }
+                },
+                Vec::new,
+                no_job_read,
+                |_| {},
+                move |_| {
+                    cancels.fetch_add(1, Ordering::AcqRel);
+                },
+                || Ok(None),
+            )
+        })
+    });
+    let closed = |peer: &mut LocalStream, id: u64, reason: StreamCloseReason| {
+        assert_eq!(
+            read_multiplex_message(peer).unwrap(),
+            MultiplexMessage::StreamClose {
+                stream_id: MultiplexStreamId::new(id).unwrap(),
+                reason,
+            }
+        );
+    };
+    assert!(matches!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::StreamFrame {
+            kind: StreamFrameKind::Snapshot,
+            ..
+        }
+    ));
+    write_multiplex_message(&mut peer, &open(2, 1, StreamMode::Request)).unwrap();
+    closed(&mut peer, 2, StreamCloseReason::Capacity);
+    write_multiplex_message(
+        &mut peer,
+        &MultiplexMessage::StreamOpen {
+            stream_id: MultiplexStreamId::new(3).unwrap(),
+            lane_id: MultiplexLaneId::new(1).unwrap(),
+            mode: StreamMode::Request,
+            request: vec![0xff; 16],
+        },
+    )
+    .unwrap();
+    closed(&mut peer, 3, StreamCloseReason::InvalidRequest);
+    write_multiplex_message(&mut peer, &open(4, 1, StreamMode::Request)).unwrap();
+    closed(&mut peer, 4, StreamCloseReason::Capacity);
+    publisher.notify();
+    closed(&mut peer, 1, StreamCloseReason::Capacity);
+    write_multiplex_message(&mut peer, &open(5, 1, StreamMode::Request)).unwrap();
+    let MultiplexMessage::StreamFrame {
+        stream_id, record, ..
+    } = read_multiplex_message(&mut peer).unwrap()
+    else {
+        panic!("result frame");
+    };
+    assert_eq!((stream_id.value(), record), (5, vec![5]));
+    assert_eq!(
+        cancelled.load(Ordering::Acquire),
+        1,
+        "the failed subscription releases its listener"
+    );
+    drop(peer);
+    let (_closed, records) = task.join().unwrap();
+    assert!(records.iter().any(|record| {
+        record.event == "client-stream-failed"
+            && record
+                .fields
+                .contains(&("stage", orchbee_local_runtime::LogValue::Token("update")))
+            && record.fields.contains(&(
+                "failure",
+                orchbee_local_runtime::LogValue::Token("workbench-outcome"),
+            ))
+    }));
+}
+
 #[test]
 fn a_waiting_job_read_never_delays_another_request_on_the_connection() {
     use orchbee_workbench_protocol::{SessionId, WorkbenchWorkspaceId, WorkspaceGitRequest};

@@ -1,9 +1,10 @@
 //! Records the Server's contained and uncontained faults in the daily diagnostic log: a listener
-//! that drops one candidate and keeps serving, a Worker connection that ended, a thread that
-//! panicked and a lock left poisoned. A record holds static tokens, counts and flags only, never a
-//! panic message, request or terminal content, a path, or an error's text. Records that repeat at
-//! one site are written at most once a minute, and the next record from that site counts the ones
-//! left out.
+//! that drops one candidate and keeps serving, a Worker request that failed alone or a Worker reply
+//! dropped while its connection kept serving, a Client stream closed while its connection kept
+//! serving, a Worker connection that ended, a thread that panicked and a lock left poisoned. A
+//! record holds static tokens, counts and flags only, never a panic message, request or terminal
+//! content, a path, or an error's text. Records that repeat at one site are written at most once a
+//! minute, and the next record from that site counts the ones left out.
 
 use std::{
     io,
@@ -32,6 +33,9 @@ const MAXIMUM_NAMES: usize = 128;
 
 const LISTENER_FAULT: &str = "listener-fault";
 const CANDIDATE_DROPPED: &str = "candidate-dropped";
+const WORKER_REQUEST_FAILED: &str = "worker-request-failed";
+const WORKER_REPLY_DROPPED: &str = "worker-reply-dropped";
+const CLIENT_STREAM_FAILED: &str = "client-stream-failed";
 const WORKER_CONNECTION_ENDED: &str = "worker-connection-ended";
 const PANICKED: &str = "panicked";
 const STATE_POISONED: &str = "state-poisoned";
@@ -168,6 +172,104 @@ pub(crate) fn candidate_dropped(operation: &'static str, stage: &'static str, ca
                 ("operation", LogValue::Token(operation)),
                 ("stage", LogValue::Token(stage)),
                 ("cause", LogValue::Token(cause)),
+                ("suppressed", LogValue::Count(suppressed)),
+            ],
+        );
+    }
+}
+
+/// Records one Worker request that failed while its connection kept serving: its kind, the
+/// failure, the failure's I/O error kind or protocol error, and how long it had run. At most one
+/// record a minute per kind and failure.
+pub(crate) fn worker_request_failed(
+    request: &'static str,
+    failure: &'static str,
+    error: &'static str,
+    elapsed: Duration,
+) {
+    let now = Instant::now();
+    let site = Site {
+        event: WORKER_REQUEST_FAILED,
+        unit: request,
+        stage: failure,
+        line: 0,
+    };
+    if let Some(suppressed) = admit(site, now, true) {
+        write(
+            LogLevel::Warning,
+            WORKER_REQUEST_FAILED,
+            &[
+                ("request", LogValue::Token(request)),
+                ("failure", LogValue::Token(failure)),
+                ("error", LogValue::Token(error)),
+                ("elapsedMs", LogValue::Count(milliseconds(elapsed))),
+                ("suppressed", LogValue::Count(suppressed)),
+            ],
+        );
+    }
+}
+
+/// Why a Worker connection dropped a reply that reached no request.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DroppedReply {
+    /// It answered a request that had already failed, this long after the failure.
+    Late(Duration),
+    /// It answered no request the connection remembers.
+    Unmatched,
+    /// Its frame was whole but its content invalid.
+    Invalid,
+}
+
+/// Records a Worker reply the connection dropped and kept serving: why, the kind of the request it
+/// answered (`none` when unknown), and its protocol error. At most one record a minute per cause
+/// and request kind.
+pub(crate) fn worker_reply_dropped(
+    reply: DroppedReply,
+    request: &'static str,
+    error: &'static str,
+) {
+    let cause = match reply {
+        DroppedReply::Late(_) => "late",
+        DroppedReply::Unmatched => "unmatched",
+        DroppedReply::Invalid => "invalid",
+    };
+    let now = Instant::now();
+    let site = Site {
+        event: WORKER_REPLY_DROPPED,
+        unit: request,
+        stage: cause,
+        line: 0,
+    };
+    if let Some(suppressed) = admit(site, now, true) {
+        let mut fields: Vec<LogField> = Vec::with_capacity(5);
+        fields.push(("cause", LogValue::Token(cause)));
+        fields.push(("request", LogValue::Token(request)));
+        fields.push(("error", LogValue::Token(error)));
+        if let DroppedReply::Late(late) = reply {
+            fields.push(("lateMs", LogValue::Count(milliseconds(late))));
+        }
+        fields.push(("suppressed", LogValue::Count(suppressed)));
+        write(LogLevel::Warning, WORKER_REPLY_DROPPED, &fields);
+    }
+}
+
+/// Records one Client stream the Server closed while that Client's connection kept serving: the
+/// stage that failed it and the failure's class. At most one record a minute per stage and failure.
+pub(crate) fn client_stream_failed(stage: &'static str, failure: &'static str) {
+    let now = Instant::now();
+    let site = Site {
+        event: CLIENT_STREAM_FAILED,
+        unit: stage,
+        stage: failure,
+        line: 0,
+    };
+    if let Some(suppressed) = admit(site, now, true) {
+        write(
+            LogLevel::Warning,
+            CLIENT_STREAM_FAILED,
+            &[
+                ("stage", LogValue::Token(stage)),
+                ("failure", LogValue::Token(failure)),
                 ("suppressed", LogValue::Count(suppressed)),
             ],
         );

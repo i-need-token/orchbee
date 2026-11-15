@@ -1,14 +1,15 @@
 //! States how one Worker wire ended as daily-log tokens: the exit, the failure of the request in
 //! flight when that request ended the wire, and whether the Worker had answered a shutdown first.
-//! It observes the carrier's own outcomes and changes none of them.
+//! It also records a request that failed while the wire kept serving. It observes the carrier's
+//! own outcomes and changes none of them.
 
 use std::time::Duration;
 
 use orchbee_capability_node_protocol::ProtocolError;
 
 use super::{
-    WorkerOperationRequest, WorkerRequestError, WorkerResponseFailure, WorkerTransportFailure,
-    WorkerWireExit,
+    FramingBreak, WorkerOperationRequest, WorkerRequestError, WorkerResponseFailure,
+    WorkerTransportFailure, WorkerWireExit,
 };
 use crate::fault_records::io_token;
 
@@ -20,6 +21,20 @@ pub(super) struct EndedRequest {
     pub(super) failure: Option<WorkerRequestError>,
     pub(super) delivered: bool,
     pub(super) elapsed: Duration,
+}
+
+impl EndedRequest {
+    /// Records this request's failure when the wire kept serving after it.
+    pub(super) fn record_contained(&self) {
+        if let Some(error) = self.failure {
+            crate::fault_records::worker_request_failed(
+                self.kind,
+                request_failure(error),
+                request_error(error),
+                self.elapsed,
+            );
+        }
+    }
 }
 
 /// How one Worker wire ended.
@@ -37,7 +52,7 @@ impl WorkerWireEnd {
         match self.exit {
             WorkerWireExit::Shutdown => "shutdown",
             WorkerWireExit::PeerClosed => "peer-closed",
-            WorkerWireExit::UnexpectedPeerData => "unexpected-peer-data",
+            WorkerWireExit::BrokenFraming(_) => "broken-framing",
             WorkerWireExit::Transport(_) => "transport",
             WorkerWireExit::RequestFailed => "request-failed",
         }
@@ -55,9 +70,10 @@ impl WorkerWireEnd {
         }
         match self.exit {
             WorkerWireExit::Transport(failure) => transport_failure(failure),
+            WorkerWireExit::BrokenFraming(FramingBreak::Header(_)) => "broken-framing.header",
+            WorkerWireExit::BrokenFraming(FramingBreak::Incomplete) => "broken-framing.incomplete",
             WorkerWireExit::Shutdown
             | WorkerWireExit::PeerClosed
-            | WorkerWireExit::UnexpectedPeerData
             | WorkerWireExit::RequestFailed => "none",
         }
     }
@@ -69,20 +85,11 @@ impl WorkerWireEnd {
             ..
         }) = self.request
         {
-            return match error {
-                WorkerRequestError::InvalidRequest(error)
-                | WorkerRequestError::PostDeliveryOutcomeUnknown(
-                    WorkerResponseFailure::InvalidFrame(error),
-                ) => protocol_error(error),
-                WorkerRequestError::NotDelivered(WorkerTransportFailure::Io(kind))
-                | WorkerRequestError::PostDeliveryOutcomeUnknown(WorkerResponseFailure::Io(kind)) => {
-                    io_token(kind)
-                }
-                _ => "none",
-            };
+            return request_error(error);
         }
         match self.exit {
             WorkerWireExit::Transport(WorkerTransportFailure::Io(kind)) => io_token(kind),
+            WorkerWireExit::BrokenFraming(FramingBreak::Header(error)) => protocol_error(error),
             _ => "none",
         }
     }
@@ -158,6 +165,21 @@ const fn request_failure(error: WorkerRequestError) -> &'static str {
     }
 }
 
+/// A request failure's I/O error kind or protocol error, `none` without one.
+fn request_error(error: WorkerRequestError) -> &'static str {
+    match error {
+        WorkerRequestError::InvalidRequest(error)
+        | WorkerRequestError::PostDeliveryOutcomeUnknown(WorkerResponseFailure::InvalidFrame(
+            error,
+        )) => protocol_error(error),
+        WorkerRequestError::NotDelivered(WorkerTransportFailure::Io(kind))
+        | WorkerRequestError::PostDeliveryOutcomeUnknown(WorkerResponseFailure::Io(kind)) => {
+            io_token(kind)
+        }
+        _ => "none",
+    }
+}
+
 const fn transport_failure(failure: WorkerTransportFailure) -> &'static str {
     match failure {
         WorkerTransportFailure::TimedOut => "transport.timed-out",
@@ -167,7 +189,7 @@ const fn transport_failure(failure: WorkerTransportFailure) -> &'static str {
     }
 }
 
-const fn protocol_error(error: ProtocolError) -> &'static str {
+pub(super) const fn protocol_error(error: ProtocolError) -> &'static str {
     match error {
         ProtocolError::InvalidMagic => "invalid-magic",
         ProtocolError::IncompatibleVersion { .. } => "incompatible-version",

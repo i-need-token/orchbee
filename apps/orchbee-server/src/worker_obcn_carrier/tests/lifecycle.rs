@@ -182,7 +182,7 @@ fn lifecycle_requests_require_the_registered_worker_and_generation() -> TestResu
 }
 
 #[test]
-fn lifecycle_corruption_retires_the_carrier_after_complete_delivery() -> TestResult {
+fn lifecycle_corruption_fails_only_the_request_after_complete_delivery() -> TestResult {
     let request = request()?;
     let mut wrong = request;
     wrong.request_id = OperationId::from_bytes([9; 16])?;

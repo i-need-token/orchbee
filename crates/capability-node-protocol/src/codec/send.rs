@@ -171,7 +171,7 @@ pub(crate) fn encode_request_record(
 pub(crate) fn read_request_record(
     reader: &mut impl Read,
     prefix: [u8; 8],
-) -> Result<TerminalSendRequest, crate::ReadMessageError> {
+) -> Result<Result<TerminalSendRequest, ProtocolError>, crate::ReadMessageError> {
     let mut header = [0_u8; SEND_RECORD_HEADER];
     header[..8].copy_from_slice(&prefix);
     reader.read_exact(&mut header[8..])?;
@@ -179,7 +179,7 @@ pub(crate) fn read_request_record(
         decode_record_header(&header).map_err(crate::ReadMessageError::from)?;
     let mut body = vec![0_u8; length];
     reader.read_exact(&mut body)?;
-    decode_request_body(&body, precondition).map_err(Into::into)
+    Ok(decode_request_body(&body, precondition))
 }
 
 /// Decode one complete in-memory `OBNS` frame.

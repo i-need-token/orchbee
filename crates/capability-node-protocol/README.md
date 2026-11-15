@@ -211,8 +211,11 @@ magic, version, message or enum tags, malformed or incomplete values, excess byt
 payloads. Frame version 1 and terminal-launch capability version 1 are separate version domains.
 Bounded streaming helpers read the complete eight-byte header before validating it and allocating
 the declared payload, then read exactly that payload; writes tolerate partial progress. I/O failure
-is distinct from a syntactically invalid protocol frame. Writing one frame does not flush a
-caller-owned buffer; that carrier policy remains with the adapter.
+is distinct from a syntactically invalid protocol frame. `read_framed_message` also separates a lost
+frame boundary, an I/O failure or a header whose magic, version, or length cannot locate the next
+frame, from one whole frame whose content is invalid, after which the stream sits at the next frame;
+`read_message` folds both into one error. Writing one frame does not flush a caller-owned buffer;
+that carrier policy remains with the adapter.
 
 Launch capability version 1 includes the generation-local Worker binding bound and typed
 capacity result. The Worker authorization kernel admits only the exact current capability;

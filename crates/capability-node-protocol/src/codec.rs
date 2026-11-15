@@ -211,6 +211,16 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
 }
 
 pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, ReadMessageError> {
+    read_framed_message(reader)?.map_err(Into::into)
+}
+
+/// Reads one frame and keeps the two kinds of invalid input apart. The outer error means the
+/// frame boundary is lost: an I/O failure, or a header whose magic, version, or length cannot
+/// locate the next frame. The inner error means one whole frame was read and its content is
+/// invalid, so the stream stays positioned at the next frame.
+pub fn read_framed_message(
+    reader: &mut impl Read,
+) -> Result<Result<CapabilityNodeMessage, ProtocolError>, ReadMessageError> {
     let mut header = [0_u8; FRAME_HEADER_BYTES];
     reader.read_exact(&mut header)?;
     if header.starts_with(b"OBNG") {
@@ -239,12 +249,12 @@ pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, Rea
     }
     if header.starts_with(b"OBNS") {
         return send::read_request_record(reader, header)
-            .map(CapabilityNodeMessage::TerminalSendRequest);
+            .map(|record| record.map(CapabilityNodeMessage::TerminalSendRequest));
     }
     let payload_length = decode_header(&header)?;
     let mut payload = vec![0_u8; payload_length];
     reader.read_exact(&mut payload)?;
-    decode_payload(&payload).map_err(Into::into)
+    Ok(decode_payload(&payload))
 }
 
 pub fn write_message(

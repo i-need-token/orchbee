@@ -1,13 +1,14 @@
 //! Three-thread admitted carrier: bounded input, one dispatch/output owner, one owner of reads
-//! that wait on a Worker job, and event wakeups.
-use super::application_connection::{ApplicationConnectionError, ApplicationRequest};
+//! that wait on a Worker job, and event wakeups. A request or read that fails closes only its own
+//! stream; only the carrier's own input, output, and limits end the connection.
+use super::application_connection::{ApplicationConnectionError, ApplicationRequest, Effect};
 use orchbee_local_ipc::LocalStream;
 use orchbee_server::SessionChangeSignal;
 use orchbee_workbench_protocol::{
     MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_LANES, MAXIMUM_MULTIPLEX_STREAMS,
-    MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage, MultiplexStreamId,
-    MultiplexViewerId, StreamCloseReason, StreamFrameKind, StreamMode, read_multiplex_message,
-    write_multiplex_message,
+    MAXIMUM_STREAM_RECORD_BYTES, MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage,
+    MultiplexStreamId, MultiplexViewerId, StreamCloseReason, StreamFrameKind, StreamMode,
+    read_multiplex_message, write_multiplex_message,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -74,6 +75,77 @@ struct Queued {
     claim: Claim,
 }
 
+/// Why the dispatcher closes one stream while its connection keeps serving.
+#[derive(Clone, Copy, Debug)]
+enum StreamFailure {
+    /// A drain refused the request before it ran; nothing failed.
+    Drained,
+    /// The request record inside an intact frame did not decode.
+    InvalidRequest,
+    /// The record is larger than one frame (`record-size`) or than the connection's remaining
+    /// budget (`budget`).
+    Undeliverable(&'static str),
+    /// The read failed at this connection stage.
+    Execution(&'static str),
+}
+
+impl StreamFailure {
+    /// The stream failure of one failed execution, or the error that ends the connection. A
+    /// Session stop ends every connection. An intent that failed after it ran keeps ending its
+    /// connection: a closed request stream tells the Client that its request never ran.
+    fn execution(effect: Effect, error: ApplicationConnectionError) -> io::Result<Self> {
+        match error {
+            ApplicationConnectionError::Draining => Ok(Self::Drained),
+            ApplicationConnectionError::Stopping => Err(io::Error::other(error)),
+            error if effect == Effect::Read => Ok(Self::Execution(error.stage())),
+            error => Err(io::Error::other(error)),
+        }
+    }
+
+    /// Closes the stream with a reason its Client already handles, and keeps the failure's class
+    /// in the Server log rather than on the Client's screen.
+    fn close(
+        self,
+        writer: &mut impl Write,
+        stream_id: MultiplexStreamId,
+        stage: &'static str,
+    ) -> io::Result<()> {
+        let reason = match self {
+            Self::Drained => StreamCloseReason::Stopping,
+            Self::InvalidRequest => {
+                crate::fault_records::client_stream_failed(stage, "invalid-request");
+                StreamCloseReason::InvalidRequest
+            }
+            Self::Undeliverable(failure) | Self::Execution(failure) => {
+                crate::fault_records::client_stream_failed(stage, failure);
+                StreamCloseReason::Capacity
+            }
+        };
+        write_multiplex_message(writer, &MultiplexMessage::StreamClose { stream_id, reason })
+    }
+}
+
+/// Claims budget for a record the connection can deliver in one frame. A record it cannot deliver
+/// fails only its stream, unless it answers an intent that has already run: the Client could not
+/// learn that outcome, so the connection ends with `Capacity` as before.
+fn deliverable(
+    effect: Effect,
+    budget: &Arc<AtomicUsize>,
+    record: &[u8],
+) -> io::Result<Result<Claim, StreamFailure>> {
+    let failure = if record.is_empty() || record.len() > MAXIMUM_STREAM_RECORD_BYTES {
+        "record-size"
+    } else if let Ok(claim) = Claim::reserve(budget, record.len().saturating_mul(3)) {
+        return Ok(Ok(claim));
+    } else {
+        "budget"
+    };
+    if effect == Effect::Intent {
+        return Err(io::ErrorKind::OutOfMemory.into());
+    }
+    Ok(Err(StreamFailure::Undeliverable(failure)))
+}
+
 #[derive(Default)]
 struct Inbox {
     messages: VecDeque<Queued>,
@@ -105,6 +177,7 @@ struct JobRead {
 }
 struct FinishedJobRead {
     stream_id: MultiplexStreamId,
+    effect: Effect,
     outcome: Result<Vec<u8>, ApplicationConnectionError>,
     _claim: Claim,
 }
@@ -152,6 +225,7 @@ impl JobReads {
             let outcome = execute(&read.request);
             self.state().finished.push_back(FinishedJobRead {
                 stream_id: read.stream_id,
+                effect: read.request.effect(),
                 outcome,
                 _claim: read.claim,
             });
@@ -354,14 +428,23 @@ fn dispatch(
             if open_job_reads.remove(&read.stream_id).is_none() {
                 continue;
             }
-            let record = read.outcome.map_err(io::Error::other)?;
-            let Ok(_frame_claim) = Claim::reserve(budget, record.len().saturating_mul(3)) else {
-                return write_multiplex_message(
-                    writer,
-                    &MultiplexMessage::Disconnect {
-                        reason: MultiplexDisconnectReason::Capacity,
-                    },
-                );
+            let record = match read.outcome {
+                Ok(record) => record,
+                Err(error) => {
+                    StreamFailure::execution(read.effect, error)?.close(
+                        writer,
+                        read.stream_id,
+                        "job-read",
+                    )?;
+                    continue;
+                }
+            };
+            let _frame_claim = match deliverable(read.effect, budget, &record)? {
+                Ok(claim) => claim,
+                Err(failure) => {
+                    failure.close(writer, read.stream_id, "job-read")?;
+                    continue;
+                }
             };
             write_multiplex_message(
                 writer,
@@ -400,7 +483,10 @@ fn dispatch(
                         )?;
                         continue;
                     }
-                    let parsed = ApplicationRequest::decode(&request).map_err(io::Error::other)?;
+                    let Ok(parsed) = ApplicationRequest::decode(&request) else {
+                        StreamFailure::InvalidRequest.close(writer, stream_id, "open")?;
+                        continue;
+                    };
                     if !parsed.multiplex_safe()
                         || (mode != StreamMode::Request && !parsed.subscribable())
                     {
@@ -448,29 +534,26 @@ fn dispatch(
                     // Registration precedes capture: publication during capture changes the signal
                     // revision and forces another evaluation before this connection can sleep.
                     let captured_at = stream_revision(signal, mode, &parsed);
-                    let record = match execute(lane_id, &parsed) {
-                        Ok(record) => record,
-                        // A drain refuses this intent alone; the connection keeps serving reads.
-                        Err(ApplicationConnectionError::Draining) => {
-                            write_multiplex_message(
-                                writer,
-                                &MultiplexMessage::StreamClose {
-                                    stream_id,
-                                    reason: StreamCloseReason::Stopping,
-                                },
-                            )?;
+                    let effect = parsed.effect();
+                    // A drain refuses this intent alone and a failed read closes only its stream;
+                    // the connection keeps serving. A listener a failed stream may have registered
+                    // is released, since no other stream of its owner remains.
+                    let failure = match execute(lane_id, &parsed) {
+                        Ok(record) => match deliverable(effect, budget, &record)? {
+                            Ok(claim) => Ok((record, claim)),
+                            Err(failure) => Err(failure),
+                        },
+                        Err(error) => Err(StreamFailure::execution(effect, error)?),
+                    };
+                    let (record, last_claim) = match failure {
+                        Ok(delivered) => delivered,
+                        Err(failure) => {
+                            failure.close(writer, stream_id, "open")?;
+                            if mode != StreamMode::Request {
+                                cancel(&parsed);
+                            }
                             continue;
                         }
-                        Err(error) => return Err(io::Error::other(error)),
-                    };
-                    let Ok(last_claim) = Claim::reserve(budget, record.len().saturating_mul(3))
-                    else {
-                        return write_multiplex_message(
-                            writer,
-                            &MultiplexMessage::Disconnect {
-                                reason: MultiplexDisconnectReason::Capacity,
-                            },
-                        );
                     };
                     let kind = if mode == StreamMode::Request {
                         StreamFrameKind::Result
@@ -508,13 +591,7 @@ fn dispatch(
                 }
                 MultiplexMessage::StreamClose { stream_id, .. } => {
                     open_job_reads.remove(&stream_id);
-                    if let Some(removed) = subscriptions.remove(&stream_id)
-                        && !subscriptions.values().any(|current| {
-                            current.request.same_subscription_owner(&removed.request)
-                        })
-                    {
-                        cancel(&removed.request);
-                    }
+                    remove_subscription(&mut subscriptions, stream_id, cancel);
                 }
                 MultiplexMessage::Resnapshot { stream_id } => {
                     if let Some(subscription) = subscriptions.get_mut(&stream_id) {
@@ -535,7 +612,7 @@ fn dispatch(
                                 },
                             );
                         }
-                        resnapshot(
+                        if let Err(failure) = resnapshot(
                             writer,
                             stream_id,
                             subscription,
@@ -543,7 +620,10 @@ fn dispatch(
                             cancel,
                             signal,
                             budget,
-                        )?;
+                        )? {
+                            failure.close(writer, stream_id, "resnapshot")?;
+                            remove_subscription(&mut subscriptions, stream_id, cancel);
+                        }
                     }
                 }
                 MultiplexMessage::LaneOpen { lane_id } => {
@@ -582,6 +662,8 @@ fn dispatch(
         // released before any write/wait, and reports wake this owner to recompute the deadline.
         let expiry = maintenance()?;
         let mut retained = 0usize;
+        // A subscription that fails is closed here and removed once the pass is over.
+        let mut failed = Vec::new();
         for (stream_id, subscription) in &mut subscriptions {
             // Domain journals retain ordered events and report their own cursor gaps. A commit
             // count is only invalidation: unrelated commits must never imply event loss.
@@ -591,13 +673,20 @@ fn dispatch(
                 let record = if subscription.mode == StreamMode::Invalidations {
                     observed.to_be_bytes().to_vec()
                 } else {
-                    execute(subscription.lane, &subscription.continuation)
-                        .map_err(io::Error::other)?
+                    match execute(subscription.lane, &subscription.continuation) {
+                        Ok(record) => record,
+                        Err(error) => {
+                            StreamFailure::execution(subscription.continuation.effect(), error)?
+                                .close(writer, *stream_id, "update")?;
+                            failed.push(*stream_id);
+                            continue;
+                        }
+                    }
                 };
                 let (more, gap) = ApplicationRequest::event_page(&record);
                 subscription.more = more;
                 if gap {
-                    resnapshot(
+                    if let Err(failure) = resnapshot(
                         writer,
                         *stream_id,
                         subscription,
@@ -605,22 +694,25 @@ fn dispatch(
                         cancel,
                         signal,
                         budget,
-                    )?;
+                    )? {
+                        failure.close(writer, *stream_id, "resnapshot")?;
+                        failed.push(*stream_id);
+                    }
                     continue;
                 }
                 if record != subscription.last
                     || (subscription.mode == StreamMode::Events
                         && ApplicationRequest::has_event(&record))
                 {
-                    let Ok(last_claim) = Claim::reserve(budget, record.len().saturating_mul(3))
-                    else {
-                        return write_multiplex_message(
-                            writer,
-                            &MultiplexMessage::Disconnect {
-                                reason: MultiplexDisconnectReason::Capacity,
-                            },
-                        );
-                    };
+                    let last_claim =
+                        match deliverable(subscription.continuation.effect(), budget, &record)? {
+                            Ok(claim) => claim,
+                            Err(failure) => {
+                                failure.close(writer, *stream_id, "update")?;
+                                failed.push(*stream_id);
+                                continue;
+                            }
+                        };
                     subscription.sequence = subscription
                         .sequence
                         .checked_add(1)
@@ -643,6 +735,9 @@ fn dispatch(
             retained = retained
                 .saturating_add(subscription.last.len())
                 .saturating_add(subscription.request.encoded_length());
+        }
+        for stream_id in failed {
+            remove_subscription(&mut subscriptions, stream_id, cancel);
         }
         if retained > MAXIMUM_MULTIPLEX_BYTES {
             return write_multiplex_message(
@@ -690,6 +785,24 @@ fn stream_revision(
     }
 }
 
+/// Removes one subscription and cancels its listener unless another stream of the same owner still
+/// holds it.
+fn remove_subscription(
+    subscriptions: &mut BTreeMap<MultiplexStreamId, Subscription>,
+    stream_id: MultiplexStreamId,
+    cancel: &mut impl FnMut(&ApplicationRequest),
+) {
+    if let Some(removed) = subscriptions.remove(&stream_id)
+        && !subscriptions
+            .values()
+            .any(|current| current.request.same_subscription_owner(&removed.request))
+    {
+        cancel(&removed.request);
+    }
+}
+
+/// Sends a gap and a fresh snapshot. The inner error fails only this subscription; the outer one
+/// ends the connection.
 fn resnapshot(
     writer: &mut impl Write,
     stream_id: MultiplexStreamId,
@@ -701,7 +814,7 @@ fn resnapshot(
     cancel: &mut impl FnMut(&ApplicationRequest),
     signal: &SessionChangeSignal,
     budget: &Arc<AtomicUsize>,
-) -> io::Result<()> {
+) -> io::Result<Result<(), StreamFailure>> {
     write_multiplex_message(
         writer,
         &MultiplexMessage::Gap {
@@ -719,8 +832,15 @@ fn resnapshot(
     }
     let observed = stream_revision(signal, subscription.mode, &subscription.request);
     let fresh = subscription.request.fresh_snapshot();
-    let record = execute(subscription.lane, &fresh).map_err(io::Error::other)?;
-    let last_claim = Claim::reserve(budget, record.len().saturating_mul(3))?;
+    let effect = fresh.effect();
+    let record = match execute(subscription.lane, &fresh) {
+        Ok(record) => record,
+        Err(error) => return StreamFailure::execution(effect, error).map(Err),
+    };
+    let last_claim = match deliverable(effect, budget, &record)? {
+        Ok(claim) => claim,
+        Err(failure) => return Ok(Err(failure)),
+    };
     subscription.sequence = subscription
         .sequence
         .checked_add(1)
@@ -739,7 +859,7 @@ fn resnapshot(
     subscription.last = record;
     subscription.last_claim = last_claim;
     subscription.observed = observed;
-    Ok(())
+    Ok(Ok(()))
 }
 
 pub(super) struct PrefixedStream<'a, S> {

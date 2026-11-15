@@ -76,7 +76,7 @@ pub use agent_drain::{
 };
 pub use codec::{
     CapabilityNodeMessage, FRAME_MAGIC, MAXIMUM_FRAME_PAYLOAD_BYTES, PROTOCOL_VERSION,
-    decode_message, encode_message, read_message, write_message,
+    decode_message, encode_message, read_framed_message, read_message, write_message,
 };
 pub use error::{ProtocolError, ReadMessageError, WriteMessageError};
 pub use identity::{

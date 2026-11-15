@@ -88,12 +88,12 @@ pub(super) fn decode(bytes: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErro
 pub(super) fn read(
     reader: &mut impl Read,
     prefix: [u8; FRAME_HEADER_BYTES],
-) -> Result<CapabilityNodeMessage, ReadMessageError> {
+) -> Result<Result<CapabilityNodeMessage, ProtocolError>, ReadMessageError> {
     let mut header = [0; HEADER_BYTES];
     header[..FRAME_HEADER_BYTES].copy_from_slice(&prefix);
     reader.read_exact(&mut header[FRAME_HEADER_BYTES..])?;
     let size = length(&header)?;
     let mut bytes = vec![0; size];
     reader.read_exact(&mut bytes)?;
-    body(&bytes).map_err(Into::into)
+    Ok(body(&bytes))
 }
