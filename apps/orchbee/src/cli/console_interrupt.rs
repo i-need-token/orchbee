@@ -70,6 +70,16 @@ impl ArmedSignals {
         platform::arm().map(Self)
     }
 
+    /// [`Self::arm_interrupts`], except on macOS, which has no signal owner yet: there `SIGINT` and
+    /// `SIGTERM` keep their inherited action and end the invocation at once as `128 + signo`,
+    /// leaving an accepted operation running and writing no document.
+    pub(super) fn arm_interrupts_or_inherit() -> io::Result<Self> {
+        #[cfg(target_os = "macos")]
+        return Ok(Self(Box::new(platform::Inherited)));
+        #[cfg(not(target_os = "macos"))]
+        return Self::arm_interrupts();
+    }
+
     pub(super) fn poll_fd(&self) -> Option<LocalIo<'_>> {
         self.0.wake()
     }

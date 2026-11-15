@@ -3,6 +3,29 @@
 use super::NativeSignals;
 use std::io;
 
+/// No signal policy: the invocation keeps its inherited dispositions and never reports a signal.
+#[cfg(target_os = "macos")]
+pub(super) struct Inherited;
+
+#[cfg(target_os = "macos")]
+impl NativeSignals for Inherited {
+    fn wake(&self) -> Option<orchbee_local_ipc::LocalIo<'_>> {
+        None
+    }
+    fn requested(&self) -> bool {
+        false
+    }
+    fn take(&mut self) -> io::Result<Option<i32>> {
+        Ok(None)
+    }
+    fn finish(self: Box<Self>) -> io::Result<Option<crate::cli::SourceFinalization>> {
+        Ok(None)
+    }
+    fn into_finalization(self: Box<Self>) -> crate::cli::SourceFinalization {
+        crate::cli::SourceFinalization {}
+    }
+}
+
 pub(super) fn arm() -> io::Result<Box<dyn NativeSignals>> {
     Err(io::ErrorKind::Unsupported.into())
 }

@@ -30,7 +30,7 @@ pub(super) fn run(
         query: matches!(command, ServerStopCommand::Status { .. }),
         elevated_session: false,
     };
-    let mut signals = match ArmedSignals::arm_interrupts() {
+    let mut signals = match ArmedSignals::arm_interrupts_or_inherit() {
         Ok(signals) => signals,
         Err(_) => {
             answer.observation = Observation::Unavailable("signal-registration");

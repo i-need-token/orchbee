@@ -100,7 +100,14 @@ struct Steps {
 impl Steps {
     fn system() -> Self {
         Self {
-            accept: Box::new(|listener| listener.accept().map(|(stream, _address)| stream)),
+            // The listener never blocks; a macOS socket it accepts inherits that mode, and every
+            // handler reads and writes in blocking mode.
+            accept: Box::new(|listener| {
+                let (stream, _address) = listener.accept()?;
+                #[cfg(unix)]
+                stream.set_nonblocking(false)?;
+                Ok(stream)
+            }),
             spawn: Box::new(|handler| {
                 thread::Builder::new()
                     .name("orchbee-local-client".into())

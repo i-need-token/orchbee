@@ -3,7 +3,8 @@
 //! terminal sends, changes nothing. They are blocked before any thread starts, so every Server
 //! thread inherits the blocked mask and one thread alone waits for them. A child such as the Worker
 //! starts with an empty mask again, since the standard library resets it for every process it
-//! creates.
+//! creates. A signal inherited as ignored stays ignored on macOS, which discards it before any
+//! waiter sees it; Linux keeps a blocked signal pending whatever its action.
 use crate::session_shutdown::SessionShutdown;
 use nix::sys::signal::{SigSet, Signal};
 use orchbee_local_client_protocol::StopId;
