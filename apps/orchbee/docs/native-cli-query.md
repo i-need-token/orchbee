@@ -626,8 +626,8 @@ The prompt workflow compiles on every host. Capability admission precedes deadli
 signal registration and Session access. Linux and macOS use the canonical sampled observation;
 Windows retains physical targets, journal history and Client evidence. The common INT/TERM
 port delegates to each existing native guard, and the Client Connection is dropped before
-signal finalization and receipt projection. macOS has no guard yet: `SIGINT` and `SIGTERM` keep
-their inherited action, so an interrupted prompt ends at once with `128 + signo` and no document. Unsupported hosts return the existing platform
+signal finalization and receipt projection. macOS and Linux capture `SIGINT` and `SIGTERM` through
+the same Unix signal owner. Unsupported hosts return the existing platform
 failure without acquiring those resources; Unix prompt results keep their existing
 unsupported journal and Client fields.
 
@@ -1228,10 +1228,9 @@ the source limit plus one byte into a private output pipe. The CLI polls under t
 existing deadline and interrupt guard, and kills/reaps the child on success and handled failures.
 It does not change the caller's pipe mode or leave a blocking reader thread behind.
 The shared send workflow keeps source arbitration, one submission and receipt projection together.
-Linux and Windows retain their existing send routes. macOS takes the Linux route for inline input
-but refuses a declared `--file` or `--stdin` source, which needs a signal watch macOS does not have
-yet; shell-run observation remains Windows-admitted, and unavailable commands refuse before source,
-signal or Session effects.
+Linux and Windows retain their existing send routes. macOS takes the Linux route, declared `--file`
+and `--stdin` sources included; shell-run observation remains Windows-admitted, and unavailable
+commands refuse before source, signal or Session effects.
 Regular-file stdin retains direct reads. Process startup and termination remain OS
 scheduling boundaries, not hard real-time guarantees.
 
@@ -1239,7 +1238,7 @@ The adapter uses the already admitted `winsafe` system-directory and `winapi-uti
 handle-type bindings at their existing locked versions, with no authored unsafe code.
 States are admitted -> reading -> complete/failed/timed-out/cancelled -> child-reaped;
 only complete can reach submission. `source/input.rs` owns opaque-byte/paste routing:
-file/stdin is not restricted to UTF-8. This algorithm and finish projection compile through the common source facade; named Linux/Windows ports retain acquisition and signal ownership, and `source_finalization/` retains the original emit-time release. Windows tests exercise real reader processes
+file/stdin is not restricted to UTF-8. This algorithm and finish projection compile through the common source facade; the Unix port (with its Linux signalfd and macOS kqueue captures) and the Windows port retain acquisition and signal ownership, and `source_finalization/` retains the original emit-time release. Windows tests exercise real reader processes
 for EOF, limits, and timeout, and inject a signal observation to test cancellation;
 they do not simulate physical Ctrl+C. This workflow uses implementation tests.
 
@@ -1259,19 +1258,21 @@ one paste record and, with `--enter`, a separate trailing Enter record.
   read whose wait ended at the deadline — and also arbitrates the completion boundary
   itself: an end of input observed after the budget closed is `timeout`, never a clean
   record. No runtime admission runs after it expires.
-- **Linux file admission.** `--file` opens `O_RDONLY|O_NONBLOCK|O_CLOEXEC` — the open itself
+- **Unix file admission.** `--file` opens `O_RDONLY|O_NONBLOCK|O_CLOEXEC` — the open itself
   cannot block on a FIFO or device — then `fstat` on the already-open descriptor must
   report a regular file, which also closes the path-replacement race: a swapped path
   still reports its true type. An unopenable/unreadable path, a non-regular result
   (directory, FIFO, device, or a swapped replacement), an empty file, or a read error is
   a source-stage `invalid-usage`.
-- **Linux stdin admission.** `--stdin` refuses a terminal descriptor, then dispatches on the
+- **Unix stdin admission.** `--stdin` refuses a terminal descriptor, then dispatches on the
   inherited descriptor's exact `S_IFMT` type: a regular file is read in place,
   unbuffered, on the borrowed descriptor — the shared file position advances by exactly
   the bytes returned, at most the declared source bound plus one probe byte (that is the inherited-position
-  contract); a FIFO/pipe is reopened through `/proc/self/fd/0` into a private
+  contract); on Linux a FIFO/pipe is reopened through `/proc/self/fd/0` into a private
   nonblocking file description, so the caller's descriptor flags are never mutated and
-  nothing needs restoring; the reopened description must verify as a FIFO, and every
+  nothing needs restoring, and the reopened description must verify as a FIFO. macOS has
+  no private reopen — `/dev/fd/0` shares the caller's description — so a FIFO is read in
+  place on the borrowed descriptor, flags untouched, each read gated on its poll. Every
   other kind (socket, device, …) is rejected.
 - **Bounded record.** File/stdin acquisition reads at most the 1 MiB byte bound
   plus one probe byte, or the 256 KiB paste-content bound plus one. Opaque bytes,
@@ -1279,26 +1280,39 @@ one paste record and, with `--enter`, a separate trailing Enter record.
   CRLF normalization. Empty input is refused. The optional folded CR counts toward
   the non-paste bound; paste uses a separate Enter record. Literal `--text` retains
   its 4096-byte UTF-8 bound including CR. Payload is never included in diagnostics.
-- **Source signal guard.** On Linux the source stage owns process signal capture for its
-  duration — single-threaded, with no other signal owner and no child spawned before
+- **Source signal guard.** On macOS and Linux the source stage owns process signal capture for
+  its duration — single-threaded, with no other signal owner and no child spawned before
   handoff. The eligible set is {SIGHUP, SIGINT, SIGQUIT, SIGTERM} minus every signal the
-  process already blocks or ignores at source entry: the ignored set comes from a
+  process already blocks or ignores at source entry; the blocked set comes from the
+  current thread mask. On Linux the ignored set comes from a
   strictly bounded `/proc/self/status` `SigIgn` field (at most a 64 KiB read yielding
   exactly one well-formed hexadecimal field — missing, malformed, duplicated, or
-  oversized is an internal failure before any source I/O) and the blocked set from the
-  current thread mask. Setup creates a `NONBLOCK|CLOEXEC` signalfd for the eligible set
+  oversized is an internal failure before any source I/O). Setup creates a `NONBLOCK|CLOEXEC` signalfd for the eligible set
   first — while inherited dispositions still apply, so a setup fault there needs nothing
   restored — then swaps the thread mask atomically and captures the old mask; the capture
-  interval begins at the swap, before any source read. Dispositions are never touched and
+  interval begins at the swap, before any source read. macOS has neither signalfd nor a
+  safe read of dispositions, so setup creates a kqueue, swaps in a mask that blocks every
+  candidate, and classifies each candidate by the kernel's own rule: a blocked signal
+  raised on this thread stays pending unless its disposition is ignore. Each candidate is
+  raised and dequeued again; one that never became pending is ignored, leaves the kqueue's
+  `EVFILT_SIGNAL` filters and is unblocked again. A signal sent to the process during this
+  classification is recorded by the kqueue or found pending, and is raised again once, so
+  arming never swallows it. The nonblocking dequeue blocks `SIGCONT`, raises it as a
+  sentinel and calls `sigwait` over the probed set plus `SIGCONT`: XNU never discards
+  `SIGCONT`, and a pending probed member has a lower number, so it returns first. A setup
+  fault before the first raised probe restores the old mask; a later one keeps the
+  candidates blocked for the rest of the invocation, so no probe is ever delivered.
+  Dispositions are never touched and
   inherited blocked/ignored state is preserved exactly — an empty eligible set is a real
   armed policy (nothing to capture), never a no-op fallback, and inherited pending
   signals stay pending under their original mask.
-- **Arbitration and finalization.** The read loop polls the signal descriptor beside the
+- **Arbitration and finalization.** The read loop polls the signal descriptor (the signalfd, or
+  the macOS kqueue) beside the
   source descriptor and drains it before processing ready data, before judging a
   timeout, and once more at the completion boundary; the first consumed eligible signal
   selects source cancellation, which wins over deadline and source I/O error.
   Materialization finish linearizes on a final nonblocking signal read: a consumed
-  signal means cancel; `EAGAIN` means the source no longer owns cancellation — the
+  signal means cancel; no pending signal means the source no longer owns cancellation — the
   signal descriptor closes and the exact old mask is restored before runtime admission.
   A signal arriving after that read stays pending and is delivered to its original
   disposition at unmask — the guard never swallows it — so a late signal can still
@@ -1322,8 +1336,10 @@ one paste record and, with `--enter`, a separate trailing Enter record.
   promise exists there. The pre-arm window before the mask swap runs under inherited
   dispositions — a default death there is honest and effect-free, not a guarded-window
   hole, and neither arming order closes every signal-arrival race. Inherited `SIG_IGN`
-  dispositions are respected, not overridden. These are Linux-only claims backed by
-  procfs, consistent with the procfd input admission.
+  dispositions are respected, not overridden. On Linux these claims are backed by
+  procfs, consistent with the procfd input admission. On macOS they rest on the kernel
+  discarding a blocked ignored signal, and a FIFO read can stall only when another reader
+  of the same pipe drains it between the poll and the read.
 
 `agent list` and `agent get` run the same cohort → discovery → socket →
 admission preamble as every network query under one absolute 5-second command budget
@@ -1356,7 +1372,7 @@ platform limits.
    output is prepared. An ambiguous post-submission outcome retires the session and is
    never replayed: no reconnect, no second admission, no retry.
 
-On Linux the Agent read commands own a separate, narrower signal watch for the whole
+On macOS and Linux the Agent read commands own a separate, narrower signal watch for the whole
 armed span — {SIGINT, SIGTERM} only, armed before any runtime contact through the same
 private arming mechanics the source stage uses: the eligible set excludes every signal
 the process already blocks or ignores, the borrowed signal descriptor joins every
@@ -1375,8 +1391,7 @@ for either member. 130 is deliberate for both SIGINT and SIGTERM — it is not
 transport fault, and admission outcomes at the single finish arbitration, which still
 runs only after the admitted session is dropped. A provisional wake observation
 surviving a clear arbitration is an `internal-failure`, never a transport or timeout
-verdict. macOS has no such watch yet: both signals keep their inherited action for the whole
-invocation, so an interrupted Agent read ends at once with `128 + signo` and no document.
+verdict.
 
 Semantic answers map to fixed failure kinds under the `orchbee.cli.failure.agent`
 document: `listed`/`found` are the only success outcomes; `rejected{read-denied}` →
@@ -2299,7 +2314,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
   source timeout, cancellation, or validation failure produces zero runtime effect and no
   request identity; after materialization the ordinary send lifecycle is authoritative and
   a source-stage outcome cannot semantically cancel an already admitted send.
-- On Linux, the source signal guard never alters dispositions and restores the inherited thread mask
+- On macOS and Linux, the source signal guard never alters dispositions and restores the inherited thread mask
   exactly — captured, inherited-blocked, and inherited-ignored signals each keep their
   original semantics; no signal owner outlives the source stage, and no eligible signal
   stays blocked past the output finalization path.

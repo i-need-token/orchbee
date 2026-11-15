@@ -1,5 +1,5 @@
-#[cfg(target_os = "linux")]
-mod linux_output;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod unix_output;
 
 #[cfg(windows)]
 mod windows_conpty_pointer;

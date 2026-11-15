@@ -152,47 +152,14 @@ fn materialized_bytes(input: &TerminalSendInput, signals: &mut dyn SignalWatch) 
 /// The first guarded signal neither inherited-blocked nor inherited-
 /// ignored, or none when the process excludes the whole set.
 fn first_eligible() -> Option<Signal> {
-    let ignored = inherited_ignored().expect("read inherited ignored set");
-    let mask = SigSet::thread_get_mask().expect("read thread mask");
-    GUARDED
-        .into_iter()
-        .find(|signal| ignored & (1_u64 << (*signal as u32 - 1)) == 0 && !mask.contains(*signal))
+    native::eligible_now(&GUARDED).into_iter().next()
 }
 
-/// Proof that a signal stayed pending: a fresh signalfd over the probed
-/// set reports the preserved pending signal (and drains it, so the test
-/// leaves nothing behind that could fire later).
+/// Proof that a signal stayed pending: the native probe reports the
+/// preserved pending signal (and drains it, so the test leaves nothing
+/// behind that could fire later).
 fn pending_signo(set: SigSet) -> Option<i32> {
-    SignalFd::with_flags(&set, SfdFlags::SFD_NONBLOCK)
-        .expect("probe signalfd")
-        .read_signal()
-        .expect("probe read")
-        .map(|info| i32::try_from(info.ssi_signo).unwrap_or(0))
-}
-
-#[test]
-fn status_field_accepts_only_one_valid_hex_value() {
-    let good = "Name:\tfoo\nSigIgn:\t0000000000000006\nSigBlk:\t0\n";
-    assert_eq!(status_field(good, "SigIgn:").unwrap(), 6);
-    assert_eq!(
-        status_field("SigIgn:\tffffffffffffffff\n", "SigIgn:").unwrap(),
-        u64::MAX
-    );
-    for bad in [
-        "SigIgn:\n",                    // empty
-        "SigIgn:   \n",                 // whitespace only
-        "SigIgn:\t\n",                  // tab only
-        "SigIgn:\t00000000000000006\n", // seventeen digits
-        "SigIgn:\t6 extra\n",           // trailing token
-        "SigIgn:\tzz\n",                // non-hex
-        "NoSuch:\t1\n",                 // missing field
-        "SigIgn:\t1\nSigIgn:\t2\n",     // duplicated field
-    ] {
-        assert!(
-            matches!(status_field(bad, "SigIgn:"), Err(ArmError::MalformedStatus)),
-            "{bad:?} must be rejected"
-        );
-    }
+    native::pending_signo(set)
 }
 
 #[test]
@@ -454,11 +421,7 @@ fn inherited_blocked_signal_excluded_and_pending_preserved() {
 #[test]
 fn interrupts_capture_and_release_restore_exact_mask() {
     let before = SigSet::thread_get_mask().expect("thread mask");
-    let ignored = inherited_ignored().expect("read inherited ignored set");
-    let Some(signal) = INTERRUPTS
-        .into_iter()
-        .find(|signal| ignored & (1_u64 << (*signal as u32 - 1)) == 0 && !before.contains(*signal))
-    else {
+    let Some(signal) = native::eligible_now(&INTERRUPTS).into_iter().next() else {
         // Both interruptions excluded: still a real armed policy — arm,
         // observe no capture, finish clear, restore.
         let mut armed = ArmedSignals::arm_interrupts().expect("arm empty eligible set");
@@ -570,12 +533,8 @@ fn interrupts_inherited_blocked_quit_pending_preserved() {
 /// mask — the same output-window contract `arm` gives the source stage.
 #[test]
 fn interrupts_finish_captured_signal_holds_mask_until_release() {
-    let ignored = inherited_ignored().expect("read inherited ignored set");
     let before = SigSet::thread_get_mask().expect("thread mask");
-    let Some(signal) = INTERRUPTS
-        .into_iter()
-        .find(|signal| ignored & (1_u64 << (*signal as u32 - 1)) == 0 && !before.contains(*signal))
-    else {
+    let Some(signal) = native::eligible_now(&INTERRUPTS).into_iter().next() else {
         return;
     };
     let armed = ArmedSignals::arm_interrupts().expect("arm interruptions");
@@ -599,7 +558,7 @@ fn interrupts_finish_captured_signal_holds_mask_until_release() {
 
 #[test]
 fn finish_read_error_restores_mask_then_reports() {
-    // Mock evidence: a signalfd read error at the arbitration point
+    // Mock evidence: a capture read error at the arbitration point
     // still attempts the owed restore before reporting the error.
     let before = SigSet::thread_get_mask().expect("thread mask");
     let armed = ArmedSignals::arm().expect("arm");
@@ -873,7 +832,7 @@ fn late_signal_in_finish_window_dies_by_os_disposition() {
     let output = Command::new(env::current_exe().expect("test binary"))
         .args([
             "--exact",
-            "cli::source::linux::tests::late_signal_in_finish_window_dies_by_os_disposition",
+            "cli::source::unix::tests::late_signal_in_finish_window_dies_by_os_disposition",
             "--test-threads=1",
             "--nocapture",
         ])

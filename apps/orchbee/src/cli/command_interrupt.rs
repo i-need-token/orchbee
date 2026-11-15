@@ -1,15 +1,12 @@
 //! Admitted CLI commands borrow the existing INT/TERM owner through one finish arbitration.
-//! The port preserves Linux signal-mask policy and Windows console-handler lifetime; macOS keeps
-//! the inherited signal actions, since it has no owner yet.
+//! The port preserves the macOS and Linux signal-mask policy and the Windows console-handler
+//! lifetime.
 use super::SourceFinalization;
 use orchbee_local_ipc::LocalIo;
 use std::io;
 
-#[cfg(target_os = "linux")]
-#[path = "command_interrupt/linux.rs"]
-mod platform;
-#[cfg(target_os = "macos")]
-#[path = "command_interrupt/macos.rs"]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[path = "command_interrupt/unix.rs"]
 mod platform;
 #[cfg(windows)]
 #[path = "command_interrupt/windows.rs"]

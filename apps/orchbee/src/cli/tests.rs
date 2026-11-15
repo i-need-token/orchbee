@@ -1397,7 +1397,7 @@ fn wait_failure_kinds_map_to_their_exit_codes() {
 /// A `terminal send` source-stage timeout or cancellation diagnoses the
 /// input read — nothing was awaited and nothing was sent. The wait stage
 /// keeps its own wording. Both locales and both routing paths are pinned.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn source_stage_failures_diagnose_the_input_read() {
     use super::{Failure, FailureKind, source_failure_output};
@@ -1464,7 +1464,7 @@ fn source_stage_failures_diagnose_the_input_read() {
 /// A captured signal on an Agent read answers `orchbee.cli.failure.agent`
 /// with the cancelled kind at 130 and the noncloneable finalization riding
 /// the common emit path — a cancelled read carries no correlated source.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn agent_cancellation_emits_agent_envelope_with_finalization() {
     use super::{Failure, FailureKind, SourceFinalization, query};

@@ -6,26 +6,26 @@
 //! reported through `orchbee.cli.failure.source` (timeout/cancelled) or the
 //! existing `invalid-usage` path (validation), never as transport loss.
 //!
-//! Signal capture is private on Linux: [`ArmedSignals`] owns a signalfd over
+//! Signal capture is private on macOS and Linux: [`ArmedSignals`] captures
 //! the eligible subset of a command stage's own watch set — everything not
 //! already blocked or ignored at arm time — for that stage's guarded
 //! interval only. The source stage watches the four-signal [`GUARDED`] set
 //! for its materialization interval; the Agent read owner borrows the same
 //! mechanism for its narrower [`INTERRUPTS`] pair only — SIGHUP/SIGQUIT are
-//! never masked or captured there. Arming is FD-first: the bounded
-//! `/proc/self/status` `SigIgn` parse and the descriptor creation run under
-//! inherited dispositions, then one atomic thread-mask swap both blocks the
-//! eligible set and captures the exact old mask. Dispositions are never
-//! touched, inherited blocked/ignored state is preserved (an empty eligible
-//! set is a real armed policy, not a fallback), and the restore is owed to
-//! the common emit finalizer as a noncloneable token whenever a captured
-//! signal selects cancellation.
+//! never masked or captured there. Arming blocks the eligible set on the
+//! owner's thread and captures the exact old mask; the native capture (a
+//! Linux signalfd, a macOS kqueue) reports pending members without
+//! delivering them. Dispositions are never touched, inherited
+//! blocked/ignored state is preserved (an empty eligible set is a real armed
+//! policy, not a fallback), and the restore is owed to the common emit
+//! finalizer as a noncloneable token whenever a captured signal selects
+//! cancellation.
 
 use std::{
     io::{self, IsTerminal, Read},
     os::{
         fd::{AsFd, BorrowedFd},
-        unix::fs::{FileTypeExt, OpenOptionsExt},
+        unix::fs::OpenOptionsExt,
     },
     time::Instant,
 };
@@ -36,7 +36,6 @@ use nix::{
     poll::{PollFd, PollFlags, PollTimeout, poll},
     sys::{
         signal::{SigSet, SigmaskHow, Signal},
-        signalfd::{SfdFlags, SignalFd},
         stat::{SFlag, fstat},
     },
 };
@@ -48,11 +47,22 @@ use crate::cli::input_source::usage;
 use crate::cli::input_source::{InputSource, SourceFailure};
 use crate::cli::{Failure, FailureKind, SourceFinalization};
 use crate::invocation::SendSourceCause;
+
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+use linux as native;
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+use macos as native;
+
+pub(crate) use native::ArmError;
 pub(super) type SignalError = Errno;
 
 /// The captured-signal channel polled beside the source descriptor. `take`
 /// distinguishes all three outcomes — a captured signal, no pending signal,
-/// and a real signalfd error — so an error is never silently read as "none".
+/// and a real capture error — so an error is never silently read as "none".
 pub(crate) trait SignalWatch {
     /// The descriptor to include in the wait set, or none when no signal is
     /// captured in this process.
@@ -78,48 +88,7 @@ const GUARDED: [Signal; 4] = [
 /// or captures them.
 const INTERRUPTS: [Signal; 2] = [Signal::SIGINT, Signal::SIGTERM];
 
-/// `/proc/self/status` is read through a hard bound so the status file can
-/// never produce an unbounded buffer, and its `SigIgn` field must appear
-/// exactly once in valid hex — anything else is an internal failure.
-const PROC_STATUS_LIMIT: usize = 64 * 1024;
-
-/// A setup failure before the mask swap; every variant maps to
-/// `internal-failure` at the command boundary and needs no restore because
-/// nothing was changed yet.
-#[derive(Debug)]
-pub(crate) enum ArmError {
-    /// Reading `/proc/self/status` failed at the OS level.
-    Io(io::Error),
-    /// A signal syscall (mask query, signalfd creation, mask swap) failed.
-    Errno(Errno),
-    /// The status file was oversized, non-UTF-8, or its `SigIgn` field was
-    /// missing, duplicated, or malformed.
-    MalformedStatus,
-}
-
-impl From<io::Error> for ArmError {
-    fn from(error: io::Error) -> Self {
-        Self::Io(error)
-    }
-}
-
-impl From<Errno> for ArmError {
-    fn from(errno: Errno) -> Self {
-        Self::Errno(errno)
-    }
-}
-
-impl std::fmt::Display for ArmError {
-    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Io(error) => write!(out, "{error}"),
-            Self::Errno(errno) => write!(out, "{errno}"),
-            Self::MalformedStatus => out.write_str("malformed /proc/self/status"),
-        }
-    }
-}
-
-/// How the capture interval ended. `Clear` means the descriptor is closed
+/// How the capture interval ended. `Clear` means the capture is closed
 /// and the exact inherited mask already restored — runtime admission may
 /// proceed. `Cancelled` carries the first-read signo plus the noncloneable
 /// token whose `release` performs the same exact restore only after the
@@ -132,19 +101,19 @@ pub(crate) enum Finish {
     },
 }
 
-/// The private source signal owner: a nonblocking signalfd over the eligible
+/// The private source signal owner: the native capture over the eligible
 /// set plus the inherited thread mask captured at arm. The capture interval
-/// begins at the mask swap, before any source I/O; a setup fault before the
-/// swap closes the descriptor and owes nothing.
+/// begins at the mask swap, before any source I/O; a setup fault owes
+/// nothing, because the native arm restores whatever it changed before
+/// reporting.
 pub(crate) struct ArmedSignals {
-    fd: SignalFd,
+    capture: native::Capture,
     old_mask: SigSet,
 }
 
 impl ArmedSignals {
-    /// Compute the eligible set — [`GUARDED`] minus every signal the process
-    /// already blocks or ignores — create its signalfd, then atomically swap
-    /// the thread mask and capture the old one.
+    /// Capture [`GUARDED`] minus every signal the process already blocks or
+    /// ignores, blocking that eligible set and recording the old mask.
     pub(crate) fn arm() -> Result<Self, ArmError> {
         Self::arm_set(&GUARDED)
     }
@@ -152,55 +121,36 @@ impl ArmedSignals {
     /// The Agent read owner borrows the identical private arming mechanism
     /// for its own narrower interruption set — [`INTERRUPTS`] minus every
     /// signal the process already blocks or ignores. The eligibility,
-    /// atomic mask swap, and restore contracts are exactly `arm`'s; only
-    /// membership differs, so SIGHUP/SIGQUIT are never captured or masked.
+    /// mask, and restore contracts are exactly `arm`'s; only membership
+    /// differs, so SIGHUP/SIGQUIT are never captured or masked.
     pub(crate) fn arm_interrupts() -> Result<Self, ArmError> {
         Self::arm_set(&INTERRUPTS)
     }
 
-    /// The shared private arming body: `watched` minus every inherited
-    /// blocked/ignored member becomes the eligible set.
     fn arm_set(watched: &[Signal]) -> Result<Self, ArmError> {
-        let ignored = inherited_ignored()?;
-        let old_mask = SigSet::thread_get_mask()?;
-        let mut eligible = SigSet::empty();
-        for signal in watched {
-            let bit = 1_u64 << (*signal as u32 - 1);
-            if ignored & bit == 0 && !old_mask.contains(*signal) {
-                eligible.add(*signal);
-            }
-        }
-        let fd = SignalFd::with_flags(&eligible, SfdFlags::SFD_NONBLOCK | SfdFlags::SFD_CLOEXEC)?;
-        // Block the eligible set while keeping every inherited block: the
-        // swap is atomic and hands back the exact prior mask.
-        let mut swap = old_mask;
-        for signal in eligible.iter() {
-            swap.add(signal);
-        }
-        let old_mask = swap.thread_swap_mask(SigmaskHow::SIG_SETMASK)?;
-        Ok(Self { fd, old_mask })
+        native::Capture::arm(watched).map(|(capture, old_mask)| Self { capture, old_mask })
     }
 
     /// Linearization point: the last nonblocking signal read decides
     /// ownership. A captured signal wins cancellation and keeps the mask
-    /// held for the output window; `EAGAIN` means the source no longer owns
-    /// cancellation — the descriptor closes and the exact old mask is
-    /// restored before any runtime admission. A signal arriving after that
-    /// read stays pending for its original disposition. A read error still
-    /// attempts the owed restore before reporting; a restore failure is
-    /// terminal either way.
-    pub(crate) fn finish(self) -> Result<Finish, Errno> {
-        let read = self.fd.read_signal();
+    /// held for the output window; no pending signal means the source no
+    /// longer owns cancellation — the capture closes and the exact old mask
+    /// is restored before any runtime admission. A signal arriving after
+    /// that read stays pending for its original disposition. A read error
+    /// still attempts the owed restore before reporting; a restore failure
+    /// is terminal either way.
+    pub(crate) fn finish(mut self) -> Result<Finish, Errno> {
+        let read = self.capture.take();
         self.finish_with(read, || {})
     }
 
-    /// The shared arbitration body behind `finish`: `read` is the descriptor
+    /// The shared arbitration body behind `finish`: `read` is the capture
     /// result to linearize on (injectable so error routing is provable), and
     /// `barrier` runs between that read and the owed restore — the documented
     /// late-signal window a test can place a signal inside.
     fn finish_with(
         mut self,
-        read: Result<Option<nix::sys::signalfd::siginfo>, Errno>,
+        read: Result<Option<i32>, Errno>,
         barrier: impl FnOnce(),
     ) -> Result<Finish, Errno> {
         let captured = match read {
@@ -212,8 +162,8 @@ impl ArmedSignals {
         };
         barrier();
         match captured {
-            Some(info) => Ok(Finish::Cancelled {
-                signo: i32::try_from(info.ssi_signo).unwrap_or(0),
+            Some(signo) => Ok(Finish::Cancelled {
+                signo,
                 finalization: self.into_finalization(),
             }),
             None => {
@@ -225,8 +175,8 @@ impl ArmedSignals {
 
     /// Test-only `finish` whose barrier runs in the late-signal window.
     #[cfg(test)]
-    fn finish_at(self, barrier: impl FnOnce()) -> Result<Finish, Errno> {
-        let read = self.fd.read_signal();
+    fn finish_at(mut self, barrier: impl FnOnce()) -> Result<Finish, Errno> {
+        let read = self.capture.take();
         self.finish_with(read, barrier)
     }
 
@@ -238,7 +188,7 @@ impl ArmedSignals {
     }
 
     /// Hand the owed restore to the common emit finalizer; the mask stays
-    /// blocked through the output window and the descriptor drops here.
+    /// blocked through the output window and the capture closes here.
     pub(crate) fn into_finalization(self) -> SourceFinalization {
         SourceFinalization::new(self.old_mask)
     }
@@ -246,45 +196,12 @@ impl ArmedSignals {
 
 impl SignalWatch for ArmedSignals {
     fn poll_fd(&self) -> Option<BorrowedFd<'_>> {
-        Some(self.fd.as_fd())
+        Some(self.capture.poll_fd())
     }
 
     fn take(&mut self) -> Result<Option<i32>, Errno> {
-        self.fd
-            .read_signal()
-            .map(|signal| signal.map(|info| i32::try_from(info.ssi_signo).unwrap_or(0)))
+        self.capture.take()
     }
-}
-
-/// Read the inherited ignored mask from `/proc/self/status`: at most
-/// [`PROC_STATUS_LIMIT`] bytes total, exactly one `SigIgn:` line, exactly
-/// one nonempty hexadecimal field of at most sixteen digits.
-fn inherited_ignored() -> Result<u64, ArmError> {
-    let mut bytes = Vec::new();
-    std::fs::File::open("/proc/self/status")?
-        .take(PROC_STATUS_LIMIT as u64 + 1)
-        .read_to_end(&mut bytes)?;
-    if bytes.len() > PROC_STATUS_LIMIT {
-        return Err(ArmError::MalformedStatus);
-    }
-    let status = String::from_utf8(bytes).map_err(|_| ArmError::MalformedStatus)?;
-    status_field(&status, "SigIgn:")
-}
-
-/// The strict unique-field check behind `inherited_ignored`, applied to one
-/// hexadecimal field name — injectable so the malformed-input matrix is
-/// provable without touching the real status file.
-fn status_field(status: &str, prefix: &str) -> Result<u64, ArmError> {
-    let mut fields = status.lines().filter_map(|line| line.strip_prefix(prefix));
-    let field = fields.next().ok_or(ArmError::MalformedStatus)?.trim();
-    if fields.next().is_some()
-        || field.is_empty()
-        || field.len() > 16
-        || !field.bytes().all(|byte| byte.is_ascii_hexdigit())
-    {
-        return Err(ArmError::MalformedStatus);
-    }
-    u64::from_str_radix(field, 16).map_err(|_| ArmError::MalformedStatus)
 }
 
 /// Acquire `--file`: open without blocking on non-regular paths, `fstat` the
@@ -338,10 +255,9 @@ pub(super) fn acquire_file(
     Ok(bytes)
 }
 
-/// The unbuffered borrowed-descriptor reader for the regular-file stdin
-/// path: `read(2)` on the shared description advances the inherited file
-/// position by exactly the bytes returned — no read-ahead buffer consumes
-/// beyond the acquisition cap.
+/// The unbuffered borrowed-descriptor reader for the inherited stdin: a
+/// `read(2)` on the shared description consumes exactly the bytes returned —
+/// no read-ahead buffer consumes beyond the acquisition cap.
 struct BorrowedReader<'a>(BorrowedFd<'a>);
 
 impl Read for BorrowedReader<'_> {
@@ -352,9 +268,8 @@ impl Read for BorrowedReader<'_> {
 
 /// Acquire `--stdin`: refuse a terminal, then dispatch on the inherited
 /// descriptor's exact `S_IFMT` type — a regular file keeps its shared
-/// offset, a FIFO is reopened through `/proc/self/fd/0` as a private
-/// nonblocking file description so the caller's descriptor flags are never
-/// mutated, and anything else is rejected outright.
+/// offset, a FIFO is read through the native port without mutating the
+/// caller's descriptor flags, and anything else is rejected outright.
 pub(super) fn acquire_stdin(
     paste: bool,
     deadline: Instant,
@@ -377,44 +292,33 @@ pub(super) fn acquire_stdin(
         let mut reader = BorrowedReader(stdin.as_fd());
         read_bounded(
             &mut reader,
-            ReadPlan {
-                fd: stdin.as_fd(),
-                pollable: false,
-                deadline,
-                limit: limit_for(paste),
-                source: InputSource::Stdin,
-                operand: None,
-            },
+            stdin_plan(stdin.as_fd(), false, deadline, paste),
             signals,
         )?
     } else if file_type == SFlag::S_IFIFO {
-        let flags = (OFlag::O_NONBLOCK | OFlag::O_CLOEXEC).bits();
-        let private = std::fs::OpenOptions::new()
-            .read(true)
-            .custom_flags(flags)
-            .open("/proc/self/fd/0")
-            .map_err(|_| usage("--stdin", None, SendSourceCause::Unreadable))?;
-        // The reopen must describe the same stream it replaces; anything
-        // else is a substitution we refuse rather than read.
-        let is_fifo = private
-            .metadata()
-            .map(|metadata| metadata.file_type().is_fifo())
-            .map_err(|_| usage("--stdin", None, SendSourceCause::Unreadable))?;
-        if !is_fifo {
-            return Err(usage("--stdin", None, SendSourceCause::UnsupportedStream));
+        #[cfg(target_os = "linux")]
+        {
+            let private = linux::reopen_fifo_stdin()?;
+            read_bounded(
+                &mut &private,
+                stdin_plan(private.as_fd(), true, deadline, paste),
+                signals,
+            )?
         }
-        read_bounded(
-            &mut &private,
-            ReadPlan {
-                fd: private.as_fd(),
-                pollable: true,
-                deadline,
-                limit: limit_for(paste),
-                source: InputSource::Stdin,
-                operand: None,
-            },
-            signals,
-        )?
+        // macOS has no private reopen (`/dev/fd/0` shares the caller's file
+        // description), so the inherited descriptor is read in place without
+        // touching its flags, each read gated on its poll. A read can stall
+        // only when another reader of the same pipe drains it between that
+        // poll and the read — the documented non-preemptible residual.
+        #[cfg(target_os = "macos")]
+        {
+            let mut reader = BorrowedReader(stdin.as_fd());
+            read_bounded(
+                &mut reader,
+                stdin_plan(stdin.as_fd(), true, deadline, paste),
+                signals,
+            )?
+        }
     } else {
         return Err(usage("--stdin", None, SendSourceCause::UnsupportedStream));
     };
@@ -422,6 +326,17 @@ pub(super) fn acquire_stdin(
         return Err(usage("--stdin", None, SendSourceCause::Empty));
     }
     Ok(bytes)
+}
+
+fn stdin_plan(fd: BorrowedFd<'_>, pollable: bool, deadline: Instant, paste: bool) -> ReadPlan<'_> {
+    ReadPlan {
+        fd,
+        pollable,
+        deadline,
+        limit: limit_for(paste),
+        source: InputSource::Stdin,
+        operand: None,
+    }
 }
 
 /// What one bounded acquisition reads from and how it is classified: the
@@ -441,7 +356,7 @@ struct ReadPlan<'a> {
 
 /// The shared bounded read loop: check cancellation and the deadline before
 /// every wait and every read, poll the source (plus the injected signal
-/// channel) when the descriptor is nonblocking, and drain `POLLHUP` data
+/// channel) when the descriptor is pollable, and drain `POLLHUP` data
 /// before counting EOF. The buffer never exceeds `limit + 1`, so exactly
 /// `limit` bytes succeeds and `limit + 1` is rejected without draining
 /// further. A non-pollable regular file answers each read directly — a

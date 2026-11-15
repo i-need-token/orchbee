@@ -2,10 +2,8 @@
 //! Workbench reads and mutations, process and Agent reads, Agent names, retained close
 //! operations, runtime inspection, terminal input, Agent prompts and the read-only Client view
 //! list and get, which their managed Sessions serve.
-//! These commands borrow the interrupt-pair port: Linux captures `SIGINT` and `SIGTERM` there,
-//! while macOS keeps their inherited action, so an interrupted command ends at once without a
-//! document. A declared `terminal send` input source needs its own signal watch, which only
-//! Linux has.
+//! These commands borrow the interrupt-pair port, which captures `SIGINT` and `SIGTERM` on both,
+//! and both admit a declared `terminal send` input source under its own signal watch.
 //! macOS and Linux admit release installation and uninstallation, but not the update download.
 //! macOS admits `server stop`, which its managed Session serves.
 //! Admission itself does not inspect environment or native state.
@@ -16,7 +14,6 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         // The release store and its PATH step need no download, which stays Windows-only.
         Capability::ReleaseInstall => Ok(()),
         Capability::ServerStop if cfg!(target_os = "macos") => Ok(()),
-        Capability::TerminalInputSource if cfg!(target_os = "linux") => Ok(()),
         Capability::WorkbenchMutation
         | Capability::CanonicalPanelProcess
         | Capability::CanonicalAgentRead
@@ -27,6 +24,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::TerminalInput
         | Capability::AgentPrompt
         | Capability::ClientViewRead
+        | Capability::TerminalInputSource
             if cfg!(any(target_os = "linux", target_os = "macos")) =>
         {
             Ok(())

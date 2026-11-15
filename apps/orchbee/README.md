@@ -209,9 +209,9 @@ orchbee agent wait <session-id> --until ended
 
 The Apple Silicon macOS development cohort runs the same Session-backed Agent commands as Linux:
 `agent list`, `get`, `read` and `wait`, `agent prompt`, and Agent names through `agent resolve` and
-`agent rename`. The per-Client projection (`--client`) and `agent start` remain Windows-only. macOS
-keeps the inherited `SIGINT` and `SIGTERM` action, so an interrupted command ends at once without a
-document.
+`agent rename`. The per-Client projection (`--client`) and `agent start` remain Windows-only.
+`SIGINT` and `SIGTERM` cancel these commands as on Linux, with the typed cancellation document at
+exit 130, and `terminal send --file` and `--stdin` read their declared source on macOS too.
 
 `orchbee help <family>` prints the same grammar from the binary itself, and
 `orchbee completion <shell>` prints the matching key-driven discovery script
@@ -291,7 +291,7 @@ Windows `agent integration list/explain/enable/disable --provider <id>` manages 
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
 Other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
-files and Windows pipes; an owned hidden Windows PowerShell reader makes pipe input cancellable.
+files and pipes; on Windows an owned hidden Windows PowerShell reader makes pipe input cancellable.
 It is resolved from the OS system directory, never from PATH, and is terminated/reaped on failure.
 Shell completion supports bash/zsh/fish/powershell/elvish. In PowerShell, load it explicitly with
 `Invoke-Expression (orchbee completion powershell | Out-String)`; no profile is changed.

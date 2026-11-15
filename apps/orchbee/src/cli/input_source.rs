@@ -19,10 +19,10 @@ impl InputSource {
     }
 
     #[cfg_attr(
-        not(any(windows, target_os = "linux")),
+        not(any(windows, target_os = "linux", target_os = "macos")),
         expect(
             dead_code,
-            reason = "only the Linux and Windows source adapters read a declared source"
+            reason = "only the macOS, Linux and Windows source adapters read a declared source"
         )
     )]
     pub(super) const fn option(self) -> &'static str {
@@ -39,10 +39,10 @@ impl InputSource {
 /// envelope through the explicit typed conversion in `send.rs`.
 #[derive(Debug)]
 #[cfg_attr(
-    not(any(windows, target_os = "linux")),
+    not(any(windows, target_os = "linux", target_os = "macos")),
     expect(
         dead_code,
-        reason = "only the Linux and Windows source adapters read a declared source"
+        reason = "only the macOS, Linux and Windows source adapters read a declared source"
     )
 )]
 pub(crate) enum SourceFailure {

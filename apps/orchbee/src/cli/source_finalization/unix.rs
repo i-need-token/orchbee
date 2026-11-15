@@ -1,4 +1,4 @@
-//! Linux source cancellation holds the inherited mask through output, then restores it exactly.
+//! macOS and Linux cancellation holds the inherited mask through output, then restores it exactly.
 #[must_use = "the owed finalization must be released by the common emit finalizer"]
 pub(crate) struct SourceFinalization {
     old_mask: nix::sys::signal::SigSet,

@@ -57,6 +57,10 @@ winapi-util.workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 nix = { workspace = true, features = ["signal"] }
 
+# The kqueue that wakes the CLI's signal capture.
+[target.'cfg(target_os = "macos")'.dependencies]
+nix = { workspace = true, features = ["event"] }
+
 [dev-dependencies]
 # Shared GUI/TUI close-target corpus; reuse the already admitted workspace serde.
 jsonschema.workspace = true

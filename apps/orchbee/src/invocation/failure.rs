@@ -238,10 +238,10 @@ pub(crate) enum UsageReason {
 /// any byte reaches the wire; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[cfg_attr(
-    not(any(windows, target_os = "linux")),
+    not(any(windows, target_os = "linux", target_os = "macos")),
     expect(
         dead_code,
-        reason = "only the Linux and Windows source adapters read a declared source"
+        reason = "only the macOS, Linux and Windows source adapters read a declared source"
     )
 )]
 pub(crate) enum SendSourceCause {

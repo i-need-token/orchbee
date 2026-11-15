@@ -5,17 +5,17 @@ use super::SourceFinalization;
 mod input;
 pub(crate) use input::{InputSource, SourceFailure, materialize, source_details};
 
-#[cfg(target_os = "linux")]
-mod linux;
-#[cfg(target_os = "linux")]
-use linux as platform;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod unix;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use unix as platform;
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
 use windows as platform;
-#[cfg(not(any(target_os = "linux", windows)))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 mod unsupported;
-#[cfg(not(any(target_os = "linux", windows)))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 use unsupported as platform;
 
 pub(crate) use platform::SignalWatch;

@@ -146,7 +146,7 @@ fn cancelled_output_completes_before_unmask() {
     let output = Command::new(env::current_exe().expect("test binary"))
         .args([
             "--exact",
-            "tests::linux_output::cancelled_output_completes_before_unmask",
+            "tests::unix_output::cancelled_output_completes_before_unmask",
             "--test-threads=1",
             "--nocapture",
         ])
@@ -199,7 +199,7 @@ fn cancelled_interrupts_output_completes_before_unmask() {
     let output = Command::new(env::current_exe().expect("test binary"))
         .args([
             "--exact",
-            "tests::linux_output::cancelled_interrupts_output_completes_before_unmask",
+            "tests::unix_output::cancelled_interrupts_output_completes_before_unmask",
             "--test-threads=1",
             "--nocapture",
         ])
