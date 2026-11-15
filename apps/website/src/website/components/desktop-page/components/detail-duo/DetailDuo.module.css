@@ -1,0 +1,23 @@
+.section {
+	composes: detailSection from '../../../page-shell/PageShell.module.css';
+}
+.duo,
+.flip {
+	display: grid;
+	grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+	gap: var(--ob-ref-length-website-56);
+	align-items: center;
+}
+.flip {
+	grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+}
+@media (max-width: 64rem) {
+	.duo,
+	.flip {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--ob-ref-length-website-32);
+	}
+	.flip > :first-child {
+		order: 2;
+	}
+}

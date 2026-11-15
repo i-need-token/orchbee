@@ -1,0 +1,141 @@
+.title {
+	margin: var(--ob-ref-length-website-16) 0 var(--ob-ref-length-website-14);
+	font: var(--ob-sys-typography-website-heading);
+	letter-spacing: var(--ob-sys-typography-website-heading-tracking);
+	text-wrap: balance;
+}
+.paragraph {
+	max-width: var(--ob-ref-length-website-measure-35);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-paragraph);
+	text-wrap: pretty;
+}
+.paragraph + .paragraph {
+	margin-top: var(--ob-ref-length-website-14);
+}
+
+/* A corner of a Windows desktop: the notice, the menu of the icon, and the taskbar under them. */
+.figure {
+	display: grid;
+	justify-items: end;
+	gap: var(--ob-ref-length-website-10);
+	padding: var(--ob-ref-length-website-28) var(--ob-ref-length-website-22) 0;
+	overflow: hidden;
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-radius: var(--ob-ref-length-website-14);
+	background: linear-gradient(
+		var(--ob-sys-color-website-tray-backdrop-top),
+		var(--ob-sys-color-website-tray-backdrop-bottom)
+	);
+	cursor: default;
+	-webkit-user-select: none;
+	user-select: none;
+}
+.label {
+	margin: var(--ob-ref-length-website-10) 0 calc(-1 * var(--ob-ref-length-website-2));
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-tray-label);
+}
+.label:first-child {
+	margin-top: 0;
+}
+.mark {
+	display: block;
+	width: var(--ob-ref-length-website-18);
+	height: var(--ob-ref-length-website-18);
+}
+.notice {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-12);
+	width: min(100%, var(--ob-ref-length-website-372));
+	padding: var(--ob-ref-length-website-14) var(--ob-ref-length-website-16)
+		var(--ob-ref-length-website-15);
+	border-radius: var(--ob-ref-length-website-8);
+	background: var(--ob-sys-color-website-tray-surface);
+	box-shadow: var(--ob-sys-shadow-website-tray-notice);
+	color: var(--ob-sys-color-website-tray-notice-text);
+	font: var(--ob-sys-typography-website-tray-notice);
+}
+.notice > .mark {
+	margin-top: var(--ob-ref-length-website-1);
+}
+.notice b {
+	display: block;
+	margin-bottom: var(--ob-ref-length-website-3);
+	color: var(--ob-sys-color-website-tray-notice-title);
+	font: var(--ob-sys-typography-website-tray-notice-title);
+}
+.menu {
+	width: max-content;
+	min-width: var(--ob-ref-length-website-250);
+	max-width: 100%;
+	padding: var(--ob-ref-length-website-4);
+	border-radius: var(--ob-ref-length-website-8);
+	background: var(--ob-sys-color-website-tray-surface);
+	box-shadow: var(--ob-sys-shadow-website-tray-menu);
+	color: var(--ob-sys-color-website-tray-menu-text);
+	font: var(--ob-sys-typography-website-tray-menu);
+}
+.menu span {
+	display: block;
+	padding: var(--ob-ref-length-website-9) var(--ob-ref-length-website-12);
+	overflow: hidden;
+	border-radius: var(--ob-ref-length-website-4);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.menu .disabled {
+	color: var(--ob-sys-color-website-tray-menu-disabled);
+}
+.menu .current {
+	background: var(--ob-sys-color-website-tray-menu-current);
+}
+.rule {
+	display: block;
+	height: var(--ob-ref-length-website-1);
+	margin: var(--ob-ref-length-website-4) 0;
+	background: var(--ob-sys-color-website-tray-menu-rule);
+}
+.taskbar {
+	display: flex;
+	justify-self: stretch;
+	justify-content: flex-end;
+	align-items: center;
+	gap: var(--ob-ref-length-website-16);
+	height: var(--ob-ref-length-website-46);
+	margin: var(--ob-ref-length-website-8) calc(-1 * var(--ob-ref-length-website-22)) 0;
+	padding: 0 var(--ob-ref-length-website-20);
+	border-top: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-tray-taskbar-edge);
+	background: var(--ob-sys-color-website-tray-taskbar);
+	color: var(--ob-sys-color-website-tray-taskbar-text);
+	font: var(--ob-sys-typography-website-tray-taskbar);
+	text-align: right;
+}
+/* The chevron that shows the hidden icons. */
+.chevron {
+	width: var(--ob-ref-length-website-9);
+	height: var(--ob-ref-length-website-9);
+	border-top: var(--ob-ref-length-website-1-3) solid var(--ob-sys-color-website-tray-taskbar-glyph);
+	border-left: var(--ob-ref-length-website-1-3) solid var(--ob-sys-color-website-tray-taskbar-glyph);
+	transform: translateY(var(--ob-ref-length-website-2)) rotate(45deg);
+}
+/* The icon the menu belongs to, under the pointer. */
+.currentIcon {
+	margin: calc(-1 * var(--ob-ref-length-website-5));
+	padding: var(--ob-ref-length-website-5);
+	border-radius: var(--ob-ref-length-website-5);
+	background: var(--ob-sys-color-website-tray-taskbar-current);
+}
+.trayIcon {
+	display: grid;
+}
+.trayIcon > * {
+	grid-area: 1 / 1;
+}
+.badge {
+	width: var(--ob-ref-length-website-18);
+	height: var(--ob-ref-length-website-18);
+	fill: var(--ob-sys-color-website-state-attention);
+	stroke: var(--ob-sys-color-website-ink);
+}
