@@ -29,6 +29,9 @@ const RUNTIME_FILES: &[&str] = &[
     "activation.lock",
     "session-lifetime.lock",
 ];
+/// The records the Terminal Host may leave in its `host` folder: its fatal record and its log of
+/// survived faults (`apps/terminal-host/docs/runtime-model.md`).
+const HOST_FILES: &[&str] = &["host-fatal.json", "host-diagnostics.jsonl"];
 /// The files a Session folder holds beside its catalog record, its corrupt checkpoint originals
 /// and its owned folders.
 const SESSION_FILES: &[&str] = &[
@@ -952,8 +955,13 @@ impl OwnedDirectory {
                 }
                 Kind::Runtime if name == "host" => {
                     let _pins = permissions::open_tree(&entry.path())?;
-                    if fs::read_dir(entry.path())?.next().is_some() {
-                        return Err(io::ErrorKind::InvalidData.into());
+                    for owned in fs::read_dir(entry.path())? {
+                        let owned = owned?;
+                        let leaf = owned.file_name();
+                        if !leaf.to_str().is_some_and(|name| HOST_FILES.contains(&name)) {
+                            return Err(io::ErrorKind::InvalidData.into());
+                        }
+                        permissions::open_file(&owned.path(), false, false)?;
                     }
                 }
                 _ => return Err(io::ErrorKind::InvalidData.into()),
@@ -1038,6 +1046,18 @@ impl OwnedDirectory {
         let path = self.path.join("host");
         match permissions::open_tree(&path) {
             Ok(pins) => {
+                for name in HOST_FILES {
+                    check()?;
+                    let file = path.join(name);
+                    match permissions::open_file(&file, false, false) {
+                        Ok(handle) => {
+                            drop(handle);
+                            permissions::remove_file(&file)?;
+                        }
+                        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                        Err(error) => return Err(error),
+                    }
+                }
                 drop(pins);
                 permissions::remove_dir(&path)?;
             }

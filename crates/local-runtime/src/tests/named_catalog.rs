@@ -117,6 +117,11 @@ fn stopped_deletion_removes_only_selected_owned_storage_and_is_idempotent() {
     .unwrap();
     fs::create_dir(state.join("terminal-output")).unwrap();
     fs::write(state.join("terminal-output").join("1.bin"), b"output").unwrap();
+    // The records a Terminal Host leaves after a fault.
+    fs::create_dir_all(runtime.join("host")).unwrap();
+    for leaf in ["host-fatal.json", "host-diagnostics.jsonl"] {
+        fs::write(runtime.join("host").join(leaf), b"{}\n").unwrap();
+    }
     let catalog = Catalog::try_lock(&fixture.0, &fixture.root()).unwrap();
     assert_eq!(
         Catalog::try_lock(&fixture.0, &fixture.root())
