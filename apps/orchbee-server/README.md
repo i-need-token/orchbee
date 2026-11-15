@@ -33,6 +33,14 @@ error's text.
 | `panicked`                | Any Server thread panics; the panic still ends only that thread                                                                                                                                                                                                                               | `thread` (the program's own thread names, else `other` or `unnamed`), `file` stem, `line`, `suppressed`                                                                   |
 | `state-poisoned`          | The Session coordinator or the Agent fold lock is first observed poisoned                                                                                                                                                                                                                     | `lock` (`coordinator`, `agent-fold`)                                                                                                                                      |
 
+The [automatic update schedule](#automatic-update-schedule) writes two more records. A build that
+does not schedule automatic updates writes neither.
+
+| Record                      | Written when                                                                                     | Fields                                                                                                                                                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `automatic-update-schedule` | The Session becomes ready in a build that runs automatic updates                                 | `scheduled`, and when false `reason` (`outside-store`, `thread-unavailable`)                                                                                                                                                                 |
+| `automatic-update`          | A scheduled run with `update.automatic` on ends; `info` for a run that answered without an error | `run` (`answered`, `unanswered`, `not-started`, `cancelled`, `timeout`, `unsettled`, `failed`), the helper's exit `status`, `reason` for `not-started`, and from its document `version`, `phase`, `error` (`none` on success) and `upToDate` |
+
 `listener-fault`, `candidate-dropped`, `worker-request-failed`, `worker-reply-dropped`,
 `client-stream-failed` and `panicked` are written at most once a minute per site, and `suppressed`
 counts the records left out since the last one. `worker-connection-ended` is
@@ -105,6 +113,33 @@ checkpoint store and lifetime owner. After confirmed child exit and listener cle
 publishes durable Stopped before completing the runtime activation record. A publication failure
 leaves recovery uncertainty and never grants a successful clean-stop receipt. The runtime crate
 owns catalog encoding, path admission and replacement; the Server owns when shutdown is proven.
+
+## Automatic update schedule
+
+A managed Windows Server schedules the
+[automatic updates](../../proposals/platform/automatic-updates.md#who-checks-and-installs) of its
+release store when its own folder is a store version folder (`versions\<version>\`) and its build
+runs them: never a development build, a test build only while `ORCHBEE_UPDATE_FEED` names a feed,
+and a release build only once the
+[automatic-update switch](../../crates/local-runtime/README.md#automatic-update-switch) is on. The
+Server reads that variable only to tell whether it is set. The first run comes one minute after the
+Session admits Clients, and the next ones every hour on that grid while the Server runs. Each run
+reads `update.automatic` from the Session's settings first and does nothing while it is off, so a
+change applies at the next run.
+
+A run finds the store root by the `ORCHBEE_INSTALL_DIR` rule and the active version by
+`active.json`, pins that version's folder and Client as Session start does, and runs
+`<stem>.exe --automatic-update-v1` with the Server's environment, so proxy variables and a feed
+reach it, the system folder as working folder, null standard input, and standard output and error
+each kept to 64 KiB. The helper runs in a Job this process holds, at below-normal priority, which
+everything it starts inherits, and the Job ends it with the Server however the Server ends. The run
+waits on the schedule's own thread and never on Session work, and it is ended after seven hours,
+past the helper's own longest run. A run that lasts past the next hour skips that moment rather than
+overlapping or catching up. A failed run only writes its `automatic-update` record, and the next
+hour runs again. A Session stop or `exit` stops the schedule first and does not wait: a running
+helper is ended through its Job within its settlement budget, and the stop never fails because of
+it. Installing, verifying and cleaning up stay with the
+[helper](../orchbee/docs/windows-cli-configuration.md#windows-release-installation).
 
 ## Managed Windows Session shutdown
 

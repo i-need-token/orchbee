@@ -77,6 +77,25 @@ pub fn run_contained_command_exchange(
     )
 }
 
+/// As [`run_contained_command_exchange`] without input, in a Job started by
+/// [`CommandChild::spawn_background`], so the command and everything it starts run at below-normal
+/// priority.
+pub fn run_background_command_exchange(
+    command: Command,
+    output_limit: usize,
+    deadline: Option<Instant>,
+    interrupted: impl FnMut() -> io::Result<bool>,
+) -> CommandOutput {
+    exchange(
+        command,
+        None,
+        output_limit,
+        deadline,
+        interrupted,
+        CommandChild::spawn_background,
+    )
+}
+
 fn exchange(
     mut command: Command,
     input: Option<&[u8]>,

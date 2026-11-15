@@ -6,14 +6,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-use ::windows::Win32::System::Threading::CREATE_NO_WINDOW;
+use ::windows::Win32::System::Threading::{BELOW_NORMAL_PRIORITY_CLASS, CREATE_NO_WINDOW};
 use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject, KillOnJobClose};
 use winsafe::{HPROCESS, co};
 
 mod capture;
 mod program;
 pub use capture::{
-    run_contained_command_exchange, run_windows_command, run_windows_command_exchange,
+    run_background_command_exchange, run_contained_command_exchange, run_windows_command,
+    run_windows_command_exchange,
 };
 pub use program::{resolve_windows_program, windows_system_program};
 
@@ -47,6 +48,19 @@ impl CommandChild {
         let mut wrapped = CommandWrap::from(command);
         wrapped
             .wrap(CreationFlags(CREATE_NO_WINDOW))
+            .wrap(JobObject)
+            .wrap(KillOnJobClose);
+        Self::from_wrapped(wrapped)
+    }
+
+    /// As [`Self::spawn_contained`], at below-normal priority. Every process the command starts
+    /// inherits that priority, so the whole tree yields the processor to the person's programs.
+    pub fn spawn_background(command: Command) -> Result<Self, CommandSpawnFailure> {
+        let mut wrapped = CommandWrap::from(command);
+        wrapped
+            .wrap(CreationFlags(
+                CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS,
+            ))
             .wrap(JobObject)
             .wrap(KillOnJobClose);
         Self::from_wrapped(wrapped)

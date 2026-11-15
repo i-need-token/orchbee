@@ -44,6 +44,7 @@ pub(super) struct Owners {
     pub(super) agents: Arc<AgentService>,
     pub(super) checkpoint_store: Arc<Mutex<SessionStore>>,
     pub(super) checkpoint_saver: Option<super::checkpoint_windows::autosave::Saver>,
+    pub(super) automatic_updates: Option<crate::automatic_updates::AutomaticUpdates>,
     pub(super) suppress_initial_empty: bool,
     pub(super) session_record: RetainedSessionRecord,
 }
@@ -115,6 +116,9 @@ pub(super) fn run(
     };
     // Plugin startup commands may call back into the Session, so they run once it admits Clients.
     owners.terminals.start_plugin_hooks();
+    // The schedule counts from the moment the Session admits Clients.
+    owners.automatic_updates =
+        crate::automatic_updates::AutomaticUpdates::start(Arc::clone(&owners.terminals));
     let mut worker_completed = false;
     loop {
         let attempt = match next_work(&mut owners, &shutdown) {
@@ -385,6 +389,10 @@ fn settle_without_worker(
 /// Stops every Server background job that could start new work through the Worker. Hooks submit
 /// Worker jobs, so dispatch stops before any Worker owner; admitted hook jobs end with the Worker.
 fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
+    // An automatic update holds no Session resource, so its stop waits for nothing and never fails.
+    if let Some(updates) = owners.automatic_updates.take() {
+        updates.stop();
+    }
     owners.terminals.stop_plugin_hooks_before(deadline)?;
     // A resume types through the Worker and reads through the observer, so it stops first; one
     // not yet attempted stays pending for the final capture.

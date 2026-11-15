@@ -94,7 +94,9 @@ A process that starts its own session or group leaves Unix ownership; Windows Jo
 breakaway by default. On Windows, `spawn_contained` also marks the Job to end every member when its
 last handle closes, so the owner's end, however abrupt, ends the command's whole tree; the machine
 hub starts its carriers this way, and `run_contained_command_exchange`, the contained form of
-`run_windows_command_exchange`, runs the updater's `curl` and `tar`. Otherwise neither platform ends owned processes when the owning
+`run_windows_command_exchange`, runs the updater's `curl` and `tar`. `spawn_background` is
+`spawn_contained` at below-normal priority, which every process the command starts inherits;
+`run_background_command_exchange` runs the Session Server's automatic update helper that way. Otherwise neither platform ends owned processes when the owning
 process dies abruptly:
 `PR_SET_PDEATHSIG` would need `pre_exec`, which this crate's denial of unsafe code excludes, and is
 Linux-only and thread-scoped. Output pipes still close then, so a writer receives `SIGPIPE` or an

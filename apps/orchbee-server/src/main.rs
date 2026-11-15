@@ -10,6 +10,9 @@ mod agent_catalog;
 mod agent_screen;
 #[cfg(any(unix, windows))]
 mod agent_service;
+// Only Windows keeps a release store yet, so only a Windows Server schedules automatic updates.
+#[cfg(windows)]
+mod automatic_updates;
 #[cfg(any(unix, windows))]
 mod client_connection_registry;
 #[cfg(any(unix, windows))]

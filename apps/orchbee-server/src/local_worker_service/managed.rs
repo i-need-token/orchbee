@@ -231,6 +231,7 @@ pub(super) fn run(
                 agents,
                 checkpoint_store: Arc::new(Mutex::new(checkpoint_store)),
                 checkpoint_saver: None,
+                automatic_updates: None,
                 suppress_initial_empty,
                 session_record,
             },
