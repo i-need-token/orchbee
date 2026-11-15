@@ -1,0 +1,42 @@
+.section {
+	composes: section from '../../../page-shell/PageShell.module.css';
+}
+.agents {
+	display: grid;
+	grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+	gap: var(--ob-ref-length-website-72);
+	align-items: center;
+}
+.states {
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-agents-states);
+}
+.recognized {
+	margin-top: var(--ob-ref-length-website-34);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-label);
+	text-transform: lowercase;
+}
+.names {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-length-website-8);
+	margin-top: var(--ob-ref-length-website-14);
+}
+.name {
+	display: inline-flex;
+	align-items: center;
+	height: var(--ob-ref-length-website-26);
+	padding: 0 var(--ob-ref-length-website-9);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-radius: var(--ob-ref-length-website-6);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-label);
+	white-space: nowrap;
+}
+@media (max-width: 64rem) {
+	.agents {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--ob-ref-length-website-32);
+	}
+}

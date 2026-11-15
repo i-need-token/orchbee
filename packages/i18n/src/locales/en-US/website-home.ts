@@ -58,6 +58,27 @@ export const enUSWebsiteHomeMessages = {
 	'website.home.collaboration.step5': 'Reads the last 40 lines of its terminal.',
 	'website.home.collaboration.note':
 		'Orchbee does not replace your existing CLI agents; it provides the terminal environment in which they can work together. It shifts your role from <b>human-in-the-loop</b> to <b>human-on-the-loop</b>: instead of driving every step, you supervise the system and step in when needed.',
+	'website.home.agents.kicker': 'agents',
+	'website.home.agents.title': 'Agent Status and Organization',
+	'website.home.agents.lead':
+		'Orchbee recognizes more than 30 agent CLIs, presents the status of each at a glance, and organizes work by project in the sidebar.',
+	'website.home.agents.recognized': 'Recognized today',
+	'website.home.agents.sidebar':
+		'The sidebar lists every agent across all projects and organizes work by project, Workspace, and Git worktree.',
+	'website.home.agents.projectTitle': 'Project',
+	'website.home.agents.project': 'Groups related Workspaces.',
+	'website.home.agents.workspaceTitle': 'Workspace',
+	'website.home.agents.workspace':
+		'A folder and its Git branch. A Git worktree is listed as a Workspace of its own.',
+	'website.home.agents.agentTitle': 'Agent',
+	'website.home.agents.agent':
+		'Listed under its Workspace, with its state and what it is working on.',
+	'website.home.agents.unreadTitle': 'Unread',
+	'website.home.agents.unread': 'A blue dot marks activity you have not looked at yet.',
+	'website.home.remote.tag': 'In development',
+	'website.home.remote.title': 'Remote Machines',
+	'website.home.remote.lead':
+		'When local resources are not enough, other computers can be added over SSH to extend the compute and execution environments available to agents. Remote machines act as an extension of the local machine, and agents use them without changing their workflow.',
 	'website.home.clients.kicker': 'clients',
 	'website.home.clients.title': 'Each client in detail',
 	'website.home.clients.lead':

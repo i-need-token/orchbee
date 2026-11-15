@@ -1,0 +1,259 @@
+/* The ring scales with its width: the cells' type and spacing are in units of its width. It comes
+   in as its section rises: the cells grow in one after another, the outline draws, and the cells'
+   contents fade in. */
+.ring {
+	position: relative;
+	width: min(100%, var(--ob-ref-length-website-640));
+	aspect-ratio: 624 / 658;
+	container-type: inline-size;
+}
+.mark {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+.shape {
+	fill: var(--ob-sys-color-website-paper);
+	transform-box: fill-box;
+	transform-origin: center;
+}
+.shapeTop {
+	composes: shape;
+}
+.shapeLowerRight {
+	composes: shape;
+}
+.shapeBottom {
+	composes: shape;
+}
+.shapeLowerLeft {
+	composes: shape;
+}
+.shapeUpperLeft {
+	composes: shape;
+}
+.outline {
+	fill: none;
+	stroke: var(--ob-sys-color-website-honey);
+	stroke-width: 36;
+	stroke-linejoin: round;
+}
+.cell {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-length-website-0-9cqw);
+	width: var(--ob-ref-length-website-24cqw);
+	height: var(--ob-ref-length-website-20-6cqw);
+	overflow: hidden;
+	transform: translate(-50%, -50%);
+	color: var(--ob-sys-color-website-ink);
+	font: var(--ob-sys-typography-website-ring-cell);
+	font-variant-ligatures: none;
+}
+.cellTop {
+	composes: cell;
+	top: 16.26%;
+	left: 50%;
+}
+.cellLowerRight {
+	composes: cell;
+	top: 66.87%;
+	left: 80.81%;
+}
+.cellBottom {
+	composes: cell;
+	top: 83.74%;
+	left: 50%;
+}
+.cellLowerLeft {
+	composes: cell;
+	top: 66.87%;
+	left: 19.19%;
+}
+.cellUpperLeft {
+	composes: cell;
+	top: 33.13%;
+	left: 19.19%;
+}
+.head {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-0-9cqw);
+	font: var(--ob-sys-typography-website-ring-cell-title);
+	letter-spacing: var(--ob-sys-typography-website-ring-cell-title-tracking);
+	white-space: nowrap;
+}
+/* The state glyph on paper: working is dark and ready is the paper's muted ink. */
+.glyph {
+	display: flex;
+	flex: none;
+	width: var(--ob-ref-length-website-2cqw);
+	height: var(--ob-ref-length-website-2cqw);
+}
+.glyph svg {
+	width: 100%;
+	height: 100%;
+	color: var(--ob-sys-color-website-ring-muted);
+}
+.glyph svg[data-state='working'] {
+	color: var(--ob-sys-color-website-state-working-on-paper);
+}
+.glyph svg[data-state='attention'] {
+	color: var(--ob-sys-color-website-state-attention);
+}
+.glyph svg[data-state='done'] {
+	color: var(--ob-sys-color-website-state-done);
+}
+.glyph svg[data-state='failed'] {
+	color: var(--ob-sys-color-website-state-failed);
+}
+.state {
+	margin-top: calc(-1 * var(--ob-ref-length-website-0-4cqw));
+	padding-left: var(--ob-ref-length-website-2-9cqw);
+	color: var(--ob-sys-color-website-ring-muted);
+	font: var(--ob-sys-typography-website-ring-cell-state);
+	white-space: nowrap;
+}
+/* The newest line sits at the bottom; older lines fade out under the cell's top edge. */
+.lines {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	justify-content: flex-end;
+	overflow: hidden;
+	color: var(--ob-sys-color-website-ink-soft);
+	white-space: nowrap;
+	-webkit-mask-image: linear-gradient(transparent, black var(--ob-ref-length-website-1-5em));
+	mask-image: linear-gradient(transparent, black var(--ob-ref-length-website-1-5em));
+}
+.line {
+	display: block;
+}
+.start {
+	position: absolute;
+	top: 33.13%;
+	left: 80.81%;
+	transform: translate(-50%, -50%);
+	color: var(--ob-sys-color-website-ring-start);
+	font: var(--ob-sys-typography-website-ring-start);
+	text-align: center;
+	white-space: nowrap;
+}
+.plus {
+	display: block;
+	color: var(--ob-sys-color-website-honey);
+	font: var(--ob-sys-typography-website-ring-start-plus);
+}
+
+/* The entrance plays once its section has risen into view; without script, or under reduced
+   motion, the ring is simply there. */
+:global(html[data-motion]) [data-in] .shape {
+	animation: grow var(--ob-sys-motion-duration-website-700) var(--ob-sys-motion-easing-website-pop)
+		both;
+}
+:global(html[data-motion]) [data-in] .shapeLowerRight {
+	animation-delay: var(--ob-sys-motion-duration-website-100);
+}
+:global(html[data-motion]) [data-in] .shapeBottom {
+	animation-delay: var(--ob-sys-motion-duration-website-200);
+}
+:global(html[data-motion]) [data-in] .shapeLowerLeft {
+	animation-delay: var(--ob-sys-motion-duration-website-300);
+}
+:global(html[data-motion]) [data-in] .shapeUpperLeft {
+	animation-delay: var(--ob-sys-motion-duration-website-400);
+}
+:global(html[data-motion]) [data-in] .outline {
+	animation: draw var(--ob-sys-motion-duration-website-1100)
+		var(--ob-sys-motion-easing-website-draw) var(--ob-sys-motion-duration-website-700) backwards;
+}
+:global(html[data-motion]) [data-in] .cell {
+	animation: fade var(--ob-sys-motion-duration-website-500) var(--ob-sys-motion-easing-website-ease)
+		both;
+}
+:global(html[data-motion]) [data-in] .cellTop {
+	animation-delay: var(--ob-sys-motion-duration-website-350);
+}
+:global(html[data-motion]) [data-in] .cellLowerRight {
+	animation-delay: var(--ob-sys-motion-duration-website-450);
+}
+:global(html[data-motion]) [data-in] .cellBottom {
+	animation-delay: var(--ob-sys-motion-duration-website-550);
+}
+:global(html[data-motion]) [data-in] .cellLowerLeft {
+	animation-delay: var(--ob-sys-motion-duration-website-650);
+}
+:global(html[data-motion]) [data-in] .cellUpperLeft {
+	animation-delay: var(--ob-sys-motion-duration-website-750);
+}
+:global(html[data-motion]) [data-in] .start {
+	animation: fade var(--ob-sys-motion-duration-website-600) var(--ob-sys-motion-easing-website-ease)
+		var(--ob-sys-motion-duration-website-1500) both;
+}
+/* A line an Agent prints fades in. */
+:global(html[data-motion]) .line {
+	animation: fade var(--ob-sys-motion-duration-website-300) var(--ob-sys-motion-easing-website-ease)
+		both;
+}
+@keyframes grow {
+	from {
+		opacity: 0;
+		transform: scale(0.6);
+	}
+}
+@keyframes draw {
+	from {
+		stroke-dasharray: 576;
+		stroke-dashoffset: 576;
+	}
+	to {
+		stroke-dasharray: 576;
+		stroke-dashoffset: 0;
+	}
+}
+@keyframes fade {
+	from {
+		opacity: 0;
+	}
+}
+
+/* In one column the ring stands centered; on a phone page a cell shows only its Agent and state,
+   centered. */
+@media (max-width: 64rem) {
+	.ring {
+		margin-inline: auto;
+	}
+}
+@media (max-width: 40rem) {
+	.cell {
+		justify-content: center;
+	}
+	.head {
+		flex-direction: column;
+		gap: var(--ob-ref-length-website-1-6cqw);
+		font: var(--ob-sys-typography-website-ring-cell-title-compact);
+		letter-spacing: var(--ob-sys-typography-website-ring-cell-title-compact-tracking);
+	}
+	.glyph {
+		width: var(--ob-ref-length-website-3-4cqw);
+		height: var(--ob-ref-length-website-3-4cqw);
+	}
+	.state {
+		margin: 0;
+		padding: 0;
+		font: var(--ob-sys-typography-website-ring-cell-state-compact);
+		text-align: center;
+	}
+	.lines {
+		display: none;
+	}
+	.start {
+		font: var(--ob-sys-typography-website-ring-start-compact);
+	}
+	.plus {
+		font: var(--ob-sys-typography-website-ring-start-plus-compact);
+	}
+}

@@ -53,6 +53,25 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.collaboration.step5': '读取它的终端最近 40 行输出。',
 	'website.home.collaboration.note':
 		'Orchbee 不替代你现有的 CLI Agent，而是提供让它们协同工作的终端环境。它让你的角色从 <b>human-in-the-loop</b> 转向 <b>human-on-the-loop</b>：不再亲自推动每一步，而是监督整个系统，并在必要时介入。',
+	'website.home.agents.kicker': 'agent',
+	'website.home.agents.title': 'Agent 状态与组织',
+	'website.home.agents.lead':
+		'Orchbee 可识别 30 余种 CLI Agent，直观呈现每个 Agent 的状态，并在侧边栏按项目组织工作。',
+	'website.home.agents.recognized': '目前可识别',
+	'website.home.agents.sidebar':
+		'侧边栏列出所有项目中的每个 Agent，并按项目、工作区和 Git 工作树组织工作。',
+	'website.home.agents.projectTitle': '项目',
+	'website.home.agents.project': '把相关的工作区归在一起。',
+	'website.home.agents.workspaceTitle': '工作区',
+	'website.home.agents.workspace': '一个文件夹及其 Git 分支。Git 工作树作为单独的工作区列出。',
+	'website.home.agents.agentTitle': 'Agent',
+	'website.home.agents.agent': '列在所属的工作区之下，显示状态和当前任务。',
+	'website.home.agents.unreadTitle': '未读',
+	'website.home.agents.unread': '蓝点表示有你还没看过的动态。',
+	'website.home.remote.tag': '开发中',
+	'website.home.remote.title': '远程机器',
+	'website.home.remote.lead':
+		'当本机资源不足时，可通过 SSH 添加其他机器，为 Agent 扩展算力和运行环境。远程机器是本机能力的延伸，Agent 无需改变原有使用方式。',
 	'website.home.clients.kicker': '客户端',
 	'website.home.clients.title': '各客户端详解',
 	'website.home.clients.lead': '终端界面、桌面应用与命令行呈现并控制同一个会话，各有一页单独介绍。',

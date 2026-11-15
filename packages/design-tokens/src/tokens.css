@@ -1152,6 +1152,8 @@
 	--ob-ref-color-website-navigation: rgba(11, 10, 8, 0.8);
 	--ob-ref-color-website-paper: #f8f7f4;
 	--ob-ref-color-website-pressed: rgba(248, 247, 244, 0.11);
+	--ob-ref-color-website-ring-muted: #8b877d;
+	--ob-ref-color-website-ring-start: rgba(248, 247, 244, 0.7);
 	--ob-ref-color-website-selection: rgba(242, 181, 31, 0.3);
 	--ob-ref-color-website-surface: rgba(248, 247, 244, 0.035);
 	--ob-ref-color-website-terminal-ansi-3: #e5e510;
@@ -1215,12 +1217,15 @@
 	--ob-sys-color-website-on-button: var(--ob-ref-color-website-bg);
 	--ob-sys-color-website-paper: var(--ob-ref-color-website-paper);
 	--ob-sys-color-website-pressed: var(--ob-ref-color-website-pressed);
+	--ob-sys-color-website-ring-muted: var(--ob-ref-color-website-ring-muted);
+	--ob-sys-color-website-ring-start: var(--ob-ref-color-website-ring-start);
 	--ob-sys-color-website-selection: var(--ob-ref-color-website-selection);
 	--ob-sys-color-website-state-attention: var(--ob-ref-color-traffic-light-yellow);
 	--ob-sys-color-website-state-done: var(--ob-ref-color-traffic-light-green);
 	--ob-sys-color-website-state-failed: var(--ob-ref-color-traffic-light-red);
 	--ob-sys-color-website-state-idle: var(--ob-ref-color-website-idle);
 	--ob-sys-color-website-state-working: var(--ob-ref-color-agent-working-dark);
+	--ob-sys-color-website-state-working-on-paper: var(--ob-ref-color-agent-working-light);
 	--ob-sys-color-website-surface: var(--ob-ref-color-website-surface);
 	--ob-sys-color-website-tray-backdrop-bottom: var(--ob-ref-color-website-tray-backdrop-bottom);
 	--ob-sys-color-website-tray-backdrop-top: var(--ob-ref-color-website-tray-backdrop-top);
@@ -1251,6 +1256,7 @@
 	--ob-comp-website-terminal-input: var(--ob-ref-color-website-terminal-input);
 	--ob-comp-website-terminal-line: var(--ob-ref-color-website-terminal-line);
 	--ob-comp-website-terminal-row-selection: var(--ob-ref-color-website-terminal-row-selection);
+	--ob-sys-typography-website-agents-states: 400 12.5px / 1 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-away-body: 400 14.5px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-away-row: 400 14px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-away-title: 500 22px / 1.5 var(--ob-ref-font-family-website-sans);
@@ -1321,6 +1327,26 @@
 	--ob-sys-typography-website-rail-code: 400 12px / 1 var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-rail-command: 400 12px / 1.6
 		var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-remote-title: 500 24px / 1.5 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-remote-title-tracking: -0.025em;
+	--ob-sys-typography-website-ring-cell: 500 1.6cqw / 1.46
+		var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-ring-cell-state: 500 1.45cqw / 1
+		var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-ring-cell-state-compact: 500 2.3cqw / 1
+		var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-ring-cell-title: 600 2cqw / 1.1 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-ring-cell-title-tracking: -0.01em;
+	--ob-sys-typography-website-ring-cell-title-compact: 600 3.1cqw / 1.1
+		var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-ring-cell-title-compact-tracking: -0.01em;
+	--ob-sys-typography-website-ring-start: 500 1.5cqw / 1.5
+		var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-ring-start-compact: 500 2.3cqw / 1.5
+		var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-ring-start-plus: 300 4cqw / 1 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-ring-start-plus-compact: 300 6cqw / 1
+		var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-sheet: 400 15px / 1 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-sheet-path: 400 12px / 1 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-sheet-term: 400 11.5px / 1.75 var(--ob-ref-font-family-website-mono);
@@ -1328,6 +1354,7 @@
 	--ob-sys-typography-website-statement: 400 clamp(22px, 2.5vw, 34px) / 1.27
 		var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-statement-tracking: -0.028em;
+	--ob-sys-typography-website-tag: 400 11.5px / 1 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-terminal: 400 13px / 20px var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-terminal-compact: 400 11px / 17px
 		var(--ob-ref-font-family-website-terminal);
@@ -1367,10 +1394,17 @@
 	--ob-ref-motion-duration-website-340: 340ms;
 	--ob-ref-motion-duration-website-350: 350ms;
 	--ob-ref-motion-duration-website-400: 400ms;
+	--ob-ref-motion-duration-website-450: 450ms;
 	--ob-ref-motion-duration-website-500: 500ms;
+	--ob-ref-motion-duration-website-550: 550ms;
+	--ob-ref-motion-duration-website-600: 600ms;
+	--ob-ref-motion-duration-website-650: 650ms;
+	--ob-ref-motion-duration-website-700: 700ms;
+	--ob-ref-motion-duration-website-750: 750ms;
 	--ob-ref-motion-duration-website-800: 800ms;
 	--ob-ref-motion-duration-website-1000: 1000ms;
 	--ob-ref-motion-duration-website-1100: 1100ms;
+	--ob-ref-motion-duration-website-1500: 1500ms;
 	--ob-ref-motion-duration-website-2200: 2200ms;
 	--ob-ref-motion-duration-website-4000: 4000ms;
 	--ob-sys-motion-duration-website-100: var(--ob-ref-motion-duration-website-100);
@@ -1382,22 +1416,33 @@
 	--ob-sys-motion-duration-website-340: var(--ob-ref-motion-duration-website-340);
 	--ob-sys-motion-duration-website-350: var(--ob-ref-motion-duration-website-350);
 	--ob-sys-motion-duration-website-400: var(--ob-ref-motion-duration-website-400);
+	--ob-sys-motion-duration-website-450: var(--ob-ref-motion-duration-website-450);
 	--ob-sys-motion-duration-website-500: var(--ob-ref-motion-duration-website-500);
+	--ob-sys-motion-duration-website-550: var(--ob-ref-motion-duration-website-550);
+	--ob-sys-motion-duration-website-600: var(--ob-ref-motion-duration-website-600);
+	--ob-sys-motion-duration-website-650: var(--ob-ref-motion-duration-website-650);
+	--ob-sys-motion-duration-website-700: var(--ob-ref-motion-duration-website-700);
+	--ob-sys-motion-duration-website-750: var(--ob-ref-motion-duration-website-750);
 	--ob-sys-motion-duration-website-800: var(--ob-ref-motion-duration-website-800);
 	--ob-sys-motion-duration-website-1000: var(--ob-ref-motion-duration-website-1000);
 	--ob-sys-motion-duration-website-1100: var(--ob-ref-motion-duration-website-1100);
+	--ob-sys-motion-duration-website-1500: var(--ob-ref-motion-duration-website-1500);
 	--ob-sys-motion-duration-website-breathe-fast: var(--ob-ref-motion-duration-website-1000);
 	--ob-sys-motion-duration-website-breathe-slow: var(--ob-ref-motion-duration-website-2200);
 	--ob-sys-motion-duration-website-step: var(--ob-ref-motion-duration-website-4000);
+	--ob-ref-motion-easing-website-draw: cubic-bezier(0.4, 0, 0.2, 1);
 	--ob-ref-motion-easing-website-drop: cubic-bezier(0.5, 0, 0.8, 0.4);
 	--ob-ref-motion-easing-website-ease: ease;
 	--ob-ref-motion-easing-website-ease-in-out: ease-in-out;
+	--ob-ref-motion-easing-website-pop: cubic-bezier(0.2, 0.8, 0.2, 1);
 	--ob-ref-motion-easing-website-settle: cubic-bezier(0.2, 0.7, 0.2, 1);
 	--ob-ref-motion-easing-website-split: cubic-bezier(0.3, 0.7, 0.2, 1);
 	--ob-ref-motion-easing-website-steps: steps(1);
+	--ob-sys-motion-easing-website-draw: var(--ob-ref-motion-easing-website-draw);
 	--ob-sys-motion-easing-website-drop: var(--ob-ref-motion-easing-website-drop);
 	--ob-sys-motion-easing-website-ease: var(--ob-ref-motion-easing-website-ease);
 	--ob-sys-motion-easing-website-ease-in-out: var(--ob-ref-motion-easing-website-ease-in-out);
+	--ob-sys-motion-easing-website-pop: var(--ob-ref-motion-easing-website-pop);
 	--ob-sys-motion-easing-website-settle: var(--ob-ref-motion-easing-website-settle);
 	--ob-sys-motion-easing-website-split: var(--ob-ref-motion-easing-website-split);
 	--ob-sys-motion-easing-website-steps: var(--ob-ref-motion-easing-website-steps);
@@ -1410,6 +1455,15 @@
 	--ob-ref-layer-website-navigation: 40;
 	--ob-ref-length-website-1ch: 1ch;
 	--ob-ref-length-website-1-4ch: 1.4ch;
+	--ob-ref-length-website-1-5em: 1.5em;
+	--ob-ref-length-website-0-4cqw: 0.4cqw;
+	--ob-ref-length-website-0-9cqw: 0.9cqw;
+	--ob-ref-length-website-1-6cqw: 1.6cqw;
+	--ob-ref-length-website-2cqw: 2cqw;
+	--ob-ref-length-website-2-9cqw: 2.9cqw;
+	--ob-ref-length-website-3-4cqw: 3.4cqw;
+	--ob-ref-length-website-20-6cqw: 20.6cqw;
+	--ob-ref-length-website-24cqw: 24cqw;
 	--ob-ref-length-website-measure-30: 30em;
 	--ob-ref-length-website-measure-31: 31em;
 	--ob-ref-length-website-measure-35: 35em;
@@ -1446,6 +1500,7 @@
 	--ob-ref-length-website-30: 30px;
 	--ob-ref-length-website-31: 31px;
 	--ob-ref-length-website-32: 32px;
+	--ob-ref-length-website-34: 34px;
 	--ob-ref-length-website-36: 36px;
 	--ob-ref-length-website-38: 38px;
 	--ob-ref-length-website-40: 40px;
@@ -1463,6 +1518,7 @@
 	--ob-ref-length-website-92: 92px;
 	--ob-ref-length-website-100: 100px;
 	--ob-ref-length-website-104: 104px;
+	--ob-ref-length-website-110: 110px;
 	--ob-ref-length-website-120: 120px;
 	--ob-ref-length-website-130: 130px;
 	--ob-ref-length-website-132: 132px;

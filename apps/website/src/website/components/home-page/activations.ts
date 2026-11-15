@@ -1,4 +1,5 @@
 import type { Activation } from '../../activation';
+import { activateAgentRing } from './components/agents/components/agent-ring/activateAgentRing';
 import { activateCollaboration } from './components/collaboration/activateCollaboration';
 import { activateHeroStage } from './components/hero/components/hero-stage/activateHeroStage';
 import { activateMultiplexing } from './components/multiplexing/activateMultiplexing';
@@ -9,4 +10,5 @@ export const homePageActivations: readonly Activation[] = [
 	activateHeroStage,
 	activateMultiplexing,
 	activateCollaboration,
+	activateAgentRing,
 ];

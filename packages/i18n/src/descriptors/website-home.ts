@@ -153,6 +153,43 @@ export const websiteHomeMessages = defineMessages({
 		'website.home.collaboration.note',
 		'Note under the collaboration figure; <b> marks the two named roles.',
 	),
+	agentsKicker: message('website.home.agents.kicker', 'Lowercase label above the agents heading.'),
+	agentsTitle: message('website.home.agents.title', 'Heading of the agents section.'),
+	agentsLead: message('website.home.agents.lead', 'Paragraph beside the agents heading.'),
+	agentsRecognized: message(
+		'website.home.agents.recognized',
+		'Label above the list of agent CLIs Orchbee recognizes; shown in lowercase.',
+	),
+	agentsSidebar: message(
+		'website.home.agents.sidebar',
+		'Paragraph beside the drawn sidebars, above their numbered notes.',
+	),
+	agentsProjectTitle: message(
+		'website.home.agents.projectTitle',
+		'Title of the note on the Project row of the drawn sidebar.',
+	),
+	agentsProject: message('website.home.agents.project', 'What a Project row is.'),
+	agentsWorkspaceTitle: message(
+		'website.home.agents.workspaceTitle',
+		'Title of the note on a Workspace row of the drawn sidebar.',
+	),
+	agentsWorkspace: message('website.home.agents.workspace', 'What a Workspace row is.'),
+	agentsAgentTitle: message(
+		'website.home.agents.agentTitle',
+		'Title of the note on an Agent row of the drawn sidebar.',
+	),
+	agentsAgent: message('website.home.agents.agent', 'What an Agent row shows.'),
+	agentsUnreadTitle: message(
+		'website.home.agents.unreadTitle',
+		'Title of the note on the unread dot of the drawn sidebar.',
+	),
+	agentsUnread: message('website.home.agents.unread', 'What the unread dot means.'),
+	remoteTag: message(
+		'website.home.remote.tag',
+		'Tag on the remote machines band: the feature is not released yet.',
+	),
+	remoteTitle: message('website.home.remote.title', 'Heading of the remote machines band.'),
+	remoteLead: message('website.home.remote.lead', 'Paragraph of the remote machines band.'),
 	clientsKicker: message(
 		'website.home.clients.kicker',
 		'Lowercase label above the client index heading.',
