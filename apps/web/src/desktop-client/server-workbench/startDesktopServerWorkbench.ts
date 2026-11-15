@@ -18,7 +18,12 @@ import {
 	workbenchMessages,
 } from '@orchbee/i18n';
 import { normalizePermittedExternalTerminalUrl } from '@orchbee/terminal';
-import { matchesWorkbenchProjectCreation, type WorkbenchShortcutPlatform } from '../../workbench';
+import { WorkbenchWorkspaceIdSchema } from '@orchbee/workbench-client-protocol';
+import {
+	matchesWorkbenchProjectCreation,
+	resolveActiveTerminalPresentationId,
+	type WorkbenchShortcutPlatform,
+} from '../../workbench';
 import { createMemoryHistory } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -184,7 +189,18 @@ async function run(
 		await receiveConnection(targetWindow);
 	const backgroundStatus = new DesktopBackgroundStatusClient(backgroundStatusPort);
 	targetWindow.addEventListener('unload', () => backgroundStatus.dispose(), { once: true });
-	const windowUpdate = new DesktopWindowUpdateClient(windowUpdatePort);
+	let runtime: ServerWorkbenchRuntime | undefined;
+	// The relaunched window opens at the terminal this one displays, else at its Workspace.
+	const windowUpdate = new DesktopWindowUpdateClient(windowUpdatePort, () => {
+		if (runtime === undefined) return null;
+		const presentationId = resolveActiveTerminalPresentationId(runtime.projectWorkspaceRuntime);
+		if (presentationId !== null) return { kind: 'terminal', presentationId };
+		const location = runtime.projectWorkspaceRuntime.getSnapshot().activeLocation;
+		const workspace = WorkbenchWorkspaceIdSchema.safeParse(
+			location.kind === 'workspace' ? location.workspaceId : undefined,
+		);
+		return workspace.success ? { kind: 'workspace', workspaceId: workspace.data } : null;
+	});
 	targetWindow.addEventListener('unload', () => windowUpdate.dispose(), { once: true });
 	const connection = new ServerConnection(new MessagePortServerCarrier(connectionPort));
 	targetWindow.addEventListener('unload', () => connection.close(), { once: true });
@@ -256,7 +272,6 @@ async function run(
 	);
 
 	let routing: WebApplicationRouting | undefined;
-	let runtime: ServerWorkbenchRuntime | undefined;
 	let stopBackgroundStatus: (() => void) | undefined;
 	const projectFolderAcquisition = new DesktopProjectFolderAcquisitionClient(
 		projectFolderPort,
@@ -310,6 +325,7 @@ async function run(
 		// A publication this document cannot apply leaves nothing current to show, so it disconnects.
 		onPublicationFailure: () => session.dispose(),
 		preferredLocales,
+		relaunchPlace: bootstrap.relaunchPlace,
 		session,
 		ctrlCCopiesSelection,
 		shortcutBindingSource: keyboardShortcutSettingsController,

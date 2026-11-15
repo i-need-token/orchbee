@@ -115,9 +115,8 @@ card. The row edits the key through the settings control, applies at once and ha
 gate; the Server reads it before each background update check. It renders only while the settings
 registry marks the key for the page, which the
 [automatic updates proposal](../../../proposals/platform/automatic-updates.md#phases) turns on with
-its slice 1 switch. Until the window has its own Update control, the description stops after
-“Download and install new versions in the background.” and leaves out the sentence about clicking
-Update.
+its slice 1 switch. The description ends with “Nothing restarts until you click Update.”, because a
+click on the window's Update control relaunches the window on the new version.
 
 Workbench exposes increase, decrease, and reset font-size Actions through the same controller.
 Increase and decrease apply a two-point step and clamp at `8` and `48`; reset restores only the

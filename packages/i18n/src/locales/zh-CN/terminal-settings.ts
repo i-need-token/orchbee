@@ -139,7 +139,8 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.restoreOutput.description':
 		'重启后再次显示最近的输出。保存在本机，可能包含密钥等敏感信息。',
 	'terminal.settings.page.automaticUpdates.label': '自动更新',
-	'terminal.settings.page.automaticUpdates.description': '在后台下载并安装新版本。',
+	'terminal.settings.page.automaticUpdates.description':
+		'在后台下载并安装新版本。点击“更新”前不会重启任何内容。',
 	'terminal.settings.page.applicationTheme.label': '应用主题',
 	'terminal.settings.page.applicationTheme.description':
 		'浅色、深色或跟随系统。浅色和深色各用哪套主题，在“主题”里选。',

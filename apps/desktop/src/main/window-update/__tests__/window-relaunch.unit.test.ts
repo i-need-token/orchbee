@@ -1,0 +1,172 @@
+import type { DesktopSessionRefusal } from '@orchbee/desktop-client-protocol';
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+	givesWayToReplacedVersion,
+	readRelaunchPlace,
+	relaunchWindow,
+	takeRelaunchAnnouncement,
+} from '../window-relaunch';
+
+const PRESENTATION = 'presentation-1';
+const WORKSPACE = '0123456789abcdef0123456789abcdef';
+const SESSION_TOO_OLD: DesktopSessionRefusal = {
+	desktopVersion: '0.3.0',
+	reason: 'session-too-old',
+	sessionVersion: '0.1.0',
+};
+
+describe('window relaunch arguments', () => {
+	it('names the terminal first, else the Workspace, and nothing without a valid place', () => {
+		expect(
+			readRelaunchPlace([
+				'--select-workspace-v1=' + WORKSPACE,
+				'--select-terminal-v1=' + PRESENTATION,
+			]),
+		).toEqual({ kind: 'terminal', presentationId: PRESENTATION });
+		expect(readRelaunchPlace(['--select-workspace-v1=' + WORKSPACE])).toEqual({
+			kind: 'workspace',
+			workspaceId: WORKSPACE,
+		});
+		// A terminal identity that does not parse leaves the Workspace.
+		expect(
+			readRelaunchPlace(['--select-terminal-v1=', '--select-workspace-v1=' + WORKSPACE]),
+		).toEqual({ kind: 'workspace', workspaceId: WORKSPACE });
+		for (const argumentsList of [
+			[],
+			['--select-workspace-v1=00000000000000000000000000000000'],
+			['--select-workspace-v1=NOT-HEX'],
+			['--select-terminal-v1', PRESENTATION],
+			['--select-terminal-v1=-leading-dash'],
+		]) {
+			expect(readRelaunchPlace(argumentsList)).toBeNull();
+		}
+	});
+
+	it.each([
+		['a terminal', readRelaunchPlace(['--select-terminal-v1=' + PRESENTATION])],
+		['a Workspace', readRelaunchPlace(['--select-workspace-v1=' + WORKSPACE])],
+		['no place', null],
+	])(
+		'puts the launcher switch and the process id first, and %s reads back',
+		async (_case, place) => {
+			let argumentsList: readonly string[] = [];
+			await relaunchWindow({
+				desktopRoot: 'C:\\Orchbee\\desktop',
+				executablePath: 'C:\\Orchbee\\desktop\\versions\\0.2.0\\orchbee-desktop.exe',
+				place,
+				platform: 'win32',
+				processId: 4321,
+				quit: () => undefined,
+				start: (_program, started) => {
+					argumentsList = started;
+					return Promise.resolve(true);
+				},
+			});
+			expect(argumentsList.slice(0, 2)).toEqual(['--relaunch-after-v1', '4321']);
+			// Every place switch is one `=` argument, which the launcher passes on unchanged.
+			expect(argumentsList.slice(2).every((argument) => argument.includes('='))).toBe(true);
+			expect(readRelaunchPlace(argumentsList.slice(2))).toEqual(place);
+		},
+	);
+});
+
+describe('relaunch announcement', () => {
+	it('always removes the variable, and announces only when it names the parent', () => {
+		for (const [value, announced] of [
+			['1200', true],
+			['1201', false],
+			['01200', false],
+			['+1200', false],
+			['', false],
+			[undefined, false],
+		] as const) {
+			const environment: NodeJS.ProcessEnv = { KEEP: 'yes' };
+			if (value !== undefined) environment['ORCHBEE_RELAUNCH_V1'] = value;
+			expect(takeRelaunchAnnouncement(environment, 1200)).toBe(announced);
+			expect(environment).toEqual({ KEEP: 'yes' });
+		}
+	});
+
+	it('gives way only to a too-old Session answered within 90 seconds of an announced start', () => {
+		expect(
+			givesWayToReplacedVersion({
+				announced: true,
+				elapsedMilliseconds: 90_000,
+				refusal: SESSION_TOO_OLD,
+			}),
+		).toBe(true);
+		expect(
+			givesWayToReplacedVersion({
+				announced: true,
+				elapsedMilliseconds: 90_001,
+				refusal: SESSION_TOO_OLD,
+			}),
+		).toBe(false);
+		expect(
+			givesWayToReplacedVersion({
+				announced: false,
+				elapsedMilliseconds: 1_000,
+				refusal: SESSION_TOO_OLD,
+			}),
+		).toBe(false);
+		for (const refusal of [
+			null,
+			{ reason: 'recovery-required' },
+			{ desktopVersion: '0.3.0', reason: 'desktop-too-old', sessionVersion: '0.4.0' },
+		] as const) {
+			expect(
+				givesWayToReplacedVersion({ announced: true, elapsedMilliseconds: 1_000, refusal }),
+			).toBe(false);
+		}
+	});
+});
+
+describe('relaunchWindow', () => {
+	const place = readRelaunchPlace(['--select-terminal-v1=' + PRESENTATION]);
+
+	it('starts the entry beside the version folders from desktop and quits once it started', async () => {
+		const quit = vi.fn<() => void>();
+		const start = vi.fn<
+			(
+				program: string,
+				argumentsList: readonly string[],
+				workingDirectory: string,
+			) => Promise<boolean>
+		>(() => Promise.resolve(true));
+		const started = await relaunchWindow({
+			desktopRoot: 'C:\\Orchbee\\desktop',
+			executablePath: 'C:\\Orchbee\\desktop\\versions\\0.2.0\\ob-test-desktop.exe',
+			place,
+			platform: 'win32',
+			processId: 77,
+			quit,
+			start,
+		});
+		expect(started).toBe(true);
+		expect(start).toHaveBeenCalledWith(
+			'C:\\Orchbee\\desktop\\ob-test-desktop.exe',
+			['--relaunch-after-v1', '77', '--select-terminal-v1=' + PRESENTATION],
+			'C:\\Orchbee\\desktop',
+		);
+		expect(quit).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		['reports no start', () => Promise.resolve(false)],
+		['fails', () => Promise.reject(new Error('ENOENT'))],
+	])('keeps the window running when starting the entry %s', async (_case, start) => {
+		const quit = vi.fn<() => void>();
+		const started = await relaunchWindow({
+			desktopRoot: 'C:\\Orchbee\\desktop',
+			executablePath: 'C:\\Orchbee\\desktop\\versions\\0.2.0\\orchbee-desktop.exe',
+			place: null,
+			platform: 'win32',
+			processId: 77,
+			quit,
+			start,
+		});
+		expect(started).toBe(false);
+		expect(quit).not.toHaveBeenCalled();
+	});
+});

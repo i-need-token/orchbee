@@ -100,7 +100,8 @@ derives the icon.
 - Clicking or double-clicking the icon or its notice, Reopen Orchbee, starting Orchbee again, and a
   notification clicked while the window is hidden all show and focus the window; the page asks Main
   for it, because a page cannot show a window Main hid. Quit Orchbee, Keep Terminals Running quits
-  Desktop and leaves the Session running.
+  Desktop and leaves the Session running. A switch through Update quits the same way once the
+  window entry has started ([Window Update](../README.md#window-update)).
 - Quit All… asks every time, in a native dialog that needs no window, with Cancel focused and on
   Esc; its body counts the terminals that stop and the Agents working in them. Cancel changes
   nothing. Only a confirmation stops the Session: Main chooses a stop identity and asks the page

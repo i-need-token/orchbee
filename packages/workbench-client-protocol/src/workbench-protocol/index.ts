@@ -7,6 +7,7 @@ export {
 	WorkbenchLabelSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchStopIdSchema,
+	WorkbenchWorkspaceIdSchema,
 } from './workbench-semantic-contract';
 export type {
 	WorkbenchAgentStartProvider,

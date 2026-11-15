@@ -33,10 +33,12 @@ export {
 } from './desktop-window-caption-contract';
 
 export {
+	DesktopRelaunchPlaceSchema,
 	DesktopWindowUpdateMainMessageSchema,
 	DesktopWindowUpdateRendererMessageSchema,
 } from './desktop-window-update-contract';
 export type {
+	DesktopRelaunchPlace,
 	DesktopWindowUpdateMainMessage,
 	DesktopWindowUpdateRendererMessage,
 } from './desktop-window-update-contract';

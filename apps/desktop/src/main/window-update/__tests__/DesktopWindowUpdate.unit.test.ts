@@ -1,10 +1,18 @@
-import type { DesktopWindowUpdateMainMessage } from '@orchbee/desktop-client-protocol';
+import {
+	DesktopRelaunchPlaceSchema,
+	type DesktopRelaunchPlace,
+	type DesktopWindowUpdateMainMessage,
+} from '@orchbee/desktop-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ServerStartAnswer } from '../../server-connection';
 import { DesktopWindowUpdate, type DesktopWindowUpdatePort } from '../DesktopWindowUpdate';
 
 const ROOT = 'C:\\Programs\\Orchbee\\desktop';
+const PLACE = DesktopRelaunchPlaceSchema.parse({
+	kind: 'workspace',
+	workspaceId: '0123456789abcdef0123456789abcdef',
+});
 
 function fakePort() {
 	let receive: ((event: { readonly data: unknown }) => void) | undefined;
@@ -19,8 +27,8 @@ function fakePort() {
 	};
 	return {
 		port,
-		request: (version: string) =>
-			receive?.({ data: { type: 'desktop-window-update-requested', version } }),
+		request: (version: string, place: DesktopRelaunchPlace | null = null) =>
+			receive?.({ data: { place, type: 'desktop-window-update-requested', version } }),
 		sent,
 	};
 }
@@ -35,7 +43,9 @@ function create(options: {
 }) {
 	let active = options.active;
 	let changed: (() => void) | undefined;
-	const onJoinable = vi.fn<(version: string) => void>();
+	const onJoinable = vi.fn<(version: string, place: DesktopRelaunchPlace | null) => Promise<void>>(
+		() => Promise.resolve(),
+	);
 	const startVersionClient = vi.fn<(root: string, version: string) => Promise<ServerStartAnswer>>(
 		options.startVersionClient ?? (() => Promise.resolve(started([]))),
 	);
@@ -103,9 +113,9 @@ describe('DesktopWindowUpdate', () => {
 		await settle();
 		const document = fakePort();
 		update.serve(document.port);
-		document.request('0.3.0');
+		document.request('0.3.0', PLACE);
 		await settle();
-		expect(onJoinable).toHaveBeenCalledWith('0.3.0');
+		expect(onJoinable).toHaveBeenCalledWith('0.3.0', PLACE);
 		expect(document.sent).not.toContainEqual({ type: 'desktop-window-update-waiting' });
 	});
 
@@ -139,7 +149,7 @@ describe('DesktopWindowUpdate', () => {
 		const update = new DesktopWindowUpdate({
 			desktopRoot: null,
 			fallbackFrom: null,
-			onJoinable: () => undefined,
+			onJoinable: () => Promise.resolve(),
 			ownVersion: '0.2.0',
 			readPointer,
 			recordEvent: () => undefined,

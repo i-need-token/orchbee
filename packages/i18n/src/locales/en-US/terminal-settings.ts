@@ -146,7 +146,7 @@ export const enUSTerminalSettingsMessages = {
 		'Shows recent output again after a restart. Kept on this computer; may include secrets.',
 	'terminal.settings.page.automaticUpdates.label': 'Automatic updates',
 	'terminal.settings.page.automaticUpdates.description':
-		'Download and install new versions in the background.',
+		'Download and install new versions in the background. Nothing restarts until you click Update.',
 	'terminal.settings.page.applicationTheme.label': 'Application theme',
 	'terminal.settings.page.applicationTheme.description':
 		'Light, dark, or follow the system. Pick the light and dark themes under Themes.',

@@ -25,6 +25,7 @@ export {
 	WorkbenchLaunchSelectionSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchStopIdSchema,
+	WorkbenchWorkspaceIdSchema,
 	WorktreeReferenceSchema,
 	parseWorkbenchAction,
 	parseWorkbenchRequest,

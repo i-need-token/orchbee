@@ -12,6 +12,7 @@ import {
 	type WorkbenchAgentNameSource,
 	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
+	type WorkbenchClientView,
 	type WorkbenchShortcutPlatform,
 	type WorkbenchWorkspaceLocationSource,
 } from '../../workbench';
@@ -39,6 +40,10 @@ import { bindServerClientView } from './bindServerClientView';
 import { bindServerConfiguredCommands } from './bindServerConfiguredCommands';
 import { bindServerFocusControl } from './bindServerFocusControl';
 import { bindServerWindowTitle, type ServerTitleWindow } from './bindServerWindowTitle';
+import {
+	createRelaunchPlaceWorkbenchClientView,
+	type WorkbenchRelaunchPlace,
+} from './createRelaunchPlaceWorkbenchClientView';
 import {
 	createServerWorkbenchAuthority,
 	createServerWorkspaceLocations,
@@ -116,6 +121,11 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	/** A publication this Client cannot read leaves it behind the Server, so it must stop. */
 	readonly onPublicationFailure: (error: unknown) => void;
 	readonly preferredLocales: readonly string[];
+	/**
+	 * Where a window relaunched by Update opens, which takes the place of focus recovery; absent or
+	 * null for every other start.
+	 */
+	readonly relaunchPlace?: WorkbenchRelaunchPlace | null | undefined;
 	readonly session: ServerWorkbenchSession;
 	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
@@ -152,6 +162,7 @@ export function createServerWorkbenchRuntime({
 	launchProfiles,
 	onPublicationFailure,
 	preferredLocales,
+	relaunchPlace,
 	session,
 	shortcutBindingSource,
 	shortcutPlatform,
@@ -170,14 +181,20 @@ export function createServerWorkbenchRuntime({
 	let intl = createOrchbeeIntl(locale);
 	const initialPublication = projectServerSnapshot(session.snapshot, intl);
 	const actionRuntime = new ActionRuntime();
+	// A relaunch's place takes the place of focus recovery.
+	const createInitialClientView = (): WorkbenchClientView | undefined => {
+		if (relaunchPlace !== undefined && relaunchPlace !== null) {
+			return createRelaunchPlaceWorkbenchClientView(initialPublication, relaunchPlace);
+		}
+		return focusRecoveryStorage === undefined
+			? undefined
+			: createFocusRecoveredWorkbenchClientView(
+					initialPublication,
+					readWorkbenchFocusRecovery(focusRecoveryStorage),
+				);
+	};
 	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-		initialClientView:
-			focusRecoveryStorage === undefined
-				? undefined
-				: createFocusRecoveredWorkbenchClientView(
-						initialPublication,
-						readWorkbenchFocusRecovery(focusRecoveryStorage),
-					),
+		initialClientView: createInitialClientView(),
 		initialPublication,
 	});
 	const boundTerminal = (presentationId: TerminalPresentationId): string | null => {

@@ -61,8 +61,20 @@ pushes the offer, or none, to every document's window-update port. A press first
 version's bundled Client with this window's Session arguments, `server start --format json`; the
 switch goes ahead only when the start succeeds and its `negotiatedCapabilities` include
 `compatibility-window`. Otherwise the page shows that the update applies when no terminal runs, and
-the diagnostic log records why. The switch itself, through the window entry, is not wired yet: a
-joinable version is only recorded. The maintained design is the
+the diagnostic log records why. A joinable version is switched to through the window entry
+`desktop\<this window's file name>`: Main starts it detached, with `desktop\` as working folder and
+the arguments `--relaunch-after-v1 <its process id>` followed by the place the asking document shows,
+`--select-terminal-v1=<TerminalPresentationId>` for its displayed terminal or else
+`--select-workspace-v1=<WorkspaceId>` for its Workspace, and then quits as Quit Orchbee, Keep
+Terminals Running does. An entry that cannot start leaves the window running and is recorded. The
+[window launcher](../orchbee-desktop-launcher/README.md) waits for the window to end and starts the
+active version, whose Main strict-parses the place and gives it to its first document only as
+`relaunchPlace`; nothing is stored. At start Main removes `ORCHBEE_RELAUNCH_V1` from its environment,
+so nothing it starts inherits it. When the variable named its parent and its first `server start`
+answer, within 90 seconds of its start, refuses with `session-too-old`, Main exits with status 1
+instead of showing the refusal, and the launcher starts the version it replaced. The Jump List task
+of a window that runs from a version folder names the entry, so it outlives that version. The
+maintained design is the
 [automatic-update proposal](../../proposals/platform/automatic-updates.md#window).
 
 The page has the Client authority of the Session it joined. That adds nothing to what it could

@@ -8,9 +8,11 @@ import {
 	DESKTOP_WINDOW_CAPTION_IPC_CHANNEL,
 	DesktopServerConnectionDocumentSchema,
 	DesktopWindowCaptionColorSchema,
+	type DesktopRelaunchPlace,
 	type DesktopServerConnectionBootstrap,
 	type DesktopServerConnectionPortRole,
 	type DesktopServerConnectionReply,
+	type DesktopSessionRefusal,
 } from '@orchbee/desktop-client-protocol';
 import {
 	BrowserWindow,
@@ -47,10 +49,17 @@ export interface DesktopServerClientApplicationOptions {
 	readonly clientEnvironment: NodeJS.ProcessEnv;
 	readonly clientExecutable: string;
 	readonly distribution: DesktopServerConnectionBootstrap['distribution'];
+	/**
+	 * Given the first document's `server start` refusal, or null when it was not refused or why is
+	 * unknown; true when Desktop exits instead, and that document is never connected.
+	 */
+	readonly exitsOnFirstStartAnswer: (refusal: DesktopSessionRefusal | null) => boolean;
 	/** Appends one record to the daily diagnostic log; text values must be tokens. */
 	readonly recordEvent: DesktopDiagnosticRecorder;
 	readonly platform: NodeJS.Platform;
 	readonly preloadPath: string;
+	/** Where the first document opens when Update relaunched this window; null otherwise. */
+	readonly relaunchPlace: DesktopRelaunchPlace | null;
 	readonly rendererUrl: URL;
 	readonly sessionArguments: readonly string[];
 	/** A window started hidden for automation is never shown and neither restores nor records its place. */
@@ -304,6 +313,8 @@ export class DesktopServerClientApplication {
 				options.clientEnvironment,
 			).then(({ restore }) => {
 				if (request !== requests || window.isDestroyed()) return;
+				const refusal = restore.kind === 'refused' ? restore.refusal : null;
+				if (!everConnected && options.exitsOnFirstStartAnswer(refusal)) return;
 				current = this.#connect(window, {
 					bootstrap: {
 						// A later document follows a person's own actions; an empty Session may be what they chose.
@@ -312,7 +323,8 @@ export class DesktopServerClientApplication {
 						defaultDirectory: app.getPath('home'),
 						distribution: options.distribution,
 						loginShellAvailable: options.platform !== 'win32',
-						sessionRefusal: restore.kind === 'refused' ? restore.refusal : null,
+						relaunchPlace: everConnected ? null : options.relaunchPlace,
+						sessionRefusal: refusal,
 						terminalHostName: hostname(),
 					},
 					document: document.data,

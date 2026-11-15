@@ -1,5 +1,6 @@
 import {
 	DesktopWindowUpdateMainMessageSchema,
+	type DesktopRelaunchPlace,
 	type DesktopWindowUpdateRendererMessage,
 } from '@orchbee/desktop-client-protocol';
 
@@ -7,17 +8,21 @@ import type { WorkbenchClientUpdate } from '../../workbench';
 
 /**
  * This document's window-update port: the newer window version Main offers, or none, the request to
- * switch to it, and Main's answer when the switch has to wait until no terminal runs.
+ * switch to it with the place the window shows, and Main's answer when the switch has to wait until
+ * no terminal runs.
  */
 export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 	#disposed = false;
 	#offer: string | null = null;
 	readonly #listeners = new Set<() => void>();
 	readonly #port: MessagePort;
+	readonly #readPlace: () => DesktopRelaunchPlace | null;
 	readonly #waitingListeners = new Set<() => void>();
 
-	constructor(port: MessagePort) {
+	/** `readPlace` names where the relaunched window opens, read when the switch is asked for. */
+	constructor(port: MessagePort, readPlace: () => DesktopRelaunchPlace | null) {
 		this.#port = port;
+		this.#readPlace = readPlace;
 		port.addEventListener('message', ({ data }) => this.#receive(data));
 		port.start();
 	}
@@ -27,6 +32,7 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 	readonly request = (version: string): void => {
 		if (this.#disposed) return;
 		const message: DesktopWindowUpdateRendererMessage = {
+			place: this.#readPlace(),
 			type: 'desktop-window-update-requested',
 			version,
 		};

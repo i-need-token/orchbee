@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { DesktopRelaunchPlaceSchema } from './desktop-window-update-contract';
+
 /** The page asks once it is listening, so a connection never reaches a document not yet ready for it. */
 export const DESKTOP_SERVER_CONNECTION_WINDOW_REQUEST = 'orchbee.desktop.server-connection-request';
 export const DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL =
@@ -61,6 +63,11 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	distribution: z.enum(['development', 'release', 'test']),
 	/** Whether this machine's Host can start the system shell as a login shell; Windows cannot. */
 	loginShellAvailable: z.boolean(),
+	/**
+	 * Where the first document of a window relaunched by Update opens, from the window's command
+	 * line; null for every other document.
+	 */
+	relaunchPlace: DesktopRelaunchPlaceSchema.nullable(),
 	/**
 	 * Why starting the Session was refused, or null when it was not or the reason is unknown. Its
 	 * connection then ends before anything is read, and only Main saw why.

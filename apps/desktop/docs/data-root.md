@@ -35,7 +35,8 @@ without migration.
 
 On Windows Main appends `started`, `startup-failed`, `renderer-gone` with Electron's reason,
 diagnostic bundle outcomes, Window Update's `window-update-joinable` and `window-update-waiting`
-with its reason, and `exited` to the data root's
+with its reason, `window-relaunch-started`, `window-relaunch-failed` and
+`window-relaunch-gave-way`, and `exited` to the data root's
 [daily diagnostic log](../../../crates/local-runtime/README.md#windows-diagnostic-log), creating
 `logs/` with its first record. It writes the natives' records with role `desktop-main` under their
 retention, cap, and exclusive-open rules; its event names and text values are string literals in

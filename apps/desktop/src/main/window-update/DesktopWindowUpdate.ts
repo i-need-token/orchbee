@@ -1,5 +1,6 @@
 import {
 	DesktopWindowUpdateRendererMessageSchema,
+	type DesktopRelaunchPlace,
 	type DesktopWindowUpdateMainMessage,
 } from '@orchbee/desktop-client-protocol';
 
@@ -26,8 +27,11 @@ export interface DesktopWindowUpdateOptions {
 	readonly desktopRoot: string | null;
 	/** The version a fallback start came back from, which the window never offers while it runs. */
 	readonly fallbackFrom: string | null;
-	/** The new version's Client joins the Session; the window now switches to that version. */
-	readonly onJoinable: (version: string) => void;
+	/**
+	 * The new version's Client joins the Session; the window now switches to that version at the place
+	 * the asking document shows. Further requests wait until it settles.
+	 */
+	readonly onJoinable: (version: string, place: DesktopRelaunchPlace | null) => Promise<unknown>;
 	readonly ownVersion: string;
 	/** The active window version the pointer names, or null. */
 	readonly readPointer: (desktopRoot: string) => Promise<string | null>;
@@ -76,7 +80,7 @@ export class DesktopWindowUpdate {
 		this.#ports.add(served);
 		port.on('message', ({ data }) => {
 			const message = DesktopWindowUpdateRendererMessageSchema.safeParse(data);
-			if (served.open && message.success) void this.#request(served, message.data.version);
+			if (served.open && message.success) void this.#request(served, message.data);
 		});
 		port.start();
 		port.postMessage({ type: 'desktop-window-update-offered', version: this.#offer });
@@ -136,10 +140,14 @@ export class DesktopWindowUpdate {
 	}
 
 	/**
-	 * A request for anything but the current offer, or one made while a check runs, does nothing: the
-	 * offer the page shows follows Main's, and one check answers every click made during it.
+	 * A request for anything but the current offer, or one made while a check or its switch runs, does
+	 * nothing: the offer the page shows follows Main's, and one check answers every click made during
+	 * it.
 	 */
-	async #request(served: ServedPort, version: string): Promise<void> {
+	async #request(
+		served: ServedPort,
+		{ place, version }: { readonly place: DesktopRelaunchPlace | null; readonly version: string },
+	): Promise<void> {
 		const root = this.#options.desktopRoot;
 		if (root === null || this.#checking || version !== this.#offer) return;
 		this.#checking = true;
@@ -148,7 +156,7 @@ export class DesktopWindowUpdate {
 			if (this.#disposed) return;
 			if (answer?.negotiatedCapabilities.includes(COMPATIBILITY_WINDOW) === true) {
 				this.#options.recordEvent('info', 'window-update-joinable');
-				this.#options.onJoinable(version);
+				await this.#options.onJoinable(version, place).catch(() => undefined);
 				return;
 			}
 			if (answer === null || answer.negotiatedCapabilities.length === 0) {

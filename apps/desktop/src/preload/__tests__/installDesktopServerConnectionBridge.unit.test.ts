@@ -19,6 +19,7 @@ const BOOTSTRAP = {
 	defaultDirectory: 'C:\\Users\\someone',
 	distribution: 'release',
 	loginShellAvailable: false,
+	relaunchPlace: null,
 	sessionRefusal: null,
 	terminalHostName: 'host',
 };

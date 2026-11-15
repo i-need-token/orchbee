@@ -2,3 +2,9 @@ export { DesktopWindowUpdate, type DesktopWindowUpdatePort } from './DesktopWind
 export { readWindowPointer } from './readWindowPointer';
 export { watchWindowPointer } from './watchWindowPointer';
 export { locateWindowDesktopRoot, readFallbackFromVersion } from './window-update-offer';
+export {
+	givesWayToReplacedVersion,
+	readRelaunchPlace,
+	relaunchWindow,
+	takeRelaunchAnnouncement,
+} from './window-relaunch';

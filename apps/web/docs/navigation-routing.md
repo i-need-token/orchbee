@@ -92,7 +92,11 @@ The navigation port exposes a read-only `isActive` predicate for the currently a
   context. Independent pages cannot share the hint. Recovery cannot create an identity, revive a
   removed presentation, change shared state, send terminal input, or restore maximization, Split
   weights, multi-selection, scroll, search, output, or unrelated Client View or viewport facts. Full Client
-  View recovery and recovery across native-window or application restart remain excluded.
+  View recovery and recovery across native-window or application restart remain excluded, with one
+  exception: a window that Update relaunches receives its place as the bootstrap member
+  `relaunchPlace` of its first document, either the displayed terminal, projected as this record
+  is, or else the selected Workspace, opened by itself. It replaces this record for that document,
+  nothing stores it, and a place that no longer resolves changes nothing.
 - **Verification:** Deterministic tests cover primary and child targets, stale identity, strict
   parsing, absence, storage failure, removal, and projection isolation. The Desktop system trace that
   reloaded the renderer and sent input through the restored focus retired with the Desktop Electron

@@ -140,8 +140,10 @@ The Client View lives in memory. Closing a window destroys it, and a new one rec
 unless the application supplies a candidate. The Desktop composition stores only one bounded,
 session-scoped focused `TerminalPresentationId` and projects it into an otherwise default candidate,
 as [renderer reload focus recovery](navigation-routing.md#renderer-reload-focus-recovery)
-describes. Full or cross-restart Client View recovery requires a separate accepted owner and
-contract.
+describes. A window that Update relaunches opens its first document at the displayed terminal or
+selected Workspace the window had, which Main passes on its command line and in the bootstrap,
+storing nothing. Any other full or cross-restart Client View recovery requires a separate accepted
+owner and contract.
 
 ## Invariants
 

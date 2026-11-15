@@ -2,6 +2,7 @@
  * The Desktop application as a Server Client: one window whose document holds one Client connection
  * through an `orchbee server connect` relay.
  */
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 import {
@@ -43,9 +44,13 @@ import {
 } from '../window-state';
 import {
 	DesktopWindowUpdate,
+	givesWayToReplacedVersion,
 	locateWindowDesktopRoot,
 	readFallbackFromVersion,
+	readRelaunchPlace,
 	readWindowPointer,
+	relaunchWindow,
+	takeRelaunchAnnouncement,
 	watchWindowPointer,
 } from '../window-update';
 import { DesktopDataRootRefusal } from './data-root-version-record';
@@ -66,6 +71,9 @@ const PACKAGED_COHORT_DIRECTORY = 'cohort';
 const PACKAGED_RENDERER_DIRECTORY = 'dist';
 const PACKAGED_TRAY_ICON_DIRECTORY = 'tray';
 
+const launchedAt = performance.now();
+// Before anything starts a process, so none inherits the launcher protocol variable.
+const relaunchAnnounced = takeRelaunchAnnouncement(process.env, process.ppid);
 const packaged = isPackagedDesktop(process);
 registerDesktopRendererScheme(protocol);
 const distribution = resolveDesktopApplicationDistribution({
@@ -81,6 +89,21 @@ const distribution = resolveDesktopApplicationDistribution({
 const automationEnvironment: NodeJS.ProcessEnv =
 	packaged && distribution.dataScope.kind === 'release' ? {} : process.env;
 const windowHidden = automationEnvironment[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined;
+/**
+ * `desktop\` when this window runs from `desktop\versions\<its own version>\`, never for a
+ * development build; its window entry starts whichever window version is active.
+ */
+const windowDesktopRoot = locateWindowDesktopRoot({
+	development: !packaged || distribution.dataScope.kind === 'development',
+	executablePath: process.execPath,
+	ownVersion: app.getVersion(),
+	platform: process.platform,
+});
+/** What starts this window's program: the window entry when there is one, else the program itself. */
+const windowStartProgram =
+	windowDesktopRoot === null
+		? process.execPath
+		: path.join(windowDesktopRoot, path.basename(process.execPath));
 app.setName(distribution.applicationName);
 // The installer's Start menu shortcut carries the same identity, so Windows groups the window,
 // its taskbar button, its Jump List and its notifications under that shortcut; a checkout's
@@ -191,25 +214,57 @@ function resolveClientExecutable(): string {
 }
 
 /**
+ * Starts `program` outside this process's Job, so it outlives this process; resolves whether it
+ * started.
+ */
+function startDetached(
+	program: string,
+	argumentsList: readonly string[],
+	workingDirectory: string,
+): Promise<boolean> {
+	return new Promise((resolve) => {
+		const child = spawn(program, argumentsList, {
+			cwd: workingDirectory,
+			detached: true,
+			env: process.env,
+			stdio: 'ignore',
+		});
+		child.once('error', () => resolve(false));
+		child.once('spawn', () => {
+			child.unref();
+			resolve(true);
+		});
+	});
+}
+
+/**
  * The window's Update control: the newer window version its pointer names, offered only to a window
  * that runs from `desktop\versions\<its own version>\` and never to a development build. The join
- * check runs that version's bundled Client with this window's Session arguments and environment.
+ * check runs that version's bundled Client with this window's Session arguments and environment; a
+ * version that joins starts through the window entry at the place the asking document shows, and
+ * this window then quits as Quit Orchbee, Keep Terminals Running does.
  */
 function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowUpdate {
-	const desktopRoot = locateWindowDesktopRoot({
-		development: !packaged || distribution.dataScope.kind === 'development',
-		executablePath: process.execPath,
-		ownVersion: app.getVersion(),
-		platform: process.platform,
-	});
+	const desktopRoot = windowDesktopRoot;
 	const stem = distribution.artifactStem;
 	const clientName = process.platform === 'win32' ? `${stem}.exe` : stem;
 	return new DesktopWindowUpdate({
 		desktopRoot,
 		fallbackFrom: readFallbackFromVersion(process.argv),
-		// The relaunch through the window entry arrives with the window self-update release's next
-		// phase; until then a joinable version is only recorded.
-		onJoinable: () => undefined,
+		onJoinable: async (_version, place) => {
+			if (desktopRoot === null) return;
+			const started = await relaunchWindow({
+				desktopRoot,
+				executablePath: process.execPath,
+				place,
+				platform: process.platform,
+				processId: process.pid,
+				quit: () => app.quit(),
+				start: startDetached,
+			});
+			if (started) recordEvent('info', 'window-relaunch-started');
+			else recordEvent('error', 'window-relaunch-failed');
+		},
 		ownVersion: app.getVersion(),
 		readPointer: readWindowPointer,
 		recordEvent,
@@ -303,8 +358,8 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 				arguments: SAVE_DIAGNOSTIC_BUNDLE_SWITCH,
 				description: intl.formatMessage(desktopDiagnosticsMessages.taskDescription),
 				iconIndex: 0,
-				iconPath: process.execPath,
-				program: process.execPath,
+				iconPath: windowStartProgram,
+				program: windowStartProgram,
 				title: intl.formatMessage(desktopDiagnosticsMessages.saveBundle),
 			},
 		]);
@@ -394,9 +449,27 @@ async function start(): Promise<void> {
 		clientEnvironment: resolveClientEnvironment(),
 		clientExecutable: resolveClientExecutable(),
 		distribution: distribution.dataScope.kind,
+		exitsOnFirstStartAnswer: (refusal) => {
+			if (
+				!givesWayToReplacedVersion({
+					announced: relaunchAnnounced,
+					elapsedMilliseconds: performance.now() - launchedAt,
+					refusal,
+				})
+			) {
+				return false;
+			}
+			// The launcher that announced this window starts the version it replaced.
+			recordEvent('warning', 'window-relaunch-gave-way');
+			background?.dispose();
+			windowUpdate?.dispose();
+			app.exit(1);
+			return true;
+		},
 		platform: process.platform,
 		preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
 		recordEvent,
+		relaunchPlace: readRelaunchPlace(process.argv),
 		rendererUrl,
 		sessionArguments,
 		windowHidden,

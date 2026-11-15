@@ -404,6 +404,9 @@ importers:
 
   packages/desktop-client-protocol:
     dependencies:
+      '@orchbee/workbench-client-protocol':
+        specifier: workspace:^
+        version: link:../workbench-client-protocol
       zod:
         specifier: 'catalog:'
         version: 4.4.3
