@@ -112,6 +112,19 @@ controlled browser fixtures for visible focus, unchanged navigation, and unchang
 - **Compatibility, delivery, and rollback:** The accepted defaults are `Mod+F6` and `Mod+Shift+F6`, preserving unmodified function keys for PTY/TUI input. Browser overrides migrate from v20 to v21 by copying every valid prior override, dropping entries equal to current defaults, and rejecting post-migration conflicts; the v20 record remains untouched for rollback and older builds intentionally cannot read v21-only edits. Delivery is ordered as this contract, the terminal-location pointer-activation state model, pure resolver and reconciliation tests, Tab Strip semantics, Workbench/terminal-surface integration, then Web persistence and controlled system evidence. Removing Workspace rows from the pointer-origin adapter restores their previous focus-neutral behavior independently; reverting the v21 catalog and migration, focus Actions/state, Tab Strip projection, terminal-location state model, and terminal focus-request field together restores the earlier keyboard behavior without durable-data deletion.
 - **Verification and limits:** Deterministic resolver tests cover both directions, hidden/missing regions, unknown and stale focus, singleton rejection, direct focus, repeat no-op, and exclusive-surface fallthrough. The terminal-location pointer-activation model and Hook tests cover Workspace targets, result-before-projection, projection-before-result, unavailable destination, failure, supersession, non-pointer activation, disposal, and exactly-once focus. Tab Strip component tests enter through the sole natural Tab stop and cover both orientations, Home/End, manual activation, context-menu keys, new-Tab order, removal/group collapse reconciliation, and focus retention. Workbench tests cover pointer-click focus after routed Workspace publication, focus-neutral keyboard activation, Action availability, shortcut consumption only after a resolved target, focus restoration, and suppression of terminal auto-focus while the Tab Strip owns focus. Web migration/catalog/localization tests cover v20→v21 preservation, conflicts, settings projection, and rollback. The controlled real-PTY trace of terminal → Tab Strip → menu → terminal and reverse routing, plus pointer Workspace navigation into its exact terminal input, retired with the Desktop Electron suite.
 
+### Tab switch focus
+
+Switching to a Tab gives the keyboard to the Panel that Tab focused last, as the TUI's switch lands
+on its remembered Panel, whichever path chose the Tab: a click, Enter or Space in the Tab Strip, a
+Tab shortcut, a menu, or Actions search. Every one reaches `tabs.tab.select`, whose Workbench
+callback (`useWorkbenchTabSelectionFocus`) takes a terminal handover for a completed `replace`
+selection. The handover completes once the destination Tab is shown and no pointer is pressed,
+because a pressed Tab takes DOM focus as the press goes down; a key or press since the switch
+began, a selection that adds Tabs, and a switch another Tab or Workspace replaces keep focus where
+it is, and an open menu or dialog defers it as for any handover. Each Tab's focused Panel comes from
+the reconciled Client View, so a Panel that closed gives way to the Panel at its place; a Tab shown
+for the first time keeps its initial focused Panel.
+
 The pure Project, Directory, Workspace, and client-local transition contracts live in the
 non-React `src/project-workspace` module, outside the visual Workbench and its runtime graph.
 

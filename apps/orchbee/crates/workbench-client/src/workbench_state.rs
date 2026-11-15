@@ -3550,7 +3550,7 @@ impl WorkbenchClientState {
         ordinal: usize,
     ) -> usize {
         self.overlay_return_index(tab, removed)
-            .unwrap_or_else(|| ordinal.min(tab.panel_count().saturating_sub(1)))
+            .unwrap_or_else(|| leaf_at_place(tab, ordinal))
     }
 
     fn merge_projection(&mut self, candidate: ClientContextTabs) -> bool {
@@ -4645,6 +4645,12 @@ impl<'a> ClientTabView<'a> {
     pub(crate) fn presentation_label(&self) -> &'a str {
         self.tab.presentation_label().as_str()
     }
+}
+
+/// The Panel that stands in for one the Tab no longer holds: the one at its place, clamped to the
+/// Panels that remain. A selected Panel and a Tab's remembered Panel give way alike.
+fn leaf_at_place(tab: &ClientTab, ordinal: usize) -> usize {
+    ordinal.min(tab.panel_count().saturating_sub(1))
 }
 
 /// Crate-internal `AttachmentKey` operations the application's tests drive.

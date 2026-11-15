@@ -91,22 +91,24 @@ Known Create provenance survives leaving and returning to a Workspace. A snapsho
 ## Client selection memory
 
 Read-only layout queries resolve an inactive Tab's `focusedPanelId` from this Client's remembered
-Panel and current canonical membership, falling back to the first member. `selected` remains false;
+Panel and current canonical membership, falling back to the first member when nothing is
+remembered. `selected` remains false;
 the query neither visits the target nor changes navigation, attachments or terminal geometry.
 
 `state/navigation_memory.rs` owns volatile, Client-private selection history. Each exact location
-holds its last Tab ID and each visited Tab's last Panel ID. Labels, ordinals and terminal bindings
-are not keys. The Session is fixed by the owning Session; this history is neither Server state nor
+holds its last Tab ID and each visited Tab's last Panel ID with the place that Panel last held.
+Labels, ordinals and terminal bindings are not keys; the place only names a stand-in once the Panel
+is gone. The Session is fixed by the owning Session; this history is neither Server state nor
 persistent storage.
 
-| Input                           | Guard and result                                                                                                                                                                                                     |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Admit Context departure         | Remember the current stable selection after existing busy and target guards pass. Empty adds no invented selection.                                                                                                  |
-| Admit Tab departure             | Remember the logically stable departure, including a Ready frame-proof gap; superseding switches keep the original memory and never record an unvisited switching target.                                            |
-| Resolve ordinary destination    | Validate canonical membership and provenance first; use the remembered Tab and Panel only while each belongs to its exact location and parent Tab. Missing history or removed members fall back to the first member. |
-| Resolve explicit Panel or Agent | The explicit stable target overrides history and keeps existing refusal when absent; memory cannot substitute another Panel.                                                                                         |
-| Install canonical membership    | Prune absent navigation locations, Tabs and Panels. Current-context membership takes precedence over any older retained entry; departed-context history uses retained membership until revalidation.                 |
-| Refuse, supersede or cancel     | Only the previously stable departure may have been remembered; no target is marked visited and no additional command is emitted. Existing cleanup and generation settlement remain authoritative.                    |
+| Input                           | Guard and result                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admit Context departure         | Remember the current stable selection after existing busy and target guards pass. Empty adds no invented selection.                                                                                                                                                                                                                                     |
+| Admit Tab departure             | Remember the logically stable departure, including a Ready frame-proof gap; superseding switches keep the original memory and never record an unvisited switching target.                                                                                                                                                                               |
+| Resolve ordinary destination    | Validate canonical membership and provenance first; use the remembered Tab and Panel only while each belongs to its exact location and parent Tab. A removed remembered Panel gives way to the Panel at its place, clamped to those that remain, as a selected Panel that closes does; missing history or a removed Tab falls back to the first member. |
+| Resolve explicit Panel or Agent | The explicit stable target overrides history and keeps existing refusal when absent; memory cannot substitute another Panel.                                                                                                                                                                                                                            |
+| Install canonical membership    | Prune absent navigation locations and Tabs, and move a remembered Panel that is gone to the Panel at its place. Current-context membership takes precedence over any older retained entry; departed-context history uses retained membership until revalidation.                                                                                        |
+| Refuse, supersede or cancel     | Only the previously stable departure may have been remembered; no target is marked visited and no additional command is emitted. Existing cleanup and generation settlement remain authoritative.                                                                                                                                                       |
 
 Memory is bounded by the protocol's known Context and Tab membership, with at most one Panel ID
 per visited Tab. Local Tab creation and Workspace setup admission also remember the stable
@@ -120,7 +122,7 @@ the same Panel identity for state installation and mailbox publication. Explicit
 rules. Restart discards this per-location history; Windows preserves only the last displayed
 position as described below. Cohort rollback requires no checkpoint migration.
 
-Deterministic traces cover remembered nonfirst members, reorder by identity, removal to first/Empty,
+Deterministic traces cover remembered nonfirst members, reorder by identity, removal to the Panel at its place, first or Empty,
 explicit override, superseded/refused switches, stale retained membership, independent Clients and
 known nonattachable Create provenance. Windows process evidence exercises two live ConPTY Clients
 through CLI Tab/Workspace/Panel focus and checks unchanged peer selection and OS foreground. These are named implementation traces, not exhaustive context-selection model checks.

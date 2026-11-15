@@ -18,8 +18,45 @@ pub(super) struct NavigationMemory {
 struct ContextMemory {
     location: ClientContextLocation,
     last_tab: Option<WorkbenchTabId>,
-    panels: BTreeMap<WorkbenchTabId, WorkbenchPanelId>,
+    panels: BTreeMap<WorkbenchTabId, RememberedPanel>,
     presentations: BTreeMap<WorkbenchPanelId, TerminalPresentationId>,
+}
+
+/// The Panel a later switch to its Tab lands on.
+#[derive(Debug)]
+struct RememberedPanel {
+    id: WorkbenchPanelId,
+    /// Its place among the Tab's Panels when last seen; once it closes, the Panel at that place
+    /// stands in, as for a selected Panel that closes. Unknown until the Tab is seen with it.
+    place: Option<usize>,
+}
+
+impl RememberedPanel {
+    const fn new(id: WorkbenchPanelId, place: Option<usize>) -> Self {
+        Self { id, place }
+    }
+
+    /// Where it stands in `tab`: its own index, else the index of the Panel at its place.
+    fn index_in(&self, tab: &ClientTab) -> Option<usize> {
+        tab.panel_index(&self.id).or_else(|| {
+            self.place
+                .map(|place| super::leaf_at_place(tab, place))
+                .filter(|index| tab.panel(*index).is_some())
+        })
+    }
+
+    /// Follows the Tab as it now stands; false when neither the Panel nor its place remains.
+    fn follow(&mut self, tab: &ClientTab) -> bool {
+        let Some(index) = self.index_in(tab) else {
+            return false;
+        };
+        let Some(panel) = tab.panel(index) else {
+            return false;
+        };
+        self.id = panel.panel_id().clone();
+        self.place = Some(index);
+        true
+    }
 }
 
 impl NavigationMemory {
@@ -51,9 +88,10 @@ impl NavigationMemory {
         self.contexts.push(entry);
         let entry = self.contexts.last_mut().expect("remembered context");
         entry.last_tab = Some(tab.tab_id().clone());
-        entry
-            .panels
-            .insert(tab.tab_id().clone(), selected.key().panel().clone());
+        entry.panels.insert(
+            tab.tab_id().clone(),
+            RememberedPanel::new(selected.key().panel().clone(), Some(selected.panel_index())),
+        );
     }
 
     /// Names `panel` as the Panel a later switch to `tab` lands on, and `tab` as the Tab a later
@@ -83,7 +121,9 @@ impl NavigationMemory {
             });
         let entry = &mut self.contexts[index];
         entry.last_tab = Some(tab.clone());
-        entry.panels.insert(tab.clone(), panel.clone());
+        entry
+            .panels
+            .insert(tab.clone(), RememberedPanel::new(panel.clone(), None));
     }
 
     pub(super) fn recent_locations(&self) -> impl Iterator<Item = &ClientContextLocation> {
@@ -132,7 +172,10 @@ impl NavigationMemory {
 
     /// The Panel remembered for a Tab, in whichever context holds it.
     pub(super) fn panel(&self, tab: &WorkbenchTabId) -> Option<&WorkbenchPanelId> {
-        self.contexts.iter().find_map(|entry| entry.panels.get(tab))
+        self.contexts
+            .iter()
+            .find_map(|entry| entry.panels.get(tab))
+            .map(|remembered| &remembered.id)
     }
 
     pub(super) fn overlay_focus(
@@ -145,6 +188,7 @@ impl NavigationMemory {
             .find(|entry| &entry.location == location)?
             .panels
             .get(tab)
+            .map(|remembered| &remembered.id)
     }
 
     pub(super) fn restore_overlay_focus(
@@ -158,9 +202,14 @@ impl NavigationMemory {
             .contexts
             .iter_mut()
             .find(|entry| &entry.location == location)
-            && (entry.panels.get(tab) == Some(from) || entry.panels.get(tab) == Some(&to.panel_id))
+            && entry
+                .panels
+                .get(tab)
+                .is_some_and(|remembered| &remembered.id == from || remembered.id == to.panel_id)
         {
-            entry.panels.insert(tab.clone(), to.panel_id.clone());
+            entry
+                .panels
+                .insert(tab.clone(), RememberedPanel::new(to.panel_id.clone(), None));
             entry
                 .presentations
                 .insert(to.panel_id.clone(), to.presentation_id.clone());
@@ -172,7 +221,7 @@ impl NavigationMemory {
             .iter()
             .find(|entry| &entry.location == location)
             .and_then(|entry| entry.panels.get(tab.tab_id()))
-            .and_then(|panel_id| tab.panel_index(panel_id))
+            .and_then(|remembered| remembered.index_in(tab))
             .unwrap_or(0)
     }
 
@@ -209,9 +258,10 @@ impl NavigationMemory {
             {
                 entry.last_tab = None;
             }
-            entry.panels.retain(|tab_id, panel_id| {
+            entry.panels.retain(|tab_id, remembered| {
                 tabs.iter()
-                    .any(|tab| tab.tab_id() == tab_id && tab.panel_index(panel_id).is_some())
+                    .find(|tab| tab.tab_id() == tab_id)
+                    .is_some_and(|tab| remembered.follow(tab))
             });
             entry.presentations.retain(|panel, presentation| {
                 tabs.iter().any(|tab| {

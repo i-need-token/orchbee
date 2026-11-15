@@ -364,7 +364,7 @@ export function Workbench({
 				onCloseTabs={view.onCloseTabs}
 				focusRequest={view.tabStripFocusRequest}
 				getTabCreationAvailability={view.getTabCreationAvailability}
-				onSelectTab={navigation?.selectTab}
+				onSelectTab={view.selectTab}
 				onSetTabTitle={view.setTabTitle}
 				onTabsChange={view.onTabsChange}
 				parentActionScope={view.actionScope}
@@ -457,7 +457,7 @@ export function Workbench({
 					onCloseTabs={view.onCloseTabs}
 					onKeyDown={view.onTabListKeyDown}
 					onNewTab={view.newTab}
-					onSelectTab={navigation?.selectTab}
+					onSelectTab={view.selectTab}
 					onSetTabTitle={view.setTabTitle}
 					onTabsChange={view.onTabsChange}
 					open={tabListShown}

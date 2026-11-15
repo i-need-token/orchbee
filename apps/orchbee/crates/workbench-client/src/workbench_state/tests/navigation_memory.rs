@@ -282,6 +282,26 @@ fn navigation_memory_reordered_panel_uses_identity_and_removed_panel_uses_first(
     }
 }
 
+/// A Tab's remembered Panel that closed while the Tab was away gives way to the Panel at its place,
+/// as a selected Panel that closes does, not to the Tab's first Panel.
+#[test]
+fn navigation_memory_closed_panel_gives_way_to_the_panel_at_its_place() {
+    let mut snapshot = split_contexts();
+    let PanelNode::Split { children, .. } = &mut snapshot.terminal_contexts[0].tabs[0].root else {
+        panic!("split fixture")
+    };
+    split_root(&mut children[1].node, 5_000);
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
+    let remembered = focus_second_panel(&mut state);
+    let at_its_place = state.tab(0).unwrap().panel(2).unwrap().panel_id().clone();
+    assert!(state.start_context_selection(10, true, deadlines()));
+    finish_selection(&mut state, snapshot.clone(), 10);
+    assert!(state.start_context_selection(20, false, deadlines()));
+    finish_selection(&mut state, without_leaf(&snapshot, &remembered, 2), 20);
+    assert_eq!(state.desired().unwrap().panel(), &at_its_place);
+    assert_eq!(state.active().unwrap().panel_index(), 1);
+}
+
 #[test]
 fn navigation_memory_does_not_turn_nonattachable_create_into_permission() {
     let snapshot = contexts(2, 1);

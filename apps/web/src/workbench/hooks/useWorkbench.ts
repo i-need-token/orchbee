@@ -15,6 +15,7 @@ import {
 	type TabStripNewTabSection,
 	type TabStripNewTabRequest,
 	TabStripOrientation,
+	type TabStripSelectCallback,
 	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
 import * as React from 'react';
@@ -130,6 +131,7 @@ import { useWorkbenchNewTabChoices } from './useWorkbenchNewTabChoices';
 import type { WorkbenchTerminalFocusRequest } from '../model/resolveWorkbenchFocusTarget';
 import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
 import { useWorkbenchAgentNavigation } from './useWorkbenchAgentNavigation';
+import { useWorkbenchTabSelectionFocus } from './useWorkbenchTabSelectionFocus';
 import { useWorkbenchTerminalLocationActivation } from './useWorkbenchTerminalLocationActivation';
 import type { WorkbenchAgentNavigationInput } from '../model/project-workbench-agent-overview';
 import {
@@ -293,6 +295,8 @@ interface WorkbenchView {
 	readonly settingsShortcutLabel: string | undefined;
 	readonly sidebarFocusRequest: number;
 	readonly setTabTitle: (tabId: string) => void;
+	/** Selects a Tab and gives the keyboard to the Panel it focused last; absent without routing. */
+	readonly selectTab: TabStripSelectCallback | undefined;
 	readonly nameEditor:
 		| ((WorkbenchTabTitleEditorRequest | WorkbenchPanelNameEditorRequest) & {
 				readonly draftTitle: string;
@@ -792,6 +796,11 @@ export function useWorkbench({
 			);
 		},
 	);
+	const selectTab = useWorkbenchTabSelectionFocus({
+		beginTerminalHandover: focusRouting.beginTerminalHandover,
+		projectWorkspaceRuntime,
+		selectTab: navigation?.selectTab,
+	});
 	const requestLocationTerminalFocus = useMemoizedFn(
 		(targetLocation: WorkbenchActiveLocation): boolean => {
 			if (
@@ -1185,6 +1194,7 @@ export function useWorkbench({
 			formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),
 		),
 		sidebarFocusRequest: focusRouting.sidebarFocusRequest,
+		selectTab,
 		setTabTitle: (tabId) => {
 			const activeTerminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
 			if (activeTerminalContext === null) return;
