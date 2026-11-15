@@ -83,7 +83,9 @@ impl WorkbenchClientUi {
                             return false;
                         }
                         match (export, episode) {
-                            (None, None) => projection.selection.as_ref().is_some_and(|driver| {
+                            // A plain copy, and a Ctrl+C copy whose selection clears only after
+                            // its delivery, are dropped once the selection they read is gone.
+                            (_, None) => projection.selection.as_ref().is_some_and(|driver| {
                                 matches!(
                                     driver.selection(),
                                     orchbee_terminal_protocol::SelectionChangedState::Active { .. }
@@ -92,7 +94,7 @@ impl WorkbenchClientUi {
                             (Some(export), Some(episode)) => {
                                 copy_mode.effect_current(key, generation, export, episode)
                             }
-                            _ => false,
+                            (None, Some(_)) => false,
                         }
                     }
                 }
@@ -170,6 +172,17 @@ impl WorkbenchClientUi {
                 completion.outcome,
             );
             return true;
+        }
+        // Only a delivered Ctrl+C copy clears its selection; any other outcome keeps it and
+        // reports like a plain copy.
+        if let Scope::Selection {
+            generation,
+            export: Some(export),
+            episode: None,
+        } = completion.scope
+            && completion.outcome == Outcome::Delivered
+        {
+            self.clear_copied_selection(&completion.key, generation, export);
         }
         let kind = completion.kind;
         let outcome = completion.outcome;

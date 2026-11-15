@@ -7,7 +7,7 @@ use crate::workbench_client::terminal_selection::{
 };
 use crate::workbench_state::{CarrierFailure, ClientNotice, PaneRef};
 use orchbee_client_server_protocol::TerminalViewerOutcome;
-use std::sync::Arc;
+use std::{num::NonZeroU64, sync::Arc};
 
 impl WorkbenchClientUi {
     /// Per-projection ordering gate shared by copy entry/exit and every
@@ -155,10 +155,10 @@ impl WorkbenchClientUi {
     }
 
     /// Ctrl+C on Windows over the focused pane: with a settled Host selection it starts the same
-    /// export as the Panel menu's Copy selection and clears the selection once its text is
-    /// complete, so the next Ctrl+C interrupts. While a gesture or an earlier export still owns
-    /// the selection the key is consumed without a second export. Without a selection it is
-    /// rejected and reaches the program.
+    /// export as the Panel menu's Copy selection and clears the selection once the clipboard write
+    /// is delivered, so the next Ctrl+C interrupts. While a gesture, an earlier export or that
+    /// export's clipboard write still owns the selection the key is consumed without a second
+    /// export. Without a selection it is rejected and reaches the program.
     pub(super) fn copy_selection_key(&mut self) -> PaneAdmission {
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return PaneAdmission::Rejected;
@@ -176,6 +176,12 @@ impl WorkbenchClientUi {
         else {
             return PaneAdmission::Rejected;
         };
+        if driver
+            .clearing_export()
+            .is_some_and(|export| self.effects.holds_clearing_selection(&key, export))
+        {
+            return PaneAdmission::Admitted;
+        }
         match driver.export_host_selection_then_clear() {
             Ok(true) => self.admit_selections(&mailbox),
             Ok(false) => {}
@@ -335,11 +341,7 @@ impl WorkbenchClientUi {
                 }
             }
         }
-        // A copied selection's clearing commands follow in a second pass; that pass has no
-        // completed copy left, so it does not repeat.
-        if self.collect_completed_copies() {
-            self.admit_selections(mailbox);
-        }
+        self.collect_completed_copies();
     }
 
     pub(super) fn apply_selection_outcome(
@@ -442,9 +444,10 @@ impl WorkbenchClientUi {
         }
     }
 
-    /// Hands completed exports to the copy queue and reports whether a copied selection now has
-    /// clearing commands waiting for admission.
-    fn collect_completed_copies(&mut self) -> bool {
+    /// Hands completed exports to the copy queue. A Ctrl+C copy keeps its selection until the
+    /// writer reports its delivery, so a refused copy keeps it too and the next Ctrl+C can try
+    /// again.
+    fn collect_completed_copies(&mut self) {
         let mut completed = Vec::new();
         for projection in &mut self.projections {
             let Some(driver) = projection.selection.as_mut() else {
@@ -459,34 +462,56 @@ impl WorkbenchClientUi {
                 }
                 continue;
             };
-            let clear = driver
-                .clears_after(copy.0)
-                .then_some((frame.geometry.columns, frame.geometry.rows));
-            completed.push((projection.key.clone(), frame.route.generation, copy, clear));
+            let clears = driver.clearing_export() == Some(copy.0);
+            completed.push((projection.key.clone(), frame.route.generation, copy, clears));
         }
-        let mut clearing = false;
-        for (key, generation, copy, clear) in completed {
-            let accepted = self.copy_export_ready(&key, generation, copy.0, copy.1);
-
+        for (key, generation, (export, text), clears) in completed {
+            let accepted = if clears {
+                self.effects
+                    .enqueue_clearing_selection(key, generation, export, text)
+            } else {
+                self.copy_export_ready(&key, generation, export, text)
+            };
             if !accepted && let Some(state) = self.state.as_mut() {
                 state.set_notice(ClientNotice::CopyFailed);
             }
-            // A refused copy keeps its selection, so the next Ctrl+C can try again.
-            if accepted
-                && let Some((columns, rows)) = clear
-                && let Some(driver) = self
-                    .projections
-                    .iter_mut()
-                    .find(|projection| projection.key == key)
-                    .and_then(|projection| projection.selection.as_mut())
-            {
-                match driver.clear_host_selection(generation, columns, rows) {
-                    Ok(scheduled) => clearing |= scheduled,
-                    Err(failure) => self.settle_selection_failure(failure),
-                }
-            }
         }
         self.reconcile_effects();
-        clearing
+    }
+
+    /// A Ctrl+C copy was delivered: clear the selection it read with the same single-cell Start
+    /// and Cancel that copy mode uses, unless a newer gesture or export now owns that selection.
+    /// The commands enter the mailbox with the next selection admission.
+    pub(super) fn clear_copied_selection(
+        &mut self,
+        key: &PaneRef,
+        generation: NonZeroU64,
+        export: NonZeroU64,
+    ) {
+        let Some(projection) = self
+            .projections
+            .iter_mut()
+            .find(|projection| &projection.key == key)
+        else {
+            return;
+        };
+        let Some((current, columns, rows)) = projection.value.frame().map(|frame| {
+            (
+                frame.route.generation,
+                frame.geometry.columns,
+                frame.geometry.rows,
+            )
+        }) else {
+            return;
+        };
+        let Some(driver) = projection.selection.as_mut() else {
+            return;
+        };
+        if !driver.take_clear_after(export) || current != generation {
+            return;
+        }
+        if let Err(failure) = driver.clear_host_selection(generation, columns, rows) {
+            self.settle_selection_failure(failure);
+        }
     }
 }

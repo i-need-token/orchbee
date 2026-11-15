@@ -458,26 +458,22 @@ fn ctrl_c_without_a_selection_reaches_the_program() {
     assert_eq!(next_input(&mailbox).as_deref(), Some(&b"\x03"[..]));
 }
 
+/// Runs one Ctrl+C over the active selection through the real dispatcher, the Host's export
+/// records and the real copy queue, and returns the clipboard job the writer picks up next.
 #[cfg(windows)]
-#[test]
-fn ctrl_c_over_a_selection_copies_and_clears_it_and_only_the_next_one_interrupts() {
-    use orchbee_client_server_protocol::ViewerSelectionGestureAction;
+fn ctrl_c_copy(
+    ui: &mut WorkbenchClientUi,
+    mailbox: &Arc<CommandMailbox>,
+    text: &str,
+) -> super::super::super::terminal_effects::Job {
     use orchbee_terminal_protocol::{
         SelectionExportChunk, SelectionExportControl, SelectionExportFinished,
         SelectionExportFormat, SelectionExportStarted, SelectionExportStatus,
         encode_selection_export_chunk, encode_selection_export_control,
     };
-    let (mut ui, mailbox, _, _) = super::super::test_support::controlling_ui();
-    super::super::test_support::install_projection(&mut ui, Some((9, false, 24)), 0);
     let attachment = *ui.projections[0].value.attachment();
     let epoch = *ui.projections[0].value.epoch();
     let viewer = orchbee_client_server_protocol::ViewerId::parse(&attachment.to_string()).unwrap();
-    let cleared = || {
-        SelectionControl::ChangedResponse(SelectionChanged {
-            attachment_id: attachment,
-            state: SelectionChangedState::None,
-        })
-    };
     let envelope = |kind, payload: &[u8], encoding, role, correlation| {
         encode_transport_envelope(&Envelope {
             correlation_id: correlation,
@@ -491,27 +487,14 @@ fn ctrl_c_over_a_selection_copies_and_clears_it_and_only_the_next_one_interrupts
         })
         .unwrap()
     };
-    ui.projections[0]
-        .selection
-        .get_or_insert_with(|| crate::workbench_client::terminal_selection::Driver::new(attachment))
-        .changed(SelectionChanged {
-            attachment_id: attachment,
-            state: SelectionChangedState::Active {
-                start: SelectionPoint { column: 1, row: 9 },
-                end: SelectionPoint { column: 3, row: 9 },
-                rectangle: false,
-                preview: None,
-            },
-        })
-        .unwrap();
 
     // The key starts one export of that selection and never reaches the program.
-    press_ctrl_c(&mut ui);
-    let (pane, export) = command(&mut ui, &mailbox);
+    press_ctrl_c(ui);
+    let (pane, export) = command(ui, mailbox);
     let TerminalViewerAction::SelectionExport {
         export_sequence: sequence,
         ..
-    } = export.viewer_action(viewer.clone())
+    } = export.viewer_action(viewer)
     else {
         panic!("Ctrl+C over a selection starts its export");
     };
@@ -520,8 +503,6 @@ fn ctrl_c_over_a_selection_copies_and_clears_it_and_only_the_next_one_interrupts
         "Ctrl+C reached the program"
     );
 
-    // The complete text reaches the copy queue.
-    let text = "copied";
     let started = encode_selection_export_control(&SelectionExportControl::StartedResponse(
         SelectionExportStarted {
             attachment_id: attachment,
@@ -532,7 +513,7 @@ fn ctrl_c_over_a_selection_copies_and_clears_it_and_only_the_next_one_interrupts
     ))
     .unwrap();
     ui.apply_selection_outcome(
-        &mailbox,
+        mailbox,
         pane,
         export,
         orchbee_client_server_protocol::TerminalViewerOutcome::Record(envelope(
@@ -562,7 +543,7 @@ fn ctrl_c_over_a_selection_copies_and_clears_it_and_only_the_next_one_interrupts
         ),
     )
     .unwrap();
-    let (pane, ack) = command(&mut ui, &mailbox);
+    let (pane, ack) = command(ui, mailbox);
     let finished = encode_selection_export_control(&SelectionExportControl::FinishedEvent(
         SelectionExportFinished {
             attachment_id: attachment,
@@ -584,45 +565,126 @@ fn ctrl_c_over_a_selection_copies_and_clears_it_and_only_the_next_one_interrupts
     )
     .unwrap();
     ui.apply_selection_outcome(
-        &mailbox,
+        mailbox,
         pane,
         ack,
         orchbee_client_server_protocol::TerminalViewerOutcome::FeedbackAccepted {},
     );
-    let job = ui.effects.dispatch().unwrap();
-    assert_eq!(job.text(), Some(text));
+    // Inspect the admitted job without changing the shared OS clipboard.
+    ui.effects
+        .dispatch()
+        .expect("the complete text reaches the copy queue")
+}
 
-    // Then the selection is replaced with none and that gesture released.
-    let (pane, start) = command(&mut ui, &mailbox);
-    assert!(matches!(
-        start.viewer_action(viewer.clone()),
-        TerminalViewerAction::SelectionGesture {
-            gesture: ViewerSelectionGestureAction::Start { .. },
-            ..
-        }
-    ));
-    let record = response(&ui, cleared());
-    assert!(ui.apply_selection_outcome(
-        &mailbox,
-        pane,
-        start,
-        orchbee_client_server_protocol::TerminalViewerOutcome::Record(record)
-    ));
-    let (pane, cancel) = command(&mut ui, &mailbox);
-    assert!(matches!(
-        cancel.viewer_action(viewer.clone()),
-        TerminalViewerAction::SelectionGesture {
-            gesture: ViewerSelectionGestureAction::Cancel,
-            ..
-        }
-    ));
-    let record = response(&ui, cleared());
-    assert!(ui.apply_selection_outcome(
-        &mailbox,
-        pane,
-        cancel,
-        orchbee_client_server_protocol::TerminalViewerOutcome::Record(record)
-    ));
+/// Advances the Client as its loop does and answers every selection gesture it sends with the
+/// Host's report that no selection remains, which is what clearing the selection produces.
+/// Returns how many gestures it answered.
+#[cfg(windows)]
+fn answer_selection_gestures(ui: &mut WorkbenchClientUi, mailbox: &Arc<CommandMailbox>) -> usize {
+    let attachment = *ui.projections[0].value.attachment();
+    let viewer = orchbee_client_server_protocol::ViewerId::parse(&attachment.to_string()).unwrap();
+    let mut answered = 0;
+    loop {
+        ui.settle_effect_delivery();
+        ui.admit_selections(mailbox);
+        let Some(lease) = mailbox.try_recv().unwrap() else {
+            break;
+        };
+        let QueuedCommand::Selection(tagged) = lease.record() else {
+            panic!("selection command");
+        };
+        let (pane, gesture) = (tagged.key().clone(), *tagged.value());
+        mailbox.finish_lease(lease).unwrap();
+        assert!(matches!(
+            gesture.viewer_action(viewer.clone()),
+            TerminalViewerAction::SelectionGesture { .. }
+        ));
+        let record = response(
+            ui,
+            SelectionControl::ChangedResponse(SelectionChanged {
+                attachment_id: attachment,
+                state: SelectionChangedState::None,
+            }),
+        );
+        ui.apply_selection_outcome(
+            mailbox,
+            pane,
+            gesture,
+            orchbee_client_server_protocol::TerminalViewerOutcome::Record(record),
+        );
+        answered += 1;
+    }
+    ui.reconcile_effects();
+    answered
+}
+
+/// The Windows clipboard writer picks a job up on its own timer, so the Host can report a
+/// selection change before the write. Ctrl+C must still write the selection exactly once and
+/// clear it only after that write; a failed write keeps the selection for the next Ctrl+C.
+#[cfg(windows)]
+#[test]
+fn ctrl_c_writes_the_selection_once_and_clears_it_only_after_delivery() {
+    use super::super::super::terminal_effects::Outcome;
+    let (mut ui, mailbox, _, _) = super::super::test_support::controlling_ui();
+    super::super::test_support::install_projection(&mut ui, Some((9, false, 24)), 0);
+    let attachment = *ui.projections[0].value.attachment();
+    ui.projections[0]
+        .selection
+        .get_or_insert_with(|| crate::workbench_client::terminal_selection::Driver::new(attachment))
+        .changed(SelectionChanged {
+            attachment_id: attachment,
+            state: SelectionChangedState::Active {
+                start: SelectionPoint { column: 1, row: 9 },
+                end: SelectionPoint { column: 3, row: 9 },
+                rectangle: false,
+                preview: None,
+            },
+        })
+        .unwrap();
+    let selected = |ui: &WorkbenchClientUi| {
+        ui.projections[0]
+            .selection
+            .as_ref()
+            .is_some_and(|driver| driver.host_selection_active())
+    };
+
+    // A write that fails keeps the selection and says so.
+    let job = ctrl_c_copy(&mut ui, &mailbox, "copied");
+    answer_selection_gestures(&mut ui, &mailbox);
+    assert!(
+        selected(&ui),
+        "the selection cleared before its copy was written"
+    );
+    job.dispatch_clipboard(|_| Outcome::Failed);
+    answer_selection_gestures(&mut ui, &mailbox);
+    assert!(selected(&ui), "a failed copy cleared its selection");
+    assert_eq!(ui.view().notice(), Some(WorkbenchClientNotice::CopyFailed));
+
+    // The next Ctrl+C copies again. Whatever the Host reports before the writer's timer fires,
+    // and however often the key repeats meanwhile, the text is written once, and only then does
+    // the selection clear.
+    let job = ctrl_c_copy(&mut ui, &mailbox, "copied");
+    answer_selection_gestures(&mut ui, &mailbox);
+    press_ctrl_c(&mut ui);
+    ui.admit_selections(&mailbox);
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "a repeated Ctrl+C started a second copy or reached the program"
+    );
+    assert!(
+        selected(&ui),
+        "the selection cleared before its copy was written"
+    );
+    let mut written = Vec::new();
+    job.dispatch_clipboard(|text| {
+        written.push(text.to_owned());
+        Outcome::Delivered
+    });
+    assert_eq!(written, ["copied"]);
+    assert!(answer_selection_gestures(&mut ui, &mailbox) > 0);
+    assert!(!selected(&ui));
+    assert!(ui.effects.dispatch().is_none());
+    assert!(ui.retirement_failure.is_none());
 
     // With the selection gone, the next Ctrl+C interrupts the program.
     press_ctrl_c(&mut ui);

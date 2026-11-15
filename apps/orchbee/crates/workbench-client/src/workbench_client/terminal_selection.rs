@@ -154,7 +154,7 @@ pub(super) struct Driver {
     selection: SelectionChangedState,
     copy_ready: Option<(NonZeroU64, String)>,
     copy_selection_owned: bool,
-    /// The export whose completed copy clears the selection it read, as Ctrl+C does on Windows.
+    /// The export whose delivered copy clears the selection it read, as Ctrl+C does on Windows.
     clear_after: Option<NonZeroU64>,
 }
 
@@ -255,6 +255,8 @@ impl Driver {
                     return Ok(false);
                 }
                 self.copy_ready = None;
+                // A new selection is not the one a pending Ctrl+C copy read.
+                self.clear_after = None;
                 self.cancel_export()?;
                 self.gesture = Some(Gesture {
                     generation,
@@ -535,7 +537,7 @@ impl Driver {
     }
 
     /// Starts the same export for Ctrl+C on Windows and marks it to clear the selection once its
-    /// text is complete.
+    /// copy is delivered.
     pub(super) fn export_host_selection_then_clear(&mut self) -> Result<bool, Failure> {
         let started = self.export_host_selection()?;
         if started {
@@ -544,14 +546,19 @@ impl Driver {
         Ok(started)
     }
 
-    /// Whether the completed copy of `sequence` should clear the selection it read.
-    pub(super) fn clears_after(&mut self, sequence: NonZeroU64) -> bool {
+    /// The Ctrl+C export whose delivered copy will clear the selection it read.
+    pub(super) const fn clearing_export(&self) -> Option<NonZeroU64> {
+        self.clear_after
+    }
+
+    /// Whether the delivered copy of `sequence` clears the selection it read; asked once.
+    pub(super) fn take_clear_after(&mut self, sequence: NonZeroU64) -> bool {
         self.clear_after
             .take_if(|marked| *marked == sequence)
             .is_some()
     }
 
-    /// Replaces the settled Host selection with none after its copy completed: a single-cell
+    /// Replaces the settled Host selection with none after its copy was delivered: a single-cell
     /// Start at the admitted geometry's first cell, then Cancel to release that gesture, the same
     /// commands copy mode uses to clear its own selection. Any gesture, export or viewport fence
     /// owns the selection instead, and nothing is scheduled.

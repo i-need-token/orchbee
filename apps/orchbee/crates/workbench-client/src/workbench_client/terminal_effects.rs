@@ -221,6 +221,42 @@ impl Queue {
             Payload::Clipboard(text),
         )
     }
+    /// A Ctrl+C copy on Windows. Its outcome returns with its export, so only a delivered copy
+    /// clears the selection it read.
+    pub(super) fn enqueue_clearing_selection(
+        &mut self,
+        key: PaneRef,
+        generation: NonZeroU64,
+        export: NonZeroU64,
+        text: String,
+    ) -> bool {
+        self.enqueue(
+            key,
+            Scope::Selection {
+                generation,
+                export: Some(export),
+                episode: None,
+            },
+            Payload::Clipboard(text),
+        )
+    }
+    /// Whether the Ctrl+C copy of `export` from `key` is still queued or awaiting its outcome.
+    pub(super) fn holds_clearing_selection(&self, key: &PaneRef, export: NonZeroU64) -> bool {
+        let holds = |candidate: &PaneRef, scope: Scope| {
+            candidate == key
+                && matches!(
+                    scope,
+                    Scope::Selection { export: Some(held), episode: None, .. } if held == export
+                )
+        };
+        self.pending
+            .iter()
+            .any(|pending| holds(&pending.key, pending.scope))
+            || self
+                .active
+                .as_ref()
+                .is_some_and(|active| holds(&active.key, active.scope))
+    }
     pub(super) fn enqueue_copy_selection(
         &mut self,
         key: PaneRef,
