@@ -16,6 +16,10 @@ use orchbee_client_server_protocol::{
     TerminalControlRequest, TerminalViewerAction, TerminalViewerOutcome,
 };
 
+/// How often an attachment that has held a grant or activated rereads published ownership.
+pub(super) const CONTROL_OBSERVATION_INTERVAL: std::time::Duration =
+    std::time::Duration::from_millis(250);
+
 impl ClientExecutor {
     pub(super) fn run_takeover(
         &mut self,
@@ -66,7 +70,7 @@ impl ClientExecutor {
                 _ => return Err(CarrierFailure::Protocol),
             };
             self.attached_mut(&operation.key)?.control_observation_due =
-                Some(self.clock.now() + std::time::Duration::from_millis(250));
+                Some(self.clock.now() + CONTROL_OBSERVATION_INTERVAL);
             if let Some(id) = &state.controller_id {
                 let attached = self.attached_mut(&operation.key)?;
                 attached.next_sequence = attached.next_sequence.max(state.sequence);
@@ -267,7 +271,7 @@ impl ClientExecutor {
         )?;
         let sampled = self.clock.now();
         let attached = self.attached_mut(key)?;
-        attached.control_observation_due = Some(sampled + std::time::Duration::from_millis(250));
+        attached.control_observation_due = Some(sampled + CONTROL_OBSERVATION_INTERVAL);
         let TerminalControlOutcome::Observed { state } = outcome else {
             return Ok(());
         };

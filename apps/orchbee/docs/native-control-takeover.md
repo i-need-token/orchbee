@@ -47,8 +47,10 @@ pauses and reactivates projection demand on the same Viewer. The first compatibl
 feedback complete the handoff gate. Established full snapshots subsequently follow the Host's
 actual grid, including a peer's different dimensions; deltas still require their exact base.
 A former controller keeps viewing output. Ownership observations update local controller mode
-without invalidating terminal content. Activated Viewers continue reading these published facts
-through ordinary polling, so revocation and Server promotion do not require failed typing.
+without invalidating terminal content. A Client that received a startup grant or has activated
+keeps reading these published facts through ordinary polling, so revocation and Server promotion
+do not require failed typing. A startup grant taken before its holder's first activation
+therefore leaves that holder a known Viewer, which its next focus, key or press can reclaim.
 
 A confirmed pause retires the Host frame flight in Worker and Server relays as well. Its queued
 projection bytes are released, exact old feedback becomes stale, and reactivation requires a full

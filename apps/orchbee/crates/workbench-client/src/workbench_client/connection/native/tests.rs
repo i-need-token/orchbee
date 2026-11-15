@@ -46,6 +46,7 @@ fn startup_controlling_draws_before_exact_feedback_and_clears_its_ceiling() -> T
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Obcs,
         ],
         geometry,
     )?;
@@ -233,6 +234,34 @@ fn startup_controlling_draws_before_exact_feedback_and_clears_its_ceiling() -> T
             TerminalViewerResult::new(
                 request.request_id().clone(),
                 TerminalViewerOutcome::Empty {},
+            ),
+        ))?;
+    // The startup grant's holder rereads published ownership; an unchanged owner publishes nothing.
+    let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "a startup grant must reread published ownership",
+        ));
+    };
+    assert_eq!(
+        request.action(),
+        &TerminalControlAction::Observe {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                request.request_id().clone(),
+                TerminalControlOutcome::Observed {
+                    state: Box::new(orchbee_client_server_protocol::TerminalControlState {
+                        controller: Some(attached_viewer_id()?),
+                        controller_id: Some(controller.clone()),
+                        sequence: 1,
+                        geometry: Some(geometry),
+                        recent_focus: vec![attached_viewer_id()?],
+                    }),
+                },
             ),
         ))?;
     assert!(matches!(

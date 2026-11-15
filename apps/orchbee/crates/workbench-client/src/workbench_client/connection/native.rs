@@ -699,6 +699,11 @@ impl ClientExecutor {
         }
         self.set_attached_mode(&target.key, mode.clone())?;
         if let ControllerMode::Controlling(controller_id) = &mode {
+            // A startup grant skips the first focus activation, so another Client can take it
+            // before this one ever activates. Reading ownership keeps the local mode current,
+            // so a later focus here claims the terminal instead of trusting a lost grant.
+            self.attached_mut(&target.key)?.control_observation_due =
+                Some(self.clock.now() + control_takeover::CONTROL_OBSERVATION_INTERVAL);
             self.report_host_colors_for_setup(
                 owner,
                 &target.key,
