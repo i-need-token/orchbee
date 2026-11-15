@@ -490,6 +490,11 @@ its restart checks.
 | Release gate   | The feed-signing job and the gate feed, the probe, the path jobs, and `release-publish` waiting on them                                                                                                                                                                      | About 4.5 agent-days |
 | Evidence       | One scripted Windows run between two test builds of slice 1, through an automatic install, a click, an idle move, and a forced fallback, which also rehearses the gate                                                                                                       | About 1.5 agent-days |
 
+- Slice 1 lands dark: each of its behaviors that a release build would show or run consults the
+  local runtime's one switch,
+  [`automatic_updates_live`](../../crates/local-runtime/README.md#automatic-update-switch), which
+  every test build answers true and a release build false until the change that completes slice 1
+  turns it on.
 - Under the owner's release-often rule, slice 1 carries the runtime and the TUI, and the window
   follows in its own release; neither waits for the other beyond the install order, runtime first.
 - P1 does not ship with slice 1, because slice 1 already meets the non-stop rule: no automatic path

@@ -45,6 +45,7 @@ impl Roots {
             keys: TEST_TABLE,
             install_root: Ok(self.install.clone()),
             loopback: false,
+            path: engine::PathPolicy::Step,
             probe: print_probe,
             activation: in_process_completion,
             unpack: &never_unpack,

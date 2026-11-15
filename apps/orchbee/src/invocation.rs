@@ -881,6 +881,9 @@ pub(crate) enum Request {
         no_path: bool,
         allow_downgrade: bool,
     },
+    /// The automatic helper the Session Server runs on its schedule: `update` without the PATH
+    /// step, printing only its JSON document; hidden from help, completion and the Agent guide.
+    AutomaticUpdate,
     /// `uninstall`: removes the installed release, its PATH entry, installer entries and Agent
     /// integrations; data stays unless `delete_data`.
     Uninstall {

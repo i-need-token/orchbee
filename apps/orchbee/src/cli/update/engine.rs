@@ -9,6 +9,7 @@ use super::{
     feed::Feed,
     install::{self, Activation, Completion, Probe, Standing, Stored},
     manifest::{self, Release},
+    path_step,
     signature::{self, Refusal, TrustedKey, TrustedManifest},
 };
 use crate::cli::configuration;
@@ -29,6 +30,8 @@ pub(super) struct Inputs<'a> {
     pub(super) install_root: Result<PathBuf, Error>,
     /// Whether a loopback feed address is admitted. Only a test build passes true.
     pub(super) loopback: bool,
+    /// What the run does to the user `Path` and `bin\<stem>.exe`.
+    pub(super) path: PathPolicy,
     pub(super) probe: Probe,
     pub(super) activation: Activation,
     /// Unpacks the verified archive into its private folder.
@@ -51,6 +54,17 @@ pub(super) struct InstallInputs<'a> {
     pub(super) completion: Completion,
 }
 
+/// What an update does to the user `Path` and the launcher `bin\<stem>.exe` before the pointer
+/// moves.
+#[derive(Clone, Copy)]
+pub(super) enum PathPolicy {
+    /// `update`: the completion's PATH step places the launcher and names `bin` in the user `Path`.
+    Step,
+    /// The automatic helper: the user `Path` is never read or written, and the launcher is refreshed
+    /// only where it already exists.
+    LauncherIfPresent,
+}
+
 /// What the store says an update does next.
 enum Next {
     /// Up to date or lower: the run is complete and nothing was requested or written.
@@ -69,10 +83,11 @@ enum Next {
 /// Otherwise, under the download lock and after deciding again, it activates a stored copy of the
 /// offered version, or announces the one archive, downloads it bounded by its signed size, checks
 /// its size and SHA-256, unpacks it and installs the unpacked release directory exactly as
-/// `install` does, which verifies the release's own signature and every file again. Each reached
-/// phase is recorded in `report`. A settings file that cannot be saved or read stops the run with
-/// its typed reason in `report`. A channel switch is the person's choice, so it may move to a lower
-/// version.
+/// `install` does, which verifies the release's own signature and every file again. Under
+/// [`PathPolicy::LauncherIfPresent`] the completion runs without the PATH step, after an existing
+/// launcher was refreshed from the published version. Each reached phase is recorded in `report`.
+/// A settings file that cannot be saved or read stops the run with its typed reason in `report`. A
+/// channel switch is the person's choice, so it may move to a lower version.
 ///
 /// # Errors
 /// Returns the first refusal or failure; `report` keeps the phase and every committed effect. The
@@ -110,7 +125,7 @@ pub(super) fn run(
     report.build_id = Some(feed.build_id.clone());
     let root = inputs.install_root.clone()?;
     let completion = Completion {
-        path: complete::PATH_STEP_BUILT,
+        path: matches!(inputs.path, PathPolicy::Step) && complete::PATH_STEP_BUILT,
         allow_downgrade: inputs.channel.is_some(),
     };
     if matches!(
@@ -175,6 +190,9 @@ pub(super) fn run(
             report,
         )?;
         report.phase = "activate";
+        if matches!(inputs.path, PathPolicy::LauncherIfPresent) {
+            path_step::refresh_launcher(&root, &release.version)?;
+        }
         install::activate(
             &root,
             &path,

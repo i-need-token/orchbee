@@ -2,12 +2,15 @@
 //! before any archive request, then one archive checked against the feed's signed size and SHA-256,
 //! unpacked by a stand-in step that copies a prepared release directory (the system `tar.exe` has
 //! its own cases below), and installed by the verified install. After every failure the versions,
-//! the pointer and the download folder are as they were, save the folder's lock.
+//! the pointer and the download folder are as they were, save the folder's lock. The automatic
+//! helper's run of the same engine has its own case: no PATH step, the launcher refreshed only
+//! where it exists, `busy` under either held lock, and one document as its whole answer.
 use super::super::{
     Context, Error, Report,
     archive::{self, Unpack},
-    document, engine,
+    automatic, document, engine,
     install::Completion,
+    settle,
     signature::TEST_TABLE,
 };
 use super::install_fixture::{
@@ -15,10 +18,18 @@ use super::install_fixture::{
     print_probe, publish_manifest, sha, stage_cohort,
 };
 use super::{sign, sign_feed};
-use orchbee_local_runtime::{PrivateCache, UpdateChannel};
+use crate::{
+    invocation::{OutputFormat, Request, parse_selected_request},
+    localization::Locale,
+    release_store::ReleaseStore,
+};
+use orchbee_local_runtime::{
+    AUTOMATIC_UPDATE_HELPER, PrivateCache, UpdateChannel, environment_stem,
+};
 use serde_json::{Value, json};
 use std::{
     cell::Cell,
+    ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
 };
@@ -102,6 +113,7 @@ fn update(fixture: &Fixture, channel: Option<UpdateChannel>, unpack: Unpack<'_>)
         keys: TEST_TABLE,
         install_root: Ok(fixture.0.join("install")),
         loopback: false,
+        path: engine::PathPolicy::Step,
         probe: print_probe,
         activation: in_process_completion,
         unpack,
@@ -501,4 +513,207 @@ fn the_system_tar_unpacks_the_one_top_folder_from_fixed_arguments_and_refuses_a_
             .map(Error::code),
         Some("storage")
     );
+}
+
+thread_local! {
+    /// Whether the last in-process completion on this thread was asked for the PATH step.
+    static PATH_STEP: Cell<Option<bool>> = const { Cell::new(None) };
+}
+
+/// The in-process completion, recording whether its caller asked for the PATH step.
+fn recording_completion(
+    root: &Path,
+    version: &Path,
+    completion: Completion,
+    context: &mut Context,
+) -> Result<(), Error> {
+    PATH_STEP.set(Some(completion.path));
+    in_process_completion(root, version, completion, context)
+}
+
+/// The name the launcher takes in the store's `bin` folder.
+fn launcher_name() -> String {
+    format!("{}.exe", environment_stem())
+}
+
+/// A signed release directory `name` of `version` whose launcher holds `launcher`.
+fn release_with_launcher(
+    fixture: &Fixture,
+    name: &str,
+    version: &str,
+    launcher: &[u8],
+) -> (PathBuf, Vec<u8>) {
+    let source = fixture.0.join(name);
+    stage_cohort(&source, version);
+    fs::write(
+        source.join(format!("{}-launcher.exe", environment_stem())),
+        launcher,
+    )
+    .unwrap();
+    let bytes = manifest(&source, |value| value["version"] = json!(version));
+    publish_manifest(&source, &bytes, Some(&sign(&bytes)));
+    (source, bytes)
+}
+
+struct Automatic {
+    result: Result<(), Error>,
+    /// Whether the completion was asked for the PATH step; none when no completion ran.
+    path_step: Option<bool>,
+    /// The helper's one document, which is everything it wrote.
+    document: Value,
+}
+
+/// One run of the automatic helper from the fixture's feed: the engine as the helper composes it,
+/// with the recording in-process completion, answered as the helper answers a settled run.
+fn automatic(fixture: &Fixture, unpack: Unpack<'_>) -> Automatic {
+    let data = fixture.0.join("data");
+    let state = move |name: &str| (name == "ORCHBEE_HOME").then(|| data.clone().into_os_string());
+    let inputs = engine::Inputs {
+        channel: None,
+        state: &state,
+        feed_source: Some(
+            fixture
+                .0
+                .join("feed")
+                .join("feed.json")
+                .to_string_lossy()
+                .into_owned(),
+        ),
+        keys: TEST_TABLE,
+        install_root: Ok(fixture.0.join("install")),
+        loopback: false,
+        path: engine::PathPolicy::LauncherIfPresent,
+        probe: print_probe,
+        activation: recording_completion,
+        unpack,
+        announce: &|_, _| {},
+    };
+    PATH_STEP.set(None);
+    let mut context = context();
+    let mut report = Report::new();
+    let result = engine::run(&inputs, &mut context, &mut report);
+    let answer =
+        automatic::answer_document(&report, settle(context, &report, result), Locale::EnUs);
+    assert!(answer.stderr.is_empty(), "{}", answer.stderr);
+    assert!(answer.stdout.ends_with(b"\n"));
+    let mut documents = serde_json::Deserializer::from_slice(&answer.stdout).into_iter::<Value>();
+    let document = documents.next().unwrap().unwrap();
+    assert!(documents.next().is_none(), "one document only");
+    let schema: Value =
+        serde_json::from_str(include_str!("../../schemas/orchbee.update.json")).unwrap();
+    assert!(
+        jsonschema::validator_for(&schema)
+            .unwrap()
+            .is_valid(&document),
+        "{document}"
+    );
+    assert_eq!(
+        document["result"]["error"],
+        json!(result.err().map(Error::code))
+    );
+    Automatic {
+        result,
+        path_step: PATH_STEP.take(),
+        document,
+    }
+}
+
+#[test]
+fn the_automatic_helper_skips_the_path_step_and_refreshes_only_a_launcher_that_exists() {
+    // The helper's grammar is frozen: its one word alone, answered in JSON. Anything more is not
+    // the helper.
+    let words = |words: &[&str]| words.iter().map(OsString::from).collect::<Vec<_>>();
+    let selected = parse_selected_request(words(&[AUTOMATIC_UPDATE_HELPER]).into_iter()).unwrap();
+    assert_eq!(
+        (selected.request, selected.format),
+        (Request::AutomaticUpdate, Some(OutputFormat::Json))
+    );
+    for extra in [&["--format", "json"][..], &["--no-path"], &["update"]] {
+        let mut arguments = words(&[AUTOMATIC_UPDATE_HELPER]);
+        arguments.extend(words(extra));
+        assert!(
+            !parse_selected_request(arguments.into_iter())
+                .is_ok_and(|selected| selected.request == Request::AutomaticUpdate),
+            "{extra:?}"
+        );
+    }
+
+    let fixture = Fixture::new();
+    let root = fixture.0.join("install");
+    let (older, older_manifest) = release(&fixture, "older", "0.1.0", "test");
+    let (newer, newer_manifest) =
+        release_with_launcher(&fixture, "newer", "0.2.0", b"launcher 0.2.0");
+    install(&fixture, &older, false);
+    let active = entry_for("0.1.0", &older_manifest);
+    let bin = root.join("bin");
+    fs::create_dir(&bin).unwrap();
+    fs::write(bin.join(launcher_name()), b"stale launcher").unwrap();
+    let archive = b"the archive bytes the feed signs";
+    offer(&fixture, "0.2.0", &newer_manifest, archive, |_| {});
+    serve(&fixture, archive);
+    let folder = root.join(archive::FOLDER);
+    let calls = Cell::new(0);
+
+    // Another update holds `download.lock`, or another writer `install.lock`: `busy`, and the
+    // versions, the pointer and the launcher stay as they were.
+    for lock in ["download.lock", "install.lock"] {
+        let held = if lock == "download.lock" {
+            (
+                Some(PrivateCache::acquire(&folder, "download").unwrap()),
+                None,
+            )
+        } else {
+            (None, Some(ReleaseStore::acquire(&root).unwrap()))
+        };
+        let busy = automatic(&fixture, &copying(&newer, &calls));
+        assert_eq!(busy.result.err().map(Error::code), Some("busy"), "{lock}");
+        assert_eq!(busy.path_step, None, "{lock}");
+        drop(held);
+        assert_eq!(names(&root.join("versions")), ["0.1.0"], "{lock}");
+        assert_eq!(pointer(&root).unwrap().active, active, "{lock}");
+        assert_eq!(
+            fs::read(bin.join(launcher_name())).unwrap(),
+            b"stale launcher"
+        );
+        assert_eq!(names(&folder), ["download.lock"], "{lock}");
+    }
+
+    // With both free it installs and activates the offered version, asks the completion for no
+    // PATH step, and refreshes the launcher that exists.
+    let updated = automatic(&fixture, &copying(&newer, &calls));
+    assert_eq!(
+        updated.result.err().map(Error::code),
+        None,
+        "{}",
+        updated.document
+    );
+    assert_eq!(updated.path_step, Some(false));
+    assert_eq!(updated.document["result"]["activated"], true);
+    assert_eq!(
+        pointer(&root).unwrap().active,
+        entry_for("0.2.0", &newer_manifest)
+    );
+    assert_eq!(names(&bin), [launcher_name()]);
+    assert_eq!(
+        fs::read(bin.join(launcher_name())).unwrap(),
+        b"launcher 0.2.0"
+    );
+    assert_eq!(names(&folder), ["download.lock"]);
+
+    // A store without the launcher gets none: activating the stored version leaves `bin` absent.
+    fs::remove_dir_all(&bin).unwrap();
+    install(&fixture, &older, true);
+    let stored = automatic(&fixture, &never_unpack);
+    assert_eq!(
+        stored.result.err().map(Error::code),
+        None,
+        "{}",
+        stored.document
+    );
+    assert_eq!(stored.path_step, Some(false));
+    assert_eq!(
+        pointer(&root).unwrap().active,
+        entry_for("0.2.0", &newer_manifest)
+    );
+    assert!(!bin.exists());
 }

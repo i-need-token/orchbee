@@ -2,12 +2,14 @@
 //! the version's `<stem>-launcher.exe` becomes `<root>\bin\<stem>.exe` when the bytes differ, and the
 //! user `Path` names `<root>\bin` by the [`path_value`] edit. A launcher already in place, running or
 //! not, is renamed aside before its replacement is renamed in and renamed back when that fails, so
-//! the step never ends with `bin` holding no launcher. No environment change is broadcast.
+//! the step never ends with `bin` holding no launcher. No environment change is broadcast. The
+//! automatic helper runs only the launcher half, and only where the launcher already exists.
 use super::{Error, path_value, platform};
+use crate::release_store::ReleaseStore;
 use std::{
     fs::{self, OpenOptions},
     io::{self, Write},
-    path::Path,
+    path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -15,16 +17,45 @@ use std::{
 /// value of `HKEY_CURRENT_USER\<key>`, which is the user environment unless a test build names a
 /// scratch key. A failure at either part stops the step before the pointer moves.
 pub(super) fn run(root: &Path, product: &str, key: &str) -> Result<(), Error> {
+    let (bin, source, name) = launcher(root, product);
+    place_launcher(&bin, &source, &name).map_err(|_| Error::PathLauncher)?;
+    let root = root.to_str().ok_or(Error::PathVariable)?;
+    platform::edit_user_path(key, &|current| path_value::edit(current, root))
+        .map_err(|_| Error::PathVariable)
+}
+
+/// Refreshes `<root>\bin\<stem>.exe` from the version directory `product` names, under
+/// `install.lock`, when anything exists at that name; a store without it stays without it, and the
+/// user `Path` is never read or written. The automatic helper runs this before the completion,
+/// which it asks for no PATH step, so a failure leaves the pointer where it was.
+///
+/// # Errors
+/// `busy` while another writer holds `install.lock`, `storage` when the lock cannot be taken, and
+/// `activation` when the launcher cannot be placed, as a failed PATH step reports for `update`.
+pub(super) fn refresh_launcher(root: &Path, product: &str) -> Result<(), Error> {
+    let _store = ReleaseStore::acquire(root).map_err(|error| {
+        if error.kind() == io::ErrorKind::WouldBlock {
+            Error::Busy
+        } else {
+            Error::Storage
+        }
+    })?;
+    let (bin, source, name) = launcher(root, product);
+    match fs::symlink_metadata(bin.join(&name)) {
+        Ok(_) => place_launcher(&bin, &source, &name).map_err(|_| Error::Activation),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(Error::Activation),
+    }
+}
+
+/// The store's `bin` folder, the version's launcher, and the name it takes in `bin`.
+fn launcher(root: &Path, product: &str) -> (PathBuf, PathBuf, String) {
     let stem = orchbee_local_runtime::environment_stem();
     let source = root
         .join("versions")
         .join(product)
         .join(format!("{stem}-launcher.exe"));
-    place_launcher(&root.join("bin"), &source, &format!("{stem}.exe"))
-        .map_err(|_| Error::PathLauncher)?;
-    let root = root.to_str().ok_or(Error::PathVariable)?;
-    platform::edit_user_path(key, &|current| path_value::edit(current, root))
-        .map_err(|_| Error::PathVariable)
+    (root.join("bin"), source, format!("{stem}.exe"))
 }
 
 /// Makes `bin\<name>` hold the bytes of `source`, leaving an equal file untouched.

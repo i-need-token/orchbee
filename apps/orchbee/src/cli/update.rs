@@ -1,11 +1,12 @@
-//! Explicit Windows release installation: `install` from the signed release directory the running
-//! Client sits in, cohort updates, save-then-update channel changes, and the completion helper a
-//! published copy runs; none starts a Session. This entry layer owns the build checks and reads
-//! the release environment; the engine below it receives every location, key and command as a
-//! value.
+//! Windows release installation: `install` from the signed release directory the running Client
+//! sits in, cohort updates, save-then-update channel changes, the automatic helper the Session
+//! Server runs, and the completion helper a published copy runs; none starts a Session. This entry
+//! layer owns the build checks and reads the release environment; the engine below it receives
+//! every location, key and command as a value.
 use crate::cli_text::CliText;
 mod acquire;
 mod archive;
+mod automatic;
 mod complete;
 mod engine;
 mod feed;
@@ -29,6 +30,7 @@ use super::{
     failure_output, output,
 };
 use crate::{invocation::OutputFormat, localization::Locale};
+pub(crate) use automatic::run as automatic_update;
 pub(crate) use complete::run as complete_install;
 pub(in crate::cli) use installed::{VerifiedRelease, observe as observe_installation};
 use orchbee_local_runtime::{
@@ -459,31 +461,16 @@ pub(crate) fn run(
     };
     context.deadline = Instant::now() + Duration::from_millis(u64::from(timeout_ms));
     let mut report = Report::new();
-    let result = (|| {
-        context.check()?;
-        // A development cohort never installs or saves a channel. A test cohort updates as its
-        // `install` does: with the test key its build compiled, into its own store by default.
-        if environment_kind() == EnvironmentKind::Development {
-            return Err(Error::NonReleaseBuild);
-        }
-        let environment = |name: &str| std::env::var_os(name);
-        let announce = |version: &str, size: u64| {
-            say(&CliText::new(locale).cli_update_downloading(version, size));
-        };
-        let inputs = engine::Inputs {
-            channel,
-            state: &environment,
-            feed_source: platform::feed_source(),
-            keys: signature::TRUSTED_KEYS,
-            install_root: platform::install_root().map_err(|_| Error::InstallLocation),
-            loopback: LOOPBACK,
-            probe: install::version_probe,
-            activation: install::run_completion,
-            unpack: &archive::system_unpack,
-            announce: &announce,
-        };
-        engine::run(&inputs, &mut context, &mut report)
-    })();
+    let announce = |version: &str, size: u64| {
+        say(&CliText::new(locale).cli_update_downloading(version, size));
+    };
+    let result = update_release(
+        channel,
+        engine::PathPolicy::Step,
+        &announce,
+        &mut context,
+        &mut report,
+    );
     let completion_diagnostic = context.completion_diagnostic.take();
     let storage_cause = context.storage_cause.take();
     let settled = settle(context, &report, result);
@@ -544,6 +531,39 @@ pub(crate) fn run(
         }
     };
     answer(encoded, String::new(), settled, format, locale)
+}
+
+/// One update of the selected channel, after saving `channel` when given, through the feed, keys,
+/// store root and commands of this build's release environment; `path` says what it does to the
+/// user `Path` and the launcher, and `announce` hears the download line.
+fn update_release(
+    channel: Option<UpdateChannel>,
+    path: engine::PathPolicy,
+    announce: &dyn Fn(&str, u64),
+    context: &mut Context,
+    report: &mut Report,
+) -> Result<(), Error> {
+    context.check()?;
+    // A development cohort never installs or saves a channel. A test cohort updates as its
+    // `install` does: with the test key its build compiled, into its own store by default.
+    if environment_kind() == EnvironmentKind::Development {
+        return Err(Error::NonReleaseBuild);
+    }
+    let environment = |name: &str| std::env::var_os(name);
+    let inputs = engine::Inputs {
+        channel,
+        state: &environment,
+        feed_source: platform::feed_source(),
+        keys: signature::TRUSTED_KEYS,
+        install_root: platform::install_root().map_err(|_| Error::InstallLocation),
+        loopback: LOOPBACK,
+        path,
+        probe: install::version_probe,
+        activation: install::run_completion,
+        unpack: &archive::system_unpack,
+        announce,
+    };
+    engine::run(&inputs, context, report)
 }
 
 /// Writes `text` on standard error at once, in every output format, while the run goes on; a

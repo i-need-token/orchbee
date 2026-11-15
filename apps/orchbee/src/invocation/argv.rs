@@ -2,8 +2,8 @@
 //! then machine routing.
 
 use super::{
-    FailureEnvelope, MAXIMUM_ARGUMENT_BYTES, ParseFailure, SelectedRequest, UsageReason,
-    machine_routing, usage_with,
+    FailureEnvelope, MAXIMUM_ARGUMENT_BYTES, OutputFormat, ParseFailure, SelectedRequest,
+    UsageReason, machine_routing, usage_with,
 };
 use std::ffi::OsString;
 
@@ -38,7 +38,25 @@ pub(crate) fn parse_selected_request(
             session: None,
         });
     }
+    if let Some(request) = automatic_update(&tokens) {
+        // Its only reader is the Server, so a refusal before the update is a JSON document too.
+        return Ok(SelectedRequest {
+            availability: super::grammar::Availability::Windows,
+            format: Some(OutputFormat::Json),
+            request,
+            session: None,
+        });
+    }
     machine_routing::parse(tokens)
+}
+
+/// The automatic helper `--automatic-update-v1`, alone. A build that does not run automatic
+/// updates does not know it, so there it reaches the grammar as an unknown option. This helper
+/// grammar is permanent; a change adds a new helper name.
+fn automatic_update(tokens: &[String]) -> Option<super::Request> {
+    let helper = orchbee_local_runtime::AUTOMATIC_UPDATE_HELPER;
+    (orchbee_local_runtime::automatic_updates_live() && matches!(tokens, [only] if only == helper))
+        .then_some(super::Request::AutomaticUpdate)
 }
 
 /// The completion helper `--complete-install-v1 [--no-path] [--allow-downgrade]`, each flag at

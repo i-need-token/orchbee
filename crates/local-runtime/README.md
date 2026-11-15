@@ -1232,6 +1232,24 @@ process.
 
 `set_update_channel` saves the channel through the [settings editor](#editing), so it shares its lock, validation, digest check and atomic replacement, and may create the absent file. It never downloads, and never rolls back the saved channel after a caller's update failure.
 
+## Automatic-update switch
+
+`automatic_updates_live()` is the one switch that every automatic-update behavior a release build
+would show or run consults, so release builds turn them all on in one change. It is a constant
+expression of the [environment kind](#windows-named-runtime-identity): every test build answers
+true, so tests and rehearsals drive the behaviors; a release build answers the private
+`IN_RELEASE_BUILDS` constant, false while the behaviors land dark; and a development build answers
+true because the switch does not gate development builds, where each behavior keeps its own rule,
+such as never scheduling an update and never showing Update. It decides nothing else: platforms,
+settings and each behavior's own conditions stay with their owners. The
+[automatic updates proposal](../../proposals/platform/automatic-updates.md#phases) says when release
+builds turn it on.
+
+`AUTOMATIC_UPDATE_HELPER` is `--automatic-update-v1`, the one argument with which a Session Server
+runs the store's active Client for an automatic update and by which that Client recognizes the
+[automatic helper](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation).
+A Client answers it only while `automatic_updates_live()` holds, and its spelling never changes.
+
 `Cohort::artifact_sha256` retains each executable digest from successful admission. Installation provenance compares its declared digests against these observations, so a cohort change between reads cannot be presented as the previously admitted release.
 
 ## Sidebar presentation settings

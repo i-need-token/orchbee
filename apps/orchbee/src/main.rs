@@ -244,6 +244,7 @@ fn main() -> ExitCode {
                 no_path,
                 allow_downgrade,
             }) => cli::update::complete_install(no_path, allow_downgrade, locale),
+            Ok(invocation::Request::AutomaticUpdate) => cli::update::automatic_update(locale),
             Ok(invocation::Request::Uninstall {
                 delete_data,
                 confirm,
