@@ -42,7 +42,7 @@ complete -F _orchbee orchbee
 _orchbee() {
   local current=${words[CURRENT]}
   local -a previous candidates
-  previous=("${words[@]:1:CURRENT-2}")
+  previous=("${(@)words[2,CURRENT-1]}")
   candidates=("${(@f)$(__orchbee_candidates "$current" "${previous[@]}")}")
   (( ${#candidates[@]} )) && compadd -- "${candidates[@]}"
   return 0
