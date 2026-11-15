@@ -11,7 +11,9 @@ function removeOwnedTemporary(directory, parent) {
 	if (path.dirname(actual) !== parent || !path.basename(actual).startsWith(temporaryPrefix)) {
 		throw new Error('Refusing cleanup outside owned ConPTY resize test directory');
 	}
-	rmSync(actual, { recursive: true });
+	// The staged OpenConsole.exe can outlive the test executable for a moment, and Windows refuses
+	// to delete a running image (EPERM), so the removal retries until it has exited.
+	rmSync(actual, { recursive: true, maxRetries: 10, retryDelay: 200 });
 }
 
 if (
