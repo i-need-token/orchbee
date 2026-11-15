@@ -75,7 +75,6 @@ fn valid_sha256(value: &Value) -> bool {
         && text.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()))
 }
 
-#[cfg(windows)]
 pub(super) fn verify_distribution(root: &Path, expected: &str) -> bool {
     let Some(manifest) = read_manifest(root) else {
         return false;

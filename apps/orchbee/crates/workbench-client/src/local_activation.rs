@@ -396,8 +396,9 @@ fn connect_or_activate(
                             child
                         }),
                 };
+                // The Session's terminals inherit a `PATH` that ends with this cohort's folder.
                 #[cfg(not(windows))]
-                let child = orchbee_local_runtime::spawn_retained(&executable, &arguments);
+                let child = orchbee_local_runtime::spawn_session_server(&executable, &arguments);
                 Some(child.map_err(|_| {
                     ActivationFailure::caused(
                         StartupFailure::RecoveryRequired,

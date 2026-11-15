@@ -9,7 +9,8 @@ impl super::CliText {
         let (en, zh) = match key {
             "listing" => ("orchbee uninstall removes:", "orchbee uninstall 将移除："),
             "program-folder" => ("Program folder: ", "程序文件夹："),
-            "path-entry" => ("User Path entry: ", "用户 Path 条目："),
+            "path-entry" if cfg!(windows) => ("User Path entry: ", "用户 Path 条目："),
+            "path-entry" => ("Command link: ", "命令链接："),
             "installer-entries" => ("Installer entries: ", "安装程序条目："),
             "start-menu-shortcut" => ("Start menu shortcut", "开始菜单快捷方式"),
             "uninstall-registration" => ("uninstall registration", "卸载登记"),
@@ -52,9 +53,13 @@ impl super::CliText {
                 "Not checked, their program is not on PATH: ",
                 "未检查（其程序不在 PATH 中）：",
             ),
-            "new-terminal" => (
+            "new-terminal" if cfg!(windows) => (
                 "Terminals open now keep the old Path until they are reopened.",
                 "当前打开的终端在重新打开前仍使用旧的 Path。",
+            ),
+            "new-terminal" => (
+                "Terminals open now may still remember the orchbee command until they are reopened.",
+                "当前打开的终端在重新打开前可能仍记得 orchbee 命令。",
             ),
             "npm" => (
                 "Last step, remove the npm package: npm rm -g orchbee",
@@ -66,13 +71,15 @@ impl super::CliText {
             "remains" => ("Remains: ", "尚余："),
             "step-sessions" => ("Sessions stopped", "会话已停止"),
             "step-integrations" => ("Agent integrations disabled", "智能体集成已停用"),
-            "step-entries" => (
+            "step-entries" if cfg!(windows) => (
                 "Path entry and installer entries removed",
                 "Path 条目和安装程序条目已移除",
             ),
+            "step-entries" => ("command link removed", "命令链接已移除"),
             "step-data" => ("data removed", "数据已移除"),
             "remain-integrations" => ("Agent integrations", "智能体集成"),
-            "remain-path-entry" => ("the user Path entry", "用户 Path 条目"),
+            "remain-path-entry" if cfg!(windows) => ("the user Path entry", "用户 Path 条目"),
+            "remain-path-entry" => ("the command link", "命令链接"),
             "remain-installer-entries" => ("installer entries", "安装程序条目"),
             "remain-data" => (
                 "logs, caches and runtime state in the data folder",
@@ -245,8 +252,10 @@ impl super::CliText {
             (Locale::ZhCn, "integrations") if matches!(detail, "inspection-failed" | "timed-out") => format!("智能体集成 {subject} 可能仍处于启用状态，但无法读取其状态（{detail}）。请确认该智能体的程序能够启动，或从其配置中移除 Orchbee 的条目。"),
             (Locale::EnUs, "integrations") => format!("The Agent integration {subject} could not be disabled ({detail}). Remove Orchbee's entry from its configuration."),
             (Locale::ZhCn, "integrations") => format!("无法停用智能体集成 {subject}（{detail}）。请从其配置中移除 Orchbee 的条目。"),
-            (Locale::EnUs, "path-entry") => format!("The user Path entry in {subject} could not be removed."),
-            (Locale::ZhCn, "path-entry") => format!("无法移除 {subject} 中的用户 Path 条目。"),
+            (Locale::EnUs, "path-entry") if cfg!(windows) => format!("The user Path entry in {subject} could not be removed."),
+            (Locale::ZhCn, "path-entry") if cfg!(windows) => format!("无法移除 {subject} 中的用户 Path 条目。"),
+            (Locale::EnUs, "path-entry") => format!("The command link {subject} could not be removed."),
+            (Locale::ZhCn, "path-entry") => format!("无法移除命令链接 {subject}。"),
             (Locale::EnUs, "installer-entries") => format!("{subject} could not be removed."),
             (Locale::ZhCn, "installer-entries") => format!("无法移除 {subject}。"),
             (Locale::EnUs, _) => format!("{subject} could not be removed completely."),

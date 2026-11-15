@@ -30,9 +30,17 @@ pub(crate) fn parse_selected_request(
         }
         tokens.push(text.to_owned());
     }
-    if let Some(request) = complete_install(&tokens).or_else(|| installer_uninstall(&tokens)) {
+    // A published copy completes its own install wherever `install` runs; only Windows has a
+    // platform uninstaller to start the uninstaller helper.
+    let helper = complete_install(&tokens)
+        .map(|request| (super::grammar::Availability::Portable, request))
+        .or_else(|| {
+            installer_uninstall(&tokens)
+                .map(|request| (super::grammar::Availability::Windows, request))
+        });
+    if let Some((availability, request)) = helper {
         return Ok(SelectedRequest {
-            availability: super::grammar::Availability::Windows,
+            availability,
             format: None,
             request,
             session: None,

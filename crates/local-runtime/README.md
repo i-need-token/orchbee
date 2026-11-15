@@ -103,6 +103,13 @@ Linux-only and thread-scoped. Output pipes still close then, so a writer receive
 error. Unix tests cover root exit, cancellation, ignored `SIGTERM`, dropped owners and missing
 programs with a real descendant in the group.
 
+On macOS and Linux, `run_unix_command` runs one command to its end, the Unix counterpart of
+`run_windows_command`: standard input is null, both outputs are drained on their own threads to
+the caller's bound, and the owner is polled every 10 ms until the command ends, the deadline passes
+or the caller's interruption check answers true, which settles the whole group before the result.
+The Client's install runs the staged Client's version check and the published copy's completion
+through it.
+
 On Windows, a program Orchbee itself chooses from the system folder, such as `cmd.exe` or Windows
 PowerShell, is named by its full path from `windows_system_program`, which reads the folder from
 the operating system rather than from `PATH` or `SystemRoot`. A same-named program earlier on the
@@ -688,7 +695,11 @@ Child owners reap exits without killing retained services; no reaper grants rest
 Every runtime child starts in a neutral working directory, the system directory on Windows and `/`
 on Unix, never in the activating Client's. A Session outlives that Client, and Windows keeps a
 process's working directory in use, so an inherited one would block removing a Worktree the person
-started Orchbee in.
+started Orchbee in. On macOS and Linux the Client starts the Server through `spawn_session_server`,
+which appends a release or test cohort's folder to the Server's `PATH` when an inherited, non-empty
+`PATH` names no such entry, so the Worker, Host and terminals inherit it and a terminal finds that
+cohort's Client by name even when no shell profile names `~/.local/bin`. The folder goes last, so
+an earlier `orchbee` still wins; a development cohort's build folder is never added.
 
 The Worker registers without starting a Host. Its authorization kernel admits the first Launch
 and prepares launch facts before spawning one exact cohort Host, which keeps its lock in a private
@@ -719,7 +730,9 @@ single-link with no setuid, setgid or sticky bit; executables have an owner exec
 also requires no extended ACL on the directory and each opened file, on a volume that keeps
 ownership. Manifest and executables are opened relative to the verified
 directory with NOFOLLOW and CLOEXEC. Each managed Rust role (Client, Server, Worker) validates all
-four executables, including on warm startup.
+four executables, including on warm startup. A role finds its cohort beside `current_executable`,
+its own program file; macOS reports the path a program was started through, such as the command
+link `~/.local/bin/orchbee`, so there the path is resolved first.
 Host consumes the verified sibling executable; it does not implement the manifest reader.
 
 The root development and test profiles compile the existing `sha2` dependency at optimization
@@ -1235,7 +1248,11 @@ The Windows plugin catalog boundary supplies bounded manifest parsing, normalize
 writes. `release_store_root` is the one store-root rule: `ORCHBEE_INSTALL_DIR`, otherwise
 `%LOCALAPPDATA%\Programs\Orchbee` for release and `%LOCALAPPDATA%\Programs\<stem>` for a
 development or test build, refusing a relative path and one holding a PATH delimiter, an expansion
-token, a quote or a control character; macOS and Linux answer `Unsupported`. `active_release`
+token, a quote or a control character. On macOS and Linux it is `ORCHBEE_INSTALL_DIR`, otherwise
+`$HOME/.local/share/orchbee` for release and `$HOME/.local/share/<stem>` for a development or test
+build, the npm launcher's rule; it is used as spelled, never resolved, and refuses a relative path,
+a `.` or `..` component, one over 1024 bytes or not UTF-8, and one holding `:`, `$`, a backtick, a
+backslash, a quote or a control character. `active_release`
 reads `active.json` through `PrivateCache::read_existing` and parses it with
 `orchbee-release-records`: a missing root or pointer, or bytes that are no pointer record, mean no
 active version, and an unsafe root or pointer, or one over 16 KiB, is an error. A read that meets

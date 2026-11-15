@@ -1,4 +1,5 @@
-//! Windows install and update diagnostics, separate from language-neutral receipt reasons.
+//! Install and update diagnostics, separate from language-neutral receipt reasons. The PATH step's
+//! words follow the platform's step: the user `Path` on Windows, the command link elsewhere.
 use super::Locale;
 impl super::CliText {
     pub(crate) fn cli_update_message(self, code: &str) -> &'static str {
@@ -24,15 +25,31 @@ impl super::CliText {
                 "未修改 PATH（--no-path）。",
             ),
             "path-not-reached" => ("The PATH step did not run to the end.", "PATH 步骤未完成。"),
-            "path-added" => ("Added to your user Path: ", "已添加到用户 Path："),
-            "path-present" => ("Already on your user Path: ", "已在用户 Path 中："),
-            "path-replaced" => (
+            "path-added" if cfg!(windows) => ("Added to your user Path: ", "已添加到用户 Path："),
+            "path-added" => ("Created the command link: ", "已创建命令链接："),
+            "path-present" if cfg!(windows) => {
+                ("Already on your user Path: ", "已在用户 Path 中：")
+            }
+            "path-present" => ("Command link in place: ", "命令链接已就位："),
+            "path-replaced" if cfg!(windows) => (
                 "Replaced old Orchbee entries in your user Path with: ",
                 "已将用户 Path 中旧的 Orchbee 条目替换为：",
+            ),
+            "path-replaced" => (
+                "Replaced a link to another Orchbee installation with: ",
+                "已将指向另一个 Orchbee 安装的链接替换为：",
+            ),
+            "path-not-on-path" => (
+                "~/.local/bin is not on your PATH, so a terminal does not find orchbee yet. Add this line to your shell profile, such as ~/.zshrc, then open a new terminal:\nexport PATH=\"$HOME/.local/bin:$PATH\"",
+                "~/.local/bin 不在 PATH 中，终端暂时找不到 orchbee。请把下面这行加入 shell 配置文件（例如 ~/.zshrc），然后打开新终端：\nexport PATH=\"$HOME/.local/bin:$PATH\"",
             ),
             "path-new-terminal" => (
                 "Open a new terminal to use orchbee; if it is not found there, sign out and back in.",
                 "请打开新终端使用 orchbee；如果仍找不到该命令，请注销后重新登录。",
+            ),
+            "path-launcher" if !cfg!(windows) => (
+                "The PATH step could not place the command link in ~/.local/bin: something that is not an Orchbee link is already there, or the folder could not be written, so this version was not activated and nothing there was changed. Run orchbee install --no-path to install without the PATH step.",
+                "PATH 步骤无法在 ~/.local/bin 中放置命令链接：那里已有不是 Orchbee 链接的内容，或该文件夹无法写入，因此未启用此版本，那里的内容也未改动。如需不经 PATH 步骤安装，请运行 orchbee install --no-path。",
             ),
             "path-launcher" => (
                 "The PATH step could not place the launcher in the bin folder of the installation, so this version was not activated. Run orchbee install --no-path to install without the PATH step.",

@@ -127,7 +127,7 @@ fn execute(delete_data: bool, caller: Caller, locale: Locale) -> Output {
         Caller::Person { format, .. } => format,
         Caller::Installer => OutputFormat::Text,
     };
-    if let Err(failure) = execution::admit(execution::Capability::ReleaseUpdate) {
+    if let Err(failure) = execution::admit(execution::Capability::ReleaseInstall) {
         return failure_output(failure, Some(format), locale);
     }
     let mut report = Report::new(delete_data, matches!(caller, Caller::Installer));
@@ -142,7 +142,8 @@ fn execute(delete_data: bool, caller: Caller, locale: Locale) -> Output {
     }
     if let Caller::Person { confirm, format } = caller {
         let listing = report.listing(locale);
-        if !orchbee_local_runtime::is_release() && format == OutputFormat::Text {
+        let takes_confirm = !(cfg!(windows) && orchbee_local_runtime::is_release());
+        if takes_confirm && format == OutputFormat::Text {
             // A build that takes --confirm asks nothing; the listing still comes first.
             eprint!("{listing}");
         }
@@ -166,7 +167,7 @@ fn execute(delete_data: bool, caller: Caller, locale: Locale) -> Output {
         .launcher
         .as_ref()
         .map(|launcher| launcher.image.clone())
-        .or_else(|| std::env::current_exe().ok());
+        .or_else(|| orchbee_local_runtime::current_executable().ok());
     let finalization = match signals.finish() {
         Ok(Finish::Clear) => None,
         Ok(Finish::Cancelled { finalization }) => {
@@ -194,9 +195,10 @@ fn inventory(report: &mut Report, delete_data: bool, caller: Caller) -> Option<I
     };
     report.store_root = Some(store.clone());
     report.data_root = Some(data.path().to_owned());
-    report.path_key = Some(locations.path_key());
+    report.path_key = locations.path_key();
+    report.path_location = locations.path_location(&store);
     report.shortcut = locations.shortcut().map(Path::to_owned);
-    report.registration = Some(locations.registration_key());
+    report.registration = locations.registration_key();
     if inside_session() {
         report.stop(Stop::InsideSession, "", "");
         return None;
@@ -498,7 +500,7 @@ fn blocked(
         ));
     }
     // Clients end with their Session, and the Sessions' own processes stop in step b.
-    let client = std::env::current_exe()
+    let client = orchbee_local_runtime::current_executable()
         .ok()
         .and_then(|path| path.file_name().map(ToOwned::to_owned));
     let mut except: Vec<u32> = report
@@ -700,10 +702,14 @@ fn remove_entries(
 ) -> Result<(), ()> {
     check(report, signals)?;
     if report.path_entry != Outcome::Absent {
-        if remove_path_entry(&inventory.locations, &inventory.roots.store).is_err() {
+        if platform::remove_path_entry(&inventory.locations, &inventory.roots.store).is_err() {
             report.path_entry = Outcome::Failed;
-            let key = report.path_key.clone().unwrap_or_default();
-            report.stop(Stop::PathEntry, key, "");
+            let subject = report
+                .path_key
+                .clone()
+                .or_else(|| report.path_location.as_deref().map(report::display))
+                .unwrap_or_default();
+            report.stop(Stop::PathEntry, subject, "");
             return Err(());
         }
         report.path_entry = Outcome::Removed;
@@ -737,15 +743,6 @@ fn remove_entries(
         report.changed = true;
     }
     Ok(())
-}
-
-/// Removes the entries the PATH step wrote by the exact inverse of its edit, keeping every other
-/// entry byte for byte and the value's registry type. Nothing is broadcast.
-fn remove_path_entry(locations: &platform::Locations, root: &Path) -> io::Result<()> {
-    let root = root.to_str().ok_or(io::ErrorKind::InvalidInput)?;
-    super::platform::edit_user_path(locations.environment(), &|current| {
-        super::path_value::removal(current, root)
-    })
 }
 
 /// Step e: the plan's data entries in order, the layout record last with `--delete-data`, then
@@ -856,7 +853,7 @@ fn remove_store(
         }
     }
     // Only the folders of the running Client and of the launcher may still hold anything.
-    let held: Vec<PathBuf> = std::env::current_exe()
+    let held: Vec<PathBuf> = orchbee_local_runtime::current_executable()
         .ok()
         .into_iter()
         .chain(

@@ -34,6 +34,10 @@ pub(super) enum Capability {
     Plugins,
     ConfiguredCommands,
     NamedSessions,
+    /// `install`, `uninstall` and the completion helper: the release store, the PATH step and
+    /// their inverse, without a download.
+    ReleaseInstall,
+    /// `update`, the automatic helper and channel changes, which download.
     ReleaseUpdate,
     ServerStop,
     TerminalClear,
@@ -83,6 +87,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::Plugins
         | Capability::ConfiguredCommands
         | Capability::NamedSessions
+        | Capability::ReleaseInstall
         | Capability::ReleaseUpdate
         | Capability::ServerStop
         | Capability::TerminalClear

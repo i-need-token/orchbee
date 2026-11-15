@@ -23,6 +23,14 @@ use std::{
 /// change adds a new helper name.
 pub(super) const COMPLETION_HELPER: &str = "--complete-install-v1";
 
+/// The cohort's programs, which a stage makes executable where the system asks that of a program.
+const PROGRAMS: [CohortArtifact; 4] = [
+    CohortArtifact::Client,
+    CohortArtifact::Server,
+    CohortArtifact::Worker,
+    CohortArtifact::TerminalHost,
+];
+
 /// Builds the version check of a verified staged Client.
 pub(super) type Probe = fn(client: &Path) -> Command;
 /// Completes the install of a published version directory under a store root.
@@ -284,6 +292,14 @@ pub(super) fn publish(
             source
                 .artifact(&artifact.url)?
                 .copy(&path, &mut file, artifact.size, context)?;
+            if PROGRAMS
+                .iter()
+                .any(|program| program.file_name() == artifact.path)
+            {
+                stage
+                    .mark_executable(&file)
+                    .map_err(|error| context.storage(&path, &error))?;
+            }
         }
         report.phase = "verify";
         verify(stage.path(), release, probe, context)?;

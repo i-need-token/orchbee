@@ -1,32 +1,16 @@
 //! Bounded, nonblocking capture on the retained Windows Job owner thread.
+use super::super::output_drain::{drain, drain_tail};
 use super::CommandChild;
 use crate::{CommandFailure, CommandOutput};
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader};
 use std::{
-    io::{self, Read, Write},
+    io::{self, Write},
     process::{Command, Stdio},
     thread,
     time::{Duration, Instant},
 };
 
 const OUTPUT_LIMIT: usize = 64 * 1024;
-
-impl CommandOutput {
-    fn empty() -> Self {
-        Self {
-            exit_code: None,
-            failure: None,
-            stdout: vec![],
-            stderr: vec![],
-            stdout_truncated: false,
-            stderr_truncated: false,
-        }
-    }
-    fn failed(mut self, reason: CommandFailure) -> Self {
-        self.failure = Some(reason);
-        self
-    }
-}
 
 /// The caller owns this synchronous workflow and its cancellation/deadline policy.
 /// All children settle before a known receipt; output buffers never exceed 64 KiB each.
@@ -199,68 +183,6 @@ fn exchange(
         }
     }
 }
-fn drain_tail(
-    out: &mut Option<ChildOutputReader>,
-    err: &mut Option<ChildOutputReader>,
-    result: &mut CommandOutput,
-    output_limit: usize,
-) -> io::Result<()> {
-    for _ in 0..64 {
-        drain(
-            out,
-            &mut result.stdout,
-            &mut result.stdout_truncated,
-            true,
-            output_limit,
-        )?;
-        drain(
-            err,
-            &mut result.stderr,
-            &mut result.stderr_truncated,
-            true,
-            output_limit,
-        )?;
-        if out.is_none() && err.is_none() {
-            return Ok(());
-        }
-    }
-    Err(io::ErrorKind::TimedOut.into())
-}
-fn drain(
-    reader: &mut Option<ChildOutputReader>,
-    kept: &mut Vec<u8>,
-    truncated: &mut bool,
-    settled: bool,
-    output_limit: usize,
-) -> io::Result<()> {
-    let Some(pipe) = reader.as_mut() else {
-        return Ok(());
-    };
-    let mut bytes = [0; 4096];
-    for _ in 0..8 {
-        match pipe.read(&mut bytes) {
-            Ok(0) => {
-                *reader = None;
-                return Ok(());
-            }
-            Ok(count) => {
-                let keep = count.min(output_limit.saturating_sub(kept.len()));
-                kept.extend_from_slice(&bytes[..keep]);
-                *truncated |= keep < count;
-            }
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                if settled {
-                    *reader = None;
-                }
-                return Ok(());
-            }
-            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
-            Err(e) => return Err(e),
-        }
-    }
-    Ok(())
-}
-
 fn feed(writer: &mut Option<ChildInputWriter>, remaining: &mut &[u8]) -> io::Result<()> {
     let Some(pipe) = writer.as_mut() else {
         return Ok(());

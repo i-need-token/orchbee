@@ -9,7 +9,7 @@ mod capsule;
 #[cfg(windows)]
 mod configuration_windows;
 /// Checks a distribution sidecar against its cohort's payload identity.
-#[cfg(windows)]
+#[cfg(any(unix, windows))]
 pub fn verify_distribution_capsule(root: &std::path::Path, expected: &str) -> bool {
     capsule::verify_distribution(root, expected)
 }

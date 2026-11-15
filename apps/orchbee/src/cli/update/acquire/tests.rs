@@ -52,8 +52,13 @@ fn curl_stream_limit_and_https_resolution_do_not_silently_degrade() {
         #[cfg(windows)]
         assert_windows_source_compatibility(value, Some(&path));
     }
+    // An absolute POSIX path is a local source only on macOS and Linux.
+    #[cfg(windows)]
+    {
+        assert!(Source::parse("/release.json").is_err());
+        assert_windows_source_compatibility("/release.json", None);
+    }
     for value in [
-        "/release.json",
         r"\release.json",
         "C:release.json",
         "C:",
@@ -92,6 +97,42 @@ fn curl_stream_limit_and_https_resolution_do_not_silently_degrade() {
     );
     #[cfg(windows)]
     assert_windows_source_compatibility(&longest, Some(&path));
+}
+
+/// On macOS and Linux an absolute POSIX path is a local source too: `/` alone separates its
+/// components, a backslash is part of a name, and a parent component is refused as on Windows.
+#[cfg(unix)]
+#[test]
+fn an_absolute_posix_path_is_a_local_source_on_unix() {
+    for (value, expected) in [
+        ("/home/a/release.json", Some("/home/a/bin/tool")),
+        ("/home//a/./release.json", Some("/home//a/bin/tool")),
+        ("/release.json", Some("/bin/tool")),
+        (r"/home/a\b/release.json", Some(r"/home/a\b/bin/tool")),
+        ("/", None),
+    ] {
+        let Ok(Source::Local(path)) = Source::parse(value) else {
+            panic!("local source: {value}");
+        };
+        assert_eq!(
+            path.artifact("bin/tool")
+                .as_ref()
+                .and_then(|path| path.as_path().to_str()),
+            expected,
+            "{value}",
+        );
+    }
+    for value in [
+        "/home/../release.json",
+        "/home/a/..",
+        "relative/release.json",
+    ] {
+        assert!(Source::parse(value).is_err(), "{value}");
+    }
+    assert!(matches!(
+        Source::release_directory(std::path::Path::new("/opt/orchbee-1.0.0/")),
+        Ok(Source::Local(path)) if path.as_path() == std::path::Path::new("/opt/orchbee-1.0.0/release.json")
+    ));
 }
 
 /// The archive may take its signed size at 4 KiB/s plus ten minutes, and never more than six hours,

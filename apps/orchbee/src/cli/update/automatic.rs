@@ -11,7 +11,11 @@ use crate::{invocation::OutputFormat, localization::Locale};
 
 /// Runs one automatic update. Platform admission ran before dispatch.
 pub(crate) fn run(locale: Locale) -> Output {
-    let mut context = match start(OutputFormat::Json, locale) {
+    let mut context = match start(
+        super::super::execution::Capability::ReleaseUpdate,
+        OutputFormat::Json,
+        locale,
+    ) {
         Ok(context) => context,
         Err(output) => return *output,
     };

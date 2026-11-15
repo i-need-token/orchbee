@@ -171,7 +171,7 @@ impl Cohort {
     /// is populated only when opening one of the declared native siblings
     /// returned `NotFound`.
     pub fn current_with_diagnostic(deadline: Instant) -> Result<Self, CohortError> {
-        let executable = std::env::current_exe()?;
+        let executable = current_executable()?;
         let directory = executable
             .parent()
             .ok_or_else(|| CohortError::from(invalid()))?;
@@ -276,6 +276,18 @@ impl Cohort {
         &self.observation_adapters
     }
 }
+
+/// This process's program file. macOS reports the path the program was started through, which is
+/// the link's own path when a link such as `~/.local/bin/orchbee` started it, so there the path is
+/// resolved and the program's cohort is found beside the file itself. Linux already reports the
+/// resolved file, and Windows starts no program through a link.
+pub fn current_executable() -> io::Result<PathBuf> {
+    let executable = std::env::current_exe()?;
+    #[cfg(target_os = "macos")]
+    let executable = std::fs::canonicalize(executable)?;
+    Ok(executable)
+}
+
 fn remaining(deadline: Instant) -> io::Result<()> {
     if Instant::now() >= deadline {
         return Err(io::ErrorKind::TimedOut.into());

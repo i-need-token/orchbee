@@ -13,7 +13,9 @@
 //! private and is never repaired, so a foreign owner or access rule refuses before anything is
 //! written. Private is the shared rule of `private_filesystem`: on Windows the user, SYSTEM or
 //! Administrators owns it, as an elevated session's objects belong to Administrators, and no other
-//! account is let in.
+//! account is let in; on macOS and Linux the user owns it with mode 0700 and, on macOS, no access
+//! list. There a missing root's missing ancestors are created first, private as well, since the
+//! folders above the root need not be private.
 use super::platform;
 // The shared store reader owns the folder and pointer names and the pointer bound, so Session start
 // and this writer spell them once.
@@ -37,6 +39,7 @@ impl ReleaseStore {
     /// Creates a missing root and `versions/` as private directories and refuses unsafe existing
     /// ones; a crashed writer's `active.pending` is removed before the lock is returned.
     pub(crate) fn acquire(root: &Path) -> io::Result<Self> {
+        platform::prepare_root(root)?;
         let lock = PrivateCache::acquire_with_lock(root, "install", "active")?;
         PrivateCache::prepare(&root.join(VERSIONS))?;
         Ok(Self {
@@ -149,6 +152,11 @@ impl ReleaseStage<'_> {
         let path = self.path.join(relative);
         let file = permissions::open_file(&path, true, true)?;
         Ok((path, file))
+    }
+    /// Makes a program file this stage created executable, where the system asks that of a
+    /// program; the cohort's admission checks it.
+    pub(crate) fn mark_executable(&self, file: &File) -> io::Result<()> {
+        platform::mark_executable(file)
     }
     /// Publishes as `versions/<version>` without replacing an existing directory. Failure leaves
     /// this stage owned.

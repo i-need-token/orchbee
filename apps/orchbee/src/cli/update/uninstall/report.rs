@@ -126,7 +126,10 @@ pub(super) struct Report {
     /// The process id of the machine hub the listing names.
     pub(super) hub: Option<u32>,
     pub(super) integrations: Vec<IntegrationLine>,
+    /// The registry key whose `Path` value holds the entry; none where the entry is a link.
     pub(super) path_key: Option<String>,
+    /// The folder the `Path` entry names, or the command link, as the listing shows it.
+    pub(super) path_location: Option<PathBuf>,
     pub(super) path_entry: Outcome,
     pub(super) shortcut: Option<PathBuf>,
     pub(super) shortcut_outcome: Outcome,
@@ -160,6 +163,7 @@ impl Report {
             hub: None,
             integrations: Vec::new(),
             path_key: None,
+            path_location: None,
             path_entry: Outcome::NotReached,
             shortcut: None,
             shortcut_outcome: Outcome::NotReached,
@@ -282,13 +286,9 @@ impl Report {
             lines.push(format!("  {}{}", phrase("program-folder"), display(store)));
         }
         if self.path_entry != Outcome::Absent
-            && let Some(store) = &self.store_root
+            && let Some(location) = &self.path_location
         {
-            lines.push(format!(
-                "  {}{}",
-                phrase("path-entry"),
-                display(&store.join("bin"))
-            ));
+            lines.push(format!("  {}{}", phrase("path-entry"), display(location)));
         }
         let entries: Vec<&str> = [
             (self.shortcut_outcome, "start-menu-shortcut"),

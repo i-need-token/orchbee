@@ -8,6 +8,12 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+/// Nothing to prepare: the publisher lock creates a missing root with a protected private access
+/// rule, which every folder Windows creates below it inherits.
+pub(super) fn prepare_root(_root: &Path) -> io::Result<()> {
+    Ok(())
+}
+
 pub(super) fn create_stage(root: &Path) -> io::Result<(PathBuf, Vec<File>)> {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     for _ in 0..32 {
@@ -78,6 +84,11 @@ pub(super) fn directories(folder: &Path) -> io::Result<Vec<String>> {
 /// Deletes a directory tree without following a link inside it.
 pub(super) fn remove_directory(path: &Path) -> io::Result<()> {
     fs::remove_dir_all(path)
+}
+
+/// Nothing to mark: Windows runs any program file a person may read.
+pub(super) fn mark_executable(_file: &File) -> io::Result<()> {
+    Ok(())
 }
 
 #[cfg(test)]

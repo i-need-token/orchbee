@@ -83,12 +83,9 @@ impl Source {
             .strip_prefix(r"\\?\")
             .filter(|rest| rest.as_bytes().get(1) == Some(&b':'))
             .unwrap_or(text);
-        LocalPath::parse(&format!(
-            "{}\\release.json",
-            text.trim_end_matches(['/', '\\'])
-        ))
-        .map(Self::Local)
-        .ok_or(Error::NotReleaseDirectory)
+        LocalPath::join(text, "release.json")
+            .map(Self::Local)
+            .ok_or(Error::NotReleaseDirectory)
     }
     fn parse(value: &str) -> Result<Self, Error> {
         if manifest::valid_https(value) {

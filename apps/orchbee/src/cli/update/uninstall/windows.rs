@@ -109,23 +109,35 @@ pub(super) fn locations() -> io::Result<Locations> {
 
 impl Locations {
     /// The registry key whose `Path` value holds the entry, as people read it.
-    pub(super) fn path_key(&self) -> String {
-        format!("HKCU\\{}", self.environment)
+    pub(super) fn path_key(&self) -> Option<String> {
+        Some(format!("HKCU\\{}", self.environment))
+    }
+
+    /// The folder the entry names, `<root>\bin`.
+    pub(super) fn path_location(&self, root: &Path) -> Option<PathBuf> {
+        Some(root.join("bin"))
     }
 
     /// The uninstall registration's key, as people read it.
-    pub(super) fn registration_key(&self) -> String {
-        format!("HKCU\\{}\\{}", self.registrations, self.registration)
-    }
-
-    /// The key below `HKEY_CURRENT_USER` whose `Path` value holds the entry.
-    pub(super) fn environment(&self) -> &str {
-        &self.environment
+    pub(super) fn registration_key(&self) -> Option<String> {
+        Some(format!(
+            "HKCU\\{}\\{}",
+            self.registrations, self.registration
+        ))
     }
 
     pub(super) fn shortcut(&self) -> Option<&Path> {
         self.shortcut.as_deref()
     }
+}
+
+/// Removes the entries the PATH step wrote by the exact inverse of its edit, keeping every other
+/// entry byte for byte and the value's registry type. Nothing is broadcast.
+pub(super) fn remove_path_entry(locations: &Locations, root: &Path) -> io::Result<()> {
+    let root = root.to_str().ok_or(io::ErrorKind::InvalidInput)?;
+    super::super::platform::edit_user_path(&locations.environment, &|current| {
+        path_value::removal(current, root)
+    })
 }
 
 /// Whether the user `Path` names the store's `bin` folder or another folder inside the store root.

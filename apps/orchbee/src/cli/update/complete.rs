@@ -9,7 +9,7 @@ use super::{
     Error, Output,
     install::Completion,
     manifest::{Release, own_platform},
-    path_step, platform, retention,
+    path_step, retention,
     signature::{self, DOCUMENT_LIMIT, MANIFEST_LIMIT, Refusal},
 };
 use crate::{
@@ -57,8 +57,9 @@ pub(super) fn activate(root: &Path, entry: &Entry, completion: Completion) -> Re
         return Err(Error::NotReleaseDirectory);
     }
     if completion.path {
-        let key = platform::user_environment_key().map_err(|_| Error::PathVariable)?;
-        path_step::run(root, &entry.product, &key)?;
+        path_step::run(root, &entry.product)?;
+    } else {
+        path_step::refresh_present(root, &entry.product);
     }
     // Without a readable pointer before the move, no version is known to have been the previous
     // one, so nothing is removed.
@@ -106,7 +107,8 @@ pub(crate) fn run(no_path: bool, allow_downgrade: bool, locale: Locale) -> Outpu
         if environment_kind() == EnvironmentKind::Development {
             return Err(Error::DevelopmentBuild);
         }
-        let executable = std::env::current_exe().map_err(|_| Error::Internal)?;
+        let executable =
+            orchbee_local_runtime::current_executable().map_err(|_| Error::Internal)?;
         let (root, name) = executable
             .parent()
             .and_then(version_directory_parts)

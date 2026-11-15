@@ -16,18 +16,29 @@ impl RetainedChild {
         executable: &std::path::Path,
         arguments: &[&std::ffi::OsStr],
     ) -> io::Result<Self> {
+        Self::spawn_with_path(executable, arguments, None)
+    }
+    /// As [`Self::spawn`], with `path` as the child's `PATH` when given.
+    pub(crate) fn spawn_with_path(
+        executable: &std::path::Path,
+        arguments: &[&std::ffi::OsStr],
+        path: Option<&std::ffi::OsStr>,
+    ) -> io::Result<Self> {
         // The child outlives the activating Client, so it keeps none of that Client's directories
         // busy or reachable, such as a Worktree the person later removes or unmounts. Nor does it
         // receive the relaunch protocol's variable, which only a launcher's own Client may read.
-        let child = std::process::Command::new(executable)
+        let mut command = std::process::Command::new(executable);
+        command
             .args(arguments)
             .env_remove(crate::RELAUNCH_PROTOCOL_VARIABLE)
             .current_dir("/")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()?;
-        Ok(Self(Some(child)))
+            .stderr(std::process::Stdio::null());
+        if let Some(path) = path {
+            command.env("PATH", path);
+        }
+        Ok(Self(Some(command.spawn()?)))
     }
     /// The operating-system process identifier of the held child.
     pub fn id(&self) -> Option<u32> {

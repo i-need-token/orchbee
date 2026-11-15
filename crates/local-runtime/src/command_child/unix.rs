@@ -22,6 +22,9 @@ use rustix::{
 
 use super::CommandSpawnFailure;
 
+mod capture;
+pub use capture::run_unix_command;
+
 /// The cleanup budget the Windows Job owner also applies, counted from the first settle.
 const SETTLE_BUDGET: Duration = Duration::from_secs(5);
 /// Part of the budget a running root gets after `SIGTERM`, so Git can remove its lock files and a

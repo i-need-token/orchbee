@@ -7,12 +7,13 @@ pub struct CommandSpawnFailure {
     pub created: bool,
 }
 
+mod output_drain;
 #[cfg(unix)]
 mod unix;
 #[cfg(windows)]
 mod windows;
 #[cfg(unix)]
-pub use unix::CommandChild;
+pub use unix::{CommandChild, run_unix_command};
 #[cfg(windows)]
 pub use windows::{
     CommandChild, resolve_windows_program, run_background_command_exchange,

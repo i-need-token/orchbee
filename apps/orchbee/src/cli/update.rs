@@ -14,6 +14,7 @@ mod install;
 mod installed;
 mod manifest;
 mod path_step;
+#[cfg(windows)]
 mod path_value;
 #[cfg(windows)]
 #[path = "update/windows.rs"]
@@ -87,9 +88,14 @@ enum Error {
     DowngradeRefused,
     OtherArchitecture,
     SmokeFailed,
-    /// The completing Client could not place `bin\<stem>.exe`.
+    /// The completing Client could not place `bin\<stem>.exe`, or `~/.local/bin/<stem>` on macOS and
+    /// Linux.
     PathLauncher,
     /// The completing Client could not edit the user `Path`.
+    #[cfg_attr(
+        not(windows),
+        expect(dead_code, reason = "only the Windows PATH step edits a variable")
+    )]
     PathVariable,
     Activation,
     ActivationUnknown,
@@ -309,7 +315,8 @@ fn document(
     })
 }
 
-/// What `install` did to the user `Path`, or why it did nothing.
+/// What `install` did to the user `Path` or, on macOS and Linux, the command link, or why it did
+/// nothing.
 #[derive(Clone, Copy)]
 enum PathStep {
     /// The person passed `--no-path`.
@@ -318,12 +325,13 @@ enum PathStep {
     Unavailable,
     /// The run ended before the PATH step completed.
     NotReached,
-    /// `<store root>\bin` was added to the user `Path`.
+    /// `<store root>\bin` was added to the user `Path`; the link `~/.local/bin/<stem>` was created.
     Added,
-    /// The user `Path` already named `<store root>\bin` and was left unchanged.
+    /// The user `Path` already named `<store root>\bin` and was left unchanged; the link already
+    /// named this store and now names this version.
     Present,
     /// Entries naming other folders inside the store root were removed, and the user `Path` names
-    /// `<store root>\bin`.
+    /// `<store root>\bin`; a link to another store's version now names this one.
     Replaced,
 }
 impl PathStep {
@@ -338,14 +346,14 @@ impl PathStep {
         }
     }
 
-    /// The outcome of a completed PATH step, classified by the edit planned from the user `Path` as
-    /// it was before the completion ran. A value that could not be read beforehand classifies as
-    /// added, since the completion succeeded and the `Path` now names `bin`.
-    fn completed(plan: Option<&path_value::Edit>) -> Self {
+    /// The outcome of a completed PATH step, classified by the step planned from the state before
+    /// the completion ran. A state that could not be read beforehand classifies as added, since the
+    /// completion succeeded and the step's entry is now in place.
+    fn completed(plan: Option<path_step::Planned>) -> Self {
         match plan {
-            Some(path_value::Edit::Unchanged) => Self::Present,
-            Some(path_value::Edit::Write { removed: true, .. }) => Self::Replaced,
-            _ => Self::Added,
+            Some(path_step::Planned::Keep) => Self::Present,
+            Some(path_step::Planned::Replace) => Self::Replaced,
+            Some(path_step::Planned::Add) | None => Self::Added,
         }
     }
 }
@@ -392,8 +400,12 @@ struct Settled {
 }
 
 /// Arms the console interrupt and builds the run's context, or answers the failure.
-fn start(format: OutputFormat, locale: Locale) -> Result<Context, Box<Output>> {
-    super::execution::admit(super::execution::Capability::ReleaseUpdate)
+fn start(
+    capability: super::execution::Capability,
+    format: OutputFormat,
+    locale: Locale,
+) -> Result<Context, Box<Output>> {
+    super::execution::admit(capability)
         .map_err(|failure| Box::new(failure_output(failure, Some(format), locale)))?;
     let signals = ArmedSignals::arm_interrupts().map_err(|_| {
         Box::new(failure_output(
@@ -465,7 +477,7 @@ pub(crate) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    let mut context = match start(format, locale) {
+    let mut context = match start(super::execution::Capability::ReleaseUpdate, format, locale) {
         Ok(context) => context,
         Err(output) => return *output,
     };
@@ -587,7 +599,7 @@ fn say(text: &str) {
 
 /// The signed release directory this executable sits in.
 fn own_directory() -> Result<PathBuf, Error> {
-    let executable = std::env::current_exe().map_err(|_| Error::Internal)?;
+    let executable = orchbee_local_runtime::current_executable().map_err(|_| Error::Internal)?;
     executable
         .parent()
         .map(PathBuf::from)
@@ -603,7 +615,7 @@ pub(crate) fn install(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    let mut context = match start(format, locale) {
+    let mut context = match start(super::execution::Capability::ReleaseInstall, format, locale) {
         Ok(context) => context,
         Err(output) => return *output,
     };
@@ -625,7 +637,7 @@ pub(crate) fn install(
             return Err(Error::DevelopmentBuild);
         }
         if requested && let Ok(root) = &install_root {
-            path_plan = platform::planned_path_edit(root);
+            path_plan = path_step::plan(root);
         }
         let inputs = engine::InstallInputs {
             directory: own_directory(),
@@ -641,7 +653,7 @@ pub(crate) fn install(
         engine::install(&inputs, &mut context, &mut report)
     })();
     if requested && result.is_ok() {
-        path_step = PathStep::completed(path_plan.as_ref());
+        path_step = PathStep::completed(path_plan);
     }
     let completion_diagnostic = context.completion_diagnostic.take();
     let storage_cause = context.storage_cause.take();
@@ -690,8 +702,7 @@ pub(crate) fn install(
             let bin = install_root
                 .as_ref()
                 .ok()
-                .and_then(|root| root.to_str())
-                .map(|root| crate::native_path::display(&path_value::bin(root)))
+                .and_then(|root| path_step::location(root))
                 .unwrap_or_default();
             lines.push(match path_step {
                 PathStep::NotRequested => text.cli_update_message("path-not-requested").to_owned(),
@@ -701,9 +712,8 @@ pub(crate) fn install(
                 PathStep::Present => format!("{}{bin}", text.cli_update_message("path-present")),
                 PathStep::Replaced => format!("{}{bin}", text.cli_update_message("path-replaced")),
             });
-            // The change is not broadcast, so programs started earlier keep the old environment.
-            if matches!(path_step, PathStep::Added | PathStep::Replaced) {
-                lines.push(text.cli_update_message("path-new-terminal").to_owned());
+            if let Some(key) = path_step::follow_up(path_step) {
+                lines.push(text.cli_update_message(key).to_owned());
             }
             if let Some(path) = &report.cleanup_pending {
                 lines.push(format!(

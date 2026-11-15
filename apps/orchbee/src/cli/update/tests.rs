@@ -4,17 +4,19 @@
 #[cfg(windows)]
 mod channel_persistence;
 mod feed_admission;
-#[cfg(windows)]
 mod install_fixture;
 mod manifest_admission;
 #[cfg(windows)]
 mod offered_update;
 #[cfg(windows)]
 mod offline_install;
+#[cfg(windows)]
 mod path_value;
 #[cfg(windows)]
 mod retention;
 mod signature_admission;
+#[cfg(not(windows))]
+mod unix_install;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use ed25519_dalek::{Signer, SigningKey};

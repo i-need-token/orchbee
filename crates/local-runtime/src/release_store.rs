@@ -50,10 +50,35 @@ pub fn release_store_root(env: impl Fn(&str) -> Option<OsString>) -> io::Result<
     Ok(path)
 }
 
-/// macOS and Linux keep no release store yet.
+/// `ORCHBEE_INSTALL_DIR`, or `$HOME/.local/share/orchbee` for release and
+/// `$HOME/.local/share/<stem>` for a development or test build, so only release names the release
+/// store; `XDG_DATA_HOME` is not read. A relative path, one that spells a `.` or `..` component, or
+/// one longer than 1024 bytes or holding `:`, `$`, a backquote, a backslash, a quote or a control
+/// character, is refused.
 #[cfg(not(windows))]
-pub fn release_store_root(_env: impl Fn(&str) -> Option<OsString>) -> io::Result<PathBuf> {
-    Err(io::ErrorKind::Unsupported.into())
+pub fn release_store_root(env: impl Fn(&str) -> Option<OsString>) -> io::Result<PathBuf> {
+    let path = match env("ORCHBEE_INSTALL_DIR") {
+        Some(value) => PathBuf::from(value),
+        None => PathBuf::from(env("HOME").ok_or(io::ErrorKind::NotFound)?)
+            .join(".local")
+            .join("share")
+            .join(if crate::is_release() {
+                "orchbee"
+            } else {
+                crate::environment_stem()
+            }),
+    };
+    if !path.is_absolute()
+        || path.to_str().is_none_or(|s| {
+            s.len() > 1024
+                || s.contains([':', '$', '`', '\\', '"', '\''])
+                || s.chars().any(char::is_control)
+                || s.split('/').any(|part| matches!(part, "." | ".."))
+        })
+    {
+        return Err(io::ErrorKind::InvalidInput.into());
+    }
+    Ok(path)
 }
 
 /// The store's active version under the store's private admission: a missing root or pointer, or

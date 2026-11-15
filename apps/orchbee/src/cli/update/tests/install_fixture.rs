@@ -1,7 +1,7 @@
-//! Engine fixtures shared by the Windows install, update and channel tests: a private temporary
-//! root, a console-interrupt context, synthetic signed release directories, a probe command, and an
-//! in-process completion that never touches a user PATH.
-use super::super::{Context, Error, complete, install::Completion};
+//! Engine fixtures shared by the install, update and channel tests: a private temporary root, a
+//! console-interrupt context, synthetic signed release directories for this host's platform, a
+//! probe command, and an in-process completion that never touches a user PATH or a command link.
+use super::super::{Context, Error, complete, install::Completion, manifest::own_platform};
 use crate::{cli::console_interrupt::ArmedSignals, release_store::read_pointer};
 use orchbee_local_runtime::{CohortArtifact, PrivateCache};
 use orchbee_release_records::{Entry, Pointer};
@@ -109,7 +109,7 @@ pub(super) fn manifest(source: &Path, change: impl FnOnce(&mut Value)) -> Vec<u8
     let client = CohortArtifact::Client.file_name();
     let mut value = json!({
         "schemaVersion": 2, "product": "orchbee", "channel": "stable",
-        "platform": "windows-x86_64", "version": "0.1.0", "buildId": "test", "files": files,
+        "platform": own_platform(), "version": "0.1.0", "buildId": "test", "files": files,
         "components": [{"id": "client", "version": "0.1.0", "files": [client],
             "connections": {"client-server": {"generations": {"lowest": 1, "highest": 1}}}}],
     });
@@ -152,11 +152,21 @@ impl Fixture {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!(
+        let base = std::env::temp_dir();
+        // macOS reaches its temporary folder through the link `/var`, which the store refuses.
+        #[cfg(target_os = "macos")]
+        let base = base.canonicalize().unwrap();
+        let path = base.join(format!(
             "orchbee-release-test-{}-u{}-{nanos}",
             std::process::id(),
             NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
+        // A Unix temporary folder others may enter is no private parent to create below.
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            fs::DirBuilder::new().mode(0o700).create(&path).unwrap();
+        }
         PrivateCache::prepare(&path).unwrap();
         Self(path)
     }
@@ -203,8 +213,18 @@ pub(super) fn context() -> Context {
 
 /// Prints the staged Client's bytes, which this fixture writes as the Client's version line.
 pub(super) fn print_probe(client: &Path) -> Command {
-    let mut command = Command::new("cmd.exe");
-    command.args(["/d", "/c", "type"]).arg(client);
+    #[cfg(windows)]
+    let command = {
+        let mut command = Command::new("cmd.exe");
+        command.args(["/d", "/c", "type"]).arg(client);
+        command
+    };
+    #[cfg(not(windows))]
+    let command = {
+        let mut command = Command::new("/bin/cat");
+        command.arg(client);
+        command
+    };
     command
 }
 
@@ -233,6 +253,7 @@ pub(super) fn in_process_completion(
 }
 
 /// The unpack step of a run that must end before any archive is unpacked.
+#[cfg(windows)]
 pub(super) fn never_unpack(_unpacked: &Path, _context: &mut Context) -> Result<(), Error> {
     unreachable!("this run never unpacks an archive")
 }

@@ -163,7 +163,9 @@ pub(crate) fn test_temporary_directory() -> std::path::PathBuf {
     }
 }
 
-pub use cohort::{Cohort, CohortArtifact, CohortError, ObservationAdaptersSidecar};
+pub use cohort::{
+    Cohort, CohortArtifact, CohortError, ObservationAdaptersSidecar, current_executable,
+};
 #[cfg(windows)]
 pub use rendezvous::{
     CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME, SessionHolderObservation,
@@ -186,8 +188,14 @@ pub fn spawn_retained(
 ) -> std::io::Result<RetainedChild> {
     RetainedChild::spawn(executable, arguments)
 }
+#[cfg(unix)]
+mod session_path;
+#[cfg(unix)]
+pub use session_path::spawn_session_server;
 
 mod command_child;
+#[cfg(unix)]
+pub use command_child::run_unix_command;
 pub use command_child::{CommandChild, CommandSpawnFailure};
 #[cfg(windows)]
 pub use command_child::{
