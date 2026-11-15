@@ -12,6 +12,8 @@ import styles from './DesktopPanel.module.css';
  * focus lies under the product's focus scrim. A layout sizes it; a column that carries
  * `data-panel-column` and lacks `data-open` holds the Tab's only Panel in the mini and phone
  * layouts, which then shows no header. `bind` names the scene values script writes into it.
+ * `leaf` is the Panel's id when a PanelTree draws it: the Panel then follows the PanelTree's leaf
+ * contract, hides its header while `alone`, and its Close button closes it.
  */
 export function DesktopPanel({
 	title,
@@ -19,15 +21,24 @@ export function DesktopPanel({
 	focus = false,
 	rows,
 	bind,
+	leaf,
+	alone = false,
 }: {
 	title: string;
 	state?: AgentState;
 	focus?: boolean;
 	rows: readonly TerminalRow[];
 	bind?: { readonly state?: string; readonly title?: string; readonly rows?: string };
+	leaf?: number;
+	alone?: boolean;
 }): ReactElement {
 	return (
-		<div className={focus ? styles['focusedPanel'] : styles['panel']}>
+		<div
+			className={styles['panel']}
+			data-focus={focus ? '' : undefined}
+			data-leaf={leaf}
+			data-alone={alone ? '' : undefined}
+		>
 			<header className={styles['header']}>
 				<span
 					className={state === undefined ? styles['titleGroup'] : styles['titleGroupWithGlyph']}
@@ -43,7 +54,7 @@ export function DesktopPanel({
 					<span className={styles['action']}>
 						<Codicon name='ellipsis' />
 					</span>
-					<span className={styles['action']}>
+					<span className={styles['action']} data-panel-close={leaf === undefined ? undefined : ''}>
 						<Codicon name='close' />
 					</span>
 				</span>

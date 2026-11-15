@@ -22,6 +22,15 @@
 .windowWithSidebar {
 	grid-template-columns: var(--ob-ref-length-website-250) minmax(0, 1fr);
 }
+.window[data-size='play'] {
+	width: var(--ob-ref-length-website-820);
+	height: var(--ob-ref-length-website-500);
+	zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-820))), 1.3);
+}
+/* A window the visitor works takes focus as a whole and shows the ring on its own edge. */
+:global([data-panel-host]:focus-visible) .window {
+	box-shadow: var(--ob-sys-shadow-website-window-focus);
+}
 .window *,
 .windowWithSidebar * {
 	min-width: 0;
@@ -79,5 +88,12 @@
 	}
 	[data-size='mini'] > .sidebar {
 		display: none;
+	}
+}
+@container window-fit (max-width: 40rem) {
+	.window[data-size='play'] {
+		width: var(--ob-ref-length-website-430);
+		height: var(--ob-ref-length-website-460);
+		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-430))), 1.3);
 	}
 }

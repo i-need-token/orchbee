@@ -4,7 +4,9 @@ import type { PanelAction, PanelDirection } from '../panel-tree/panel-tree';
 // product binds to them (as the key caps show them), and how a key press maps to an action. The
 // keys are the product's defaults: the terminal interface's after its prefix, Ctrl+b
 // (apps/orchbee/crates/workbench-client/src/client_view/bindings.rs), and the desktop
-// application's shortcuts.
+// application's shortcuts on Windows (apps/web/src/workbench/utils/workbench-shortcuts.ts). The
+// desktop application closes a Panel with Ctrl+Shift+W, which browsers keep for closing their own
+// window, so that action is offered only as a button.
 
 export type PanelPlayClient = 'terminal' | 'desktop';
 

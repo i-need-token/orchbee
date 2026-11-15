@@ -1,0 +1,19 @@
+/* Panels stand 1 px apart on the product's split divider: its border color on the canvas. */
+.panels {
+	display: flex;
+	min-height: 0;
+	background: var(--ob-sys-color-surface-canvas);
+}
+.panels [data-split] > [data-divider] {
+	background-color: var(--ob-sys-color-surface-canvas);
+	background-image: linear-gradient(
+		var(--ob-sys-color-border-default),
+		var(--ob-sys-color-border-default)
+	);
+}
+.panels [data-split][data-axis='row'] > [data-divider] {
+	width: var(--ob-ref-border-width-default);
+}
+.panels [data-split][data-axis='column'] > [data-divider] {
+	height: var(--ob-ref-border-width-default);
+}

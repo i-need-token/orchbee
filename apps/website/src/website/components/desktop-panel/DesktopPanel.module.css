@@ -1,5 +1,4 @@
-.panel,
-.focusedPanel {
+.panel {
 	position: relative;
 	display: flex;
 	flex: 1;
@@ -10,7 +9,7 @@
 	background: var(--ob-sys-color-surface-canvas);
 }
 /* A Panel without focus lies under the product's focus scrim. */
-.panel::after {
+.panel:not([data-focus])::after {
 	position: absolute;
 	inset: 0;
 	z-index: var(--ob-ref-layer-raised);
@@ -69,6 +68,9 @@
 	color: var(--ob-sys-color-icon-muted);
 }
 /* A Tab with a single Panel shows no Panel header. */
+.panel[data-alone] > .header {
+	display: none;
+}
 @container window-fit (max-width: 48rem) {
 	[data-size='full'] [data-panel-column]:not([data-open]) .header {
 		display: none;
