@@ -1,7 +1,17 @@
 import { DESKTOP_WINDOW_CAPTION_WINDOW_MESSAGE } from '@orchbee/desktop-client-protocol';
 
-/** The caption buttons' symbols read as the page's own primary icons in every theme. */
-const CAPTION_SYMBOL_TOKEN = '--ob-sys-color-icon-primary';
+/**
+ * The caption buttons' symbols read as the top bar's own icons, such as the new Tab button's, in
+ * every theme.
+ */
+const CAPTION_SYMBOL_TOKEN = '--ob-sys-color-icon-secondary';
+/**
+ * Both top bars paint this canvas color with CAPTION_OVERLAY_TOKEN's layer over it, so the surface
+ * under the caption buttons is the canvas with that overlay on top.
+ */
+const CAPTION_SURFACE_TOKEN = '--ob-sys-color-surface-canvas';
+/** The translucent layer both top bars paint over the canvas color. */
+const CAPTION_OVERLAY_TOKEN = '--ob-sys-color-surface-subtle';
 /** The attributes that select the document's theme: its polarity and its named color theme. */
 const THEME_ATTRIBUTES = ['data-theme', 'data-color-theme'];
 /** A canvas keeps its previous fill when it cannot parse a color, so this fill marks a failed parse. */
@@ -12,22 +22,45 @@ function hexByte(value: number): string {
 }
 
 /**
- * The symbol token's color under the document's current theme as opaque `#rrggbb`, or null when the
- * canvas cannot parse it. Tokens may be `oklch()` or `color-mix()`, which the caption's color parser
- * does not read, so the canvas converts them to sRGB; a translucent token keeps only its hue.
+ * The token's CSS color under the document's current theme, or null when the canvas cannot
+ * parse it. Tokens may be `oklch()` or `color-mix()`, which the caption's color parser does not
+ * read, so the canvas converts them to sRGB when it paints them.
+ */
+function resolveTokenFill(
+	targetWindow: Window,
+	context: CanvasRenderingContext2D,
+	token: string,
+): string | null {
+	const value = targetWindow
+		.getComputedStyle(targetWindow.document.documentElement)
+		.getPropertyValue(token)
+		.trim();
+	context.fillStyle = UNPARSED_FILL;
+	context.fillStyle = value;
+	if (value === '' || context.fillStyle === UNPARSED_FILL) return null;
+	return value;
+}
+
+/**
+ * The symbol token's color as it reads over the top bar, as opaque `#rrggbb`, or null when the
+ * canvas cannot parse one of the three tokens. Both top bars paint the surface token's canvas color
+ * with the overlay token's layer over it, so the symbol color is painted over that base. The canvas
+ * color is opaque, so the result is opaque even when the symbol token is translucent.
  */
 function resolveSymbolColor(
 	targetWindow: Window,
 	context: CanvasRenderingContext2D,
 ): string | null {
-	const value = targetWindow
-		.getComputedStyle(targetWindow.document.documentElement)
-		.getPropertyValue(CAPTION_SYMBOL_TOKEN)
-		.trim();
-	context.fillStyle = UNPARSED_FILL;
-	context.fillStyle = value;
-	if (value === '' || context.fillStyle === UNPARSED_FILL) return null;
+	const surface = resolveTokenFill(targetWindow, context, CAPTION_SURFACE_TOKEN);
+	const overlay = resolveTokenFill(targetWindow, context, CAPTION_OVERLAY_TOKEN);
+	const symbol = resolveTokenFill(targetWindow, context, CAPTION_SYMBOL_TOKEN);
+	if (surface === null || overlay === null || symbol === null) return null;
 	context.clearRect(0, 0, 1, 1);
+	context.fillStyle = surface;
+	context.fillRect(0, 0, 1, 1);
+	context.fillStyle = overlay;
+	context.fillRect(0, 0, 1, 1);
+	context.fillStyle = symbol;
 	context.fillRect(0, 0, 1, 1);
 	const [red, green, blue] = context.getImageData(0, 0, 1, 1).data;
 	if (red === undefined || green === undefined || blue === undefined) return null;
