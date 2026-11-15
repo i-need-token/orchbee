@@ -464,23 +464,36 @@ Worker take over the terminals of a running Host, and both cases that need it sh
 | A Worker loss while Server, Clients, and Host live      | The running Server, at once, inside a restart cap | The Server's memory        | P1a   |
 | [Server and Worker restart](#server-and-worker-restart) | The active version's Server, beside the old pair  | The durable binding record | P1b   |
 
-1. **Session record.** One new transition: the previous Worker is seen gone, its slot returns to
-   spawning, and the Host stays identified. Today a slot is reserved only when not started and a
-   recorded Host needs an identified Worker, so this changes a persisted-record rule. The record's
-   shape stays if possible, and the Session record's TLA+ model gains the transition while keeping
-   its existing properties.
+1. **Session record.** One new transition, taken only by the recorded Server under the Session's
+   writer lock, returns the Worker slot to spawning once the recorded Worker is proven gone through
+   the Server's own handle to it, or once a failed replacement is known to have left no process. The
+   Host slot keeps its registration, identified or not started; a Host still spawning blocks the
+   transition. The existing create-suspended, identify, publish, and resume steps follow unchanged,
+   so a crash at any point leaves only states the record already classifies. The record keeps its
+   shape and version 1. Only its parse rule changes, from "a recorded Host needs an identified
+   Worker" to "a spawning Host needs an identified Worker, and an identified Host needs a registered
+   one", so an older reader refuses the new combination instead of misreading it, as
+   [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) allows before the first
+   automatic-update release.
 2. **Server.** It admits exactly one replacement Worker per Session at a time and rebinds every
    binding to the new Worker generation: coordinator, viewer routes, titles, Agent carriers and
    observers, and authorizations. The Worker registry already keys everything by generation, so an
-   older Worker never clears a newer one.
-3. **Request.** One additive Server–Worker request on the capability-node connection carries the
-   bindings to the new Worker, with its capability name, codec, and fixtures.
+   older Worker never clears a newer one. A replacement keeps the Session's Worker id, which every
+   binding, Directory, title, and attach request names and every terminal's environment carries as
+   `ORCHBEE_WORKER_ID`; only its generation is new. The Server passes that id to the replacement it
+   starts and admits only that id from the process it recorded.
+3. **Request.** One additive Server–Worker request on the capability-node connection, `AdoptHost`,
+   carries the bindings to the new Worker, with its codec and golden fixtures. OBCN is exact between
+   one installation's Server and Worker and [never freezes](#what-stays-exact), so the request takes
+   the next two unused kinds and no capability name. No Host request or `worker-host` capability
+   changes.
 4. **Worker.** In adopt mode it dials the Host's recorded endpoint instead of refusing it, verifies
-   the Host by recorded process id and creation time, user, environment, and Host epoch, negotiates
-   `worker-host`, pages the inventory with `ListTerminals`, and imports each terminal that matches a
-   binding through one kernel import transition. A terminal it cannot match enters
-   `RecoveryRequired` quarantine and is never guessed at, deleted, or sent input. It holds a handle
-   to the Host process, because Stop waits on it.
+   the Host by recorded process id and creation time, the endpoint's server process, user,
+   environment, and Host epoch, negotiates `worker-host`, pages the inventory with `ListTerminals`,
+   and imports each terminal that matches a binding through one kernel import transition. A terminal
+   it cannot match enters `RecoveryRequired` quarantine and is never guessed at, deleted, or sent
+   input. It holds a handle to the Host process, because Stop waits on it. It never trusts a parent
+   process id: an orphaned Host keeps the ended Worker's.
 5. **Clients.** Each affected terminal shows a short Reconnecting state and returns with its screen,
    scrollback, and running program; Clients reattach on their own. Input during the gap is refused,
    never replayed.
@@ -502,20 +515,158 @@ Decided by the product owner on 2026-11-14 for a Worker loss:
 - The design holds for any Worker death, including one caused by data the Host sends back; the cap
   is what ends a loop.
 
-P1a's decision run settles, starting from the 2026-11-14 recovery research: the record transition
-and its model; the request's members; the cap's count and window and what counts as a failure, for
-which the research suggested 3 in 10 minutes; what each operation in flight at the loss does — a
-Close, input, an Agent drain, viewer leases, a Tab being created, a stop — and how a confirmed stop
-meets a replacement in progress; the adopt mode's failure paths; Client states and copy in both
-locales; the `worker-lost` diagnostic with its exit status and replacement and adoption counts,
-never user content; and the evidence, a native Windows trace that ends a test-owned Worker by
-process id and checks that the program keeps running, its output continues, nothing is replayed,
-the cap holds, and a confirmed stop ends the Host and a restart restores the layout.
+### Worker loss
 
-P1b adds what a restart needs beyond the core: the check, the standby Server, each hand-over with
-its way back, the durable binding record of the restart's second step, a newer Worker adopting an
-older Host inside the `worker-host` window, and the old Worker adopting back a Host it released.
-`drain` and `exit` are built.
+Decided on 2026-11-15 for P1a, from the 2026-11-14 recovery research. The product owner may veto
+the picks named at the end of this section.
+
+**Loss.** The Server sees a loss when its Worker connection ends. It also sees one when a Worker
+that missed a reply's response window sends no late reply within one more window, while the restart
+cap still allows an attempt; otherwise the existing unbounded hold stays, because ending that Worker
+could only give up. The Server then proves the Worker gone through its own handle: it waits up to 2
+seconds for the exit status, ends a process still running through that handle, and waits up to 5
+more seconds. Only the first loss report for a generation counts.
+
+At a loss the Server takes the first action that applies:
+
+| Condition                                  | Action                                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| A stop is admitted                         | The stop goes on without a Worker, as in **Stop** below                                     |
+| The Worker cannot be proven gone           | Give up                                                                                     |
+| The Host is proven gone, or still spawning | The Server stops itself, as today when the Host is gone; the next start restores the layout |
+| The restart cap allows no attempt          | Give up                                                                                     |
+| Otherwise                                  | Replace the Worker                                                                          |
+
+A Host still spawning never ran, because a child resumes only after its identity is published, so
+it counts as gone. The restart cap allows 3 replacement attempts in any trailing 10 minutes of one
+Server process. An attempt counts when it starts; a creation or admission failure, an adoption
+failure, or a loss before the replacement serves ends it as a failure. Attempts run one at a time,
+the first at once and each later one a second after the previous failure. Giving up lasts until the
+Session stops; a Host that ends meanwhile makes the Server stop itself, as today.
+
+**Replacement.** The Server takes the record transition, starts the replacement with the Session's
+Worker id, admits it inside the existing 20-second admission deadline, and sends `AdoptHost` as its
+first request, which must be answered inside one response window. Until then the replacement
+refuses every terminal request as Worker-unavailable. With no Host recorded it adopts nothing and
+starts a Host on the next launch, as today. Once it adopts, the Server rebinds each imported
+binding, restarts title reads, the Agent drain, and process observation on the new generation, and
+moves checkpoints to it. `query`, and with it `status server`, lists no Worker while none serves and
+the replacement once it serves, where today it keeps listing a lost Worker as ready. Viewers of the
+lost generation are already closed, so Clients reattach.
+
+**`AdoptHost`.** The request names the adoption, the Worker id and generation, and the recorded
+Host by process id, creation time, and Host epoch, or no Host. It carries, in pages of at most 256
+bindings that the Worker applies together after the last page, each binding awaiting start or
+started: its terminal id, its Host terminal identity, the highest fence the Server issued for it,
+and a Close in flight with its operation id, highest attempt and step, and whether a step's effect
+is unknown. A binding whose launch or start outcome is unknown is never sent. The result counts the
+imported, quarantined, and missing terminals and lists the missing terminal ids, or names one
+failure: `host-gone`, `host-unreachable`, `host-unverified`, `host-mismatch`, `host-refused`, or
+`inventory-failed`.
+
+**Adopt mode.** The Worker opens the Host process by its recorded id, compares its creation time,
+and keeps the handle; dials the endpoint and requires its server process to be that Host; offers
+the handshake, retrying `capacity` for up to 5 seconds while the Host releases the lost Worker's
+session; requires the accepted Host epoch to match; and pages `ListTerminals`, starting again if
+the inventory changes. One kernel import transition then applies the whole result:
+
+- Each matched binding is imported with its Host identity, its fence as a floor that refuses every
+  request at or below it, and its Close's receipts, so a resend of a step the lost Worker may have
+  run is refused and only a later attempt is accepted.
+- A Host terminal that matches no binding is quarantined: never addressed, attached, sent input, or
+  deleted; it ends with the Host.
+- A binding missing from the complete inventory is reported missing. The Server completes its Close
+  as disposed, or ends the terminal with an unknown exit.
+- A terminal whose program exited during the gap is imported as exited and follows the ordinary exit
+  path.
+
+`host-gone` makes the Server stop itself, as above. `host-unverified`, `host-mismatch`, and
+`host-refused` give up at once; the other failures count against the cap.
+
+**In flight at the loss.**
+
+| Operation                                               | Outcome                                                                                                                                 |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Input                                                   | Fails as not delivered, or as unknown when it may have reached the Host; refused until the replacement serves; never queued or replayed |
+| Viewer leases and controllers                           | Released with the lost Worker; Clients reattach once the replacement serves                                                             |
+| A Close with no step outstanding                        | Waits as Worker-unavailable inside its existing budget and continues on the replacement, or stays resumable as today                    |
+| A Close with a step outstanding                         | Parks as unknown and continues only through a later attempt, because the replacement refuses the step's resend                          |
+| An Agent drain                                          | Fails; the replacement's drain starts fresh and treats signals lost in the gap as an overflow gap                                       |
+| A Tab being created                                     | An undelivered launch fails `unavailable` and rolls back; a delivered one stays unknown, and its Host terminal is quarantined           |
+| A launch, split, or Server job submitted during the gap | Refused or failed as Worker-unavailable under its existing rule; none is replayed                                                       |
+
+**Stop.** A stop admitted during a replacement ends the replacement through the Server's handle at
+the next step boundary and goes on without a Worker; `exit` to the Server ends the replacement and
+leaves the Host. Without a Worker, a stop verifies the Host by recorded process id and creation
+time, connects to its endpoint, requires the endpoint's server process to be that Host, sends it
+`exit`, and waits for the process to end inside the stop's existing 60-second attempt. A Host
+already gone, or still spawning, counts as gone. If `exit` fails, the stop fails at `host-exit` and
+may be retried; it never ends a Host by force. No replacement starts once a stop is admitted, and
+stops that arrive together share the one admitted attempt, as today.
+
+**Clients.** A Session read, `workbench.terminal-runtime`, built like the
+[Session Agent catalog read](../../schemas/workbench/README.md#session-agent-catalog-reads), states
+`serving`, `reconnecting`, or `given-up` in its State stream, under the `client-server` capability
+`terminal-runtime`. A Client without it keeps today's behavior, and its Retry now succeeds after a
+replacement.
+
+- While reconnecting, every terminal shows Reconnecting, and keys typed meanwhile are dropped, never
+  sent; the window pauses its own retries.
+- On serving, every Client reattaches each shown terminal at once, the TUI under a fresh recovery
+  deadline, and reopens closed Agent streams. Nothing announces the return.
+- On giving up, every terminal shows Can't reconnect. The window puts the explanation in the
+  description and replaces Retry with Quit All…, which opens the existing Quit All confirmation. The
+  TUI shows the explanation as its status notice, and Exit still leaves the view.
+- Quarantined terminals appear nowhere, and no confirmation counts them.
+- The release CLI's stop prompt adds the terminal count from `query`, ahead of the existing request
+  to type the Session name.
+
+| Text                           | `en-US`                                                                                                                                                 | `zh-CN`                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Reconnecting state             | Reconnecting…                                                                                                                                           | 正在重新连接…                                                                                                     |
+| Its description                | Orchbee lost contact with its terminals and is reconnecting. Programs keep running; anything you type until then isn't sent.                            | Orchbee 与终端失去联系，正在重新连接。程序会继续运行；在此之前输入的内容不会发送。                                |
+| Given-up state                 | Can't reconnect                                                                                                                                         | 无法重新连接                                                                                                      |
+| Its description, window        | Programs keep running, but Orchbee can't reach them. Quit All stops them; the next start reopens your layout.                                           | 程序仍在运行，但 Orchbee 无法连接它们。“全部退出”会停止这些程序，下次启动时恢复布局。                             |
+| Its description, TUI           | Programs keep running, but Orchbee can't reach them. To stop them, leave with {detach} and run orchbee server stop; the next start reopens your layout. | 程序仍在运行，但 Orchbee 无法连接它们。如需停止，按 {detach} 离开后运行 orchbee server stop，下次启动时恢复布局。 |
+| Window button, existing        | Quit All…                                                                                                                                               | 全部退出…                                                                                                         |
+| CLI stop prompt, one           | This stops Session {name} and its 1 terminal.                                                                                                           | 这会停止会话 {name} 及其中的 1 个终端。                                                                           |
+| CLI stop prompt, several       | This stops Session {name} and its {count} terminals.                                                                                                    | 这会停止会话 {name} 及其中的 {count} 个终端。                                                                     |
+| CLI stop prompt, count unknown | This stops Session {name} and every terminal in it.                                                                                                     | 这会停止会话 {name} 及其中的所有终端。                                                                            |
+
+The TUI keeps its `{label} ·` prefix before a state, and a Session with no terminal keeps today's
+CLI prompt.
+
+**Diagnostics.** The Server's daily log records `worker-lost` and `worker-replaced`, with tokens,
+counts, and flags only, never terminal content, a path, or an error's text:
+
+- `worker-lost`: the generation; the cause, `exited` or `unresponsive`; the exit status when known;
+  the attempts in the cap's window; the action, `replace`, `stop`, or `give-up`; and for the last
+  two the reason, `stop-admitted`, `worker-not-gone`, `host-gone`, `host-spawning`, or
+  `cap-reached`.
+- `worker-replaced`: the generation; the outcome, `adopted` or `failed`; for a failure the stage,
+  `create`, `admit`, or `adopt`, the `AdoptHost` failure or `timed-out`, and the action that
+  follows, `retry`, `stop`, or `give-up`; the imported, quarantined, and missing counts; and the
+  elapsed milliseconds.
+
+**Models.** `SessionCrashRecovery` gains Worker incarnations, the replacement, and an admitted stop:
+each role still has at most one live process across generations and incarnations, only the current
+Worker incarnation runs, a replacement leaves the Host's registration alone, and a stopped Session
+runs no Worker or Host. `LocalSessionStartup` drops its one-Worker assumption with a replacement
+that leaves the Host and its dispatch alone and never acts on a dispatch made to the lost Worker.
+`LocalTerminalCoordinator` moves a binding to a newer Worker generation only through that
+generation's import, never an unknown one. Each change carries one mutant that drops its guard.
+
+The owner may veto these picks: the cap of 3 attempts in 10 minutes; keeping the Worker id; the
+bounded hold after a missed reply; no retry once given up, with Quit All… in its place; no notice on
+return; quarantined terminals left uncounted; a stop that never ends a Host by force; and the count
+in the CLI prompt.
+
+P1b reuses the adopt mode, `AdoptHost` and the kernel import, quarantine, rebinding, the
+`terminal-runtime` read and its copy, the diagnostics, and the stop without a Worker. It adds the
+check, the standby Server, each hand-over with its way back, the durable binding record that
+supplies bindings in place of the Server's memory, the record rules for a second Server, a newer
+Worker adopting an older Host inside the `worker-host` window, and the old Worker adopting back a
+Host it released. `drain` and `exit` are built.
 
 ## Host lifetime
 
@@ -713,8 +864,16 @@ terminal; P1a starts at the same time.
 
 P1 starts only after a Windows check shows that a Host and its running terminal processes survive
 Server and Worker exit, in Sessions started by the CLI and by Desktop. The check ends Server and
-Worker by means other than explicit Session stop, which disposes every terminal today. P1 also
-closes two current gaps: a Worker cannot adopt a running Host
+Worker by means other than explicit Session stop, which disposes every terminal today. That check
+passed on 2026-11-15 in all four cases: ending the Worker, or the Server, by process id left the
+Host and its running program alive in Sessions started by either. It also found that nothing
+restarts a Worker, that `status server` keeps listing a lost Worker as ready, and that an orphaned
+Host keeps the ended Worker's process id as its parent. P1a's own trace confirms what that check
+did not: the Host keeps reading a program's output with no Worker attached, releases the lost
+Worker's session at once, keeps its Host epoch, and accepts a new Worker's offer; `ListTerminals`
+then lists each terminal with its identity, and an attach restores its screen and scrollback;
+ending a Worker that stopped reading releases a Host blocked writing to it; and `exit` with no
+Worker attached ends the Host and every terminal's process tree. P1 also closes two current gaps: a Worker cannot adopt a running Host
 ([Worker](../../apps/orchbee-worker/README.md#managed-linux-lazy-host-startup)), and Server has no
 transactional binding record.
 
@@ -725,10 +884,16 @@ transactional binding record.
   message naming the older side; a Client of another environment that reaches a Session through
   explicit runtime variables is refused; `query` reports every process's version; `orchbee update`
   installs only a manifest whose signature verifies with a compiled key.
-- **P1a**, on real Windows: a test-owned Worker ended by process id is replaced inside the restart
-  cap; the program in a terminal keeps running, its output continues, nothing is replayed, and
-  Clients come back by themselves. Past the cap, a confirmed stop ends the Host, and the next start
-  restores the layout.
+- **P1a**, on real Windows, in a test-owned Session under a scratch home: ending its Worker by
+  process id brings every terminal back by itself within seconds, with the same program process
+  still running and the output it printed during the gap on screen; keys typed during the gap never
+  reach the program, and the TUI and the window show Reconnecting meanwhile. A fourth loss inside 10
+  minutes leaves Can't reconnect with the programs running; a confirmed stop then ends the Host and
+  every program, and the next start restores the layout. A stop admitted during a replacement leaves
+  no Worker or Host behind. `SessionCrashRecovery`, `LocalSessionStartup`, and
+  `LocalTerminalCoordinator` pass with their new mutants caught, and rule tests cover the record
+  transition's guards, the kernel import's fence floor and quarantine, the `AdoptHost` codec, and
+  the Server's cap and stop precedence.
 - **P1b and P1c**, on real Windows: with Claude Code or a long-running script in a terminal,
   upgrading Client, Server, and Worker keeps the process running and its output continuous, TUI and
   Desktop reconnect by themselves, and no input is replayed. Desktop and CLI of different versions
