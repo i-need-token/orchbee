@@ -1,8 +1,8 @@
 import { useOrchbeeIntl, websiteShellMessages as messages } from '@orchbee/i18n';
 import { useId, type ReactElement, type ReactNode } from 'react';
 
-import { joinClassNames } from '../../joinClassNames';
 import { richText } from '../../rich-text';
+import { DetailDuo } from '../detail-duo/DetailDuo';
 import { KeyCaps } from '../key-caps/KeyCaps';
 import { Kicker } from '../kicker/Kicker';
 import { WindowFit } from '../window-fit/WindowFit';
@@ -62,51 +62,55 @@ export function PanelPlay({
 			</>
 		);
 	return (
-		<section className={styles['section']} data-reveal=''>
-			<div
-				className={joinClassNames(styles['duo'], flip && styles['flip'])}
-				data-panel-play={client}
-			>
-				<div className={styles['text']}>
-					<Kicker>{kicker}</Kicker>
-					<h2 className={styles['title']}>{title}</h2>
-					<p className={styles['lead']}>{lead}</p>
-					<div className={styles['chips']} data-panel-chips='' hidden>
-						{actions.map((act) => {
-							const key = keys[act];
-							return (
-								<button key={act} className={styles['chip']} type='button' data-panel-act={act}>
-									{key === undefined ? null : <KeyCaps keys={key} size='small' />}
-									<span>{t(ACTION_LABELS[act])}</span>
-								</button>
-							);
-						})}
+		<div data-panel-play={client}>
+			<DetailDuo
+				flip={flip}
+				text={
+					<>
+						<Kicker>{kicker}</Kicker>
+						<h2 className={styles['title']}>{title}</h2>
+						<p className={styles['lead']}>{lead}</p>
+						<div className={styles['chips']} data-panel-chips='' hidden>
+							{actions.map((act) => {
+								const key = keys[act];
+								return (
+									<button key={act} className={styles['chip']} type='button' data-panel-act={act}>
+										{key === undefined ? null : <KeyCaps keys={key} size='small' />}
+										<span>{t(ACTION_LABELS[act])}</span>
+									</button>
+								);
+							})}
+						</div>
+						<p className={styles['hint']} data-panel-hint='' aria-live='polite' hidden />
+						<template data-panel-strings=''>
+							<span data-key='label'>{t(messages.panelPlayLabel)}</span>
+							<span data-key='idle'>{t(messages.panelPlayIdle)}</span>
+							{prefix ? (
+								<span data-key='prefix'>{t(messages.panelPlayPrefix, richText)}</span>
+							) : null}
+							{Object.entries(REFUSALS).map(([reason, message]) => (
+								<span key={reason} data-key={reason}>
+									{t(message)}
+								</span>
+							))}
+							{actions.map((act) => (
+								<span key={act} data-key={`act:${act}`}>
+									{notice(keys[act], t(ACTION_LABELS[act]))}
+								</span>
+							))}
+							<span data-key='act:resize'>{notice(resize, t(messages.panelPlayResize))}</span>
+						</template>
+					</>
+				}
+				figure={
+					<div className={styles['host']} data-panel-host='' aria-describedby={helpId}>
+						<WindowFit>{window}</WindowFit>
+						<span id={helpId} hidden>
+							{t(messages.panelPlayHelp)}
+						</span>
 					</div>
-					<p className={styles['hint']} data-panel-hint='' aria-live='polite' hidden />
-					<template data-panel-strings=''>
-						<span data-key='label'>{t(messages.panelPlayLabel)}</span>
-						<span data-key='idle'>{t(messages.panelPlayIdle)}</span>
-						{prefix ? <span data-key='prefix'>{t(messages.panelPlayPrefix, richText)}</span> : null}
-						{Object.entries(REFUSALS).map(([reason, message]) => (
-							<span key={reason} data-key={reason}>
-								{t(message)}
-							</span>
-						))}
-						{actions.map((act) => (
-							<span key={act} data-key={`act:${act}`}>
-								{notice(keys[act], t(ACTION_LABELS[act]))}
-							</span>
-						))}
-						<span data-key='act:resize'>{notice(resize, t(messages.panelPlayResize))}</span>
-					</template>
-				</div>
-				<div className={styles['host']} data-panel-host='' aria-describedby={helpId}>
-					<WindowFit>{window}</WindowFit>
-					<span id={helpId} hidden>
-						{t(messages.panelPlayHelp)}
-					</span>
-				</div>
-			</div>
-		</section>
+				}
+			/>
+		</div>
 	);
 }

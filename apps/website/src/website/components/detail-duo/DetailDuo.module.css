@@ -1,5 +1,5 @@
 .section {
-	composes: detailSection from '../../../page-shell/PageShell.module.css';
+	composes: detailSection from '../page-shell/PageShell.module.css';
 }
 .duo,
 .flip {
@@ -8,8 +8,12 @@
 	gap: var(--ob-ref-length-website-56);
 	align-items: center;
 }
+/* The figure comes first beside the text, and after it in one column. */
 .flip {
 	grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+}
+.flip > .text {
+	order: 2;
 }
 @media (max-width: 64rem) {
 	.duo,
@@ -17,7 +21,7 @@
 		grid-template-columns: minmax(0, 1fr);
 		gap: var(--ob-ref-length-website-32);
 	}
-	.flip > :first-child {
-		order: 2;
+	.flip > .text {
+		order: 0;
 	}
 }

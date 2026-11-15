@@ -2,7 +2,7 @@ import { useOrchbeeIntl, websiteDesktopMessages as messages } from '@orchbee/i18
 import type { ReactElement } from 'react';
 
 import { Kicker } from '../../../kicker/Kicker';
-import { DetailDuo } from '../detail-duo/DetailDuo';
+import { DetailDuo } from '../../../detail-duo/DetailDuo';
 import { OptionSwitch } from '../option-switch/OptionSwitch';
 import styles from './DesktopRendering.module.css';
 
@@ -18,7 +18,21 @@ export function DesktopRendering(): ReactElement {
 	return (
 		<DetailDuo
 			flip
-			first={
+			text={
+				<>
+					<Kicker>{t(messages.renderingKicker)}</Kicker>
+					<h2 className={styles['title']}>{t(messages.renderingTitle)}</h2>
+					<p className={styles['paragraph']}>{t(messages.renderingBody)}</p>
+					<ul className={styles['facts']}>
+						<li>WebGPU</li>
+						<li>{t(messages.factCanvas)}</li>
+						<li>{t(messages.factColor)}</li>
+						<li>{t(messages.factKitty)}</li>
+						<li>{t(messages.factHistory)}</li>
+					</ul>
+				</>
+			}
+			figure={
 				<div data-desktop-rendering=''>
 					<div className={styles['sample']} data-ligature-sample=''>
 						{SAMPLE}
@@ -33,20 +47,6 @@ export function DesktopRendering(): ReactElement {
 						pressed='on'
 					/>
 				</div>
-			}
-			second={
-				<>
-					<Kicker>{t(messages.renderingKicker)}</Kicker>
-					<h2 className={styles['title']}>{t(messages.renderingTitle)}</h2>
-					<p className={styles['paragraph']}>{t(messages.renderingBody)}</p>
-					<ul className={styles['facts']}>
-						<li>WebGPU</li>
-						<li>{t(messages.factCanvas)}</li>
-						<li>{t(messages.factColor)}</li>
-						<li>{t(messages.factKitty)}</li>
-						<li>{t(messages.factHistory)}</li>
-					</ul>
-				</>
 			}
 		/>
 	);

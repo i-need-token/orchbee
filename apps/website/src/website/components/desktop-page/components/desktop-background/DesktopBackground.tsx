@@ -6,7 +6,7 @@ import {
 import type { ReactElement } from 'react';
 
 import { Kicker } from '../../../kicker/Kicker';
-import { DetailDuo } from '../detail-duo/DetailDuo';
+import { DetailDuo } from '../../../detail-duo/DetailDuo';
 import styles from './DesktopBackground.module.css';
 
 // What the figure shows: three terminals still running after the window closed, one Agent waiting
@@ -41,7 +41,7 @@ export function DesktopBackground(): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	return (
 		<DetailDuo
-			first={
+			text={
 				<>
 					<Kicker>{t(messages.backgroundKicker)}</Kicker>
 					<h2 className={styles['title']}>{t(messages.backgroundTitle)}</h2>
@@ -49,7 +49,7 @@ export function DesktopBackground(): ReactElement {
 					<p className={styles['paragraph']}>{t(messages.backgroundQuitAll)}</p>
 				</>
 			}
-			second={
+			figure={
 				<div className={styles['figure']} role='img' aria-label={t(messages.trayFigureLabel)}>
 					<p className={styles['label']}>{t(messages.trayWhenClosed)}</p>
 					<div className={styles['notice']}>
