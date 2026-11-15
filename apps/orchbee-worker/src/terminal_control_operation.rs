@@ -46,7 +46,7 @@ pub(crate) fn execute(
         match apply(&request, host, server) {
             Ok(outcome) => outcome,
             Err(error) if NotStarted::is(error.as_ref()) => not_started(&request.action),
-            Err(error) => contain(error, host, server, request.viewer_id)?,
+            Err(error) => contain(error, host, server, &request)?,
         }
     };
     Ok(TerminalControlResult {
@@ -76,16 +76,32 @@ const fn not_started(action: &Action) -> Outcome {
 /// An unexpected answer refuses this request and releases its viewer's controller, so a Client
 /// that wants control again acquires it anew and nothing is replayed; every other failure still
 /// ends the connection.
+///
+/// A request made under a held grant answers `NotController`, which for such a request always
+/// means this Worker holds no grant for it, so the Server drops its lease too; every
+/// `HostRejected` such a request receives leaves the grant in place. A refused Acquire or
+/// Takeover never installed a lease and keeps its `HostRejected`. Release, Clear and Reset never
+/// meet an unexpected answer here.
 fn contain(
     error: Box<dyn Error>,
     host: &HostBrokerConnection,
     server: &UnixStream,
-    viewer: OperationId,
+    request: &TerminalControlRequest,
 ) -> Result<Outcome, Box<dyn Error>> {
     let answer = error.downcast::<UnexpectedAnswer>()?;
     diagnostic_events::host_unexpected(Site::Control, answer.kind);
-    release_viewer(host, server, viewer)?;
-    Ok(Outcome::Rejected(Rejection::HostRejected))
+    release_viewer(host, server, request.viewer_id)?;
+    Ok(Outcome::Rejected(match request.action {
+        Action::Acquire | Action::Takeover { .. } => Rejection::HostRejected,
+        Action::Input { .. }
+        | Action::SemanticInput { .. }
+        | Action::Resize { .. }
+        | Action::Paste { .. }
+        | Action::HostColors { .. }
+        | Action::Release
+        | Action::Clear
+        | Action::Reset => Rejection::NotController,
+    }))
 }
 fn apply(
     request: &TerminalControlRequest,

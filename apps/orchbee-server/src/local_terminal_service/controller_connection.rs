@@ -373,16 +373,16 @@ pub(super) fn execute<'service>(
                 }
             }
             WorkerOutcome::Rejected(reason) => {
-                // The Worker answers an intact but contradictory input answer as host-rejected
-                // and releases that controller, and the input may have reached the Host. The lease
-                // goes with it: the viewer's next input meets NotController instead of a grant
-                // that is gone, and nothing is replayed.
-                if reason == ControlRejection::HostRejected
-                    && matches!(
-                        request.action(),
-                        Action::Input { .. } | Action::Paste { .. } | Action::SemanticInput { .. }
-                    )
-                {
+                // The lease mirrors the Worker's grant. These two answers mean the Worker holds no
+                // grant for this viewer any more: it released it on a contradictory Host answer,
+                // where the effect may have reached the Host, on a demand its cleanup could not
+                // set, or with a viewer it closed. The lease goes too, so the viewer's next
+                // Acquire or Takeover reaches the Worker and nothing is replayed. Every other
+                // refusal, `HostRejected` included, leaves the grant in place.
+                if matches!(
+                    reason,
+                    ControlRejection::NotController | ControlRejection::ViewerUnavailable
+                ) {
                     viewer.controller.take();
                 }
                 rejected(worker_rejection(reason))

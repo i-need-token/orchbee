@@ -330,9 +330,10 @@ fn contradictory_input_or_paste_answer_is_refused_releases_the_grant_and_is_neve
                 accept_demand(&mut peer, 12, ProjectionDemand::Active);
                 peer
             });
+            // The refusal says the grant is gone, so the Server drops its lease too.
             assert_eq!(
                 execute(&host, &server, request(10, 11, action.clone()))?,
-                Outcome::Rejected(ControlRejection::HostRejected)
+                Outcome::Rejected(ControlRejection::NotController)
             );
             assert!(host.controllers.borrow().for_viewer(id(10)).is_none());
             assert_eq!(

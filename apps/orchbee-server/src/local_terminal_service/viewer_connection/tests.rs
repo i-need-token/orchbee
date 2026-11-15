@@ -913,19 +913,34 @@ fn explicit_takeover_transfers_cleanup_and_old_connection_cannot_dispatch_effect
     }
 }
 
-/// A host-rejected input or paste may have reached the Host, and the Worker has already released
-/// that controller: the Server forgets the grant and its claim at once, so the viewer's next input
-/// is refused without reaching the Worker, nothing is replayed, and another viewer may acquire.
+/// The Server's controller lease mirrors the Worker's grant. A refusal meaning the Worker released
+/// the grant (it met a contradictory Host answer, a demand its cleanup could not set, or a viewer it
+/// closed) also ends the lease and frees its reservation: a stale effect is refused without
+/// reaching the Worker, nothing is replayed, and the same viewer's next Acquire or Takeover reaches
+/// the Worker for a fresh grant. A refusal under a grant the Worker kept leaves the lease, and the
+/// next effect reaches the Worker under that same grant.
 #[test]
-fn host_rejected_input_or_paste_forgets_the_grant_and_frees_the_terminal() {
+fn a_controller_lease_ends_exactly_when_the_worker_releases_its_grant() {
     use orchbee_capability_node_protocol::{
         ControlRejection, TerminalControlAction as WAction, TerminalControlOutcome as WOutcome,
         TerminalControlResult,
     };
     use orchbee_client_server_protocol::{
-        ControlInput, ControlRejectedReason, PasteContent, TerminalControlAction as CAction,
+        ControlInput, ControlRejectedReason, Geometry, TerminalControlAction as CAction,
         TerminalControlOutcome as COutcome, TerminalControlRequest,
     };
+    /// What the viewer does after the refused effect.
+    #[derive(Clone, Copy, PartialEq)]
+    enum Then {
+        /// The grant is gone; the viewer asks again by Takeover.
+        Takeover,
+        /// The grant is gone; the viewer asks again by Acquire.
+        Acquire,
+        /// The grant went with a viewer the Worker closed; nothing more is asked of the Worker.
+        Nothing,
+        /// The grant is kept; the viewer's next effect goes ahead under it.
+        Kept,
+    }
     fn run<'a>(
         service: &'a LocalTerminalService,
         viewer: &mut ViewerAttachment<'a>,
@@ -940,7 +955,44 @@ fn host_rejected_input_or_paste_forgets_the_grant_and_frees_the_terminal() {
             ),
         )
     }
-    for paste in [false, true] {
+    // The effect, the Worker's refusal of it, and the reason the Client receives.
+    let cases = [
+        // A demand its cleanup could not set released the grant before this input.
+        (
+            "input",
+            ControlRejection::NotController,
+            ControlRejectedReason::NotController,
+            Then::Takeover,
+        ),
+        // A contradictory resize acknowledgement released the grant.
+        (
+            "resize",
+            ControlRejection::NotController,
+            ControlRejectedReason::NotController,
+            Then::Acquire,
+        ),
+        (
+            "input",
+            ControlRejection::ViewerUnavailable,
+            ControlRejectedReason::ViewerUnavailable,
+            Then::Nothing,
+        ),
+        // A typed Host refusal, or a resize with no room to start, keeps the grant.
+        (
+            "input",
+            ControlRejection::HostRejected,
+            ControlRejectedReason::HostRejected,
+            Then::Kept,
+        ),
+        (
+            "resize",
+            ControlRejection::HostRejected,
+            ControlRejectedReason::HostRejected,
+            Then::Kept,
+        ),
+    ];
+    let geometry = Geometry::new(80, 24, 8, 16).unwrap();
+    for (effect_kind, refusal, reason, then) in cases {
         let service = service();
         let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
         let handle = carrier.request_handle();
@@ -957,10 +1009,17 @@ fn host_rejected_input_or_paste_forgets_the_grant_and_frees_the_terminal() {
         thread::scope(|scope| {
             let server_thread = scope.spawn(move || owner.run(server));
             let worker = scope.spawn(move || {
-                // The first grant, the rejected input, that grant's release, the other viewer's
-                // grant and, at teardown, its release.
+                // The grant, the refused effect, then: that grant's release, a fresh grant and its
+                // release at teardown; that grant's release alone; or the next effect and the
+                // release at teardown.
+                let requests = match then {
+                    Then::Takeover | Then::Acquire => 5,
+                    Then::Nothing => 3,
+                    Then::Kept => 4,
+                };
                 let mut seen = Vec::new();
-                for _ in 0..5 {
+                let mut effects = 0;
+                for _ in 0..requests {
                     let CapabilityNodeMessage::TerminalControlRequest(request) =
                         read_message(&mut peer).unwrap()
                     else {
@@ -968,13 +1027,25 @@ fn host_rejected_input_or_paste_forgets_the_grant_and_frees_the_terminal() {
                     };
                     let (kind, outcome) = match request.action {
                         WAction::Acquire => ("acquire", WOutcome::Acquired),
-                        WAction::Input { .. } => {
-                            ("input", WOutcome::Rejected(ControlRejection::HostRejected))
-                        }
-                        WAction::Paste { .. } => {
-                            ("paste", WOutcome::Rejected(ControlRejection::HostRejected))
-                        }
                         WAction::Release => ("release", WOutcome::Released),
+                        WAction::Input { .. } => {
+                            effects += 1;
+                            let outcome = if effects == 1 {
+                                WOutcome::Rejected(refusal)
+                            } else {
+                                WOutcome::InputAccepted
+                            };
+                            ("input", outcome)
+                        }
+                        WAction::Resize { geometry, .. } => {
+                            effects += 1;
+                            let outcome = if effects == 1 {
+                                WOutcome::Rejected(refusal)
+                            } else {
+                                WOutcome::Resized(geometry)
+                            };
+                            ("resize", outcome)
+                        }
                         _ => panic!("unexpected control action"),
                     };
                     seen.push((kind, request.viewer_id, request.controller_id));
@@ -992,32 +1063,24 @@ fn host_rejected_input_or_paste_forgets_the_grant_and_frees_the_terminal() {
                 let _finished = checks_finished.recv();
                 seen
             });
-            let mut old = viewer(&service, handle.clone());
-            let mut new = viewer(&service, handle.clone());
-            let new_viewer = OperationId::from_bytes([20; 16]).unwrap();
-            new.attachment_id = ViewerId::parse(&format!(
-                "{:032x}",
-                u128::from_be_bytes(new_viewer.as_bytes())
-            ))
-            .unwrap();
-            new.cleanup.as_mut().unwrap().attachment_id = new_viewer;
+            let mut viewer = viewer(&service, handle.clone());
             let acquire = CAction::Acquire {
-                attachment_id: old.attachment_id.clone(),
+                attachment_id: viewer.attachment_id.clone(),
             };
-            let COutcome::Acquired { controller_id } = run(&service, &mut old, acquire) else {
+            let COutcome::Acquired { controller_id } = run(&service, &mut viewer, acquire) else {
                 panic!("first grant")
             };
             let effect = |sequence| {
-                if paste {
-                    CAction::Paste {
-                        attachment_id: old.attachment_id.clone(),
+                if effect_kind == "resize" {
+                    CAction::Resize {
+                        attachment_id: viewer.attachment_id.clone(),
                         controller_id: controller_id.clone(),
                         sequence,
-                        content: PasteContent::new(b"paste".to_vec()).unwrap(),
+                        geometry,
                     }
                 } else {
                     CAction::Input {
-                        attachment_id: old.attachment_id.clone(),
+                        attachment_id: viewer.attachment_id.clone(),
                         controller_id: controller_id.clone(),
                         sequence,
                         bytes: ControlInput::new(b"ls".to_vec()).unwrap(),
@@ -1027,52 +1090,78 @@ fn host_rejected_input_or_paste_forgets_the_grant_and_frees_the_terminal() {
             let first = effect(NonZeroU64::MIN);
             let next = effect(NonZeroU64::new(2).unwrap());
             assert_eq!(
-                run(&service, &mut old, first),
-                COutcome::Rejected {
-                    reason: ControlRejectedReason::HostRejected
-                }
+                run(&service, &mut viewer, first),
+                COutcome::Rejected { reason }
             );
-            assert!(old.controller.is_none());
-            assert!(service.controllers.lock().unwrap().is_empty());
-            assert_eq!(
-                run(&service, &mut old, next),
-                COutcome::Rejected {
-                    reason: ControlRejectedReason::NotController
+            if then == Then::Kept {
+                assert!(viewer.controller.is_some());
+                assert_eq!(service.controllers.lock().unwrap().len(), 1);
+                let accepted = run(&service, &mut viewer, next);
+                if effect_kind == "resize" {
+                    assert_eq!(accepted, COutcome::Resized { geometry });
+                } else {
+                    assert_eq!(accepted, COutcome::InputAccepted {});
                 }
-            );
-            let acquire = CAction::Acquire {
-                attachment_id: new.attachment_id.clone(),
-            };
-            assert!(matches!(
-                run(&service, &mut new, acquire),
-                COutcome::Acquired { .. }
-            ));
-            // These manually seeded viewers have no Host viewing attachment; only controller
-            // cleanup is exercised.
-            old.cleanup = None;
-            new.cleanup = None;
-            drop(old);
-            drop(new);
+            } else {
+                assert!(viewer.controller.is_none());
+                assert!(service.controllers.lock().unwrap().is_empty());
+                assert_eq!(
+                    run(&service, &mut viewer, next),
+                    COutcome::Rejected {
+                        reason: ControlRejectedReason::NotController
+                    }
+                );
+                let again = match then {
+                    Then::Takeover => Some(CAction::Takeover {
+                        attachment_id: viewer.attachment_id.clone(),
+                    }),
+                    Then::Acquire => Some(CAction::Acquire {
+                        attachment_id: viewer.attachment_id.clone(),
+                    }),
+                    Then::Nothing | Then::Kept => None,
+                };
+                if let Some(again) = again {
+                    let COutcome::Acquired {
+                        controller_id: fresh,
+                    } = run(&service, &mut viewer, again)
+                    else {
+                        panic!("the same viewer acquires again")
+                    };
+                    assert_ne!(fresh, controller_id);
+                }
+            }
+            // This manually seeded viewer has no Host viewing attachment; only controller cleanup
+            // is exercised.
+            viewer.cleanup = None;
+            drop(viewer);
             assert!(service.controllers.lock().unwrap().is_empty());
             drop(checks_done);
             let seen = worker.join().unwrap();
-            let kinds: Vec<_> = seen
-                .iter()
-                .map(|(kind, viewer, _)| (*kind, *viewer))
-                .collect();
-            let old_viewer = OperationId::from_bytes([2; 16]).unwrap();
-            assert_eq!(
-                kinds,
-                [
-                    ("acquire", old_viewer),
-                    (if paste { "paste" } else { "input" }, old_viewer),
-                    ("release", old_viewer),
-                    ("acquire", new_viewer),
-                    ("release", new_viewer),
-                ]
-            );
-            // The release ends the very grant the input was refused under.
-            assert_eq!(seen[2].2, seen[0].2);
+            let kinds: Vec<_> = seen.iter().map(|(kind, ..)| *kind).collect();
+            let first_grant = seen[0].2;
+            match then {
+                Then::Takeover | Then::Acquire => {
+                    assert_eq!(
+                        kinds,
+                        ["acquire", effect_kind, "release", "acquire", "release"]
+                    );
+                    // The release ends the very grant the effect was refused under, and the
+                    // fresh grant is a new one.
+                    assert_eq!(seen[2].2, first_grant);
+                    assert_ne!(seen[3].2, first_grant);
+                    assert_eq!(seen[4].2, seen[3].2);
+                }
+                Then::Nothing => {
+                    assert_eq!(kinds, ["acquire", effect_kind, "release"]);
+                    assert_eq!(seen[2].2, first_grant);
+                }
+                Then::Kept => {
+                    assert_eq!(kinds, ["acquire", effect_kind, effect_kind, "release"]);
+                    assert!(seen.iter().all(|(.., grant)| *grant == first_grant));
+                }
+            }
+            let viewer_id = OperationId::from_bytes([2; 16]).unwrap();
+            assert!(seen.iter().all(|(_, viewer, _)| *viewer == viewer_id));
             let _exit = server_thread.join().unwrap();
         });
     }

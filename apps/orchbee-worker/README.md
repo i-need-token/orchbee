@@ -349,10 +349,14 @@ entire byte count. Resize must acknowledge the complete geometry. Paste preserve
 262,144 opaque bytes as kind-39 `PasteAutoInput`; the Host must acknowledge a positive
 `accepted_bytes` no greater than `min(2 × content + 12, negotiated input limit)`, and its typed
 failures map to the four `HostInput*` rejections. These actions reject a wrong
-viewer/grant or non-increasing sequence before Host I/O. Known Host rejection consumes the sequence.
-A contradictory acknowledgement consumes it too, refuses the request as `HostRejected` and releases
-the grant, so a Client that wants control acquires it anew; a lost exchange closes the broker.
-Nothing is replayed.
+viewer/grant or non-increasing sequence before Host I/O. Known Host rejection consumes the sequence
+and keeps the grant. A contradictory acknowledgement consumes it too and releases the grant, and the
+request answers `NotController`, so a Client that wants control acquires it anew; a lost exchange
+closes the broker. Nothing is replayed. For a request made under a grant, `NotController` and
+`ViewerUnavailable` are the only refusals that mean the grant is gone, released here or with a
+viewer this Worker closed, and the Server's lease follows them; every `HostRejected` such a request
+receives leaves the grant in place. A refused Acquire or Takeover leaves its requester without a
+new grant, whatever it answers.
 
 Viewer detach or closure first releases its controller, then detaches the viewer. Internal release
 is idempotent only when that viewer has no controller; it never clears a different current grant.
@@ -714,20 +718,33 @@ within fifteen seconds of the moment the request's first bytes became readable, 
 later than five seconds in, and one that has started keeps its whole bound. With the two-second
 result write, the reply leaves by seventeen seconds, three seconds inside the Server carrier's
 twenty-second result wait. Work that no longer fits is never sent and never counts against the
-Host; the request is refused with an answer the Server and its Clients treat as transient, and
-nothing retries it automatically:
+Host; the request gets the answer below, which neither the Worker nor the Server retries. Unless
+noted below, the Worker keeps the viewer and any grant, and the Server keeps the viewer and its
+controller lease. The Clients do not treat every answer as transient: the TUI parks a pane whose
+raw input or resize is refused as control lost, and the GUI reports those refusals as final.
 
-| Request                                       | Answer when its exchange cannot start           |
-| --------------------------------------------- | ----------------------------------------------- |
-| Viewer Attach                                 | `CapacityExceeded`                              |
-| Viewer row reads                              | `RowsRejected` with `ResourceExhausted`         |
-| Other viewer requests                         | `HostRejected`; the Worker keeps the viewer     |
-| Acquire, Takeover                             | `ControllerBusy`; an existing grant is kept     |
-| Semantic input, paste                         | `HostInputBackpressure`                         |
-| Resize                                        | `HostRejected`; the grant is kept               |
-| Raw input, Release, Clear, Reset, Host colors | `HostInputUnavailable`; the grant is kept       |
-| Send                                          | `InputBudgetExhausted` with the progress so far |
-| Launch, Start, lifecycle requests             | a failure before handoff, with no effect        |
+| Request                           | Answer when its exchange cannot start           |
+| --------------------------------- | ----------------------------------------------- |
+| Viewer Attach                     | `CapacityExceeded`                              |
+| Viewer row reads                  | `RowsRejected` with `ResourceExhausted`         |
+| Viewer lifecycle reads            | `CapacityExceeded`                              |
+| Viewer Detach                     | `Detached`                                      |
+| Other viewer requests             | `HostRejected`                                  |
+| Acquire, Takeover                 | `ControllerBusy`                                |
+| Semantic input, paste             | `HostInputBackpressure`                         |
+| Resize                            | `HostRejected`                                  |
+| Raw input, Clear, Reset           | `HostInputUnavailable`                          |
+| Release                           | `Released`                                      |
+| Host colors                       | `HostColorsAccepted`                            |
+| Send                              | `InputBudgetExhausted` with the progress so far |
+| Launch, Start, lifecycle requests | a failure before handoff, with no effect        |
+
+A Detach or Release that cannot start still ends its viewer or grant and leaves the Host Detach
+to a later cleanup, and Host colors that cannot start wait for the next colors. A Takeover whose
+incumbent Detach went ahead but whose Attach cannot start leaves no grant at either end, and the
+Client may ask again. After a refused viewer request the Server keeps the viewer only for demand,
+history, rows-applied and selection requests; after frame feedback or a process read it releases
+the viewer and its lease with it.
 
 A request reaches its first exchange within its two-second record read, so these answers need a
 Worker stalled for seconds; later steps of one request and its cleanup meet the limit sooner, and a
@@ -778,9 +795,11 @@ Event role, absent correlation, exact protocol/epoch, payload codec, and matchin
 It drains these notifications without a lifecycle/metadata projection. The broker routes viewer
 frames and blocked events through their independent slots, including events interleaved with a
 Launch/Start response. Events never acknowledge an operation or adopt retained terminals.
-Response-like, unknown, malformed, or wrong-epoch events fail closed. An event that has begun to
-arrive while the Worker is idle has the ten-second exchange bound, capped by an active OBCN
-deadline. Allocation is bounded by the OBTP header plus the
+Response-like, unknown, malformed, or wrong-epoch events fail closed. An event the Host has begun
+stays with the connection for the next read to continue; between requests and while a Server
+record is read or written, a Host that has not finished it within the ten-second exchange bound of
+its first byte ends the connection, and inside an exchange that exchange's bound applies.
+Allocation is bounded by the OBTP header plus the
 36 MiB frame limit; the envelope still enforces the 64 KiB control limit. Valid discarded lifecycle
 events remain state-preserving steps in the symbolic operation model.
 

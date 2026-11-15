@@ -604,12 +604,16 @@ Host cleanup releases the control attachment before the viewer. Explicit OBCN De
 remains occupied until generation-pinned cleanup completes or that Worker becomes unavailable;
 cleanup admission uses the existing bounded request queue, with no lock held across I/O. A stale
 cleanup cannot clear a new grant. A failed Host exchange ends the Worker connection, and the Server
-reports an unknown control outcome after complete delivery; a contradictory Host answer refuses only
-that request as `HostRejected` and releases the grant. Because such an input or paste may have
-reached the Host and the Worker has already released its grant, the Server forgets that viewer's
-lease on a `HostRejected` input, semantic input or paste, which also frees its reservation: the
-viewer's next input meets `NotController` without reaching the Worker, nothing is replayed, and a
-Client that wants control acquires it anew. No other viewer is promoted.
+reports an unknown control outcome after complete delivery; a contradictory Host answer to an
+effect refuses only that request as `NotController` and releases the grant. The lease mirrors the
+Worker's grant: the Server forgets it, which also frees its reservation, exactly when the Worker
+refuses an effect as `NotController` or `ViewerUnavailable`, the answers that mean the Worker
+released the grant on a contradictory answer, on a demand its cleanup could not set, or with a
+viewer it closed. Such an effect may have reached the Host; the viewer's next effect meets
+`NotController` without reaching the Worker, nothing is replayed, and its next Acquire or Takeover
+asks the Worker again. Every other refusal, `HostRejected` included, leaves both the grant and the
+lease in place. The Server learns of a release only from such an answer, so until the viewer's next
+effect a Takeover by that viewer still answers from its lease. No other viewer is promoted.
 Explicit takeover now follows the [controller takeover model](docs/terminal-controller-takeover.md):
 Pending reservations fence both competing takeover and stale effects; the candidate owns old/new
 cleanup until acknowledged transfer. Independent release while retaining the Viewer remains later work.
