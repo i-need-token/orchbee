@@ -60,9 +60,11 @@ Agent catalog's probe pump with its one outstanding Agent probe exchange in the 
   maps to `Backpressure` while the carrier is active, else `Unavailable`; `Closed` maps to
   `Unavailable`.
 - Block-admit (high only) deposits the payload into `high_waiters` when the lane cannot accept
-  it, then waits until the entry is transferred into `high` (admitted) or the queue closes.
-  Waiters are bounded by blocked cleanup producers — at most one outstanding request per
-  Client Connection, so ≤ 32 resident waiter payloads under the current session bound.
+  it, then waits until the entry is transferred into `high` (admitted) or the queue closes. A
+  connection-cleanup producer stops waiting at its deadline, as [failure scope](#failure-scope)
+  describes, and leaves its payload deposited, to be transferred and written in order. Every
+  cleanup releases one viewer attachment or controller grant made through this wire, so waiter
+  payloads stay bounded by the attachments and grants the Worker admitted.
 
 ## Dispatch
 
@@ -124,8 +126,15 @@ framing still retire the carrier. A request queued during the wait fails with
 `NotDelivered(TimedOut)` before any byte is written once its window passes, so its requester may
 retry, and it is never written afterwards. The window is the response window from admission, or a
 `Shutdown`'s own budget, and never ends later than one response window after the wait began.
-Connection cleanup from `cleanup_control()` and `enqueue_detach()` has no window and waits for the
-wire. A `Shutdown` that expires unwritten reopens admission, and a `Handoff` that expires unwritten
+Connection cleanup from `cleanup_control()` and `enqueue_detach()` never expires from the queue and
+is written in order once the wait ends, so the Worker's leases stay mirrored. Its caller, often a
+Client Connection thread, waits at most one response window, and no later than one window after the
+wait began; a controller lease's two Releases share that window. It then continues without the
+result: `cleanup_control()` returns `ExchangeWait::Elapsed`, which leaves the Release queued, never
+`NotDelivered`, and its lease keeps the reservation as for any unknown outcome without resending it;
+`enqueue_detach()` simply returns. The cleanup's later result is discarded, and each such stop is
+recorded as a `worker-request-failed` with failure `unawaited.timed-out`. A `Shutdown` that
+expires unwritten reopens admission, and a `Handoff` that expires unwritten
 releases its fence; neither retires the carrier. One edge remains: if the Worker's real reply still
 follows an invalid or mismatched frame, the next request has already been written ahead of it, and
 the Worker ends its session on seeing that request.
@@ -140,10 +149,11 @@ after), then closes the queue and settles every queued and waiter request exactl
 payload to the wire, so completion-less cleanup detaches still reach the worker at final
 teardown — the owner then exits `Shutdown` and the same drain runs, the previous
 all-senders-dropped semantics.
-Completion ownership is one of `Required`, `DiscardableDrain` or `Detached`, fixed by the
-admitted request kind at admission construction: `Detached` cleanup requests settle by drop;
-losing the reply receiver of an in-flight `Required` request still retires the carrier
-conservatively; an abandoned `DiscardableDrain` exchange consumes and discards the valid reply
+Completion ownership is one of `Required`, `Discardable` or `Detached`, fixed by the
+admitted request kind and submit path at admission construction: `Detached` cleanup requests settle
+by drop; read-only exchanges and `cleanup_control()` Releases are `Discardable`; losing the reply
+receiver of an in-flight `Required` request still retires the carrier
+conservatively; an abandoned `Discardable` exchange consumes and discards the valid reply
 so healthy carrier traffic survives; its invalid or mismatched reply fails only that request, as
 [failure scope](#failure-scope) describes. The `NotDelivered` versus
 `PostDeliveryOutcomeUnknown` distinction across the complete-write boundary is unchanged.
@@ -197,9 +207,10 @@ bounded-deque operations; completion sends happen outside it on the drain path.
 
 ## Ownership accounting
 
-Resident payloads: `high` ≤ 8, `low` ≤ 8, `high_waiters` ≤ 32 (producer-bound), in-flight 1 —
+Resident payloads: `high` ≤ 8, `low` ≤ 8, `high_waiters` ≤ one per attachment or grant the
+Worker admitted (see [admission](#admission)), in-flight 1 —
 each a `PendingRequest` (encoded frame bytes + typed request + one completion endpoint under
-the `Required`/`DiscardableDrain`/`Detached` ownership policy). Per-request result receivers
+the `Required`/`Discardable`/`Detached` ownership policy). Per-request result receivers
 live on their producer threads. No whole-process memory bound is claimed here; this enumerates
 the queue-owned and producer-held copies.
 

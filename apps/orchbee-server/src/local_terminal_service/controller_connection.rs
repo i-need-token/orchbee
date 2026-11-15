@@ -6,7 +6,8 @@ use super::{LocalTerminalService, placement, viewer_connection::ViewerAttachment
 use crate::session_coordinator::{SessionCoordinator, TargetLifecycle};
 use crate::terminal_coordinator::BindingViewerTarget;
 use crate::worker_obcn_carrier::{
-    WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
+    ExchangeWait, WorkerOperationRequest, WorkerOperationResult, WorkerRequestError,
+    WorkerRequestHandle,
 };
 use orchbee_capability_node_protocol::{
     ControlRejection, OperationId, TerminalControlAction as WorkerAction,
@@ -100,13 +101,21 @@ impl Drop for ControllerLease<'_> {
         }
         let disposed =
             self.service.target_lifecycle(self.target) == Some(TargetLifecycle::Disposed);
-        let previous_settled = disposed || self.superseded.as_ref().is_none_or(|request| {
-            matches!(self.handle.cleanup_control(request.clone()), Ok(WorkerOperationResult::Control(result)) if result.outcome == WorkerOutcome::Released)
-        });
+        // Both Releases share one window, so a Worker that owes a reply delays this thread at most
+        // that long. A Release still unanswered then is written later in order and leaves its
+        // reservation in place, as any unknown outcome does; nothing resends it.
+        let deadline = self.handle.cleanup_deadline();
+        let released = |request: &WorkerRequest| {
+            let ExchangeWait::Ready(result) =
+                self.handle.cleanup_control(request.clone(), deadline)
+            else {
+                return false;
+            };
+            matches!(*result, Ok(WorkerOperationResult::Control(result)) if result.outcome == WorkerOutcome::Released)
+        };
+        let previous_settled = disposed || self.superseded.as_ref().is_none_or(released);
         // Attempt both cleanups even when the previous grant has no receipt.
-        let current_settled = disposed
-            || !self.armed
-            || matches!(self.handle.cleanup_control(self.cleanup.clone()), Ok(WorkerOperationResult::Control(result)) if result.outcome == WorkerOutcome::Released);
+        let current_settled = disposed || !self.armed || released(&self.cleanup);
         let settled = previous_settled && current_settled;
         if (settled || !self.handle.is_active())
             && let Ok(mut owners) = self.service.controllers.lock()

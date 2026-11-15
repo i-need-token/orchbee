@@ -334,6 +334,8 @@ pub(crate) struct WorkerRequestHandle {
     worker_id: WorkerId,
     /// The System shell file name this handle's Worker generation reported in its hello.
     system_shell: Option<PresentationLaunchProgram>,
+    /// How long a connection-cleanup caller waits: the wire's response window.
+    cleanup_window: Duration,
 }
 
 impl Clone for WorkerRequestHandle {
@@ -345,6 +347,7 @@ impl Clone for WorkerRequestHandle {
             queue: Arc::clone(&self.queue),
             worker_id: self.worker_id,
             system_shell: self.system_shell.clone(),
+            cleanup_window: self.cleanup_window,
         }
     }
 }
@@ -360,7 +363,10 @@ impl WorkerRequestHandle {
         &self,
         request: TerminalCwdValidationRequest,
     ) -> Result<TerminalCwdValidationResult, WorkerRequestError> {
-        let result = self.submit(WorkerOperationRequest::CwdValidation(request), false)?;
+        let result = self.submit(
+            WorkerOperationRequest::CwdValidation(request),
+            Admission::Try,
+        )?;
         let WorkerOperationResult::CwdValidation(result) = result else {
             unreachable!("cwd validation request returned another operation result");
         };
@@ -371,22 +377,43 @@ impl WorkerRequestHandle {
         &self,
         request: WorkerOperationRequest,
     ) -> Result<WorkerOperationResult, WorkerRequestError> {
-        self.submit(request, false)
+        self.submit(request, Admission::Try)
     }
 
+    /// When a connection-cleanup caller starting now stops waiting: one response window, and no
+    /// later than one window after the wire began to wait for an owed reply.
+    pub(crate) fn cleanup_deadline(&self) -> Instant {
+        self.queue.cleanup_deadline(self.cleanup_window)
+    }
+
+    /// Queues a controller Release ahead of later work and waits for its result until `deadline`.
+    /// An elapsed wait leaves the Release queued: it is still written in order, its result is
+    /// discarded, and nothing may resend it.
     pub(crate) fn cleanup_control(
         &self,
         request: orchbee_capability_node_protocol::TerminalControlRequest,
-    ) -> Result<WorkerOperationResult, WorkerRequestError> {
+        deadline: Instant,
+    ) -> ExchangeWait {
         if !matches!(
             request.action,
             orchbee_capability_node_protocol::TerminalControlAction::Release
         ) {
-            return Err(WorkerRequestError::InvalidRequest(
+            return ExchangeWait::Ready(Box::new(Err(WorkerRequestError::InvalidRequest(
                 ProtocolError::InvalidPayload,
-            ));
+            ))));
         }
-        self.submit(WorkerOperationRequest::Control(request), true)
+        let started = Instant::now();
+        let request = WorkerOperationRequest::Control(request);
+        let kind = request.kind_token();
+        let exchange = match self.admit(request, Admission::Cleanup(Some(deadline))) {
+            Ok(exchange) => exchange,
+            Err(error) => return ExchangeWait::Ready(Box::new(Err(error))),
+        };
+        let wait = exchange.recv_deadline(deadline);
+        if matches!(wait, ExchangeWait::Elapsed) {
+            record_unawaited_cleanup(kind, started);
+        }
+        wait
     }
 
     // Test flush markers take the same blocking high-lane admission as cleanup
@@ -398,15 +425,15 @@ impl WorkerRequestHandle {
         &self,
         request: WorkerOperationRequest,
     ) -> Result<WorkerOperationResult, WorkerRequestError> {
-        self.submit(request, true)
+        self.submit(request, Admission::Cleanup(None))
     }
 
     fn submit(
         &self,
         request: WorkerOperationRequest,
-        cleanup: bool,
+        admission: Admission,
     ) -> Result<WorkerOperationResult, WorkerRequestError> {
-        self.admit(request, cleanup)?.recv()
+        self.admit(request, admission)?.recv()
     }
 
     // The Server drain reader's admission seam: enqueue the typed
@@ -417,7 +444,7 @@ impl WorkerRequestHandle {
         &self,
         request: orchbee_capability_node_protocol::AgentDrainRequest,
     ) -> Result<PendingExchange, WorkerRequestError> {
-        self.admit(WorkerOperationRequest::AgentDrain(request), false)
+        self.admit(WorkerOperationRequest::AgentDrain(request), Admission::Try)
     }
 
     /// Read-only discovery jobs retain their physical TTL and receipt in the
@@ -427,7 +454,7 @@ impl WorkerRequestHandle {
         &self,
         request: WorktreeJobRequest,
     ) -> Result<PendingExchange, WorkerRequestError> {
-        self.admit(WorkerOperationRequest::WorktreeJob(request), false)
+        self.admit(WorkerOperationRequest::WorktreeJob(request), Admission::Try)
     }
 
     /// The handshake `query` reader waits for its Hosts only until its reply is due; the wire
@@ -436,7 +463,7 @@ impl WorkerRequestHandle {
         &self,
         request: orchbee_capability_node_protocol::HostQueryRequest,
     ) -> Result<PendingExchange, WorkerRequestError> {
-        self.admit(WorkerOperationRequest::HostQuery(request), false)
+        self.admit(WorkerOperationRequest::HostQuery(request), Admission::Try)
     }
 
     /// A title change read waits in the idle lane until no other request or admission waiter is
@@ -446,7 +473,10 @@ impl WorkerRequestHandle {
         &self,
         request: orchbee_capability_node_protocol::TerminalTitleChangesRequest,
     ) -> Result<PendingExchange, WorkerRequestError> {
-        self.admit(WorkerOperationRequest::TitleChanges(request), false)
+        self.admit(
+            WorkerOperationRequest::TitleChanges(request),
+            Admission::Try,
+        )
     }
 
     /// An Agent probe exchange waits in the low lane behind input and terminal effects. The
@@ -456,16 +486,19 @@ impl WorkerRequestHandle {
         &self,
         request: orchbee_capability_node_protocol::AgentProbeJobRequest,
     ) -> Result<PendingExchange, WorkerRequestError> {
-        self.admit(WorkerOperationRequest::AgentProbeJob(request), false)
+        self.admit(
+            WorkerOperationRequest::AgentProbeJob(request),
+            Admission::Try,
+        )
     }
 
     /// Admit one request through the existing worker/generation fence and lane
     /// rules, returning the exchange that receives its result. Completion
-    /// ownership is fixed by the admitted request kind.
+    /// ownership is fixed by the admitted request kind and the admission.
     fn admit(
         &self,
         request: WorkerOperationRequest,
-        cleanup: bool,
+        admission: Admission,
     ) -> Result<PendingExchange, WorkerRequestError> {
         if !self.is_active() {
             return Err(WorkerRequestError::Unavailable);
@@ -482,30 +515,34 @@ impl WorkerRequestHandle {
         let lane = request.lane();
         let (completion, result) = mpsc::sync_channel(1);
         let complete_write = Arc::new(AtomicBool::new(false));
-        let pending = PendingRequest {
-            completion: CompletionDelivery::for_request(&request, completion),
-            complete_write: Arc::clone(&complete_write),
-            encoded,
-            request,
-            wait: if cleanup {
-                UnwrittenWait::Cleanup
-            } else {
-                UnwrittenWait::Since(Instant::now())
+        let pending = match admission {
+            Admission::Try => PendingRequest {
+                completion: CompletionDelivery::for_request(&request, completion),
+                complete_write: Arc::clone(&complete_write),
+                encoded,
+                request,
+                wait: UnwrittenWait::Since(Instant::now()),
+            },
+            // A cleanup caller may stop waiting while its request stays queued.
+            Admission::Cleanup(_) => PendingRequest {
+                completion: CompletionDelivery::Discardable(completion),
+                complete_write: Arc::clone(&complete_write),
+                encoded,
+                request,
+                wait: UnwrittenWait::Cleanup,
             },
         };
-        let admitted = match pending.request {
+        let admitted = match (&pending.request, admission) {
             #[cfg(any(windows, test))]
-            WorkerOperationRequest::Handoff(_) => self.queue.admit_handoff(pending),
+            (WorkerOperationRequest::Handoff(_), _) => self.queue.admit_handoff(pending),
             #[cfg(any(windows, test))]
-            WorkerOperationRequest::Shutdown(_) => self.queue.admit_shutdown(pending),
-            _ => {
-                if cleanup {
-                    match self.queue.block_admit_high(pending) {
-                        true => AdmitOutcome::Admitted,
-                        false => AdmitOutcome::Closed,
-                    }
-                } else {
-                    self.queue.try_admit(lane, pending)
+            (WorkerOperationRequest::Shutdown(_), _) => self.queue.admit_shutdown(pending),
+            (_, Admission::Try) => self.queue.try_admit(lane, pending),
+            // A payload still waiting at the deadline stays queued; its result is the exchange's.
+            (_, Admission::Cleanup(deadline)) => {
+                match self.queue.block_admit_high(pending, deadline) {
+                    BlockAdmit::Admitted | BlockAdmit::Waiting => AdmitOutcome::Admitted,
+                    BlockAdmit::Closed => AdmitOutcome::Closed,
                 }
             }
         };
@@ -519,8 +556,9 @@ impl WorkerRequestHandle {
         }
     }
 
-    // The retiring Client handler retains its bounded Session slot until the
-    // existing queue admits this one cleanup. No shared service lock is held.
+    // The retiring Client handler retains its bounded Session slot until the existing queue admits
+    // this one cleanup or its window passes; a payload still waiting then stays queued and is
+    // written in order. No shared service lock is held.
     pub(crate) fn enqueue_detach(
         &self,
         request: orchbee_capability_node_protocol::TerminalViewerRequest,
@@ -539,13 +577,21 @@ impl WorkerRequestHandle {
         let Ok(encoded) = encode_message(&request.message()) else {
             return;
         };
-        let _admitted = self.queue.block_admit_high(PendingRequest {
-            completion: CompletionDelivery::Detached,
-            complete_write: Arc::new(AtomicBool::new(false)),
-            encoded,
-            request,
-            wait: UnwrittenWait::Cleanup,
-        });
+        let started = Instant::now();
+        let kind = request.kind_token();
+        let admitted = self.queue.block_admit_high(
+            PendingRequest {
+                completion: CompletionDelivery::Detached,
+                complete_write: Arc::new(AtomicBool::new(false)),
+                encoded,
+                request,
+                wait: UnwrittenWait::Cleanup,
+            },
+            Some(self.cleanup_deadline()),
+        );
+        if admitted == BlockAdmit::Waiting {
+            record_unawaited_cleanup(kind, started);
+        }
     }
 
     pub(crate) fn generation(&self) -> NonZeroU64 {
@@ -578,22 +624,54 @@ impl WorkerRequestHandle {
 }
 
 /// Who owns the completion delivery for one admitted request. A Required
-/// result must reach a live receiver or the carrier dies; a DiscardableRead
-/// result may be consumed and dropped when its bounded Server reader abandoned
+/// result must reach a live receiver or the carrier dies; a Discardable
+/// result may be consumed and dropped when its bounded Server waiter abandoned
 /// the wait, keeping healthy carrier traffic alive. Discovery physical jobs and
 /// their TTL remain Worker-owned. Detached requests carry
 /// no receiver at all.
 #[derive(Debug)]
 enum CompletionDelivery {
     Required(SyncSender<Result<WorkerOperationResult, WorkerRequestError>>),
-    DiscardableRead(SyncSender<Result<WorkerOperationResult, WorkerRequestError>>),
+    Discardable(SyncSender<Result<WorkerOperationResult, WorkerRequestError>>),
     Detached,
+}
+
+/// How a request enters the queue.
+#[derive(Clone, Copy, Debug)]
+enum Admission {
+    /// Into its own lane at once; a full lane is backpressure.
+    Try,
+    /// Connection cleanup: FIFO into the high lane ahead of later try-admissions, waiting for a
+    /// slot until the deadline when there is one, with discardable completion.
+    Cleanup(Option<Instant>),
+}
+
+/// Where a blocking high-lane admission left its payload.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BlockAdmit {
+    Admitted,
+    /// The deadline passed first; the payload stays queued as a waiter and is written in order.
+    Waiting,
+    /// The queue refused it, or drained it while it waited.
+    Closed,
+}
+
+/// Records a connection cleanup whose caller stopped waiting while it stayed queued.
+fn record_unawaited_cleanup(kind: &'static str, started: Instant) {
+    crate::fault_records::worker_request_failed(
+        kind,
+        "unawaited.timed-out",
+        "none",
+        started.elapsed(),
+    );
 }
 
 impl CompletionDelivery {
     /// Completion ownership is derived from the admitted request kind, never
     /// chosen by the caller: typed AgentDrain, read-only WorktreeJob, HostQuery, Agent probe and
     /// title change requests get discardable completion; effects still require a live receiver.
+    /// Connection cleanup admission chooses discardable completion instead, because its caller
+    /// stops waiting after one window.
     fn for_request(
         request: &WorkerOperationRequest,
         completion: SyncSender<Result<WorkerOperationResult, WorkerRequestError>>,
@@ -603,7 +681,7 @@ impl CompletionDelivery {
             | WorkerOperationRequest::WorktreeJob(_)
             | WorkerOperationRequest::HostQuery(_)
             | WorkerOperationRequest::AgentProbeJob(_)
-            | WorkerOperationRequest::TitleChanges(_) => Self::DiscardableRead(completion),
+            | WorkerOperationRequest::TitleChanges(_) => Self::Discardable(completion),
             _ => Self::Required(completion),
         }
     }
@@ -758,6 +836,8 @@ struct QueueState {
     low: VecDeque<PendingRequest>,
     idle: Option<PendingRequest>,
     open_handles: usize,
+    /// When the Worker began to owe a reply that missed its window; `None` while it owes none.
+    held_since: Option<Instant>,
 }
 
 impl QueueState {
@@ -863,6 +943,7 @@ impl CarrierQueue {
                 low: VecDeque::new(),
                 idle: None,
                 open_handles: 1,
+                held_since: None,
             }),
             wake: OwnerWake::new().ok(),
         }
@@ -957,19 +1038,21 @@ impl CarrierQueue {
         AdmitOutcome::Admitted
     }
 
-    fn block_admit_high(&self, request: PendingRequest) -> bool {
+    /// Admits into the high lane ahead of later try-admissions, waiting FIFO for a slot. A producer
+    /// with a deadline stops waiting there and leaves its payload queued as a waiter.
+    fn block_admit_high(&self, request: PendingRequest, deadline: Option<Instant>) -> BlockAdmit {
         let mut state = self.lock();
         #[cfg(any(windows, test))]
         if state.handoff.is_some() {
-            return false;
+            return BlockAdmit::Closed;
         }
         if state.closed || state.stopping {
-            return false;
+            return BlockAdmit::Closed;
         }
         if state.high_waiters.is_empty() && state.high.len() < HIGH_LANE_CAPACITY {
             state.high.push_back(request);
             self.publish_change();
-            return true;
+            return BlockAdmit::Admitted;
         }
         let admitted = Arc::new(AtomicBool::new(false));
         state.high_waiters.push_back(HighWaiter {
@@ -978,19 +1061,33 @@ impl CarrierQueue {
         });
         loop {
             if admitted.load(Ordering::Acquire) {
-                return true;
+                return BlockAdmit::Admitted;
             }
             #[cfg(any(windows, test))]
             if state.handoff.is_some() {
-                return false;
+                return BlockAdmit::Closed;
             }
             if state.closed || state.stopping {
-                return false;
+                return BlockAdmit::Closed;
             }
-            state = self
-                .changed
-                .wait(state)
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state = match deadline {
+                None => self
+                    .changed
+                    .wait(state)
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()),
+                Some(deadline) => {
+                    let Some(remaining) = deadline
+                        .checked_duration_since(Instant::now())
+                        .filter(|remaining| !remaining.is_zero())
+                    else {
+                        return BlockAdmit::Waiting;
+                    };
+                    self.changed
+                        .wait_timeout(state, remaining)
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .0
+                }
+            };
         }
     }
 
@@ -1055,6 +1152,26 @@ impl CarrierQueue {
     fn release_unwritten_shutdown(&self) {
         self.lock().stopping = false;
         self.publish_change();
+    }
+
+    /// Marks when the Worker began to owe a reply that missed its window, or that it owes none.
+    fn set_held(&self, since: Option<Instant>) {
+        self.lock().held_since = since;
+        self.publish_change();
+    }
+
+    /// One `window` from now, and no later than one `window` after the wire began to wait.
+    fn cleanup_deadline(&self, window: Duration) -> Instant {
+        let now = Instant::now();
+        let own = now.checked_add(window).unwrap_or(now);
+        match self
+            .lock()
+            .held_since
+            .and_then(|since| since.checked_add(window))
+        {
+            Some(held) => own.min(held),
+            None => own,
+        }
     }
 
     /// Whether no producer can submit any more, the queue closed or its last handle gone, and no
@@ -1285,6 +1402,7 @@ fn create_worker_carrier_with_limits(
             queue,
             worker_id,
             system_shell: None,
+            cleanup_window: limits.response_timeout,
         },
     }
 }
@@ -1523,10 +1641,9 @@ impl WorkerWireOwner {
             }
         }
         if unanswered {
-            self.owed = Some(OwedReply {
-                key,
-                since: Instant::now(),
-            });
+            let since = Instant::now();
+            self.owed = Some(OwedReply { key, since });
+            self.queue.set_held(Some(since));
         }
         Ok(())
     }
@@ -1545,6 +1662,13 @@ impl WorkerWireOwner {
             "none",
         );
         Some(abandoned.key)
+    }
+
+    /// The Worker has answered the reply it owed, so writing may resume.
+    fn end_hold(&mut self) {
+        if self.owed.take().is_some() {
+            self.queue.set_held(None);
+        }
     }
 
     /// While a reply is owed, fails each queued request whose deadline has passed before it is
@@ -1634,7 +1758,7 @@ impl WorkerWireOwner {
                         Ok(Ok(message)) => match self.drop_late_reply(&message) {
                             Some(key) => {
                                 if self.owed.is_some_and(|owed| owed.key == key) {
-                                    self.owed = None;
+                                    self.end_hold();
                                 }
                             }
                             None => {
@@ -1643,7 +1767,7 @@ impl WorkerWireOwner {
                                     "none",
                                     "none",
                                 );
-                                self.owed = None;
+                                self.end_hold();
                             }
                         },
                         Ok(Err(error)) => {
@@ -1652,7 +1776,7 @@ impl WorkerWireOwner {
                                 "none",
                                 wire_end::protocol_error(error),
                             );
-                            self.owed = None;
+                            self.end_hold();
                         }
                         Err(FrameEnd::Silent) => {
                             return Ok(IdleStreamState::Broken(FramingBreak::Incomplete));
@@ -1744,7 +1868,7 @@ fn send_completion(
         // An abandoned observation must not kill healthy carrier traffic: the
         // reply is still consumed off the wire, then discarded when its
         // receiver is gone.
-        CompletionDelivery::DiscardableRead(completion) => {
+        CompletionDelivery::Discardable(completion) => {
             let _delivered = completion.send(result);
             true
         }

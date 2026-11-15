@@ -33,11 +33,11 @@ use orchbee_local_worker_protocol::WorkerId;
 use crate::worker_registry::{RegisteredWorkerWireOwner, WorkerAdmission, WorkerRegistry};
 
 use super::{
-    AdmitOutcome, CompletionDelivery, ExchangeWait, FramingBreak, PendingRequest, RequestLane,
-    UnwrittenWait, WorkerCarrierLimits, WorkerCarrierShutdown, WorkerOperationRequest,
-    WorkerOperationResult, WorkerRequestError, WorkerRequestHandle, WorkerResponseFailure,
-    WorkerTransportFailure, WorkerWireExit, WorkerWireOwner, create_worker_carrier_with_limits,
-    send_completion,
+    Admission, AdmitOutcome, BlockAdmit, CompletionDelivery, ExchangeWait, FramingBreak,
+    PendingRequest, RequestLane, UnwrittenWait, WorkerCarrierLimits, WorkerCarrierShutdown,
+    WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
+    WorkerResponseFailure, WorkerTransportFailure, WorkerWireExit, WorkerWireOwner,
+    create_worker_carrier_with_limits, send_completion,
 };
 
 const LOCAL_WORKER_ID: WorkerId = WorkerId::from_bytes([7; 16]);
@@ -202,9 +202,9 @@ fn shutdown_freezes_both_lanes_and_preserves_the_in_flight_request() -> TestResu
         GENERATION.get(),
         LOCAL_WORKER_ID,
     )?)?);
-    let first = handle.admit(ordinary.clone(), false)?;
+    let first = handle.admit(ordinary.clone(), Admission::Try)?;
     let in_flight = owner.queue.dispatch_next().ok_or("in flight")?;
-    let queued = handle.admit(ordinary.clone(), false)?;
+    let queued = handle.admit(ordinary.clone(), Admission::Try)?;
     let request = WorkerShutdownRequest {
         operation_id: OperationId::from_bytes([8; 16])?,
         worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
@@ -212,17 +212,17 @@ fn shutdown_freezes_both_lanes_and_preserves_the_in_flight_request() -> TestResu
         budget: ShutdownBudget::new(15_000)?,
         terminals: orchbee_capability_node_protocol::ShutdownTerminals::Dispose,
     };
-    let stopping = handle.admit(WorkerOperationRequest::Shutdown(request), false)?;
+    let stopping = handle.admit(WorkerOperationRequest::Shutdown(request), Admission::Try)?;
     assert!(matches!(
         queued.recv(),
         Err(WorkerRequestError::Unavailable)
     ));
     assert!(matches!(
-        handle.admit(ordinary.clone(), false),
+        handle.admit(ordinary.clone(), Admission::Try),
         Err(WorkerRequestError::Unavailable)
     ));
     assert!(matches!(
-        handle.admit(ordinary, true),
+        handle.admit(ordinary, Admission::Cleanup(None)),
         Err(WorkerRequestError::Unavailable)
     ));
     let (low, _rx) = pending_for_test(WorkerOperationRequest::AgentDrain(
@@ -1066,6 +1066,10 @@ fn partial_response_cannot_extend_the_finite_read() -> TestResult {
 
 #[test]
 fn a_late_reply_is_awaited_unwritten_and_never_answers_the_next_request() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        TerminalControlAction, TerminalControlOutcome, TerminalControlRequest,
+        TerminalControlResult,
+    };
     use orchbee_local_runtime::LogValue;
     let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
     let (exit_sender, exit_receiver) = mpsc::channel();
@@ -1077,18 +1081,42 @@ fn a_late_reply_is_awaited_unwritten_and_never_answers_the_next_request() -> Tes
     let late = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
     let held = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
     let next = launch_request(authorization(3, 3, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let release = TerminalControlRequest {
+        request_id: OperationId::from_bytes([4; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        viewer_id: OperationId::from_bytes([5; 16])?,
+        controller_id: OperationId::from_bytes([6; 16])?,
+        action: TerminalControlAction::Release,
+    };
+    let released = TerminalControlResult {
+        request_id: release.request_id,
+        viewer_id: release.viewer_id,
+        controller_id: release.controller_id,
+        outcome: TerminalControlOutcome::Released,
+    };
     let (answer_sender, answer_receiver) = mpsc::channel();
-    let (worker_late, worker_next) = (late.clone(), next.clone());
+    let (worker_late, worker_release, worker_next) = (late.clone(), release.clone(), next.clone());
     let worker_thread = thread::spawn(move || -> TestResult {
         assert_eq!(
             read_message(&mut worker)?,
             CapabilityNodeMessage::AuthorizedTerminalLaunch(worker_late.clone())
         );
-        // The answer comes long after its window; the next frame read proves none came before it.
-        answer_receiver.recv()?;
+        // The answer comes long after its window, and at the latest once a cleanup caller that
+        // waits out the hold would have blocked; the frames read next prove none came before it.
+        let _answer = answer_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT);
         write_message(
             &mut worker,
             &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&worker_late)),
+        )?;
+        // The cleanup its caller stopped waiting for is still written first.
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::TerminalControlRequest(worker_release)
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalControlResult(released),
         )?;
         assert_eq!(
             read_message(&mut worker)?,
@@ -1114,6 +1142,17 @@ fn a_late_reply_is_awaited_unwritten_and_never_answers_the_next_request() -> Tes
             WorkerTransportFailure::TimedOut
         ))
     );
+    // A cleanup caller stops waiting within the window and is never told it was not delivered.
+    let (cleanup, cleanup_records) = crate::fault_records::capture::records(|| {
+        handle.cleanup_control(release, handle.cleanup_deadline())
+    });
+    assert!(matches!(cleanup, ExchangeWait::Elapsed));
+    assert!(cleanup_records.iter().any(|record| {
+        record.event == "worker-request-failed"
+            && record
+                .fields
+                .contains(&("failure", LogValue::Token("unawaited.timed-out")))
+    }));
     answer_sender.send(())?;
     // Cleanup admission waits out the hold, so this request cannot race the late reply.
     assert_eq!(
@@ -2550,7 +2589,7 @@ fn blocked_cleanup_promotes_into_freed_slots_before_new_try_admissions() -> Test
     // A cleanup producer deposits its payload and waits once the lane is full.
     let (waiter_request, waiter_result) = pending_for_test(launch_operation(30)?)?;
     let waiter_queue = Arc::clone(&handle.queue);
-    let waiter_thread = thread::spawn(move || waiter_queue.block_admit_high(waiter_request));
+    let waiter_thread = thread::spawn(move || waiter_queue.block_admit_high(waiter_request, None));
     let deadline = Instant::now() + TEST_COMPLETION_TIMEOUT;
     while waiter_count(&owner) == 0 {
         assert!(Instant::now() < deadline, "cleanup waiter never deposited");
@@ -2571,7 +2610,10 @@ fn blocked_cleanup_promotes_into_freed_slots_before_new_try_admissions() -> Test
         .ok_or("expected a queued request")?;
     drop(first);
     assert!(waiter_count(&owner) == 0, "waiter was not promoted");
-    assert!(waiter_thread.join().map_err(|_| "waiter panicked")?);
+    assert_eq!(
+        waiter_thread.join().map_err(|_| "waiter panicked")?,
+        BlockAdmit::Admitted
+    );
     let mut sequence = Vec::new();
     while let Some(pending) = owner.queue.dispatch_next() {
         sequence.push(request_key(&pending.request)?);
@@ -2602,7 +2644,7 @@ fn closed_queue_settles_every_queued_and_waiting_request_once() -> TestResult {
     }
     let (waiter_request, waiter_result) = pending_for_test(launch_operation(30)?)?;
     let waiter_queue = Arc::clone(&handle.queue);
-    let waiter_thread = thread::spawn(move || waiter_queue.block_admit_high(waiter_request));
+    let waiter_thread = thread::spawn(move || waiter_queue.block_admit_high(waiter_request, None));
     let deadline = Instant::now() + TEST_COMPLETION_TIMEOUT;
     while waiter_count(&owner) == 0 {
         assert!(Instant::now() < deadline, "cleanup waiter never deposited");
@@ -2623,7 +2665,10 @@ fn closed_queue_settles_every_queued_and_waiting_request_once() -> TestResult {
         );
         assert!(result.recv().is_err(), "request settled more than once");
     }
-    assert!(!waiter_thread.join().map_err(|_| "waiter panicked")?);
+    assert_eq!(
+        waiter_thread.join().map_err(|_| "waiter panicked")?,
+        BlockAdmit::Closed
+    );
     assert_eq!(
         waiter_result.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
         Err(WorkerRequestError::Unavailable)
@@ -2637,10 +2682,11 @@ fn closed_queue_settles_every_queued_and_waiting_request_once() -> TestResult {
         ),
         AdmitOutcome::Closed
     );
-    assert!(
-        !handle
+    assert_eq!(
+        handle
             .queue
-            .block_admit_high(pending_for_test(launch_operation(50)?)?.0)
+            .block_admit_high(pending_for_test(launch_operation(50)?)?.0, None),
+        BlockAdmit::Closed
     );
     Ok(())
 }
@@ -2836,7 +2882,7 @@ fn in_flight_abandoned_required_exchange_retires_the_carrier() -> TestResult {
         Ok(())
     });
 
-    let exchange = handle.admit(launch_operation(1)?, false)?;
+    let exchange = handle.admit(launch_operation(1)?, Admission::Try)?;
     seen_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?;
     drop(exchange);
     release_sender.send(())?;

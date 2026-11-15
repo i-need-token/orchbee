@@ -110,7 +110,13 @@ fn handoff_queue_fences_both_lanes_settles_unwritten_requests_and_owns_one_contr
             AdmitOutcome::Closed
         );
     }
-    assert!(!queue.block_admit_high(pending(WorkerOperationRequest::CwdValidation(cwd())).0));
+    assert_eq!(
+        queue.block_admit_high(
+            pending(WorkerOperationRequest::CwdValidation(cwd())).0,
+            None
+        ),
+        super::super::BlockAdmit::Closed
+    );
     assert_eq!(
         queue.admit_handoff(pending(request(Action::Commit).into()).0),
         AdmitOutcome::Full,
@@ -257,7 +263,7 @@ fn handoff_prepare_releases_blocked_cleanup_and_refuses_concurrent_shutdown() {
     }
     let (cleanup, cleanup_receipt) = pending(WorkerOperationRequest::CwdValidation(cwd()));
     let waiting = Arc::clone(&queue);
-    let cleanup = thread::spawn(move || waiting.block_admit_high(cleanup));
+    let cleanup = thread::spawn(move || waiting.block_admit_high(cleanup, None));
     let deadline = std::time::Instant::now() + Duration::from_secs(3);
     while queue.lock().high_waiters.is_empty() {
         assert!(
@@ -267,7 +273,7 @@ fn handoff_prepare_releases_blocked_cleanup_and_refuses_concurrent_shutdown() {
         thread::yield_now();
     }
     let _prepare = admit(&queue, request(Action::Prepare));
-    assert!(!cleanup.join().unwrap());
+    assert_eq!(cleanup.join().unwrap(), super::super::BlockAdmit::Closed);
     receipts.push(cleanup_receipt);
     for receipt in receipts {
         assert_eq!(
@@ -444,7 +450,10 @@ fn handoff_actual_carrier_finishes_inflight_before_prepare_and_recovers_normal_a
     received.recv_timeout(Duration::from_secs(4)).unwrap();
     let prepare = wire
         .handle
-        .admit(request(Action::Prepare).into(), false)
+        .admit(
+            request(Action::Prepare).into(),
+            super::super::Admission::Try,
+        )
         .unwrap();
     assert_eq!(
         wire.handle.validate_terminal_cwd(cwd()).unwrap_err(),
