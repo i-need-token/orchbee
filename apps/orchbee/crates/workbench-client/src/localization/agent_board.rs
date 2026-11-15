@@ -99,6 +99,8 @@ pub(crate) struct AgentPickerText {
     /// No lookup completed on the Session's machine and the last one failed or cannot run there.
     pub(crate) couldnt_check: &'static str,
     pub(crate) unsupported: &'static str,
+    /// Why this Panel is unavailable as a place: the Session cannot type at a confirmed prompt.
+    pub(crate) this_panel_session_too_old: &'static str,
     pub(crate) start_hint: &'static str,
     /// The footer verb for `Tab`, which moves to the next place.
     pub(crate) place_hint: &'static str,
@@ -143,6 +145,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
         checking: "Looking for installed Agents…",
         couldnt_check: "Couldn’t check installed Agents",
         unsupported: "Starting an Agent is not supported on this platform.",
+        this_panel_session_too_old: "This Session is too old to start an Agent in this Panel.",
         start_hint: "start",
         place_hint: "place",
     },
@@ -196,6 +199,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
         checking: "正在查找已安装的智能体…",
         couldnt_check: "无法检查已安装的智能体",
         unsupported: "此平台尚不支持启动智能体。",
+        this_panel_session_too_old: "这个会话版本太旧，无法在当前面板启动智能体。",
         start_hint: "启动",
         place_hint: "位置",
     },

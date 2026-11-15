@@ -183,6 +183,14 @@ impl LocalClientOrigin {
     pub fn is_local(&self) -> bool {
         self.local
     }
+    /// The capabilities the Session's handshake answer listed on the promoted connection's
+    /// current carrier; a reconnect replaces them. `None` for an origin without a promoted
+    /// connection, whose next connection negotiates afresh.
+    pub fn session_capabilities(&self) -> Option<orchbee_connection_handshake::CapabilitySet> {
+        self.multiplex
+            .as_ref()
+            .map(|connection| connection.capabilities())
+    }
 
     pub fn lane_before(
         &self,

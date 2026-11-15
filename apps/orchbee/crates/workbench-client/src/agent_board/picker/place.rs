@@ -1,11 +1,13 @@
 //! Where a picked start opens: the places one picker offers and the `Tab` cycle through them.
 //!
-//! The offer is fixed when the picker opens, from the focused Panel at that moment. The
-//! automatic place is the first one offered, so nothing is asked unless the person cycles.
+//! The offer is fixed when the picker opens, from the focused Panel and the Session's handshake
+//! answer at that moment. The automatic place is the first available one, so nothing is asked
+//! unless the person cycles.
 
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 use super::super::start::StartPlace;
+use crate::session_capabilities::SessionAction;
 
 /// The places a picker offers, in cycle order: this Panel, a new Tab, the two splits, then a new
 /// worktree.
@@ -17,6 +19,9 @@ pub(crate) struct Places {
     focused: bool,
     /// Whether the current Project can create a worktree now, by the New Worktree form's own rule.
     worktree: bool,
+    /// Whether the Session can type a start line at a confirmed prompt. Without it this Panel is
+    /// still offered, but unavailable.
+    typed: bool,
 }
 
 impl Places {
@@ -31,6 +36,7 @@ impl Places {
             idle: focus.filter(|panel| !busy(panel)).cloned(),
             focused: focus.is_some(),
             worktree: false,
+            typed: true,
         }
     }
 
@@ -39,6 +45,22 @@ impl Places {
     pub(crate) const fn with_worktree(mut self, available: bool) -> Self {
         self.worktree = available;
         self
+    }
+
+    /// Marks this Panel unavailable unless the Session serves
+    /// [`SessionAction::StartInThisPanel`].
+    #[must_use]
+    pub(crate) const fn with_typed_start(mut self, served: bool) -> Self {
+        self.typed = served;
+        self
+    }
+
+    /// The Session action an offered `place` needs and the Session lacks, if any.
+    pub(crate) const fn unavailable(&self, place: &StartPlace) -> Option<SessionAction> {
+        match place {
+            StartPlace::ThisPanel(_) if !self.typed => Some(SessionAction::StartInThisPanel),
+            _ => None,
+        }
     }
 
     pub(crate) fn offered(&self) -> Vec<StartPlace> {
@@ -54,10 +76,11 @@ impl Places {
         places
     }
 
-    /// This Panel when it is offered, otherwise a new Tab.
+    /// This Panel when it is offered and available, otherwise a new Tab.
     pub(crate) fn automatic(&self) -> StartPlace {
         self.idle
             .clone()
+            .filter(|_| self.typed)
             .map_or(StartPlace::NewTab, StartPlace::ThisPanel)
     }
 

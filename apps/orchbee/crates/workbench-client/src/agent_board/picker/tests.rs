@@ -3,7 +3,8 @@ use serde::Deserialize;
 
 use super::super::start::{Phase, StartPlace, place_after, test_catalog};
 use super::{
-    Group, Holds, Item, Meta, Picker, Places, Sources, Status, items, menu_agents, status,
+    Group, Holds, Item, Meta, PickedStart, Picker, PickerOutcome, Places, Sources, Status, items,
+    menu_agents, status,
 };
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use crate::workbench_state::AgentStartRefusal;
@@ -212,6 +213,74 @@ fn places_offered_follow_the_focused_panel_and_auto_is_the_first() {
         assert_eq!(places.offered(), expected, "{name}");
         assert_eq!(places.automatic(), expected[0], "{name}");
     }
+}
+
+/// A Session whose answer lacks `prompt-gated-input` and `agent-input-area` loses only the start
+/// in this Panel: it stays offered but unavailable, starts nothing, and every other place works.
+#[test]
+fn a_session_without_the_prompt_gate_disables_only_this_panel() {
+    use StartPlace::{NewTab, ThisPanel};
+    let enter = KeyEvent::press(KeyCode::Enter, Modifiers::NONE);
+    let back = KeyEvent::press(KeyCode::Tab, Modifiers::NONE.with_shift());
+    let focused = panel(7);
+    let offer = orchbee_connection_handshake::ConnectionKind::ClientServer.capabilities();
+    let older = orchbee_connection_handshake::CapabilitySet::new(
+        offer
+            .iter()
+            .filter(|name| {
+                ![
+                    orchbee_connection_handshake::PROMPT_GATED_INPUT,
+                    orchbee_connection_handshake::AGENT_INPUT_AREA,
+                ]
+                .contains(&name.as_str())
+            })
+            .cloned(),
+    )
+    .unwrap();
+    let open = |answer: &orchbee_connection_handshake::CapabilitySet| {
+        let mut board = super::super::AgentBoard::new(true);
+        board.observe_session_capabilities(Some(answer));
+        board.open_picker(Some(&focused), true);
+        board.install_start_catalog_t(&["codex"]);
+        board
+    };
+
+    let mut board = open(&older);
+    let picker = board.picker().unwrap();
+    let offered = picker.places.offered();
+    assert_eq!(offered[0], ThisPanel(focused.clone()), "still offered");
+    for place in &offered {
+        assert_eq!(
+            picker.places.unavailable(place).is_some(),
+            matches!(place, ThisPanel(_)),
+            "{place:?}"
+        );
+    }
+    assert_eq!(picker.place(), &NewTab, "the first available place");
+    assert_eq!(picker.place_unavailable(), None);
+    let _ = board.picker_key(back);
+    assert_eq!(board.picker().unwrap().place(), &ThisPanel(focused.clone()));
+    assert!(board.picker().unwrap().place_unavailable().is_some());
+    assert_eq!(board.picker_key(enter), PickerOutcome::Handled);
+    assert!(board.is_open(), "an unavailable place starts nothing");
+    let _ = board.picker_key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE));
+    assert_eq!(
+        board.picker_key(enter),
+        PickerOutcome::Start(PickedStart {
+            provider: "codex",
+            place: NewTab,
+        })
+    );
+
+    let mut board = open(&offer);
+    assert_eq!(board.picker().unwrap().place_unavailable(), None);
+    assert_eq!(
+        board.picker_key(enter),
+        PickerOutcome::Start(PickedStart {
+            provider: "codex",
+            place: ThisPanel(focused.clone()),
+        })
+    );
 }
 
 #[test]

@@ -23,6 +23,7 @@ use crate::agent_board::start::StartPlace;
 use crate::agent_board::{AgentBoardControl, AgentBoardDraw, AgentBoardView};
 use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::localization::ShellText;
+use crate::session_capabilities::SessionAction;
 use crate::terminal_text::{display_width, truncate_display};
 use crate::tui_hit_map::{
     HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, ListScrollTarget,
@@ -57,22 +58,31 @@ pub(super) fn render(
         StartPlace::NewWorktree => copy.new_worktree,
     };
     let context = copy.opens_in.replace("{place}", place);
-    let status = match board.picker_status() {
-        Some(Status::Unsupported) => Some(DialogRow::Status(
+    let place_unavailable = picker.place_unavailable();
+    let status = match (board.picker_status(), place_unavailable) {
+        (Some(Status::Unsupported), _) => Some(DialogRow::Status(
             copy.unsupported.into(),
+            Role::StatusWarning,
+        )),
+        // Enter starts nothing in a place the Session cannot serve, so its reason comes next.
+        (_, Some(SessionAction::StartInThisPanel)) => Some(DialogRow::Status(
+            copy.this_panel_session_too_old.into(),
             Role::StatusWarning,
         )),
         // A provider still being checked is listed nowhere yet, so an empty list while checking
         // is not "no match".
-        Some(Status::Looking) => Some(DialogRow::Status(copy.checking.into(), Role::StatusPending)),
+        (Some(Status::Looking), None) => {
+            Some(DialogRow::Status(copy.checking.into(), Role::StatusPending))
+        }
         // The rows below still list every Agent, under not checked.
-        Some(Status::CouldntCheck) => Some(DialogRow::Status(
+        (Some(Status::CouldntCheck), None) => Some(DialogRow::Status(
             copy.couldnt_check.into(),
             Role::StatusWarning,
         )),
-        None if !items
-            .iter()
-            .any(|item| matches!(item, Item::Provider { .. } | Item::Fold { .. })) =>
+        (None, None)
+            if !items
+                .iter()
+                .any(|item| matches!(item, Item::Provider { .. } | Item::Fold { .. })) =>
         {
             Some(DialogRow::Item(copy.no_match.into(), Role::TextSecondary))
         }
@@ -146,7 +156,12 @@ pub(super) fn render(
     // The owner's close publishes the interaction its pointer lane routes.
     let _ = render_header_close(frame, layout.area, &draw, theme, hits);
     if let Some(row) = layout.row(PLACE) {
-        paint_place(frame, row, copy.opens_in, place, &draw, theme, hits);
+        let role = if place_unavailable.is_some() {
+            Role::TextDisabled
+        } else {
+            Role::TextPrimary
+        };
+        paint_place(frame, row, copy.opens_in, (place, role), &draw, theme, hits);
     }
     let _ = render_query_field(
         frame,
@@ -183,14 +198,14 @@ pub(super) fn render(
     AgentBoardDraw::Presented(draw)
 }
 
-/// The place row: the label in `text-secondary` and the place in `text-primary`. A row too
-/// narrow for both drops the label first, so the place stays named; the whole row cycles the
-/// place on click, like `Tab`.
+/// The place row: the label in `text-secondary` and the place in `text-primary`, or
+/// `text-disabled` while the place is unavailable. A row too narrow for both drops the label
+/// first, so the place stays named; the whole row cycles the place on click, like `Tab`.
 fn paint_place(
     frame: &mut Frame<'_>,
     row: Rect,
     template: &str,
-    place: &str,
+    (place, role): (&str, Role),
     draw: &crate::agent_board::AgentBoardActualDraw,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -209,7 +224,7 @@ fn paint_place(
     // The padding overwrites what the dialog painted under the row.
     let line = Line::from(vec![
         Span::styled(label, theme.style(Role::TextSecondary)),
-        Span::styled(place, theme.style(Role::TextPrimary)),
+        Span::styled(place, theme.style(role)),
         Span::styled(rest, theme.style(Role::TextSecondary)),
         Span::raw(" ".repeat(cells.saturating_sub(used))),
     ]);

@@ -1,0 +1,35 @@
+//! The one table from a `client-server` capability to the TUI actions that need it. A Session whose
+//! handshake answer lacks a capability disables only those actions, which show as unavailable with
+//! their reason before invocation; every other action and the connection stay. The action's own
+//! owner still checks the answer again at its effect boundary.
+
+use orchbee_connection_handshake::{AGENT_INPUT_AREA, CapabilitySet, PROMPT_GATED_INPUT};
+
+/// A TUI action that only a Session listing a certain capability can serve.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SessionAction {
+    /// The Start Agent picker's start in the focused Panel, which types the start line at a
+    /// confirmed prompt. Its other places have the Server start the Agent in a new shell.
+    StartInThisPanel,
+}
+
+/// Every capability this build's `client-server` offer lists, with the TUI actions that need it.
+const NEEDED_BY: &[(&str, &[SessionAction])] = &[
+    // Only the CLI's recent Agent read asks for the input area, and it reads without one.
+    (AGENT_INPUT_AREA, &[]),
+    (PROMPT_GATED_INPUT, &[SessionAction::StartInThisPanel]),
+];
+
+/// Whether `action` is available under the Session's handshake answer. Without an answer, as
+/// before the first connection is promoted, nothing is known to be missing.
+pub(crate) fn serves(answer: Option<&CapabilitySet>, action: SessionAction) -> bool {
+    answer.is_none_or(|answer| {
+        NEEDED_BY
+            .iter()
+            .filter(|(_, actions)| actions.contains(&action))
+            .all(|(capability, _)| answer.contains(capability))
+    })
+}
+
+#[cfg(test)]
+mod tests;

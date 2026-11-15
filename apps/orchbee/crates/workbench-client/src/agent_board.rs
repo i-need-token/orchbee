@@ -346,6 +346,8 @@ pub(crate) struct AgentBoard {
     catalog_refresh: bool,
     picker: Option<picker::Picker>,
     session_agents: SessionAgents,
+    /// Whether the Session's handshake answer, as last observed, serves a start in this Panel.
+    typed_start: bool,
 }
 
 impl AgentBoard {
@@ -422,6 +424,7 @@ impl AgentBoard {
             catalog_refresh: false,
             picker: None,
             session_agents: SessionAgents::default(),
+            typed_start: true,
         }
     }
 

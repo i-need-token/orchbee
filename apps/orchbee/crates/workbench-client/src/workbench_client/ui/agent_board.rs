@@ -67,6 +67,7 @@ impl WorkbenchClientUi {
         }
         let focus = self.focused_panel();
         let worktree = self.worktree_place_available();
+        self.observe_session_capabilities();
         self.board.open_picker(focus.as_ref(), worktree);
         ClientActionDisposition::DismissNavigator
     }
@@ -79,7 +80,15 @@ impl WorkbenchClientUi {
         }
         let focus = self.focused_panel();
         let worktree = self.worktree_place_available();
+        self.observe_session_capabilities();
         self.board.open_picker_in_new_tab(focus.as_ref(), worktree);
+    }
+
+    /// Hands the picker the Session's current handshake answer, which a reconnect may have
+    /// replaced, before it fixes its places.
+    fn observe_session_capabilities(&mut self) {
+        let answer = self.start_jobs.session_capabilities();
+        self.board.observe_session_capabilities(answer.as_ref());
     }
 
     /// The new-Tab menu's Agents from the catalog already held, fixed when it opens, or `None`

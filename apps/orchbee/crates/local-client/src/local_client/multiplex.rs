@@ -590,6 +590,14 @@ impl Connection {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .contains(capability)
     }
+    /// The capabilities the current carrier's handshake answer listed.
+    pub(super) fn capabilities(&self) -> CapabilitySet {
+        self.shared
+            .capabilities
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
     pub(super) fn is_current(&self, now: Instant) -> bool {
         !self.shared.stopped.load(Ordering::Acquire)
             && self

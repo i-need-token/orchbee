@@ -5,6 +5,7 @@
 //! the chosen provider and its place to the composition. It never starts anything itself and
 //! keeps no record: rows, their state and recency come from the catalog the Server sends.
 
+use orchbee_connection_handshake::CapabilitySet;
 use orchbee_workbench_protocol::{
     AgentCatalogEntryState, AgentCatalogLookup, AgentCatalogLookupStatus, WorkbenchAgentCatalog,
     WorkbenchPanelId,
@@ -14,6 +15,7 @@ use super::session_agents::SessionAgents;
 use super::start::StartPlace;
 use super::{AgentBoard, AgentBoardControl, AgentBoardControlTarget};
 use crate::client_view::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
+use crate::session_capabilities::SessionAction;
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use crate::workbench_state::AgentStartNotice;
 
@@ -381,6 +383,11 @@ impl Picker {
         &self.place
     }
 
+    /// The Session action the shown place needs and the Session lacks, if any.
+    pub(crate) const fn place_unavailable(&self) -> Option<SessionAction> {
+        self.places.unavailable(&self.place)
+    }
+
     pub(crate) const fn scroll(&self) -> usize {
         self.scroll
     }
@@ -509,6 +516,13 @@ impl AgentBoard {
         self.session_agents = agents;
     }
 
+    /// The Session's handshake answer as last observed; the next opened picker offers its places
+    /// by it. `None` knows of nothing missing.
+    pub(crate) fn observe_session_capabilities(&mut self, answer: Option<&CapabilitySet>) {
+        self.typed_start =
+            crate::session_capabilities::serves(answer, SessionAction::StartInThisPanel);
+    }
+
     /// What the picker lists from, while a catalog is held.
     fn sources(&self) -> Option<Sources<'_>> {
         self.start
@@ -579,6 +593,7 @@ impl AgentBoard {
             self.session_agents.holds(panel) || self.start.guards(panel)
         })
         .with_worktree(worktree)
+        .with_typed_start(self.typed_start)
     }
 
     /// `Ctrl+B G`: opens the picker. `worktree` offers New Worktree.
@@ -701,6 +716,10 @@ impl AgentBoard {
                 let Some(picker) = self.picker.as_ref() else {
                     return PickerOutcome::Handled;
                 };
+                // A place the Session cannot serve starts nothing; the status row says why.
+                if picker.place_unavailable().is_some() {
+                    return PickerOutcome::Handled;
+                }
                 // The place shown is the place used, unless one of this Client's own starts
                 // claimed the Panel meanwhile.
                 let place = match &picker.place {

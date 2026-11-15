@@ -946,7 +946,9 @@ A click switches the Client it is in; other open Clients keep their own control.
 
 A newer Client joins an older Session inside the [window](#compatibility-counts-time): their
 `client-server` generations overlap, and the newer Client checks each negotiated capability before
-it uses one, so a missing one disables only its action. When the active version cannot join the
+it uses one, so a missing one disables only its action. The TUI keeps one table from a capability
+to the actions that need it, and such an action shows as unavailable with its reason, as the
+[Start Agent picker](../../apps/orchbee/docs/start-agent-picker.md) does for this Panel. When the active version cannot join the
 running Session, because that Session runs a release before slice 1 or one outside the window:
 
 - Before P1b the click does not switch; the person keeps the Client they have, and a notice says

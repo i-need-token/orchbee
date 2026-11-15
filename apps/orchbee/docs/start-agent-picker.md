@@ -91,10 +91,16 @@ The place row names where the Agent opens before `Enter`. The place is automatic
 asked: the focused Panel when its shell is idle — no Agent the sidebar shows holds it and none of
 this Client's starts guards it — else a new Tab. `Tab` moves to the next offered place and
 `Shift+Tab` to the previous one, wrapping, in the order this Panel, new Tab, split right, split
-down, new Worktree; a click on the place row acts like `Tab`. This Panel is offered only when it is
-the automatic place, the two splits only while a Panel is focused, and new Worktree only while the
+down, new Worktree; a click on the place row acts like `Tab`. This Panel is offered only while the
+focused Panel is idle, the two splits only while a Panel is focused, and new Worktree only while the
 [New Worktree form](native-worktrees.md) could open a fresh create for the focused Workspace, under
-the refusals `Ctrl+b Shift+W` meets; the offer is fixed when the picker opens. The chosen place holds
+the refusals `Ctrl+b Shift+W` meets; the offer is fixed when the picker opens. A Session whose
+handshake answer lacks `prompt-gated-input` cannot type at a confirmed prompt, so this Panel is then
+offered but unavailable: the automatic place is a new Tab, and while this Panel is shown the place
+is painted `text-disabled`, the status row says the Session is too old to start an Agent there,
+and `Enter` starts nothing. The workflow still checks the answer again before it types; the one
+table from a `client-server` capability to the TUI actions that need it is
+`crates/workbench-client/src/session_capabilities.rs`. The chosen place holds
 while the picker stays open, also across filtering, and is forgotten when it closes. The place row
 is never removed under height pressure; a row too narrow for the label and the place drops the
 label "Opens in" first, then truncates the place name, and the hint row drops `Tab place` before

@@ -47,6 +47,15 @@ impl Jobs {
         self.origin = Some(origin);
     }
 
+    /// The handshake answer of the Session a start here would type into, if known.
+    pub(crate) fn session_capabilities(
+        &self,
+    ) -> Option<orchbee_connection_handshake::CapabilitySet> {
+        self.origin
+            .as_ref()
+            .and_then(LocalClientOrigin::session_capabilities)
+    }
+
     /// One drain: settle each workflow's progress and its completion.
     pub(crate) fn drain(&mut self, state: &mut State) -> Drain {
         let mut drained = Drain::default();

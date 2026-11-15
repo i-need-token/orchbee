@@ -43,6 +43,7 @@ mod machines;
 mod native_settings;
 mod notifications;
 mod pane_canvas;
+mod session_capabilities;
 mod sidebar_width;
 mod startup_directory;
 mod startup_preference;
