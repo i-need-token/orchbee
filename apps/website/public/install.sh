@@ -140,7 +140,7 @@ ob_detect_platform() {
 		*)
 			if [ "$ob_macos_major" -lt 13 ]; then
 				ob_fail "Orchbee needs macOS 13 or later; this Mac runs macOS $ob_macos_version. Nothing was installed." \
-					"Orchbee 需要 macOS 13 或更高版本；这台 Mac 运行的是 macOS $ob_macos_version。未安装任何内容。"
+					"Orchbee 需要 macOS 13 或更高版本；这台 Mac 运行的是 macOS ${ob_macos_version}。未安装任何内容。"
 			fi
 			;;
 		esac
