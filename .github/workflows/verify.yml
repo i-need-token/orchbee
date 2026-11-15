@@ -11,9 +11,9 @@ permissions:
 
 concurrency:
   group: verify-${{ github.workflow }}-${{ github.ref }}
-  # A push to main waits for the run in progress instead of cancelling it: a complete run takes
-  # about an hour, pushes arrive more often, and a cancelled run reports nothing. GitHub keeps one
-  # waiting run per group, so the newest commit is verified next.
+  # A push to main waits for the run in progress instead of cancelling it: a complete run outlasts
+  # the gap between pushes, and a cancelled run reports nothing. GitHub keeps one waiting run per
+  # group, so the newest commit is verified next.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -67,9 +67,16 @@ jobs:
         run: git diff --exit-code
 
   rust-windows:
-    name: Rust native (windows-latest)
+    name: Rust native (windows-latest, ${{ matrix.part }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # `pnpm verify:rust-native` as its three test parts, side by side: one job ran for an hour,
+        # most of it in the terminal client's process tests. scripts/run-rust-workspace.mjs defines
+        # the parts; together they run every target once.
+        part: [workspace, client, client-commands]
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -122,7 +129,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Verify the Rust workspace natively
-        run: pnpm verify:rust-native --verbose
+        run: pnpm verify:rust-native --part ${{ matrix.part }} --verbose
 
   terminal-host-native:
     name: Terminal Host native (${{ matrix.os }})

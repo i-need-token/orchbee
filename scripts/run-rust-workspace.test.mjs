@@ -839,6 +839,72 @@ test('explicit package selection retains unit, integration and doc tests and rej
 	});
 });
 
+test('the test parts together run every test exactly once', () => {
+	withFixture((root) => {
+		// The shape of the real client package: one binary, its heavy test target and another one.
+		const manifest = join(root, 'Cargo.toml');
+		writeFileSync(
+			manifest,
+			readFileSync(manifest, 'utf8').replace(
+				'members = ["fixture"]',
+				'members = ["fixture", "client"]',
+			),
+		);
+		for (const directory of ['client/src', 'client/tests'])
+			mkdirSync(join(root, directory), { recursive: true });
+		writeFileSync(
+			join(root, 'client/Cargo.toml'),
+			'[package]\nname = "orchbee"\nversion = "0.0.0"\nedition.workspace = true\nrust-version.workspace = true\npublish = false\n',
+		);
+		writeFileSync(
+			join(root, 'client/src/main.rs'),
+			'fn main() {}\n#[cfg(test)]\nmod tests {\n\t#[test]\n\tfn client_unit() {}\n}\n',
+		);
+		writeFileSync(join(root, 'client/tests/integration.rs'), '#[test]\nfn client_heavy() {}\n');
+		writeFileSync(join(root, 'client/tests/commands.rs'), '#[test]\nfn client_command() {}\n');
+		const lock = run(root, 'cargo', ['generate-lockfile', '--offline']);
+		assert.equal(lock.status, 0, lock.output);
+		const tests = [
+			'unit_contract',
+			'integration_contract',
+			'lib.rs - value',
+			'client_unit',
+			'client_heavy',
+			'client_command',
+		];
+		const ranIn = new Map(tests.map((name) => [name, []]));
+		for (const part of ['workspace', 'client', 'client-commands']) {
+			const result = run(root, process.execPath, [
+				'scripts/run-rust-workspace.mjs',
+				'test',
+				'--part',
+				part,
+				'--verbose',
+			]);
+			assert.equal(result.status, 0, result.output);
+			for (const name of tests)
+				if (
+					new RegExp(`^test .*${name.replace('.', String.raw`\.`)}.* \\.\\.\\. ok$`, 'mu').test(
+						result.output,
+					)
+				)
+					ranIn.get(name).push(part);
+		}
+		for (const [name, ranInParts] of ranIn)
+			assert.equal(ranInParts.length, 1, `${name} ran in: ${ranInParts.join(', ') || 'no part'}`);
+		const both = run(root, process.execPath, [
+			'scripts/run-rust-workspace.mjs',
+			'test',
+			'--part',
+			'client',
+			'--package',
+			'orchbee',
+		]);
+		assert.notEqual(both.status, 0);
+		assert.match(both.output, /--part and --package/u);
+	});
+});
+
 test('affected Rust docs include only eligible library targets in mixed and binary-only selections', () => {
 	withFixture((root) => {
 		const manifest = join(root, 'Cargo.toml');

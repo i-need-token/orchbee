@@ -203,7 +203,7 @@ results remain unchanged.
   Rust member exists, it validates the pinned toolchain and empty workspace metadata; afterward the
   same tasks run rustfmt, Clippy, build, and tests over every member with `--locked`. The test
   task adds `--no-fail-fast`, so one run reports every failing test target instead of stopping at
-  the first; the Windows CI job takes 45 to 60 minutes, so a run that names one failure at a time
+  the first; a Windows CI job takes tens of minutes, so a run that names one failure at a time
   costs a run per failure. The result is unchanged: any failing target still fails the task.
 - The Rust lint task runs Clippy twice: over every target with all features, then over the
   default-feature library and binary targets of every member. Development dependencies re-enable
@@ -224,8 +224,14 @@ results remain unchanged.
 - Native cross-compilation checks prove source and dependency compilation for the declared target;
   platform behavior still requires a native runner.
 - `verify:rust-native` reuses the same Rust runner tasks and native test preparation as `lint` and
-  `test`. It adds no step of its own, so a Windows host gate and the Windows CI job cannot drift
+  `test`. It adds no step of its own, so a Windows host gate and the Windows CI jobs cannot drift
   from the Linux root gate. Run it on Windows when a change touches platform-gated Rust code.
+  `--part <name>` runs one test part instead of the whole test task, for CI's parallel jobs:
+  `workspace` is the lint task, the tests of every package except the terminal client `orchbee`,
+  and every documentation test; `client` is that package's unit tests and its `integration`
+  target; `client-commands` is its other test targets. The parts together run every target once.
+  The runner lists the client's test targets at run time, so a new one joins `client-commands` by
+  itself, and it fails on a client target kind that no part names.
 
 ## Change-triggered TLA+ verification
 
@@ -253,8 +259,8 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   of its Cargo test targets fail, so that stage made every run red and hid the other results. Rust
   lint stays in the job and keeps the Linux configuration compiling. Restore `pnpm verify` in this
   job when Linux support resumes.
-- A push to `main` never cancels the run in progress. A complete run takes about an hour and pushes
-  arrive more often, so cancelling on every push left `main` without one finished run. GitHub keeps
+- A push to `main` never cancels the run in progress. A complete run outlasts the gap between
+  pushes, so cancelling on every push left `main` without one finished run. GitHub keeps
   one waiting run per concurrency group: the newest commit is verified next, and that run covers
   the commits between. Pull-request runs still cancel on a new push.
 - Read the newest completed run on `main` before landing an integration batch and before pushing a
@@ -265,11 +271,14 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   temporary runner is removed; a local temporary-log path alone is not durable CI evidence.
 - The `rust-windows` job runs `pnpm verify:rust-native` on `windows-latest`, so every Rust
   member gets Clippy and its Cargo test suites under the Windows platform configuration that the
-  Linux `verify` job never compiles. It is the only job that runs the Cargo test suites. Formatting, documentation, TypeScript and TLA checks are
-  platform-independent and stay in `verify`. The Windows TUI process tests that share
-  `apps/orchbee/tests/support/windows_tui_session.rs` take turns inside their test binary: four of
-  their real Session pairs at once saturate the four-vCPU runner, and shells then echo typed input
-  seconds late.
+  Linux `verify` job never compiles. It runs as three parallel jobs, one per test part of
+  [Required tasks](#required-tasks): as one job it ran for about an hour, 41 minutes of that in
+  tests and most of those in the terminal client's process tests, and a run ends with its slowest
+  job. They are the only jobs that run the Cargo test suites. Formatting, documentation,
+  TypeScript and TLA checks are platform-independent and stay in `verify`. The Windows TUI process
+  tests that share `apps/orchbee/tests/support/windows_tui_session.rs` take turns inside their test
+  binary: four of their real Session pairs at once saturate the four-vCPU runner, and shells then
+  echo typed input seconds late.
 - Platform exclusions are explicit. macOS has no Rust job because the native Client is only an
   unsigned per-user Apple Silicon development cohort. `terminal-host-native` runs the native
   Terminal Host tests and formatting check on `windows-latest` only. The repository is public, so

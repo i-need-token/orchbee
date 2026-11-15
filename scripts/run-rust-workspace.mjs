@@ -39,8 +39,16 @@ const unsafeBoundaries = Object.freeze([
 	},
 ]);
 const task = process.argv[2];
+// CI runs the test task as parts in parallel jobs, because one job ran for an hour. Together the
+// parts run every target of the unsplit task, each once. The terminal client's process tests take
+// most of that hour, so its package is two parts: its unit tests with its heaviest test targets,
+// and its other test targets.
+const clientPackage = 'orchbee';
+const heavyClientTests = ['integration'];
+const testParts = ['workspace', 'client', 'client-commands'];
 const selectedPackages = [];
 const presentationArguments = [];
+let part;
 const taskArguments = process.argv.slice(3).filter((argument) => argument !== '--');
 for (let index = 0; index < taskArguments.length; index += 1) {
 	if (taskArguments[index] === '--package') {
@@ -48,8 +56,14 @@ for (let index = 0; index < taskArguments.length; index += 1) {
 		if (task !== 'test' || name === undefined || !/^[a-z\d][a-z\d_-]*$/u.test(name))
 			throw new Error('--package requires a Cargo package name and the test task');
 		selectedPackages.push(name);
+	} else if (taskArguments[index] === '--part') {
+		part = taskArguments[++index];
+		if (task !== 'test' || !testParts.includes(part))
+			throw new Error(`--part requires the test task and one of: ${testParts.join(', ')}`);
 	} else presentationArguments.push(taskArguments[index]);
 }
+if (part !== undefined && selectedPackages.length > 0)
+	throw new Error('--part and --package select tests in different ways; pass only one');
 const verbose = checkVerbose(presentationArguments);
 const commands = new Map([
 	['build', ['build', '--workspace', '--all-targets', '--all-features', '--locked']],
@@ -173,11 +187,18 @@ if (metadata.packages.length === 0) {
 	process.exitCode = await runChecks({
 		name: `rust:${task}`,
 		steps: [
-			{ name: `cargo ${task}`, command: 'cargo', args: scopedCommand },
+			{
+				name: `cargo ${task}`,
+				command: 'cargo',
+				args: part === undefined ? scopedCommand : testPartCommand(part),
+			},
 			...(task === 'lint'
 				? [{ name: 'cargo lint product targets', command: 'cargo', args: productLint }]
 				: []),
-			...(task === 'test' && documentationArguments.length
+			// Of the parts, the workspace part runs every documentation test.
+			...(task === 'test' &&
+			documentationArguments.length &&
+			(part === undefined || part === 'workspace')
 				? [
 						{
 							name: 'cargo documentation tests',
@@ -190,6 +211,38 @@ if (metadata.packages.length === 0) {
 		cwd: repositoryRoot,
 		verbose,
 	});
+}
+
+function testPartCommand(name) {
+	const shared = ['--all-features', '--locked', '--no-fail-fast'];
+	if (name === 'workspace')
+		return ['test', '--workspace', '--exclude', clientPackage, '--all-targets', ...shared];
+	const client = metadata.packages.find(
+		(entry) => entry.name === clientPackage && metadata.workspace_members.includes(entry.id),
+	);
+	if (client === undefined)
+		throw new Error(`Test part ${name} needs the workspace package ${clientPackage}`);
+	// The client parts name the targets they run. A target kind that neither part names would run
+	// in no part and nobody would notice, so a new kind fails here until a part takes it.
+	const unassigned = client.targets
+		.flatMap((target) => target.kind)
+		.find((kind) => !['bin', 'test', 'custom-build'].includes(kind));
+	if (unassigned !== undefined)
+		throw new Error(
+			`No test part runs the ${unassigned} targets of ${clientPackage}; assign them in scripts/run-rust-workspace.mjs`,
+		);
+	const selected =
+		name === 'client'
+			? ['--bins', ...heavyClientTests.flatMap((test) => ['--test', test])]
+			: client.targets
+					.filter((target) => target.kind.includes('test'))
+					.map((target) => target.name)
+					.filter((test) => !heavyClientTests.includes(test))
+					.flatMap((test) => ['--test', test]);
+	// Cargo runs every target of the package when none is named.
+	if (selected.length === 0)
+		throw new Error(`Test part ${name} selects no target of ${clientPackage}`);
+	return ['test', '--package', clientPackage, ...selected, ...shared];
 }
 
 function legacySourceModules(directory) {

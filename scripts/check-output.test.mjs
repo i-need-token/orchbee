@@ -317,6 +317,21 @@ test('the daily gate retains host tests while full builds and cross checks requi
 		JSON.stringify(checkSteps('verify:rust-native', undefined, 'win32')),
 		/test:cross|build:full/u,
 	);
+	// CI runs the task as parts in parallel jobs. Lint must run with exactly one of them, and each
+	// part names itself to the runner after the same preparation as the unsplit task.
+	const partNames = ['workspace', 'client', 'client-commands'];
+	const parts = partNames.map((part) => checkSteps('verify:rust-native', undefined, 'win32', part));
+	assert.equal(parts.flat().filter((step) => step.name === 'Rust workspace lint').length, 1);
+	for (const [index, part] of partNames.entries()) {
+		const names = parts[index].map((step) => step.name);
+		assert.deepEqual(parts[index].at(-1).args.slice(-3), ['test', '--part', part]);
+		for (const preparation of ['prepare native test host', 'prepare native test peers'])
+			assert.ok(names.includes(preparation), `${part}: ${preparation}`);
+	}
+	assert.throws(
+		() => checkSteps('verify:rust-native', undefined, 'win32', 'clients'),
+		/--part expects one of/u,
+	);
 	const cross = checkSteps('test:cross');
 	assert.equal(cross.length, 1);
 	assert.deepEqual(cross[0].args.slice(-3), ['-r', '--if-present', 'test:cross']);

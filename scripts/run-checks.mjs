@@ -46,7 +46,30 @@ function nativeTestPreparation(scope, platform) {
 	];
 }
 
-export function checkSteps(task, scope, platform = process.platform) {
+// The Rust runner owns the test parts. This copy only rejects a typo before the long preparation
+// steps would run for it.
+const rustTestParts = ['workspace', 'client', 'client-commands'];
+
+function rustNativeSteps(part, platform) {
+	if (part !== undefined && !rustTestParts.includes(part))
+		throw new Error(`--part expects one of: ${rustTestParts.join(', ')}`);
+	return [
+		// Lint covers the whole workspace, so of the parts only the workspace part runs it. Every
+		// part keeps the whole preparation: a part must not differ from the unsplit task in what
+		// its tests find built.
+		...(part === undefined || part === 'workspace'
+			? [nodeStep('Rust workspace lint', ['scripts/run-rust-workspace.mjs', 'lint'])]
+			: []),
+		...nativeTestPreparation(undefined, platform),
+		nodeStep('Rust workspace tests', [
+			'scripts/run-rust-workspace.mjs',
+			'test',
+			...(part === undefined ? [] : ['--part', part]),
+		]),
+	];
+}
+
+export function checkSteps(task, scope, platform = process.platform, rustPart) {
 	if (task === 'verify:full') {
 		return checkSteps('verify', undefined, platform).flatMap((step) => {
 			if (step.name === 'build:packages') return [pnpmStep('build:full')];
@@ -117,12 +140,9 @@ export function checkSteps(task, scope, platform = process.platform) {
 		],
 		[
 			// One OS-native Rust pass: platform-gated code gets Clippy and Cargo tests on its own host.
+			// With `--part`, one of the runner's test parts; CI runs the parts as parallel jobs.
 			'verify:rust-native',
-			[
-				nodeStep('Rust workspace lint', ['scripts/run-rust-workspace.mjs', 'lint']),
-				...nativeTestPreparation(undefined, platform),
-				nodeStep('Rust workspace tests', ['scripts/run-rust-workspace.mjs', 'test']),
-			],
+			rustNativeSteps(rustPart, platform),
 		],
 		[
 			'test:cross',
@@ -206,10 +226,13 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
 		const name = process.argv[2];
 		const started = performance.now();
 		const root = resolve(import.meta.dirname, '..');
+		const taskArguments = process.argv.slice(3);
+		const partIndex = name === 'verify:rust-native' ? taskArguments.indexOf('--part') : -1;
+		const rustPart = partIndex === -1 ? undefined : (taskArguments.splice(partIndex, 2)[1] ?? '');
 		const options =
 			name === 'verify'
-				? verificationOptions(process.argv.slice(3))
-				: { verbose: checkVerbose(process.argv.slice(3)) };
+				? verificationOptions(taskArguments)
+				: { verbose: checkVerbose(taskArguments) };
 		const scope =
 			options.changedSince === undefined
 				? undefined
@@ -222,7 +245,7 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
 			? 0
 			: await runChecks({
 					name,
-					steps: checkSteps(name, scope),
+					steps: checkSteps(name, scope, undefined, rustPart),
 					verbose: options.verbose,
 					cwd: root,
 				});
