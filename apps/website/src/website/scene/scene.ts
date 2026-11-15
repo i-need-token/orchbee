@@ -22,6 +22,11 @@ export interface Scene<State> {
 	readonly fadeAt: number;
 	/** When the scene starts again. */
 	readonly length: number;
+	/**
+	 * The state each later run starts from, given the state the last run ended in. Without it every
+	 * run starts from `initial`; a scene that carries on where it left off returns its argument.
+	 */
+	readonly carryOver?: (state: State) => State;
 }
 
 /**
