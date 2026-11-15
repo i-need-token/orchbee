@@ -520,10 +520,12 @@ Decided by the product owner on 2026-11-14 for a Worker loss:
 Decided on 2026-11-15 for P1a, from the 2026-11-14 recovery research. The product owner may veto
 the picks named at the end of this section.
 
-**Loss.** The Server sees a loss when its Worker connection ends. It also sees one when a Worker
-that missed a reply's response window sends no late reply within one more window, while the restart
-cap still allows an attempt; otherwise the existing unbounded hold stays, because ending that Worker
-could only give up. The Server then proves the Worker gone through its own handle: it waits up to 2
+**Loss.** The Server sees a loss when its Worker connection ends. A Worker that misses a reply's
+response window but keeps its connection is not lost: the existing unbounded hold stays. Load slows
+a live Worker, it answers late rather than never, and ending it would turn a slow moment into
+replacements that the same load can make fail until the Server gives up. Whether a connected Worker
+that stays silent should ever count as lost waits for evidence of how late a live Worker answers
+under load. The Server then proves the Worker gone through its own handle: it waits up to 2
 seconds for the exit status, ends a process still running through that handle, and waits up to 5
 more seconds. Only the first loss report for a generation counts.
 
@@ -639,7 +641,8 @@ CLI prompt.
 **Diagnostics.** The Server's daily log records `worker-lost` and `worker-replaced`, with tokens,
 counts, and flags only, never terminal content, a path, or an error's text:
 
-- `worker-lost`: the generation; the cause, `exited` or `unresponsive`; the exit status when known;
+- `worker-lost`: the generation; the cause, `exited`, or `disconnected` when the connection ended
+  while the process still ran; the exit status when known;
   the attempts in the cap's window; the action, `replace`, `stop`, or `give-up`; and for the last
   two the reason, `stop-admitted`, `worker-not-gone`, `host-gone`, `host-spawning`, or
   `cap-reached`.
@@ -657,9 +660,9 @@ that leaves the Host and its dispatch alone and never acts on a dispatch made to
 generation's import, never an unknown one. Each change carries one mutant that drops its guard.
 
 The owner may veto these picks: the cap of 3 attempts in 10 minutes; keeping the Worker id; the
-bounded hold after a missed reply; no retry once given up, with Quit All… in its place; no notice on
-return; quarantined terminals left uncounted; a stop that never ends a Host by force; and the count
-in the CLI prompt.
+unbounded hold for a Worker that misses a reply but stays connected; no retry once given up, with
+Quit All… in its place; no notice on return; quarantined terminals left uncounted; a stop that never
+ends a Host by force; and the count in the CLI prompt.
 
 P1b reuses the adopt mode, `AdoptHost` and the kernel import, quarantine, rebinding, the
 `terminal-runtime` read and its copy, the diagnostics, and the stop without a Worker. It adds the
@@ -868,7 +871,7 @@ Worker by means other than explicit Session stop, which disposes every terminal 
 passed on 2026-11-15 in all four cases: ending the Worker, or the Server, by process id left the
 Host and its running program alive in Sessions started by either. It also found that nothing
 restarts a Worker, that `status server` keeps listing a lost Worker as ready, and that an orphaned
-Host keeps the ended Worker's process id as its parent. P1a's own trace confirms what that check
+Host keeps the ended Worker's process id as its parent. P1a's own trace must confirm what that check
 did not: the Host keeps reading a program's output with no Worker attached, releases the lost
 Worker's session at once, keeps its Host epoch, and accepts a new Worker's offer; `ListTerminals`
 then lists each terminal with its identity, and an attach restores its screen and scrollback;
