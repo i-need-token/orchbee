@@ -8,7 +8,7 @@ mod inherited_environment;
 mod peer_support;
 #[path = "support/staged_client.rs"]
 mod staged_client;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 mod support;
 #[cfg(windows)]
 #[path = "support/terminal_metadata_peer.rs"]

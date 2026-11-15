@@ -3,7 +3,7 @@
 //! the genuine OBLC admission and the OBAP record protocol, so every admitted
 //! outcome class — listed/found, semantic refusal, unavailable, malformed,
 //! correlation mismatch — is exercised against the production code path.
-#![cfg(target_os = "linux")]
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::{
     fs,
@@ -12,10 +12,15 @@ use std::{
     os::unix::net::{UnixListener, UnixStream},
     os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
-    process::{Child, Command, Output, Stdio},
-    sync::{OnceLock, mpsc::Receiver, mpsc::sync_channel},
+    process::Output,
+    sync::OnceLock,
     thread,
     time::{Duration, Instant},
+};
+#[cfg(target_os = "linux")]
+use std::{
+    process::{Child, Command, Stdio},
+    sync::mpsc::{Receiver, sync_channel},
 };
 
 use orchbee_agent_observation_protocol::{
@@ -27,6 +32,8 @@ use sha2::{Digest, Sha256};
 
 #[path = "support/inherited_environment.rs"]
 mod inherited_environment;
+// Only the Linux signal witnesses wait on a child they own.
+#[cfg_attr(not(target_os = "linux"), expect(dead_code))]
 #[path = "support/mod.rs"]
 mod support;
 
@@ -118,7 +125,13 @@ fn spawn_peer(
             let deadline = Instant::now() + Duration::from_secs(30);
             let stream = loop {
                 match listener.accept() {
-                    Ok((stream, _)) => break stream,
+                    // macOS gives an accepted socket the listener's nonblocking flag; Linux does not.
+                    Ok((stream, _)) => {
+                        stream
+                            .set_nonblocking(false)
+                            .expect("blocking accepted stream");
+                        break stream;
+                    }
                     Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                         assert!(
                             Instant::now() < deadline,
@@ -580,10 +593,12 @@ fn held_peer_timeout_reports_agent_failure() -> TestResult {
 // signal death, not a typed 130. A signal inherited ignored is excluded from
 // eligibility. Every signal is sent only after the peer confirms the exact
 // phase, so the captured signal — never the shared five-second deadline —
-// provably ends the wait.
+// provably ends the wait. Linux only: macOS keeps both signals' inherited
+// action, so it has no watch to witness.
 
 /// A spawn with the shared deterministic-locale environment whose `Child`
 /// stays caller-owned — signal tests must hold it to signal and reap it.
+#[cfg(target_os = "linux")]
 fn spawn_cli(base: &Path, arguments: &[&str]) -> Child {
     crate::support::orchbee_command(cohort().join(crate::support::staged_artifact_name("orchbee")))
         .args(arguments)
@@ -598,6 +613,7 @@ fn spawn_cli(base: &Path, arguments: &[&str]) -> Child {
         .expect("spawn cli child")
 }
 
+#[cfg(target_os = "linux")]
 fn wait(child: Child) -> Output {
     support::bounded_wait_with_output(child, support::RUN_WALL_CLOCK_BACKSTOP)
         .unwrap_or_else(|timeout| panic!("{timeout}"))
@@ -606,6 +622,7 @@ fn wait(child: Child) -> Output {
 /// A spawn that zeroes `RLIMIT_CORE` through a shell wrapper — the raw-death
 /// probes must die by signal without leaving a core file behind (SIGQUIT
 /// dumps by default), and the crate forbids `unsafe` so `pre_exec` is out.
+#[cfg(target_os = "linux")]
 fn spawn_cli_no_core(base: &Path, arguments: &[&str]) -> Child {
     let mut command = Command::new("sh");
     command
@@ -629,6 +646,7 @@ fn spawn_cli_no_core(base: &Path, arguments: &[&str]) -> Child {
 /// bitmasks — the eligibility readback an inherited-disposition test asserts
 /// while the armed span is parked in its exchange wait. A signal `kill`ed at
 /// the process lands in `ShdPnd`, not the per-thread `SigPnd`.
+#[cfg(target_os = "linux")]
 fn proc_signal_masks(pid: u32) -> (u64, u64, u64, u64) {
     let status = fs::read_to_string(format!("/proc/{pid}/status")).expect("read child status");
     let field = |name: &str| -> u64 {
@@ -648,10 +666,12 @@ fn proc_signal_masks(pid: u32) -> (u64, u64, u64, u64) {
     )
 }
 
+#[cfg(target_os = "linux")]
 fn signal_bit(signo: i32) -> u64 {
     1_u64 << (signo as u64 - 1)
 }
 
+#[cfg(target_os = "linux")]
 fn signal_child(child: &Child, signal: nix::sys::signal::Signal) {
     nix::sys::signal::kill(nix::unistd::Pid::from_raw(child.id() as i32), signal)
         .expect("signal child");
@@ -661,6 +681,7 @@ fn signal_child(child: &Child, signal: nix::sys::signal::Signal) {
 /// process itself inherited it ignored or blocked, the child cannot capture
 /// it — report that environment honestly instead of claiming evidence the
 /// run never produced.
+#[cfg(target_os = "linux")]
 fn require_eligible(signal: nix::sys::signal::Signal) {
     let bit = 1_u64 << (signal as u32 - 1);
     let status = fs::read_to_string("/proc/self/status").expect("read own SigIgn");
@@ -686,6 +707,7 @@ fn require_eligible(signal: nix::sys::signal::Signal) {
 /// One admitted session that reads the OBAP request, reports `ready` once the
 /// request is on the wire, then holds the exchange unanswered until the CLI's
 /// own arbitration closes the session.
+#[cfg(target_os = "linux")]
 fn held_exchange_peer(scope: &Path) -> (thread::JoinHandle<()>, Receiver<()>) {
     let (ready, rx) = sync_channel::<()>(0);
     let peer = spawn_peer(scope, 1, move |stream| {
@@ -702,6 +724,7 @@ fn held_exchange_peer(scope: &Path) -> (thread::JoinHandle<()>, Receiver<()>) {
 /// test: a real exit status of 130 — a raw signal death would report
 /// `signal()`, not `code()` — plus the agent failure envelope carrying the
 /// `agent-read` stage, this operation, and no correlated source.
+#[cfg(target_os = "linux")]
 fn assert_typed_cancellation(output: &Output, base: &Path, operation: &str) {
     assert_eq!(
         output.status.signal(),
@@ -729,6 +752,7 @@ fn assert_typed_cancellation(output: &Output, base: &Path, operation: &str) {
 
 /// SIGINT parked inside the held OBAP exchange is the typed Agent
 /// cancellation: exit status 130 with the agent envelope.
+#[cfg(target_os = "linux")]
 #[test]
 fn list_sigint_during_held_exchange_is_typed_cancellation() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGINT);
@@ -748,6 +772,7 @@ fn list_sigint_during_held_exchange_is_typed_cancellation() -> TestResult {
 
 /// SIGTERM is the same typed cancellation — status 130, never the raw
 /// `signal() == 15` death an unwatched TERM would produce.
+#[cfg(target_os = "linux")]
 #[test]
 fn list_sigterm_during_held_exchange_is_typed_cancellation() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGTERM);
@@ -767,6 +792,7 @@ fn list_sigterm_during_held_exchange_is_typed_cancellation() -> TestResult {
 
 /// The operation detail follows the command: `agent get` under SIGINT names
 /// `get`, not `list`.
+#[cfg(target_os = "linux")]
 #[test]
 fn get_sigint_reports_its_own_operation() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGINT);
@@ -797,6 +823,7 @@ fn get_sigint_reports_its_own_operation() -> TestResult {
 /// SIGINT while admission is still unanswered cancels the same way: the guard
 /// arms before any runtime contact, so a parked admission is still the typed
 /// `agent-read` cancellation — not a generic pre-admission failure.
+#[cfg(target_os = "linux")]
 #[test]
 fn list_sigint_before_admission_is_typed_cancellation() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGINT);
@@ -828,6 +855,7 @@ fn list_sigint_before_admission_is_typed_cancellation() -> TestResult {
 
 /// SIGHUP is not in the Agent watch set: it keeps its inherited disposition —
 /// a raw signal death that emits no typed cancellation and no exit code.
+#[cfg(target_os = "linux")]
 #[test]
 fn list_sighup_is_raw_signal_death() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGHUP);
@@ -855,6 +883,7 @@ fn list_sighup_is_raw_signal_death() -> TestResult {
 
 /// SIGQUIT is equally outside the Agent watch set: raw signal death, never a
 /// normalized 131 or 130.
+#[cfg(target_os = "linux")]
 #[test]
 fn list_sigquit_is_raw_signal_death() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGQUIT);
@@ -883,6 +912,7 @@ fn list_sigquit_is_raw_signal_death() -> TestResult {
 /// A SIGINT inherited as ignored is excluded from the Agent eligible set:
 /// it cannot cancel the held exchange — the process provably stays alive —
 /// while the still-eligible SIGTERM then cancels at the typed 130.
+#[cfg(target_os = "linux")]
 #[test]
 fn list_inherited_ignored_sigint_is_not_captured() -> TestResult {
     let base = base_dir("alist-ign");
@@ -950,6 +980,7 @@ fn list_inherited_ignored_sigint_is_not_captured() -> TestResult {
 /// A SIGTERM inherited as *blocked* is equally ineligible: it stays pending
 /// under the mask the exec preserved — the guard never unblocks to capture —
 /// while the eligible SIGINT still cancels at the typed 130.
+#[cfg(target_os = "linux")]
 #[test]
 fn list_inherited_blocked_sigterm_is_not_captured() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGINT);
@@ -2095,6 +2126,7 @@ fn wait_deadline_reports_completed_observations() -> TestResult {
 
 /// SIGINT parked inside a held wait exchange is the typed Agent
 /// cancellation: exit status 130, `operation: "wait"`, no source.
+#[cfg(target_os = "linux")]
 #[test]
 fn wait_sigint_during_held_exchange_is_typed_cancellation() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGINT);

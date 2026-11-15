@@ -15,7 +15,7 @@
 //! cohort safety check — `check-failed` at stage `cohort`, exit 1 — so a `2`
 //! exit can only come from the parser. Negative controls already pass
 //! because unknown words are grammar failures too.
-#![cfg(target_os = "linux")]
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::{
     fs,

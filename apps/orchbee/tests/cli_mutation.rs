@@ -6,7 +6,7 @@
 //! code path. Every test also asserts the wire shape the CLI submitted:
 //! exactly one snapshot read, then exactly one `workbench.command` carrying
 //! the snapshot's Session identity and revision under a fresh request identity.
-#![cfg(target_os = "linux")]
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::{
     fs,
@@ -190,7 +190,13 @@ fn accept_bounded(listener: &UnixListener) -> UnixStream {
     let deadline = Instant::now() + PEER_ACCEPT_DEADLINE;
     loop {
         match listener.accept() {
-            Ok((stream, _)) => return stream,
+            // macOS gives an accepted socket the listener's nonblocking flag; Linux does not.
+            Ok((stream, _)) => {
+                stream
+                    .set_nonblocking(false)
+                    .expect("blocking accepted stream");
+                return stream;
+            }
             Err(error) if error.kind() == ErrorKind::WouldBlock => {
                 assert!(
                     Instant::now() < deadline,

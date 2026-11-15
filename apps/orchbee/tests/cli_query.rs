@@ -4,7 +4,7 @@
 //! outcome class — success, denied, unavailable, malformed, correlation
 //! mismatch, timeout, disconnect, capacity, incompatibility — is exercised
 //! against the production code path with no Session mutation.
-#![cfg(target_os = "linux")]
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::{
     fs,
@@ -17,6 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(target_os = "linux")]
 use nix::{
     sys::signal::{Signal, kill},
     unistd::Pid,
@@ -162,7 +163,7 @@ fn spawn_peer_n(
     thread::spawn(move || {
         for _ in 0..connections {
             let stream = accept_bounded(&listener);
-            // Accepted streams are blocking; per-call timeouts cap the script's
+            // Accepted streams block; per-call timeouts cap the script's
             // own reads and writes so `join` stays bounded as well.
             stream
                 .set_read_timeout(Some(PEER_IO_DEADLINE))
@@ -181,7 +182,13 @@ fn accept_bounded(listener: &UnixListener) -> UnixStream {
     let deadline = Instant::now() + PEER_IO_DEADLINE;
     loop {
         match listener.accept() {
-            Ok((stream, _)) => return stream,
+            // macOS gives an accepted socket the listener's nonblocking flag; Linux does not.
+            Ok((stream, _)) => {
+                stream
+                    .set_nonblocking(false)
+                    .expect("blocking accepted stream");
+                return stream;
+            }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                 assert!(
                     Instant::now() < deadline,
@@ -1725,7 +1732,9 @@ fn config_check_reports_established_path_facts() -> TestResult {
 //
 // A controlled writer failure at the real stdout boundary must surface as a
 // process failure with a stderr diagnostic, never a truncated silent output.
+// macOS has no `/dev/full` to provide that failure.
 
+#[cfg(target_os = "linux")]
 #[test]
 fn stdout_write_failure_is_reported() -> TestResult {
     let base = base_dir("devfull");
@@ -4586,7 +4595,9 @@ fn terminal_wait_match_with_refused_detach_reports_match_observed() -> TestResul
 /// is the typed refusal released — so the cancellation provably preceded
 /// the failure answer. The cancellation outranks the refused detach's own
 /// classification: exit 130 with `cancelled`, still honestly reporting that
-/// the match was observed and the release stays unconfirmed.
+/// the match was observed and the release stays unconfirmed. Linux only:
+/// macOS keeps SIGINT's inherited action.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_wait_sigint_during_refused_detach_reports_cancelled() -> TestResult {
     let base = base_dir("twait-detach-int");

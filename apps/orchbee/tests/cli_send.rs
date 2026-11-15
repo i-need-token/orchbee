@@ -7,19 +7,24 @@
 //! submitted: exactly one snapshot read, then exactly one `terminal.send`
 //! carrying the snapshot's Session/worker/terminal identities under a fresh
 //! request identity — never a TUI controller, viewer, or resize message.
-#![cfg(target_os = "linux")]
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::{
     fs,
-    io::{ErrorKind, Read, Seek, SeekFrom},
+    io::{ErrorKind, Read},
     num::NonZeroU64,
     os::unix::fs::PermissionsExt,
     os::unix::net::{UnixListener, UnixStream},
     path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
+    process::Output,
     sync::{Arc, Mutex, OnceLock},
     thread,
     time::{Duration, Instant},
+};
+#[cfg(target_os = "linux")]
+use std::{
+    io::{Seek, SeekFrom},
+    process::{Command, Stdio},
 };
 
 use orchbee_client_server_protocol::{
@@ -148,7 +153,13 @@ fn accept_bounded(listener: &UnixListener) -> UnixStream {
     let deadline = Instant::now() + PEER_ACCEPT_DEADLINE;
     loop {
         match listener.accept() {
-            Ok((stream, _)) => return stream,
+            // macOS gives an accepted socket the listener's nonblocking flag; Linux does not.
+            Ok((stream, _)) => {
+                stream
+                    .set_nonblocking(false)
+                    .expect("blocking accepted stream");
+                return stream;
+            }
             Err(error) if error.kind() == ErrorKind::WouldBlock => {
                 assert!(
                     Instant::now() < deadline,
@@ -838,9 +849,12 @@ fn terminal_send_invalid_argv_never_connects() -> TestResult {
 // `--file` and `--stdin` materialize one bounded text record before any
 // runtime effect; a source failure therefore proves zero Server contact —
 // the scripted listener below never accepts — while a valid source produces
-// exactly the same single `terminal.send` wire request `--text` does.
+// exactly the same single `terminal.send` wire request `--text` does. Linux
+// only: macOS refuses a declared source until it has the source stage's
+// signal watch.
 
 /// A spawn with caller-owned stdin (the shared `run` always closes it).
+#[cfg(target_os = "linux")]
 fn run_with_stdin(base: &Path, arguments: &[&str], stdin: Stdio) -> std::process::Child {
     crate::staged_client::orchbee_command(
         cohort().join(crate::support::staged_artifact_name("orchbee")),
@@ -857,12 +871,14 @@ fn run_with_stdin(base: &Path, arguments: &[&str], stdin: Stdio) -> std::process
     .expect("spawn cli child")
 }
 
+#[cfg(target_os = "linux")]
 fn wait(child: std::process::Child) -> Output {
     support::bounded_wait_with_output(child, support::RUN_WALL_CLOCK_BACKSTOP)
         .unwrap_or_else(|timeout| panic!("{timeout}"))
 }
 
 /// A staged file under the test base, returning its path.
+#[cfg(target_os = "linux")]
 fn staged_file(base: &Path, name: &str, bytes: &[u8]) -> PathBuf {
     let path = base.join(name);
     fs::write(&path, bytes).expect("write staged source file");
@@ -871,6 +887,7 @@ fn staged_file(base: &Path, name: &str, bytes: &[u8]) -> PathBuf {
 
 /// The scripted exchange a materialized source must produce: the same one
 /// snapshot read plus one `terminal.send` carrying the folded text.
+#[cfg(target_os = "linux")]
 fn serve_send(
     scope: &Path,
     expected_text: String,
@@ -905,6 +922,7 @@ fn serve_send(
 
 /// The same scripted exchange for content routed to an opaque `bytes`
 /// record: the wire payload is the literal bytes plus any folded CR.
+#[cfg(target_os = "linux")]
 fn serve_bytes(scope: &Path, expected: Vec<u8>, enter: bool) -> thread::JoinHandle<()> {
     spawn_peer(scope, move |stream| {
         let snapshot_request = admit_and_serve_snapshot(&stream);
@@ -937,6 +955,7 @@ fn serve_bytes(scope: &Path, expected: Vec<u8>, enter: bool) -> thread::JoinHand
     })
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_file_lands_one_record() -> TestResult {
     let base = base_dir("send-file");
@@ -970,6 +989,7 @@ fn terminal_send_file_lands_one_record() -> TestResult {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_file_with_enter_folds_inside_limit() -> TestResult {
     let base = base_dir("send-file-enter");
@@ -997,6 +1017,7 @@ fn terminal_send_file_with_enter_folds_inside_limit() -> TestResult {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_stdin_pipe_lands_one_record() -> TestResult {
     let base = base_dir("send-stdin");
@@ -1026,6 +1047,7 @@ fn terminal_send_stdin_pipe_lands_one_record() -> TestResult {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_stdin_regular_file_inherits_offset() -> TestResult {
     let base = base_dir("send-stdin-offset");
@@ -1056,6 +1078,7 @@ fn terminal_send_stdin_regular_file_inherits_offset() -> TestResult {
 /// A source-stage validation/local failure exits 2 on the standard
 /// `invalid-usage` envelope and provably never reaches the runtime: the
 /// staged listener observes no connection.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_source_failures_have_zero_runtime_effect() -> TestResult {
     let base = base_dir("send-source-usage");
@@ -1116,6 +1139,7 @@ fn terminal_send_source_failures_have_zero_runtime_effect() -> TestResult {
 
 /// A hung stdin (held-open pipe, no data) fails at the shared 5s deadline
 /// with the typed source envelope — and never touches the runtime.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_stdin_timeout_is_typed_and_effectless() -> TestResult {
     let base = base_dir("send-stdin-timeout");
@@ -1183,6 +1207,7 @@ fn terminal_send_stdin_timeout_is_typed_and_effectless() -> TestResult {
 
 /// SIGINT inside the source interval is a typed cancellation: exit 130 with
 /// the source envelope, zero runtime contact.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_stdin_sigint_is_typed_cancellation() -> TestResult {
     let base = base_dir("send-stdin-int");
@@ -1243,6 +1268,7 @@ fn terminal_send_stdin_sigint_is_typed_cancellation() -> TestResult {
 /// A signal the process inherited as ignored is excluded from capture:
 /// SIGINT does nothing to a held-open source, while the still-eligible
 /// SIGTERM cancels it at 143.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_stdin_inherited_ignore_excluded() -> TestResult {
     let base = base_dir("send-stdin-ign");
@@ -1295,6 +1321,7 @@ fn terminal_send_stdin_inherited_ignore_excluded() -> TestResult {
 /// rejection: a socket and a character device both exit 2 on the standard
 /// `invalid-usage` envelope without a single read, and provably never
 /// reach the runtime.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_stdin_unsupported_streams() -> TestResult {
     let base = base_dir("send-stdin-unsupported");
@@ -1353,6 +1380,7 @@ fn terminal_send_stdin_unsupported_streams() -> TestResult {
 /// An oversized regular-file stdin is bounded by real consumption: the
 /// shared file position advances by at most the cap+1 probe bytes from the
 /// inherited offset, and the descriptor's status flags are untouched.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_stdin_oversize_bounds_consumption() -> TestResult {
     let base = base_dir("send-stdin-cap");
@@ -1404,6 +1432,7 @@ fn terminal_send_stdin_oversize_bounds_consumption() -> TestResult {
 /// 4,096 record bound lands mid-character for some lengths. Below the
 /// bound the bytes arrive verbatim; at LIMIT+1 the source is refused even
 /// when the whole content is valid UTF-8.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_file_utf8_multibyte_boundaries() -> TestResult {
     let base = base_dir("send-file-utf8");
@@ -1495,6 +1524,7 @@ fn terminal_send_file_utf8_multibyte_boundaries() -> TestResult {
 /// An inherited terminal as stdin is refused before a single read or any
 /// runtime contact: `script -e` seats the CLI's stdio on a real pty slave
 /// and propagates its exit status.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_stdin_tty_is_refused() -> TestResult {
     let base = base_dir("send-stdin-tty");
@@ -1547,6 +1577,7 @@ fn terminal_send_stdin_tty_is_refused() -> TestResult {
 /// `--file -` is a literal filesystem path, never an alias for standard
 /// input: a file actually named `-` in the child's working directory is
 /// the source that gets read.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_file_dash_is_a_literal_path() -> TestResult {
     let base = base_dir("send-file-dash");
@@ -1586,6 +1617,7 @@ fn terminal_send_file_dash_is_a_literal_path() -> TestResult {
 /// A `--file` symlink is resolved to its target's real type: a link to a
 /// regular file reads fine, while a link to a writer-less FIFO is refused
 /// promptly — the nonblocking open must not hang on the FIFO.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_file_symlink_dispatch() -> TestResult {
     let base = base_dir("send-file-symlink");
@@ -1656,6 +1688,7 @@ fn terminal_send_file_symlink_dispatch() -> TestResult {
 /// process itself inherited it ignored or blocked, the child cannot
 /// capture it — report that environment honestly instead of claiming
 /// evidence the run never produced.
+#[cfg(target_os = "linux")]
 fn require_eligible(signal: nix::sys::signal::Signal) {
     let bit = 1_u64 << (signal as u32 - 1);
     let status = fs::read_to_string("/proc/self/status").expect("read own SigIgn");
@@ -1680,6 +1713,7 @@ fn require_eligible(signal: nix::sys::signal::Signal) {
 
 /// SIGHUP inside the source interval is the same typed cancellation as
 /// SIGINT: exit 129 with the source envelope, zero runtime contact.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_stdin_sighup_is_typed_cancellation() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGHUP);
@@ -1727,6 +1761,7 @@ fn terminal_send_stdin_sighup_is_typed_cancellation() -> TestResult {
 /// SIGQUIT inside the source interval cancels at 131: the guarded set is
 /// wider than the wait stage's INT/TERM pair, and every member produces
 /// the conventional `128 + signo` status.
+#[cfg(target_os = "linux")]
 #[test]
 fn terminal_send_stdin_sigquit_is_typed_cancellation() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGQUIT);
