@@ -704,12 +704,15 @@ resent.
 The Worker runs one ordered attach, input, detach sequence on its existing Host broker; no viewer,
 controller, or resize grant is borrowed. Acceptance means the input entered the Host's bounded
 input queue; it says nothing about the child process reading or executing it. A typed Host
-rejection still runs the one detach. After a transport failure, a wrong acknowledgement, or an
-uncertain detach, the Worker closes that Worker-Host connection — whose teardown reclaims the
-temporary attachment — and never continues a new exchange on a possibly desynchronized stream.
+rejection still runs the one detach, and so does an intact answer that contradicts the request,
+which keeps the Worker-Host connection. After a transport failure or a malformed answer, the Worker
+closes that connection — whose teardown reclaims the temporary attachment — and never continues a
+new exchange on a possibly desynchronized stream.
 Every result keeps two independent facts: input status (not-submitted, rejected, accepted, or
 unknown) and cleanup status (not-needed, confirmed, or unconfirmed). A post-acceptance cleanup
-failure preserves the accepted byte count and never reports the input as unsent.
+failure preserves the accepted byte count and never reports the input as unsent. The Client
+contract has no unknown input with confirmed cleanup, so a Worker's unknown input after a confirmed
+detach reaches the Client as unconfirmed cleanup with its confirmed prefix.
 
 Each send submits one OBCN request whose identity correlates exactly one request and response; no
 persistent dedupe ledger is added, and a manually retried send is a new request that may deliver

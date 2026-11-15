@@ -1967,6 +1967,11 @@ fn send_result_golden_and_outcome_axes() -> Result<(), Box<dyn std::error::Error
             progress: crate::SendProgress::stopped(2, 4),
             cleanup: crate::SendCleanupStatus::Unconfirmed,
         },
+        // A contradicting input answer on a carrier that still answered the Detach.
+        crate::TerminalSendOutcome::OutcomeUnknown {
+            progress: crate::SendProgress::stopped(1, 2),
+            cleanup: crate::SendCleanupStatus::Confirmed,
+        },
     ] {
         let message = CapabilityNodeMessage::TerminalSendResult(crate::TerminalSendResult::new(
             OperationId::from_bytes([31; 16])?,
@@ -2028,21 +2033,6 @@ fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dy
         Err(ProtocolError::InvalidPayload)
     );
 
-    // `OutcomeUnknown` with confirmed cleanup is impossible.
-    let mut unknown_confirmed = encoded.clone();
-    unknown_confirmed[8 + 17] = 4;
-    unknown_confirmed[8 + 18] = 0;
-    unknown_confirmed[8 + 19] = 0;
-    unknown_confirmed.truncate(8 + 20 + 8 + 1);
-    unknown_confirmed[8 + 20..8 + 28].copy_from_slice(&0_u64.to_be_bytes());
-    unknown_confirmed[8 + 28] = 2;
-    let len = u16::try_from(unknown_confirmed.len() - 8)?;
-    unknown_confirmed[6..8].copy_from_slice(&len.to_be_bytes());
-    assert_eq!(
-        decode_message(&unknown_confirmed),
-        Err(ProtocolError::InvalidPayload)
-    );
-
     // A progress whose confirmed prefix exceeds the stopped index is
     // contradictory and rejected on the wire.
     let mut inverted = encoded.clone();
@@ -2085,16 +2075,6 @@ fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dy
             crate::TerminalSendOutcome::Accepted {
                 progress: crate::SendProgress::new(1, 1, 0)?,
                 cleanup: crate::SendCleanupStatus::NotNeeded,
-            },
-        )
-        .is_err()
-    );
-    assert!(
-        crate::TerminalSendResult::new(
-            OperationId::from_bytes([31; 16])?,
-            crate::TerminalSendOutcome::OutcomeUnknown {
-                progress: crate::SendProgress::none(),
-                cleanup: crate::SendCleanupStatus::Confirmed,
             },
         )
         .is_err()

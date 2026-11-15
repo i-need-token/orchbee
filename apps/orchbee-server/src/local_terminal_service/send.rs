@@ -333,12 +333,18 @@ fn worker_outcome(outcome: WorkerOutcome) -> Outcome {
             progress: progress(cursor),
             cleanup: cleanup(status),
         },
+        // The Client contract has no unknown input with confirmed cleanup. A Worker that detached
+        // after a contradicting Host answer reports it as unconfirmed, which never claims a
+        // release, and keeps the confirmed prefix.
         WorkerOutcome::OutcomeUnknown {
             progress: cursor,
             cleanup: status,
         } => Outcome::OutcomeUnknown {
             progress: progress(cursor),
-            cleanup: cleanup(status),
+            cleanup: match cleanup(status) {
+                Cleanup::Confirmed => Cleanup::Unconfirmed,
+                other => other,
+            },
         },
     }
 }

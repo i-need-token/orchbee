@@ -556,9 +556,11 @@ impl SendUnavailable {
 /// every record, never that a child process read, executed, or completed
 /// one. Combinations that cannot arise from the Attach → records → Detach
 /// sequence are rejected at construction and at both codec boundaries: an
-/// `Accepted` input implies a real attachment (never `NotNeeded`), a
-/// `Confirmed` cleanup implies a completed exchange (never `OutcomeUnknown`),
-/// and any confirmed-accepted prefix implies a cleanup attempt ran.
+/// `Accepted` input implies a real attachment (never `NotNeeded`), and any
+/// confirmed-accepted prefix implies a cleanup attempt ran. `OutcomeUnknown`
+/// may carry `Confirmed` cleanup: an intact Host answer that contradicts a
+/// record leaves that record's effect unknown while the carrier stays in step
+/// and the Detach is still answered.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalSendOutcome {
     Unavailable {
@@ -592,12 +594,6 @@ impl TerminalSendOutcome {
                 {
                     return Err(ProtocolError::InvalidPayload);
                 }
-            }
-            Self::OutcomeUnknown {
-                cleanup: SendCleanupStatus::Confirmed,
-                ..
-            } => {
-                return Err(ProtocolError::InvalidPayload);
             }
             Self::Rejected { reason, .. } if reason.types_nothing() => {
                 if progress != SendProgress::none() {
