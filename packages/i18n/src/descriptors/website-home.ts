@@ -184,6 +184,48 @@ export const websiteHomeMessages = defineMessages({
 		'Title of the note on the unread dot of the drawn sidebar.',
 	),
 	agentsUnread: message('website.home.agents.unread', 'What the unread dot means.'),
+	terminalKicker: message(
+		'website.home.terminal.kicker',
+		'Lowercase label above the terminal section heading.',
+	),
+	terminalTitle: message('website.home.terminal.title', 'Heading of the terminal section.'),
+	terminalLead: message(
+		'website.home.terminal.lead',
+		'Paragraph beside the terminal section heading.',
+	),
+	terminalThemes: message(
+		'website.home.terminal.themes',
+		'Line above the list of terminal themes; count is how many themes the product ships.',
+	),
+	terminalDark: message(
+		'website.home.terminal.dark',
+		'Heading of the list of dark terminal themes.',
+	),
+	terminalLight: message(
+		'website.home.terminal.light',
+		'Heading of the list of light terminal themes.',
+	),
+	terminalFact1: message(
+		'website.home.terminal.fact1',
+		'Terminal fact: programs can use 24-bit color.',
+	),
+	terminalFact2: message('website.home.terminal.fact2', 'Terminal fact: font ligatures are drawn.'),
+	terminalFact3: message(
+		'website.home.terminal.fact3',
+		'Terminal fact: images of the Kitty graphics protocol are drawn.',
+	),
+	terminalFact4: message(
+		'website.home.terminal.fact4',
+		'Terminal fact: links in terminal output open.',
+	),
+	terminalFact5: message(
+		'website.home.terminal.fact5',
+		'Terminal fact: input methods compose text in place.',
+	),
+	terminalFact6: message(
+		'website.home.terminal.fact6',
+		'Terminal fact: a theme is chosen for the light and for the dark appearance separately.',
+	),
 	remoteTag: message(
 		'website.home.remote.tag',
 		'Tag on the remote machines band: the feature is not released yet.',

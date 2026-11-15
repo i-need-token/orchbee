@@ -1,0 +1,65 @@
+.count {
+	margin-bottom: var(--ob-ref-length-website-18);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-label);
+}
+.heading {
+	margin-bottom: var(--ob-ref-length-website-10);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-label);
+	text-transform: lowercase;
+}
+.group {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-length-website-6);
+	margin-bottom: var(--ob-ref-length-website-22);
+}
+.option {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-8);
+	height: var(--ob-ref-length-website-30);
+	padding: 0 var(--ob-ref-length-website-10) 0 var(--ob-ref-length-website-8);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-radius: var(--ob-ref-length-website-7);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-theme-option);
+	white-space: nowrap;
+	transition:
+		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		border-color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+.option:enabled:hover {
+	border-color: var(--ob-sys-color-website-line-strong);
+	color: var(--ob-sys-color-website-fg);
+}
+.option[aria-pressed='true'] {
+	border-color: var(--ob-sys-color-website-line-chosen);
+	background: var(--ob-sys-color-website-hover-faint);
+	color: var(--ob-sys-color-website-fg);
+}
+/* A theme's swatch: its background and foreground split on the diagonal, under a faint edge that
+   keeps a background close to the page's visible. */
+.swatch {
+	position: relative;
+	display: block;
+	flex: none;
+	width: var(--ob-ref-length-website-12);
+	height: var(--ob-ref-length-website-12);
+	overflow: hidden;
+	border-radius: var(--ob-ref-length-website-3);
+}
+.swatch svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+.swatch::after {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	box-shadow: var(--ob-sys-shadow-website-theme-swatch);
+	content: '';
+}

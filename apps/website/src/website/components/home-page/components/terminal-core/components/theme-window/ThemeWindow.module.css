@@ -1,0 +1,144 @@
+/* The window keeps its own dark frame; only the terminal and the color strip take the theme. */
+.window {
+	overflow: hidden;
+	border-radius: var(--ob-ref-length-website-10);
+	background: var(--ob-sys-color-website-theme-window);
+	box-shadow: var(--ob-sys-shadow-website-theme-window);
+}
+.bar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--ob-ref-length-website-8);
+	height: var(--ob-ref-length-website-34);
+	color: var(--ob-sys-color-website-theme-bar);
+	font: var(--ob-sys-typography-website-theme-bar);
+}
+.name {
+	color: var(--ob-sys-color-website-theme-name);
+	font: var(--ob-sys-typography-website-theme-bar);
+}
+.sample {
+	min-height: var(--ob-ref-length-website-356);
+	padding: var(--ob-ref-length-website-14) var(--ob-ref-length-website-18)
+		var(--ob-ref-length-website-16);
+	overflow: hidden;
+	background: var(--ob-comp-website-terminal-background);
+	color: var(--ob-comp-website-terminal-foreground);
+	font: var(--ob-sys-typography-website-theme-sample);
+	font-variant-ligatures: none;
+	white-space: pre;
+}
+.row {
+	min-height: 1lh;
+}
+/* The font shorthand resets ligatures, so bold text turns them off again. */
+.sample b {
+	font: var(--ob-sys-typography-website-theme-sample-strong);
+	font-variant-ligatures: none;
+}
+.sample [data-ansi='1'] {
+	color: var(--ob-comp-website-terminal-ansi-1);
+}
+.sample [data-ansi='2'] {
+	color: var(--ob-comp-website-terminal-ansi-2);
+}
+.sample [data-ansi='3'] {
+	color: var(--ob-comp-website-terminal-ansi-3);
+}
+.sample [data-ansi='6'] {
+	color: var(--ob-comp-website-terminal-ansi-6);
+}
+.sample [data-ansi='8'] {
+	color: var(--ob-comp-website-terminal-ansi-8);
+}
+.selected {
+	background: var(--ob-comp-website-terminal-selection-background);
+	color: var(--ob-comp-website-terminal-selection-foreground);
+}
+.cursor {
+	display: inline-block;
+	width: var(--ob-ref-length-website-1ch);
+	height: var(--ob-ref-length-website-17);
+	background: var(--ob-comp-website-terminal-cursor);
+	vertical-align: calc(-1 * var(--ob-ref-length-website-3));
+}
+.swatches {
+	display: grid;
+	grid-template-columns: repeat(16, minmax(0, 1fr));
+	height: var(--ob-ref-length-website-10);
+}
+.swatches [data-index='0'] {
+	background: var(--ob-comp-website-terminal-ansi-0);
+}
+.swatches [data-index='1'] {
+	background: var(--ob-comp-website-terminal-ansi-1);
+}
+.swatches [data-index='2'] {
+	background: var(--ob-comp-website-terminal-ansi-2);
+}
+.swatches [data-index='3'] {
+	background: var(--ob-comp-website-terminal-ansi-3);
+}
+.swatches [data-index='4'] {
+	background: var(--ob-comp-website-terminal-ansi-4);
+}
+.swatches [data-index='5'] {
+	background: var(--ob-comp-website-terminal-ansi-5);
+}
+.swatches [data-index='6'] {
+	background: var(--ob-comp-website-terminal-ansi-6);
+}
+.swatches [data-index='7'] {
+	background: var(--ob-comp-website-terminal-ansi-7);
+}
+.swatches [data-index='8'] {
+	background: var(--ob-comp-website-terminal-ansi-8);
+}
+.swatches [data-index='9'] {
+	background: var(--ob-comp-website-terminal-ansi-9);
+}
+.swatches [data-index='10'] {
+	background: var(--ob-comp-website-terminal-ansi-10);
+}
+.swatches [data-index='11'] {
+	background: var(--ob-comp-website-terminal-ansi-11);
+}
+.swatches [data-index='12'] {
+	background: var(--ob-comp-website-terminal-ansi-12);
+}
+.swatches [data-index='13'] {
+	background: var(--ob-comp-website-terminal-ansi-13);
+}
+.swatches [data-index='14'] {
+	background: var(--ob-comp-website-terminal-ansi-14);
+}
+.swatches [data-index='15'] {
+	background: var(--ob-comp-website-terminal-ansi-15);
+}
+/* A new theme cross-fades in while the page may move. */
+:global(html[data-motion]) .sample,
+:global(html[data-motion]) .sample :is(span, b),
+:global(html[data-motion]) .swatches span {
+	transition:
+		background-color var(--ob-sys-motion-duration-website-400)
+			var(--ob-sys-motion-easing-website-ease),
+		color var(--ob-sys-motion-duration-website-400) var(--ob-sys-motion-easing-website-ease);
+}
+@media (max-width: 64rem) {
+	.sample {
+		min-height: 0;
+	}
+}
+@media (max-width: 40rem) {
+	.sample {
+		padding: var(--ob-ref-length-website-12) var(--ob-ref-length-website-12)
+			var(--ob-ref-length-website-14);
+		font: var(--ob-sys-typography-website-theme-sample-compact);
+		font-variant-ligatures: none;
+	}
+	.sample b {
+		font: var(--ob-sys-typography-website-theme-sample-compact-strong);
+		font-variant-ligatures: none;
+	}
+}

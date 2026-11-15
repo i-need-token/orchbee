@@ -75,6 +75,20 @@ export const enUSWebsiteHomeMessages = {
 		'Listed under its Workspace, with its state and what it is working on.',
 	'website.home.agents.unreadTitle': 'Unread',
 	'website.home.agents.unread': 'A blue dot marks activity you have not looked at yet.',
+	'website.home.terminal.kicker': 'terminal',
+	'website.home.terminal.title': 'High-Performance Terminal',
+	'website.home.terminal.lead':
+		'Terminal emulation runs in a lightweight native process built on the core of Ghostty. The terminal interface and the desktop application receive the finished screen from that process and only draw it. The desktop application renders with WebGPU, with a Canvas 2D fallback.',
+	'website.home.terminal.themes':
+		'{count, plural, one {# built-in theme} other {# built-in themes}}',
+	'website.home.terminal.dark': 'Dark',
+	'website.home.terminal.light': 'Light',
+	'website.home.terminal.fact1': '24-bit color',
+	'website.home.terminal.fact2': 'Ligatures',
+	'website.home.terminal.fact3': 'Kitty graphics',
+	'website.home.terminal.fact4': 'Hyperlinks',
+	'website.home.terminal.fact5': 'IME composition',
+	'website.home.terminal.fact6': 'Light and dark theme set separately',
 	'website.home.remote.tag': 'In development',
 	'website.home.remote.title': 'Remote Machines',
 	'website.home.remote.lead':
