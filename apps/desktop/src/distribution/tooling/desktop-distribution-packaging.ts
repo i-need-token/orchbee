@@ -119,6 +119,26 @@ export function resolveDesktopWindowsInstallerIdentity(
 	};
 }
 
+/**
+ * The macOS disk image's file name without `.dmg`, from the release distribution freeze sheet:
+ * `Orchbee-<version>-<platform>` for a release, the test stem in place of `Orchbee` for a test build,
+ * as the Windows setup name does. `platform` is the signed manifest's token, such as `macos-aarch64`.
+ */
+export function resolveDesktopMacDiskImageBaseName(
+	profile: DesktopDistributionProfile,
+	version: string,
+	platform: string,
+): string {
+	if (profile.profileId === 'dev') {
+		throw new Error('A development checkout has no disk image; package test or release.');
+	}
+	if (!/^macos-(?:aarch64|x86_64)$/u.test(platform)) {
+		throw new Error(`A disk image is built for a macOS release platform, not ${platform}.`);
+	}
+	const name = profile.profileId === 'release' ? 'Orchbee' : profile.artifactStem;
+	return `${name}-${version}-${platform}`;
+}
+
 export function resolveDesktopTestApplicationName(
 	environment: Readonly<Record<string, string | undefined>>,
 ): string {

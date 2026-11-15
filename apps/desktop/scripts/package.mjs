@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
 	access,
 	cp,
@@ -9,6 +10,7 @@ import {
 	realpath,
 	rm,
 	stat,
+	symlink,
 	writeFile,
 } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -28,6 +30,7 @@ import {
 	createDesktopTestArtifactStem,
 	encodeDesktopDistributionDescriptor,
 	parseDesktopPackagingArguments,
+	resolveDesktopMacDiskImageBaseName,
 	resolveDesktopTestApplicationName,
 	resolveDesktopWindowsInstallerIdentity,
 } from '../src/distribution/tooling/index.ts';
@@ -68,15 +71,19 @@ if (distributionProfile.profileId === 'release' && cohortEnvironmentStem !== 'or
 		`Release packaging refuses the ${cohortEnvironmentStem} cohort; it requires orchbee.`,
 	);
 }
-// On Windows a test or release cohort ships as a signed release directory, so the installer's
-// `orchbee install` can publish it into the store; a development cohort cannot be packaged that way.
-const signsReleaseDirectory = process.platform === 'win32' && profileId !== 'dev';
+// On Windows and macOS a test or release cohort ships as a signed release directory, so its bundled
+// Client's `orchbee install` can publish it into the store; a development cohort cannot be packaged
+// that way. The installer is Setup on Windows and the disk image on macOS.
+const signsReleaseDirectory =
+	(process.platform === 'win32' || process.platform === 'darwin') && profileId !== 'dev';
 if (packaging.installer && !signsReleaseDirectory) {
-	throw new Error('The installer is built on Windows, for the test and release profiles only.');
+	throw new Error(
+		'The installer is built on Windows and macOS, for the test and release profiles only.',
+	);
 }
 if (packaging.cohort !== undefined && !signsReleaseDirectory) {
 	throw new Error(
-		'A signed cohort is packaged on Windows, for the test and release profiles only.',
+		'A signed cohort is packaged on Windows and macOS, for the test and release profiles only.',
 	);
 }
 // On Windows the shell is `<stem>-desktop.exe`, so its image name differs from the Client's `<stem>.exe`
@@ -157,6 +164,8 @@ try {
 	// Staging names the Client after the stem it compiled, so this proves the cohort's stem.
 	if (process.platform === 'win32') {
 		await access(path.join(cohortRoot, `${cohortEnvironmentStem}.exe`));
+	} else if (process.platform === 'darwin') {
+		await access(path.join(cohortRoot, cohortEnvironmentStem));
 	}
 	if (signsReleaseDirectory && packaging.cohort === undefined) {
 		// Every version is published on `stable` until `channel set preview` is released.
@@ -168,6 +177,9 @@ try {
 		]);
 		runNode('sign-release-manifest.mjs', [path.join(cohortRoot, 'release.json'), ...signingKeys()]);
 	}
+	// macOS signs the application after packaging; this record proves signing left the cohort as it was.
+	const stagedCohortFiles =
+		process.platform === 'darwin' ? await cohortFileDigests(cohortRoot) : undefined;
 	await mkdir(stagingRoot, { mode: 0o700 });
 	await cp(desktopBuild, path.join(stagingRoot, 'dist'), { recursive: true });
 	await writeFile(
@@ -230,6 +242,17 @@ try {
 							: distributionProfile.applicationName,
 					);
 		await access(executablePath);
+		if (process.platform === 'darwin') {
+			const application = path.join(output, applicationFileName);
+			signMacApplication(application);
+			await verifyBundledCohort(
+				path.join(application, 'Contents', 'Resources', cohortDirectoryName),
+				stagedCohortFiles,
+			);
+			console.info(`Packaged Orchbee Desktop (${distributionProfile.profileId}): ${application}`);
+			if (packaging.installer) await createMacDiskImage(application);
+			continue;
+		}
 		// The window file list, from the final bytes and before Setup is compiled, so Setup and the
 		// release's window archive carry the same list; it refuses links and names outside the
 		// release path grammar.
@@ -293,6 +316,150 @@ function signingKeys() {
 				),
 			]
 		: ['--key-env', 'ORCHBEE_RELEASE_SIGNING_KEY'];
+}
+
+/**
+ * Signs the packaged application ad hoc, its only identity until Developer ID signing is decided:
+ * Apple silicon runs no unsigned code, and the packager's renames and property-list edits broke
+ * Electron's own signatures. `--deep` signs the nested helpers and frameworks; the cohort under
+ * `Contents/Resources` is sealed as resources, so its bytes stay as staged. A Developer ID identity
+ * replaces only this function.
+ */
+function signMacApplication(application) {
+	execFileSync(
+		'/usr/bin/codesign',
+		['--force', '--deep', '--sign', '-', '--timestamp=none', application],
+		{ stdio: 'inherit' },
+	);
+	execFileSync(
+		'/usr/bin/codesign',
+		['--verify', '--deep', '--strict', '--verbose=2', application],
+		{
+			stdio: 'inherit',
+		},
+	);
+}
+
+/** Every file below `root` as `{ path, sha256, size }` in path order; a link is refused. */
+async function cohortFileDigests(root) {
+	const files = [];
+	for (const entry of await readdir(root, { recursive: true, withFileTypes: true })) {
+		const filename = path.join(entry.parentPath, entry.name);
+		if (entry.isDirectory()) continue;
+		if (!entry.isFile()) throw new Error(`The cohort holds a link or special file: ${filename}`);
+		const bytes = await readFile(filename);
+		files.push({
+			path: path.relative(root, filename).split(path.sep).join('/'),
+			sha256: createHash('sha256').update(bytes).digest('hex'),
+			size: bytes.length,
+		});
+	}
+	return files.toSorted(byPath);
+}
+
+function byPath(left, right) {
+	if (left.path === right.path) return 0;
+	return left.path < right.path ? -1 : 1;
+}
+
+/**
+ * Proves the signed application's cohort is the staged one, byte for byte, and that its programs and
+ * files still match `cohort.json` and a signed release directory's `release.json`, which the
+ * handshake and `orchbee install` check.
+ */
+async function verifyBundledCohort(directory, stagedFiles) {
+	const bundled = await cohortFileDigests(directory);
+	const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+	if (stagedFiles === undefined || !same(bundled, stagedFiles)) {
+		throw new Error(`The cohort in ${directory} differs from the staged cohort after signing.`);
+	}
+	const cohortManifest = JSON.parse(await readFile(path.join(directory, 'cohort.json'), 'utf8'));
+	for (const [role, suffix] of [
+		['orchbee', ''],
+		['orchbee-server', '-server'],
+		['orchbee-worker', '-worker'],
+		['orchbee-terminal-host', '-terminal-host'],
+	]) {
+		const file = bundled.find((entry) => entry.path === `${cohortEnvironmentStem}${suffix}`);
+		if (file === undefined || file.sha256 !== cohortManifest?.artifacts?.[role]) {
+			throw new Error(`The bundled ${role} does not match cohort.json.`);
+		}
+	}
+	if (!signsReleaseDirectory) return;
+	const releaseManifest = JSON.parse(await readFile(path.join(directory, 'release.json'), 'utf8'));
+	const listed = (Array.isArray(releaseManifest?.files) ? releaseManifest.files : [])
+		.map((file) => ({ path: file?.path, sha256: file?.sha256, size: file?.size }))
+		.toSorted(byPath);
+	const present = bundled.filter(
+		(file) => file.path !== 'release.json' && file.path !== 'release.json.sig',
+	);
+	if (!same(listed, present)) {
+		throw new Error('The bundled cohort does not match its release.json.');
+	}
+}
+
+/**
+ * Writes `<out>/<profile>/installer/<name>.dmg`, a compressed read-only image holding the signed
+ * application beside a link to `/Applications`, named for the signed manifest's platform.
+ */
+async function createMacDiskImage(application) {
+	const releaseManifest = JSON.parse(
+		await readFile(
+			path.join(application, 'Contents', 'Resources', cohortDirectoryName, 'release.json'),
+			'utf8',
+		),
+	);
+	const baseName = resolveDesktopMacDiskImageBaseName(
+		distributionProfile,
+		productVersion,
+		releaseManifest?.platform,
+	);
+	const outputDirectory = path.join(
+		applicationRoot,
+		'out',
+		distributionProfile.outputDirectoryName,
+		'installer',
+	);
+	await rm(outputDirectory, { force: true, recursive: true });
+	await mkdir(outputDirectory, { recursive: true });
+	const volume = path.join(packageWorkspace, 'disk-image');
+	await mkdir(volume);
+	// ditto keeps the bundle's links, modes and signature.
+	execFileSync('/usr/bin/ditto', [application, path.join(volume, path.basename(application))], {
+		stdio: 'inherit',
+	});
+	await symlink('/Applications', path.join(volume, 'Applications'));
+	const image = path.join(outputDirectory, `${baseName}.dmg`);
+	// GitHub's macOS runners now and then answer `hdiutil create` with "Resource busy"; a later
+	// attempt succeeds.
+	for (let attempt = 1; ; attempt += 1) {
+		try {
+			execFileSync(
+				'/usr/bin/hdiutil',
+				[
+					'create',
+					'-volname',
+					distributionProfile.applicationName,
+					'-srcfolder',
+					volume,
+					'-fs',
+					'HFS+',
+					'-format',
+					'UDZO',
+					'-ov',
+					image,
+				],
+				{ stdio: 'inherit' },
+			);
+			break;
+		} catch (error) {
+			if (attempt === 3) throw error;
+			await rm(image, { force: true });
+			await new Promise((resolve) => setTimeout(resolve, 5000));
+		}
+	}
+	execFileSync('/usr/bin/hdiutil', ['verify', image], { stdio: 'inherit' });
+	console.info(`Created the macOS disk image (${profileId}): ${image}`);
 }
 
 /** The total size in bytes of the regular files below `directory`. */
