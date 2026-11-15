@@ -10,7 +10,8 @@ mod unix;
 #[cfg(windows)]
 mod windows;
 pub(crate) use store::{
-    ReleaseStore, open_release_file, read_pointer, valid_release_path, version_directory_parts,
+    ReleaseStore, open_release_file, read_pointer, transient_name, valid_release_path,
+    version_directory_parts,
 };
 
 #[cfg(test)]

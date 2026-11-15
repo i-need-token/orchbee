@@ -12,6 +12,8 @@ mod offered_update;
 #[cfg(windows)]
 mod offline_install;
 mod path_value;
+#[cfg(windows)]
+mod retention;
 mod signature_admission;
 
 use base64::{Engine, engine::general_purpose::STANDARD};

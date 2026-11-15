@@ -21,6 +21,8 @@ mod platform;
 #[cfg(not(windows))]
 #[path = "update/unix.rs"]
 mod platform;
+mod retention;
+mod running_programs;
 mod signature;
 mod source_path;
 mod uninstall;

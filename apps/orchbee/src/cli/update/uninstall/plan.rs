@@ -15,11 +15,13 @@
 //! root is itself a link or junction, when a target is not strictly inside a root, or when a target
 //! is reached through a link or junction. A target that is itself a link stays admitted: removal
 //! never follows a link and removes the link alone.
+use crate::release_store::transient_name;
 use std::path::{Component, Path, PathBuf};
 
 /// The store root's entries, as install, update, the PATH step and the platform installer's
-/// Desktop leave them, in removal order; staging folders `.stage-<process>-<number>` and, when the
-/// run removes them, the installer's own files follow. The pointer goes after all of them.
+/// Desktop leave them, in removal order; the folders a store writer leaves while it works, stages
+/// `.stage-<process>-<number>` and removals `.remove-<process>-<number>`, and, when the run removes
+/// them, the installer's own files follow. The pointer goes after all of them.
 const STORE_ENTRIES: [&str; 6] = [
     "bin",
     "desktop",
@@ -30,8 +32,6 @@ const STORE_ENTRIES: [&str; 6] = [
 ];
 /// The store's mark.
 pub(super) const STORE_MARK: &str = "active.json";
-/// The prefix of a publication's staging folder in the store root.
-const STAGE_PREFIX: &str = ".stage-";
 
 /// The data root's entries, the data-root layout's top level, in removal order.
 const DATA_ENTRIES: [&str; 5] = [
@@ -204,13 +204,16 @@ pub(super) fn plan(
     // The installer's files are its own only in a store root this environment marked; in any other
     // folder those names are another program's.
     let installer_files: &[&str] = if store_marked { installer.files } else { &[] };
-    let mut stages: Vec<&String> = store_names.iter().filter(|name| stage(name)).collect();
-    stages.sort();
+    let mut transient: Vec<&String> = store_names
+        .iter()
+        .filter(|name| transient_name(name))
+        .collect();
+    transient.sort();
     let store_targets: Vec<Target> = STORE_ENTRIES
         .iter()
         .map(|name| target(roots.store.join(name), None))
         .chain(
-            stages
+            transient
                 .into_iter()
                 .map(|name| target(roots.store.join(name), None)),
         )
@@ -229,7 +232,7 @@ pub(super) fn plan(
         kept: store_names
             .iter()
             .filter(|name| {
-                !stage(name)
+                !transient_name(name)
                     && !named(name, &STORE_ENTRIES)
                     && !named(name, installer_files)
                     && !same(name, STORE_MARK)
@@ -328,17 +331,6 @@ fn names(
         Presence::File => Err(unmarked(root.to_owned())),
         Presence::Link | Presence::Unreadable => Err(Refusal::ThroughLink(root.to_owned())),
     }
-}
-
-/// Whether `name` is a publication's staging folder: `.stage-<digits>-<digits>`.
-fn stage(name: &str) -> bool {
-    name.strip_prefix(STAGE_PREFIX)
-        .and_then(|rest| rest.split_once('-'))
-        .is_some_and(|(process, number)| {
-            [process, number]
-                .iter()
-                .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
-        })
 }
 
 fn named(name: &str, entries: &[&str]) -> bool {

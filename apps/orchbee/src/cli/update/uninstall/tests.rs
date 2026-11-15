@@ -339,7 +339,8 @@ fn uninstall_removes_only_what_the_layouts_name_and_only_from_a_marked_root() {
             true,
             Ok(((0, true), (0, true))),
         ),
-        // Other items in a marked root stay and are counted; a staging folder is the store's.
+        // Other items in a marked root stay and are counted; a staging folder and a removal a
+        // cleanup left are the store's.
         (
             (
                 Some(&[
@@ -347,6 +348,7 @@ fn uninstall_removes_only_what_the_layouts_name_and_only_from_a_marked_root() {
                     "active.json",
                     "unins000.exe",
                     r".stage-12-0\x",
+                    r".remove-12-1\x",
                     ".stage-x",
                 ]),
                 true,

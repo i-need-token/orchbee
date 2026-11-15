@@ -17,6 +17,14 @@ pub(super) fn publish(_stage: &Path, _target: &Path) -> io::Result<()> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
-pub(super) fn remove_stage(_path: &Path) -> io::Result<()> {
+pub(super) fn move_aside(_root: &Path, _directory: &Path) -> io::Result<PathBuf> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+pub(super) fn directories(_folder: &Path) -> io::Result<Vec<String>> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+pub(super) fn remove_directory(_path: &Path) -> io::Result<()> {
     Err(io::ErrorKind::Unsupported.into())
 }

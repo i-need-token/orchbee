@@ -1,7 +1,7 @@
 //! Windows effects of uninstall outside the two roots: the user `Path` entry, the Start menu
 //! shortcut and the uninstall registration, with the names of the installer's own files in the
-//! store root; the processes running from the store; the npm carrier; and the removal of the
-//! running program's own files after it exits.
+//! store root; the processes running from the store, through the shared process scan; the npm
+//! carrier; and the removal of the running program's own files after it exits.
 //!
 //! A running executable cannot be deleted on Windows, so the last files of the store, the Client's
 //! own file, the launcher waiting for it and their folders, are removed by a detached `cmd.exe`
@@ -11,6 +11,8 @@
 //! else is in it. It ends once the held files and the pointer are gone, or after about a minute.
 //! Interrupted, it leaves the pointer while any held file or folder remains.
 use super::super::path_value::{self, Edit};
+use super::super::running_programs;
+pub(super) use super::super::running_programs::{StoreProcess, inside, same};
 use orchbee_local_runtime::{DataRoot, environment_stem, is_release};
 use orchbee_workbench_client::application::machine_hub;
 use std::{
@@ -200,51 +202,13 @@ pub(super) fn end_machine_hub(data: &DataRoot, deadline: Instant) -> bool {
     matches!(machine_hub::end(data, deadline), Ok(Some(_)))
 }
 
-/// One process whose program file is inside the store root.
-pub(super) struct StoreProcess {
-    pub(super) pid: u32,
-    pub(super) image: PathBuf,
-}
-
 /// The processes whose program file is inside `root`, other than this one, those in `except` and
 /// their descendants, such as the console host a Session's terminal runs from the store. A process
-/// this user cannot query is not reported.
+/// this user cannot query is not reported, and a listing that fails reports what it found before.
 pub(super) fn store_processes(root: &Path, except: &[u32]) -> Vec<StoreProcess> {
-    let own = std::process::id();
-    let Ok(mut snapshot) = w::HPROCESSLIST::CreateToolhelp32Snapshot(co::TH32CS::SNAPPROCESS, None)
-    else {
-        return Vec::new();
-    };
-    let parents: std::collections::HashMap<u32, u32> = snapshot
-        .iter_processes()
-        .filter_map(Result::ok)
-        .map(|entry| (entry.th32ProcessID, entry.th32ParentProcessID))
-        .collect();
-    // A bounded walk up the parent links, so a cycle of reused identifiers ends.
-    let excepted = |pid: u32| {
-        let mut current = pid;
-        for _ in 0..64 {
-            if current == own || except.contains(&current) {
-                return true;
-            }
-            match parents.get(&current) {
-                Some(&parent) if parent != 0 && parent != current => current = parent,
-                _ => return false,
-            }
-        }
-        false
-    };
-    let pids: Vec<u32> = parents
-        .keys()
-        .copied()
-        .filter(|pid| *pid != 0 && !excepted(*pid))
-        .collect();
-    pids.into_iter()
-        .filter_map(|pid| {
-            let image = image(pid)?;
-            inside(&image, root).then_some(StoreProcess { pid, image })
-        })
-        .collect()
+    let mut except = except.to_vec();
+    except.push(std::process::id());
+    running_programs::processes_inside(root, &except).0
 }
 
 /// This process's chain of parents, nearest first. Each link still runs and started no later than
@@ -295,35 +259,6 @@ pub(super) fn ancestors() -> Vec<StoreProcess> {
         current = pid;
     }
     chain
-}
-
-fn image(pid: u32) -> Option<PathBuf> {
-    let process =
-        w::HPROCESS::OpenProcess(co::PROCESS::QUERY_LIMITED_INFORMATION, false, pid).ok()?;
-    process
-        .QueryFullProcessImageName(co::PROCESS_NAME::WIN32)
-        .ok()
-        .map(PathBuf::from)
-}
-
-/// Whether `path` is strictly inside `root`, comparing names without letter case.
-pub(super) fn inside(path: &Path, root: &Path) -> bool {
-    let (path, root) = (fold(path), fold(root));
-    path.strip_prefix(root.as_str())
-        .is_some_and(|rest| rest.len() > 1 && rest.starts_with('\\'))
-}
-
-/// Whether two paths name the same file or folder, comparing names without letter case.
-pub(super) fn same(left: &Path, right: &Path) -> bool {
-    fold(left) == fold(right)
-}
-
-fn fold(path: &Path) -> String {
-    path.to_string_lossy()
-        .to_lowercase()
-        .replace('/', "\\")
-        .trim_end_matches('\\')
-        .to_owned()
 }
 
 /// Whether the npm carrier started this Client: its launcher runs the version's Client directly

@@ -771,11 +771,11 @@ programs exist:
      whole, as a window version goes in the cleanup, because a Session an older window started may
      still run from it (`orchbee.iss:211-224`).
 - No process runs from a set of files when the shared process scan
-  (`apps/orchbee/src/cli/update/uninstall/windows.rs:209-249`) finds no process whose program lies
-  inside, and every `.exe`, `.dll`, and `.node` inside opens for writing, as Setup's probe checks
-  (`orchbee.iss:165-209`). The second check catches what the scan cannot query (the same file,
-  `:210-211`); a folder rename proves nothing, because Windows moves a folder while a program runs
-  from it (`orchbee.iss:183-184`).
+  (`apps/orchbee/src/cli/update/running_programs/windows.rs:34-78`) finds no process whose program
+  lies inside, and every `.exe`, `.dll`, and `.node` inside opens for writing, as Setup's probe
+  checks (`orchbee.iss:165-209`). The second check catches what the scan cannot query (the same
+  file, `:32-33`); a folder rename proves nothing, because Windows moves a folder while a program
+  runs from it (`orchbee.iss:183-184`).
 - The layout's names, which no step removes: `versions\`, `active.json`, `active.pending`,
   `install.lock`, the entry, and `.stage-*`, `.new-*`, and `.remove-*`. No packaged window file uses
   them.

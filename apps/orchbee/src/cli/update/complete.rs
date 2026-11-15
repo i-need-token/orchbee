@@ -1,13 +1,15 @@
 //! The completion helper `--complete-install-v1 [--no-path] [--allow-downgrade]`, which a published
 //! copy runs to complete its own install. Under `install.lock` it refuses a version lower than the
 //! active one unless allowed, performs the PATH step unless `--no-path`, and then moves the
-//! pointer, so a failure leaves the pointer where it was. Its grammar never changes; help,
+//! pointer, so a failure leaves the pointer where it was. Where automatic updates run, it then
+//! removes the versions the store no longer keeps, under the same lock and in the new active
+//! version's own code; that cleanup never changes the result. Its grammar never changes; help,
 //! completion and the Agent guide leave it out.
 use super::{
     Error, Output,
     install::Completion,
     manifest::{Release, own_platform},
-    path_step, platform,
+    path_step, platform, retention,
     signature::{self, DOCUMENT_LIMIT, MANIFEST_LIMIT, Refusal},
 };
 use crate::{
@@ -15,7 +17,9 @@ use crate::{
     localization::Locale,
     release_store::{ReleaseStore, open_release_file, version_directory_parts},
 };
-use orchbee_local_runtime::{EnvironmentKind, compare_product_versions, environment_kind};
+use orchbee_local_runtime::{
+    EnvironmentKind, automatic_updates_live, compare_product_versions, environment_kind,
+};
 use orchbee_release_records::{Entry, Pointer};
 use std::{cmp::Ordering, io::Read, path::Path};
 
@@ -24,7 +28,9 @@ use std::{cmp::Ordering, io::Read, path::Path};
 pub(super) const PATH_STEP_BUILT: bool = true;
 
 /// Makes the published version `entry` names the active one under `root`, holding the writer
-/// lock throughout. An unreadable pointer names no active version, so this repairs it.
+/// lock throughout. An unreadable pointer names no active version, so this repairs it. Once the
+/// pointer has moved from a readable one, and where automatic updates run, the versions it names
+/// neither active nor previous leave the store when no process runs from them.
 pub(super) fn activate(root: &Path, entry: &Entry, completion: Completion) -> Result<(), Error> {
     let mut store = ReleaseStore::acquire(root).map_err(|error| {
         if error.kind() == std::io::ErrorKind::WouldBlock {
@@ -54,9 +60,17 @@ pub(super) fn activate(root: &Path, entry: &Entry, completion: Completion) -> Re
         let key = platform::user_environment_key().map_err(|_| Error::PathVariable)?;
         path_step::run(root, &entry.product, &key)?;
     }
+    // Without a readable pointer before the move, no version is known to have been the previous
+    // one, so nothing is removed.
+    let readable = current.is_some();
+    let pointer = Pointer::activate(current, entry.clone());
     store
-        .replace_pointer(&Pointer::activate(current, entry.clone()).encode())
-        .map_err(|_| Error::Storage)
+        .replace_pointer(&pointer.encode())
+        .map_err(|_| Error::Storage)?;
+    if automatic_updates_live() && readable {
+        retention::remove_unused(&store, &pointer);
+    }
+    Ok(())
 }
 
 /// The signed release in `directory`, verified with this build's keys.

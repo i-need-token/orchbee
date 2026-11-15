@@ -3,6 +3,7 @@ use orchbee_local_runtime::private_filesystem as permissions;
 use std::{
     fs::{self, File},
     io,
+    os::windows::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -39,7 +40,43 @@ pub(super) fn publish(stage: &Path, target: &Path) -> io::Result<()> {
     fs::rename(stage, target)
 }
 
-pub(super) fn remove_stage(path: &Path) -> io::Result<()> {
+/// Renames `directory` to a fresh `.remove-<process>-<number>` in `root` and returns that path.
+pub(super) fn move_aside(root: &Path, directory: &Path) -> io::Result<PathBuf> {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    for _ in 0..32 {
+        let index = NEXT.fetch_add(1, Ordering::Relaxed);
+        let path = root.join(format!(".remove-{}-{index}", std::process::id()));
+        // A crashed run's leftover may hold this name; a rename never replaces it.
+        match fs::symlink_metadata(&path) {
+            Ok(_) => continue,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        fs::rename(directory, &path)?;
+        return Ok(path);
+    }
+    Err(io::ErrorKind::AlreadyExists.into())
+}
+
+/// The names of the real directories in `folder`; links, junctions and files are left out.
+pub(super) fn directories(folder: &Path) -> io::Result<Vec<String>> {
+    let mut names = Vec::new();
+    for entry in fs::read_dir(folder)? {
+        let entry = entry?;
+        // The listing's own attributes, so a link is never followed to read them.
+        let metadata = entry.metadata()?;
+        if metadata.is_dir()
+            && metadata.file_attributes() & 0x400 == 0
+            && let Ok(name) = entry.file_name().into_string()
+        {
+            names.push(name);
+        }
+    }
+    Ok(names)
+}
+
+/// Deletes a directory tree without following a link inside it.
+pub(super) fn remove_directory(path: &Path) -> io::Result<()> {
     fs::remove_dir_all(path)
 }
 

@@ -1,8 +1,11 @@
 //! Private immutable releases under one store root: `versions/<version>/`, the pointer
 //! `active.json` and the writer lock `install.lock`. The caller owns release contents, validation,
-//! the pointer's meaning and retention; this owner serializes writers, publishes whole version
-//! directories, replaces the pointer atomically and cleans only its own stage. It opens no other
-//! name in the root, so a folder another installer keeps there, such as `desktop`, is never read.
+//! the pointer's meaning and which versions to keep; this owner serializes writers, publishes whole
+//! version directories, replaces the pointer atomically, cleans its own stage, and removes a version
+//! the caller names by moving it aside as `.remove-<process>-<number>` before deleting it, so
+//! `versions/` only ever holds whole versions. Besides those names it opens only the `.stage-*` and
+//! `.remove-*` folders writers leave, so a folder another installer keeps in the root, such as
+//! `desktop`, is never read.
 //!
 //! Creation order: whichever writer comes first creates the root. A missing root is created with a
 //! protected private access rule, so a `desktop` folder written afterwards inherits it; an existing
@@ -52,6 +55,43 @@ impl ReleaseStore {
     /// Replaces the pointer by a flushed rename of `active.pending`; no partial pointer is visible.
     pub(crate) fn replace_pointer(&mut self, bytes: &[u8]) -> io::Result<()> {
         self.lock.replace(POINTER, bytes)
+    }
+    /// The real directories under `versions/` that carry a version name, by name. A link, a file or
+    /// another name there is left out, so nothing reached through one is ever removed.
+    pub(crate) fn versions(&self) -> io::Result<Vec<String>> {
+        Ok(platform::directories(&self.root.join(VERSIONS))?
+            .into_iter()
+            .filter(|name| version_path(&self.root, name).is_ok())
+            .collect())
+    }
+    /// The real directories in the root that a writer leaves there only while it works: removals
+    /// that stopped part way and stages of runs that ended without their cleanup. No writer works
+    /// in them while this lock is held.
+    pub(crate) fn leftovers(&self) -> io::Result<Vec<PathBuf>> {
+        Ok(platform::directories(&self.root)?
+            .into_iter()
+            .filter(|name| transient_name(name))
+            .map(|name| self.root.join(name))
+            .collect())
+    }
+    /// Removes `versions/<version>`: a rename to a fresh `.remove-<process>-<number>` in the root
+    /// first, so `versions/` only ever holds whole versions, then a deletion. A directory that cannot
+    /// be moved stays whole, and what cannot be deleted stays aside among the leftovers.
+    pub(crate) fn remove_version(&self, version: &str) -> io::Result<()> {
+        let aside = platform::move_aside(&self.root, &self.version_path(version)?)?;
+        platform::remove_directory(&aside)
+    }
+    /// Deletes one directory [`Self::leftovers`] named; what cannot be deleted stays.
+    pub(crate) fn remove_leftover(&self, path: &Path) -> io::Result<()> {
+        let leftover = path.parent() == Some(self.root.as_path())
+            && path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(transient_name);
+        if !leftover {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        platform::remove_directory(path)
     }
     /// Creates a unique stage. Its lifetime cannot outlive the publisher lock.
     pub(crate) fn stage(&self) -> io::Result<ReleaseStage<'_>> {
@@ -130,7 +170,7 @@ impl ReleaseStage<'_> {
             return Err(io::ErrorKind::InvalidInput.into());
         }
         drop(pins);
-        platform::remove_stage(&self.path)?;
+        platform::remove_directory(&self.path)?;
         self.owned = false;
         Ok(())
     }
@@ -161,6 +201,20 @@ pub(crate) fn version_path(root: &Path, version: &str) -> io::Result<PathBuf> {
         return Err(io::ErrorKind::InvalidInput.into());
     }
     Ok(root.join(VERSIONS).join(version))
+}
+
+/// Whether `name` is a directory a writer leaves in the root only while it works: a stage,
+/// `.stage-<process>-<number>`, or a removal, `.remove-<process>-<number>`.
+pub(crate) fn transient_name(name: &str) -> bool {
+    [".stage-", ".remove-"].iter().any(|prefix| {
+        name.strip_prefix(prefix)
+            .and_then(|rest| rest.split_once('-'))
+            .is_some_and(|(process, number)| {
+                [process, number]
+                    .iter()
+                    .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+            })
+    })
 }
 
 /// The store root and version name of a version directory, `<root>/versions/<version>`.
