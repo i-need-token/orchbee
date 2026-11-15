@@ -1,6 +1,6 @@
 // The steps of the release workflow around the build: what a run releases, whether its secrets and
 // trusted key are in place, and the publication of the collected artifacts as a draft GitHub
-// pre-release and on npm. Each step either finishes or stops with sentences that name what is wrong;
+// release and on npm. Each step either finishes or stops with sentences that name what is wrong;
 // none prints a secret, and a step run again after a partial publication finishes it without
 // duplicating or replacing anything already published.
 //
@@ -17,8 +17,10 @@
 //   is not empty.
 // - github: creates the draft release of the tag with every top-level file of <artifacts>, or
 //   completes the draft a stopped run left; a published release is only confirmed, never changed.
-//   Every update feed document must carry its `.sig`, verified with a key of RELEASE_KEYS. Runs
-//   `gh` with the token in GH_TOKEN.
+//   Every update feed document must carry its `.sig`, verified with a key of RELEASE_KEYS. The
+//   draft is never a pre-release, so publishing it makes it the repository's Latest release even
+//   for a beta, and its notes open with an Install section linking the files a person downloads.
+//   Runs `gh` with the token in GH_TOKEN.
 // - npm: publishes every tarball of <artifacts>, platform packages first and the main package last,
 //   with provenance and the dist-tag `next` for a pre-release or `latest` otherwise. A version the
 //   registry already holds with the same tarball is skipped; one with another tarball fails.
@@ -397,6 +399,37 @@ export function githubReleases(tag, repositoryName, gh = (argv) => run('gh', arg
 		.map((line) => JSON.parse(line));
 }
 
+/**
+ * The notes a new draft release starts with: an Install section linking the files a person
+ * downloads, then a Changes placeholder the owner replaces before publishing.
+ */
+function draftNotes({ version, tag, repositoryName, names }) {
+	const link = (pattern) => {
+		const name = names.find((candidate) => pattern.test(candidate));
+		if (name === undefined) return undefined;
+		const address = `https://github.com/${repositoryName}/releases/download/${tag}/${encodeURIComponent(name)}`;
+		return `[${name}](${address})`;
+	};
+	const installer = link(/-windows-x86_64-setup\.exe$/u);
+	const archive = link(/-windows-x86_64\.zip$/u);
+	const npm = `\`npm install -g orchbee@${distTagFor(version)}\``;
+	return [
+		'## Install',
+		'',
+		...(installer === undefined
+			? []
+			: [`- Windows x64 installer, with the window and the command line: ${installer}`]),
+		`- Command line only: ${archive === undefined ? npm : `${archive}, or ${npm}`}`,
+		'- Already installed: `orchbee update`',
+		'',
+		'The `.feed.json`, `.sig` and `.tgz` files serve `orchbee update` and npm; `SHA256SUMS` holds the checksums.',
+		'',
+		'## Changes',
+		'',
+		'Draft made by the release workflow: write the changes here, check the assets against SHA256SUMS, then publish.',
+	].join('\n');
+}
+
 function publishGithub({ artifacts, tag, repositoryName }, gh = (argv) => run('gh', argv)) {
 	const version = tag.slice(1);
 	const assets = releaseAssets(artifacts);
@@ -404,9 +437,8 @@ function publishGithub({ artifacts, tag, repositoryName }, gh = (argv) => run('g
 	if (plan.problems.length > 0) throw new StepFailure(plan.problems.join('\n'));
 	const files = (names) => names.map((name) => assets.find((asset) => asset.name === name).path);
 	if (plan.action === 'create') {
-		const notes =
-			`Orchbee ${version}. Draft made by the release workflow: write the notes, check the ` +
-			'assets against SHA256SUMS, then publish.';
+		const names = assets.map((asset) => asset.name);
+		const notes = draftNotes({ version, tag, repositoryName, names });
 		gh([
 			'release',
 			'create',
@@ -419,7 +451,6 @@ function publishGithub({ artifacts, tag, repositoryName }, gh = (argv) => run('g
 			tag,
 			'--notes',
 			notes,
-			...(version.includes('-') ? ['--prerelease'] : []),
 			...files(plan.upload),
 		]);
 		log(`Created the draft release ${tag} with ${plan.upload.join(', ')}.`);

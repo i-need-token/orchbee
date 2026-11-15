@@ -49,10 +49,14 @@ repository>`. Print each public half with the command in
    after both smoke jobs pass. A rehearsal asks for the first two. Approve publication within 14
    days, while the run's artifacts are kept.
 5. Publication signs the update feed document with the release key, then creates a draft release
-   `v0.1.0-beta.1`, marked pre-release, holding the setup file, the `.zip`, the feed document
+   `v0.1.0-beta.1` holding the setup file, the `.zip`, the feed document
    `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, the npm tarballs and
    `SHA256SUMS`, and then publishes `@orchbee/cli-win32-x64` and
-   `orchbee` under the dist-tag `next`. Open the draft, write the notes, and press Publish release.
+   `orchbee` under the dist-tag `next`. The draft's notes open with an Install section that links
+   the setup file and the `.zip` and gives the npm command. Open the draft, replace the Changes
+   placeholder with the notes, make sure Set as the latest release is ticked, and press Publish
+   release. The draft is not a pre-release even for a beta: GitHub shows a Latest release on the
+   repository page, and answers `/releases/latest`, only for a release that is not one.
    The npm packages are public as soon as the job ends, before the draft is published.
 6. Wait for the update check: pressing Publish release starts Actions › Update check for the tag,
    which on a fresh runner installs the version people have now and updates it to the release

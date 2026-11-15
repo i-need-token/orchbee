@@ -5,7 +5,7 @@ name: Release
 # result on fresh runners, and publishes nothing. A pushed tag v<version>, or a manual run naming a
 # version (a rehearsal): the release path builds the rows marked `build` and `publish` with the
 # release identity, signs in the protected environment `release`, proves the files on fresh runners,
-# and, for a tag only, publishes a draft GitHub pre-release and the npm packages.
+# and, for a tag only, publishes a draft GitHub release and the npm packages.
 # Contract: docs/VERIFICATION.md#release-workflow; the owner's steps: docs/RELEASING.md.
 on:
   workflow_dispatch:
