@@ -51,7 +51,7 @@ Integrations are opt-in, so a provider that is installed but not enabled passes.
 advisories (`activation-recorded`, `socket-residue`, `pipe-name-present`, `unrecognized-records`)
 describe what a running Session also leaves, so they warn only when the Session check is
 not-applicable. A check whose collector the platform lacks is `{"kind":"unsupported"}` in JSON and
-has no text line; on Linux that is `installation` and `session`.
+has no text line; on Linux and macOS that is `installation` and `session`.
 
 Text starts with the verdict, then one line per check: the status word (`ok`, `warn`, `fail`, or
 `-` for not-applicable; zh-CN `通过`, `警告`, `失败`, `-`), the label, and one fact. A warning or a

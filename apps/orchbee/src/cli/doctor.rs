@@ -46,7 +46,7 @@ pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
             locale,
         )
     };
-    let Ok(signals) = ArmedSignals::arm_interrupts() else {
+    let Ok(signals) = ArmedSignals::arm_interrupts_or_inherit() else {
         return failed(Failure::new(FailureKind::InternalFailure));
     };
     let checks = collect(&signals);
