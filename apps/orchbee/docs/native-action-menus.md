@@ -77,13 +77,13 @@ start an Agent in a new Tab — no Agent launch on this host, a Session that can
 catalog, or no current Workspace — the section is absent and the profiles stand alone. With a single profile and no section it opens no
 menu, because a click already creates a Tab with the default. These menus open through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
-A pane menu, titled with the panel's name, leads with Copy selection for the focused panel, then holds
+A pane menu, titled with the panel's name, leads with Copy for the focused panel, then holds
 Find in terminal, Clear terminal, Rename, Split right and Split down, Maximize / Restore only beside another panel and Type here only while another window
 holds that panel's size, then the red Close; dragging a divider resizes, keyboard resizing keeps its
 keys, and copy mode keeps its key and global menu row. The global menu also exposes the new-Tab submenu for keyboard
 users.
 
-Copy selection is a pane-only row whose label and catalog identity (`terminal.selection.copy`) match the
+Copy (`复制`) is a pane-only row whose label and catalog identity (`terminal.selection.copy`) match the
 GUI terminal menu. It starts one ordinary selection export on the copy-on-select clipboard path. It takes
 no copy-mode ownership, keeps the Host selection, adds no clipboard write of its own, reports success
 silently, and reports failure with the ordinary copy notice. The row is enabled while the focused panel's
@@ -92,7 +92,7 @@ selection it stays visible and disabled with the reason `Select text first`. A p
 not focused or has no frame omits the row, because the copy acts only on the focused panel's selection.
 Keyboard copy mode keeps its own entry and keys.
 
-Find in terminal sits in the pane menu between Copy selection and Clear terminal and in the global
+Find in terminal sits in the pane menu between Copy and Clear terminal and in the global
 Panel group before copy mode, both showing the Find shortcut. Choosing the pane row focuses that
 panel, then opens the [Find bar](native-terminal-find.md) on it. Both rows share the shortcut's
 rule: they are disabled with Terminal disconnected exactly when the shortcut would refuse with that

@@ -1,6 +1,7 @@
 import { startDesktopServerWorkbench } from '../desktop-client';
 import { registerTerminalProductFonts } from '../workbench-client';
 import { resolveBrowserPreferenceStorage } from './resolveBrowserPreferenceStorage';
+import { resolveCtrlCCopiesSelection } from './resolveCtrlCCopiesSelection';
 import { resolveShortcutPlatform } from './resolveShortcutPlatform';
 import { resolveWebRuntimeMode } from './resolveWebRuntimeMode';
 
@@ -26,6 +27,7 @@ export function startWebRenderer(targetWindow: Window): void {
 		document.documentElement,
 		navigator.languages,
 		resolveShortcutPlatform(navigator.platform),
+		resolveCtrlCCopiesSelection(navigator.platform),
 		{
 			...(focusRecoveryStorage === undefined ? {} : { focusRecovery: focusRecoveryStorage }),
 			preferences: resolveBrowserPreferenceStorage(() => targetWindow.localStorage),

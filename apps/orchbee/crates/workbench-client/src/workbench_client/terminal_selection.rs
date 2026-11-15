@@ -154,6 +154,8 @@ pub(super) struct Driver {
     selection: SelectionChangedState,
     copy_ready: Option<(NonZeroU64, String)>,
     copy_selection_owned: bool,
+    /// The export whose completed copy clears the selection it read, as Ctrl+C does on Windows.
+    clear_after: Option<NonZeroU64>,
 }
 
 impl Driver {
@@ -172,6 +174,7 @@ impl Driver {
             selection: SelectionChangedState::None,
             copy_ready: None,
             copy_selection_owned: false,
+            clear_after: None,
         }
     }
 
@@ -528,6 +531,68 @@ impl Driver {
             return Ok(false);
         }
         self.start_export()?;
+        Ok(true)
+    }
+
+    /// Starts the same export for Ctrl+C on Windows and marks it to clear the selection once its
+    /// text is complete.
+    pub(super) fn export_host_selection_then_clear(&mut self) -> Result<bool, Failure> {
+        let started = self.export_host_selection()?;
+        if started {
+            self.clear_after = self.export.as_ref().map(|(sequence, _)| *sequence);
+        }
+        Ok(started)
+    }
+
+    /// Whether the completed copy of `sequence` should clear the selection it read.
+    pub(super) fn clears_after(&mut self, sequence: NonZeroU64) -> bool {
+        self.clear_after
+            .take_if(|marked| *marked == sequence)
+            .is_some()
+    }
+
+    /// Replaces the settled Host selection with none after its copy completed: a single-cell
+    /// Start at the admitted geometry's first cell, then Cancel to release that gesture, the same
+    /// commands copy mode uses to clear its own selection. Any gesture, export or viewport fence
+    /// owns the selection instead, and nothing is scheduled.
+    pub(super) fn clear_host_selection(
+        &mut self,
+        generation: NonZeroU64,
+        columns: u16,
+        rows: u16,
+    ) -> Result<bool, Failure> {
+        if self.generation != Some(generation)
+            || columns == 0
+            || rows == 0
+            || self.gesture.is_some()
+            || self.export_pending()
+            || self.viewport_fence.is_some()
+            || !self.host_selection_active()
+        {
+            return Ok(false);
+        }
+        self.reserve_cleanup(self.queue.len(), 2)?;
+        let cell = PointerSelectionCell { column: 0, row: 0 };
+        self.gesture = Some(Gesture {
+            generation,
+            columns,
+            rows,
+            closing: false,
+            cancelled: true,
+        });
+        self.schedule(Action::Gesture {
+            generation,
+            gesture: ViewerSelectionGestureAction::Start {
+                click_count: 1,
+                point: point(cell),
+                position: position(cell),
+                select_output: false,
+            },
+        })?;
+        self.schedule(Action::Gesture {
+            generation,
+            gesture: ViewerSelectionGestureAction::Cancel,
+        })?;
         Ok(true)
     }
 

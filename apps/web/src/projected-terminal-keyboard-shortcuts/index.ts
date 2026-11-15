@@ -3,6 +3,7 @@ export {
 	PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS,
 	defaultProjectedTerminalShortcutBindings,
 	formatProjectedTerminalActionShortcut,
+	matchesProjectedTerminalSelectionCopyKey,
 	resolveProjectedTerminalShortcut,
 } from './projected-terminal-keyboard-shortcuts';
 export type {

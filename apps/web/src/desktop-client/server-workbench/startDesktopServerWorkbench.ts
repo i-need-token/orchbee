@@ -171,6 +171,7 @@ async function run(
 	documentElement: DocumentElement,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
+	ctrlCCopiesSelection: boolean,
 	storage: DesktopServerWorkbenchStorage,
 ): Promise<void> {
 	const { backgroundStatusPort, bootstrap, connectionPort, projectFolderPort } =
@@ -302,6 +303,7 @@ async function run(
 		onPublicationFailure: () => session.dispose(),
 		preferredLocales,
 		session,
+		ctrlCCopiesSelection,
 		shortcutBindingSource: keyboardShortcutSettingsController,
 		shortcutPlatform,
 		terminalCompletionReminderObserver: terminalFeedbackSettingsController,
@@ -390,6 +392,7 @@ export function startDesktopServerWorkbench(
 	documentElement: DocumentElement,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
+	ctrlCCopiesSelection: boolean,
 	storage: DesktopServerWorkbenchStorage,
 ): void {
 	if (!(rootElement instanceof HTMLElement)) {
@@ -402,6 +405,7 @@ export function startDesktopServerWorkbench(
 		documentElement,
 		preferredLocales,
 		shortcutPlatform,
+		ctrlCCopiesSelection,
 		storage,
 	).catch(() => {
 		showSessionUnavailable(targetWindow, reactRoot, documentElement, preferredLocales, null);

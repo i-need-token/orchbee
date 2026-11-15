@@ -82,6 +82,13 @@ typed failures remain visible and are never replayed automatically.
   with no gesture or export pending, starts a plain selection export. The menu row takes no copy-mode
   ownership ([action menus](native-action-menus.md)). One export is active at a time and is fenced by
   exact attachment and export sequence.
+- On Windows, as in Windows Terminal, `Ctrl+C` over the focused panel's settled selection starts that
+  same export instead of reaching the program; the dispatcher matches it with the standard binding and
+  asks the panel before the key joins the forwarded bytes. Once the copy is admitted to the clipboard
+  queue, the Client clears the selection with the same single-cell Start and Cancel that copy mode
+  uses, so the next `Ctrl+C` interrupts; a refused copy keeps the selection. While a gesture or export
+  owns the selection the key is consumed without a second export. Without a selection, and on other
+  hosts, `Ctrl+C` reaches the program unchanged. Copy-on-select stays a separate preference.
 - The Client accepts at most one chunk before the start response, then requires contiguous chunk
   sequences, the announced total length, a final chunk at that exact length, acknowledgements in
   order, and a matching completed result. The existing Host bounds remain 1 MiB per chunk and

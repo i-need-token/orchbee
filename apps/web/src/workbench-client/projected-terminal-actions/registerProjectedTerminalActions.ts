@@ -47,6 +47,7 @@ export interface ProjectedTerminalActionTarget {
 	readonly canScrollHistory: boolean;
 	readonly selection: SelectionChanged;
 	clear(): boolean;
+	clearSelection(): void;
 	copySelectionAsync(): Promise<ProjectedTerminalSideEffectResult>;
 	findNext(): boolean;
 	findPrevious(): boolean;

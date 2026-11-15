@@ -75,6 +75,14 @@ to the shell, terminal applications, and multiplexers. A user may deliberately r
 supported custom chord. Product conflicts remain prohibited even when an Action is temporarily
 unavailable.
 
+On Windows, as in Windows Terminal, `Ctrl+C` in the focused terminal also invokes
+`terminal.selection.copy` while that terminal has a selection, then clears the selection once the copy
+completes; a failed copy keeps it. Without a selection Copy is unavailable, so the key reaches the
+program and interrupts it. This is a fixed platform convention, not a catalog binding: the
+composition reports Windows from `navigator.platform`, it is checked before the catalog bindings, it
+never applies in the Find surface, and macOS and Linux keep only their catalog copy chord. The TUI
+applies the same rule on Windows.
+
 New Workspace and the shortcut reference carry the TUI's `Ctrl+B Shift+N` and `Ctrl+B ?` with the platform modifier: `Cmd+Shift+N` and `Ctrl+Shift+N` create a Workspace as the sidebar's New workspace row does, where the focused Panel stands, and `Ctrl+Shift+/` opens Settings on the shortcut reference, as the sidebar's Shortcuts button does. Apple takes `Cmd+/` because `Cmd+?` opens the system's Help search. The sidebar toggle stays `Cmd+B` on Apple but `Ctrl+Shift+B` on Standard, where `Ctrl+B` is the TUI's prefix and readline's backward-char. A browser that keeps `Ctrl+Shift+N` for its own private window never delivers it to the page; Desktop receives it, and the row and Search still create a Workspace.
 
 Prompt navigation uses `Mod+Up` and `Mod+Down`, as VS Code's terminal does. Line, page, top and bottom history navigation uses `Ctrl+Shift+Arrow/Page/Home/End`, with one row of page overlap. Each Action has one customizable effective binding. The terminal package owns [Prompt navigation](../../../packages/terminal/docs/prompt-navigation.md) and [Keyboard scrollback](../../../packages/terminal/docs/keyboard-scrollback.md).

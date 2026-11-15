@@ -89,6 +89,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'chooseVisibleHint'
 	| 'clear'
 	| 'clearSearch'
+	| 'clearSelection'
 	| 'copySelectionAsync'
 	| 'dispose'
 	| 'findNext'
@@ -298,6 +299,7 @@ export async function startProjectedTerminalRenderer(
 	presentationSnapshot?: ProjectedTerminalPresentationSnapshot,
 	applicationLocaleSource?: ApplicationLocaleSource,
 	trailingBlankRowsPresentationSource: TerminalTrailingBlankRowsPresentationSource = DEFAULT_TERMINAL_TRAILING_BLANK_ROWS_PRESENTATION_SOURCE,
+	ctrlCCopiesSelection = false,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -1475,6 +1477,7 @@ export async function startProjectedTerminalRenderer(
 			root: findRoot,
 		});
 		disposeShortcuts = dependencies.installShortcuts({
+			ctrlCCopiesSelection,
 			document: rootElement.ownerDocument,
 			findRoot,
 			findScope: actions.findScope,

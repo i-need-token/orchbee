@@ -106,8 +106,8 @@ pub struct PointerFrameFacts {
 pub use super::terminal_selection::{PointerSelectionCell, PointerSelectionIntent};
 pub use crate::tui_hit_map::{DrawnPresentationTarget, PointerUnboundPane};
 
-/// Input that the focused pane's own viewport owns: provisional selection, link activation and
-/// non-Live history movement. Each step names the exact painted incarnation it resolves against.
+/// Input that the focused pane's own viewport owns: provisional selection, selection copy, link
+/// activation and non-Live history movement. Each step names the exact painted incarnation it resolves against.
 pub enum PaneInput<'a> {
     /// One cell-semantic selection step for the exact painted pane. Only `Start` has an admission
     /// decision; callers ignore the result of later steps after an admitted start.
@@ -124,6 +124,10 @@ pub enum PaneInput<'a> {
     /// A key that the focus pane's non-Live history core may consume locally. A rejected key
     /// follows the ordinary byte path untouched.
     HistoryKey(&'a crate::client_view::KeyEvent),
+    /// The platform's interrupt-key copy (Ctrl+C on Windows) over the focused pane. Admitted only
+    /// while that pane holds a settled selection, which it copies and then clears; a rejected key
+    /// follows the ordinary byte path and interrupts the program.
+    CopySelection,
     /// A wheel notch (three rows) over the non-Live history core of the exact focus incarnation
     /// the pointer already probed.
     HistoryWheel {

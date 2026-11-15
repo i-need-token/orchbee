@@ -45,6 +45,35 @@ describe('projected terminal shortcuts', () => {
 		);
 	});
 
+	it('copies a selection with Ctrl+C only on Windows and otherwise lets the key interrupt', () => {
+		const ctrlC = { ...baseEvent, code: 'KeyC', ctrlKey: true };
+		const windows = shortcutHarness('standard', true, undefined, true);
+		const copied = windows.keyDown(ctrlC, windows.terminalNode);
+		expect(windows.invoke).toHaveBeenCalledWith(
+			'terminal.selection.copy',
+			undefined,
+			windows.terminalScope,
+			{ clearSelectionAfterCopy: true },
+		);
+		expect(copied.preventDefault).toHaveBeenCalledOnce();
+		windows.keyDown(ctrlC, windows.findNode);
+		windows.keyDown({ ...ctrlC, shiftKey: true, code: 'KeyX' }, windows.terminalNode);
+		expect(windows.invoke).toHaveBeenCalledOnce();
+
+		// Without a selection Copy is unavailable, so the key reaches the program.
+		const noSelection = shortcutHarness('standard', false, undefined, true);
+		const passed = noSelection.keyDown(ctrlC, noSelection.terminalNode);
+		expect(noSelection.invoke).toHaveBeenCalledOnce();
+		expect(passed.preventDefault).not.toHaveBeenCalled();
+
+		for (const platform of ['standard', 'apple'] as const) {
+			const other = shortcutHarness(platform);
+			const kept = other.keyDown(ctrlC, other.terminalNode);
+			expect(other.invoke).not.toHaveBeenCalled();
+			expect(kept.preventDefault).not.toHaveBeenCalled();
+		}
+	});
+
 	it('clears only the focused terminal with the platform default', () => {
 		const apple = shortcutHarness('apple');
 		const accepted = apple.keyDown(
@@ -269,6 +298,7 @@ function shortcutHarness(
 	platform: ProjectedTerminalShortcutPlatform,
 	available = true,
 	currentBindings?: () => ProjectedTerminalShortcutBindings,
+	ctrlCCopiesSelection = false,
 ): ShortcutHarness {
 	const listeners = new Map<string, EventListener>();
 	const document = {
@@ -298,10 +328,11 @@ function shortcutHarness(
 			actionId: string,
 			input: undefined,
 			scope: ActionScope,
-			options?: { readonly nativePasteFallback: true },
+			options?: { readonly nativePasteFallback: true } | { readonly clearSelectionAfterCopy: true },
 		) => boolean
 	>(() => available);
 	installProjectedTerminalShortcuts({
+		ctrlCCopiesSelection,
 		document,
 		findRoot,
 		findScope,

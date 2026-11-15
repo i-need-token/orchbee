@@ -804,6 +804,7 @@ function terminalTarget(
 			.fn<ProjectedTerminalActionTarget['chooseVisibleHint']>()
 			.mockResolvedValue({ kind: 'empty' }),
 		clear: vi.fn<ProjectedTerminalActionTarget['clear']>(() => true),
+		clearSelection: vi.fn<ProjectedTerminalActionTarget['clearSelection']>(),
 		copySelectionAsync: vi
 			.fn<ProjectedTerminalActionTarget['copySelectionAsync']>()
 			.mockResolvedValue({ kind: 'completed' }),

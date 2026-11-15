@@ -201,6 +201,7 @@ describe('startProjectedTerminalRenderer', () => {
 							.mockResolvedValue({ kind: 'empty' }),
 						clear: clearTerminal,
 						clearSearch: vi.fn<ProjectedTerminal['clearSearch']>(),
+						clearSelection: vi.fn<ProjectedTerminal['clearSelection']>(),
 						copySelectionAsync: vi
 							.fn<ProjectedTerminal['copySelectionAsync']>()
 							.mockResolvedValue({ kind: 'completed' }),

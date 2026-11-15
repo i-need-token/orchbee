@@ -240,6 +240,32 @@ export function resolveProjectedTerminalShortcut(
 	return null;
 }
 
+/**
+ * Ctrl+C, with which Windows terminals copy a selection before the key can interrupt the program.
+ * It is a fixed platform convention rather than a catalog binding: without a selection the key
+ * belongs to the program, so it never takes part in shortcut conflicts.
+ */
+const SELECTION_COPY_INTERRUPT_KEY = chord('KeyC', ['control']);
+
+/**
+ * Whether `event` is the interrupt key that copies the focused terminal's selection. Only a window
+ * whose composition reported Windows passes `ctrlCCopiesSelection`; Apple and other Standard hosts
+ * keep their own copy chord.
+ */
+export function matchesProjectedTerminalSelectionCopyKey(
+	event: KeyboardShortcutEvent,
+	platform: ProjectedTerminalShortcutPlatform,
+	focus: ProjectedTerminalShortcutFocus,
+	ctrlCCopiesSelection: boolean,
+): boolean {
+	return (
+		ctrlCCopiesSelection &&
+		platform === 'standard' &&
+		focus === 'terminal' &&
+		matchesKeyboardShortcutChord(event, SELECTION_COPY_INTERRUPT_KEY, platform)
+	);
+}
+
 function defaultBindingsFor(
 	platform: ProjectedTerminalShortcutPlatform,
 ): ProjectedTerminalShortcutBindings {

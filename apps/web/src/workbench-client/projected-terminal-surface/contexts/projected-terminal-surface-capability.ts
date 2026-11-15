@@ -63,6 +63,8 @@ export interface ProjectedTerminalSurfaceCapability {
 		| undefined;
 	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource | undefined;
 	readonly shortcutPlatform: ProjectedTerminalShortcutPlatform;
+	/** Windows: Ctrl+C copies the terminal's selection before it can interrupt the program. */
+	readonly ctrlCCopiesSelection?: boolean | undefined;
 	readonly terminalCompletionReminderObserver?: TerminalCompletionReminderObserver | undefined;
 	readonly presentationConfigurationSource: TerminalPresentationConfigurationSource;
 	readonly inputConfigurationSource?: TerminalInputConfigurationSource | undefined;

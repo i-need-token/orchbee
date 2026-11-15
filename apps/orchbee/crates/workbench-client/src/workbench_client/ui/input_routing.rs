@@ -22,6 +22,7 @@ impl WorkbenchClientUi {
             PaneInput::Selection { pane, intent } => return self.pointer_selection(pane, intent),
             PaneInput::Link { source, cell } => return self.pointer_link(*source, cell),
             PaneInput::HistoryKey(event) => self.history_key(event),
+            PaneInput::CopySelection => return self.copy_selection_key(),
             PaneInput::HistoryWheel { pane, up } => self.history_wheel(pane, up),
             PaneInput::Scrollbar {
                 pane,

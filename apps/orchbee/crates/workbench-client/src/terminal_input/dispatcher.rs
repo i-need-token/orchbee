@@ -118,6 +118,17 @@ struct ProjectedCaptureItem {
 #[cfg(test)]
 mod tests;
 
+/// The key that copies the focused pane's selection before it can interrupt the program, as
+/// Windows terminals do. Other hosts keep their own copy chord and always pass Ctrl+C on.
+const SELECTION_COPY_KEY: Option<crate::client_view::Binding> = if cfg!(windows) {
+    Some(crate::client_view::Binding::new(
+        KeyCode::Char('c'),
+        Modifiers::CTRL,
+    ))
+} else {
+    None
+};
+
 /// Adapts one decoded item to the confirmation port's decision vocabulary. Only
 /// legal single keys convert; every other complete item (modified keys,
 /// navigation keys, paste runs, non-decision sequences) maps to `Other` so an
@@ -2226,6 +2237,16 @@ impl InputDispatcher {
             DecodedKind::Key(event) if view.bindings().find(event, false).is_some() => {
                 self.flush_pending(view, port);
                 return self.decide(view, port, now, item, after_layout, mode);
+            }
+            // A copy sends the program nothing, so the surrounding typed bytes stay one forward;
+            // without a selection the key joins them and interrupts the program.
+            DecodedKind::Key(event)
+                if event.kind != KeyKind::Release
+                    && SELECTION_COPY_KEY.is_some_and(|binding| binding.matches(event)) =>
+            {
+                if port.pane_input(PaneInput::CopySelection) != PaneAdmission::Admitted {
+                    self.pending.extend_from_slice(&item.raw);
+                }
             }
             _ => {
                 self.pending.extend_from_slice(&item.raw);

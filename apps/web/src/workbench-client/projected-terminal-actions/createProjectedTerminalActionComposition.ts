@@ -26,6 +26,14 @@ import {
 	type ProjectedTerminalControlTarget,
 } from './registerProjectedTerminalControlAction';
 
+/**
+ * How a shortcut invocation differs from its Action's ordinary run: the platform paste chord keeps a
+ * native fallback, and Windows Ctrl+C clears the selection it copied, as Windows terminals do.
+ */
+export type ProjectedTerminalShortcutInvokeOptions =
+	| { readonly nativePasteFallback: true }
+	| { readonly clearSelectionAfterCopy: true };
+
 export interface ProjectedTerminalActionComposition {
 	readonly findScope: ActionScope;
 	readonly terminalScope: ActionScope;
@@ -40,7 +48,7 @@ export interface ProjectedTerminalActionComposition {
 		actionId: Id,
 		input: ActionInputFor<ProjectedTerminalActionCatalog, Id>,
 		scope: ActionScope,
-		options?: { readonly nativePasteFallback: true },
+		options?: ProjectedTerminalShortcutInvokeOptions,
 	): boolean;
 	executePrepared(invocation: PreparedActionInvocation): ActionExecution;
 }
@@ -117,7 +125,7 @@ export function createProjectedTerminalActionComposition(
 			if (
 				actionId === PROJECTED_TERMINAL_ACTION_IDS.paste &&
 				!clipboardActionCoordinator.shouldInvokePasteShortcut(
-					shortcutOptions?.nativePasteFallback === true,
+					shortcutOptions !== undefined && 'nativePasteFallback' in shortcutOptions,
 				)
 			) {
 				return false;
@@ -130,6 +138,16 @@ export function createProjectedTerminalActionComposition(
 			}
 			const execution = typedRuntime.execute(actionId, input, invocation);
 			observeResult(actionId, execution);
+			if (
+				actionId === PROJECTED_TERMINAL_ACTION_IDS.copySelection &&
+				shortcutOptions !== undefined &&
+				'clearSelectionAfterCopy' in shortcutOptions
+			) {
+				// Only a completed copy clears; a failed one keeps the selection for another try.
+				void execution.completion.then((result) => {
+					if (!disposed && result.kind === 'completed') terminal.clearSelection();
+				});
+			}
 			return true;
 		},
 		terminalScope,

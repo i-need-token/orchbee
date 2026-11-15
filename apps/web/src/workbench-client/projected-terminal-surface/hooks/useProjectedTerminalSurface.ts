@@ -281,6 +281,7 @@ export function useProjectedTerminalSurface(
 					capability.presentationSnapshots?.get(presentation.presentationId),
 					capability.applicationLocaleSource,
 					trailingBlankRowsPresentationSource,
+					capability.ctrlCCopiesSelection,
 				);
 			},
 		});

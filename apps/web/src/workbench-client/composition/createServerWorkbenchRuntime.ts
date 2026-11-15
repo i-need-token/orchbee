@@ -99,6 +99,8 @@ export interface ServerWorkbenchRuntime {
 export interface CreateServerWorkbenchRuntimeOptions {
 	readonly applicationLocaleSource: ApplicationLocaleSource;
 	readonly connection: ServerConnection;
+	/** Windows: Ctrl+C copies a terminal selection before it can interrupt the program. */
+	readonly ctrlCCopiesSelection?: boolean | undefined;
 	/** Where New Workspace starts while the person works in no Workspace. */
 	readonly defaultDirectory: string;
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'> &
@@ -153,6 +155,7 @@ export function createServerWorkbenchRuntime({
 	session,
 	shortcutBindingSource,
 	shortcutPlatform,
+	ctrlCCopiesSelection = false,
 	terminalColorsSource,
 	terminalCompletionReminderObserver,
 	terminalHostName,
@@ -451,6 +454,7 @@ export function createServerWorkbenchRuntime({
 		},
 		...(shortcutBindingSource === undefined ? {} : { shortcutBindingSource }),
 		shortcutPlatform,
+		ctrlCCopiesSelection,
 		...(terminalCompletionReminderObserver === undefined
 			? {}
 			: { terminalCompletionReminderObserver }),

@@ -388,3 +388,243 @@ fn pane_effect_poll_keeps_the_frame_and_settles_without_frame_feedback() {
         mailbox.finish_lease(lease).unwrap();
     }
 }
+
+/// Hands the real dispatcher's pane input and terminal bytes to the Client the way
+/// `WorkbenchClient` does.
+struct KeyPort<'a>(&'a mut WorkbenchClientUi);
+
+impl crate::terminal_input::TerminalInputPort for KeyPort<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        self.0.capture_claims()
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::WorkbenchCaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
+        self.0.capture_context(owner)
+    }
+
+    fn forward(
+        &mut self,
+        input: &[u8],
+    ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+        self.0
+            .forward(input)
+            .then_some(())
+            .ok_or(crate::terminal_input::TerminalInputUnavailable)
+    }
+
+    fn pane_input(&mut self, input: crate::terminal_input::PaneInput<'_>) -> PaneAdmission {
+        self.0.pane_input(input)
+    }
+}
+
+/// Sends the raw byte a terminal reports for Ctrl+C through the real dispatcher.
+fn press_ctrl_c(ui: &mut WorkbenchClientUi) {
+    let mut view = crate::client_view::ClientView::new(80);
+    crate::terminal_input::InputDispatcher::default()
+        .dispatch(
+            &mut view,
+            b"\x03",
+            &mut KeyPort(ui),
+            std::time::Instant::now(),
+            |_, _| Ok::<bool, std::io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+}
+
+/// The bytes of the next queued terminal input, skipping any other command before it.
+fn next_input(mailbox: &Arc<CommandMailbox>) -> Option<Vec<u8>> {
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        let bytes = match lease.record() {
+            QueuedCommand::Input(tagged) => Some(tagged.value().as_bytes().to_vec()),
+            _ => None,
+        };
+        mailbox.finish_lease(lease).unwrap();
+        if bytes.is_some() {
+            return bytes;
+        }
+    }
+    None
+}
+
+#[test]
+fn ctrl_c_without_a_selection_reaches_the_program() {
+    let (mut ui, mailbox, _, _) = super::super::test_support::controlling_ui();
+    super::super::test_support::install_projection(&mut ui, Some((9, false, 24)), 0);
+    press_ctrl_c(&mut ui);
+    assert_eq!(next_input(&mailbox).as_deref(), Some(&b"\x03"[..]));
+}
+
+#[cfg(windows)]
+#[test]
+fn ctrl_c_over_a_selection_copies_and_clears_it_and_only_the_next_one_interrupts() {
+    use orchbee_client_server_protocol::ViewerSelectionGestureAction;
+    use orchbee_terminal_protocol::{
+        SelectionExportChunk, SelectionExportControl, SelectionExportFinished,
+        SelectionExportFormat, SelectionExportStarted, SelectionExportStatus,
+        encode_selection_export_chunk, encode_selection_export_control,
+    };
+    let (mut ui, mailbox, _, _) = super::super::test_support::controlling_ui();
+    super::super::test_support::install_projection(&mut ui, Some((9, false, 24)), 0);
+    let attachment = *ui.projections[0].value.attachment();
+    let epoch = *ui.projections[0].value.epoch();
+    let viewer = orchbee_client_server_protocol::ViewerId::parse(&attachment.to_string()).unwrap();
+    let cleared = || {
+        SelectionControl::ChangedResponse(SelectionChanged {
+            attachment_id: attachment,
+            state: SelectionChangedState::None,
+        })
+    };
+    let envelope = |kind, payload: &[u8], encoding, role, correlation| {
+        encode_transport_envelope(&Envelope {
+            correlation_id: correlation,
+            host_epoch: Some(epoch),
+            kind,
+            optional_message: false,
+            payload,
+            payload_encoding: encoding,
+            protocol: CURRENT_PROTOCOL_VERSION,
+            role,
+        })
+        .unwrap()
+    };
+    ui.projections[0]
+        .selection
+        .get_or_insert_with(|| crate::workbench_client::terminal_selection::Driver::new(attachment))
+        .changed(SelectionChanged {
+            attachment_id: attachment,
+            state: SelectionChangedState::Active {
+                start: SelectionPoint { column: 1, row: 9 },
+                end: SelectionPoint { column: 3, row: 9 },
+                rectangle: false,
+                preview: None,
+            },
+        })
+        .unwrap();
+
+    // The key starts one export of that selection and never reaches the program.
+    press_ctrl_c(&mut ui);
+    let (pane, export) = command(&mut ui, &mailbox);
+    let TerminalViewerAction::SelectionExport {
+        export_sequence: sequence,
+        ..
+    } = export.viewer_action(viewer.clone())
+    else {
+        panic!("Ctrl+C over a selection starts its export");
+    };
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "Ctrl+C reached the program"
+    );
+
+    // The complete text reaches the copy queue.
+    let text = "copied";
+    let started = encode_selection_export_control(&SelectionExportControl::StartedResponse(
+        SelectionExportStarted {
+            attachment_id: attachment,
+            export_sequence: sequence,
+            byte_length: text.len() as u32,
+            format: SelectionExportFormat::Plain,
+        },
+    ))
+    .unwrap();
+    ui.apply_selection_outcome(
+        &mailbox,
+        pane,
+        export,
+        orchbee_client_server_protocol::TerminalViewerOutcome::Record(envelope(
+            started.kind,
+            &started.payload,
+            PayloadEncoding::ControlJson,
+            MessageRole::Response,
+            Some(CorrelationId::from_bytes([10; 16]).unwrap()),
+        )),
+    );
+    let chunk = encode_selection_export_chunk(&SelectionExportChunk {
+        attachment_id: attachment,
+        export_sequence: sequence,
+        chunk_sequence: 0,
+        bytes: text.as_bytes().to_vec(),
+        final_chunk: true,
+    })
+    .unwrap();
+    ui.apply_selection_event(
+        0,
+        &envelope(
+            chunk.kind,
+            &chunk.payload,
+            PayloadEncoding::RawBytes,
+            MessageRole::Event,
+            None,
+        ),
+    )
+    .unwrap();
+    let (pane, ack) = command(&mut ui, &mailbox);
+    let finished = encode_selection_export_control(&SelectionExportControl::FinishedEvent(
+        SelectionExportFinished {
+            attachment_id: attachment,
+            export_sequence: sequence,
+            byte_length: text.len() as u32,
+            status: SelectionExportStatus::Completed,
+        },
+    ))
+    .unwrap();
+    ui.apply_selection_event(
+        0,
+        &envelope(
+            finished.kind,
+            &finished.payload,
+            PayloadEncoding::ControlJson,
+            MessageRole::Event,
+            None,
+        ),
+    )
+    .unwrap();
+    ui.apply_selection_outcome(
+        &mailbox,
+        pane,
+        ack,
+        orchbee_client_server_protocol::TerminalViewerOutcome::FeedbackAccepted {},
+    );
+    let job = ui.effects.dispatch().unwrap();
+    assert_eq!(job.text(), Some(text));
+
+    // Then the selection is replaced with none and that gesture released.
+    let (pane, start) = command(&mut ui, &mailbox);
+    assert!(matches!(
+        start.viewer_action(viewer.clone()),
+        TerminalViewerAction::SelectionGesture {
+            gesture: ViewerSelectionGestureAction::Start { .. },
+            ..
+        }
+    ));
+    let record = response(&ui, cleared());
+    assert!(ui.apply_selection_outcome(
+        &mailbox,
+        pane,
+        start,
+        orchbee_client_server_protocol::TerminalViewerOutcome::Record(record)
+    ));
+    let (pane, cancel) = command(&mut ui, &mailbox);
+    assert!(matches!(
+        cancel.viewer_action(viewer.clone()),
+        TerminalViewerAction::SelectionGesture {
+            gesture: ViewerSelectionGestureAction::Cancel,
+            ..
+        }
+    ));
+    let record = response(&ui, cleared());
+    assert!(ui.apply_selection_outcome(
+        &mailbox,
+        pane,
+        cancel,
+        orchbee_client_server_protocol::TerminalViewerOutcome::Record(record)
+    ));
+
+    // With the selection gone, the next Ctrl+C interrupts the program.
+    press_ctrl_c(&mut ui);
+    assert_eq!(next_input(&mailbox).as_deref(), Some(&b"\x03"[..]));
+}

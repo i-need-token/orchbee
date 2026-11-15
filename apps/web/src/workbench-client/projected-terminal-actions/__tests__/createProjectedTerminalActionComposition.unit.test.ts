@@ -68,6 +68,37 @@ describe('createProjectedTerminalActionComposition', () => {
 		runtime.dispose();
 	});
 
+	it('clears the selection after a Ctrl+C copy completes and keeps it after a failure', async () => {
+		for (const outcome of ['completed', 'failed'] as const) {
+			const terminal = terminalTarget();
+			if (outcome === 'failed') {
+				vi.mocked(terminal.copySelectionAsync).mockResolvedValue({
+					code: 'browser-clipboard-write-failed',
+					kind: 'failed',
+					retryable: false,
+				});
+			}
+			const reported = vi.fn<(event: ProjectedTerminalActionResultEvent) => void>();
+			const { composition, runtime } = createComposition(terminal, findController(), {
+				reportResult: reported,
+			});
+
+			expect(
+				composition.invokeShortcut(
+					PROJECTED_TERMINAL_ACTION_IDS.copySelection,
+					undefined,
+					composition.terminalScope,
+					{ clearSelectionAfterCopy: true },
+				),
+			).toBe(true);
+			await vi.waitFor(() => expect(reported).toHaveBeenCalledOnce());
+			await Promise.resolve();
+			expect(terminal.clearSelection).toHaveBeenCalledTimes(outcome === 'completed' ? 1 : 0);
+			composition.dispose();
+			runtime.dispose();
+		}
+	});
+
 	it('leaves an idle platform-default Paste shortcut to native clipboard delivery', () => {
 		const terminal = terminalTarget();
 		const controller = findController();
@@ -208,6 +239,7 @@ function terminalTarget(
 			.fn<ProjectedTerminalActionTarget['chooseVisibleHint']>()
 			.mockResolvedValue({ kind: 'empty' }),
 		clear: vi.fn<ProjectedTerminalActionTarget['clear']>(() => true),
+		clearSelection: vi.fn<ProjectedTerminalActionTarget['clearSelection']>(),
 		copySelectionAsync: vi
 			.fn<ProjectedTerminalActionTarget['copySelectionAsync']>()
 			.mockResolvedValue({ byteLength: 8, kind: 'completed' }),

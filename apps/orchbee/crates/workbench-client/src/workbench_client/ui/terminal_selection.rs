@@ -154,6 +154,36 @@ impl WorkbenchClientUi {
         }
     }
 
+    /// Ctrl+C on Windows over the focused pane: with a settled Host selection it starts the same
+    /// export as the Panel menu's Copy selection and clears the selection once its text is
+    /// complete, so the next Ctrl+C interrupts. While a gesture or an earlier export still owns
+    /// the selection the key is consumed without a second export. Without a selection it is
+    /// rejected and reaches the program.
+    pub(super) fn copy_selection_key(&mut self) -> PaneAdmission {
+        let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
+            return PaneAdmission::Rejected;
+        };
+        let Some(key) = self.state.as_ref().and_then(|state| state.focus_pane_ref()) else {
+            return PaneAdmission::Rejected;
+        };
+        let Some(index) = self.focused_frame_index(&key) else {
+            return PaneAdmission::Rejected;
+        };
+        let Some(driver) = self.projections[index]
+            .selection
+            .as_mut()
+            .filter(|driver| driver.host_selection_active())
+        else {
+            return PaneAdmission::Rejected;
+        };
+        match driver.export_host_selection_then_clear() {
+            Ok(true) => self.admit_selections(&mailbox),
+            Ok(false) => {}
+            Err(failure) => self.settle_selection_failure(failure),
+        }
+        PaneAdmission::Admitted
+    }
+
     fn copy_refused(&mut self) {
         if let Some(state) = self.state.as_mut() {
             state.set_notice(ClientNotice::CopyFailed);
@@ -305,7 +335,11 @@ impl WorkbenchClientUi {
                 }
             }
         }
-        self.collect_completed_copies();
+        // A copied selection's clearing commands follow in a second pass; that pass has no
+        // completed copy left, so it does not repeat.
+        if self.collect_completed_copies() {
+            self.admit_selections(mailbox);
+        }
     }
 
     pub(super) fn apply_selection_outcome(
@@ -408,7 +442,9 @@ impl WorkbenchClientUi {
         }
     }
 
-    fn collect_completed_copies(&mut self) {
+    /// Hands completed exports to the copy queue and reports whether a copied selection now has
+    /// clearing commands waiting for admission.
+    fn collect_completed_copies(&mut self) -> bool {
         let mut completed = Vec::new();
         for projection in &mut self.projections {
             let Some(driver) = projection.selection.as_mut() else {
@@ -423,15 +459,34 @@ impl WorkbenchClientUi {
                 }
                 continue;
             };
-            completed.push((projection.key.clone(), frame.route.generation, copy));
+            let clear = driver
+                .clears_after(copy.0)
+                .then_some((frame.geometry.columns, frame.geometry.rows));
+            completed.push((projection.key.clone(), frame.route.generation, copy, clear));
         }
-        for (key, generation, copy) in completed {
+        let mut clearing = false;
+        for (key, generation, copy, clear) in completed {
             let accepted = self.copy_export_ready(&key, generation, copy.0, copy.1);
 
             if !accepted && let Some(state) = self.state.as_mut() {
                 state.set_notice(ClientNotice::CopyFailed);
             }
+            // A refused copy keeps its selection, so the next Ctrl+C can try again.
+            if accepted
+                && let Some((columns, rows)) = clear
+                && let Some(driver) = self
+                    .projections
+                    .iter_mut()
+                    .find(|projection| projection.key == key)
+                    .and_then(|projection| projection.selection.as_mut())
+            {
+                match driver.clear_host_selection(generation, columns, rows) {
+                    Ok(scheduled) => clearing |= scheduled,
+                    Err(failure) => self.settle_selection_failure(failure),
+                }
+            }
         }
         self.reconcile_effects();
+        clearing
     }
 }

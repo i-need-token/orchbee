@@ -311,7 +311,7 @@ unchanged and no decoder, timer, layout, or owner transition changed anything el
 Settings, action menus, sidebars, the Start Agent picker, Navigator, Machine Picker, Presentation
 selectors, Tab creation, and the global Menu, sidebar toggle and sidebar Help buttons use this
 central protocol. Generic controls activate on matching release. Sidebar Menu/Create retain their
-specialized menu-opening owner. Tab/group arrangement, dividers, scrollbars, Copy selection, and pane input
+specialized menu-opening owner. Tab/group arrangement, dividers, scrollbars, the Copy row, and pane input
 retain their specialized gesture owners. Disabled targets stay visible and consuming without
 falling through to a containing row or pane.
 

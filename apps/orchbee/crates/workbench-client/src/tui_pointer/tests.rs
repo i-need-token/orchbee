@@ -410,7 +410,7 @@ impl TerminalInputPort for RecordingPort {
                 self.scrolls.push((pane.clone(), offset));
                 PaneAdmission::Admitted
             }
-            PaneInput::HistoryKey(_) => PaneAdmission::Rejected,
+            PaneInput::HistoryKey(_) | PaneInput::CopySelection => PaneAdmission::Rejected,
         }
     }
 

@@ -1053,9 +1053,12 @@ impl TerminalInputPort for WorkbenchClient {
     }
 
     fn pane_input(&mut self, input: PaneInput<'_>) -> PaneAdmission {
-        // Selection and link steps never retire native state, so only history and scrollbar
-        // steps settle retirement.
-        let settles = !matches!(input, PaneInput::Selection { .. } | PaneInput::Link { .. });
+        // Selection, selection copy and link steps never retire native state, so only history and
+        // scrollbar steps settle retirement.
+        let settles = !matches!(
+            input,
+            PaneInput::Selection { .. } | PaneInput::CopySelection | PaneInput::Link { .. }
+        );
         let ClientBackend::Native(native) = &mut self.backend;
         let admission = native.pane_input(input);
         if settles {

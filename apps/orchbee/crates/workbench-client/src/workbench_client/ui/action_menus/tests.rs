@@ -2193,8 +2193,8 @@ fn copy_selection_row(ui: &WorkbenchClientUi) -> usize {
         .collect::<Vec<_>>();
     labels
         .iter()
-        .position(|label| *label == "Copy selection")
-        .unwrap_or_else(|| panic!("Panel menu rows {labels:?} do not offer Copy selection"))
+        .position(|label| *label == "Copy")
+        .unwrap_or_else(|| panic!("Panel menu rows {labels:?} do not offer Copy"))
 }
 
 #[test]
