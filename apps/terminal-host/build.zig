@@ -468,6 +468,19 @@ pub fn build(builder: *std.Build) void {
     engine_test_module.addImport("terminal-host-engine", engine_module);
     engine_test_module.addImport("terminal-host-model", model_module);
     engine_test_module.addImport("terminal-host-platform", platform_module);
+    // The Debug gate runs a short fixed-seed pass; `test-output-fuzz` takes a seed and budget.
+    const output_fuzz_options = builder.addOptions();
+    output_fuzz_options.addOption(?u64, "seed", builder.option(
+        u64,
+        "output-fuzz-seed",
+        "Seed for the program-output fuzz pass; omitted runs the gate's fixed seeds",
+    ));
+    output_fuzz_options.addOption(?u64, "batches", builder.option(
+        u64,
+        "output-fuzz-batches",
+        "Reader batches per program-output fuzz seed",
+    ));
+    engine_test_module.addOptions("output_fuzz_options", output_fuzz_options);
     const conpty_resize_test_options = builder.addOptions();
     if (target.result.os.tag == .windows and target.result.cpu.arch == .x86_64) {
         const conpty_resize_fixture_module = builder.createModule(.{
@@ -800,6 +813,13 @@ pub fn build(builder: *std.Build) void {
         clear_tests.root_module.link_libc = true;
         screen_control_step.dependOn(&addTestRun(builder, clear_tests, test_home).step);
     }
+    const output_fuzz_tests = builder.addTest(.{
+        .root_module = engine_test_module,
+        .filters = &.{"program output fuzz"},
+    });
+    output_fuzz_tests.root_module.link_libc = true;
+    builder.step("test-output-fuzz", "Feed seeded generated program output through one terminal's reader commits")
+        .dependOn(&addTestRun(builder, output_fuzz_tests, test_home).step);
     const powershell_history_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"managed PowerShell keeps Orchbee-submitted lines"},

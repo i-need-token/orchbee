@@ -7,6 +7,7 @@ comptime {
     _ = @import("launch_test.zig");
     _ = @import("output_seed_test.zig");
     _ = @import("powershell_history_test.zig");
+    _ = @import("program_output_fuzz_test.zig");
     _ = @import("program_status_test.zig");
     _ = @import("projection_test.zig");
     _ = @import("prompt_gate_test.zig");
