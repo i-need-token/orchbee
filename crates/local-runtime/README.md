@@ -270,10 +270,21 @@ record without an integer version, which the store treats as its ordinary invali
 takes no lock, and `acquire` returns the `VersionedWriter` with the opening.
 
 Earlier versions are converted by pure N to N+1 steps in `VersionedRecord::steps`, and the result
-must pass the store's parser. No step ships yet, so an earlier version is not updated until a format
-changes. Since no other path hands a store a record, a step added there reaches every store,
-backup and persistence included, with no store change; the module's tests drive every store through
-an injected step.
+must pass the store's parser. No step has shipped: until the first automatic-update release,
+[Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) applies and a format changes in place.
+From that release a format change adds a step instead, and steps are never removed, so a record
+that sat unopened for many releases still reads. Since no other path hands a store a record, a step
+added there reaches every store, backup and persistence included, with no store change; the
+module's tests drive every store through an injected step.
+
+A stored sample of every released format keeps opening through today's opener. Each sample is a
+test file named `<record>-v<version>` beside the tests of the store that opens it:
+`src/tests/record_migration/record-samples/` holds the Session record, the restore notice and the
+plugin registry, Workbench Client keeps the machine and TUI position records, and the Server's
+checkpoint load tests keep a checkpoint slot with the kept terminal output it names, since the
+Server parses both payloads. A format change adds its sample beside the earlier ones and removes
+none; until the first automatic-update release seals them, a format changed in place replaces its
+sample. The `layouts` folder has no sample, since nothing reads it.
 
 A writer's opening copies the original into `internal/backups/<YYYY-MM-DD>-upgrade-<product
 version>/` at its path relative to the root and flushes it before the replacement runs; every record

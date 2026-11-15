@@ -143,3 +143,29 @@ fn a_rewrite_keeps_the_extensions_a_later_release_added() {
         serde_json::json!({"later": {"nested": [1]}})
     );
 }
+/// Records follow the window: `tests/record-samples/` keeps a sample of every format of the record
+/// a release shipped, named `tui-position-v<version>.json`, and each keeps loading as a saved
+/// position, as the local runtime's record samples describe.
+#[test]
+fn every_stored_sample_loads_as_a_saved_position() {
+    let samples = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/startup_preference/store/tests/record-samples");
+    let mut current = false;
+    for entry in fs::read_dir(samples).unwrap() {
+        let path = entry.unwrap().path();
+        let bytes = fs::read(&path).unwrap();
+        let root = Root::new();
+        let record = record(&root);
+        orchbee_local_runtime::PrivateCache::acquire(record.folder(), RECORD)
+            .unwrap()
+            .replace(FILE, &bytes)
+            .unwrap();
+        assert!(
+            Preferences::load_from(record).position.is_some(),
+            "{path:?}"
+        );
+        current |= serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["version"]
+            == VersionedRecord::TuiPosition.current_version();
+    }
+    assert!(current, "a sample of the current version");
+}

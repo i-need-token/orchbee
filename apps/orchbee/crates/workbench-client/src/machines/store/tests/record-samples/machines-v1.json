@@ -1,0 +1,19 @@
+{
+	"extensions": {},
+	"profiles": [
+		{
+			"connection": {
+				"kind": "ssh",
+				"target": "dev@build.example.invalid"
+			},
+			"enabled": true,
+			"extensions": {},
+			"id": "6f1c2a9e4b7d40e8a3c5d1f2e0b9a874",
+			"label": "Build server",
+			"remoteInstall": "manual",
+			"session": "work"
+		}
+	],
+	"revision": 1,
+	"version": 1
+}

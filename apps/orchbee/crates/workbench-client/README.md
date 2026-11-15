@@ -164,4 +164,7 @@ editable over the last valid values, and a Save against the broken file is refus
 and names why. Unrelated configuration warnings retain their existing guidance.
 
 No read silently repairs a record or saves a migration; the machine and TUI position records persist a migration only when they are next written, through the local runtime's
-`VersionedFile`.
+`VersionedFile`. Each store's tests keep a sample of every released format of its record in
+`record-samples/`, which must keep opening, as the local runtime's
+[persisted data versions](../../../../crates/local-runtime/README.md#persisted-data-versions)
+describe.

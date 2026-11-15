@@ -103,3 +103,27 @@ fn extensions_survive_a_commit_and_a_newer_record_is_never_rewritten() {
     assert_eq!(store.read().unwrap().profiles.len(), 1);
     assert_eq!(fs::read(store.record.path()).unwrap(), newer);
 }
+/// Records follow the window: `tests/record-samples/` keeps a sample of every format of the record
+/// a release shipped, named `machines-v<version>.json`, and each keeps opening through the reader,
+/// as the local runtime's record samples describe.
+#[test]
+fn every_stored_sample_opens_through_the_reader() {
+    let samples = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/machines/store/tests/record-samples");
+    let mut current = false;
+    for entry in fs::read_dir(samples).unwrap() {
+        let path = entry.unwrap().path();
+        let bytes = fs::read(&path).unwrap();
+        let id = ProfileId::generate().unwrap();
+        let root = Root(std::env::temp_dir().join(format!("orchbee-machine-test-{}", id.as_str())));
+        let store = Store::in_data_root(DataRoot::at(root.0.join("machines")));
+        PrivateCache::acquire(store.record.folder(), RECORD.name())
+            .unwrap()
+            .replace(FILE, &bytes)
+            .unwrap();
+        assert!(!store.read().unwrap().profiles.is_empty(), "{path:?}");
+        current |= serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["version"]
+            == RECORD.current_version();
+    }
+    assert!(current, "a sample of the current version");
+}

@@ -89,9 +89,10 @@ impl VersionedRecord {
         }
     }
 
-    /// The steps that bring an earlier version to the current one. No format has changed since
-    /// the first public release, so every record has none yet; the first change adds its step here
-    /// and nowhere else.
+    /// The steps that bring an earlier version to the current one; none has shipped yet. From the
+    /// first automatic-update release a format change adds its step here and nowhere else, instead
+    /// of changing the record in place, and no step is ever removed: the stored record samples of
+    /// every released format must keep opening.
     fn steps(self) -> &'static [MigrationStep] {
         #[cfg(test)]
         if let Some(steps) = crate::tests::record_migration::injected_steps(self) {

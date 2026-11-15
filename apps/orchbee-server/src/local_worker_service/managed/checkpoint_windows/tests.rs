@@ -173,3 +173,91 @@ fn unsupported_catalog_is_rejected_before_pending_store_cleanup() {
     assert_eq!(retained_files(&state), before);
     assert_eq!(fs::read(catalog_path).unwrap(), record);
 }
+
+fn samples() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/local_worker_service/managed/checkpoint_windows/tests/record-samples")
+}
+
+/// Records follow the window: `tests/record-samples/` keeps, for every format a release shipped, a
+/// stored checkpoint slot `checkpoint-v<version>.bin` and the kept terminal output it names,
+/// `terminal-output-v<version>.bin`, as the local runtime's record samples describe. Each slot
+/// restores through the loader without a recovery notice, and the restored Presentation replays
+/// the kept output.
+#[test]
+fn every_stored_sample_restores_its_checkpoint_and_kept_output() {
+    let names: Vec<String> = fs::read_dir(samples())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    let mut outputs: std::collections::BTreeSet<&String> = names
+        .iter()
+        .filter(|name| name.starts_with("terminal-output-"))
+        .collect();
+    let mut restored = 0;
+    for name in &names {
+        let Some(version) = name
+            .strip_prefix("checkpoint-")
+            .and_then(|rest| rest.strip_suffix(".bin"))
+        else {
+            assert!(
+                name.starts_with("terminal-output-"),
+                "unknown sample {name}"
+            );
+            continue;
+        };
+        let fixture = Fixture::new();
+        let session = fixture.start();
+        let state = fixture.state(&session);
+        fs::write(
+            state.join("checkpoint.json"),
+            fs::read(samples().join(name)).unwrap(),
+        )
+        .unwrap();
+        let (store, checkpoint, _record, _) = load_from(&fixture.root(), &session).unwrap();
+        let checkpoint = checkpoint.unwrap_or_else(|| panic!("{name} restores"));
+        assert_eq!(
+            session.checkpoint_restore_notice(&fixture.root()).unwrap(),
+            None,
+            "{name}"
+        );
+        let worker = WorkerId::parse(&format!("{:032x}", 400)).unwrap();
+        let authority = checkpoint
+            .reconstruct(SessionId::parse(&format!("{:032x}", 300)).unwrap(), &worker)
+            .unwrap();
+        // The kept output sample is the file this slot sample names, framed under that number.
+        let output_name = format!("terminal-output-{version}.bin");
+        fs::create_dir(state.join("terminal-output")).unwrap();
+        let output = crate::terminal_output::TerminalOutput::new(std::sync::Arc::new(
+            std::sync::Mutex::new(store),
+        ));
+        let mut replayed = 0;
+        for target in authority.restoration_targets(&worker).unwrap() {
+            if let Some(token) = target.restored_output() {
+                fs::write(
+                    state.join("terminal-output").join(format!("{token}.bin")),
+                    fs::read(samples().join(&output_name)).unwrap(),
+                )
+                .unwrap();
+                assert!(
+                    output.restored(target.presentation_id(), token).is_some(),
+                    "{output_name}"
+                );
+                replayed += 1;
+            }
+        }
+        assert_eq!(replayed, 1, "{name} names its kept output");
+        outputs.remove(&output_name);
+        restored += 1;
+    }
+    assert!(restored > 0, "a checkpoint sample");
+    let current = serde_json::from_slice::<Value>(&valid_checkpoint()).unwrap()["version"].clone();
+    assert!(
+        names.contains(&format!("checkpoint-v{current}.bin")),
+        "a sample of the checkpoint version {current} the writer writes"
+    );
+    assert!(
+        outputs.is_empty(),
+        "kept output samples without a checkpoint: {outputs:?}"
+    );
+}

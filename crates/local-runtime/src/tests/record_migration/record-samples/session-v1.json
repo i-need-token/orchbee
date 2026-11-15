@@ -1,0 +1,21 @@
+{
+	"version": 1,
+	"name": "work",
+	"runtime": "C:\\Sample\\runtime\\work",
+	"activation_id": [122, 122, 122, 122, 122, 122, 122, 122, 122, 122, 122, 122, 122, 122, 122, 122],
+	"lifecycle": { "state": "active" },
+	"processes": {
+		"server": {
+			"state": "identified",
+			"identity": { "pid": 4200, "creation_time": 134000000000000001 }
+		},
+		"worker": {
+			"state": "identified",
+			"identity": { "pid": 4204, "creation_time": 134000000000000002 }
+		},
+		"host": {
+			"state": "identified",
+			"identity": { "pid": 4208, "creation_time": 134000000000000003 }
+		}
+	}
+}

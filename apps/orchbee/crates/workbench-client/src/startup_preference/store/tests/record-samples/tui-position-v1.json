@@ -1,0 +1,18 @@
+{
+	"schema": "orchbee.tui.position",
+	"version": 1,
+	"position": {
+		"location": {
+			"kind": "Workspace",
+			"identity": {
+				"workspace_id": "00000000000000000000000000000004",
+				"terminal_context_id": "00000000000000000000000000000005"
+			}
+		},
+		"member": {
+			"tab": "00000000000000000000000000000007",
+			"panel": "0000000000000000000000000000000a",
+			"presentation": "0000000000000000000000000000000b"
+		}
+	}
+}

@@ -14,6 +14,7 @@ use crate::{
 use serde_json::{Value, json};
 use std::{cell::Cell, fs, io, io::Write, path::Path};
 
+mod samples;
 mod stores;
 
 thread_local! {

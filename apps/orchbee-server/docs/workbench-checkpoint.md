@@ -54,7 +54,10 @@ subject to the unchanged encoded bounds.
 
 Unknown, duplicate or missing fields, nested historical navigation, unsupported versions, invalid
 references and insufficient identity high-water reject the entire document. No migration or
-historical normalization occurs. See the repository [data-boundary version rule](../../../docs/ARCHITECTURE.md#data-boundaries).
+historical normalization occurs yet: until the first automatic-update release the repository
+[data-boundary version rule](../../../docs/ARCHITECTURE.md#data-boundaries) applies, and from that
+release a format change adds a migration step that is never removed, as the local runtime's
+[persisted data versions](../../../crates/local-runtime/README.md#persisted-data-versions) describe.
 Existing files labeled versions 2–7, including the preceding writer's version 7, become unreadable;
 relabeling a file is not a supported conversion. The managed recovery policy below preserves them.
 
@@ -142,7 +145,9 @@ The domain performs no filesystem access or process launch. Storage must admit p
 paths, publish complete records, distinguish absence from corruption, and retain failure evidence.
 Startup restoration must establish new physical bindings and account for interrupted operations;
 returning an unbound authority from this codec is not proof that a usable session has resumed.
-Format changes follow the repository data-boundary rule; there is no permissive fallback.
+Format changes follow the
+[persisted data versions](../../../crates/local-runtime/README.md#persisted-data-versions) rules;
+there is no permissive fallback.
 
 ## Held restore
 
@@ -309,7 +314,9 @@ versions. Agent session fixtures cover every row fault, each provider's id gramm
 intent, carry-over, take, live override, the directory-row requirement, first-member dedupe and
 recording off. Native storage and Server-load witnesses verify fallback/empty notices and exact-byte
 preservation for invalid copies, including a preceding version 7 document. Direct Server admission
-also preserves pending files when the durable catalog is unsupported.
+also preserves pending files when the durable catalog is unsupported. A stored checkpoint slot and
+the kept output it names, one pair per released format in the Server-load witness's
+`record-samples/`, restore without a notice and replay that output.
 
 Terminal output tests cover the line and byte caps and that only the named Presentation replays,
 with a foreign file removed. The Windows restart witness `cli_windows_output_replay` drives real

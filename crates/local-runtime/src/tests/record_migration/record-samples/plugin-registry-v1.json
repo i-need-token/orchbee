@@ -1,0 +1,60 @@
+{
+	"version": 1,
+	"revision": 1,
+	"plugins": [
+		{
+			"manifestPath": "\\\\?\\C:\\Sample\\tools\\orchbee-plugin.toml",
+			"pluginRoot": "\\\\?\\C:\\Sample\\tools",
+			"enabled": true,
+			"manifest": {
+				"id": "example.tools",
+				"name": "Tools",
+				"version": "1.0.0",
+				"min_orchbee_version": null,
+				"description": "Sample tools",
+				"platforms": null,
+				"build": [],
+				"startup": [{ "platforms": null, "command": ["tools.exe", "serve"] }],
+				"actions": [
+					{
+						"id": "hello",
+						"title": "Hello",
+						"description": "Say hello",
+						"contexts": ["panel", "selection"],
+						"platforms": null,
+						"command": ["tools.exe", "hello"]
+					}
+				],
+				"events": [
+					{ "on": "workspace-created", "platforms": ["windows"], "command": ["tools.exe", "event"] }
+				],
+				"panels": [
+					{
+						"id": "dashboard",
+						"title": "Dashboard",
+						"description": null,
+						"platforms": null,
+						"placement": "popup",
+						"width": "75%",
+						"height": 7,
+						"command": ["tools.exe", "dashboard"]
+					}
+				],
+				"link_handlers": [
+					{
+						"id": "web",
+						"title": "Web",
+						"pattern": "^https://",
+						"action": "hello",
+						"platforms": null
+					}
+				]
+			},
+			"warning": null,
+			"source": null
+		}
+	],
+	"folders": { "example.tools": "example.tools" },
+	"cleanup": [],
+	"blockedCleanup": []
+}
