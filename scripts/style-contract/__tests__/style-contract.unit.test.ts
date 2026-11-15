@@ -33,6 +33,8 @@ const registeredTokens = new Set([
 	'--ob-sys-motion-easing-standard',
 	'--ob-sys-text-decoration-link',
 	'--ob-sys-typography-body-md',
+	'--ob-sys-typography-body-md-tracking',
+	'--ob-ref-letter-spacing-tight',
 	'--ob-comp-panel-width',
 ]);
 const breakpointValues = new Set(['40rem']);
@@ -178,6 +180,63 @@ describe('style contract', () => {
 				expect.stringContaining('semantic easing token'),
 			]),
 		);
+	});
+
+	it('accepts letter spacing only as normal or one typography tracking token', () => {
+		const letterSpacingDiagnostics = (declaration: string) =>
+			validateCssSource({
+				path: 'packages/example/src/panel.module.css',
+				source: `.root {
+	${declaration};
+}`,
+				registeredTokens,
+				breakpointValues,
+			}).map(({ message }) => message);
+		const acceptedForm = expect.stringContaining(
+			'accepts only "normal" or one var(--ob-sys-typography-<role>-tracking)',
+		);
+
+		expect(
+			letterSpacingDiagnostics('letter-spacing: var(--ob-sys-typography-body-md-tracking)'),
+		).toEqual([]);
+		expect(letterSpacingDiagnostics('letter-spacing: normal')).toEqual([]);
+		for (const refused of [
+			'letter-spacing: -0.04em',
+			'letter-spacing: 0',
+			'letter-spacing: var(--ob-ref-letter-spacing-tight)',
+			'letter-spacing: var(--ob-sys-typography-body-md)',
+			'letter-spacing: var(--ob-ref-space-4)',
+			'letter-spacing: calc(var(--ob-sys-typography-body-md-tracking) * 2)',
+		]) {
+			expect(letterSpacingDiagnostics(refused)).toEqual(expect.arrayContaining([acceptedForm]));
+		}
+		expect(letterSpacingDiagnostics('font: var(--ob-sys-typography-body-md-tracking)')).toEqual([
+			expect.stringContaining('set its -tracking token on "letter-spacing"'),
+		]);
+	});
+
+	it('registers a tracking token only beside its typography role and in em', () => {
+		const registryDiagnostics = (declarations: string[]) => {
+			const source = `:root {
+${declarations.map((line) => `	${line};`).join('\n')}
+}`;
+			return validateCssSource({
+				path: 'packages/design-tokens/src/tokens.css',
+				source,
+				registeredTokens: new Set(tokenDeclarations(source)),
+				breakpointValues,
+				isRegistry: true,
+			}).map(({ message }) => message);
+		};
+		const role = '--ob-sys-typography-title: 500 2rem / 1.1 sans-serif';
+
+		expect(registryDiagnostics([role, '--ob-sys-typography-title-tracking: -0.04em'])).toEqual([]);
+		expect(registryDiagnostics(['--ob-sys-typography-title-tracking: -0.04em'])).toEqual([
+			expect.stringContaining('needs its typography role "--ob-sys-typography-title"'),
+		]);
+		expect(registryDiagnostics([role, '--ob-sys-typography-title-tracking: -1px'])).toEqual([
+			expect.stringContaining('must be an em value'),
+		]);
 	});
 
 	it('rejects Tailwind class strings and standard inline style properties', () => {

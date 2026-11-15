@@ -96,6 +96,15 @@ Consume a typography role through the `font` shorthand so family, size, weight, 
 }
 ```
 
+The `font` shorthand cannot carry letter spacing, so a role that is tracked registers a second token beside its composite one: `--ob-sys-typography-<role>-tracking` next to `--ob-sys-typography-<role>`. Its value is in `em`, so the tracking scales with the role's size, and it never exists without its role. A component sets it beside the role's `font` shorthand; `letter-spacing` accepts nothing else except `normal`, which resets inherited tracking, and `font` never takes a tracking token:
+
+```css
+.title {
+	font: var(--ob-sys-typography-website-title);
+	letter-spacing: var(--ob-sys-typography-website-title-tracking);
+}
+```
+
 The spacing, sizing, radius, breakpoint, motion, elevation, and layer foundations stay in the reference tier because their values are context-independent. Do not create separate system aliases named for CSS properties such as margin and padding; components select from the same finite spacing scale.
 
 Authored transitions and animations consume `--ob-sys-motion-duration-*` and `--ob-sys-motion-easing-*`, not motion references directly. Under `prefers-reduced-motion: reduce`, the registry maps fast, normal, and slow semantic durations to the instant reference. Keyframe names and transitioned properties remain component implementation details.

@@ -23,11 +23,18 @@ const RAW_DIMENSION =
 const COLOR_PROPERTIES =
 	/^(?:background(?:-color)?|border(?:-(?:block|bottom|inline|left|right|top)(?:-color)?|-color)?|caret-color|color|fill|outline-color|stroke)$/u;
 const TOKEN_REQUIRED_PROPERTIES =
-	/^(?:animation(?:-duration|-timing-function)?|box-shadow|font|font-family|font-size|font-weight|letter-spacing|line-height|opacity|text-decoration(?:-line)?|text-shadow|transition(?:-duration|-timing-function)?|z-index)$/u;
-const TYPOGRAPHY_LONGHAND = /^(?:font-family|font-size|font-weight|letter-spacing|line-height)$/u;
+	/^(?:animation(?:-duration|-timing-function)?|box-shadow|font|font-family|font-size|font-weight|line-height|opacity|text-decoration(?:-line)?|text-shadow|transition(?:-duration|-timing-function)?|z-index)$/u;
+const TYPOGRAPHY_LONGHAND = /^(?:font-family|font-size|font-weight|line-height)$/u;
 const TYPOGRAPHY_REFERENCE_TOKEN = /^--ob-ref-(?:font|letter-spacing|line-height)-/u;
 const MOTION_REFERENCE_TOKEN = /^--ob-ref-(?:animation|motion)-/u;
 const SYSTEM_TYPOGRAPHY_USAGE = /var\(\s*--ob-sys-typography-[a-z0-9-]+\s*\)/iu;
+// A role's tracking token is its composite token's name with this suffix; only letter-spacing takes it.
+const TRACKING_TOKEN = /^--ob-sys-typography-([a-z0-9]+(?:-[a-z0-9]+)*)-tracking$/u;
+const TRACKING_TOKEN_USAGE = /var\(\s*--ob-sys-typography-[a-z0-9-]+-tracking\s*\)/iu;
+const LETTER_SPACING_VALUE =
+	/^(?:normal|var\(\s*--ob-sys-typography-[a-z0-9]+(?:-[a-z0-9]+)*-tracking\s*\))$/u;
+const TRACKING_VALUE =
+	/^(?:0|-?(?:\d+\.?\d*|\.\d+)em|var\(\s*--ob-ref-letter-spacing-[a-z0-9-]+\s*\))$/u;
 const SYSTEM_MOTION_DURATION_USAGE = /var\(\s*--ob-sys-motion-duration-[a-z0-9-]+\s*\)/iu;
 const SYSTEM_MOTION_EASING_USAGE = /var\(\s*--ob-sys-motion-easing-[a-z0-9-]+\s*\)/iu;
 const TAILWIND_DIRECTIVE =
@@ -137,6 +144,35 @@ function validateTokenReferences(path, source, registeredTokens) {
 	return diagnostics;
 }
 
+function trackingDiagnostics(path, source, registeredTokens) {
+	const diagnostics = [];
+	parseCss(source).walkDecls(TRACKING_TOKEN, (declaration) => {
+		const index = declaration.source?.start?.offset ?? 0;
+		const role = `--ob-sys-typography-${TRACKING_TOKEN.exec(declaration.prop)?.[1]}`;
+		if (!registeredTokens.has(role)) {
+			diagnostics.push(
+				diagnostic(
+					path,
+					source,
+					index,
+					`Tracking token "${declaration.prop}" needs its typography role "${role}" registered beside it.`,
+				),
+			);
+		}
+		if (!TRACKING_VALUE.test(declaration.value.trim())) {
+			diagnostics.push(
+				diagnostic(
+					path,
+					source,
+					index,
+					`Tracking token "${declaration.prop}" must be an em value so it scales with its role's size.`,
+				),
+			);
+		}
+	});
+	return diagnostics;
+}
+
 export function tokenDeclarations(source) {
 	const declarations = [];
 	parseCss(source).walkDecls((declaration) => {
@@ -212,6 +248,7 @@ export function validateRegistrySource({ path, source, publicTokens }) {
 		);
 	}
 
+	diagnostics.push(...trackingDiagnostics(path, source, registeredTokens));
 	diagnostics.push(...validateTokenReferences(path, source, registeredTokens));
 	return diagnostics;
 }
@@ -774,6 +811,26 @@ export function validateCssSource({
 		if (property === 'font' && !SYSTEM_TYPOGRAPHY_USAGE.test(value)) {
 			diagnostics.push(
 				diagnostic(path, source, index, 'Property "font" must use a --ob-sys-typography-* token.'),
+			);
+		}
+		if (property === 'font' && TRACKING_TOKEN_USAGE.test(value)) {
+			diagnostics.push(
+				diagnostic(
+					path,
+					source,
+					index,
+					'Property "font" takes the role token; set its -tracking token on "letter-spacing".',
+				),
+			);
+		}
+		if (property === 'letter-spacing' && !LETTER_SPACING_VALUE.test(value.trim())) {
+			diagnostics.push(
+				diagnostic(
+					path,
+					source,
+					index,
+					'Property "letter-spacing" accepts only "normal" or one var(--ob-sys-typography-<role>-tracking) beside the font shorthand of that role.',
+				),
 			);
 		}
 		if (TYPOGRAPHY_LONGHAND.test(property)) {

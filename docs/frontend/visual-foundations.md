@@ -43,7 +43,9 @@ custom properties. Semantic misuse still requires review against this document.
 Consume typography through the complete `--ob-sys-typography-*` shorthand. Do not combine a
 font size from one role, line height from another, or a local font weight. HTML heading levels
 express document structure; visual heading roles express presentation, so they do not need to
-have matching suffixes.
+have matching suffixes. A role that is tracked carries its letter spacing in a paired `-tracking`
+token, consumed as [`design-tokens.md`](design-tokens.md#semantic-coverage) describes; the roles
+in the table below have none.
 
 | Variable                         | Baseline default  | Use when                                                                 | Do not use when                                           |
 | -------------------------------- | ----------------- | ------------------------------------------------------------------------ | --------------------------------------------------------- |
