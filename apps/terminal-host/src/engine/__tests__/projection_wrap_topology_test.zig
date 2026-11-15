@@ -83,6 +83,49 @@ test "row windows join rows by the same topology as frames" {
     }
 }
 
+test "a column shrink without reflow that cuts a wide character projects it as narrow" {
+    // The alternate screen, and the primary screen without wraparound, shrink without reflow; the
+    // new last column keeps the wide character whose spacer tail the shrink cleared.
+    for ([_][]const u8{ "\x1b[?1049h", "\x1b[?7l" }) |screen| {
+        var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+            .cols = 10,
+            .rows = 5,
+        });
+        defer terminal.deinit(std.testing.allocator);
+        feed(&terminal, screen);
+        feed(&terminal, "\x1b[1;5H" ++ wide_character);
+        try terminal.resize(std.testing.allocator, .{ .cols = 5, .rows = 5 });
+
+        var projection = Projection.init(std.testing.allocator);
+        defer projection.deinit();
+        try projection.beginCapture(&terminal, 1, 1, 8, 16);
+        projection.endCapture();
+        var grid: ClientGrid = .{};
+        try grid.apply(&projection, null, 1);
+
+        var manager = history.Manager.init(std.testing.allocator);
+        defer manager.deinit(&terminal);
+        const attachment = history.attachmentId(3);
+        try manager.attach(attachment);
+        for ([_]history.Detail{ .render, .text }, 1..) |detail, sequence| {
+            const rows = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 8, 16, .{
+                .attachment_id = attachment,
+                .detail = detail,
+                .generation = 1,
+                .host_epoch = history.hostEpoch(1),
+                .maximum_bytes = history.max_row_window_bytes,
+                .origin = .{ .absolute = 0 },
+                .purpose = .search,
+                .request_sequence = sequence,
+                .revision = 1,
+                .row_count = 5,
+            });
+            defer std.testing.allocator.free(rows.bytes);
+            _ = try protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes);
+        }
+    }
+}
+
 /// Captures the rows before and after `edit`. A retained client grid merges the snapshot with the
 /// delta; it must stay valid and match a fresh snapshot of the same revision.
 fn expectConsistentProjection(edit: Edit) !void {

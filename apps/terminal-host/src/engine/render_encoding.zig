@@ -122,7 +122,7 @@ pub const RowTopology = packed struct(u8) {
         const row = pin.rowAndCell().row;
         const cells = pin.cells(.all);
         const spacer_head = row.wrap and cells[cells.len - 1].wide == .spacer_head and
-            if (pin.down(1)) |below| below.cells(.all)[0].wide == .wide else true;
+            if (pin.down(1)) |below| pairedWide(below.cells(.all), 0) == .wide else true;
         return .{
             .wrap = row.wrap,
             .continuation = if (pin.up(1)) |above| above.rowAndCell().row.wrap else false,
@@ -135,15 +135,29 @@ pub const RowTopology = packed struct(u8) {
         return @as(u8, @intFromBool(self.wrap)) | @as(u8, @intFromBool(self.continuation)) << 1;
     }
 
-    /// The width code of a cell in this row. A spacer head that no longer leads a wrapped wide
-    /// character is a narrow blank.
-    pub fn width(self: RowTopology, wide: ghostty_vt.page.Cell.Wide, column: usize, columns: usize) u8 {
-        if (wide == .spacer_head and !(self.spacer_head and column + 1 == columns)) {
-            return cellWidth(.narrow);
+    /// The width code of the cell at `column` of this row's `cells`. A spacer head that no longer
+    /// leads a wrapped wide character is a narrow blank, and so is half of a broken wide pair.
+    pub fn width(self: RowTopology, cells: []const ghostty_vt.page.Cell, column: usize) u8 {
+        if (cells[column].wide == .spacer_head) {
+            const leads = self.spacer_head and column + 1 == cells.len;
+            return cellWidth(if (leads) .spacer_head else .narrow);
         }
-        return cellWidth(wide);
+        return cellWidth(pairedWide(cells, column));
     }
 };
+
+/// The width of the cell at `column` of one row's `cells`, with its wide pair checked. Ghostty's
+/// column shrink without reflow, which the alternate screen uses, clears the cells past the new
+/// edge and keeps a wide character in the new last column without its spacer tail. Half of a wide
+/// pair whose other half is missing is narrow, so every projected wide cell is followed by its
+/// spacer tail and fits inside the row.
+pub fn pairedWide(cells: []const ghostty_vt.page.Cell, column: usize) ghostty_vt.page.Cell.Wide {
+    return switch (cells[column].wide) {
+        .wide => if (column + 1 < cells.len and cells[column + 1].wide == .spacer_tail) .wide else .narrow,
+        .spacer_tail => if (column > 0 and cells[column - 1].wide == .wide) .spacer_tail else .narrow,
+        .narrow, .spacer_head => |wide| wide,
+    };
+}
 
 pub const StyleRecord = struct {
     background: u32,

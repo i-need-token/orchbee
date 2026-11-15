@@ -217,7 +217,7 @@ pub fn encodeOwned(
             try writer.appendInt(u32, grapheme_index);
             try writer.appendInt(u16, styles.indexOf(style).?);
             const raw = cells.items(.raw)[column];
-            try writer.appendInt(u8, topology.width(raw.wide, column, state.cols) |
+            try writer.appendInt(u8, topology.width(cells.items(.raw), column) |
                 (semanticContent(raw.semantic_content) << 2) |
                 (if (raw.protected) @as(u8, 0x10) else 0));
             try writer.appendInt(u8, 0);

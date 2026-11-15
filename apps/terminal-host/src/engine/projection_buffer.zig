@@ -212,7 +212,8 @@ pub fn encodeRenderSnapshot(
         writeInt(frame, u16, layout.offsets[0] + row_index * 2, @intCast(row_index));
         frame[layout.offsets[1] + row_index] = topology.flags();
         frame[layout.offsets[2] + row_index] = render_encoding.rowPromptClass(row.semantic_prompt);
-        for (pin.cells(.all), 0..) |*cell, column| {
+        const cells = pin.cells(.all);
+        for (cells, 0..) |*cell, column| {
             const cell_index = row_index * terminal.cols + column;
             const grapheme = render_encoding.cellGrapheme(
                 cell.*,
@@ -249,7 +250,7 @@ pub fn encodeRenderSnapshot(
             writeInt(frame, u32, layout.offsets[9] + cell_index * 4, style.underline);
             writeInt(frame, u16, layout.offsets[10] + cell_index * 2, style.flags);
             frame[layout.offsets[11] + cell_index] = style.underline_kind;
-            frame[layout.offsets[12] + cell_index] = topology.width(cell.wide, column, terminal.cols);
+            frame[layout.offsets[12] + cell_index] = topology.width(cells, column);
             frame[layout.offsets[13] + cell_index] = render_encoding.semanticContent(cell.semantic_content);
             frame[layout.offsets[14] + cell_index] = if (cell.protected) 1 else 0;
         }

@@ -222,7 +222,7 @@ fn encodeTextBody(
                 try writer.appendInt(u32, byte_offset);
                 try writer.appendInt(u32, utf16_offset);
                 try writer.appendInt(u16, @intCast(column));
-                try writer.appendInt(u8, if (cell.wide == .wide) 2 else 1);
+                try writer.appendInt(u8, if (render_encoding.pairedWide(cells, column) == .wide) 2 else 1);
                 try writer.appendInt(u8, 0);
                 byte_offset = std.math.add(u32, byte_offset, try cellTextByteLength(pin, cell)) catch
                     return error.ProjectionTooLarge;
