@@ -990,6 +990,7 @@ export const designTokenNames = [
 	'--ob-sys-typography-website-away-body',
 	'--ob-sys-typography-website-away-row',
 	'--ob-sys-typography-website-away-title',
+	'--ob-sys-typography-website-away-title-tracking',
 	'--ob-sys-typography-website-body',
 	'--ob-sys-typography-website-brand',
 	'--ob-sys-typography-website-brand-tracking',

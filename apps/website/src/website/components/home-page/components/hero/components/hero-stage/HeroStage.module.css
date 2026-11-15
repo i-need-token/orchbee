@@ -139,6 +139,7 @@
 .awayTitle {
 	margin-bottom: var(--ob-ref-length-website-6);
 	font: var(--ob-sys-typography-website-away-title);
+	letter-spacing: var(--ob-sys-typography-website-away-title-tracking);
 }
 .awayBody {
 	margin-bottom: var(--ob-ref-length-website-20);

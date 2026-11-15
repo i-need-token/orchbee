@@ -1217,6 +1217,7 @@
 	--ob-sys-typography-website-away-body: 400 14.5px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-away-row: 400 14px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-away-title: 500 22px / 1.5 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-away-title-tracking: -0.02em;
 	--ob-sys-typography-website-body: 400 16px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-brand: 600 16px / 1 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-brand-tracking: -0.01em;
