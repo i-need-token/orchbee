@@ -7,14 +7,17 @@ public release, their release history.
 
 Five independent business contracts are in scope. Each carries a generation in the major
 component of its existing version field, with minor and patch zero; generation 1 replaced `0.1.0`.
+The [generation registry](../../connection/README.md#generation-registry) declares each contract's
+supported and superseded generations under the entry named below; this file records what each
+generation changed.
 
-| Contract                  | Current generation | Owns                                                                         |
-| ------------------------- | ------------------ | ---------------------------------------------------------------------------- |
-| Wire protocol             | 1 (`1.0.0`)        | Handshake, transport envelope, control messages, input, and message registry |
-| `OBTF` terminal frame     | 1 (`1.0.0`)        | Packed terminal-frame bytes                                                  |
-| `OBPB` projection buffer  | 1 (`1.0.0`)        | Packed Host-to-render projection bytes                                       |
-| `OBRW` row window         | 1 (`1.0.0`)        | Packed render/text history-window bytes and render-detail graphics           |
-| `OBKG` graphics extension | 1 (`1.0.0`)        | Owned decoded images, resolved placements, layers, and animation tick        |
+| Contract                  | Registry entry | Owns                                                                         |
+| ------------------------- | -------------- | ---------------------------------------------------------------------------- |
+| Wire protocol             | `worker-host`  | Handshake, transport envelope, control messages, input, and message registry |
+| `OBTF` terminal frame     | `obtf`         | Packed terminal-frame bytes                                                  |
+| `OBPB` projection buffer  | `obpb`         | Packed Host-to-render projection bytes                                       |
+| `OBRW` row window         | `obrw`         | Packed render/text history-window bytes and render-detail graphics           |
+| `OBKG` graphics extension | `obkg`         | Owned decoded images, resolved placements, layers, and animation tick        |
 
 The NPM package version, Terminal Host executable version, Zig toolchain version, and third-party
 dependency versions belong to their own release owners. They are not wire-compatibility versions
@@ -45,9 +48,11 @@ After P0, Worker and Terminal Host negotiate a common wire-protocol generation a
 in the handshake, and each attachment negotiates its frame-format generations. The wire-protocol
 generation current at the first automatic-update release grows only by capabilities the Host
 advertises; if it ever advances, it stays supported in every later 1.x release unless a security
-fix requires its removal. Every other generation follows the direction's compatibility window.
+fix requires its removal. Every other generation follows the direction's compatibility window,
+which the registry's [`superseded` dates](../../connection/README.md#compatibility-window) start.
 Fixtures of a released generation are frozen: tests never change their expected bytes to admit a
-new change.
+new change, and the registry's [frozen fixtures](../../connection/README.md#frozen-fixtures) seal
+them.
 
 ## Fixture naming
 

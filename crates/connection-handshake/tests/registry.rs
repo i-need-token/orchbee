@@ -1,9 +1,15 @@
 //! The Rust registry mirror against `schemas/connection/v1/connections.json`, in both directions,
-//! and the compiled fingerprints against this checkout.
+//! and the compiled fingerprints against this checkout. The registry's shape lives here for the
+//! compatibility checks too.
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
-use orchbee_connection_handshake::{ConnectionKind, Delivery, FrameFormat, GenerationRange};
+use orchbee_connection_handshake::{
+    ConnectionKind, Delivery, FrameFormat, Generation, GenerationRange, ProductVersion,
+};
 use serde::Deserialize;
 
 use crate::{algorithm, support::TestResult};
@@ -12,16 +18,44 @@ const REGISTRY: &str = include_str!("../../../schemas/connection/v1/connections.
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct Registry {
+pub struct Registry {
     negotiated_connections: BTreeMap<String, NegotiatedConnection>,
     frame_formats: BTreeMap<String, Contract>,
     deliveries: BTreeMap<String, Contract>,
+    pub frozen_fixtures: Vec<FrozenFixture>,
+}
+
+impl Registry {
+    pub fn load() -> serde_json::Result<Self> {
+        serde_json::from_str(REGISTRY)
+    }
+
+    /// Every connection, frame format, and delivery: its name, supported generations, and
+    /// superseded generations.
+    pub fn contracts(&self) -> impl Iterator<Item = (&str, GenerationRange, &[Supersession])> {
+        let connections = self.negotiated_connections.iter().map(|(name, entry)| {
+            (
+                name.as_str(),
+                entry.generations,
+                entry.superseded.as_slice(),
+            )
+        });
+        let others = self.frame_formats.iter().chain(&self.deliveries);
+        connections.chain(others.map(|(name, entry)| {
+            (
+                name.as_str(),
+                entry.generations,
+                entry.superseded.as_slice(),
+            )
+        }))
+    }
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct NegotiatedConnection {
     generations: GenerationRange,
+    superseded: Vec<Supersession>,
     capabilities: Vec<Capability>,
     fingerprint_inputs: Vec<String>,
 }
@@ -37,15 +71,35 @@ struct Capability {
     added_in: String,
 }
 
+/// A frame format or delivery entry.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Contract {
-    generations: GenerationRange,
+pub struct Contract {
+    pub generations: GenerationRange,
+    pub superseded: Vec<Supersession>,
+}
+
+/// A generation that a released later generation superseded.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Supersession {
+    pub generation: Generation,
+    pub superseded_in: ProductVersion,
+    pub superseded_on: String,
+}
+
+/// A fixture file that freezes once a release ships it; `sha256` seals it.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FrozenFixture {
+    pub path: String,
+    #[serde(default)]
+    pub sha256: Option<String>,
 }
 
 #[test]
 fn rust_constants_mirror_the_registry() -> TestResult {
-    let registry: Registry = serde_json::from_str(REGISTRY)?;
+    let registry = Registry::load()?;
 
     let declared: Vec<&str> = registry
         .negotiated_connections
@@ -110,8 +164,8 @@ fn rust_constants_mirror_the_registry() -> TestResult {
 
 #[test]
 fn compiled_fingerprints_describe_this_checkout() -> TestResult {
-    let registry: Registry = serde_json::from_str(REGISTRY)?;
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let registry = Registry::load()?;
+    let repository = repository();
     for connection in ConnectionKind::ALL {
         let inputs = &registry
             .negotiated_connections
@@ -127,6 +181,11 @@ fn compiled_fingerprints_describe_this_checkout() -> TestResult {
         );
     }
     Ok(())
+}
+
+/// The repository root of this checkout.
+pub fn repository() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
 fn sorted(mut names: Vec<&str>) -> Vec<&str> {

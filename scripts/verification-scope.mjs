@@ -279,10 +279,12 @@ export function selectVerificationScope(graph, paths) {
 				continue;
 			}
 			if (changed.startsWith('schemas/terminal/')) {
+				// The connection handshake's registry test checks the frozen terminal fixtures.
 				for (const root of [
 					'crates/terminal-protocol',
 					'packages/terminal-protocol',
 					'apps/terminal-host',
+					'crates/connection-handshake',
 				]) {
 					if (!graph.some((entry) => entry.root === root))
 						throw new Error(`Missing terminal contract consumer ${root}`);

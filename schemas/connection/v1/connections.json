@@ -2,6 +2,7 @@
 	"negotiatedConnections": {
 		"client-server": {
 			"generations": { "lowest": 1, "highest": 1 },
+			"superseded": [],
 			"capabilities": [
 				{ "name": "agent-input-area", "addedIn": "0.1.0" },
 				{ "name": "prompt-gated-input", "addedIn": "0.1.0" }
@@ -22,6 +23,7 @@
 		},
 		"machine-hub": {
 			"generations": { "lowest": 1, "highest": 1 },
+			"superseded": [],
 			"capabilities": [],
 			"fingerprintInputs": [
 				"crates/connection-handshake/src",
@@ -32,6 +34,7 @@
 		},
 		"machine-link": {
 			"generations": { "lowest": 1, "highest": 1 },
+			"superseded": [],
 			"capabilities": [],
 			"fingerprintInputs": [
 				"crates/connection-handshake/src",
@@ -42,6 +45,7 @@
 		},
 		"worker-host": {
 			"generations": { "lowest": 1, "highest": 1 },
+			"superseded": [],
 			"capabilities": [{ "name": "prompt-gated-input", "addedIn": "0.1.0" }],
 			"fingerprintInputs": [
 				"apps/terminal-host/src/control",
@@ -55,13 +59,69 @@
 		}
 	},
 	"frameFormats": {
-		"obkg": { "generations": { "lowest": 1, "highest": 1 } },
-		"obpb": { "generations": { "lowest": 1, "highest": 1 } },
-		"obrw": { "generations": { "lowest": 1, "highest": 1 } },
-		"obtf": { "generations": { "lowest": 1, "highest": 1 } }
+		"obkg": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] },
+		"obpb": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] },
+		"obrw": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] },
+		"obtf": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] }
 	},
 	"deliveries": {
-		"agent-hook": { "generations": { "lowest": 1, "highest": 1 } },
-		"machine-route": { "generations": { "lowest": 1, "highest": 1 } }
-	}
+		"agent-hook": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] },
+		"machine-route": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] }
+	},
+	"frozenFixtures": [
+		{ "path": "schemas/client-server/v1/client-server-conformance-v1.json" },
+		{ "path": "schemas/connection/v1/fixtures/admission.json" },
+		{ "path": "schemas/connection/v1/fixtures/boundary.json" },
+		{ "path": "schemas/connection/v1/fixtures/invalid.json" },
+		{ "path": "schemas/connection/v1/fixtures/valid.json" },
+		{ "path": "schemas/machine/v1/fixtures/boundary.json" },
+		{ "path": "schemas/machine/v1/fixtures/invalid.json" },
+		{ "path": "schemas/machine/v1/fixtures/sequences.json" },
+		{ "path": "schemas/machine/v1/fixtures/valid.json" },
+		{ "path": "schemas/terminal/v1/fixtures/control-conformance.json" },
+		{ "path": "schemas/terminal/v1/fixtures/focus-input.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/key-input.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/malformed-frame.json" },
+		{ "path": "schemas/terminal/v1/fixtures/malformed-row-window.json" },
+		{ "path": "schemas/terminal/v1/fixtures/mouse-input.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/packed-projection-conformance.json" },
+		{ "path": "schemas/terminal/v1/fixtures/paste-auto-input.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/paste-input.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/prompt-line-input.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/selection-export-chunk.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/terminal-failed.json" },
+		{ "path": "schemas/terminal/v1/fixtures/terminal-frame.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/terminal-projection-buffer.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/terminal-row-window.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/text-input.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/transport-envelope.bin" },
+		{ "path": "schemas/terminal/v1/fixtures/utf8-bom-conformance.json" },
+		{ "path": "schemas/terminal/v1/fixtures/write-input.bin" },
+		{ "path": "schemas/workbench/v1/workbench-agent-catalog-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-agent-integration-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-agent-manifests-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-client-view-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-command-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-configuration-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-configured-command-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-current-directory-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-events-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-multiplex-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-notification-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-panel-agent-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-panel-graphics-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-panel-metadata-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-plugin-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-session-stop-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-settings-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-tab-duplicate-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-tab-set-close-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-window-title-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-workspace-git-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-workspace-metadata-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-worktree-conformance-v1.json" },
+		{ "path": "schemas/workbench/v1/workbench-worktree-query-conformance-v1.json" }
+	]
 }

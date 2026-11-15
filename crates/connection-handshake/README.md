@@ -27,6 +27,7 @@ answer, derive the build's environment name, or localize a rejection.
 | `conclude_offer`, `conclude_request`                                             | Check the reply to an offer or a control request; the caller closes on every failure.                                                                                              |
 | `ConnectionKind`, `FrameFormat`, `Delivery`                                      | The registry mirror: names, supported generations, capability names, and `ConnectionKind::development_fingerprint`.                                                                |
 | `PROMPT_GATED_INPUT`                                                             | The capability name both connections list once a send may ask for a confirmed idle prompt; a peer without it gets no gated send.                                                   |
+| `COMPATIBILITY_WINDOW`                                                           | The `client-server` capability that marks a Session of the first automatic-update release or later. No build lists it yet; that release adds it to the registry and both sides.    |
 | `QueryResult::new`, `UnknownRequest::new`, `BuildEnvironment`, `GenerationRange` | Constructors that enforce cross-member rules, so a value that encodes is a valid message.                                                                                          |
 | `Extensions`                                                                     | The open `extensions` member; later records that admit extensions may reuse it.                                                                                                    |
 | `parse_strict_object`                                                            | The strict JSON object parser of the payload rules, for connections whose records follow them, such as `machine-hub` and `machine-link`.                                           |
@@ -52,4 +53,5 @@ against reference values computed with coreutils.
 - Add fixtures to `schemas/connection/v1/fixtures/` rather than Rust-only cases when a rule belongs
   to the contract. Bounds too large for a fixture file stay in `tests/conformance.rs`.
 - `cargo test -p orchbee-connection-handshake` runs every fixture, the schema, the registry mirror,
-  and the fingerprint reference.
+  the fingerprint reference, and the registry's
+  [compatibility window and frozen fixtures](../../schemas/connection/README.md#compatibility-window).

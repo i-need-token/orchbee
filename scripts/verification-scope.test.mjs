@@ -131,7 +131,13 @@ test('real workspace selection retains foreign fixture, resource, process and di
 	]) {
 		const protocol = selectVerificationScope(actual, [changed]);
 		assert.equal(protocol.all, false, protocol.reasons.join('\n'));
-		for (const name of ['orchbee-terminal-protocol', 'orchbee', 'orchbee-server', 'orchbee-worker'])
+		for (const name of [
+			'orchbee-terminal-protocol',
+			'orchbee-connection-handshake',
+			'orchbee',
+			'orchbee-server',
+			'orchbee-worker',
+		])
 			assert.ok(protocol.cargo.includes(name), changed + ' must select ' + name);
 		for (const name of [
 			'@orchbee/terminal-protocol',

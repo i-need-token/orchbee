@@ -5,6 +5,7 @@
 mod algorithm;
 
 mod admission;
+mod compatibility;
 mod conformance;
 mod fingerprint;
 mod registry;

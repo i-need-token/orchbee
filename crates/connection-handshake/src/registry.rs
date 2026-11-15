@@ -14,6 +14,12 @@ pub const PROMPT_GATED_INPUT: &str = "prompt-gated-input";
 /// input area. A Server without it never receives the flag.
 pub const AGENT_INPUT_AREA: &str = "agent-input-area";
 
+/// The `client-server` capability that marks a Session of the first automatic-update release or
+/// later, which keeps the compatibility window, so a newer Client may join it. No build lists it
+/// yet: that release adds it to [`ConnectionKind::capabilities`] and to the registry with its
+/// `addedIn`, and until then no answer carries it.
+pub const COMPATIBILITY_WINDOW: &str = "compatibility-window";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {

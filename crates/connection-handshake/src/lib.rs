@@ -42,5 +42,8 @@ pub use query::{
     ConnectionEntry, MAXIMUM_PROCESS_CONNECTIONS, MAXIMUM_QUERY_PROCESSES, ProcessEntry,
     QueryResult,
 };
-pub use registry::{AGENT_INPUT_AREA, ConnectionKind, Delivery, FrameFormat, PROMPT_GATED_INPUT};
+pub use registry::{
+    AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, ConnectionKind, Delivery, FrameFormat,
+    PROMPT_GATED_INPUT,
+};
 pub use strict_json::parse_strict_object;

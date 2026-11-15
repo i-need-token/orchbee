@@ -75,6 +75,8 @@ Changes under `schemas/terminal/` select the Rust protocol crate, TypeScript pro
 and Terminal Host, then their normal consumer closure. Their existing test commands each run one
 independent check against `schemas/terminal/v1/constants.json`; fixture generators do not produce
 that registry. Canonical payload and native surface checks continue to read the same authority.
+They also select the connection handshake crate, whose registry test checks the
+[frozen fixtures](../schemas/connection/README.md#frozen-fixtures).
 
 ## Execution and evidence
 

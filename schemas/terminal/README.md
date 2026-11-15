@@ -29,7 +29,8 @@ generates the registry or source code from it.
   only as input; the registry remains the independent expected value.
   The package exports code; repository consumers read fixtures directly from this directory.
 - The existing affected-verification resolver selects all three bindings and their transitive
-  consumers for a change here. TLA registrations consume this authority and the native bindings.
+  consumers for a change here, and the connection handshake crate, whose registry test checks the
+  frozen fixtures. TLA registrations consume this authority and the native bindings.
 
 The registry checks replace comparisons against a TypeScript-produced constant snapshot.
 Existing malformed-input, strict-boundary, native-production and consumer-semantic witnesses remain
@@ -44,6 +45,12 @@ directory. `canonical.json` is generator input, and `control-conformance.json` c
 cases rather than a second constant registry. `other-generation-conformance.json` holds one
 canonical record per domain with only its generation replaced: every frame decoder refuses it, and
 the envelope decoder reports the peer generation for the receiver to refuse.
+
+The connection registry's [frozen fixtures](../connection/README.md#frozen-fixtures) list the codec
+fixtures that freeze once a release ships them; a frozen file is never regenerated with new bytes.
+Three kinds stay unlisted: `canonical.json`, which is generator input;
+`other-generation-conformance.json`, which names the generation after the current one and moves
+with it; and the `ghostty-*.bin` records, which follow the pinned Ghostty's output.
 
 Terminal Host's existing `surface-fixtures:generate` and `test:surface-fixtures` commands produce
 and byte-compare the `ghostty-*.bin` records. The terminal renderer consumes those same

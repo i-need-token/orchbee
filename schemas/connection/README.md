@@ -17,7 +17,8 @@ generation numbers for every connection, frame format, and unnegotiated delivery
 `crates/connection-handshake` is the Rust binding, and `apps/terminal-host/src/handshake` is the
 Terminal Host's Zig binding. Both are independent implementations of this contract; nothing
 generates source from it. From the first automatic-update release, `OBHS` and its messages never
-change except by new members of `extensions`, and the fixtures of this directory freeze.
+change except by new members of `extensions`, and the fixtures of this directory
+[freeze](#frozen-fixtures).
 
 ## Frame
 
@@ -129,15 +130,22 @@ The acceptor runs these checks in order and rejects at the first failure.
 
 ## Generation registry
 
-[`v1/connections.json`](v1/connections.json) holds three closed objects, each keyed by contract name.
+[`v1/connections.json`](v1/connections.json) holds three closed objects, each keyed by contract
+name, and the [frozen fixtures](#frozen-fixtures).
 
-| Member                  | Entries                                                       | Entry members                                          |
-| ----------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
-| `negotiatedConnections` | `client-server`, `machine-hub`, `machine-link`, `worker-host` | `generations`, `capabilities`, and `fingerprintInputs` |
-| `frameFormats`          | `obkg`, `obpb`, `obrw`, `obtf`                                | `generations`                                          |
-| `deliveries`            | `agent-hook`, `machine-route`                                 | `generations`                                          |
+| Member                  | Entries                                                       | Entry members                                                        |
+| ----------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `negotiatedConnections` | `client-server`, `machine-hub`, `machine-link`, `worker-host` | `generations`, `superseded`, `capabilities`, and `fingerprintInputs` |
+| `frameFormats`          | `obkg`, `obpb`, `obrw`, `obtf`                                | `generations` and `superseded`                                       |
+| `deliveries`            | `agent-hook`, `machine-route`                                 | `generations` and `superseded`                                       |
+| `frozenFixtures`        | One per fixture file that freezes                             | `path`, and `sha256` once a release seals it                         |
 
 - `generations` is the supported range. Every contract starts at generation 1.
+- `superseded` lists, in ascending order, each generation that a released later generation
+  superseded, as `{generation, supersededIn, supersededOn}`: the product version of the release
+  that first shipped the next generation, and that release's UTC date as `YYYY-MM-DD`, which starts
+  the generation's [compatibility window](#compatibility-window). Each lies below `highest`. A
+  superseded generation stays listed after it is dropped.
 - `capabilities` lists `{name, addedIn}` entries in bytewise name order, where `addedIn` is the
   product version of the release that added the name. Only negotiated connections carry
   capability names; a frame format or delivery gains features through its connection or its
@@ -150,6 +158,35 @@ The acceptor runs these checks in order and rejects at the first failure.
   [machine connection contracts](../machine/README.md) state it for `machine-hub` and
   `machine-link`, whose `fingerprintInputs` both list `schemas/machine` and the source of their
   binding, `crates/machine-protocol`.
+
+### Compatibility window
+
+Until the first automatic-update release, every contract stays at generation 1 under
+[Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries), and every `superseded` list is empty.
+From that release a superseded generation stays supported for at least 90 days after its
+`supersededOn`; a later release may then drop it by raising `lowest`. The Rust binding's registry
+test, judged on the day it runs, refuses a registry that drops a generation without a `superseded`
+entry or within those 90 days, and refuses any dropped `worker-host` generation, which stays
+supported in every 1.x release. The registry records no early end: a security fix that ends a
+generation sooner changes this check together with its own decision.
+
+### Frozen fixtures
+
+`frozenFixtures` lists, in strictly ascending bytewise path order, the repository-relative files
+that hold `OBHS` fixtures and the fixtures of each contract's generations. A release seals each
+listed file it ships by recording `sha256`, the lowercase hexadecimal SHA-256 of the file's bytes,
+and from then on the Rust binding's registry test fails when those bytes change: tests never change
+a released generation's expected bytes to admit a new change. A new case goes into a new file, which
+joins the list. A file leaves the list only with the generation it serves, after that generation is
+dropped. The first automatic-update release seals the first list; until then no file is sealed.
+
+- The list holds the valid, boundary, invalid, admission, and sequence fixtures of this directory
+  and of [`schemas/machine`](../machine/README.md#authority), the codec fixtures of
+  [`schemas/terminal`](../terminal/README.md#fixtures-and-maintenance), and the wire conformance
+  corpora of [`schemas/client-server`](../client-server/README.md) and the Workbench protocol
+  under [`schemas/workbench`](../workbench/README.md).
+- Generator inputs, the other-generation corpus, records that follow the pinned Ghostty's output,
+  parity tables shared by the Clients, and generated tables are not frozen.
 
 ## Development fingerprint
 
@@ -182,4 +219,4 @@ bytes. `direction` names the sender, `initiator` or `acceptor`.
 Collection bounds too large for a fixture file — 258 processes and a 1,048,576-byte payload — are
 checked by the bindings' own tests. The Rust binding's
 [`tests/`](../../crates/connection-handshake/tests/main.rs) consume every fixture, the schema, and
-the registry.
+the registry, including its compatibility window and frozen fixtures.
