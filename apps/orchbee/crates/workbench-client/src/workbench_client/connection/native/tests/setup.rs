@@ -569,6 +569,30 @@ impl Harness {
         result
     }
 
+    /// Moves the scripted clock to `elapsed_millis` and awaits the next worker event or failure at
+    /// that instant. A mailbox waiter samples the clock before it takes the mailbox mutex, so a
+    /// single wake can fall between a stale sample and the wait it starts, and that waiter would
+    /// sleep out the real remaining time. A waker repeats the wake, without moving the clock
+    /// again, until the observation returns.
+    pub(super) fn take_next_at(&self, elapsed_millis: u64) -> TestResult<TakenEvent> {
+        self.elapsed_millis.store(elapsed_millis, Ordering::SeqCst);
+        let running = Arc::new(AtomicBool::new(true));
+        let waker_running = Arc::clone(&running);
+        let mailbox = Arc::clone(&self.mailbox);
+        let waker = thread::spawn(move || {
+            while waker_running.load(Ordering::SeqCst) {
+                mailbox.wake_waiters();
+                thread::yield_now();
+            }
+        });
+        let result = self.ui.take_next();
+        running.store(false, Ordering::SeqCst);
+        waker
+            .join()
+            .map_err(|_panic| test_error("mailbox waker panicked"))?;
+        result
+    }
+
     pub(super) fn finish_with_failure(mut self, failure: CarrierFailure) -> TestResult {
         let closed = self.mailbox.close(failure);
         if closed.failure() != failure {

@@ -859,9 +859,7 @@ fn create_barrier_expiring_held_poll_retires_deadline_before_create_or_detach() 
 
     // Create's 45-second forward barrier is earlier than the held Poll's 50-second deadline.
     // Letting that exact barrier expire must be a session Deadline, not a successful drain.
-    harness.elapsed_millis.store(45_000, Ordering::SeqCst);
-    harness.mailbox.wake_waiters();
-    assert!(harness.ui.take_next().is_err());
+    assert!(harness.take_next_at(45_000).is_err());
     assert_eq!(harness.mailbox.is_closed(), Some(CarrierFailure::Deadline));
     assert_eq!(harness.ui.state().desired().unwrap(), &active);
     assert_eq!(
@@ -2129,9 +2127,7 @@ fn refresh_barrier_expiring_held_poll_retires_deadline_before_snapshot() -> Test
 
     // Both the already-issued Poll and later Refresh use the exact 50-second cutoff. The later
     // Refresh barrier still must not reclassify the expired ordinary event as a successful drain.
-    harness.elapsed_millis.store(50_000, Ordering::SeqCst);
-    harness.mailbox.wake_waiters();
-    assert!(harness.ui.take_next().is_err());
+    assert!(harness.take_next_at(50_000).is_err());
     assert_eq!(harness.mailbox.is_closed(), Some(CarrierFailure::Deadline));
     assert_eq!(harness.mailbox.pending_refresh_stage(), None);
     assert_eq!(

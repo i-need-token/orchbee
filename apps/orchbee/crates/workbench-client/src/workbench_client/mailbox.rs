@@ -3676,8 +3676,9 @@ impl CommandMailbox {
     }
 
     /// Waits sleep until their real deadline, so a scripted clock advance or an armed sample
-    /// checkpoint wakes them under the mutex: a waiter between its sample and its wait cannot
-    /// miss the notification.
+    /// checkpoint wakes them under the mutex. A waiter samples the clock before it takes the
+    /// mutex, so one wake can fall between a stale sample and the wait that sample starts: a
+    /// scripted clock advance repeats the wake until it observes its outcome.
     #[cfg(test)]
     pub(super) fn wake_waiters(&self) {
         let _state = self.lock();
