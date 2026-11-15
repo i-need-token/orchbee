@@ -162,8 +162,7 @@ jobs:
           rustc --version
           cargo --version
 
-      # The same pinned download as `terminal-host-native`. Zig fetches arocc itself here, as it
-      # does on Linux; only the Windows runners need the curl prefetch.
+      # The same pinned download as `terminal-host-native`.
       - name: Set up Zig
         shell: bash
         run: |
@@ -186,6 +185,17 @@ jobs:
           tar -xJf "$RUNNER_TEMP/orchbee-zig.tar.xz" --strip-components=1 --directory "$RUNNER_TEMP/orchbee-zig"
           echo "$RUNNER_TEMP/orchbee-zig" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/orchbee-zig/zig" version
+
+      # macOS runners fail Zig's own arocc download with HttpConnectionClosing too; see the Windows
+      # prefetch in `terminal-host-native`, whose rules this step follows.
+      - name: Prefetch the arocc Zig package
+        shell: bash
+        working-directory: apps/terminal-host
+        run: |
+          archive="$RUNNER_TEMP/arocc.tar.gz"
+          curl --fail --location --silent --show-error --retry 5 --retry-all-errors 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output "$archive"
+          hash="$(zig fetch "$archive")"
+          if [ "$hash" != 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD' ]; then echo "Unexpected arocc package hash: $hash" >&2; exit 1; fi
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -257,9 +267,10 @@ jobs:
           & (Join-Path $zigDirectory 'zig.exe') version
 
       # Zig's own download of this transitive Terminal Host dependency (Ghostty's translate_c -> arocc)
-      # fails on GitHub's Windows runners with HttpConnectionClosing. curl fetches it, and `zig fetch`
-      # admits it only under the content hash translate_c pins. The release workflow carries the same
-      # step: drop both once Zig fetches it, or update both when the Ghostty pin moves translate_c.
+      # fails on GitHub's Windows and macOS runners with HttpConnectionClosing. curl fetches it, and
+      # `zig fetch` admits it only under the content hash translate_c pins. The macOS Rust job and the
+      # release workflow carry the same step: drop them all once Zig fetches it, or update them all
+      # when the Ghostty pin moves translate_c.
       - name: Prefetch the arocc Zig package
         if: runner.os == 'Windows'
         shell: pwsh
@@ -269,6 +280,16 @@ jobs:
           curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
           $hash = zig fetch $archive
           if ($hash -ne 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD') { throw "Unexpected arocc package hash: $hash" }
+
+      - name: Prefetch the arocc Zig package on macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: apps/terminal-host
+        run: |
+          archive="$RUNNER_TEMP/arocc.tar.gz"
+          curl --fail --location --silent --show-error --retry 5 --retry-all-errors 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output "$archive"
+          hash="$(zig fetch "$archive")"
+          if [ "$hash" != 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD' ]; then echo "Unexpected arocc package hash: $hash" >&2; exit 1; fi
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

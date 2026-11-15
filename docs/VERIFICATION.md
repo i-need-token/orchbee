@@ -285,8 +285,8 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   (`continue-on-error`) until they are green; then the flag is removed and a red macOS job counts
   like any other. No Verify job runs on an Intel Mac runner; Intel macOS is left to the release
   workflow's `macos-x86_64` row.
-  Only the Windows jobs prefetch the arocc Zig package: Zig's own download fails on GitHub's
-  Windows runners and succeeds on Linux and macOS.
+  The Windows and macOS jobs prefetch the arocc Zig package: Zig's own download fails on GitHub's
+  Windows and macOS runners with HttpConnectionClosing and succeeds on Linux.
 - Platform exclusions are explicit. Linux stays parked: its Cargo test suites run in no job, as
   the `verify` job above describes. No job runs `test:cross`; cross-compilation stays explicit.
 - No job runs TLA+ model checking or TLC, and no job provisions Java. Of the TLA tooling, the
