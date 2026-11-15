@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "orchbee-desktop-launcher",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Windows window launcher installed as desktop\\orchbee-desktop.exe in the release store: reads the window pointer beside it and starts the active window version of the same name with its own arguments and environment, waits for the window that asked for a relaunch to end, and starts the previous window version once when the active one cannot start or ends with a failure soon after.",
+	"nonGoals": [
+		"Installing, verifying, activating or cleaning up a window version, moving the window pointer, or recording a failure.",
+		"Reading configuration, settings or any file besides the window pointer, or choosing a version other than the active one or the pointer's previous one.",
+		"Owning the window's lifetime, starting a Job, or running on macOS or Linux."
+	]
+}

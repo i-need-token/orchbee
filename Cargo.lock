@@ -1014,6 +1014,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchbee-desktop-launcher"
+version = "0.1.0-beta.5"
+dependencies = [
+ "orchbee-release-records",
+ "winsafe",
+]
+
+[[package]]
 name = "orchbee-launcher"
 version = "0.1.0-beta.5"
 dependencies = [

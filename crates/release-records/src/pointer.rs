@@ -1,7 +1,9 @@
 //! The active-version pointer `active.json`: closed JSON naming the active version directory and,
 //! optionally, the rollback target, each bound to the lowercase SHA-256 of its `release.json`.
 //! `version` is the record's format and `extensions` the only open slot, which every rewrite keeps.
-//! Bytes that are not such a record mean no active version.
+//! Bytes that are not such a record mean no active version. The window pointer
+//! `desktop\active.json` has the same grammar: there `product` names a window version directory and
+//! `manifest` binds the SHA-256 of its `desktop-files.json`.
 use crate::{
     strict_json::{check_extensions, closed_object, parse_object},
     tokens::{lowercase_sha256, valid_version},

@@ -14,6 +14,7 @@ const SOURCE_FILES = [
 	'Cargo.toml',
 	'Cargo.lock',
 	'apps/orchbee/Cargo.toml',
+	'apps/orchbee-desktop-launcher/Cargo.toml',
 	'apps/orchbee-launcher/Cargo.toml',
 	'apps/orchbee-server/Cargo.toml',
 	'apps/orchbee-worker/Cargo.toml',
@@ -72,9 +73,10 @@ function assertOneDifference(root, path) {
 	assert.ok(result.lines[0].startsWith(`${path}:`), result.lines[0]);
 }
 
-// `set` changes one line in each recorded place: five in Cargo.lock, one in each other file.
+// `set` changes one line in each recorded place: one per Rust program in Cargo.lock, and one in
+// each other file.
 function expectedChanges(file) {
-	if (file === 'Cargo.lock') return 6;
+	if (file === 'Cargo.lock') return 7;
 	return WRITTEN_FILES.includes(file) ? 1 : 0;
 }
 
