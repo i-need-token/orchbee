@@ -84,6 +84,14 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             if (error_write_open) _ = posix.system.close(error_pipe[1]);
         }
 
+        // macOS marks a new descriptor close-on-exec only after creating it, as a control lane
+        // does for each connection it accepts, so a shell forked meanwhile would keep that
+        // connection open. The child keeps only its standard streams and the exec-status channel,
+        // which closes on exec.
+        const descriptor_limit = if (comptime builtin.os.tag.isDarwin())
+            posix_compat.descriptorTableSize()
+        else
+            0;
         const child_id = try posix_compat.fork();
         if (child_id == 0) {
             _ = posix.system.close(error_pipe[0]);
@@ -94,6 +102,9 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             if (child_stdin_fd) |fd| {
                 _ = posix_compat.dup2(fd, posix.STDIN_FILENO) catch
                     reportChildFailure(error_pipe[1]);
+            }
+            if (comptime builtin.os.tag.isDarwin()) {
+                posix_compat.closeNonStandardDescriptors(descriptor_limit, error_pipe[1]);
             }
             const exec_error = execWithEffectivePath(
                 launch.executable,

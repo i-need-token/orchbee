@@ -18,7 +18,8 @@ pub const debug = struct {
 pub fn main(init: std.process.Init) !void {
     // The pinned process.Init has not opened application descriptors or started
     // I/O workers. Discard launcher resources before acquiring any Host state.
-    if (builtin.os.tag == .linux) try platform.posix_compat.closeInheritedLinuxDescriptors(init.io);
+    if (comptime builtin.os.tag == .linux or builtin.os.tag.isDarwin())
+        try platform.posix_compat.closeInheritedDescriptors(init.io);
     const allocator = init.gpa;
     const arguments = try init.minimal.args.toSlice(init.arena.allocator());
     if (arguments.len == 0) return error.InvalidArguments;

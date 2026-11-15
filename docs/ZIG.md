@@ -27,6 +27,7 @@ Format every Zig source and build file with the workspace-pinned `zig fmt`. The 
 - Keep `undefined`, raw pointers, pointer casts, volatile access, and platform-specific imports inside the smallest owning adapter. Use `undefined` only when every byte is initialized before any read, an external ABI requires output storage, or an owned value is deliberately poisoned at the end of its lifetime.
 - Keep runtime safety enabled in product code. A scoped `@setRuntimeSafety(false)` requires measured evidence, documented invariants, and explicit human review.
 - Assert size, alignment, and field offsets at compile time when a C ABI or wire contract depends on exact layout.
+- A child process inherits only the descriptors its launch names. Open descriptors close-on-exec; where the platform cannot set that atomically with creation, as on macOS, the forked child closes every other descriptor before exec, using only async-signal-safe calls and bounds computed before fork. A long-lived executable started by another process closes inherited descriptors at startup, before it acquires its own.
 
 ## Concurrency and bounded work
 

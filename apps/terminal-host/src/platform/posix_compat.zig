@@ -1,16 +1,48 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
-/// Call only at executable startup, before acquiring owned descriptors or
-/// starting workers. Electron can leave non-CLOEXEC Chromium descriptors in a
-/// spawned Host; retaining them also retains its debugger and storage locks.
-pub fn closeInheritedLinuxDescriptors(io: std.Io) !void {
-    var descriptors = try std.Io.Dir.openDirAbsolute(io, "/proc/self/fd", .{ .iterate = true });
+/// Call only at executable startup on Linux or macOS, before acquiring owned
+/// descriptors or starting workers. Electron can leave non-CLOEXEC Chromium
+/// descriptors in a spawned Host; retaining them also retains its debugger and
+/// storage locks. On macOS a parent can also leak a descriptor it was creating
+/// on another thread while it spawned this Host, because macOS marks a new
+/// socket or pipe close-on-exec only after creating it.
+pub fn closeInheritedDescriptors(io: std.Io) !void {
+    const listing = comptime if (builtin.os.tag == .linux)
+        "/proc/self/fd"
+    else if (builtin.os.tag.isDarwin())
+        "/dev/fd"
+    else
+        @compileError("closeInheritedDescriptors supports Linux and macOS");
+    var descriptors = try std.Io.Dir.openDirAbsolute(io, listing, .{ .iterate = true });
     defer descriptors.close(io);
     var iterator = descriptors.iterate();
     while (try iterator.next(io)) |entry| {
         const descriptor = try std.fmt.parseInt(std.posix.fd_t, entry.name, 10);
         if (descriptor <= 2 or descriptor == descriptors.handle) continue;
+        // An inherited descriptor never carries close-on-exec, which exec would have honored, so
+        // a descriptor that does was opened by this image's own system runtime and stays.
+        if (comptime builtin.os.tag.isDarwin()) {
+            const flags = std.c.fcntl(descriptor, std.posix.F.GETFD, @as(c_int, 0));
+            if (flags >= 0 and flags & std.posix.FD_CLOEXEC != 0) continue;
+        }
         close(descriptor);
+    }
+}
+
+extern "c" fn getdtablesize() c_int;
+
+/// One past the highest descriptor this process may hold. Read it in the parent before fork.
+pub fn descriptorTableSize() std.posix.fd_t {
+    return getdtablesize();
+}
+
+/// Closes every descriptor from 3 below `limit` except `keep`. It only calls close, so a forked child
+/// may call it before exec; `limit` comes from `descriptorTableSize` in the parent.
+pub fn closeNonStandardDescriptors(limit: std.posix.fd_t, keep: std.posix.fd_t) void {
+    var descriptor: std.posix.fd_t = 3;
+    while (descriptor < limit) : (descriptor += 1) {
+        if (descriptor != keep) close(descriptor);
     }
 }
 
