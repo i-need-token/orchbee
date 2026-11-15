@@ -1,0 +1,28 @@
+.scope {
+	display: contents;
+}
+.mark {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: var(--ob-ref-length-website-24);
+	height: var(--ob-ref-length-website-24);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-mark-edge);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-website-bg);
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-mark);
+	font-style: normal;
+}
+:global(html[data-motion]) .mark {
+	transition:
+		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		border-color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+.mark[data-hot],
+[data-hot] .mark {
+	border-color: var(--ob-sys-color-website-fg);
+	background: var(--ob-sys-color-website-fg);
+	color: var(--ob-sys-color-website-bg);
+}

@@ -1,0 +1,29 @@
+/* The groups and their titles are those of KeyGroups; only the rows differ. */
+.groups {
+	composes: groups from '../key-groups/KeyGroups.module.css';
+}
+.title {
+	composes: title from '../key-groups/KeyGroups.module.css';
+}
+.row {
+	display: grid;
+	grid-template-columns: var(--ob-ref-length-website-132) minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-16);
+	align-items: baseline;
+	padding: var(--ob-ref-length-website-11) 0;
+	border-top: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-command-row);
+}
+.row:last-child {
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+}
+.command {
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-command-name);
+}
+@media (max-width: 40rem) {
+	.row {
+		grid-template-columns: var(--ob-ref-length-website-104) minmax(0, 1fr);
+	}
+}

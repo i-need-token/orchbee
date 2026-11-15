@@ -1,0 +1,82 @@
+.figure {
+	overflow-x: auto;
+	padding: var(--ob-ref-length-website-44) var(--ob-ref-length-website-40)
+		var(--ob-ref-length-website-36);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-radius: var(--ob-ref-length-website-14);
+	background: var(--ob-sys-color-website-surface);
+}
+.line {
+	display: flex;
+	gap: var(--ob-ref-length-website-1-4ch);
+	width: max-content;
+	font: var(--ob-sys-typography-website-grammar);
+	font-variant-ligatures: none;
+	white-space: nowrap;
+}
+.program {
+	color: var(--ob-sys-color-website-fg3);
+}
+/* Each part is underlined, with its mark centered below the rule. */
+.part {
+	position: relative;
+	padding-bottom: var(--ob-ref-length-website-46);
+}
+.part::after {
+	content: '';
+	position: absolute;
+	right: 0;
+	bottom: var(--ob-ref-length-website-36);
+	left: 0;
+	height: var(--ob-ref-length-website-1);
+	background: var(--ob-sys-color-website-line-strong);
+}
+.part[data-hot]::after {
+	background: var(--ob-sys-color-website-fg);
+}
+.partMark {
+	position: absolute;
+	bottom: 0;
+	left: 50%;
+	margin-left: calc(-1 * var(--ob-ref-length-website-12));
+}
+.notes {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0 var(--ob-ref-length-website-32);
+	margin-top: var(--ob-ref-length-website-8);
+}
+.note {
+	display: grid;
+	grid-template-columns: var(--ob-ref-length-website-24) minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-14);
+	padding: var(--ob-ref-length-website-16) 0;
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-mark-note);
+}
+.note code {
+	font: var(--ob-sys-typography-website-highlight-code);
+}
+.noteTitle {
+	display: block;
+	margin-bottom: var(--ob-ref-length-website-2);
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-mark-note-title);
+}
+@media (max-width: 64rem) {
+	.notes {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+@media (max-width: 40rem) {
+	.figure {
+		padding: var(--ob-ref-length-website-28) var(--ob-ref-length-website-20)
+			var(--ob-ref-length-website-24);
+	}
+	.line {
+		flex-wrap: wrap;
+		gap: var(--ob-ref-length-website-14) var(--ob-ref-length-website-1-4ch);
+		width: auto;
+	}
+}

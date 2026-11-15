@@ -35,7 +35,7 @@ Both host names serve the same files; canonical links send search engines to `ht
 
 Each page is a component directory: `components/home-page/`, `terminal-page/`, `desktop-page/`, `cli-page/`, and `not-found-page/`. A page component only lists its sections in order. Home keeps its sections as private components under `home-page/components/`. Pieces more than one page uses sit directly under `components/`: `link-button`, `command-chip` with its `copy-button`, `kicker`, `section-head`, `client-index` (the large rows that lead to the client pages), `page-head` (the head of every page but home), `other-clients` (the closing section of a client page), `get-orchbee` (the release-aware call to action), `state-glyph` (the product's Agent status glyph, with the product's word for each state in `state-words.ts`), `state-legend`, `figure-caption` (the line under a drawn figure), `icon`, and `brand-mark`, plus the drawn product windows and their scenes (below). `PageHead` takes `children`, which follow the head in the same column.
 
-The client pages also share their detail sections: `page-stage` (the figure under a page head, with its caption and an optional aside), `detail-section` (a kicker, a title, an optional lead, and its content), `highlights` (feature cards, each with optional keys), `key-groups` (titled tables of labelled keys), and `key-caps` (keys written as text: a space separates caps and a lone `/` separates alternatives, so `Ctrl+b Shift+X` is two caps). Each takes its content as data; the page keeps that data, and its messages, in its own directory and domain.
+The client pages also share their detail sections: `page-stage` (the figure under a page head, with its caption and an optional aside), `detail-section` (a kicker, a title, an optional lead, and its content), `highlights` (feature cards, each with optional keys), `key-groups` (titled tables of labelled keys), `key-caps` (keys written as text: a space separates caps and a lone `/` separates alternatives, so `Ctrl+b Shift+X` is two caps), `command-groups` (titled tables of commands beside what each does, in the layout of `key-groups`), and `numbered-marks` (below). Each takes its content as data; the page keeps that data, and its messages, in its own directory and domain.
 
 The shared column is the `wrap` class of `PageShell.module.css`; a home section composes `section` and a client page section composes `detailSection` from it (`composes: section from '../page-shell/PageShell.module.css'`), which also gives the section's spacing at each width. Content that rises into view carries `data-reveal`.
 
@@ -52,7 +52,7 @@ The shared column is the `wrap` class of `PageShell.module.css`; a home section 
 
 An activation module is an `activate<Name>.ts` file beside its component that exports one function taking an `ActivationContext` (`src/website/activation.ts`). It finds its component by a data attribute and does nothing on a page without one. A control that only works with script renders `hidden` and is shown by its activation. Under reduced motion, or without JavaScript, every scene shows its final state. The package declares only its stylesheets as side effects, so the browser bundle keeps the activations and drops every component the entry does not run; no website module may do work when it is imported.
 
-Every list runs on every page, so the activation of a shared component, which several pages render, goes in the global list in `src/website/activations.ts` instead of a page's list, as `activateSessionScene` and `activatePanelPlay` do; it then binds once on whichever page renders the component.
+Every list runs on every page, so the activation of a shared component, which several pages render, goes in the global list in `src/website/activations.ts` instead of a page's list, as `activateSessionScene`, `activatePanelPlay` and `activateNumberedMarks` do; it then binds once on whichever page renders the component.
 
 ### Drawn product windows
 
@@ -89,6 +89,17 @@ A client page lets the visitor split, focus, resize, maximize and close Panels i
 - `panel-play/PanelPlay` is the section: kicker, title, lead, the action buttons, the hint line, and the window. `client` picks the buttons, the key caps and the key decoding from `panel-play-clients.ts`, which holds each client's default keys; `flip` puts the window first on wide screens. Its strings are the `panelPlay*` messages of `websiteShellMessages`, and each action's notice shows its key.
 - `activatePanelPlay` runs every PanelPlay on the page. Without script the window is a picture and the buttons and hint stay hidden. With script the window's host becomes a focusable `role='application'` region with a page-language label and a description of its keys: while it has focus, keys act on its Panels (the terminal interface's keys work with or without Ctrl+b first), Escape takes focus out of it, and Tab leaves as usual. Nothing in it moves by itself, so it works the same under reduced motion.
 - `panel-play-terminal-interface/PanelPlayTerminalInterface` is the terminal interface's window: a `TuiWindow` at `data-size='play'` with TuiPanel leaves. Another client adds its own window component in the same shape: a leaf component that follows the contract above, a `data-size` of its own if it needs another pixel size, and a focus ring under `[data-panel-host]:focus-visible`, as `TuiWindow.module.css` draws one.
+
+### Numbered marks
+
+A figure can number the parts of a drawing and explain each in a note beside it; a part and its note light up together. `numbered-marks/` holds the piece, and the page supplies the drawing, the notes, and their styles:
+
+- `MarkScope` wraps the drawing and the notes; numbers match only inside one scope, and it adds no box.
+- Inside it, an element with `data-mark='<number>'` is a part of the drawing; one with `data-mark-note` as well is the note that explains that number. Notes are ordinary text, such as items of an `<ol>`.
+- `NumberedMark` draws the numbered disc. It is hidden from assistive technology, since the notes carry the meaning. It takes no class name: to place a disc on a drawing, wrap it in an element of the figure's own styles.
+- `activateNumberedMarks` (in the global activation list) gives every element of the same number `data-hot` while one of them is under the pointer or its note has keyboard focus; activation makes the notes focusable, so keyboard users get the same pairing. A disc fills while it, or an element around it, carries `data-hot`; style any other lit state, such as an underline, by `[data-hot]` in the figure's own module. Nothing changes by itself, so it is the same under reduced motion.
+
+The command line page's grammar figure (`cli-page/components/cli-grammar/`) is the example.
 
 ### Messages
 

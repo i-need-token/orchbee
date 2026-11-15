@@ -1,0 +1,101 @@
+.explorer {
+	display: grid;
+	grid-template-columns: minmax(0, var(--ob-ref-length-website-340)) minmax(0, 1fr);
+	overflow: hidden;
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-radius: var(--ob-ref-length-website-14);
+}
+.list {
+	border-right: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+}
+.command {
+	padding: var(--ob-ref-length-website-13) var(--ob-ref-length-website-18);
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-command-list);
+	overflow-wrap: anywhere;
+}
+:global(html[data-motion]) .command {
+	transition:
+		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+[role='tab'].command:not([data-current]):hover {
+	color: var(--ob-sys-color-website-fg2);
+}
+.command[data-current] {
+	background: var(--ob-sys-color-website-hover-faint);
+	color: var(--ob-sys-color-website-fg);
+}
+/* The explorer clips its corners, so focus rings draw inside their element. */
+.command:focus-visible,
+.body:focus-visible {
+	outline-offset: calc(-1 * var(--ob-ref-length-website-2));
+}
+.outputs {
+	display: flex;
+	flex-direction: column;
+	height: var(--ob-ref-length-website-420);
+	background: var(--ob-sys-color-website-console-background);
+}
+.output {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+}
+.bar {
+	display: flex;
+	flex: none;
+	justify-content: space-between;
+	align-items: center;
+	gap: var(--ob-ref-length-website-12);
+	height: var(--ob-ref-length-website-44);
+	padding: 0 var(--ob-ref-length-website-10) 0 var(--ob-ref-length-website-18);
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	color: var(--ob-sys-color-website-fg3);
+}
+.barCommand {
+	overflow: hidden;
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-command-bar);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.body {
+	flex: 1;
+	margin: 0;
+	padding: var(--ob-ref-length-website-16) var(--ob-ref-length-website-18);
+	overflow: auto;
+	color: var(--ob-sys-color-website-console-foreground);
+	font: var(--ob-sys-typography-website-command-output);
+	font-variant-ligatures: none;
+	white-space: pre;
+}
+.body [data-tone='elided'] {
+	color: var(--ob-sys-color-website-console-dim);
+}
+.body [data-tone='key'] {
+	color: var(--ob-sys-color-website-console-key);
+}
+.note {
+	margin-top: var(--ob-ref-length-website-12);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-caption);
+}
+/* On narrow screens the commands become one row that scrolls sideways above the output. */
+@media (max-width: 64rem) {
+	.explorer {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.list {
+		display: flex;
+		overflow-x: auto;
+		border-right: none;
+	}
+	.command {
+		flex: none;
+		border-right: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+		white-space: nowrap;
+	}
+}
