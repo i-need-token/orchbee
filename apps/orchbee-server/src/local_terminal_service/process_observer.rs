@@ -1,4 +1,4 @@
-//! Windows Session-owned periodic process observations with one retained viewer cleanup responsibility.
+//! Session-owned periodic process observations with one retained viewer cleanup responsibility.
 use super::{LocalTerminalService, viewer_connection::PendingCleanup};
 use crate::agent_screen::{ScreenDetector, updating};
 use crate::session_coordinator::ProcessObservationTarget;
@@ -26,7 +26,6 @@ mod agent_resume;
 mod close;
 mod directory;
 mod explanation;
-mod host_sampling;
 mod manifests;
 mod on_demand;
 #[derive(Default)]
@@ -208,21 +207,14 @@ impl LocalTerminalService {
     /// Starts the sole periodic sampler; a stopped or already running owner cannot restart.
     /// `configuration` is the Server's single startup read. Revision zero, diagnostics, every
     /// live profile and the frozen reload location all come from it; after that the sampler
-    /// observes the file.
-    /// Starts the observer where Hosts sample processes. Elsewhere it installs the startup read as
-    /// the Session's configuration and refuses with `Unsupported`; the Session then runs without
-    /// an observer, and nothing observes the file.
+    /// observes the file. Every platform's Host samples the processes of its terminals, so the
+    /// observer runs wherever a Session does.
     pub(crate) fn start_process_observer(
         self: &Arc<Self>,
         configuration: impl FnOnce() -> io::Result<orchbee_local_runtime::UserSettingsLoad>,
         background: bool,
     ) -> io::Result<()> {
-        let configuration = configuration()?;
-        if let Err(unsupported) = host_sampling::require() {
-            self.install_configuration(&configuration)?;
-            return Err(unsupported);
-        }
-        self.start_process_observer_with_configuration(configuration, background)
+        self.start_process_observer_with_configuration(configuration()?, background)
     }
     pub(crate) fn start_process_observer_with_configuration(
         self: &Arc<Self>,

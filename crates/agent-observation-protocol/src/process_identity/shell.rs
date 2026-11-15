@@ -1,12 +1,13 @@
 //! Interactive shell recognition for the root of a terminal's process sample. Owners that decide
 //! whether a terminal runs anything beyond its shell read the root through this one rule.
-use super::native_agent_basename;
+use super::{POSIX_SHELLS, names_posix_shell, native_agent_basename};
 
 /// How a terminal's root process reads as an interactive shell.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ShellRoot {
     /// `cmd`, `powershell` or `pwsh` started with only interactive switches or the Worker's fixed
-    /// initialization. Arbitrary command bodies and noninteractive launches do not qualify.
+    /// initialization, or `sh`, `bash`, `zsh` or `fish` started with only interactive or login
+    /// options. Arbitrary command bodies, scripts and noninteractive launches do not qualify.
     Interactive,
     /// Another program, or a shell started to run something.
     Other,
@@ -14,21 +15,40 @@ pub enum ShellRoot {
     Unreadable,
 }
 
-/// Classifies a root from its actual image and its decoded arguments. `initialization` is the
-/// Worker's fixed PowerShell initialization, which finishes before the interactive prompt.
+/// The shells a platform's Terminal Host starts as a terminal's interactive root. Each platform
+/// reads only its own family, so a POSIX shell rooting a Windows terminal stays another program.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InteractiveShells<'a> {
+    /// `cmd`, `powershell` and `pwsh`. `initialization` is the Worker's fixed PowerShell
+    /// initialization, which finishes before the interactive prompt.
+    Windows { initialization: &'a str },
+    /// `sh`, `bash`, `zsh` and `fish`.
+    Posix,
+}
+
+/// Classifies a root from its actual image and its decoded arguments, reading only the shells of
+/// the given family as interactive.
 #[must_use]
 pub fn classify_shell_root(
     image: Option<&str>,
     argv: Option<&[String]>,
-    initialization: &str,
+    shells: InteractiveShells<'_>,
 ) -> ShellRoot {
     let Some(image) = image else {
         return ShellRoot::Unreadable;
     };
     let shell = native_agent_basename(image);
-    if !matches!(shell.as_str(), "cmd" | "powershell" | "pwsh") {
-        return ShellRoot::Other;
-    }
+    let initialization = match shells {
+        InteractiveShells::Posix if POSIX_SHELLS.contains(&shell.as_str()) => {
+            return posix_shell_root(argv);
+        }
+        InteractiveShells::Windows { initialization }
+            if matches!(shell.as_str(), "cmd" | "powershell" | "pwsh") =>
+        {
+            initialization
+        }
+        InteractiveShells::Posix | InteractiveShells::Windows { .. } => return ShellRoot::Other,
+    };
     let Some(args) = argv else {
         return ShellRoot::Unreadable;
     };
@@ -64,6 +84,32 @@ pub fn classify_shell_root(
             matches!(arg.as_str(), "-nologo" | "-noprofile" | "-noexit")
         }
     });
+    if interactive {
+        ShellRoot::Interactive
+    } else {
+        ShellRoot::Other
+    }
+}
+
+/// The options that keep a POSIX shell interactive, as the Host's own interactive launch rule
+/// (`interactive_shell.zig`) and the Server's launch capture admit them.
+const POSIX_INTERACTIVE_OPTIONS: [&str; 7] =
+    ["-i", "-l", "-il", "-li", "--login", "--noprofile", "--norc"];
+
+/// A POSIX shell root is interactive when it carries only those options. Its argv[0] may name any
+/// POSIX shell: macOS's `sh` re-executes as `bash` or `zsh` with its arguments unchanged, and a
+/// login shell's argv[0] starts with `-`.
+fn posix_shell_root(argv: Option<&[String]>) -> ShellRoot {
+    let Some(args) = argv else {
+        return ShellRoot::Unreadable;
+    };
+    let Some((first, options)) = args.split_first() else {
+        return ShellRoot::Other;
+    };
+    let interactive = names_posix_shell(&native_agent_basename(first))
+        && options
+            .iter()
+            .all(|option| POSIX_INTERACTIVE_OPTIONS.contains(&option.as_str()));
     if interactive {
         ShellRoot::Interactive
     } else {

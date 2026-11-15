@@ -105,8 +105,9 @@ normalization, process recognition and full-u64 serialization boundaries.
 ## Native process input rules
 
 The protocol crate owns the provider registry, the per-process classifier, the candidate selector,
-and the identity result vocabulary. They perform no I/O: they collect no processes, parse no Windows
+and the identity result vocabulary. They perform no I/O: they collect no processes, split no
 command-line text, grant no foreground or control authority, and create no canonical Agent Sessions.
+The Server splits each Host's command line by that Host's own convention before it reaches them.
 The registry is the single provider vocabulary for process recognition; later writers and samplers
 reuse it rather than keeping their own tables.
 
@@ -122,14 +123,23 @@ reuse it rather than keeping their own tables.
   provider, so Cursor (`agent`) and Snow are never looked up. Command Code's `cmd` command is never
   an alias. Desktop and IDE application names that share a report label (`cursor`, `kiro`, `qoder`,
   `antigravity`) are not process aliases. Entries also list package entries, bundled runtimes, and
-  allowed Python modules. Version ranges enter an entry only after a real corpus verifies them;
-  until then every entry is best effort.
+  allowed Python modules. Claude's entry also lists the native installer's version root,
+  `.local/share/claude/versions`, where each release is an image named only by its version, such
+  as `2.0.14`; such an image there is Claude's native image. Version ranges enter an entry only
+  after a real corpus verifies them; until then every entry is best effort.
 - Classifier: `classify_agent_process` takes the actual image and decoded arguments and returns
   `AgentProcessRecognition`: not an Agent, interactive or noninteractive with an
   `AgentInstallShape`, unresolved with a reason, or a remote client. Names in arbitrary arguments
   never identify a provider, and a forged runtime argv[0] cannot replace the image. `cmd /c`,
-  PowerShell `-Command` and `-File`, `.cmd`, `.bat`, and `.ps1` resolve only to the plain command
-  they launch; shell syntax never resolves.
+  PowerShell `-Command` and `-File`, `.cmd`, `.bat`, `.ps1`, and a script run by `sh`, `bash`, `zsh`
+  or `fish` resolve only to the plain command they launch; shell syntax never resolves. An image
+  without a Windows suffix may be reached through a link that keeps the name it was started by, so
+  there any name of the same family names a Python (`python3` running `python3.12` or macOS's
+  framework `Python`) or a POSIX shell (`sh` re-executed as `bash`, a login `-zsh`); another
+  program's name still forges. A `node` or `bun` image without a Windows suffix whose only argument
+  is an alias has written its process title over its arguments: it names that provider with an
+  unreadable command line, so the run shows without a proven mode. Windows images keep the exact
+  argv[0] rule.
 - Provider arguments: `interactive_agent_arguments` returns the provider and the arguments after
   its program exactly as the classifier read them, and only when it finds the process interactive.
   A reader of a provider's own command line, such as the Server's conversation id source, uses it,
@@ -150,9 +160,9 @@ reuse it rather than keeping their own tables.
 - Runtime entries: the runtime skips its own listed options before the script, including the
   value-less `--expose-gc` that Qwen's `cli-entry.js` passes when it re-executes `cli.js`. Both Qwen
   files are package entries, so the outer `cli-entry.js` run anchors a Qwen sample.
-- `AGENT_PROVIDER_REGISTRY_VERSION` is 7. It changes whenever an entry's recognition meaning
-  changes: a provider, alias, install root, package entry or grammar option joining or leaving the
-  registry.
+- `AGENT_PROVIDER_REGISTRY_VERSION` is 8. It changes whenever an entry's recognition meaning
+  changes: a provider, alias, install root, version root, package entry or grammar option joining or
+  leaving the registry.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,
   `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one
   `AgentIdentityUnsupportedReason`. The Server owns the state that produces it. Its wire form is
@@ -161,9 +171,13 @@ reuse it rather than keeping their own tables.
   `AgentProcessAnchor` is the PID and provider of the run the Server attributes to the Terminal,
   the run Panel reports show; its wire form is `{pid, providerId}`.
 - Shells: `classify_shell_root` reads a Terminal's root process from its actual image and decoded
-  arguments as `ShellRoot`: an interactive `cmd`, `powershell` or `pwsh` started with only
-  interactive switches or the Worker's fixed PowerShell initialization (which the caller passes in),
-  another program, or unreadable. `is_console_host` names the console host a Windows Terminal's
+  arguments as `ShellRoot`, among the `InteractiveShells` family of the caller's platform:
+  interactive, another program, or unreadable. The Windows family is `cmd`, `powershell` or `pwsh`
+  started with only interactive switches or the Worker's fixed PowerShell initialization (which the
+  caller passes in). The POSIX family is `sh`, `bash`, `zsh` or `fish` started with only the
+  options the Host's own interactive launch admits (`-i`, `-l`, `-il`, `-li`, `--login`,
+  `--noprofile`, `--norc`), whose argv[0] may name any shell of the family or start with `-`. A shell
+  of the other family is another program. `is_console_host` names the console host a Windows Terminal's
   process tree carries beside its shell. The Server's idle close and the native Agent start read a
   root through this one rule and keep their own verdicts over the rest of the sample.
 

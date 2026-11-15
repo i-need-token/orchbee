@@ -1,7 +1,8 @@
 //! Encodes and validates bounded attachment-scoped process samples as compact positional rows,
 //! preserving opaque rows, console attachment, unavailable process facts, the Host's own launch
-//! kind when asked, and UTF-16 text limits. It does not query the operating system or turn
-//! sampled process identity into control authority.
+//! kind when asked, and UTF-16 text limits, and splits a POSIX Host's quoted command line back into
+//! its arguments. It does not query the operating system or turn sampled process identity into
+//! control authority.
 
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +11,9 @@ use crate::{
     control::{SafeInteger, decode_wire, preflight_json, serialize_wire},
     terminal_fact::canonical_u64,
 };
+
+mod posix_command_line;
+pub use posix_command_line::split_posix_command_line;
 
 pub const READ_PROCESS_INFO_KIND: u16 = 79;
 pub const MAXIMUM_PROCESS_SAMPLE_ROWS: usize = 256;

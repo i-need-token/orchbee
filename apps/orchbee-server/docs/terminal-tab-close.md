@@ -208,14 +208,14 @@ A member closes unasked when its inventory shows it Exited or Failed, or its own
 nothing beyond an idle shell. Two facts decide. The shell's report comes from the frame: the
 reader's correlated markers, else the OSC 133 prompt marks on a complete frame's rows; a
 full-screen view or a delta frame reports nothing. The process sample proves a shell only when its
-root is an interactive shell by the rule `orchbee-agent-observation-protocol` shares with Agent
-start and no other member except a console host holds the console. A command reported running or a
+root is an interactive shell of its platform's family by the rule `orchbee-agent-observation-protocol`
+shares with Agent start (`cmd`, PowerShell and `pwsh` on Windows; `sh`, `bash`, `zsh` and `fish`
+elsewhere) and no other member except a console host holds the console. A command reported running or a
 program holding the console asks. A shell at its prompt closes even when its sample is refused,
 unavailable or late; a silent shell is judged by its sample alone. A fact the budget leaves unread
 counts as silence or as unknown, so at expiry an unread terminal closes only on its shell's prompt
 report. A busy or stopped sampler, a refused observation attach, an uncertain viewer cleanup, or a
-missing or failed inventory page asks. Only Windows Hosts sample processes, so elsewhere every live
-terminal asks. A program the sample cannot see and the shell does not report still closes unasked,
+missing or failed inventory page asks. A program the sample cannot see and the shell does not report still closes unasked,
 such as a cmdlet under the system ConHost whose output scrolled its own prompt off the screen. An
 Orchbee `cmd` marks its prompt but never its commands, so `pause` or `set /p` leaves the cursor
 below the marked prompt and asks.
@@ -766,8 +766,7 @@ publication; native Clients remove the member through their existing peer-Close 
 signal and unknown exits, runtime failures, explicit or default commands and scripts, child
 Presentations and shared Panels keep [terminal settlement](../../orchbee/docs/native-panel-lifecycle.md#terminal-settlement).
 A refused admission changes nothing; the settled Panel remains until a later exit observation is
-admitted or a user closes it. Only Windows runs Server sampling viewers, so elsewhere an exit that
-no viewer observed is evaluated when a later viewer attaches. No command, wire field, setting or
+admitted or a user closes it. No command, wire field, setting or
 receipt is added. Session coordinator tests cover eligibility, including custom default programs,
 stale incarnations, single admission and leaf versus Tab scope; real-window review covers exit 0, nonzero exit, splits and the
 last Tab.

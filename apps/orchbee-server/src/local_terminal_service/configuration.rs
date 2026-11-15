@@ -699,8 +699,9 @@ impl super::LocalTerminalService {
             .map_or_else(String::new, |state| state.current.window_title.clone()))
     }
 
-    /// Installs the startup configuration where no process observer runs: the Session serves and
-    /// edits its settings.
+    /// Installs the startup configuration without a process observer, so a test can serve and
+    /// edit settings.
+    #[cfg(test)]
     pub(crate) fn install_configuration(
         &self,
         configuration: &UserSettingsLoad,

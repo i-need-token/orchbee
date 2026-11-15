@@ -6,7 +6,7 @@ use super::mode::{AgentModeGrammar, grammar};
 use crate::AgentReportProvider;
 
 /// Registry data version; it changes whenever an entry's recognition meaning changes.
-pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 7;
+pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 8;
 
 /// How much a bare process name proves about its provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -62,6 +62,9 @@ pub struct AgentProviderEntry {
     pub aliases: &'static [AgentAlias],
     /// Install roots that prove shared and generic aliases.
     pub install_roots: &'static [AgentInstallRoot],
+    /// Directories where a native installer keeps each release as an image named only by its
+    /// version, such as `2.0.14`; such an image inside one is this provider's native image.
+    pub version_roots: &'static [AgentInstallRoot],
     /// Script path suffixes, at a path-segment boundary, of package entries.
     pub package_entries: &'static [&'static str],
     pub bundled_runtimes: &'static [AgentBundledRuntime],
@@ -110,6 +113,7 @@ const fn entry(
         provider,
         aliases,
         install_roots: &[],
+        version_roots: &[],
         package_entries,
         bundled_runtimes: &[],
         python_modules: NONE,
@@ -139,12 +143,15 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 36] = {
                 &grammar::PI,
             )
         },
-        entry(
-            P::Claude,
-            &[unique("claude")],
-            &["node_modules/@anthropic-ai/claude-code/cli.js"],
-            &grammar::CLAUDE,
-        ),
+        AgentProviderEntry {
+            version_roots: &[AgentInstallRoot(&[".local", "share", "claude", "versions"])],
+            ..entry(
+                P::Claude,
+                &[unique("claude")],
+                &["node_modules/@anthropic-ai/claude-code/cli.js"],
+                &grammar::CLAUDE,
+            )
+        },
         entry(
             P::Codex,
             &[unique("codex")],

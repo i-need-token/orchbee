@@ -49,12 +49,10 @@ fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
     !cfg!(windows)
         && matches!(
             request,
-            WorkbenchRequest::PanelAgent(_)
-                | WorkbenchRequest::ConfiguredCommand(_)
+            WorkbenchRequest::ConfiguredCommand(_)
                 | WorkbenchRequest::PaneGraphics(_)
                 | WorkbenchRequest::AgentView(_)
                 | WorkbenchRequest::WorkspaceMetadata(_)
-                | WorkbenchRequest::PanelMetadata(_)
                 | WorkbenchRequest::Notification(_)
         )
 }

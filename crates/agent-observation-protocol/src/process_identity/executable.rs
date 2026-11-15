@@ -5,7 +5,7 @@ use super::native_agent_basename as basename;
 use super::registry::{
     AGENT_PROVIDER_REGISTRY, AgentAliasClass, AgentInstallShape, ends_with_entry,
 };
-use super::{AgentIdentityUnknownReason, AgentInvocationMode};
+use super::{AgentIdentityUnknownReason, AgentInvocationMode, POSIX_SHELLS, names_posix_shell};
 use crate::AgentReportProvider;
 use std::borrow::Cow;
 
@@ -138,6 +138,13 @@ fn resolve<'a>(image: Option<&str>, argv: Option<&'a [String]>) -> Resolved<'a> 
         Name::Unproven(provider) => return Resolved::Done(unproven(provider)),
         Name::Absent => {}
     }
+    if let Some(provider) = versioned_image(image) {
+        return Resolved::provider(
+            provider,
+            AgentInstallShape::NativeImage,
+            argv.map(|argv| Cow::Borrowed(argv.get(1..).unwrap_or_default())),
+        );
+    }
     let stem = basename(image);
     let Some(host) = Host::of(&stem) else {
         return Resolved::Done(R::NotAgent);
@@ -152,8 +159,14 @@ fn resolve<'a>(image: Option<&str>, argv: Option<&'a [String]>) -> Resolved<'a> 
             _ => R::NotAgent,
         });
     };
+    if let Some(retitled) = retitled_runtime(host, image, &stem, argv) {
+        return retitled;
+    }
     // A forged argv[0] must not change the actual executable's identity.
-    if argv.first().is_none_or(|first| basename(first) != stem) {
+    if argv
+        .first()
+        .is_none_or(|first| !names_image(first, image, &stem, host))
+    {
         return Resolved::Done(R::NotAgent);
     }
     match host {
@@ -180,7 +193,7 @@ impl Host {
         Some(match stem {
             "node" => Self::Node,
             "bun" => Self::Bun,
-            "sh" | "bash" | "zsh" | "fish" => Self::PosixShell,
+            shell if POSIX_SHELLS.contains(&shell) => Self::PosixShell,
             "pwsh" | "powershell" => Self::PowerShell,
             "cmd" => Self::Cmd,
             "ssh" | "mosh" | "wsl" => Self::Remote(true),
@@ -195,6 +208,71 @@ impl Host {
             _ => return None,
         })
     }
+}
+
+/// Whether argv[0] names the actual image's program. On POSIX, a Python or a shell reached through
+/// a link keeps the name it was started by, so any member of its own family names it: `python3`
+/// runs `python3.12` or macOS's framework `Python`, macOS's `sh` re-executes as `bash` or `zsh`
+/// with its arguments unchanged, and a login shell's argv[0] starts with `-`. No other program's
+/// name names it, so a forged argv[0] still cannot change which runtime reads the arguments. An
+/// image with a Windows suffix keeps the exact rule.
+fn names_image(first: &str, image: &str, stem: &str, host: Host) -> bool {
+    let name = basename(first);
+    name == stem
+        || (basename_with_suffix(image) == stem
+            && match host {
+                Host::Python => Host::of(&name) == Some(Host::Python),
+                Host::PosixShell => names_posix_shell(&name),
+                Host::Node | Host::Bun | Host::PowerShell | Host::Cmd | Host::Remote(_) => false,
+            })
+}
+
+/// A JavaScript runtime that sets its process title on POSIX writes the title over its whole
+/// argument area, so its command line becomes that one word and the script and its arguments are
+/// gone. A title that is an alias names the provider as a script of that name would, with
+/// unreadable arguments, so it shows the run without proving its mode. Two or more arguments, or
+/// the runtime's own name, are not a title. Windows keeps a command line apart from the arguments
+/// a program holds, so an image with a Windows suffix such as `node.exe` never retitles and its
+/// argv[0] stays a forgery.
+fn retitled_runtime(
+    host: Host,
+    image: &str,
+    stem: &str,
+    argv: &[String],
+) -> Option<Resolved<'static>> {
+    let [title] = argv else {
+        return None;
+    };
+    if !matches!(host, Host::Node | Host::Bun)
+        || basename_with_suffix(image) != stem
+        || basename(title) == stem
+    {
+        return None;
+    }
+    Some(match resolve_name(title) {
+        Name::Provider(provider) => {
+            Resolved::provider(provider, AgentInstallShape::PackageEntry, None)
+        }
+        Name::Unproven(provider) => Resolved::Done(unproven(provider)),
+        Name::Absent => Resolved::Done(AgentProcessRecognition::NotAgent),
+    })
+}
+
+/// The provider whose native installer keeps each release as a file named by its version, when
+/// the image is such a file inside one of its version roots.
+fn versioned_image(image: &str) -> Option<AgentReportProvider> {
+    let name = basename_with_suffix(image);
+    let versioned = name.starts_with(|c: char| c.is_ascii_digit())
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'));
+    if !versioned {
+        return None;
+    }
+    AGENT_PROVIDER_REGISTRY
+        .iter()
+        .find(|entry| entry.version_roots.iter().any(|root| root.contains(image)))
+        .map(|entry| entry.provider)
 }
 
 /// SSH, mosh, and WSL are remote clients outright; container tools only for exec, run, and attach.

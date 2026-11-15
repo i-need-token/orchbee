@@ -3,7 +3,7 @@ use orchbee_terminal_protocol::{
     MessageRole, PayloadEncoding, ProcessInfoControl, ReadProcessInfo, TerminalId,
     TerminalLaunchKind, TerminalProcess, TerminalProcessConsole, TerminalProcessInfo,
     decode_process_info_control, decode_transport_envelope, encode_process_info_control,
-    encode_transport_envelope,
+    encode_transport_envelope, split_posix_command_line,
 };
 
 fn sample() -> TerminalProcessInfo {
@@ -210,4 +210,86 @@ fn row_membership_and_text_bounds_are_enforced_on_both_sides() {
         })
         .collect();
     assert!(encode_process_info_control(&ProcessInfoControl::ProcessInfo(too_large)).is_err());
+}
+
+/// The POSIX Host's quoting (`process_query_posix.zig`), which is Python's `shlex.quote`.
+fn host_quoted(arguments: &[&str]) -> String {
+    arguments
+        .iter()
+        .map(|argument| {
+            let safe = !argument.is_empty()
+                && argument
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "_@%+=:,./-".contains(c));
+            if safe {
+                (*argument).to_owned()
+            } else {
+                format!("'{}'", argument.replace('\'', "'\"'\"'"))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+#[test]
+fn a_posix_command_line_splits_back_into_the_arguments_the_host_quoted() {
+    for arguments in [
+        &["/bin/zsh"][..],
+        &["/bin/zsh", "-l"],
+        &["-zsh"],
+        &["node", "/opt/homebrew/bin/gemini", "--model", "gemini 2.5"],
+        &["claude", ""],
+        &["claude", "", "-p"],
+        &["sh", "-c", r#"it's "quoted" $HOME `date` \ ; | & > *"#],
+        &[
+            "python3",
+            "/Users/u/Library/Application Support/x.py",
+            "中文 😀",
+        ],
+        &["printf", "line one\nline two\ttab"],
+        &["'", "''", "\"", "a'b'c"],
+        &["--flag=a b", "@x", "%y", "+z", "a,b", "k:v"],
+    ] {
+        assert_eq!(
+            split_posix_command_line(&host_quoted(arguments)).as_deref(),
+            Some(
+                &arguments
+                    .iter()
+                    .map(|a| (*a).to_owned())
+                    .collect::<Vec<_>>()[..]
+            ),
+            "{arguments:?}"
+        );
+    }
+}
+
+#[test]
+fn text_the_host_quoting_cannot_produce_is_unreadable() {
+    for line in [
+        "",
+        " ",
+        " zsh",
+        "zsh ",
+        "zsh  -l",
+        "zsh\t-l",
+        "'unclosed",
+        "\"unclosed",
+        "\"$HOME\"",
+        r#""a\b""#,
+        "\"`date`\"",
+        r"a\ b",
+        "$HOME",
+        "a;b",
+        "a|b",
+        "~/x",
+        "*",
+        "中文",
+    ] {
+        assert_eq!(split_posix_command_line(line), None, "{line:?}");
+    }
+    // Plain double quotes are literal in a POSIX shell, so they split as one would.
+    assert_eq!(
+        split_posix_command_line("say \"hello world\"x"),
+        Some(vec!["say".to_owned(), "hello worldx".to_owned()])
+    );
 }

@@ -127,7 +127,7 @@ pub use process_info::{
     EncodedProcessInfoControl, MAXIMUM_PROCESS_SAMPLE_ROWS, MAXIMUM_PROCESS_TEXT_UTF16_UNITS,
     ProcessInfoControl, READ_PROCESS_INFO_KIND, ReadProcessInfo, TerminalLaunchKind,
     TerminalProcess, TerminalProcessConsole, TerminalProcessInfo, decode_process_info_control,
-    encode_process_info_control,
+    encode_process_info_control, split_posix_command_line,
 };
 pub use projection_buffer::{
     TerminalProjectionBuffer, TerminalProjectionCell, TerminalProjectionRow,

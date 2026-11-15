@@ -166,7 +166,6 @@ pub(super) fn close_facts(
         publish(facts);
     }
 }
-#[cfg(windows)]
 pub(super) fn directory(
     viewer: &mut ViewerAttachment<'_>,
     template: WorkerRequest,

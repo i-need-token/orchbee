@@ -7,8 +7,8 @@
 //! or late sample is an unknown fact, not a running program. A shell that reports nothing is judged
 //! by its sample alone and asks when that cannot answer. An Orchbee `cmd` marks only its prompt,
 //! so a cursor below that prompt reads as running.
-use crate::session_coordinator::decoded_argv;
-use orchbee_agent_observation_protocol::{ShellRoot, classify_shell_root, is_console_host};
+use crate::session_coordinator::root_shell;
+use orchbee_agent_observation_protocol::{ShellRoot, is_console_host};
 use orchbee_terminal_protocol::{
     MAXIMUM_PROCESS_SAMPLE_ROWS, TerminalProcessConsole, TerminalProcessInfo, TerminalTextFrame,
     TerminalTextRow,
@@ -101,11 +101,7 @@ impl CloseSample {
             .iter()
             .find(|row| row.pid == sample.root_pid)
             .map_or(ShellRoot::Unreadable, |root| {
-                classify_shell_root(
-                    root.image.as_deref(),
-                    decoded_argv(root.command_line.as_deref()).as_deref(),
-                    &orchbee_local_runtime::windows_interactive_powershell_initialization(),
-                )
+                root_shell(root.image.as_deref(), root.command_line.as_deref())
             });
         match shell {
             ShellRoot::Interactive => {}

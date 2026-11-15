@@ -232,10 +232,8 @@ fn start(
     )
 }
 
-/// Starts the jobs a POSIX Session runs, then its Client listener. Hosts here cannot sample
-/// processes: the observer refuses after installing the startup read as the Session's
-/// configuration. A file that cannot be read starts the Session with the defaults, published as
-/// unreadable.
+/// Starts the jobs a POSIX Session runs, then its Client listener. A file that cannot be read
+/// starts the Session with the defaults, published as unreadable.
 #[cfg(unix)]
 fn start(
     owners: &mut Owners,
@@ -245,16 +243,13 @@ fn start(
     owners.terminals.start_close_maintenance()?;
     owners.terminals.start_title_reads()?;
     owners.terminals.start_agent_catalog()?;
-    match owners.terminals.start_process_observer(
+    owners.terminals.start_process_observer(
         || {
             orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name))
                 .map_err(io::Error::other)
         },
         true,
-    ) {
-        Err(error) if error.kind() == io::ErrorKind::Unsupported => {}
-        started => started?,
-    }
+    )?;
     local_client_service::start_managed(
         (
             owners.session.client_socket_path(),

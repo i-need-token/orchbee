@@ -248,7 +248,7 @@ Rule, region, bounds, priority and malformed-manifest tests exercise the engine 
 
 ## Installed manifest maintenance
 
-The Windows process observer owns the installed detector and a Session-lifetime revision starting at 1.
+The process observer owns the installed detector and a Session-lifetime revision starting at 1.
 `workbench.agent-manifests` (OBWP 37/38) reads this snapshot, submits a reload identified by an
 operation ID, or reads that retained operation. Queries never reread files. Reload reads the same
 configuration parent resolved at startup. It runs between observer turns; sampling and Explain

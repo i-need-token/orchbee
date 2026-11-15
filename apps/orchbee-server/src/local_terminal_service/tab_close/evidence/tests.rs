@@ -237,3 +237,56 @@ fn a_sample_counts_only_what_holds_the_console() {
     root.root_pid = 9;
     assert_eq!(CloseSample::of(&root), CloseSample::Unknown);
 }
+
+/// A POSIX Host's terminal closes without asking when its shell is alone; anything else holding
+/// the terminal, or a shell started to run something, asks.
+#[cfg(not(windows))]
+#[test]
+fn a_posix_sample_counts_only_an_interactive_shell_alone() {
+    use orchbee_terminal_protocol::{
+        TerminalProcess, TerminalProcessConsole as Console, TerminalProcessInfo,
+    };
+    let row = |pid, parent_pid, image: &str, command: Option<&str>, console| TerminalProcess {
+        pid,
+        parent_pid,
+        creation_time: 1,
+        console,
+        image: Some(image.into()),
+        command_line: command.map(Into::into),
+        current_directory: None,
+    };
+    let sample = |root: Option<&str>, rows: Vec<TerminalProcess>| TerminalProcessInfo {
+        attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap(),
+        terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),
+        root_pid: 1,
+        processes: std::iter::once(row(1, None, "/bin/zsh", root, Console::Attached))
+            .chain(rows)
+            .collect(),
+        launch_kind: None,
+    };
+    for root in ["-zsh", "/bin/zsh -l", "zsh -i"] {
+        assert_eq!(
+            CloseSample::of(&sample(Some(root), vec![])),
+            CloseSample::ShellOnly,
+            "{root}"
+        );
+    }
+    let vim = row(2, Some(1), "/usr/bin/vim", Some("vim"), Console::Attached);
+    assert_eq!(
+        CloseSample::of(&sample(Some("-zsh"), vec![vim])),
+        CloseSample::Program
+    );
+    let daemon = row(2, Some(1), "/usr/bin/caffeinate", None, Console::None);
+    assert_eq!(
+        CloseSample::of(&sample(Some("-zsh"), vec![daemon])),
+        CloseSample::ShellOnly
+    );
+    for root in [Some("zsh -c 'make test'"), Some("zsh build.sh")] {
+        assert_eq!(
+            CloseSample::of(&sample(root, vec![])),
+            CloseSample::Program,
+            "{root:?}"
+        );
+    }
+    assert_eq!(CloseSample::of(&sample(None, vec![])), CloseSample::Unknown);
+}

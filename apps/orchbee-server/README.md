@@ -358,17 +358,21 @@ test entry retains the behavior below.
 Linux and macOS compile the same Workbench dispatch as Windows. A Windows-only capability runs
 until its platform adapter or an owner this startup never initializes refuses it with that
 owner's typed outcome: plugin stores and Worker plugin jobs answer `Unsupported`, and
-configuration-backed requests answer `Unavailable`. Startup asks the process observer to start,
-and it refuses with `Unsupported` before reading settings because these Hosts cannot sample
-processes, so Agent manifest requests answer `Unavailable`. Startup also configures Panel graphics
+configuration-backed requests answer `Unavailable`. Startup starts the process observer as on
+Windows: these Hosts sample each terminal's POSIX session, so Agent identity, screen states, close
+evidence, directory reads, installed Agent manifests and external settings edits work here too. A
+catalog download has no owned fetch process off Windows and fails as a process failure before any
+network effect. Startup also configures Panel graphics
 file frames, whose private frame directory refuses reservation with `Unsupported`. Agent names
-resolve through the same guarded path as on Windows; terminal name owners come only from Agent
-reports and process observation, so none exist here. Client view, semantic event and window title
+resolve through the same guarded path as on Windows; terminal name owners come from Agent reports
+and process observation. Client view, semantic event and window title
 requests are admitted as on Windows: their state lives in Server memory for the connection or its
-subscription, and nothing of it is saved. Terminal editor, Panel Agent, configured command, Panel
-graphics, Agent view, Workspace and Panel metadata and notification requests keep their earlier
-refusal at admission until their behavior off Windows is decided. Checkpoint and handoff remain
-Windows-only because only the Windows startup constructs their owners.
+subscription, and nothing of it is saved. Panel Agent and Panel metadata requests are admitted the
+same way, so the sidebar and Panel titles read the Agent states process observation and reports
+publish; without checkpoints nothing of them is saved. Configured command, Panel graphics, Agent
+view, Workspace metadata and notification requests keep their earlier refusal at admission until
+their behavior off Windows is decided. Checkpoint and handoff remain Windows-only because only the
+Windows startup constructs their owners.
 
 ## Local Worker service
 
@@ -1291,11 +1295,11 @@ a Presentation that Panel does not hold, answers `not-found`; an unbound Present
 Workspace without terminals, leaves the Workspace's own directory to answer. The Server finds that
 terminal among the current unfenced observation targets, then releases the Session lock before
 sampling. The
-Windows process observer samples that terminal on demand through the same temporary Viewer and
+process observer samples that terminal on demand through the same temporary Viewer and
 sole pending-cleanup owner as its periodic samples: a valid terminal-reported directory, otherwise
 the root process directory, never a child's. The answer drops a trailing separator except at a
-drive root. Without a sample, including any platform whose Host offers none, the Workspace's own
-directory answers, and a Workspace without one answers `unavailable`.
+drive root. Without a sample the Workspace's own directory answers, and a Workspace without one
+answers `unavailable`.
 
 The observer keeps one executing and one waiting read for this kind, apart from Agent explanation
 diagnostics, so neither waits behind the other's queue. A waiting read ends the current sampling
@@ -1322,11 +1326,10 @@ terminal creation, launch capture, scrollback, restore-output and Agent resume, 
 from the same last valid settings, so a committed change reaches only later creations.
 
 The configuration and settings snapshots take their revisions from one counter, and each keeps
-the revision of its own last change. A committed edit, or an external edit the sampler observes on
-Windows, publishes exactly one settings snapshot with a higher revision; a refused edit publishes
+the revision of its own last change. A committed edit, or an external edit the sampler observes,
+publishes exactly one settings snapshot with a higher revision; a refused edit publishes
 nothing. A file that stops parsing or cannot be read keeps the last valid settings: terminal
 creation is not blocked, the snapshot reports `syntax-error` with its line and column or
 `unreadable`, and an edit against it is refused without writing. Turning
 `terminal.restore_output` off removes kept output at once on Windows, whichever editor turned it
-off. On macOS and Linux startup installs the initial load and edits are served, but external edits
-are not yet sampled.
+off.

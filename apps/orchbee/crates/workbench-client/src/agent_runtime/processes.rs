@@ -278,6 +278,6 @@ fn arguments(command: &str) -> Option<Vec<String>> {
     }
     #[cfg(not(windows))]
     {
-        None
+        orchbee_terminal_protocol::split_posix_command_line(command)
     }
 }

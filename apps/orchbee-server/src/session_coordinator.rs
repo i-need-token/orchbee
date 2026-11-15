@@ -61,9 +61,11 @@ mod semantic_events;
 #[cfg(all(test, windows))]
 pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
 #[cfg(windows)]
+pub(crate) use process_observation::decoded_argv;
+#[cfg(windows)]
 pub(crate) use process_observation::names_provider;
 pub(crate) use process_observation::{
-    ProcessObservationTarget, decoded_argv, host_time_as_creation, identify as identify_host_agent,
+    ProcessObservationTarget, host_time_as_creation, identify as identify_host_agent, root_shell,
 };
 
 pub(crate) struct SessionCoordinator {

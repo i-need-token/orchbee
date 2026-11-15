@@ -85,6 +85,14 @@ line, and current directory. A row without an image is opaque; consumers treat i
 whose identity is known and whose program is not, never as absence. The binding validates shape
 and bounds only; console meaning and sampling belong to the Host.
 
+A Windows Host reports the process's own command line, which only the Windows parser splits. A
+POSIX Host reports the argument vector with each argument quoted as Python's `shlex.quote` quotes
+it, joined by one space; `split_posix_command_line` recovers those arguments. It splits words as a
+POSIX shell would, but admits only quoting that expands nothing: bare safe characters, single
+quotes, and double quotes free of `"`, `\`, `$` and `` ` ``. Any other text, including a leading,
+trailing or doubled space, decodes to `None`, so a reader treats it as unreadable rather than
+guessing.
+
 ## Read-only PNG decoding
 
 Kinds 80/81 use graphics-image encoding (5) with borrowed `GraphicsDecodeRequest` and `GraphicsDecodeResult` views. The OBPI request has a 40-byte header with attachment, declared dimensions and exact PNG length; the OBPX result has a 56-byte header with attachment, terminal, dimensions and exact RGBA length. The binding checks nonzero identities, PNG header agreement, 1–4096 dimensions, 16 MiB input and 32 MiB decoded pixels. PNG content decoding and physical read authorization belong to Host; Worker and Server check envelope correlation, epoch and target before consuming pixels. This encoding has its own bound and does not broaden raw keyboard or paste limits.

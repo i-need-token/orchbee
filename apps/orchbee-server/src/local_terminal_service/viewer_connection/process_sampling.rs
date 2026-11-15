@@ -117,8 +117,7 @@ impl LocalTerminalService {
         self.sample_current_directory(target, &AtomicBool::new(false))
     }
 
-    /// The directory `target`'s shell reported, else its root process's. Only Windows Hosts bound
-    /// a process sample, so other platforms read nothing.
+    /// The directory `target`'s shell reported, else its root process's.
     pub(in crate::local_terminal_service) fn sample_current_directory(
         &self,
         target: &ProcessObservationTarget,
@@ -127,19 +126,11 @@ impl LocalTerminalService {
         Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
         Option<PendingCleanup>,
     ) {
-        #[cfg(windows)]
-        {
-            let mut directory = None;
-            let pending = self.with_observation_viewer(target, stop, |viewer, template| {
-                directory = screen::directory(viewer, template, stop);
-            });
-            (directory, pending)
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = (target, stop);
-            (None, None)
-        }
+        let mut directory = None;
+        let pending = self.with_observation_viewer(target, stop, |viewer, template| {
+            directory = screen::directory(viewer, template, stop);
+        });
+        (directory, pending)
     }
 
     pub(in crate::local_terminal_service) fn with_observation_viewer(

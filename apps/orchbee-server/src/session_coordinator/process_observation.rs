@@ -3,7 +3,7 @@ use super::SessionCoordinator;
 use crate::agent_screen::{Detection, Stability};
 use crate::terminal_coordinator::BindingViewerTarget;
 use orchbee_agent_observation_protocol::{
-    AgentProcessRow, AgentReportProvider, AgentSampleVerdict, classify_agent_process,
+    AgentProcessRow, AgentReportProvider, AgentSampleVerdict, ShellRoot, classify_agent_process,
     evaluate_agent_sample,
 };
 use orchbee_server::{TerminalAgentBinding, TerminalAgentProcessObservation};
@@ -12,8 +12,10 @@ use orchbee_terminal_protocol::{
 };
 use orchbee_workbench_protocol::PresentationBinding;
 use std::{collections::BTreeMap, time::Instant};
-mod command_line;
+mod host_conventions;
 mod identity;
+#[cfg(all(test, not(windows)))]
+mod tests;
 #[cfg(all(test, windows))]
 pub(crate) use identity::SETTLE;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -55,11 +57,15 @@ pub(super) fn key(binding: &PresentationBinding) -> (String, String) {
     )
 }
 /// The arguments of one Host-reported command line, or `None` when it is blank, carries a NUL,
-/// exceeds the Host's bound, or cannot be split on this build.
+/// exceeds the Host's bound, or is not in this build's Host form.
 pub(crate) fn decoded_argv(command_line: Option<&str>) -> Option<Vec<String>> {
     command_line
         .filter(|s| !s.trim().is_empty() && !s.contains('\0') && s.encode_utf16().count() <= 4096)
-        .and_then(command_line::argv)
+        .and_then(host_conventions::argv)
+}
+/// How a sampled terminal root reads as one of the interactive shells this build's Host starts.
+pub(crate) fn root_shell(image: Option<&str>, command_line: Option<&str>) -> ShellRoot {
+    host_conventions::shell_root(image, decoded_argv(command_line).as_deref())
 }
 /// Decodes one complete Host sample into identity rows.
 fn rows(sample: &TerminalProcessInfo) -> Vec<AgentProcessRow> {

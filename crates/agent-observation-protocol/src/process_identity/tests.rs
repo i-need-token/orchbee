@@ -1194,6 +1194,207 @@ fn recognition_matrix_rows_and_counterexamples() {
     }
 }
 
+/// The launch shapes a POSIX Host reports name a provider as their Windows counterparts do:
+/// links keep the name a runtime was started by, a JavaScript runtime may retitle itself over its
+/// arguments, and a native installer may name its image by its version.
+#[test]
+fn posix_launch_shapes_name_providers_as_windows_shapes_do() {
+    const BREW_NODE: &str = "/opt/homebrew/Cellar/node/24.1.0/bin/node";
+    const NVM_NODE: &str = "/Users/u/.nvm/versions/node/v22.12.0/bin/node";
+    const CLAUDE_RELEASE: &str = "/Users/u/.local/share/claude/versions/2.0.14";
+    const PYTHON: &str = "/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python";
+    let unreadable = |provider| unresolved(Some(provider), U::CommandLineUnreadable);
+    let rows: [(&str, &str, Option<&[&str]>, AgentProcessRecognition); 22] = [
+        // A shebang run through a package manager's bin link: the link path is the script.
+        (
+            "node bin link",
+            BREW_NODE,
+            Some(&["node", "/opt/homebrew/bin/gemini", "-m", "flash"]),
+            interactive(P::Gemini, S::PackageEntry),
+        ),
+        (
+            "node package entry",
+            NVM_NODE,
+            Some(&[
+                "node",
+                "/Users/u/.nvm/versions/node/v22.12.0/lib/node_modules/@anthropic-ai/claude-code/cli.js",
+                "-p",
+                "hi",
+            ]),
+            noninteractive(P::Claude, S::PackageEntry),
+        ),
+        // A runtime that retitled itself shows the run without its arguments.
+        (
+            "retitled",
+            NVM_NODE,
+            Some(&["claude"]),
+            unreadable(P::Claude),
+        ),
+        (
+            "retitled",
+            "/opt/homebrew/bin/bun",
+            Some(&["codex"]),
+            unreadable(P::Codex),
+        ),
+        (
+            "retitled",
+            BREW_NODE,
+            Some(&["copilot"]),
+            unresolved(Some(P::Copilot), U::UnverifiedProvenance),
+        ),
+        ("retitled", BREW_NODE, Some(&["vite"]), NOT),
+        ("retitled", BREW_NODE, Some(&["node"]), NOT),
+        ("retitled", BREW_NODE, Some(&["claude", "x.js"]), NOT),
+        // Windows keeps the command line, so one forged word stays a forgery there.
+        ("windows forgery", "node.exe", Some(&["claude"]), NOT),
+        // Script wrappers, including macOS `sh` re-executed as `bash`.
+        (
+            "shell wrapper",
+            "/bin/bash",
+            Some(&["/bin/sh", "/usr/local/bin/opencode"]),
+            interactive(P::OpenCode, S::Shim),
+        ),
+        (
+            "shell wrapper",
+            "/bin/zsh",
+            Some(&["zsh", "/Users/u/bin/claude", "--model", "opus"]),
+            interactive(P::Claude, S::Shim),
+        ),
+        ("login shell", "/bin/zsh", Some(&["-zsh"]), NOT),
+        (
+            "shell command",
+            "/bin/bash",
+            Some(&["bash", "-c", "claude"]),
+            NOT,
+        ),
+        // Python started by a versioned or framework link name.
+        (
+            "python link",
+            "/opt/homebrew/Cellar/python@3.12/3.12.7/bin/python3.12",
+            Some(&["python3", "-m", "hermes_cli"]),
+            interactive(P::Hermes, S::PackageEntry),
+        ),
+        (
+            "python link",
+            PYTHON,
+            Some(&["/usr/local/bin/python3", "-u", "-m", "hermes_cli"]),
+            interactive(P::Hermes, S::PackageEntry),
+        ),
+        // Another runtime's name still forges argv[0], and Windows keeps the exact rule.
+        (
+            "runtime forgery",
+            "/usr/bin/python3",
+            Some(&["node", "-m", "hermes_cli"]),
+            NOT,
+        ),
+        (
+            "runtime forgery",
+            "/bin/bash",
+            Some(&["python3", "/usr/local/bin/claude"]),
+            NOT,
+        ),
+        (
+            "windows exact",
+            "python.exe",
+            Some(&["python3", "-m", "hermes_cli"]),
+            NOT,
+        ),
+        // A native installer's release named by its version, only inside its version root.
+        (
+            "versioned release",
+            CLAUDE_RELEASE,
+            Some(&["claude", "--continue"]),
+            interactive(P::Claude, S::NativeImage),
+        ),
+        (
+            "versioned release",
+            CLAUDE_RELEASE,
+            None,
+            unreadable(P::Claude),
+        ),
+        (
+            "versioned release",
+            "/Users/u/.local/share/other/versions/2.0.14",
+            Some(&["claude"]),
+            NOT,
+        ),
+        (
+            "versioned release",
+            "/Users/u/.local/share/claude/versions/helper",
+            Some(&["claude"]),
+            NOT,
+        ),
+    ];
+    for (row, image, argv, want) in rows {
+        let argv: Option<Vec<String>> =
+            argv.map(|argv| argv.iter().map(|&a| a.to_owned()).collect());
+        assert_eq!(
+            classify_agent_process(Some(image), argv.as_deref()),
+            want,
+            "{row}: {image} {argv:?}"
+        );
+    }
+}
+
+/// Each platform reads only its own shells as a terminal's interactive root.
+#[test]
+fn interactive_shell_roots_follow_their_platform_family() {
+    const INIT: &str = "initialization";
+    let windows = InteractiveShells::Windows {
+        initialization: INIT,
+    };
+    let posix = InteractiveShells::Posix;
+    let interactive = ShellRoot::Interactive;
+    let other = ShellRoot::Other;
+    for (image, argv, shells, want) in [
+        ("/bin/zsh", Some(&["-zsh"][..]), posix, interactive),
+        ("/bin/zsh", Some(&["/bin/zsh", "-l"]), posix, interactive),
+        ("/bin/bash", Some(&["/bin/sh", "-i"]), posix, interactive),
+        (
+            "/opt/homebrew/bin/fish",
+            Some(&["fish", "--login"]),
+            posix,
+            interactive,
+        ),
+        (
+            "/bin/sh",
+            Some(&["sh", "--noprofile", "--norc"]),
+            posix,
+            interactive,
+        ),
+        ("/bin/zsh", Some(&["zsh", "-c", "ls"]), posix, other),
+        ("/bin/bash", Some(&["bash", "script.sh"]), posix, other),
+        ("/bin/zsh", Some(&["zsh", "-L"]), posix, other),
+        ("/bin/zsh", Some(&["vim"]), posix, other),
+        ("/bin/zsh", Some(&[]), posix, other),
+        ("/bin/zsh", None, posix, ShellRoot::Unreadable),
+        ("/usr/bin/vim", Some(&["vim"]), posix, other),
+        ("pwsh.exe", Some(&["pwsh", "-NoLogo"]), posix, other),
+        ("pwsh.exe", Some(&["pwsh", "-NoLogo"]), windows, interactive),
+        ("cmd.exe", Some(&["cmd", "/D"]), windows, interactive),
+        (
+            "powershell.exe",
+            Some(&["powershell", "-NoExit", "-Command", INIT]),
+            windows,
+            interactive,
+        ),
+        (
+            r"C:\Program Files\Git\usr\bin\bash.exe",
+            Some(&["bash", "-i", "-l"]),
+            windows,
+            other,
+        ),
+    ] {
+        let argv: Option<Vec<String>> =
+            argv.map(|argv| argv.iter().map(|&a| a.to_owned()).collect());
+        assert_eq!(
+            classify_shell_root(Some(image), argv.as_deref(), shells),
+            want,
+            "{image} {argv:?} {shells:?}"
+        );
+    }
+}
+
 #[test]
 fn registry_invariants_hold() {
     let mut unique = Vec::new();
