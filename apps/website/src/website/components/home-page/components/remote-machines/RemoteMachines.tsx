@@ -14,7 +14,7 @@ export function RemoteMachines(): ReactElement {
 						<span className={styles['dot']} />
 						<span>{t(messages.remoteTag)}</span>
 					</span>
-					<h3 className={styles['title']}>{t(messages.remoteTitle)}</h3>
+					<h2 className={styles['title']}>{t(messages.remoteTitle)}</h2>
 				</div>
 				<p className={styles['lead']}>{t(messages.remoteLead)}</p>
 			</div>

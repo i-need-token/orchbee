@@ -24,7 +24,7 @@ export function KeyGroups({ groups }: { groups: readonly KeyGroup[] }): ReactEle
 		<div className={styles['groups']} data-reveal=''>
 			{groups.map((group) => (
 				<section key={group.id}>
-					<h4 className={styles['title']}>{group.title}</h4>
+					<h3 className={styles['title']}>{group.title}</h3>
 					{group.rows.map((row) => (
 						<div key={row.id} className={styles['row']}>
 							<span>{row.label}</span>

@@ -86,7 +86,7 @@ export function HeroStage(): ReactElement {
 				</div>
 				<div className={styles['away']}>
 					<div className={styles['awayContent']}>
-						<h3 className={styles['awayTitle']}>{t(messages.stageAwayTitle)}</h3>
+						<p className={styles['awayTitle']}>{t(messages.stageAwayTitle)}</p>
 						<p className={styles['awayBody']}>{t(messages.stageAwayBody)}</p>
 						<div className={styles['agents']}>
 							{sessionAgents(frame).map((agent) => (

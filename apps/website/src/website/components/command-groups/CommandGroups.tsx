@@ -23,7 +23,7 @@ export function CommandGroups({ groups }: { groups: readonly CommandGroup[] }): 
 		<div className={styles['groups']} data-reveal=''>
 			{groups.map((group) => (
 				<section key={group.id}>
-					<h4 className={styles['title']}>{group.title}</h4>
+					<h3 className={styles['title']}>{group.title}</h3>
 					{group.rows.map((row) => (
 						<div key={row.command} className={styles['row']}>
 							<b className={styles['command']}>{row.command}</b>

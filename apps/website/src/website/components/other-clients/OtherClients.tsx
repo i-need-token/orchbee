@@ -26,7 +26,9 @@ export function OtherClients({
 	return (
 		<section className={styles['section']}>
 			<div className={styles['label']}>
-				<Kicker reveal>{t(messages.otherClients)}</Kicker>
+				<Kicker reveal heading>
+					{t(messages.otherClients)}
+				</Kicker>
 			</div>
 			<ClientIndex locale={locale} current={current} />
 			<div className={styles['action']}>
