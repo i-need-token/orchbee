@@ -1,11 +1,12 @@
 // Proves a built macOS release on a fresh machine, one step per subcommand so that a workflow shows
-// which step failed: the disk image, the command-line archive and the npm route. Each step works in
-// a new folder `--work` with its own HOME there, so the store root, the command link, the data root
+// which step failed: the disk image, the command-line archive, the install script and the npm
+// route. Each step works in a new folder `--work` with its own HOME there, so the store root, the command link, the data root
 // and npm's files land inside it; it installs and removes for real inside that folder and deletes
 // the folder at the end. It never touches /Applications or the real HOME.
 //
 //   node scripts/release-smoke-macos.mjs disk-image <artifacts> --work <absolute new directory>
 //   node scripts/release-smoke-macos.mjs archive    <artifacts> --work <absolute new directory>
+//   node scripts/release-smoke-macos.mjs install-script <artifacts> --work <absolute new directory>
 //   node scripts/release-smoke-macos.mjs npm        <artifacts> --work <absolute new directory>
 //
 // <artifacts> is a directory `node scripts/release-artifacts.mjs collect` wrote on macOS; its release
@@ -22,11 +23,19 @@
 //   are executable; its Client's `install` activates the version in `~/.local/share/<stem>` and
 //   links `~/.local/bin/<stem>`, which answers `--version`; `uninstall --confirm` through the link
 //   removes the store root and the link.
+// - install-script: runs apps/website/public/install.sh with `--desktop` as `curl … | sh -s --` does,
+//   the script on the standard input of /bin/sh, against a copy of the row's feed that names its
+//   archive by file name, in a folder beside the `.tar.gz`, the disk image and SHA256SUMS, reached
+//   through the script's test variables: ORCHBEE_INSTALL_SH_FEED, a file: address, and
+//   ORCHBEE_INSTALL_SH_APPLICATIONS, a folder in the work folder. It must activate the version, link
+//   the command, print the line that puts ~/.local/bin on PATH, copy the application with a valid
+//   signature and the row's release.json, and leave its temporary folder empty; `uninstall
+//   --confirm` through the link then removes the store root and the link.
 // - npm: `npm install --global --offline` of the tarballs into a prefix; the first start installs
 //   the carried version, `--version` answers it again, the program's `uninstall --confirm` removes
 //   the store root, and `npm rm --global` removes the carrier.
 //
-// The archive and npm steps then require that no process runs from the work folder.
+// The archive, install-script and npm steps then require that no process runs from the work folder.
 // Exit codes: 0 the step passed; 1 it failed; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
 import {
@@ -39,14 +48,18 @@ import {
 	realpathSync,
 	rmSync,
 	statSync,
+	symlinkSync,
+	writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { readRelease } from './package-npm.mjs';
+import { feedName, gateFeed } from './release-feed.mjs';
 
 const usage =
-	'Usage: node scripts/release-smoke-macos.mjs <disk-image|archive|npm> <artifacts> --work <absolute new directory>';
+	'Usage: node scripts/release-smoke-macos.mjs <disk-image|archive|install-script|npm> <artifacts> --work <absolute new directory>';
+const installScript = fileURLToPath(new URL('../apps/website/public/install.sh', import.meta.url));
 // Each command gets this long; an install, an npm run or a mount gets longer.
 const commandDeadline = 120_000;
 const setupDeadline = 600_000;
@@ -96,8 +109,10 @@ function readIdentity(artifacts) {
 	if (!existsSync(archiveFile))
 		throw new StepFailure(`${artifacts} holds no ${releaseName}.tar.gz`);
 	return {
+		artifacts,
 		version,
 		stem,
+		platform: manifest.platform,
 		cpu: platform.cpu,
 		programs,
 		releaseName,
@@ -246,15 +261,7 @@ function diskImage(identity, work) {
 			);
 		if (!lstatSync(link).isSymbolicLink() || readlinkSync(link) !== '/Applications')
 			throw new StepFailure('The image has no link to /Applications');
-		const application = path.join(mount, applications[0].name);
-		expectStatus(
-			run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', application]),
-			0,
-			'codesign --verify --deep --strict',
-		);
-		const cohort = path.join(application, 'Contents', 'Resources', 'cohort');
-		if (!readFileSync(path.join(cohort, 'release.json')).equals(identity.manifestBytes))
-			throw new StepFailure(`${applications[0].name} bundles another release.json`);
+		const cohort = expectApplication(identity, path.join(mount, applications[0].name));
 		expectVersion(
 			identity,
 			run(path.join(cohort, identity.stem), ['--version'], { env }),
@@ -319,6 +326,75 @@ function archive(identity, work) {
 	expectNoProcesses(work);
 }
 
+/** Requires `application` to pass codesign and to bundle the row's release.json; its cohort folder. */
+function expectApplication(identity, application) {
+	expectStatus(
+		run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', application]),
+		0,
+		'codesign --verify --deep --strict',
+	);
+	const cohort = path.join(application, 'Contents', 'Resources', 'cohort');
+	if (!readFileSync(path.join(cohort, 'release.json')).equals(identity.manifestBytes))
+		throw new StepFailure(`${path.basename(application)} bundles another release.json`);
+	return cohort;
+}
+
+function installScriptStep(identity, work) {
+	const home = path.join(work, 'home');
+	const temporary = path.join(work, 'tmp');
+	const applications = path.join(work, 'Applications');
+	const served = path.join(work, 'served');
+	for (const folder of [home, temporary, served]) mkdirSync(folder);
+	const feed = readFileSync(
+		path.join(identity.artifacts, feedName(identity.stem, identity.version, identity.platform)),
+	);
+	writeFileSync(path.join(served, 'feed.json'), gateFeed(feed));
+	const sums = path.join(identity.artifacts, 'SHA256SUMS');
+	for (const file of [identity.archive, identity.diskImage, sums])
+		symlinkSync(file, path.join(served, path.basename(file)));
+	const env = {
+		...scratchEnvironment(home),
+		TMPDIR: temporary,
+		ORCHBEE_INSTALL_SH_FEED: `file://${path.join(served, 'feed.json')}`,
+		ORCHBEE_INSTALL_SH_APPLICATIONS: applications,
+	};
+	log(`> /bin/sh -s -- --desktop < ${installScript}`);
+	const result = spawnSync('/bin/sh', ['-s', '--', '--desktop'], {
+		encoding: 'utf8',
+		env,
+		input: readFileSync(installScript),
+		timeout: setupDeadline,
+		maxBuffer: 64 * 1024 * 1024,
+	});
+	if (result.error !== undefined) throw new StepFailure(`/bin/sh: ${result.error.message}`);
+	process.stdout.write(`${result.stdout ?? ''}${result.stderr ?? ''}`);
+	expectStatus(result, 0, 'install.sh --desktop');
+	if (!result.stdout.includes('export PATH="$HOME/.local/bin:$PATH"'))
+		throw new StepFailure('install.sh printed no line that puts ~/.local/bin on PATH');
+	const left = readdirSync(temporary);
+	if (left.length > 0)
+		throw new StepFailure(`install.sh left ${left.join(', ')} in its temporary folder`);
+	const root = storeRoot(identity, home);
+	expectActive(identity, root);
+	const link = path.join(home, '.local', 'bin', identity.stem);
+	if (!lstatSync(link, { throwIfNoEntry: false })?.isSymbolicLink())
+		throw new StepFailure(`install.sh left no command link ${link}`);
+	expectVersion(identity, run(link, ['--version'], { env }), `${identity.stem} --version`);
+	const copied = readdirSync(applications);
+	if (copied.length !== 1 || !copied[0].endsWith('.app'))
+		throw new StepFailure(`${applications} must hold one application, not ${copied.join(', ')}`);
+	expectApplication(identity, path.join(applications, copied[0]));
+	log(`install.sh installed ${identity.version} and ${copied[0]}.`);
+	expectStatus(
+		run(link, ['uninstall', '--confirm'], { env, deadline: setupDeadline }),
+		0,
+		'uninstall --confirm',
+	);
+	expectGone(root, 'The store root');
+	expectGone(link, 'The command link');
+	expectNoProcesses(work);
+}
+
 function npm(identity, work) {
 	const home = path.join(work, 'home');
 	const env = scratchEnvironment(home);
@@ -358,7 +434,7 @@ function npm(identity, work) {
 function parseArguments(argv) {
 	const [step, artifacts, option, work, ...rest] = argv;
 	if (
-		!['disk-image', 'archive', 'npm'].includes(step) ||
+		!['disk-image', 'archive', 'install-script', 'npm'].includes(step) ||
 		artifacts === undefined ||
 		option !== '--work' ||
 		work === undefined ||
@@ -383,7 +459,7 @@ if (
 		mkdirSync(options.work, { recursive: true });
 		// The real path, so the process scan compares the start paths ps reports.
 		work = realpathSync(options.work);
-		const steps = { 'disk-image': diskImage, archive, npm };
+		const steps = { 'disk-image': diskImage, archive, 'install-script': installScriptStep, npm };
 		steps[options.step](identity, work);
 	} catch (error) {
 		process.stderr.write(`${error.message}\n`);

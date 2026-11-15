@@ -22,7 +22,7 @@ export function GetOrchbee({
 			{release.published ? (
 				<>
 					{offer === 'npm' ? null : (
-						<LinkButton href={release.installerUrl} icon='download'>
+						<LinkButton href={release.downloads['windows-x86_64']} icon='download'>
 							{t(messages.downloadForWindows)}
 						</LinkButton>
 					)}

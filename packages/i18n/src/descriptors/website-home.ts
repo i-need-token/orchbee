@@ -263,6 +263,46 @@ export const websiteHomeMessages = defineMessages({
 		'website.home.install.note',
 		'Warning under the install rows about the unsigned installer.',
 	),
+	installLeadMacos: message(
+		'website.home.install.leadMacos',
+		'Paragraph under the install heading once a release offers macOS downloads.',
+	),
+	installAppWindows: message(
+		'website.home.install.appWindows',
+		'What the Windows installer contains, beside the macOS rows.',
+	),
+	installMacosApp: message(
+		'website.home.install.macosApp',
+		'Row of the macOS disk images: what they contain.',
+	),
+	installMacosAppNote: message(
+		'website.home.install.macosAppNote',
+		'How to install from the macOS disk image.',
+	),
+	installDownloadAppleSilicon: message(
+		'website.home.install.downloadAppleSilicon',
+		'Button that downloads the disk image for Macs with Apple silicon.',
+	),
+	installDownloadIntel: message(
+		'website.home.install.downloadIntel',
+		'Button that downloads the disk image for Macs with an Intel processor.',
+	),
+	installMacosScript: message(
+		'website.home.install.macosScript',
+		'Row of the install script command for macOS.',
+	),
+	installMacosScriptNote: message(
+		'website.home.install.macosScriptNote',
+		'What the two install script commands do.',
+	),
+	installStartNoteMacos: message(
+		'website.home.install.startNoteMacos',
+		'What the start command opens, once a release offers macOS downloads.',
+	),
+	installMacosNote: message(
+		'website.home.install.macosNote',
+		'Steps under the install rows to open the macOS app that Apple has not notarized.',
+	),
 	installSource: message(
 		'website.home.install.source',
 		'Row of the source build shown while no release is published.',

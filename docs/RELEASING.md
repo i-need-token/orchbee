@@ -81,19 +81,27 @@ repository>`. Print each public half with the command in
    `gh workflow run update-check.yml --ref main -f tag=v0.1.0-beta.1`. A release published by
    hand starts it too.
 7. Move the website to the release once the update check passed: on `main`, run
-   `pnpm website:release 0.1.0-beta.1`, commit the update feed pair under
-   `apps/website/public/update/` and `apps/website/src/website/release.ts` it wrote, then build and
-   deploy the website as [its README](../apps/website/README.md#static-delivery) says. The command
-   needs no credentials; it refuses, writing nothing, while the release is a draft or lacks a file,
-   and when the feed signature or the archive does not check out. The update channel has moved
-   when the deploy finishes, and the download button names the same version.
-8. Check what clients read, after the deploy and from a computer signed in nowhere: run
-   `%SystemRoot%\System32\curl.exe --disable --fail --silent --show-error --output feed.json https://orchbee.com/update/stable/windows-x86_64/feed.json`,
-   the same for `feed.json.sig`, and compare both byte for byte with the tracked
-   `feed.json.signed` and `feed.json.sig` (`fc.exe /b`). Clients send exactly such a request:
+   `pnpm website:release 0.1.0-beta.1`, then commit what it changed: the update feed pair of each
+   platform the release published under `apps/website/public/update/stable/<platform>/`, any pair
+   it removed for a platform the release did not publish, and
+   `apps/website/src/website/release.ts`, with every published platform's download. Then build
+   and deploy the website as [its README](../apps/website/README.md#static-delivery) says. The
+   command needs no credentials; it refuses, writing nothing, while the release is a draft or lacks
+   a file, and when a feed signature or an archive does not check out. The update channel has moved
+   when the deploy finishes, and the download buttons name the same version. The first release
+   with macOS rows is also the first that shows the macOS downloads, the `install.sh` command and
+   the Open Anyway steps.
+8. Check what clients read, after the deploy and from a computer signed in nowhere. For each
+   platform folder under `apps/website/public/update/stable/`, run
+   `%SystemRoot%\System32\curl.exe --disable --fail --silent --show-error --output feed.json https://orchbee.com/update/stable/<platform>/feed.json`,
+   the same for `feed.json.sig`, and compare both byte for byte with that folder's tracked
+   `feed.json.signed` and `feed.json.sig` (`fc.exe /b`). Fetch
+   `https://orchbee.com/install.sh` the same way and compare it with
+   `apps/website/public/install.sh`. Clients and the install script send exactly such a request:
    curl's own user agent, no cookie, no script. A challenge page, a 403 or other bytes make every
    client report `download` or `signature-invalid`, so keep Cloudflare's challenge features (Bot
-   Fight Mode, Browser Integrity Check, challenge rules) off for `/update/*`, then check again.
+   Fight Mode, Browser Integrity Check, challenge rules) off for `/update/*` and `/install.sh`,
+   then check again.
 9. Move `main` to the next version in a new commit, for example
    `node scripts/release-version.mjs set 0.1.0-beta.2`.
 
@@ -121,7 +129,8 @@ repository>`. Print each public half with the command in
   `pnpm website:release <last good version>`, commit, build and deploy the website, then delete
   the withdrawn release's archives:
   `gh release delete-asset v<version> orchbee-<version>-windows-x86_64.zip`, and the same for
-  `orchbee-desktop-<version>-windows-x86_64.zip`. The update channel
+  `orchbee-desktop-<version>-windows-x86_64.zip` and, for each macOS row it published,
+  `orchbee-<version>-macos-<cpu>.tar.gz`. The update channel
   and the download button move back at once; installations already above that version see a lower
   feed and stay as they are, so the fix is the next version. The archives must go because a signed
   feed never expires and stays a public asset: whoever can answer for the feed address to one

@@ -26,6 +26,10 @@
 	padding: var(--ob-ref-length-website-20) 0;
 	border-top: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
 }
+.stackedRow {
+	composes: row;
+	grid-template-columns: minmax(0, 1fr);
+}
 .row:last-of-type {
 	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
 }
@@ -45,6 +49,10 @@
 .commands {
 	display: grid;
 	justify-items: start;
+	gap: var(--ob-ref-length-website-8);
+}
+.downloads {
+	display: grid;
 	gap: var(--ob-ref-length-website-8);
 }
 .note {

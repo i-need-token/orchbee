@@ -1,22 +1,28 @@
-// Moves the website to a published release: its update channel and its download button together.
+// Moves the website to a published release: its update channels and its download buttons together.
 //
 //   pnpm website:release <version>
 //   node scripts/website-release.mjs <version> [--from <absolute folder | http://127.0.0.1:<port>/<path>/>]
 //
-// Fetches the release's feed pair (`orchbee-<version>-windows-x86_64.feed.json` and `.sig`)
-// anonymously with the system curl, never with `gh`, so a draft release, whose assets answer 404 to
-// anyone signed out, cannot pass, and a proxy variable works as it does for curl. It verifies the
-// feed signature with RELEASE_KEYS of apps/orchbee/src/cli/update/signature.rs before reading the
-// feed, checks the feed against the reader's rules, its written form and the requested version, confirms the
-// installer is public, downloads the archive the feed names, bounded by its signed size, and checks
-// its size and SHA-256. Only then does it write, in one step:
+// Fetches the release's SHA256SUMS anonymously with the system curl, never with `gh`, so a draft
+// release, whose assets answer 404 to anyone signed out, cannot pass, and a proxy variable works as
+// it does for curl. The feed documents it lists, `orchbee-<version>-<platform>.feed.json`, name
+// the platform rows the release published; `windows-x86_64` must be among them, and each must be a
+// platform the website offers a download for (`downloads` below). For every row it fetches the
+// feed pair, verifies the feed signature with RELEASE_KEYS of
+// apps/orchbee/src/cli/update/signature.rs before reading the feed, checks the feed against the
+// reader's rules, its written form and the requested version, confirms the row's download is
+// public, downloads the archive the feed names, bounded by its signed size, and checks its size and
+// SHA-256. Only then does it write, in one step:
 //
-//   apps/website/public/update/<channel>/<platform>/feed.json.signed   the exact feed bytes, served
-//                                                                      as feed.json
-//   apps/website/public/update/<channel>/<platform>/feed.json.sig      the signature document
-//   apps/website/src/website/release.ts                                version and installerUrl
+//   apps/website/public/update/<channel>/<platform>/feed.json.signed   the exact feed bytes of each
+//                                                                      row, served as feed.json
+//   apps/website/public/update/<channel>/<platform>/feed.json.sig      its signature document
+//   apps/website/src/website/release.ts                                version and each row's
+//                                                                      download
 //
-// The first failed check stops the command, and nothing is written. It needs no credentials and
+// and removes the pair of every platform of the channel the release did not publish, so each
+// tracked feed names the version the download buttons offer. The first failed check stops the
+// command, and nothing is written or removed. It needs no credentials and
 // sends nothing but anonymous GET requests. Commit, build and deploy the website afterwards;
 // docs/RELEASING.md has the steps. Running it with an older version moves the channel back.
 //
@@ -36,8 +42,10 @@ import {
 	mkdtempSync,
 	openSync,
 	readFileSync,
+	readdirSync,
 	readSync,
 	renameSync,
+	rmdirSync,
 	rmSync,
 	writeFileSync,
 } from 'node:fs';
@@ -59,19 +67,53 @@ const repository = fileURLToPath(new URL('..', import.meta.url));
 const signatureSource = 'apps/orchbee/src/cli/update/signature.rs';
 const releaseModule = 'apps/website/src/website/release.ts';
 const updateRoot = 'apps/website/public/update';
-// The one platform the release workflow publishes today.
-const platform = 'windows-x86_64';
+// Each platform the website offers a download for, with that download's release asset name, in the
+// order release.ts lists them. A release that publishes another platform is refused until it is
+// added here and to `ReleaseDownloads` in release.ts.
+const downloads = {
+	'windows-x86_64': (version) => `Orchbee-${version}-windows-x86_64-setup.exe`,
+	'macos-aarch64': (version) => `Orchbee-${version}-macos-aarch64.dmg`,
+	'macos-x86_64': (version) => `Orchbee-${version}-macos-x86_64.dmg`,
+};
+// Every release publishes it; the calls to action offer its download.
+const requiredPlatform = 'windows-x86_64';
 const stem = 'orchbee';
 const signatureLimit = 4 * 1024;
+const checksumsName = 'SHA256SUMS';
+const checksumsLimit = 64 * 1024;
 const usage =
 	'Usage: node scripts/website-release.mjs <version> [--from <absolute folder | http://127.0.0.1:<port>/<path>/>]';
 const releaseBlock = /^export const release: Release = \{[\s\S]*?\n\};\n/mu;
 
 class UsageError extends Error {}
 
-/** The installer asset of a version, by the release distribution's download names. */
-export function installerName(version) {
-	return `Orchbee-${version}-${platform}-setup.exe`;
+/** The download asset the website offers for a platform of a version, by the download names. */
+export function installerName(version, platform = requiredPlatform) {
+	return Object.hasOwn(downloads, platform) ? downloads[platform](version) : undefined;
+}
+
+/**
+ * The platform rows a release published, by the feed documents its SHA256SUMS lists, in the order
+ * of `downloads`, or the sentences that say why the website cannot offer them.
+ */
+export function publishedPlatforms(checksums, version) {
+	const prefix = `${stem}-${version}-`;
+	const listed = checksums
+		.toString('utf8')
+		.split('\n')
+		.map((line) => /^[0-9a-f]{64} {2}(\S+)$/u.exec(line)?.[1])
+		.filter((name) => name?.startsWith(prefix) && name.endsWith('.feed.json'))
+		.map((name) => name.slice(prefix.length, -'.feed.json'.length));
+	const problems = [];
+	const unknown = listed.filter((platform) => !Object.hasOwn(downloads, platform));
+	if (unknown.length > 0)
+		problems.push(
+			`The release publishes ${unknown.join(', ')}, which the website offers no download for. Add each to \`downloads\` in scripts/website-release.mjs and to ReleaseDownloads in ${releaseModule} first.`,
+		);
+	if (!listed.includes(requiredPlatform))
+		problems.push(`${checksumsName} lists no ${feedName(stem, version, requiredPlatform)}.`);
+	if (problems.length > 0) return { problems, platforms: [] };
+	return { problems, platforms: Object.keys(downloads).filter((key) => listed.includes(key)) };
 }
 
 /** The repository address release.ts names, or undefined when it names none. */
@@ -79,14 +121,24 @@ export function repositoryUrlOf(source) {
 	return /^export const REPOSITORY_URL = '(https:\/\/[^'\s]+)';$/mu.exec(source)?.[1];
 }
 
-/** release.ts with the release value set to `version`, or undefined when its block is not found. */
-export function releaseSource(source, version) {
+/**
+ * release.ts with the release value set to `version` and the downloads of `platforms`, or undefined
+ * when its block is not found.
+ */
+export function releaseSource(source, version, platforms = [requiredPlatform]) {
 	if (!releaseBlock.test(source)) return undefined;
 	const block =
 		'export const release: Release = {\n' +
 		'\tpublished: true,\n' +
 		`\tversion: '${version}',\n` +
-		`\tinstallerUrl: \`\${REPOSITORY_URL}/releases/download/v${version}/${installerName(version)}\`,\n` +
+		'\tdownloads: {\n' +
+		platforms
+			.map(
+				(platform) =>
+					`\t\t'${platform}': \`\${REPOSITORY_URL}/releases/download/v${version}/${installerName(version, platform)}\`,\n`,
+			)
+			.join('') +
+		'\t},\n' +
 		'};\n';
 	return source.replace(releaseBlock, block);
 }
@@ -95,29 +147,31 @@ export function releaseSource(source, version) {
  * The feed of a fetched pair when it may move the channel to `version`, and otherwise the sentences
  * that say why not. The signature is verified before the feed is read.
  */
-export function admitFeed({ version, feed, signature, table, standIn }) {
+export function admitFeed({ version, platform, feed, signature, table, standIn }) {
 	const { outcome } = verifySignature(feed, signature, table, FEED_DOMAIN);
 	if (outcome !== 'trusted')
 		return {
 			problems: [
-				`The feed signature does not verify with a key of ${standIn ? 'TEST_KEYS' : 'RELEASE_KEYS'} (${outcome}). Do not move the channel to this release.`,
+				`The ${platform} feed signature does not verify with a key of ${standIn ? 'TEST_KEYS' : 'RELEASE_KEYS'} (${outcome}). Do not move the channel to this release.`,
 			],
 		};
 	const admitted = readFeed(feed, { platform });
 	if (admitted.problems.length > 0)
 		return {
-			problems: admitted.problems.map((problem) => `The feed breaks a reader rule: ${problem}.`),
+			problems: admitted.problems.map(
+				(problem) => `The ${platform} feed breaks a reader rule: ${problem}.`,
+			),
 		};
 	// The updater's reader refuses some spellings JSON.parse admits; the written form has none.
 	if (!writtenForm(feed, admitted.feed))
 		return {
 			problems: [
-				'The feed is not in its written form, so the updater may refuse it. Do not move the channel to this release.',
+				`The ${platform} feed is not in its written form, so the updater may refuse it. Do not move the channel to this release.`,
 			],
 		};
 	const problems = [];
 	if (admitted.feed.version !== version)
-		problems.push(`The feed names version ${admitted.feed.version}, not ${version}.`);
+		problems.push(`The ${platform} feed names version ${admitted.feed.version}, not ${version}.`);
 	const absolute = absoluteArchive(admitted.feed.archive.url);
 	if (!standIn && !absolute)
 		problems.push(
@@ -131,55 +185,91 @@ export function admitFeed({ version, feed, signature, table, standIn }) {
 }
 
 /**
- * Every file the command writes, as `{ path, bytes }` relative to the repository, or the sentences
- * that say why nothing may be written. Pure: the caller fetched every input.
+ * Every file the command writes, as `{ path, bytes }` relative to the repository, and every tracked
+ * file it removes, or the sentences that say why nothing may change. Pure: the caller fetched every
+ * input. `rows` holds one `{ platform, feed, signature, archive, installerPublic }` per published
+ * platform; `tracked` names each tracked pair folder as `<channel>/<platform>`.
  */
 export function planWebsiteRelease({
 	version,
-	feed,
-	signature,
+	rows,
 	table,
 	standIn = false,
-	archive,
-	installerPublic,
 	release,
+	tracked = [],
 }) {
-	const admitted = admitFeed({ version, feed, signature, table, standIn });
-	if (admitted.problems.length > 0) return { problems: admitted.problems, writes: [] };
-	const expected = admitted.feed.archive;
 	const problems = [];
-	if (!installerPublic)
-		problems.push(`${installerName(version)} is not public; the download button would break.`);
-	if (archive === undefined) {
-		problems.push('The archive was not fetched.');
-	} else {
-		if (archive.size !== expected.size)
+	const admittedRows = [];
+	for (const row of rows) {
+		const { platform, feed, signature, archive, installerPublic } = row;
+		const admitted = admitFeed({ version, platform, feed, signature, table, standIn });
+		if (admitted.problems.length > 0) {
+			problems.push(...admitted.problems);
+			continue;
+		}
+		const expected = admitted.feed.archive;
+		if (!installerPublic)
 			problems.push(
-				`The archive has ${archive.size} bytes, but the signed feed says ${expected.size}. Do not move the channel to this release.`,
+				`${installerName(version, platform)} is not public; the download button would break.`,
 			);
-		if (archive.sha256 !== expected.sha256)
-			problems.push(
-				'The archive does not match the SHA-256 the signed feed names. Do not move the channel to this release.',
-			);
+		if (archive === undefined) {
+			problems.push(`The ${platform} archive was not fetched.`);
+		} else {
+			if (archive.size !== expected.size)
+				problems.push(
+					`The ${platform} archive has ${archive.size} bytes, but the signed feed says ${expected.size}. Do not move the channel to this release.`,
+				);
+			if (archive.sha256 !== expected.sha256)
+				problems.push(
+					`The ${platform} archive does not match the SHA-256 the signed feed names. Do not move the channel to this release.`,
+				);
+		}
+		admittedRows.push({ ...row, channel: admitted.feed.channel });
 	}
-	const source = releaseSource(release, version);
+	const channels = [...new Set(admittedRows.map((row) => row.channel))];
+	if (channels.length > 1)
+		problems.push(`The feeds name several channels, ${channels.join(' and ')}.`);
+	const source = releaseSource(
+		release,
+		version,
+		rows.map((row) => row.platform),
+	);
 	if (source === undefined)
 		problems.push(`${releaseModule} has no \`export const release: Release = {…};\` block to set.`);
-	if (problems.length > 0) return { problems, writes: [] };
-	const folder = `${updateRoot}/${admitted.feed.channel}/${platform}`;
+	if (problems.length > 0) return refused(problems);
+	const [channel] = channels;
+	const published = new Set(rows.map((row) => row.platform));
 	return {
 		problems: [],
-		channel: admitted.feed.channel,
+		channel,
 		writes: [
-			{ path: `${folder}/feed.json.signed`, bytes: feed },
-			{ path: `${folder}/feed.json.sig`, bytes: signature },
+			...admittedRows.flatMap(({ platform, feed, signature }) => [
+				{ path: `${updateRoot}/${channel}/${platform}/feed.json.signed`, bytes: feed },
+				{ path: `${updateRoot}/${channel}/${platform}/feed.json.sig`, bytes: signature },
+			]),
 			{ path: releaseModule, bytes: Buffer.from(source, 'utf8') },
 		],
+		removals: tracked
+			.filter((folder) => {
+				const [trackedChannel, platform] = folder.split('/');
+				return trackedChannel === channel && !published.has(platform);
+			})
+			.flatMap((folder) => [
+				`${updateRoot}/${folder}/feed.json.signed`,
+				`${updateRoot}/${folder}/feed.json.sig`,
+			]),
 	};
 }
 
-/** Writes every planned file under `root`, each by a flushed rename of a sibling. */
-export function applyWrites(root, writes) {
+function refused(problems) {
+	return { problems, writes: [], removals: [] };
+}
+
+/**
+ * Writes every planned file under `root`, each by a rename of a sibling, then removes every planned
+ * removal and the folder it empties.
+ */
+export function applyWrites(root, writes, removals = []) {
 	for (const { path: relative, bytes } of writes) {
 		const target = path.join(root, ...relative.split('/'));
 		mkdirSync(path.dirname(target), { recursive: true });
@@ -187,6 +277,21 @@ export function applyWrites(root, writes) {
 		writeFileSync(pending, bytes, { flag: 'w' });
 		renameSync(pending, target);
 	}
+	for (const relative of removals) {
+		const target = path.join(root, ...relative.split('/'));
+		rmSync(target, { force: true });
+		const folder = path.dirname(target);
+		if (existsSync(folder) && readdirSync(folder).length === 0) rmdirSync(folder);
+	}
+}
+
+/** Each tracked pair folder under public/update, as `<channel>/<platform>`. */
+function trackedPairs(root) {
+	const update = path.join(root, ...updateRoot.split('/'));
+	if (!existsSync(update)) return [];
+	return readdirSync(update).flatMap((channel) =>
+		readdirSync(path.join(update, channel)).map((platform) => `${channel}/${platform}`),
+	);
 }
 
 /** Where the inputs come from: the release address, a stand-in folder, or a loopback stand-in. */
@@ -320,8 +425,8 @@ function fetchArchive(source, version, feed, scratch) {
 	return { archive: fileFacts(output) };
 }
 
-function installerIsPublic(source, version) {
-	const name = installerName(version);
+function installerIsPublic(source, version, platform) {
+	const name = installerName(version, platform);
 	if (source.kind === 'folder') return existsSync(path.join(source.base, name));
 	const { status } = curl(source, new URL(name, source.base).href, { probe: true });
 	return status === 200 || status === 206;
@@ -340,34 +445,48 @@ export function websiteRelease({ version, from, root = repository, log = () => {
 		) ?? [];
 	const scratch = mkdtempSync(path.join(tmpdir(), 'orchbee-website-release-'));
 	try {
-		const name = feedName(stem, version, platform);
-		const feed = fetchBytes(source, version, name, FEED_LIMIT, scratch);
-		if (feed.problem !== undefined) return { problems: [feed.problem], writes: [] };
-		const signature = fetchBytes(source, version, `${name}.sig`, signatureLimit, scratch);
-		if (signature.problem !== undefined) return { problems: [signature.problem], writes: [] };
-		const admitted = admitFeed({
-			version,
-			feed: feed.bytes,
-			signature: signature.bytes,
-			table,
-			standIn,
-		});
-		if (admitted.problems.length > 0) return { problems: admitted.problems, writes: [] };
-		log(`The feed of ${version} verifies; checking the installer and the archive.`);
-		const installerPublic = installerIsPublic(source, version);
-		const archive = fetchArchive(source, version, admitted.feed, scratch);
-		if (archive.problem !== undefined) return { problems: [archive.problem], writes: [] };
+		const checksums = fetchBytes(source, version, checksumsName, checksumsLimit, scratch);
+		if (checksums.problem !== undefined) return refused([checksums.problem]);
+		const published = publishedPlatforms(checksums.bytes, version);
+		if (published.problems.length > 0) return refused(published.problems);
+		log(`v${version} publishes ${published.platforms.join(', ')}.`);
+		const rows = [];
+		for (const platform of published.platforms) {
+			const name = feedName(stem, version, platform);
+			const feed = fetchBytes(source, version, name, FEED_LIMIT, scratch);
+			if (feed.problem !== undefined) return refused([feed.problem]);
+			const signature = fetchBytes(source, version, `${name}.sig`, signatureLimit, scratch);
+			if (signature.problem !== undefined) return refused([signature.problem]);
+			const admitted = admitFeed({
+				version,
+				platform,
+				feed: feed.bytes,
+				signature: signature.bytes,
+				table,
+				standIn,
+			});
+			if (admitted.problems.length > 0) return refused(admitted.problems);
+			log(`The ${platform} feed verifies; checking its download and its archive.`);
+			const installerPublic = installerIsPublic(source, version, platform);
+			const archive = fetchArchive(source, version, admitted.feed, scratch);
+			if (archive.problem !== undefined) return refused([archive.problem]);
+			rows.push({
+				platform,
+				feed: feed.bytes,
+				signature: signature.bytes,
+				archive: archive.archive,
+				installerPublic,
+			});
+		}
 		const plan = planWebsiteRelease({
 			version,
-			feed: feed.bytes,
-			signature: signature.bytes,
+			rows,
 			table,
 			standIn,
-			archive: archive.archive,
-			installerPublic,
 			release,
+			tracked: trackedPairs(root),
 		});
-		if (plan.problems.length === 0) applyWrites(root, plan.writes);
+		if (plan.problems.length === 0) applyWrites(root, plan.writes, plan.removals);
 		return plan;
 	} finally {
 		rmSync(scratch, { force: true, recursive: true });
@@ -398,8 +517,9 @@ if (
 			process.exitCode = 1;
 		} else {
 			for (const write of plan.writes) process.stdout.write(`Wrote ${write.path}\n`);
+			for (const removal of plan.removals) process.stdout.write(`Removed ${removal}\n`);
 			process.stdout.write(
-				`The ${plan.channel} channel and the download button name ${options.version}. Commit these files, then build and deploy the website.\n`,
+				`The ${plan.channel} channel and the download buttons name ${options.version}. Commit these changes, then build and deploy the website.\n`,
 			);
 		}
 	} catch (error) {

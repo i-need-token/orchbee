@@ -111,6 +111,21 @@ export const enUSWebsiteHomeMessages = {
 		'Opens the terminal interface. Or open Orchbee from the Start menu.',
 	'website.home.install.note':
 		'The installer is not code-signed yet, so Windows SmartScreen may ask you to confirm.',
+	'website.home.install.leadMacos':
+		'Orchbee is in beta. It runs on Windows 11 (x86_64) and macOS today; Linux builds are in progress.',
+	'website.home.install.appWindows': 'Windows desktop app, terminal and CLI',
+	'website.home.install.macosApp': 'macOS desktop app',
+	'website.home.install.macosAppNote':
+		'Open the disk image and drag Orchbee to Applications. Pick the one for your Mac’s chip.',
+	'website.home.install.downloadAppleSilicon': 'Download for Apple silicon',
+	'website.home.install.downloadIntel': 'Download for Intel Mac',
+	'website.home.install.macosScript': 'macOS terminal and CLI',
+	'website.home.install.macosScriptNote':
+		'Installs the terminal interface and the CLI with no security prompt. The second command adds the desktop app.',
+	'website.home.install.startNoteMacos':
+		'Opens the terminal interface. Or open Orchbee from the Start menu on Windows, or from Applications on a Mac.',
+	'website.home.install.macosNote':
+		'The macOS app is not notarized by Apple yet. The first time you open a downloaded copy, macOS says it cannot check Orchbee: click <b>Done</b>, open System Settings › Privacy & Security, click <b>Open Anyway</b> next to Orchbee, and confirm. The terminal commands skip this.',
 	'website.home.install.source': 'Get the source and install its dependencies',
 	'website.home.install.sourceRequirements':
 		'Windows 11. Needs Git, Node.js 22+, Corepack, Rust 1.97.0 and Zig 0.16.0.',

@@ -848,7 +848,8 @@ jobs:
         run: node scripts/release-smoke-windows.mjs leftovers "$env:RUNNER_TEMP\release-artifacts"
 
   # The macOS rows' smoke on fresh runners with those exact files: the disk image, the `.tar.gz`
-  # through `orchbee install`, and the npm route, each in its own scratch HOME.
+  # through `orchbee install`, the website's install.sh with `--desktop` against a local copy of the
+  # row's feed, and the npm route, each in its own scratch HOME.
   release-smoke-macos:
     name: Release smoke ${{ matrix.platform }}
     needs: [release-plan, release-package-macos]
@@ -886,6 +887,9 @@ jobs:
 
       - name: Install and uninstall the archive
         run: node scripts/release-smoke-macos.mjs archive "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-archive"
+
+      - name: Install the archive and the desktop app through install.sh
+        run: node scripts/release-smoke-macos.mjs install-script "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-install-script"
 
       - name: Install, start and uninstall through npm
         run: node scripts/release-smoke-macos.mjs npm "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-npm"
