@@ -1527,23 +1527,18 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
         "the inclusive wire bound itself must pass"
     );
 
-    let valid_get = |detail: serde_json::Value| {
-        serde_json::json!({
-            "schema": "orchbee.agent.get",
-            "version": 1,
-            "source": {"kind": "agent-read", "requestId": "11111111111111111111111111111111"},
-            "result": {"kind": "found", "revision": 7, "session": detail}
-        })
-    };
-    let mut detail = session_detail("sess-alpha");
-    detail["snapshot"]["capabilities"] = serde_json::json!(["activity", "activity"]);
+    // The emitted get document carries the wire detail inside its inspection.
+    let mut inspected = document(&get_out);
+    inspected["result"]["inspection"]["session"]["snapshot"]["capabilities"] =
+        serde_json::json!(["activity", "activity"]);
     assert!(
-        !get_schema.is_valid(&valid_get(detail.clone())),
+        !get_schema.is_valid(&inspected),
         "duplicate capabilities must fail"
     );
-    detail["snapshot"]["capabilities"] = serde_json::json!(["activity"]);
+    inspected["result"]["inspection"]["session"]["snapshot"]["capabilities"] =
+        serde_json::json!(["activity"]);
     assert!(
-        get_schema.is_valid(&valid_get(detail)),
+        get_schema.is_valid(&inspected),
         "unique capabilities must pass"
     );
 

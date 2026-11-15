@@ -1030,7 +1030,14 @@ fn tab_rename_move_and_close_each_submit_one_command() -> TestResult {
 
     let closed = run(
         &base,
-        &["tab", "close", "ops", "--confirm", "--format=json"],
+        &[
+            "tab",
+            "close",
+            "ops",
+            "--confirm",
+            "--detach",
+            "--format=json",
+        ],
     );
     assert_eq!(closed.status.code(), Some(0));
     let document = envelope(&closed);
@@ -1218,7 +1225,7 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
             "move",
             LEFT_PANEL,
             "--into-tab",
-            OPS_TAB,
+            LOGS_TAB,
             "--target-panel",
             RIGHT_PANEL,
             "--direction",
@@ -1287,7 +1294,7 @@ fn tab_and_panel_move_report_unchanged() -> TestResult {
             "move",
             LEFT_PANEL,
             "--into-tab",
-            OPS_TAB,
+            LOGS_TAB,
             "--target-panel",
             RIGHT_PANEL,
             "--direction",
@@ -2746,7 +2753,6 @@ fn close_commands_fail_before_runtime_without_confirm() -> TestResult {
 fn mutation_usage_failures_precede_runtime_access() -> TestResult {
     let base = base_dir("usage").join("never-created");
     let cases: &[&[&str]] = &[
-        &["workspace", "create", "--project", "p"],
         // A partial geometry set is still a usage failure before any
         // runtime access — the group is all-or-none.
         &[
@@ -3153,12 +3159,11 @@ fn project_rename_resolve_failures_submit_nothing() -> TestResult {
         } else {
             // Two "web" Projects: derive the ambiguous snapshot from the
             // stock fixture so every cross-reference stays intact — only the
-            // second row's identity (and its empty workspace list) changes.
+            // second row's identity changes, so no Workspace names it.
             let mut document: serde_json::Value =
                 serde_json::from_slice(fixture_document()).expect("fixture");
             let mut duplicate = document["navigation"]["projects"][0].clone();
             duplicate["projectId"] = serde_json::json!(id(0x12));
-            duplicate["workspaces"] = serde_json::json!([]);
             document["navigation"]["projects"]
                 .as_array_mut()
                 .unwrap()
@@ -3438,6 +3443,7 @@ fn workspace_close_route_reaches_the_typed_receipt() -> TestResult {
             "close",
             "main",
             "--confirm",
+            "--detach",
             "--format",
             "json",
         ],

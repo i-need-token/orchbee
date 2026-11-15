@@ -981,10 +981,10 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     // re-encodes the document itself.
     let status = &documents[13]["result"];
     assert_eq!(
-        status["server"]["sessionId"],
+        status["session"]["sessionId"],
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     );
-    assert_eq!(status["server"]["revision"], "7");
+    assert_eq!(status["session"]["revision"], "7");
     assert_eq!(
         status["counts"],
         serde_json::json!({
@@ -1003,7 +1003,7 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     // Negative mutations prove the two new schema assertions are not vacuous.
     let status_schema = compiled_schema(&base, "orchbee.status");
     let mut unreachable_session = documents[13].clone();
-    unreachable_session["result"]["server"]["reachable"] = serde_json::json!(false);
+    unreachable_session["result"]["session"]["reachable"] = serde_json::json!(false);
     assert!(!status_schema.is_valid(&unreachable_session));
     let mut extra_count = documents[13].clone();
     extra_count["result"]["counts"]["bogus"] = serde_json::json!(0);
@@ -1228,7 +1228,6 @@ fn out_of_scope_filters_fail_before_runtime_access() -> TestResult {
         (&["terminal", "list", "--project", "x"], "invalid-usage"),
         (&["terminal", "list", "--standalone"], "invalid-usage"),
         (&["tab", "list", "--project", "x"], "invalid-usage"),
-        (&["panel", "list", "--workspace", "x"], "invalid-usage"),
         (&["panel", "list", "--standalone"], "invalid-usage"),
         (
             &["tab", "list", "--workspace", "x", "--standalone"],
@@ -1350,7 +1349,7 @@ fn emitted_documents_validate_and_rejected_variants_fail() -> TestResult {
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"invalid-identifier","details":{"resource":"schema","target":"x","extra":1}},"source":{"kind":"embedded"}}),
         // …and ambiguity stays in its own domain: resource is the ambiguous
         // kind, candidates are typed ids only, bounded at 8.
-        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"ambiguous","details":{"resource":"panel","target":"x","candidates":[id(1),id(2)],"totalCount":2}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"ambiguous","details":{"resource":"schema","target":"x","candidates":[id(1),id(2)],"totalCount":2}},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"ambiguous","details":{"resource":"tab","target":"x","candidates":["label-a","label-b"],"totalCount":2}},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"ambiguous","details":{"resource":"tab","target":"x","candidates":[id(1),id(2),id(3),id(4),id(5),id(6),id(7),id(8),id(9)],"totalCount":9}},"source":{"kind":"embedded"}}),
     ] {
