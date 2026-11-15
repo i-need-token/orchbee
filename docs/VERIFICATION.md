@@ -274,19 +274,21 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   Linux `verify` job never compiles. It runs as three parallel jobs, one per test part of
   [Required tasks](#required-tasks): as one job it ran for about an hour, 41 minutes of that in
   tests and most of those in the terminal client's process tests, and a run ends with its slowest
-  job. They are the only jobs that run the Cargo test suites. Formatting, documentation,
+  job. They and `rust-macos` are the only jobs that run the Cargo test suites. Formatting, documentation,
   TypeScript and TLA checks are platform-independent and stay in `verify`. The Windows TUI process
   tests that share `apps/orchbee/tests/support/windows_tui_session.rs` take turns inside their test
   binary: four of their real Session pairs at once saturate the four-vCPU runner, and shells then
   echo typed input seconds late.
-- Platform exclusions are explicit. macOS has no Rust job because the native Client is only an
-  unsigned per-user Apple Silicon development cohort. `terminal-host-native` runs the native
-  Terminal Host tests and formatting check on `windows-latest` only. The repository is public, so
-  GitHub accepts the `macos-14` runner label, but the macOS entry stays out while Windows is the
-  only release platform. The job keeps its macOS setup step; restore the macOS job when macOS work
-  resumes by setting its matrix to `os: [macos-14, windows-latest]`. Until then macOS has no CI
-  evidence.
-  No job runs `test:cross`; cross-compilation stays explicit.
+- The `rust-macos` job runs the same three parts of `pnpm verify:rust-native` on `macos-15`
+  (Apple Silicon), and `terminal-host-native` runs the native Terminal Host tests and formatting
+  check on `macos-15` and `windows-latest`. The macOS jobs are non-blocking
+  (`continue-on-error`) until they are green; then the flag is removed and a red macOS job counts
+  like any other. No Verify job runs on an Intel Mac runner; Intel macOS is left to the release
+  workflow's `macos-x86_64` row.
+  Only the Windows jobs prefetch the arocc Zig package: Zig's own download fails on GitHub's
+  Windows runners and succeeds on Linux and macOS.
+- Platform exclusions are explicit. Linux stays parked: its Cargo test suites run in no job, as
+  the `verify` job above describes. No job runs `test:cross`; cross-compilation stays explicit.
 - No job runs TLA+ model checking or TLC, and no job provisions Java. Of the TLA tooling, the
   `verify` job runs only the Java-free `test:tla:inventory` stage of `pnpm verify`. Affected registered models run
   locally, as Change-triggered TLA+ verification above requires.
