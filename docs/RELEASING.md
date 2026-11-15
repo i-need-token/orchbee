@@ -56,6 +56,7 @@ repository>`. Print each public half with the command in
    > 0.1.0-beta.1 has no update command. Coming from it, install this version once by hand: run the
    > installer again, or `npm install -g orchbee`. Close the terminals you opened from the Orchbee
    > window before you run the installer.
+
 4. The run then needs no human step. To stop a release, cancel the run (Cancel workflow on the run
    page) before its job "Publish v0.1.0-beta.1" starts; until then nothing is public.
 5. Publication signs the update feed document with the release key, then creates a draft release
