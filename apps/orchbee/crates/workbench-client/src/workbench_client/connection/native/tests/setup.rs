@@ -3,8 +3,8 @@ use orchbee_local_ipc::LocalStream as UnixStream;
 mod tab_close;
 mod workspace_setup;
 use crate::local_client::test_support::server::{
-    FakeServer, PrewriteGate, connect_with_adjustable_clock, connect_with_gated_prewrite_clock,
-    connect_with_switchable_ceiling_clock,
+    FakeServer, PrewriteGate, ResponseWaitLatch, connect_with_gated_prewrite_clock,
+    connect_with_response_wait_clock, connect_with_switchable_ceiling_clock,
 };
 use crate::local_client::workbench::WorkbenchTabCreateRequest;
 use crate::local_client::{LocalClientShutdown, LocalOperationClock};
@@ -374,6 +374,7 @@ pub(super) struct Harness {
     pub(super) ui: UiDriver,
     ceiling_clock: Option<Arc<AtomicBool>>,
     prewrite_gate: Option<Arc<PrewriteGate>>,
+    response_wait: Option<Arc<ResponseWaitLatch>>,
     shutdown: LocalClientShutdown,
     worker_done: Receiver<()>,
     worker: Option<JoinHandle<ClientConnectionExit>>,
@@ -446,6 +447,7 @@ impl Harness {
         let carrier = ScriptedCarrier::start(steps)?;
         let elapsed_millis = Arc::new(AtomicU64::new(0));
         let server = carrier.server.as_ref().ok_or("fake Server")?;
+        let mut response_wait = None;
         let mut client = match (&ceiling_clock, &prewrite_gate) {
             (Some(at_ceiling), None) => connect_with_switchable_ceiling_clock(
                 server.endpoint(),
@@ -458,7 +460,13 @@ impl Harness {
                 Arc::clone(prewrite_gate),
             )?,
             (None, None) => {
-                connect_with_adjustable_clock(server.endpoint(), Arc::clone(&elapsed_millis))?
+                let latch = Arc::new(ResponseWaitLatch::default());
+                response_wait = Some(Arc::clone(&latch));
+                connect_with_response_wait_clock(
+                    server.endpoint(),
+                    Arc::clone(&elapsed_millis),
+                    latch,
+                )?
             }
             (Some(_), Some(_)) => return Err(test_error("Harness clock modes are exclusive")),
         };
@@ -491,6 +499,7 @@ impl Harness {
             ui,
             ceiling_clock,
             prewrite_gate,
+            response_wait,
             shutdown,
             worker_done,
             worker: Some(worker),
@@ -539,6 +548,31 @@ impl Harness {
             .ok_or_else(|| test_error("Harness does not use the prewrite gate"))?;
         gate.release();
         Ok(())
+    }
+
+    /// Arms the latch that the next exchange reaches once its request is written inside its
+    /// deadline. Arm it while no exchange is between its write and that deadline check.
+    pub(super) fn arm_response_wait(&self) -> TestResult {
+        self.response_wait
+            .as_ref()
+            .ok_or_else(|| test_error("Harness does not observe response waits"))?
+            .arm()
+            .map_err(Into::into)
+    }
+
+    /// Awaits the armed exchange reading its response. A clock moved after this reaches that
+    /// exchange's response read, never its write deadline check.
+    pub(super) fn await_response_wait(&self) -> TestResult {
+        if self
+            .response_wait
+            .as_ref()
+            .ok_or_else(|| test_error("Harness does not observe response waits"))?
+            .await_reached_before(Instant::now() + WALL_GUARD)
+        {
+            Ok(())
+        } else {
+            Err(test_error("native worker did not read its response"))
+        }
     }
 
     pub(super) fn finish(self) -> TestResult {
@@ -591,6 +625,22 @@ impl Harness {
             .join()
             .map_err(|_panic| test_error("mailbox waker panicked"))?;
         result
+    }
+
+    /// Moves the scripted clock to `elapsed_millis` and awaits the worker closing the mailbox at
+    /// that instant. Like `take_next_at`, it repeats the wake, without moving the clock again,
+    /// until a waiter samples the moved clock.
+    pub(super) fn await_close_at(&self, elapsed_millis: u64) -> TestResult {
+        self.elapsed_millis.store(elapsed_millis, Ordering::SeqCst);
+        let wall_deadline = Instant::now() + WALL_GUARD;
+        while self.mailbox.is_closed().is_none() {
+            if Instant::now() >= wall_deadline {
+                return Err(test_error("worker did not close the mailbox"));
+            }
+            self.mailbox.wake_waiters();
+            thread::yield_now();
+        }
+        Ok(())
     }
 
     pub(super) fn finish_with_failure(mut self, failure: CarrierFailure) -> TestResult {

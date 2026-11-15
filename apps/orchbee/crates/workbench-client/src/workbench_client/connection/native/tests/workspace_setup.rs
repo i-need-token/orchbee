@@ -100,8 +100,7 @@ fn definite_setup_refusal_survives_unconsumed_ui_result_deadline() -> TestResult
     );
     // The UI has taken the event but never deposited its receipt. Only the worker's retained
     // definite evidence may clear the pending operation after this deadline.
-    harness.elapsed_millis.store(50_000, Ordering::SeqCst);
-    harness.mailbox.wake_waiters();
+    harness.await_close_at(50_000)?;
     let state = harness.finish_with_setup_not_applied(CarrierFailure::Deadline)?;
     assert_eq!(state.cache(), &baseline);
     assert_eq!(state.attached_key().map(|pane| pane.anchor()), Some(&old));

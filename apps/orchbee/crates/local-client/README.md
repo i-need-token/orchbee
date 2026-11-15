@@ -38,11 +38,12 @@ queue, correlation, health, and cleanup evidence. Raw connection constructors an
 with those tests.
 
 The `test-support` feature exposes `test_support`: bounded fake Servers and multiplex peers,
-deadline-free test admission, controlled transport clocks, a before-write gate, and wake marker
-errors. Only development dependencies within the application enable it, directly or through the
-[Workbench Client](../workbench-client/README.md) `test-support` feature, so release builds and the
-production boundary never include it. Application and Workbench Client tests use it to drive real
-admission and exchange paths; application code still consumes only the production boundary.
+deadline-free test admission, controlled transport clocks, a before-write gate, a response-wait
+latch, and wake marker errors. Only development dependencies within the application enable it,
+directly or through the [Workbench Client](../workbench-client/README.md) `test-support` feature,
+so release builds and the production boundary never include it. Application and Workbench Client
+tests use it to drive real admission and exchange paths; application code still consumes only the
+production boundary.
 
 ## Maintenance
 

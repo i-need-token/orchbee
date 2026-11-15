@@ -870,6 +870,11 @@ trait MonotonicClock: fmt::Debug + Send + Sync {
 
     #[cfg(any(test, feature = "test-support"))]
     fn before_request_write(&self) {}
+
+    /// The request is written and its deadline still holds, so the exchange now reads its
+    /// response.
+    #[cfg(any(test, feature = "test-support"))]
+    fn after_request_write(&self) {}
 }
 
 #[derive(Clone, Debug)]
@@ -890,6 +895,11 @@ impl MonotonicClock for LocalOperationClock {
     #[cfg(any(test, feature = "test-support"))]
     fn before_request_write(&self) {
         self.0.before_request_write();
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    fn after_request_write(&self) {
+        self.0.after_request_write();
     }
 }
 
@@ -986,6 +996,8 @@ fn exchange_once<ResultType, ReadError>(
     if let Err(error) = deadline.remaining(clock) {
         return ExchangeAttempt::WriteFailed(error);
     }
+    #[cfg(any(test, feature = "test-support"))]
+    clock.after_request_write();
 
     match read_result(&mut io) {
         Ok(result) => match deadline.remaining(clock) {

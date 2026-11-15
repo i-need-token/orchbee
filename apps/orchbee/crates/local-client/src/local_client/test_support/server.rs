@@ -333,6 +333,26 @@ pub fn connect_with_adjustable_clock(
         Box::new(AdjustableClock {
             origin: Instant::now(),
             elapsed_millis,
+            response_wait: None,
+        }),
+        super::super::IoChunkLimits::UNBOUNDED,
+    )
+}
+
+/// An adjustable clock that also reaches `response_wait` once an armed exchange reads its
+/// response.
+pub fn connect_with_response_wait_clock(
+    endpoint: &Path,
+    elapsed_millis: Arc<AtomicU64>,
+    response_wait: Arc<ResponseWaitLatch>,
+) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
+    super::super::LocalClient::connect_with_submission_runtime(
+        endpoint,
+        super::super::REQUEST_TOTAL_TIMEOUT,
+        Box::new(AdjustableClock {
+            origin: Instant::now(),
+            elapsed_millis,
+            response_wait: Some(response_wait),
         }),
         super::super::IoChunkLimits::UNBOUNDED,
     )
@@ -344,6 +364,7 @@ pub fn adjustable_operation_clock(
     super::super::LocalOperationClock(Arc::new(AdjustableClock {
         origin: Instant::now(),
         elapsed_millis,
+        response_wait: None,
     }))
 }
 
@@ -454,6 +475,68 @@ pub fn connect_with_ui_sample_expiry_clock(
 struct AdjustableClock {
     origin: Instant,
     elapsed_millis: Arc<AtomicU64>,
+    response_wait: Option<Arc<ResponseWaitLatch>>,
+}
+
+#[derive(Debug, Default)]
+struct ResponseWaitState {
+    armed: bool,
+    reached: bool,
+}
+
+/// Reached by the next exchange that has written its request inside its deadline and reads its
+/// response. A test that moves the clock before it delivers a response arms the latch before the
+/// request is written and awaits it after: an exchange still checking its write deadline would
+/// otherwise observe the moved clock as a write failure instead of a response deadline.
+#[derive(Debug, Default)]
+pub struct ResponseWaitLatch {
+    state: Mutex<ResponseWaitState>,
+    changed: Condvar,
+}
+
+impl ResponseWaitLatch {
+    pub fn arm(&self) -> io::Result<()> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        if state.armed {
+            return Err(io::Error::other("response wait latch is already armed"));
+        }
+        state.armed = true;
+        state.reached = false;
+        Ok(())
+    }
+
+    pub fn await_reached_before(&self, wall_deadline: Instant) -> bool {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        while !state.reached {
+            let remaining = wall_deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+            state = match self.changed.wait_timeout(state, remaining) {
+                Ok((state, _timeout)) => state,
+                Err(poison) => poison.into_inner().0,
+            };
+        }
+        true
+    }
+
+    fn reach_if_armed(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        if state.armed {
+            state.armed = false;
+            state.reached = true;
+            self.changed.notify_all();
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -576,6 +659,12 @@ impl super::super::MonotonicClock for AdjustableClock {
                 self.elapsed_millis.load(Ordering::SeqCst),
             ))
             .expect("adjustable test clock must remain inside the monotonic clock range")
+    }
+
+    fn after_request_write(&self) {
+        if let Some(response_wait) = &self.response_wait {
+            response_wait.reach_if_armed();
+        }
     }
 }
 

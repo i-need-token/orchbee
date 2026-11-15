@@ -336,8 +336,12 @@ fn close_family_response_after_handoff_cutoff_retires_without_replay() -> TestRe
     for family in FAMILIES {
         let mut harness = Harness::start(steps(1), fixture_geometry()?)?;
         ready(&mut harness)?;
+        harness.arm_response_wait()?;
         let operation = admit(&mut harness, family)?;
         receive(&harness, family, &operation)?;
+        // The cutoff must pass while the worker reads the response, not while it still checks
+        // the deadline of the request it has just written.
+        harness.await_response_wait()?;
         harness.elapsed_millis.store(50_000, Ordering::SeqCst);
         harness
             .carrier
