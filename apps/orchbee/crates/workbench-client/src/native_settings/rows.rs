@@ -20,6 +20,8 @@ pub enum Row {
     CompletionThreshold,
     Sound,
     Scrollback,
+    /// Whether the Server installs new versions in the background (`update.automatic`).
+    AutomaticUpdates,
     LaunchProfiles,
     /// Where a new terminal starts (`terminal.new_cwd`).
     NewTerminalFolder,

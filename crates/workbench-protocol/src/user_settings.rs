@@ -93,6 +93,10 @@ pub struct UserSettingsValues {
     pub sound_enabled: bool,
     #[serde(deserialize_with = "scrollback_bytes")]
     pub scrollback_bytes: u32,
+    /// Whether the Server downloads and installs new versions in the background. A version
+    /// already installed still offers Update when this is off.
+    #[serde(default = "default_automatic_updates")]
+    pub automatic_updates: bool,
     pub launch_profiles: UserLaunchProfiles,
 }
 impl Default for UserSettingsValues {
@@ -113,6 +117,7 @@ impl Default for UserSettingsValues {
             completion_reminder_minimum_seconds: 5,
             sound_enabled: false,
             scrollback_bytes: 10_000_000,
+            automatic_updates: true,
             launch_profiles: UserLaunchProfiles::default(),
         }
     }
@@ -152,6 +157,9 @@ fn default_dark_theme() -> String {
     "orchbee-dark".into()
 }
 fn default_resume_agents_on_restore() -> bool {
+    true
+}
+fn default_automatic_updates() -> bool {
     true
 }
 fn color_theme_id<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {

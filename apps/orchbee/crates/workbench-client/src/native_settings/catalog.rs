@@ -30,7 +30,7 @@ impl Category {
 
     pub(crate) const fn groups(self) -> &'static [Group] {
         match self {
-            Self::General => &[Group::Language, Group::AfterRestart],
+            Self::General => &[Group::Language, Group::AfterRestart, Group::Updates],
             Self::Appearance => &[Group::AppAppearance, Group::TerminalColors],
             Self::Themes => &[Group::LightThemes, Group::DarkThemes],
             Self::Terminal => &[Group::SelectionKeys, Group::Output, Group::LaunchProfiles],
@@ -51,6 +51,8 @@ impl Category {
 pub enum Group {
     Language,
     AfterRestart,
+    /// Automatic updates; unnamed, since its one row names it.
+    Updates,
     AppAppearance,
     TerminalColors,
     LightThemes,
@@ -74,6 +76,7 @@ impl Group {
         match self {
             Self::Language => vec![Row::Language],
             Self::AfterRestart => vec![Row::RestoreOutput],
+            Self::Updates => vec![Row::AutomaticUpdates],
             Self::AppAppearance => vec![Row::Theme],
             Self::TerminalColors => vec![Row::TerminalTheme, Row::Foreground, Row::Background],
             Self::LightThemes => theme_rows(Row::LightTheme),
@@ -133,6 +136,8 @@ pub(super) struct Filter<'a> {
     pub(super) custom_colors: bool,
     pub(super) completion_reminders: bool,
     pub(super) integrations: bool,
+    /// Rows whose key the settings registry does not yet mark for the page show anyway.
+    pub(super) unlisted: bool,
 }
 
 impl Filter<'_> {
@@ -140,12 +145,14 @@ impl Filter<'_> {
         query: &'a str,
         values: &orchbee_workbench_protocol::UserSettingsValues,
         integrations: bool,
+        unlisted: bool,
     ) -> Filter<'a> {
         Filter {
             query,
             custom_colors: values.terminal_display_theme == TerminalDisplayAppearance::Custom,
             completion_reminders: values.completion_reminder_mode != CompletionReminderMode::Never,
             integrations,
+            unlisted,
         }
     }
 
@@ -154,9 +161,17 @@ impl Filter<'_> {
             Row::Foreground | Row::Background => self.custom_colors,
             Row::CompletionThreshold => self.completion_reminders,
             Row::AgentIntegrations => self.integrations,
+            Row::AutomaticUpdates => self.unlisted || on_page("update.automatic"),
             _ => true,
         }
     }
+}
+
+/// Whether the settings registry marks `path` for the settings page. A row that waits on its mark
+/// stays hidden until the key's feature ships.
+fn on_page(path: &str) -> bool {
+    let segments: Vec<&str> = path.split('.').collect();
+    orchbee_local_runtime::find_setting(&segments).is_some_and(|setting| setting.page)
 }
 
 /// The entries of a page: a category's framed groups, every matching row across categories

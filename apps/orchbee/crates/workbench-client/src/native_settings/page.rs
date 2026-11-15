@@ -33,6 +33,8 @@ pub(super) struct PageState {
     pub(super) login_shell_supported: bool,
     pub(super) reduced_color: bool,
     pub(super) integrations_available: bool,
+    /// Shows the rows whose key the settings registry does not yet mark for the page.
+    pub(super) unlisted: bool,
     pub(super) token: Token,
     pub(super) confirmed: Confirmed,
     pub(super) file: FileState,
@@ -75,6 +77,7 @@ impl PageState {
                 self.filter.text(),
                 &self.values,
                 self.integrations_available,
+                self.unlisted,
             ),
             self.picker
                 .map(|picker| (picker.row(), Choice::options(picker.row()))),
@@ -434,6 +437,7 @@ impl PageState {
             Row::ResumeAgents => Some(values.resume_agents_on_restore),
             Row::RestoreOutput => Some(values.restore_terminal_output),
             Row::Sound => Some(values.sound_enabled),
+            Row::AutomaticUpdates => Some(values.automatic_updates),
             Row::Login => match &self.current_profile().command {
                 UserLaunchCommand::SystemShell { login } => Some(*login),
                 UserLaunchCommand::CustomExecutable { .. } => None,

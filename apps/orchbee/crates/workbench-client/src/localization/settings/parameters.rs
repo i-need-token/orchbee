@@ -24,6 +24,7 @@ pub(crate) enum SettingsRow {
     CompletionThreshold,
     Sound,
     Scrollback,
+    AutomaticUpdates,
     LaunchProfiles,
     NewTerminalFolder,
     PrefixKey,
@@ -63,6 +64,7 @@ pub(crate) enum SettingsCategory {
 pub(crate) enum SettingsGroup {
     Language,
     AfterRestart,
+    Updates,
     AppAppearance,
     TerminalColors,
     LightThemes,

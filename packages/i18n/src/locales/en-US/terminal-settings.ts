@@ -144,6 +144,9 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.restoreOutput.label': 'Restore terminal output after restart',
 	'terminal.settings.page.restoreOutput.description':
 		'Shows recent output again after a restart. Kept on this computer; may include secrets.',
+	'terminal.settings.page.automaticUpdates.label': 'Automatic updates',
+	'terminal.settings.page.automaticUpdates.description':
+		'Download and install new versions in the background.',
 	'terminal.settings.page.applicationTheme.label': 'Application theme',
 	'terminal.settings.page.applicationTheme.description':
 		'Light, dark, or follow the system. Pick the light and dark themes under Themes.',

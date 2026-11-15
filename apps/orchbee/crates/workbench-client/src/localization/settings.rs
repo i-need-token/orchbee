@@ -82,6 +82,7 @@ impl Locale {
             Row::CompletionThreshold => ("Minimum command duration", "最短命令时长"),
             Row::Sound => ("Notification sound", "通知声音"),
             Row::Scrollback => ("Terminal history", "终端历史"),
+            Row::AutomaticUpdates => ("Automatic updates", "自动更新"),
             Row::LaunchProfiles => ("Default profile", "默认启动配置"),
             Row::NewTerminalFolder => ("New terminal folder", "新终端文件夹"),
             Row::PrefixKey => ("Prefix key", "前缀键"),
@@ -125,7 +126,7 @@ impl Locale {
         group: impl Into<SettingsGroup>,
     ) -> Option<&'static str> {
         Some(match group.into() {
-            Group::Language | Group::Prefix => return None,
+            Group::Language | Group::Updates | Group::Prefix => return None,
             Group::AfterRestart => self.setting("After a restart", "重启之后"),
             Group::AppAppearance => self.setting("App appearance", "应用外观"),
             Group::TerminalColors => self.setting("Terminal colors", "终端颜色"),
@@ -285,6 +286,10 @@ impl Locale {
             Row::Scrollback => self.setting(
                 "How much output each terminal keeps for scrolling back.",
                 "每个终端保留多少输出用于回看。",
+            ),
+            Row::AutomaticUpdates => self.setting(
+                "Installs in the background; nothing restarts until you choose Update.",
+                "在后台下载并安装新版本。点击“更新”前不会重启任何内容。",
             ),
             Row::Reminders => self.setting(
                 "Tells you when an Agent you can’t see finishes or needs you.",

@@ -42,6 +42,8 @@ pub(crate) enum SettingEffect {
     NewDefaultLaunch,
     /// Applies when the Server next restarts from its checkpoint.
     NextRestart,
+    /// Applies from the Server's next background update check.
+    NextUpdateCheck,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -54,7 +56,7 @@ pub(crate) struct SettingMetadata {
     pub(crate) effect: SettingEffect,
 }
 
-pub(crate) static SETTINGS: [SettingMetadata; 16] = [
+pub(crate) static SETTINGS: [SettingMetadata; 17] = [
     SettingMetadata {
         key: UserSettingsField::Locale,
         row: Row::Language,
@@ -171,6 +173,13 @@ pub(crate) static SETTINGS: [SettingMetadata; 16] = [
         },
         availability: SettingAvailability::Always,
         effect: SettingEffect::NewTerminal,
+    },
+    SettingMetadata {
+        key: UserSettingsField::AutomaticUpdates,
+        row: Row::AutomaticUpdates,
+        control: SettingControl::Boolean,
+        availability: SettingAvailability::Always,
+        effect: SettingEffect::NextUpdateCheck,
     },
     SettingMetadata {
         key: UserSettingsField::LaunchProfiles,

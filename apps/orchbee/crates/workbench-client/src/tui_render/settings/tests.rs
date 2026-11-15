@@ -110,6 +110,37 @@ fn below_the_narrow_width_the_page_shows_one_column_at_a_time() {
     }
 }
 
+/// Automatic updates stays off General until the settings registry marks its key for the page;
+/// then it shows its name and description in both locales.
+#[test]
+fn automatic_updates_shows_on_general_only_once_the_registry_lists_it() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for unlisted in [false, true] {
+            let mut editor = Editor::default();
+            if unlisted {
+                editor.show_unlisted();
+            }
+            let token = editor.open().unwrap();
+            assert!(editor.loaded(token, &snapshot()));
+            present(&mut editor, (120, 36), locale);
+            let View::Page(page) = editor.view().unwrap() else {
+                panic!("the page is open");
+            };
+            editor.control(page.token(), Control::Category(Category::General));
+            let rows = paint(&mut editor, (120, 36), locale);
+            let shown = orchbee_local_runtime::find_setting(&["update", "automatic"])
+                .is_some_and(|setting| setting.page)
+                || unlisted;
+            for text in [
+                locale.settings_row(Row::AutomaticUpdates),
+                locale.settings_description(Row::AutomaticUpdates),
+            ] {
+                assert_eq!(has(&rows, text), shown, "{locale:?}, {unlisted}: {rows}");
+            }
+        }
+    }
+}
+
 #[test]
 fn a_viewport_below_the_page_minimum_is_not_presented() {
     let mut editor = Editor::default();
@@ -270,6 +301,7 @@ fn the_restore_action_leaves_a_changed_rows_description_whole() {
                     continue;
                 }
                 let mut editor = Editor::default();
+                editor.show_unlisted();
                 let token = editor.open().unwrap();
                 assert!(editor.loaded(token, &snapshot));
                 present(&mut editor, (100, 40), locale);

@@ -626,6 +626,17 @@ export const SETTING_KEY_TABLE = {
 			group: 'updates',
 			page: false,
 		},
+		{
+			path: 'update.automatic',
+			type: 'boolean',
+			default: true,
+			scope: 'server',
+			clients: 'both',
+			effect: 'immediate',
+			category: 'general',
+			group: 'updates',
+			page: false,
+		},
 	],
 } as const;
 
@@ -721,6 +732,14 @@ function isSettingValue<Key extends SettingKey>(
 		case 'path':
 			return text(value, MAXIMUM_PATH_BYTES);
 	}
+}
+
+/**
+ * Whether the settings registry marks `key` for the settings page. A row for a key it does not mark
+ * yet stays hidden until the key's feature ships.
+ */
+export function isSettingOnPage(key: SettingKey): boolean {
+	return definitions.get(key)?.page === true;
 }
 
 /** The registry default of `key`; null where it is unset. */

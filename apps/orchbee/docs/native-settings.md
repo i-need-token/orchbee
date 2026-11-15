@@ -20,7 +20,11 @@ unusable, and framed groups under their headings. Every row shows its name, a on
 that is always visible, and its control at the row's end. Themes shows the light list and the dark
 list; the list the current appearance paints is tagged in use, and System follows the canvas. A row
 that only applies in some state, such as custom colors outside Custom or the reminder threshold while
-reminders are off, is hidden until it applies. The last line names More options in `config.toml` and
+reminders are off, is hidden until it applies. General ends with Automatic updates
+(`update.automatic`) in an unnamed group; it shows only while the settings registry marks that key
+for the page, which the
+[automatic updates proposal](../../../proposals/platform/automatic-updates.md#phases) turns on with
+its slice 1 switch. The last line names More options in `config.toml` and
 its path; a path too long for the line drops its leading folders first, so the file name stays.
 Text that does not fit its cells ends in the ellipsis at a grapheme boundary, counted in display
 cells, and every TUI description fits its row from 100 columns up in both locales, shortened from
@@ -263,6 +267,7 @@ name:
 | `completionReminderMinimumSeconds` | No preview                                                                    | Later completion evaluation at the new duration threshold                                                          |
 | `soundEnabled`                     | No preview                                                                    | Eligible later reminders; host sound capability and per-Agent mute still apply                                     |
 | `scrollbackBytes`                  | No preview                                                                    | Newly created terminals capture the limit; existing/restored terminals keep theirs                                 |
+| `automaticUpdates`                 | No preview                                                                    | The Server's next background update check; Off stops the schedule and its downloads                                |
 | `launchProfiles`                   | Child-page edits apply as one edit on leaving                                 | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                 |
 
 Native host configuration is a separate admitted surface, not extra shared-editor

@@ -67,7 +67,7 @@ export type {
 	SettingsRefusalReason,
 	SettingsSnapshot,
 } from './workbench-protocol';
-export { readSettingValue, settingDefault } from './setting-keys';
+export { isSettingOnPage, readSettingValue, settingDefault } from './setting-keys';
 /** @internal Every scalar key, for the Web in-memory settings fixture. */
 export { SETTING_KEYS } from './setting-keys';
 export type { SettingKey, SettingValues, SettingsPlatform } from './setting-keys';

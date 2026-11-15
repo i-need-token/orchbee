@@ -1020,8 +1020,10 @@ The TUI comes first, and the window follows it under the
 | TUI without a launcher | Run orchbee to open version {version}.                                                        | 运行 orchbee 打开 {version} 版本。                     |
 | Setting                | Automatic updates                                                                             | 自动更新                                               |
 | Setting description    | Download and install new versions in the background. Nothing restarts until you click Update. | 在后台下载并安装新版本。点击“更新”前不会重启任何内容。 |
+| TUI description        | Installs in the background; nothing restarts until you choose Update.                         | 在后台下载并安装新版本。点击“更新”前不会重启任何内容。 |
 
-The copy is proposed for the owner's review before it ships. The TUI tooltip needs one amendment
+The copy is proposed for the owner's review before it ships. The TUI description is shorter in
+English because a Settings description fits 69 cells at 100 columns. The TUI tooltip needs one amendment
 to [pointer tooltips](../../docs/tui/overlays-and-status.md#pointer-tooltips), whose action
 content is a label and its key: an effect line for a control whose label cannot say what keeps
 running. The action menu entry carries the same sentence, so it stays reachable without a pointer.

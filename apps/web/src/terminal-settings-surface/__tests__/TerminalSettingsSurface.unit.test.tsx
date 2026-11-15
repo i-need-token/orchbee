@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { OrchbeeI18nProvider } from '@orchbee/i18n';
+import { OrchbeeI18nProvider, type OrchbeeLocale } from '@orchbee/i18n';
 import type {
 	TerminalInputConfiguration,
 	TerminalInteractionConfiguration,
@@ -25,6 +25,20 @@ import type {
 } from '../../terminal-default-settings-control';
 import { colorThemesWithFixtures, fixtureDarkTheme } from '../../__tests__/color-theme-fixtures';
 import { memoryUserSettings, type MemoryUserSettings } from '../../__tests__/memoryUserSettings';
+
+/** The registry's page mark for `update.automatic` as a test sets it; null keeps the real mark. */
+const automaticUpdatesPage = vi.hoisted((): { listed: boolean | null } => ({ listed: null }));
+
+vi.mock(import('@orchbee/workbench-client-protocol'), async (importOriginal) => {
+	const actual = await importOriginal();
+	return {
+		...actual,
+		isSettingOnPage: (key) =>
+			key === 'update.automatic' && automaticUpdatesPage.listed !== null
+				? automaticUpdatesPage.listed
+				: actual.isSettingOnPage(key),
+	};
+});
 
 interface PreferenceStorage {
 	getItem(key: string): string | null;
@@ -64,6 +78,7 @@ describe('TerminalSettingsSurface', () => {
 	}
 
 	afterEach(async () => {
+		automaticUpdatesPage.listed = null;
 		const failures: unknown[] = [];
 		for (const root of testResources.roots.splice(0)) {
 			try {
@@ -86,6 +101,7 @@ describe('TerminalSettingsSurface', () => {
 
 	interface HarnessOptions {
 		readonly controller?: TerminalSettingsController;
+		readonly locale?: OrchbeeLocale;
 		readonly platform?: 'apple' | 'standard';
 		readonly props?: Partial<TerminalSettingsSurfaceProps>;
 		readonly settings?: MemoryUserSettings;
@@ -116,7 +132,7 @@ describe('TerminalSettingsSurface', () => {
 			root.render(
 				createElement(
 					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
+					{ locale: options.locale ?? 'en-US' },
 					createElement(TerminalSettingsSurface, {
 						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
@@ -278,6 +294,40 @@ describe('TerminalSettingsSurface', () => {
 		expect(document.documentElement.lang).toBe('en-US');
 		expect(container.querySelector("select[aria-label='Language']")).not.toBeNull();
 		expect(userSettings.getSnapshot().snapshot?.values['general.language']).toBe('en-US');
+	});
+
+	const automaticUpdatesCopy = {
+		'en-US': ['Automatic updates', 'Download and install new versions in the background.'],
+		'zh-CN': ['自动更新', '在后台下载并安装新版本。'],
+	} as const;
+
+	it('keeps Automatic updates off General while the registry does not list it', async () => {
+		for (const locale of ['en-US', 'zh-CN'] as const) {
+			automaticUpdatesPage.listed = false;
+			const { container } = await renderSurface({ locale });
+			const general = requiredElement(container.querySelector('[data-settings-content="general"]'));
+			expect(general.querySelector('[data-setting-id="general.automatic-updates"]')).toBeNull();
+			expect(general.textContent).not.toContain(automaticUpdatesCopy[locale][0]);
+		}
+	});
+
+	it('shows Automatic updates under General once the registry lists it, and applies it', async () => {
+		for (const locale of ['en-US', 'zh-CN'] as const) {
+			automaticUpdatesPage.listed = true;
+			const settings = memoryUserSettings();
+			const { container } = await renderSurface({ locale, settings });
+			const [label, description] = automaticUpdatesCopy[locale];
+			const row = requiredElement(
+				container.querySelector(
+					'[data-settings-content="general"] [data-setting-id="general.automatic-updates"]',
+				),
+			);
+			expect(row.textContent).toContain(description);
+			const toggle = requiredElement<HTMLElement>(row.querySelector(`[aria-label='${label}']`));
+			expect(toggle.getAttribute('aria-checked')).toBe('true');
+			await act(async () => toggle.click());
+			expect(settings.getSnapshot().snapshot?.values['update.automatic']).toBe(false);
+		}
 	});
 
 	it('applies copy on select live', async () => {

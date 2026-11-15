@@ -986,7 +986,7 @@ takes input (`general.language`, `appearance.*`, the terminal font, padding, opa
 selection-copy and blank-row keys, `notifications.*`, `keys.*`) and are read from the file on that
 Client's machine. `Server` keys describe what the Server does (`terminal.new_cwd`,
 `scrollback_bytes`, `restore_output`, the launch profiles and default profile,
-`worktrees.directory`, `agents.resume_on_restore`, `update.channel`)
+`worktrees.directory`, `agents.resume_on_restore`, `update.channel`, `update.automatic`)
 and are read from the attached Server's file. With a local Server both are the same file.
 
 ### Compatibility
@@ -1050,6 +1050,11 @@ every key's purpose, allowed values and default.
 | `[[keys.command]]` `command`, `type`, `key`, `description`, `width`, `height`               | no commands                      | file only                            |
 | `agents.resume_on_restore`                                                                  | `true`                           | Agents / Restore                     |
 | `update.channel`                                                                            | `"stable"`                       | file only, not in the reference      |
+| `update.automatic`                                                                          | `true`                           | General / Updates, once switched on  |
+
+`update.automatic` stays off the settings page and out of the reference until the
+[automatic updates](../../proposals/platform/automatic-updates.md#phases) slice 1 switch marks it
+for both.
 
 The old `[ui]` names are gone without migration or aliases: `[ui]` is one unknown key. The keys
 that carry a `UserSettingsField` and the launch profiles parse into `UserSettings::values`, the

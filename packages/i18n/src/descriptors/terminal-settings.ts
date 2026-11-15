@@ -153,6 +153,8 @@ export const terminalSettingsMessages = defineMessages({
 	pageLanguageDescription: message('terminal.settings.page.language.description'),
 	pageRestoreOutputLabel: message('terminal.settings.page.restoreOutput.label'),
 	pageRestoreOutputDescription: message('terminal.settings.page.restoreOutput.description'),
+	pageAutomaticUpdatesLabel: message('terminal.settings.page.automaticUpdates.label'),
+	pageAutomaticUpdatesDescription: message('terminal.settings.page.automaticUpdates.description'),
 	pageApplicationThemeLabel: message('terminal.settings.page.applicationTheme.label'),
 	pageApplicationThemeDescription: message('terminal.settings.page.applicationTheme.description'),
 	pageTerminalColorsLabel: message('terminal.settings.page.terminalColors.label'),

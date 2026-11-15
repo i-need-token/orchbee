@@ -236,6 +236,8 @@ pub(crate) struct Editor {
     login_shell_supported: bool,
     reduced_color: bool,
     integrations_available: bool,
+    /// Only tests set it, to show the rows the settings registry keeps off the page.
+    unlisted: bool,
     /// Survives closing Settings: an accepted job keeps running and settles here.
     integrations: Integrations,
     /// Followed while Settings is closed, so a page that opens names the file at once.
@@ -313,6 +315,7 @@ impl Editor {
             login_shell_supported: self.login_shell_supported,
             reduced_color: self.reduced_color,
             integrations_available: self.integrations_available,
+            unlisted: self.unlisted,
             token,
             values: confirmed.values.clone(),
             confirmed,

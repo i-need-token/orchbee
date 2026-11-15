@@ -618,6 +618,17 @@
 			"category": "general",
 			"group": "updates",
 			"page": false
+		},
+		{
+			"path": "update.automatic",
+			"type": "boolean",
+			"default": true,
+			"scope": "server",
+			"clients": "both",
+			"effect": "immediate",
+			"category": "general",
+			"group": "updates",
+			"page": false
 		}
 	]
 }

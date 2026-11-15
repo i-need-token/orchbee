@@ -29,6 +29,7 @@ impl From<Row> for SettingsRow {
             Row::CompletionThreshold => Self::CompletionThreshold,
             Row::Sound => Self::Sound,
             Row::Scrollback => Self::Scrollback,
+            Row::AutomaticUpdates => Self::AutomaticUpdates,
             Row::LaunchProfiles => Self::LaunchProfiles,
             Row::NewTerminalFolder => Self::NewTerminalFolder,
             Row::PrefixKey => Self::PrefixKey,
@@ -72,6 +73,7 @@ impl From<Group> for SettingsGroup {
         match group {
             Group::Language => Self::Language,
             Group::AfterRestart | Group::AgentRestore => Self::AfterRestart,
+            Group::Updates => Self::Updates,
             Group::AppAppearance => Self::AppAppearance,
             Group::TerminalColors => Self::TerminalColors,
             Group::LightThemes => Self::LightThemes,
@@ -218,6 +220,7 @@ impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
                 Self::Seconds(u64::from(values.completion_reminder_minimum_seconds))
             }
             Row::Sound => Self::Toggle(values.sound_enabled),
+            Row::AutomaticUpdates => Self::Toggle(values.automatic_updates),
             Row::Scrollback => {
                 Self::ScrollbackMegabytes(super::scrollback_megabytes(values.scrollback_bytes))
             }

@@ -6,6 +6,16 @@ use super::{Editor, SettingsDraw, State, Token};
 const TEST_LINES: usize = 40;
 
 impl Editor {
+    /// Shows the rows the settings registry does not yet mark for the page, as the page will once
+    /// it does; a page already open shows them at its next frame.
+    #[cfg(test)]
+    pub(crate) fn show_unlisted(&mut self) {
+        self.unlisted = true;
+        if let State::Open(page) = &mut self.state {
+            page.unlisted = true;
+        }
+    }
+
     /// Presents the page as a two-column frame would.
     pub(crate) fn draw(&mut self, token: Token) {
         self.draw_with(token, false);

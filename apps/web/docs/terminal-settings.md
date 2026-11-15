@@ -68,6 +68,7 @@ The complete product default is:
 | Copy on select          | `false`                                                            |
 | Resume Agents           | `true`                                                             |
 | Restore terminal output | `false`                                                            |
+| Automatic updates       | `true`                                                             |
 
 ### Agent trailing blank rows
 
@@ -106,6 +107,17 @@ secrets and is stored on this computer. Like Agent resume, the row edits the key
 settings control and has no capability gate; the Server reads it at each checkpoint capture
 and at startup. The [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) owns
 what is kept, when it is deleted and how it is replayed.
+
+### Automatic updates preference
+
+General ends with “Automatic updates”, the `update.automatic` key, on by default, in an unnamed
+card. The row edits the key through the settings control, applies at once and has no capability
+gate; the Server reads it before each background update check. It renders only while the settings
+registry marks the key for the page, which the
+[automatic updates proposal](../../../proposals/platform/automatic-updates.md#phases) turns on with
+its slice 1 switch. Until the window has its own Update control, the description stops after
+“Download and install new versions in the background.” and leaves out the sentence about clicking
+Update.
 
 Workbench exposes increase, decrease, and reset font-size Actions through the same controller.
 Increase and decrease apply a two-point step and clamp at `8` and `48`; reset restores only the
@@ -356,7 +368,7 @@ The categories keep a stable product-outcome order instead of exposing implement
 
 | Category      | Groups                                                                                 |
 | ------------- | -------------------------------------------------------------------------------------- |
-| General       | Language (unnamed card); After a restart: restore terminal output                      |
+| General       | Language (unnamed card); After a restart: restore terminal output; automatic updates   |
 | Appearance    | App appearance; Terminal colors, with custom text and background colors; Terminal text |
 | Themes        | Light theme; Dark theme                                                                |
 | Terminal      | Selection and keys; Output: new terminal folder, terminal history; Launch profiles     |

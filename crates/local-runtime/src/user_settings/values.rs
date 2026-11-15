@@ -29,12 +29,13 @@ pub enum UserSettingsField {
     CompletionReminderMinimumSeconds,
     SoundEnabled,
     ScrollbackBytes,
+    AutomaticUpdates,
     LaunchProfiles,
 }
 
 impl UserSettingsField {
     /// Every field, so a caller that walks the values cannot silently omit one.
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 17] = [
         Self::Locale,
         Self::ApplicationTheme,
         Self::LightTheme,
@@ -50,6 +51,7 @@ impl UserSettingsField {
         Self::CompletionReminderMinimumSeconds,
         Self::SoundEnabled,
         Self::ScrollbackBytes,
+        Self::AutomaticUpdates,
         Self::LaunchProfiles,
     ];
 
@@ -71,6 +73,7 @@ impl UserSettingsField {
             Self::CompletionReminderMinimumSeconds => "notifications.completion_minimum_seconds",
             Self::SoundEnabled => "notifications.sound",
             Self::ScrollbackBytes => "terminal.scrollback_bytes",
+            Self::AutomaticUpdates => "update.automatic",
             Self::LaunchProfiles => return None,
         })
     }
@@ -93,6 +96,7 @@ impl UserSettingsField {
             Self::CompletionReminderMinimumSeconds => "completionReminderMinimumSeconds",
             Self::SoundEnabled => "soundEnabled",
             Self::ScrollbackBytes => "scrollbackBytes",
+            Self::AutomaticUpdates => "automaticUpdates",
             Self::LaunchProfiles => "launchProfiles",
         }
     }

@@ -58,6 +58,7 @@ fn platform() -> &'static str {
 
 fn open(snapshot: &SettingsSnapshot) -> Editor {
     let mut editor = Editor::default();
+    editor.show_unlisted();
     let token = editor.open().unwrap();
     assert!(editor.loaded(token, snapshot));
     draw(&mut editor);
@@ -219,6 +220,11 @@ fn each_change_sends_one_edit_and_only_its_row_waits_while_navigation_stays_free
             Row::RestoreOutput,
             Change::Key,
             UserSettingsField::RestoreTerminalOutput,
+        ),
+        (
+            Row::AutomaticUpdates,
+            Change::Key,
+            UserSettingsField::AutomaticUpdates,
         ),
         (
             Row::Scrollback,
