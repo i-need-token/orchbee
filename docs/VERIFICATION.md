@@ -332,7 +332,8 @@ check.
   (the first update-capable release), or when the pair already names the release, the release
   itself is installed from its archive and its `update` fills an empty scratch store through
   `ORCHBEE_INSTALL_DIR`, which still exercises feed, download, unpacking, publication and activation
-  from GitHub.
+  from GitHub. The scratch store sits beside the store root: the store refuses to create a missing
+  root below a folder other accounts can read, such as the runner's temporary folder.
 - A failure names the stage that failed and tells the owner not to run `pnpm website:release`.
   The step installs for real, so run it only on a disposable Windows machine. Its stand-in for a
   rehearsal on one computer is a test build's stem with `--stem`, a loopback address for

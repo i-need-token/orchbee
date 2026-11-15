@@ -38,8 +38,8 @@
 //   `<stem>-<version>-windows-x86_64.feed.json` in the assets folder, and must activate the
 //   release, which the pointer and the launcher's `--version` then name. Without a tracked pair, or
 //   when the pair already names the release, no older version can update: the release is installed
-//   from its own archive and its `update` fills an empty scratch store (`ORCHBEE_INSTALL_DIR`),
-//   which still proves feed, download, unpacking, publication and activation. Every request is an
+//   from its own archive and its `update` fills an empty scratch store (`ORCHBEE_INSTALL_DIR`) beside
+//   the store root, which still proves feed, download, unpacking, publication and activation. Every request is an
 //   anonymous GET with the system curl. The assets address is the release's download folder over
 //   HTTPS; only a test build's stem admits `http://127.0.0.1:<port>/…/`, a loopback server standing
 //   in for it, together with feeds that name their archive by a path relative to that address. A
@@ -885,7 +885,11 @@ function updateCheck(options, progress) {
 		progress.stage = `installing ${version} from its own archive`;
 		const archive = fetchArchive(source, offered.feed, work, 'release');
 		installRelease(unpackRelease(archive, work, 'release', version), storeRoot, env);
-		const empty = path.join(work, 'empty-store');
+		// Beside the store root, below the folder its install just admitted as private: the store
+		// refuses to create a missing root below a folder other accounts can read, such as the
+		// runner's temporary folder.
+		const empty = `${storeRoot}-update-check`;
+		if (existsSync(empty)) throw new StepFailure(`Refusing to update into an existing ${empty}`);
 		updated = { root: empty, env: { ...updated.env, ORCHBEE_INSTALL_DIR: empty } };
 	}
 
