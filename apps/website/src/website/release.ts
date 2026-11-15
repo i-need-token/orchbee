@@ -26,8 +26,8 @@ export type Release =
 
 export const release: Release = {
 	published: true,
-	version: '0.1.0-beta.2',
-	installerUrl: `${REPOSITORY_URL}/releases/download/v0.1.0-beta.2/Orchbee-0.1.0-beta.2-windows-x86_64-setup.exe`,
+	version: '0.1.0-beta.3',
+	installerUrl: `${REPOSITORY_URL}/releases/download/v0.1.0-beta.3/Orchbee-0.1.0-beta.3-windows-x86_64-setup.exe`,
 };
 
 export function releaseNotesUrl(version: string): string {
