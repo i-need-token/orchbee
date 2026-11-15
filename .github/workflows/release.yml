@@ -227,8 +227,8 @@ jobs:
         run: node scripts/release-smoke-windows.mjs leftovers "$env:RUNNER_TEMP\release-artifacts"
 
   # The release path. Each job fails early and definitely; only `release-preconditions`,
-  # `release-sign` and `release-publish` use the environment `release`, and each maps every secret
-  # into the one step that needs it.
+  # `release-sign`, `release-feed` and `release-publish` use the environment `release`, and each maps
+  # every secret into the one step that needs it.
   release-plan:
     name: Release version
     if: github.event_name == 'push' || inputs.version != ''
@@ -496,6 +496,78 @@ jobs:
           include-hidden-files: true
           retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
 
+      # The feed job receives only the feed document it signs.
+      - name: Upload the feed to sign
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-feed-${{ matrix.platform }}
+          path: ${{ runner.temp }}\release-artifacts\orchbee-${{ needs.release-plan.outputs.version }}-${{ matrix.platform }}.feed.json
+          if-no-files-found: error
+          retention-days: 1
+
+  # Signs the update feed document and the release gate's copy of it, which names the archive by its
+  # file name. Every release-path run signs, so a rehearsal proves this job before a tag does. Like
+  # `release-sign`, it runs only scripts that use Node built-ins. Ed25519 is deterministic, so a
+  # re-run writes the same signatures.
+  release-feed:
+    name: Release feed ${{ matrix.platform }}
+    needs: [release-plan, release-package]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FEED_NAME: orchbee-${{ needs.release-plan.outputs.version }}-${{ matrix.platform }}.feed.json
+      GATE_FEED_NAME: orchbee-${{ needs.release-plan.outputs.version }}-${{ matrix.platform }}.gate.feed.json
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the feed
+        uses: actions/download-artifact@v4
+        with:
+          name: release-feed-${{ matrix.platform }}
+          path: ${{ runner.temp }}/feed
+
+      - name: Write the gate copy of the feed
+        run: node scripts/release-feed.mjs gate "$RUNNER_TEMP/feed/$FEED_NAME"
+
+      # The key reaches this step alone, by environment.
+      - name: Sign the update feed and its gate copy with the release key
+        env:
+          ORCHBEE_RELEASE_SIGNING_KEY: ${{ secrets.ORCHBEE_RELEASE_SIGNING_KEY }}
+        run: |
+          node scripts/sign-release-manifest.mjs "$RUNNER_TEMP/feed/$FEED_NAME" --key-env ORCHBEE_RELEASE_SIGNING_KEY
+          node scripts/sign-release-manifest.mjs "$RUNNER_TEMP/feed/$GATE_FEED_NAME" --key-env ORCHBEE_RELEASE_SIGNING_KEY
+
+      # A tag run keeps both as long as the release artifacts, for a re-run of a later job.
+      - name: Upload the feed signature
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-feed-signature-${{ matrix.platform }}
+          path: ${{ runner.temp }}/feed/${{ env.FEED_NAME }}.sig
+          if-no-files-found: error
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+
+      - name: Upload the signed gate copy
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-gate-feed-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/feed/${{ env.GATE_FEED_NAME }}
+            ${{ runner.temp }}/feed/${{ env.GATE_FEED_NAME }}.sig
+          if-no-files-found: error
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+
   release-smoke:
     name: Release smoke ${{ matrix.platform }} installer
     needs: [release-plan, release-package]
@@ -582,7 +654,7 @@ jobs:
   # Run again, the job finishes a partial publication.
   release-publish:
     name: Publish ${{ needs.release-plan.outputs.tag }}
-    needs: [release-plan, release-smoke, release-smoke-npm]
+    needs: [release-plan, release-feed, release-smoke, release-smoke-npm]
     if: needs.release-plan.outputs.publish == 'true'
     environment: release
     runs-on: ubuntu-latest
@@ -619,13 +691,12 @@ jobs:
           pattern: release-assets-*
           path: ${{ runner.temp }}/release
 
-      # The update feed names the archive by size and SHA-256; its signature is the only file
-      # SHA256SUMS does not list. Node built-ins only; the key reaches this step alone, by
-      # environment, and Ed25519 is deterministic, so a re-run writes the same signature.
-      - name: Sign the update feed with the release key
-        env:
-          ORCHBEE_RELEASE_SIGNING_KEY: ${{ secrets.ORCHBEE_RELEASE_SIGNING_KEY }}
-        run: node scripts/sign-release-manifest.mjs "$ARTIFACTS/orchbee-$RELEASE_VERSION-$RELEASE_PLATFORM.feed.json" --key-env ORCHBEE_RELEASE_SIGNING_KEY
+      # The signature `release-feed` made, beside the feed it signs; SHA256SUMS does not list it.
+      - name: Download the feed signature beside the feed
+        uses: actions/download-artifact@v4
+        with:
+          name: release-feed-signature-${{ env.RELEASE_PLATFORM }}
+          path: ${{ runner.temp }}/release/release-assets-${{ env.RELEASE_PLATFORM }}
 
       # Also verifies the feed signature with RELEASE_KEYS and the feed against the archive.
       - name: Check the release artifacts

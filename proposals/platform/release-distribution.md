@@ -312,17 +312,18 @@ document is never reformatted.
   from the workflow run's repository or `--repository-url`; the test profile by the bare archive
   name, so a test feed works from a folder, and signs it with the test key. `SHA256SUMS` lists the
   feed document like any other file.
-- The release workflow's `release-publish` job signs the feed with `ORCHBEE_RELEASE_SIGNING_KEY` in
-  one step, which alone receives the key, before the draft is created. Ed25519 is deterministic, so
-  "Re-run failed jobs" writes the same signature. Proposed with the
-  [release gate](automatic-updates.md#the-release-gate): that step moves into a job of its own
-  before the gate and also signs a gate copy of the feed that names the archive by its file name;
-  the `release` environment requires no reviewer, so the job adds no approval.
-- The feed signature is the one top-level file `SHA256SUMS` does not list. `release-artifacts.mjs
-check` and `release-publish.mjs github` admit it only when it verifies under the feed domain with a
-  key of the build's table; `check` also confirms the feed against the archive and the release
-  directory, and the draft step refuses a feed without its signature. Both files are ordinary
-  assets of the draft.
+- The release workflow's `release-feed` job, after `release-package` and before the
+  [release gate](automatic-updates.md#the-release-gate), signs the feed with
+  `ORCHBEE_RELEASE_SIGNING_KEY` in one step, which alone receives the key, and in the same step a
+  gate copy of the feed, `<stem>-<version>-<platform>.gate.feed.json`, that names the archive by
+  its file name and is never published; `release-publish` takes the feed's signature from it.
+  Ed25519 is deterministic, so "Re-run failed jobs" writes the same signatures, and the `release`
+  environment requires no reviewer, so the job adds no approval.
+- The feed signature is the one published top-level file `SHA256SUMS` does not list.
+  `release-artifacts.mjs check` and `release-publish.mjs github` admit it only when it verifies
+  under the feed domain with a key of the build's table; `check` also confirms the feed against the
+  archive and the release directory, and the draft step refuses a feed without its signature. Both
+  files are ordinary assets of the draft.
 
 ### Website and the order of a release
 

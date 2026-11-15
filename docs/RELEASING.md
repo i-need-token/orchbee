@@ -25,7 +25,8 @@ repository>`. Print each public half with the command in
    - Required reviewers: none. A pushed tag publishes with no approval.
    - Deployment branches and tags: Selected branches and tags, branch `main` and tag `v*`.
    - Environment secrets: `ORCHBEE_RELEASE_SIGNING_KEY`, the working key's whole PEM text, which
-     signs the manifest and, in the publication job, the update feed document, set with
+     signs the manifest and, in the job "Release feed", the update feed document and the release
+     gate's copy of it, set with
      `gh secret set ORCHBEE_RELEASE_SIGNING_KEY --env release < <working key file>`; and `NPM_TOKEN`,
      the npm token, set with `gh secret set NPM_TOKEN --env release`, which asks for the value.
 4. **Tag rule.** Settings › Rules › Rulesets › New tag ruleset, target `v*`, active, restricting
@@ -59,9 +60,11 @@ repository>`. Print each public half with the command in
 
 4. The run then needs no human step. To stop a release, cancel the run (Cancel workflow on the run
    page) before its job "Publish v0.1.0-beta.1" starts; until then nothing is public.
-5. Publication signs the update feed document with the release key, then creates a draft release
-   `v0.1.0-beta.1` holding the setup file, the `.zip`, the feed document
-   `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, the npm tarballs and
+5. After packaging, the job "Release feed windows-x86_64" signs the update feed document and the
+   release gate's copy of it with the release key, in a rehearsal too; the gate copy names the
+   archive by its file name and is never published. Publication places the feed's signature beside
+   it, then creates a draft release `v0.1.0-beta.1` holding the setup file, the `.zip`, the feed
+   document `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, the npm tarballs and
    `SHA256SUMS`, then publishes `@orchbee/cli-win32-x64` and `orchbee` under the dist-tag `next`
    and moves their `latest` to this version while `latest` is still an older beta, and then
    publishes the draft as the Latest release. Its notes are an Install section that links the
@@ -100,9 +103,9 @@ repository>`. Print each public half with the command in
   an empty tag message gives the tag command.
 - A failed publication job is run again: "Re-run failed jobs" on the same run, within 14 days while
   its artifacts are kept, never "Re-run all jobs". A failed npm step leaves the release a draft.
-  The re-run publishes from the same artifacts, signs the feed document again to the same bytes,
-  completes the draft with the assets it lacks, skips each npm package already published with the
-  same tarball and publishes the rest, publishes the draft as the Latest release or confirms a
+  The re-run publishes from the same artifacts, the feed signature of the job "Release feed"
+  among them, completes the draft with the assets it lacks, skips each npm package already
+  published with the same tarball and publishes the rest, publishes the draft as the Latest release or confirms a
   published one, and starts the update check. This is how a run that published
   `@orchbee/cli-win32-x64` but not `orchbee` is finished. A rebuild would produce other bytes, and
   the job refuses them.

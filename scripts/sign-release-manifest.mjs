@@ -1,6 +1,7 @@
 // Sign a document `orchbee update` verifies, and verify such a signature. Two documents are signed:
 // the packaged release manifest `release.json`, and the update feed document
-// `<stem>-<version>-<platform>.feed.json` (scripts/release-feed.mjs). Each gets a detached signature
+// `<stem>-<version>-<platform>.feed.json` or its gate copy `<...>.gate.feed.json`
+// (scripts/release-feed.mjs), a feed under the same domain. Each gets a detached signature
 // document beside it, the same name plus `.sig`. Each Ed25519 signature covers a UTF-8 domain, LF,
 // and the exact document bytes: `orchbee-release-manifest-v2` for a manifest and
 // `orchbee-update-feed-v1` for a feed, so a signature of one never verifies as the other. Keys are

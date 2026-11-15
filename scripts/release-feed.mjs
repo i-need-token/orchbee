@@ -6,9 +6,18 @@
 //
 // The written form is `JSON.stringify` of the members below in this order, then one LF. A reader
 // accepts any JSON spelling of the same members, and the signature covers the exact bytes, so a
-// written document is never reformatted. Node built-ins only: the release workflow's publish job
+// written document is never reformatted. Node built-ins only: the release workflow's feed job
 // imports this module in the step that holds the signing key.
+//
+// The release gate installs from a gate copy, `<stem>-<version>-<platform>.gate.feed.json`: the
+// same document naming the archive by its bare file name, so a folder holding the archive and the
+// signed copy is a local feed. The feed job writes it before signing both:
+//
+//   node scripts/release-feed.mjs gate <absolute <stem>-<version>-<platform>.feed.json>
 import { createHash } from 'node:crypto';
+import { lstatSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // A reader's bounds; they never shrink.
 export const FEED_LIMIT = 64 * 1024;
@@ -34,6 +43,9 @@ const reservedLeaf = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/u;
 export function feedName(stem, version, platform) {
 	return `${stem}-${version}-${platform}.feed.json`;
 }
+
+/** What the gate copy's name ends with, in place of the feed's `.feed.json`. */
+export const GATE_FEED_SUFFIX = '.gate.feed.json';
 
 /** The lowercase SHA-256 of `bytes`. */
 export function sha256(bytes) {
@@ -188,4 +200,59 @@ export function feedDocument({ channel, platform, version, buildId, manifestSha2
 /** True when `bytes` is the written form of its own members. */
 export function writtenForm(bytes, feed) {
 	return Buffer.from(JSON.stringify(feed) + '\n', 'utf8').equals(bytes);
+}
+
+/**
+ * The gate copy of the feed document `bytes`: every member the same, the archive named by the last
+ * segment of its address. Throws for a document the updater refuses or one not in its written form.
+ */
+export function gateFeed(bytes) {
+	const { feed, problems } = readFeed(bytes);
+	if (problems.length > 0) throw new Error(problems.join('\n'));
+	if (!writtenForm(bytes, feed)) throw new Error('The feed document is not in its written form');
+	const { archive } = feed;
+	return feedDocument({
+		channel: feed.channel,
+		platform: feed.platform,
+		version: feed.version,
+		buildId: feed.buildId,
+		manifestSha256: feed.manifest.sha256,
+		archive: { url: archive.url.split('/').at(-1), size: archive.size, sha256: archive.sha256 },
+	});
+}
+
+/** Writes the gate copy beside the feed document at `feedPath`, never replacing a file. */
+function writeGateFeed(feedPath) {
+	if (
+		!path.isAbsolute(feedPath) ||
+		!feedPath.endsWith('.feed.json') ||
+		feedPath.endsWith(GATE_FEED_SUFFIX)
+	)
+		throw new Error('Expected an absolute path to a <stem>-<version>-<platform>.feed.json');
+	const metadata = lstatSync(feedPath);
+	if (!metadata.isFile() || metadata.size > FEED_LIMIT)
+		throw new Error(`The feed document must be a regular file of at most ${FEED_LIMIT} bytes`);
+	const destination = feedPath.slice(0, -'.feed.json'.length) + GATE_FEED_SUFFIX;
+	writeFileSync(destination, gateFeed(readFileSync(feedPath)), { flag: 'wx' });
+	return destination;
+}
+
+if (
+	process.argv[1] !== undefined &&
+	path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+	const [command, feedPath, ...rest] = process.argv.slice(2);
+	if (command !== 'gate' || feedPath === undefined || rest.length > 0) {
+		process.stderr.write(
+			'Usage: node scripts/release-feed.mjs gate <absolute <stem>-<version>-<platform>.feed.json>\n',
+		);
+		process.exitCode = 2;
+	} else {
+		try {
+			process.stdout.write(writeGateFeed(feedPath) + '\n');
+		} catch (error) {
+			process.stderr.write(`${error.message}\n`);
+			process.exitCode = 1;
+		}
+	}
 }

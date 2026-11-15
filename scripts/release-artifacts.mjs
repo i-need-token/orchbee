@@ -14,7 +14,7 @@
 //   <stem>-<version>-<platform>.feed.json  the update feed document naming that archive
 //                                  (scripts/release-feed.mjs)
 //   <stem>-<version>-<platform>.feed.json.sig  test profile only: its signature with the test key;
-//                                  the release path signs with the release key when it publishes
+//                                  the release path's feed job signs with the release key
 //   <setup name>.exe               the installer
 //   <npm tarballs>                 the folders of scripts/package-npm.mjs, packed by `npm pack`
 //   SHA256SUMS                     `<64 hex>  <name>` and LF for every other top-level file except the
@@ -27,9 +27,12 @@
 //
 // `check` confirms SHA256SUMS names exactly the other top-level files and that each matches, that
 // every release directory still matches its manifest, and that each feed document follows the
-// reader's rules and matches its archive and release directory. A feed signature, the one file
-// SHA256SUMS does not list, must verify with a key of the build's table: RELEASE_KEYS for the
-// release stem, TEST_KEYS otherwise. Nothing is published or sent anywhere.
+// reader's rules and matches its archive and release directory. A feed signature, which SHA256SUMS
+// does not list, must verify with a key of the build's table: RELEASE_KEYS for the release stem,
+// TEST_KEYS otherwise. The release gate's copy of the feed, `<...>.gate.feed.json` with its `.sig`,
+// placed beside the archive after the feed job, is not listed either: it must carry its signature
+// and name the archive by its bare name, and is checked like the feed otherwise. Nothing is
+// published or sent anywhere.
 //
 // Exit codes: 0 written or intact; 1 a missing, changed or unexpected file; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
@@ -50,7 +53,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { copyRelease, packageNpm, readRelease } from './package-npm.mjs';
-import { feedDocument, feedName, readFeed, sha256, writtenForm } from './release-feed.mjs';
+import {
+	GATE_FEED_SUFFIX,
+	feedDocument,
+	feedName,
+	readFeed,
+	sha256,
+	writtenForm,
+} from './release-feed.mjs';
 import {
 	FEED_DOMAIN,
 	keyTable,
@@ -176,7 +186,8 @@ function buildTable(stem) {
 /**
  * The problems of the feed document `name` in `directory`: the reader's rules and written form, and
  * its members against the archive and the signed release directory beside it. The release stem
- * names its archive by the GitHub release address, a test stem by the bare archive name.
+ * names its archive by the GitHub release address, a test stem and every gate copy by the bare
+ * archive name; a gate copy must also carry its signature.
  */
 function checkFeed(directory, name) {
 	const bytes = readFileSync(path.join(directory, name));
@@ -184,7 +195,8 @@ function checkFeed(directory, name) {
 	if (problems.length > 0) return problems.map((problem) => `${name}: ${problem}`);
 	const own = [];
 	if (!writtenForm(bytes, feed)) own.push('is not in its written form');
-	const base = name.slice(0, -'.feed.json'.length);
+	const gate = name.endsWith(GATE_FEED_SUFFIX);
+	const base = name.slice(0, -(gate ? GATE_FEED_SUFFIX : '.feed.json').length);
 	const suffix = `-${feed.version}-${feed.platform}`;
 	const stem = base.endsWith(suffix) ? base.slice(0, -suffix.length) : '';
 	if (stem !== releaseStem && !testStem.test(stem))
@@ -203,7 +215,7 @@ function checkFeed(directory, name) {
 			own.push(`archive.sha256 does not match ${archiveName}`);
 	}
 	const expectedUrl =
-		stem === releaseStem
+		stem === releaseStem && !gate
 			? new RegExp(
 					`^https://[^/]+/[^/]+/[^/]+/releases/download/v${escapeRegExp(feed.version)}/${escapeRegExp(archiveName)}$`,
 					'u',
@@ -211,7 +223,7 @@ function checkFeed(directory, name) {
 			: new RegExp(`^${escapeRegExp(archiveName)}$`, 'u');
 	if (!expectedUrl.test(feed.archive.url))
 		own.push(
-			stem === releaseStem
+			stem === releaseStem && !gate
 				? `archive.url is not the GitHub release address of ${archiveName}`
 				: `archive.url is not the bare name ${archiveName}`,
 		);
@@ -242,7 +254,7 @@ function checkFeed(directory, name) {
 		);
 		if (outcome !== 'trusted')
 			own.push(`.sig does not verify with a key of the build's table (${outcome})`);
-	}
+	} else if (gate) own.push(`has no ${name}.sig: the feed job signs the gate copy with the feed`);
 	return own.map((problem) => `${name}: ${problem}`);
 }
 
@@ -275,12 +287,15 @@ export function checkArtifacts(directory) {
 			} else problems.push(`${entry.name} is an unexpected directory`);
 		} else if (!entry.isFile()) problems.push(`${entry.name} is not a regular file`);
 		else if (entry.name.endsWith(feedSignatureSuffix) && !listed.has(entry.name)) {
-			// The one kind of file SHA256SUMS does not list: the publish step signs the feed after
-			// SHA256SUMS exists. checkFeed verifies it.
+			// SHA256SUMS does not list a feed signature: the feed job signs the feed after SHA256SUMS
+			// exists. checkFeed verifies it.
 			if (!existsSync(filename.slice(0, -'.sig'.length)))
 				problems.push(`${entry.name} signs no feed document`);
-		} else if (!listed.has(entry.name)) problems.push(`${entry.name} is not in ${checksumsName}`);
-		else if (fileDigest(filename) !== listed.get(entry.name))
+		} else if (!listed.has(entry.name)) {
+			// Nor the gate copy, which the feed job writes after it too; checkFeed checks it.
+			if (!entry.name.endsWith(GATE_FEED_SUFFIX))
+				problems.push(`${entry.name} is not in ${checksumsName}`);
+		} else if (fileDigest(filename) !== listed.get(entry.name))
 			problems.push(`${entry.name} does not match ${checksumsName}`);
 		if (entry.isFile() && entry.name.endsWith('.feed.json'))
 			problems.push(...checkFeed(directory, entry.name));

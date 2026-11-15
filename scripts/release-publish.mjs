@@ -200,7 +200,7 @@ export function releaseAssets(artifacts, table = shippedReleaseTable()) {
 	for (const name of names.filter((entry) => entry.endsWith('.feed.json'))) {
 		if (!names.includes(`${name}.sig`)) {
 			problems.push(
-				`${name} has no ${name}.sig: the step "Sign the update feed with the release key" signs it before publication.`,
+				`${name} has no ${name}.sig: the job release-feed signs it, and its artifact release-feed-signature-<platform> belongs beside the feed.`,
 			);
 			continue;
 		}
