@@ -350,7 +350,8 @@ lane classification, admission, dispatch bounds, drain and failure settlement. T
 Start, or viewer request before reading exactly one result. It accepts only the matching result direction and
 kind, operation ID, complete authorization echo, and, for Start, target identity. A reply that
 misses its window, a whole frame with invalid content, and a mismatched reply fail only that
-request, and the connection keeps serving the queue. Only a lost frame boundary, a closed or
+request, and the connection keeps serving the queue, after a missed window only once the late
+reply has arrived. Only a lost frame boundary, a closed or
 failed transport, an incomplete request write, or a failed handoff or shutdown retires that Worker
 generation and makes queued work unavailable.
 
@@ -384,7 +385,8 @@ arriving. A result frame that has started has at least two seconds to finish, ev
 window: time is not evidence, so a late reply is late, not corrupt. Partial progress does not
 restart either deadline. Failure before the request frame is completely written is reported as
 `NotDelivered` and is known unchanged: strict Worker decoding cannot dispatch an incomplete frame,
-and the owner retires that connection. After the complete write, any failure is the distinct
+and the owner retires that connection after a failed write, while a request that expires before
+its write leaves the connection serving. After the complete write, any failure is the distinct
 `PostDeliveryOutcomeUnknown` carrier error: Server neither fabricates the semantic OBCN
 `OutcomeUnknown` value nor retries the request. An exact Worker result, including a Worker-reported
 semantic unknown outcome, is preserved; the carrier does not interpret launch capability-version or
@@ -392,10 +394,11 @@ lifecycle outcome variants. Viewer results additionally match the attachment ide
 action/outcome kind. A request that failed while the connection kept serving is recorded as
 `worker-request-failed`. The owner remembers the last eight such requests: a reply that echoes one
 of them, whether it arrives while another request waits or between requests, is dropped and
-recorded as a late `worker-reply-dropped`, never taken as another request's result. The current
-Worker ends its session if it sees the next request while it still runs a failed one, so
-containment reaches it only as the [failure scope](docs/worker-carrier-model.md#failure-scope)
-describes. Between
+recorded as a late `worker-reply-dropped`, never taken as another request's result. The owner
+writes a request only while the Worker owes no reply, because the Worker ends its session if it sees
+the next request while it still runs one. After a missed window it writes nothing until the late
+reply arrives, and a request queued meanwhile fails unwritten with `NotDelivered` once its window
+passes, as the [failure scope](docs/worker-carrier-model.md#failure-scope) describes. Between
 requests the Worker may only hint or note; any other whole frame is dropped and recorded, and only
 bytes that do not begin a frame, or a frame that stops arriving, retire the connection. Dropping
 the whole registry requests private shutdown but cannot admit a replacement; the owner's queue wake

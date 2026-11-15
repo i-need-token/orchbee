@@ -57,6 +57,7 @@ fn pending(
             request,
             completion: CompletionDelivery::Required(completion),
             complete_write: Arc::new(AtomicBool::new(false)),
+            wait: super::super::UnwrittenWait::Since(std::time::Instant::now()),
         },
         receiver,
     )

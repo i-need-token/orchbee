@@ -34,9 +34,10 @@ use crate::worker_registry::{RegisteredWorkerWireOwner, WorkerAdmission, WorkerR
 
 use super::{
     AdmitOutcome, CompletionDelivery, ExchangeWait, FramingBreak, PendingRequest, RequestLane,
-    WorkerCarrierLimits, WorkerCarrierShutdown, WorkerOperationRequest, WorkerOperationResult,
-    WorkerRequestError, WorkerRequestHandle, WorkerResponseFailure, WorkerTransportFailure,
-    WorkerWireExit, WorkerWireOwner, create_worker_carrier_with_limits, send_completion,
+    UnwrittenWait, WorkerCarrierLimits, WorkerCarrierShutdown, WorkerOperationRequest,
+    WorkerOperationResult, WorkerRequestError, WorkerRequestHandle, WorkerResponseFailure,
+    WorkerTransportFailure, WorkerWireExit, WorkerWireOwner, create_worker_carrier_with_limits,
+    send_completion,
 };
 
 const LOCAL_WORKER_ID: WorkerId = WorkerId::from_bytes([7; 16]);
@@ -688,6 +689,7 @@ fn partial_request_frame_write_is_not_delivered() -> TestResult {
         complete_write: Arc::new(AtomicBool::new(false)),
         encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
         request,
+        wait: UnwrittenWait::Since(Instant::now()),
     };
     let carrier = create_worker_carrier_with_limits(
         LOCAL_WORKER_ID,
@@ -1063,7 +1065,7 @@ fn partial_response_cannot_extend_the_finite_read() -> TestResult {
 }
 
 #[test]
-fn a_late_reply_is_dropped_and_never_answers_the_next_request() -> TestResult {
+fn a_late_reply_is_awaited_unwritten_and_never_answers_the_next_request() -> TestResult {
     use orchbee_local_runtime::LogValue;
     let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
     let (exit_sender, exit_receiver) = mpsc::channel();
@@ -1073,24 +1075,25 @@ fn a_late_reply_is_dropped_and_never_answers_the_next_request() -> TestResult {
         records
     });
     let late = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
-    let next = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
-    let (failed_sender, failed_receiver) = mpsc::channel();
+    let held = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let next = launch_request(authorization(3, 3, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let (answer_sender, answer_receiver) = mpsc::channel();
     let (worker_late, worker_next) = (late.clone(), next.clone());
     let worker_thread = thread::spawn(move || -> TestResult {
         assert_eq!(
             read_message(&mut worker)?,
             CapabilityNodeMessage::AuthorizedTerminalLaunch(worker_late.clone())
         );
-        failed_receiver.recv()?;
-        assert_eq!(
-            read_message(&mut worker)?,
-            CapabilityNodeMessage::AuthorizedTerminalLaunch(worker_next.clone())
-        );
-        // The first answer arrives after its request failed for time, right before the second.
+        // The answer comes long after its window; the next frame read proves none came before it.
+        answer_receiver.recv()?;
         write_message(
             &mut worker,
             &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&worker_late)),
         )?;
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(worker_next.clone())
+        );
         write_message(
             &mut worker,
             &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&worker_next)),
@@ -1103,9 +1106,18 @@ fn a_late_reply_is_dropped_and_never_answers_the_next_request() -> TestResult {
             WorkerResponseFailure::TimedOut
         ))
     );
-    failed_sender.send(())?;
+    // A request submitted while the reply is owed fails unwritten once its window passes.
+    let held = enqueue_request(&handle, WorkerOperationRequest::Launch(held))?;
     assert_eq!(
-        handle.request(WorkerOperationRequest::Launch(next.clone()))?,
+        held.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        Err(WorkerRequestError::NotDelivered(
+            WorkerTransportFailure::TimedOut
+        ))
+    );
+    answer_sender.send(())?;
+    // Cleanup admission waits out the hold, so this request cannot race the late reply.
+    assert_eq!(
+        handle.blocking_admit_for_test(WorkerOperationRequest::Launch(next.clone()))?,
         WorkerOperationResult::Launch(launch_result(&next))
     );
     worker_thread
@@ -1124,6 +1136,12 @@ fn a_late_reply_is_dropped_and_never_answers_the_next_request() -> TestResult {
             && record
                 .fields
                 .contains(&("request", LogValue::Token("launch")))
+    }));
+    assert!(records.iter().any(|record| {
+        record.event == "worker-request-failed"
+            && record
+                .fields
+                .contains(&("failure", LogValue::Token("not-delivered.timed-out")))
     }));
     Ok(())
 }
@@ -1461,6 +1479,7 @@ fn enqueue_request(
             complete_write: Arc::new(AtomicBool::new(false)),
             encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
             request,
+            wait: UnwrittenWait::Since(Instant::now()),
         },
     ) {
         AdmitOutcome::Admitted => Ok(result),
@@ -2439,6 +2458,7 @@ fn pending_for_test(
             complete_write: Arc::new(AtomicBool::new(false)),
             encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
             request,
+            wait: UnwrittenWait::Since(Instant::now()),
         },
         result,
     ))

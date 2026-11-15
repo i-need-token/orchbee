@@ -48,10 +48,12 @@
   bound violation), `*Malformed` (envelope contract violation), `*Lost`
   (EOF/write failure/step deadline), `*LocalFault` (pre-write, or no room left
   in the request), and `ServerLost`/`CarrierLost` peer events. `ServerLost*`
-  also stands for a Server request observed during the send: the Server may
-  write its next request behind one it stopped waiting for, and the Worker
-  treats it as Server loss and ends the session, so the next send never starts
-  behind this one and no input is resent. An intact answer
+  also stands for a Server request observed during the send. The Server writes
+  none while a reply is owed, even after its window, so only a broken Server or
+  a real reply that follows a frame the Server already took as this send's
+  answer leads there; the Worker treats it as Server loss and ends the session,
+  so the next send never starts behind this one and no input is resent. An
+  intact answer
   never retires the carrier: `AttachDesync` refuses the send and `InputDesync`
   settles it unknown, and both detach the attachment (`detach-pending`), as
   `InputLocalFault` does. At detach, `DetachRefused` confirms cleanup like

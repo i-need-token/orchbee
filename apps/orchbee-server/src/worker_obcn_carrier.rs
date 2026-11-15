@@ -1,8 +1,10 @@
 //! Owns one Worker wire with bounded priority admission, serialized exchanges, exact response
 //! validation, and explicit queued versus uncertain-delivery failures. A late, invalid, or
 //! mismatched reply fails only its own request; only lost framing or a failed transport ends the
-//! wire. Handles submit work without owning the socket, and the carrier does not authorize product
-//! operations or replay effects.
+//! wire. A request is written only while the Worker owes no reply, so after a timeout the wire
+//! waits for the late reply and queued requests fail unwritten once their window passes. Handles
+//! submit work without owning the socket, and the carrier does not authorize product operations or
+//! replay effects.
 
 use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
@@ -485,6 +487,11 @@ impl WorkerRequestHandle {
             complete_write: Arc::clone(&complete_write),
             encoded,
             request,
+            wait: if cleanup {
+                UnwrittenWait::Cleanup
+            } else {
+                UnwrittenWait::Since(Instant::now())
+            },
         };
         let admitted = match pending.request {
             #[cfg(any(windows, test))]
@@ -537,6 +544,7 @@ impl WorkerRequestHandle {
             complete_write: Arc::new(AtomicBool::new(false)),
             encoded,
             request,
+            wait: UnwrittenWait::Cleanup,
         });
     }
 
@@ -607,6 +615,44 @@ struct PendingRequest {
     complete_write: Arc<AtomicBool>,
     encoded: Vec<u8>,
     request: WorkerOperationRequest,
+    wait: UnwrittenWait,
+}
+
+/// How long a queued request may stay unwritten while the Worker still owes an earlier reply.
+#[derive(Clone, Copy, Debug)]
+enum UnwrittenWait {
+    /// Admitted at this instant; it fails before delivery once its window has passed.
+    Since(Instant),
+    /// Connection cleanup, which nothing retries, waits for the wire however long it is held.
+    Cleanup,
+}
+
+impl PendingRequest {
+    /// When this request may no longer be written while a reply is owed: its own window from
+    /// admission, and never later than one response window after the wire began to wait.
+    fn unwritten_deadline(
+        &self,
+        owed_since: Instant,
+        response_timeout: Duration,
+    ) -> Option<Instant> {
+        let UnwrittenWait::Since(admitted) = self.wait else {
+            return None;
+        };
+        let window = match &self.request {
+            #[cfg(any(windows, test))]
+            WorkerOperationRequest::Shutdown(request) => {
+                Duration::from_millis(u64::from(request.budget.milliseconds()))
+            }
+            _ => response_timeout,
+        };
+        match (
+            admitted.checked_add(window),
+            owed_since.checked_add(response_timeout),
+        ) {
+            (Some(own), Some(held)) => Some(own.min(held)),
+            (own, held) => own.or(held),
+        }
+    }
 }
 
 /// One admitted exchange handed back to the requester: exactly one result
@@ -1003,6 +1049,71 @@ impl CarrierQueue {
         AdmitOutcome::Admitted
     }
 
+    /// A shutdown that failed before any byte was written left the Worker serving, so admission
+    /// reopens as before it.
+    #[cfg(any(windows, test))]
+    fn release_unwritten_shutdown(&self) {
+        self.lock().stopping = false;
+        self.publish_change();
+    }
+
+    /// Whether no producer can submit any more, the queue closed or its last handle gone, and no
+    /// queued request is left to offer the wire.
+    fn is_closed_and_empty(&self) -> bool {
+        let state = self.lock();
+        (state.closed || state.open_handles == 0)
+            && state.high.is_empty()
+            && state.low.is_empty()
+            && state.idle.is_none()
+            && state.high_waiters.is_empty()
+    }
+
+    /// Takes every queued request whose deadline has passed, moves cleanup waiters into the freed
+    /// high-lane slots, and returns the earliest deadline still pending.
+    fn take_expired(
+        &self,
+        now: Instant,
+        deadline: impl Fn(&PendingRequest) -> Option<Instant>,
+    ) -> (Vec<PendingRequest>, Option<Instant>) {
+        let mut guard = self.lock();
+        let state = &mut *guard;
+        let expired_at = |pending: &PendingRequest| deadline(pending).is_some_and(|at| at <= now);
+        let mut expired = Vec::new();
+        for lane in [&mut state.high, &mut state.low] {
+            let mut kept = VecDeque::with_capacity(lane.len());
+            for pending in lane.drain(..) {
+                if expired_at(&pending) {
+                    expired.push(pending);
+                } else {
+                    kept.push_back(pending);
+                }
+            }
+            *lane = kept;
+        }
+        if state.idle.as_ref().is_some_and(expired_at) {
+            expired.extend(state.idle.take());
+        }
+        let mut changed = !expired.is_empty();
+        while state.high.len() < HIGH_LANE_CAPACITY
+            && let Some(waiter) = state.high_waiters.pop_front()
+        {
+            state.high.push_back(waiter.request);
+            waiter.admitted.store(true, Ordering::Release);
+            changed = true;
+        }
+        let next = state
+            .high
+            .iter()
+            .chain(&state.low)
+            .chain(&state.idle)
+            .filter_map(&deadline)
+            .min();
+        if changed {
+            self.publish_change();
+        }
+        (expired, next)
+    }
+
     fn close_and_drain(&self) -> Vec<PendingRequest> {
         let mut state = self.lock();
         state.closed = true;
@@ -1081,6 +1192,9 @@ pub(crate) struct WorkerWireOwner {
     /// Requests that failed while the wire kept serving, oldest first, whose replies may still
     /// come.
     abandoned: VecDeque<AbandonedRequest>,
+    /// The request whose reply missed its window: the Worker still owes it, so nothing is written
+    /// until it arrives.
+    owed: Option<OwedReply>,
 }
 
 /// A request that failed without ending the wire; the Worker may still answer it.
@@ -1088,6 +1202,12 @@ struct AbandonedRequest {
     key: ReplyKey,
     kind: &'static str,
     failed: Instant,
+}
+
+#[derive(Clone, Copy)]
+struct OwedReply {
+    key: ReplyKey,
+    since: Instant,
 }
 
 /// Where this wire's Worker notes title changes: the Session registry, for this generation.
@@ -1153,6 +1273,7 @@ fn create_worker_carrier_with_limits(
             ended_request: None,
             shutdown_answered: false,
             abandoned: VecDeque::new(),
+            owed: None,
         },
         shutdown: WorkerCarrierShutdown {
             active: Arc::clone(&active),
@@ -1222,6 +1343,30 @@ impl WorkerWireOwner {
                 return WorkerWireExit::Shutdown;
             }
             debug_assert!(self.in_flight.is_none());
+            if let Some(owed) = self.owed {
+                // The Worker reads no request before it has delivered its owed reply, so the wire
+                // only listens until that reply comes; hints and notes keep flowing meanwhile.
+                // Queued cleanup still reaches it afterwards, as at final teardown.
+                let next = self.expire_unwritten(owed.since);
+                if self.queue.is_closed_and_empty() {
+                    return WorkerWireExit::Shutdown;
+                }
+                let interval = next.map_or(self.limits.poll_interval, |next| {
+                    next.min(self.limits.poll_interval)
+                });
+                if let Err(failure) = self.queue.wait_for_owner_work(stream, interval) {
+                    return WorkerWireExit::Transport(failure);
+                }
+                match self.drain_idle_stream(stream) {
+                    Ok(IdleStreamState::Open) => {}
+                    Ok(IdleStreamState::Closed) => return WorkerWireExit::PeerClosed,
+                    Ok(IdleStreamState::Broken(framing)) => {
+                        return WorkerWireExit::BrokenFraming(framing);
+                    }
+                    Err(failure) => return WorkerWireExit::Transport(failure),
+                }
+                continue;
+            }
             match self.queue.take_next(Duration::ZERO, &mut self.in_flight) {
                 TakeNext::Dispatched => {
                     self.dispatched = Some(Instant::now());
@@ -1323,7 +1468,7 @@ impl WorkerWireOwner {
                     deliver_note(self.titles.as_ref(), note);
                 }
                 Ok(Ok(message)) => {
-                    if self.drop_late_reply(&message) {
+                    if self.drop_late_reply(&message).is_some() {
                         continue;
                     }
                     let consumed = key.answered_by(&message);
@@ -1357,6 +1502,8 @@ impl WorkerWireOwner {
                 }
             }
         };
+        // Only silence leaves the reply owed; any frame the Worker sent was its answer.
+        let unanswered = exit.is_none() && matches!(response, Err(WorkerResponseFailure::TimedOut));
         let failed = response.is_err();
         let delivered = self
             .complete_in_flight(response.map_err(WorkerRequestError::PostDeliveryOutcomeUnknown));
@@ -1375,27 +1522,64 @@ impl WorkerWireOwner {
                 self.abandon(key, ended.kind);
             }
         }
+        if unanswered {
+            self.owed = Some(OwedReply {
+                key,
+                since: Instant::now(),
+            });
+        }
         Ok(())
     }
 
     /// Drops a reply to a request that already failed, recording how late it came, so it never
-    /// stands in for another request's result.
-    fn drop_late_reply(&mut self, message: &CapabilityNodeMessage) -> bool {
-        let Some(index) = self
+    /// stands in for another request's result. Returns the request it answered.
+    fn drop_late_reply(&mut self, message: &CapabilityNodeMessage) -> Option<ReplyKey> {
+        let index = self
             .abandoned
             .iter()
-            .position(|abandoned| abandoned.key.answered_by(message))
-        else {
-            return false;
-        };
-        if let Some(abandoned) = self.abandoned.remove(index) {
-            crate::fault_records::worker_reply_dropped(
-                crate::fault_records::DroppedReply::Late(abandoned.failed.elapsed()),
-                abandoned.kind,
-                "none",
-            );
+            .position(|abandoned| abandoned.key.answered_by(message))?;
+        let abandoned = self.abandoned.remove(index)?;
+        crate::fault_records::worker_reply_dropped(
+            crate::fault_records::DroppedReply::Late(abandoned.failed.elapsed()),
+            abandoned.kind,
+            "none",
+        );
+        Some(abandoned.key)
+    }
+
+    /// While a reply is owed, fails each queued request whose deadline has passed before it is
+    /// ever written, so its requester may try again, and returns how long until the next one.
+    fn expire_unwritten(&self, owed_since: Instant) -> Option<Duration> {
+        let now = Instant::now();
+        let response_timeout = self.limits.response_timeout;
+        let (expired, next) = self.queue.take_expired(now, |pending| {
+            pending.unwritten_deadline(owed_since, response_timeout)
+        });
+        for pending in expired {
+            #[cfg(any(windows, test))]
+            match &pending.request {
+                WorkerOperationRequest::Handoff(request) => {
+                    self.queue.release_unwritten_handoff(request);
+                }
+                WorkerOperationRequest::Shutdown(_) => self.queue.release_unwritten_shutdown(),
+                _ => {}
+            }
+            let kind = pending.request.kind_token();
+            let elapsed = match pending.wait {
+                UnwrittenWait::Since(admitted) => admitted.elapsed(),
+                UnwrittenWait::Cleanup => Duration::ZERO,
+            };
+            let failure = WorkerRequestError::NotDelivered(WorkerTransportFailure::TimedOut);
+            let delivered = send_completion(pending, Err(failure));
+            wire_end::EndedRequest {
+                kind,
+                failure: Some(failure),
+                delivered,
+                elapsed,
+            }
+            .record_contained();
         }
-        true
+        next.map(|next| next.saturating_duration_since(now))
     }
 
     fn abandon(&mut self, key: ReplyKey, kind: &'static str) {
@@ -1411,7 +1595,8 @@ impl WorkerWireOwner {
 
     /// Between requests a Worker may only hint or note. Any other whole frame, a late reply among
     /// them, is dropped and recorded; only lost framing or a closed or failed transport ends the
-    /// wire.
+    /// wire. The Worker sends nothing else while it owes a reply, so the owed reply, or any other
+    /// frame in its place, settles that debt.
     fn drain_idle_stream<Stream>(
         &mut self,
         stream: &mut Stream,
@@ -1446,21 +1631,28 @@ impl WorkerWireOwner {
                         Ok(Ok(CapabilityNodeMessage::TerminalTitlesChanged(note))) => {
                             deliver_note(self.titles.as_ref(), note);
                         }
-                        Ok(Ok(message)) => {
-                            if !self.drop_late_reply(&message) {
+                        Ok(Ok(message)) => match self.drop_late_reply(&message) {
+                            Some(key) => {
+                                if self.owed.is_some_and(|owed| owed.key == key) {
+                                    self.owed = None;
+                                }
+                            }
+                            None => {
                                 crate::fault_records::worker_reply_dropped(
                                     crate::fault_records::DroppedReply::Unmatched,
                                     "none",
                                     "none",
                                 );
+                                self.owed = None;
                             }
-                        }
+                        },
                         Ok(Err(error)) => {
                             crate::fault_records::worker_reply_dropped(
                                 crate::fault_records::DroppedReply::Invalid,
                                 "none",
                                 wire_end::protocol_error(error),
                             );
+                            self.owed = None;
                         }
                         Err(FrameEnd::Silent) => {
                             return Ok(IdleStreamState::Broken(FramingBreak::Incomplete));

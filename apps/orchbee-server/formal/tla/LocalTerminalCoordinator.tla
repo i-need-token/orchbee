@@ -2,9 +2,9 @@
 EXTENDS Naturals, FiniteSets, TLC
 
 \* The coordinator refinement covers one deferred binding and two peer Connections.
-\* Wire delivery and Worker/Host admission remain in LocalWorkerObcnCarrier and
-\* TerminalLaunchAuthorization. This model checks the Server reservation/commit
-\* boundary; geometry/capacity/codec details have deterministic runtime witnesses.
+\* Wire delivery and Worker/Host admission have implementation tests, not models.
+\* This model checks the Server reservation/commit boundary;
+\* geometry/capacity/codec details have deterministic runtime witnesses.
 \* Each Client is one sequential OBCS request/publication slot, so its index is
 \* the bounded correlation surrogate; exact wire request IDs remain runtime evidence.
 CONSTANTS Clients, MaxOperation, MaxGeneration

@@ -9,7 +9,8 @@ counts under continuously enabled conditions, not wall-time guarantees.
 ## Roles and states
 
 One Worker generation owns one carrier. A single wire-owner thread serializes every exchange;
-at most one request is in flight (the single-writer invariant). Producers are Client Connection
+at most one request is in flight (the single-writer invariant), and none is written while the
+Worker still owes a reply, as [failure scope](#failure-scope) describes. Producers are Client Connection
 handler threads; each session has at most one outstanding request, so the producer count is
 bounded by the active-session bound (32).
 
@@ -101,20 +102,33 @@ a frame, or a frame that stops arriving, retire the carrier.
 
 A failed exchange fails only its own request unless the wire itself is lost. A reply that misses
 its window, a whole frame with invalid content, a wrong kind or direction, and an echo mismatch
-complete that request with `PostDeliveryOutcomeUnknown` and the owner dispatches the next one. The
-carrier retires only when the frame boundary is lost (a bad header or length, or a started frame
-unfinished by the later of the response window and its I/O timeout after the first byte), the
-transport closes or fails, a request write
-is incomplete, an in-flight `Required` completion cannot be delivered, or a `Handoff` or
-`Shutdown` fails, since both belong to the generation. The owner remembers the last eight requests
-that failed while the wire kept serving; a later reply that echoes one is dropped and recorded,
-whether it arrives during another exchange or while idle, so it never stands in for another
-request's result. The current Worker reads no request until it has delivered the previous result
-and ends its session when it observes one written earlier, as its
-[request loop](../../orchbee-worker/README.md#integrated-authorized-request-loop) states. A request
-dispatched while the Worker still runs a failed one therefore retires the carrier once the Worker
-sees it; a failed request stays contained at the Worker only when its late reply arrives before the
-next request is written.
+complete that request with `PostDeliveryOutcomeUnknown`. The carrier retires only when the frame
+boundary is lost (a bad header or length, or a started frame unfinished by the later of the
+response window and its I/O timeout after the first byte), the transport closes or fails, a request
+write is incomplete, an in-flight `Required` completion cannot be delivered, or a written `Handoff`
+or `Shutdown` fails, since both belong to the generation. The owner remembers the last eight
+requests that failed while the wire kept serving; a later reply that echoes one is dropped and
+recorded, whether it arrives during another exchange or while idle, so it never stands in for
+another request's result.
+
+The owner writes a request only while the Worker owes no reply. This is the strict alternation the
+Worker's [request loop](../../orchbee-worker/README.md#integrated-authorized-request-loop) relies
+on: it reads no request until it has delivered the previous result, and it treats a request written
+earlier as Server loss. A whole frame in place of the result, however invalid or mismatched, is the
+Worker's answer, so the owner dispatches the next request at once. After a reply misses its window,
+the owner writes nothing until that late reply arrives, drops it as above, and then resumes. The wait
+has no upper bound: ending the wire would lose every terminal, while holding it keeps them
+recoverable if the Worker recovers. Viewer hints and title notes keep flowing while it waits, any
+other whole frame ends the wait as the Worker's answer, and closure, transport failure or lost
+framing still retire the carrier. A request queued during the wait fails with
+`NotDelivered(TimedOut)` before any byte is written once its window passes, so its requester may
+retry, and it is never written afterwards. The window is the response window from admission, or a
+`Shutdown`'s own budget, and never ends later than one response window after the wait began.
+Connection cleanup from `cleanup_control()` and `enqueue_detach()` has no window and waits for the
+wire. A `Shutdown` that expires unwritten reopens admission, and a `Handoff` that expires unwritten
+releases its fence; neither retires the carrier. One edge remains: if the Worker's real reply still
+follows an invalid or mismatched frame, the next request has already been written ahead of it, and
+the Worker ends its session on seeing that request.
 
 ## Drain and tombstone
 

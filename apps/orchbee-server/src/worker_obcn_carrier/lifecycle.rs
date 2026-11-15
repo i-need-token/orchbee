@@ -73,6 +73,7 @@ impl WorkerRequestHandle {
             complete_write: Arc::clone(&complete_write),
             encoded,
             request,
+            wait: super::UnwrittenWait::Since(Instant::now()),
         };
         match self.queue.try_admit(RequestLane::High, pending) {
             AdmitOutcome::Admitted => Ok(PendingLifecycleResult {

@@ -56,6 +56,25 @@ impl CarrierQueue {
         AdmitOutcome::Admitted
     }
 
+    /// A handoff request that failed before any byte was written left the Worker unchanged: an
+    /// unwritten Prepare reopens admission, and any later step leaves the Prepared fence for its
+    /// owner to finish.
+    pub(super) fn release_unwritten_handoff(&self, request: &WorkerHandoffRequest) {
+        let mut state = self.lock();
+        let Some(admission) = &mut state.handoff else {
+            return;
+        };
+        if admission.target != request.target {
+            return;
+        }
+        if request.action == Action::Prepare {
+            state.handoff = None;
+        } else {
+            admission.pending = false;
+        }
+        self.publish_change();
+    }
+
     pub(super) fn complete_handoff(
         &self,
         request: WorkerHandoffRequest,
