@@ -419,13 +419,19 @@ runner-shared = { version = "1.0.0", default-features = false }
 });
 
 function admitWindowsException(root, boundary) {
-	const { name, directory, module, reason } = boundary;
+	admitUnsafeBoundaries(root, {
+		...boundary,
+		modules: [{ module: boundary.module, cfg: 'windows', reason: boundary.reason }],
+	});
+}
+
+function admitUnsafeBoundaries(root, { name, directory, modules }) {
 	const rootManifest = join(root, 'Cargo.toml');
 	writeFileSync(
 		rootManifest,
 		readFileSync(rootManifest, 'utf8').replace('members = [', `members = ["${directory}", `),
 	);
-	mkdirSync(join(root, directory, 'src', module), { recursive: true });
+	mkdirSync(join(root, directory, 'src'), { recursive: true });
 	writeFileSync(
 		join(root, directory, 'Cargo.toml'),
 		`[package]
@@ -443,41 +449,46 @@ all = { level = "deny", priority = -1 }
 wildcard_imports = "deny"
 `,
 	);
-	writeFileSync(
-		join(root, directory, 'src/lib.rs'),
-		`#![deny(unsafe_code)]
-
-#[cfg(windows)]
+	const declarations = modules.map(
+		({ module, cfg, reason }) => `#[cfg(${cfg})]
 #[allow(
     unsafe_code,
     reason = "${reason}"
 )]
 mod ${module};
 
-#[cfg(windows)]
-pub fn copied(value: &u8) -> u8 { ${module}::copy_byte(value) }
-
-#[cfg(not(windows))]
-pub fn copied(value: &u8) -> u8 { *value }
+#[cfg(${cfg})]
+pub fn copied_by_${module}(value: &u8) -> u8 { ${module}::copy_byte(value) }
 `,
 	);
 	writeFileSync(
-		join(root, directory, `src/${module}.rs`),
-		`pub(super) fn copy_byte(value: &u8) -> u8 { unsafe { std::ptr::read(value) } }
+		join(root, directory, 'src/lib.rs'),
+		`#![deny(unsafe_code)]
+
+${declarations.join('\n')}
+pub fn copied(value: &u8) -> u8 { *value }
+`,
+	);
+	for (const { module } of modules) {
+		mkdirSync(join(root, directory, 'src', module), { recursive: true });
+		writeFileSync(
+			join(root, directory, `src/${module}.rs`),
+			`pub(super) fn copy_byte(value: &u8) -> u8 { unsafe { std::ptr::read(value) } }
 
 #[cfg(test)]
 #[deny(unsafe_code)]
 mod tests;
 `,
-	);
-	writeFileSync(
-		join(root, directory, 'src', module, 'tests.rs'),
-		`//! Safe boundary fixture.
+		);
+		writeFileSync(
+			join(root, directory, 'src', module, 'tests.rs'),
+			`//! Safe boundary fixture.
 
 #[test]
 fn copies_a_byte() { assert_eq!(super::copy_byte(&7), 7); }
 `,
-	);
+		);
+	}
 	const lock = run(root, 'cargo', ['generate-lockfile', '--offline']);
 	assert.equal(lock.status, 0, lock.output);
 }
@@ -547,7 +558,7 @@ pub fn copy_byte(value: &u8) -> u8 { unsafe { std::ptr::read(value) } }
 		const result = runTask(root, 'lint');
 		assert.notEqual(result.status, 0, result.output);
 		assert.match(result.output, /authored unsafe Rust/u);
-		assert.match(result.output, /outside the accepted private Win32 boundaries/u);
+		assert.match(result.output, /outside the accepted private operating-system boundaries/u);
 	});
 });
 
@@ -570,6 +581,51 @@ test('the Rust lint gate admits both canonical private Win32 unsafe boundaries t
 		for (const boundary of windowsBoundaries) admitWindowsException(root, boundary);
 		const result = runTask(root, 'lint');
 		assert.equal(result.status, 0, result.output);
+	});
+});
+
+const localRuntimeBoundaries = {
+	name: 'orchbee-local-runtime',
+	directory: 'crates/local-runtime',
+	modules: [
+		{
+			module: 'standard_rights_native',
+			cfg: 'windows',
+			reason:
+				'reviewed Win32 token restriction, attribute lists and process creation are isolated here',
+		},
+		{
+			module: 'retained_spawn_native',
+			cfg: 'target_os = "macos"',
+			reason: 'reviewed posix_spawn attributes, file actions and child waits are isolated here',
+		},
+	],
+};
+
+test('the Rust lint gate admits one package with a private boundary per platform', () => {
+	withFixture((root) => {
+		admitUnsafeBoundaries(root, localRuntimeBoundaries);
+		const result = runTask(root, 'lint');
+		assert.equal(result.status, 0, result.output);
+	});
+});
+
+test('the Rust lint gate rejects a private boundary under another platform cfg', () => {
+	withFixture((root) => {
+		admitUnsafeBoundaries(root, {
+			...localRuntimeBoundaries,
+			modules: localRuntimeBoundaries.modules.map(({ module, reason }) => ({
+				module,
+				cfg: 'unix',
+				reason,
+			})),
+		});
+		const result = runTask(root, 'lint');
+		assert.notEqual(result.status, 0, result.output);
+		assert.ok(
+			result.output.includes('reasoned unsafe_code allow on private mod standard_rights_native'),
+			result.output,
+		);
 	});
 });
 

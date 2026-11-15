@@ -107,6 +107,12 @@ mod destructive_log;
 pub use data_root::{create_private_directory, prepare_default_runtime_base};
 #[cfg(windows)]
 pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_request};
+#[cfg(target_os = "macos")]
+#[allow(
+    unsafe_code,
+    reason = "reviewed posix_spawn attributes, file actions and child waits are isolated here"
+)]
+mod retained_spawn_native;
 #[cfg(windows)]
 mod standard_rights;
 #[cfg(windows)]

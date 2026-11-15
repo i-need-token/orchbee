@@ -139,8 +139,8 @@ user, and the default DACL grants `GENERIC_ALL` to the user and SYSTEM, so the c
 every object it creates admit a Medium process of the same user. The child stays in the parent's
 Job.
 
-The private `src/standard_rights_native.rs` adapter is this crate's only authored unsafe boundary,
-admitted by the [Rust policy](../../docs/RUST.md#lint-policy-and-enforcement):
+The private `src/standard_rights_native.rs` adapter is one of this crate's two authored unsafe
+boundaries, admitted by the [Rust policy](../../docs/RUST.md#lint-policy-and-enforcement):
 
 - **Handles.** Each handle a call returns moves at once into one owner, an `OwnedHandle` or, for the
   derived token that safe code reads through winsafe, a `CloseHandleGuard`, and is closed exactly
@@ -180,6 +180,36 @@ owner), starts `cmd.exe` with a test pipe as its only standard handle, reads the
 owner and DACL (the user; allow entries for the user and SYSTEM only), and receives its output and
 exit status 7. It runs non-elevated, so it does not prove the High-to-Medium step, sshd's window
 station or sshd's Job.
+
+## macOS retained spawn
+
+macOS marks a new socket or pipe close-on-exec only after creating it, and the standard library's
+spawn passes every descriptor not yet marked. A Server, hub, Worker or Host started while another
+thread of its parent was accepting a connection could keep that connection open, so the parent's
+peer would never see it close. On macOS, `RetainedChild` therefore starts its child through the
+private `src/retained_spawn_native.rs` adapter, this crate's second authored unsafe boundary, with
+`POSIX_SPAWN_CLOEXEC_DEFAULT`: the child receives only `/dev/null` as its three standard streams.
+It otherwise keeps the standard library's launch: `/` as the working directory, the parent's
+environment without the relaunch protocol's variable (and with the given `PATH`), the parent's
+signal mask and `SIGPIPE` at its default action. The executable must be an absolute path. Linux
+creates these descriptors close-on-exec atomically and keeps the standard library's spawn; Windows
+is unchanged. Short-lived commands, such as Git or `run_unix_command`, keep the standard library's
+spawn too, because they end before any caller waits on a peer end they might hold.
+
+- **Strings.** The executable, each argument and each `NAME=value` entry become owned NUL-terminated
+  strings, refused with `InvalidInput` when one holds a NUL byte; the argument and environment
+  vectors point into them, end with a null pointer, and outlive `posix_spawn`, which copies them.
+- **Spawn objects.** The file actions and attributes are initialized into owned storage, used only
+  after a successful initialization, and destroyed exactly once by `Drop`, after `posix_spawn`
+  returns. `posix_spawn_file_actions_addchdir_np`, which libc does not declare for Apple targets,
+  is declared locally with its macOS 10.15 signature.
+- **Waits.** `waitpid` runs only for an identifier this process spawned and has not reaped, with
+  `EINTR` retried. The safe owner keeps the first status it reads and never waits again, because a
+  reaped identifier may later name another process.
+
+The adjacent safe test starts a child while a descriptor without close-on-exec is open and sees its
+peer close while the child still runs; checks the child's directory, argument boundaries, exact
+environment and exit status; and checks that a missing executable starts nothing.
 
 ## Data root
 
@@ -705,7 +735,10 @@ started Orchbee in. On macOS and Linux the Client starts the Server through `spa
 which appends a release or test cohort's folder to the Server's `PATH` when an inherited, non-empty
 `PATH` names no such entry, so the Worker, Host and terminals inherit it and a terminal finds that
 cohort's Client by name even when no shell profile names `~/.local/bin`. The folder goes last, so
-an earlier `orchbee` still wins; a development cohort's build folder is never added.
+an earlier `orchbee` still wins; a development cohort's build folder is never added. On macOS
+every runtime child inherits no descriptor beyond its standard streams (see
+[macOS retained spawn](#macos-retained-spawn)), so a Worker's death closes the Server's last end of
+its connection even while a terminal it started lives on.
 
 The Worker registers without starting a Host. Its authorization kernel admits the first Launch
 and prepares launch facts before spawning one exact cohort Host, which keeps its lock in a private

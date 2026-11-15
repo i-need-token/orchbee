@@ -2,15 +2,15 @@
 //! reaper while the parent remains alive. It never terminates that child on drop; after parent
 //! exit, orphan reaping belongs to the operating system.
 
-use std::{
-    io,
-    process::{Child, ExitStatus},
-    thread,
-};
+#[cfg(target_os = "macos")]
+use super::macos::Process;
+#[cfg(not(target_os = "macos"))]
+use std::process::Child as Process;
+use std::{io, process::ExitStatus, thread};
 
 /// Observes startup exit, then reaps while its parent lives without terminating the child.
 /// Parent exit transfers orphan ownership to the operating system.
-pub struct RetainedChild(Option<Child>);
+pub struct RetainedChild(Option<Process>);
 impl RetainedChild {
     pub(crate) fn spawn(
         executable: &std::path::Path,
@@ -27,22 +27,29 @@ impl RetainedChild {
         // The child outlives the activating Client, so it keeps none of that Client's directories
         // busy or reachable, such as a Worktree the person later removes or unmounts. Nor does it
         // receive the relaunch protocol's variable, which only a launcher's own Client may read.
-        let mut command = std::process::Command::new(executable);
-        command
-            .args(arguments)
-            .env_remove(crate::RELAUNCH_PROTOCOL_VARIABLE)
-            .current_dir("/")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
-        if let Some(path) = path {
-            command.env("PATH", path);
-        }
-        Ok(Self(Some(command.spawn()?)))
+        // On macOS it also receives no descriptor beyond its standard streams (see `macos`).
+        #[cfg(target_os = "macos")]
+        let child = Process::spawn(executable, arguments, path)?;
+        #[cfg(not(target_os = "macos"))]
+        let child = {
+            let mut command = std::process::Command::new(executable);
+            command
+                .args(arguments)
+                .env_remove(crate::RELAUNCH_PROTOCOL_VARIABLE)
+                .current_dir("/")
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+            if let Some(path) = path {
+                command.env("PATH", path);
+            }
+            command.spawn()?
+        };
+        Ok(Self(Some(child)))
     }
     /// The operating-system process identifier of the held child.
     pub fn id(&self) -> Option<u32> {
-        self.0.as_ref().map(Child::id)
+        self.0.as_ref().map(Process::id)
     }
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         match self.0.as_mut() {

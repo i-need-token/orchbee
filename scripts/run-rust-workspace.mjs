@@ -13,6 +13,7 @@ const unsafeBoundaries = Object.freeze([
 		name: 'orchbee-windows-console-host',
 		manifest: 'crates/windows-console-host/Cargo.toml',
 		library: 'crates/windows-console-host/src/lib.rs',
+		cfg: 'windows',
 		module: 'sys',
 		system: 'crates/windows-console-host/src/sys.rs',
 		systemTests: 'crates/windows-console-host/src/sys/tests.rs',
@@ -22,6 +23,7 @@ const unsafeBoundaries = Object.freeze([
 		name: 'orchbee-local-ipc',
 		manifest: 'crates/local-ipc/Cargo.toml',
 		library: 'crates/local-ipc/src/lib.rs',
+		cfg: 'windows',
 		module: 'windows_native',
 		system: 'crates/local-ipc/src/windows_native.rs',
 		systemTests: 'crates/local-ipc/src/windows_native/tests.rs',
@@ -31,11 +33,22 @@ const unsafeBoundaries = Object.freeze([
 		name: 'orchbee-local-runtime',
 		manifest: 'crates/local-runtime/Cargo.toml',
 		library: 'crates/local-runtime/src/lib.rs',
+		cfg: 'windows',
 		module: 'standard_rights_native',
 		system: 'crates/local-runtime/src/standard_rights_native.rs',
 		systemTests: 'crates/local-runtime/src/standard_rights_native/tests.rs',
 		reason:
 			'reviewed Win32 token restriction, attribute lists and process creation are isolated here',
+	},
+	{
+		name: 'orchbee-local-runtime',
+		manifest: 'crates/local-runtime/Cargo.toml',
+		library: 'crates/local-runtime/src/lib.rs',
+		cfg: 'target_os = "macos"',
+		module: 'retained_spawn_native',
+		system: 'crates/local-runtime/src/retained_spawn_native.rs',
+		systemTests: 'crates/local-runtime/src/retained_spawn_native/tests.rs',
+		reason: 'reviewed posix_spawn attributes, file actions and child waits are isolated here',
 	},
 ]);
 const task = process.argv[2];
@@ -539,13 +552,13 @@ function enforceAuthoredUnsafePolicy(workspacePackages) {
 	}
 
 	for (const entry of workspacePackages) {
-		const boundary = unsafeBoundaries.find(
+		const boundaries = unsafeBoundaries.filter(
 			(candidate) =>
 				entry.name === candidate.name &&
 				samePath(entry.manifest_path, resolve(repositoryRoot, candidate.manifest)),
 		);
-		if (boundary !== undefined) {
-			enforcePrivateUnsafeBoundary(entry, boundary);
+		if (boundaries.length > 0) {
+			enforcePrivateUnsafeBoundaries(entry, boundaries);
 			continue;
 		}
 		const manifest = readFileSync(entry.manifest_path, 'utf8');
@@ -565,60 +578,94 @@ function enforceAuthoredUnsafePolicy(workspacePackages) {
 			}
 			if (authoredUnsafePattern().test(rustPolicySource(text))) {
 				throw new Error(
-					`${relativeSource(source)} contains authored unsafe Rust outside the accepted private Win32 boundaries; see docs/RUST.md#lint-policy-and-enforcement`,
+					`${relativeSource(source)} contains authored unsafe Rust outside the accepted private operating-system boundaries; see docs/RUST.md#lint-policy-and-enforcement`,
 				);
 			}
 		}
 	}
 }
 
-function enforcePrivateUnsafeBoundary(entry, boundary) {
+function enforcePrivateUnsafeBoundaries(entry, boundaries) {
+	const [{ manifest: manifestPath, library: libraryFile }] = boundaries;
+	if (boundaries.some((boundary) => boundary.library !== libraryFile)) {
+		throw new Error(`${manifestPath} unsafe boundaries must share one library root`);
+	}
 	const manifest = readFileSync(entry.manifest_path, 'utf8');
 	assertTomlEntries(
 		manifest,
 		'lints.rust',
 		['unsafe_code = "deny"'],
-		`${boundary.manifest} Rust lint policy`,
+		`${manifestPath} Rust lint policy`,
 	);
 	assertTomlEntries(
 		manifest,
 		'lints.clippy',
 		['all = { level = "deny", priority = -1 }', 'wildcard_imports = "deny"'],
-		`${boundary.manifest} mirrored Clippy policy`,
+		`${manifestPath} mirrored Clippy policy`,
 	);
 	if (tomlEntries(manifest, 'lints').length > 0) {
-		throw new Error(`${boundary.manifest} must not inherit the workspace unsafe forbid`);
+		throw new Error(`${manifestPath} must not inherit the workspace unsafe forbid`);
 	}
 
-	const libraryPath = resolve(repositoryRoot, boundary.library);
-	const systemPath = resolve(repositoryRoot, boundary.system);
-	const testsPath = resolve(repositoryRoot, boundary.systemTests);
-	for (const path of [libraryPath, systemPath, testsPath]) {
-		if (!existsSync(path))
-			throw new Error(`Missing canonical unsafe-boundary file: ${relativeSource(path)}`);
-	}
+	const libraryPath = resolve(repositoryRoot, libraryFile);
+	if (!existsSync(libraryPath))
+		throw new Error(`Missing canonical unsafe-boundary file: ${relativeSource(libraryPath)}`);
 	const library = readFileSync(libraryPath, 'utf8');
 	const libraryPolicy = rustPolicySource(library);
 	if (!/#!\[\s*deny\s*\(\s*unsafe_code\s*\)\s*\]/u.test(libraryPolicy)) {
-		throw new Error(`${boundary.library} must keep crate-wide deny(unsafe_code)`);
+		throw new Error(`${libraryFile} must keep crate-wide deny(unsafe_code)`);
 	}
-	const canonicalDeclaration = `#[cfg(windows)]
+	// Each admitted module keeps its own canonical declaration; its cfg names the one platform
+	// whose operating-system boundary it adapts.
+	const declarationShapes = [
+		...libraryPolicy.matchAll(
+			/^[\t ]*#\[\s*cfg\s*\([^\]\r\n]*\)\s*\][\t ]*\r?\n[\t ]*#\[\s*allow\s*\(\s*unsafe_code\s*,\s*reason\s*=\s*\)\s*\][\t ]*\r?\n[\t ]*mod[\t ]+([a-z_][a-z\d_]*)[\t ]*;[\t ]*$/gmu,
+		),
+	];
+	for (const boundary of boundaries) {
+		enforcePrivateUnsafeModule(boundary, library, declarationShapes);
+	}
+
+	const systemPaths = boundaries.map((boundary) => resolve(repositoryRoot, boundary.system));
+	const sources = rustSourceFiles(dirname(entry.manifest_path));
+	const escapes = sources.flatMap((source) =>
+		unsafeEscapeAttributes(readFileSync(source, 'utf8')).map(() => source),
+	);
+	if (
+		escapes.length !== boundaries.length ||
+		escapes.some((source) => !samePath(source, libraryPath))
+	) {
+		throw new Error(`Only ${libraryFile} may contain the canonical unsafe_code allow`);
+	}
+	for (const source of sources) {
+		if (systemPaths.some((systemPath) => samePath(source, systemPath))) continue;
+		const text = readFileSync(source, 'utf8');
+		if (authoredUnsafePattern().test(rustPolicySource(text))) {
+			throw new Error(
+				`${relativeSource(source)} contains unsafe Rust outside ${boundaries.map((boundary) => boundary.system).join(' or ')}`,
+			);
+		}
+	}
+}
+
+function enforcePrivateUnsafeModule(boundary, library, declarationShapes) {
+	const systemPath = resolve(repositoryRoot, boundary.system);
+	const testsPath = resolve(repositoryRoot, boundary.systemTests);
+	for (const path of [systemPath, testsPath]) {
+		if (!existsSync(path))
+			throw new Error(`Missing canonical unsafe-boundary file: ${relativeSource(path)}`);
+	}
+	const canonicalDeclaration = `#[cfg(${boundary.cfg})]
 #[allow(
     unsafe_code,
     reason = "${boundary.reason}"
 )]
 mod ${boundary.module};`;
-	const canonicalDeclarationShape =
-		/^[\t ]*#\[\s*cfg\s*\(\s*windows\s*\)\s*\][\t ]*\r?\n[\t ]*#\[\s*allow\s*\(\s*unsafe_code\s*,\s*reason\s*=\s*\)\s*\][\t ]*\r?\n[\t ]*mod[\t ]+[a-z_][a-z\d_]*[\t ]*;[\t ]*$/mu.exec(
-			libraryPolicy,
-		);
+	const declared = declarationShapes.find((shape) => shape[1] === boundary.module);
 	const activeDeclaration =
-		canonicalDeclarationShape === null
+		declared === undefined
 			? undefined
-			: library.slice(
-					canonicalDeclarationShape.index,
-					canonicalDeclarationShape.index + canonicalDeclarationShape[0].length,
-				);
+			: library.slice(declared.index, declared.index + declared[0].length);
 	if (
 		activeDeclaration === undefined ||
 		normalizedWhitespace(activeDeclaration) !== normalizedWhitespace(canonicalDeclaration)
@@ -657,21 +704,6 @@ mod tests;`;
 		throw new Error(
 			`Only the denied safe test child may live below ${boundary.system.replace(/\.rs$/u, '')}:\n${unexpectedSystemChildren.join('\n')}`,
 		);
-	}
-
-	const sources = rustSourceFiles(dirname(entry.manifest_path));
-	const escapes = sources.flatMap((source) =>
-		unsafeEscapeAttributes(readFileSync(source, 'utf8')).map(() => source),
-	);
-	if (escapes.length !== 1 || !samePath(escapes[0], libraryPath)) {
-		throw new Error(`Only ${boundary.library} may contain the canonical unsafe_code allow`);
-	}
-	for (const source of sources) {
-		if (samePath(source, systemPath)) continue;
-		const text = readFileSync(source, 'utf8');
-		if (authoredUnsafePattern().test(rustPolicySource(text))) {
-			throw new Error(`${relativeSource(source)} contains unsafe Rust outside ${boundary.system}`);
-		}
 	}
 }
 
