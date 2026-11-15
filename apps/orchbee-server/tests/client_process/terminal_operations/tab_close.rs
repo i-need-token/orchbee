@@ -6,10 +6,11 @@ use orchbee_client_server_protocol::{
 use orchbee_workbench_protocol::{
     PanelNode, PresentationBinding, ProtocolVersion, Snapshot, SnapshotReadIntent, Tab,
     WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
-    WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchRequest, WorkbenchRequestId,
-    WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchTabCloseRead,
-    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus, WorkbenchTabMoveDirection,
-    WorkbenchTerminalGeometry, read_workbench_response, write_workbench_request,
+    WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchPanelSplitDirection,
+    WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
+    WorkbenchSnapshotOutcome, WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome,
+    WorkbenchTabCloseStatus, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    read_workbench_response, write_workbench_request,
 };
 use std::num::NonZeroU64;
 
@@ -109,13 +110,47 @@ fn open_workspace(client: &mut UnixStream, value: u128) -> TestResult<Snapshot> 
     snapshot(client, value + 4)
 }
 
+/// The id of a request's `attempt`th try. Every first id here is below 2^64, so no try reuses
+/// another request's id.
+fn attempt_value(value: u128, attempt: u64) -> u128 {
+    value | (u128::from(attempt) << 64)
+}
+
+fn outdated(outcome: &WorkbenchCommandOutcome) -> bool {
+    matches!(
+        outcome,
+        WorkbenchCommandOutcome::Rejected {
+            reason: WorkbenchRejectionReason::RevisionMismatch,
+            ..
+        }
+    )
+}
+
+/// Sends the action built from a fresh snapshot, reading `value` and commanding `value + 1`. The
+/// Server also publishes revisions of its own, such as the Close of a Panel whose Shell exited,
+/// and a command such a revision outdates committed nothing, so it is rebuilt on a newer
+/// snapshot under new ids.
+fn current_command(
+    client: &mut UnixStream,
+    value: u128,
+    action: impl Fn(&Snapshot) -> TestResult<WorkbenchAction>,
+) -> TestResult<(Snapshot, u128, WorkbenchCommandResult)> {
+    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    for attempt in 0.. {
+        let current = snapshot(client, attempt_value(value, attempt))?;
+        let command_value = attempt_value(value + 1, attempt);
+        let result = command(client, &current, command_value, action(&current)?)?;
+        if !outdated(&result.outcome) {
+            return Ok((current, command_value, result));
+        }
+        assert!(Instant::now() < deadline, "the revision did not settle");
+    }
+    Err("attempts exhausted".into())
+}
+
 fn create_tab(client: &mut UnixStream, value: u128) -> TestResult<(Snapshot, Tab)> {
-    let before = snapshot(client, value)?;
-    let created = command(
-        client,
-        &before,
-        value + 1,
-        WorkbenchAction::TabCreate {
+    let (_, _, created) = current_command(client, value, |before| {
+        Ok(WorkbenchAction::TabCreate {
             automatic_label: false,
             placement: None,
             terminal_context_id: before.navigation.workspaces[0].terminal_context_id.clone(),
@@ -124,8 +159,8 @@ fn create_tab(client: &mut UnixStream, value: u128) -> TestResult<(Snapshot, Tab
             launch: None,
             profile: None,
             options: Default::default(),
-        },
-    )?;
+        })
+    })?;
     let WorkbenchCommandOutcome::TabCreated { tab_id, .. } = created.outcome else {
         return Err(format!("Create: {:?}", created.outcome).into());
     };
@@ -234,23 +269,33 @@ fn input(
     Ok(())
 }
 
+fn tab_close(snapshot: &Snapshot, tab: &Tab) -> WorkbenchAction {
+    WorkbenchAction::TabClose {
+        terminal_context_id: snapshot.navigation.workspaces[0]
+            .terminal_context_id
+            .clone(),
+        tab_id: tab.tab_id.clone(),
+    }
+}
+
 fn close_tab(client: &mut UnixStream, snapshot: &Snapshot, tab: &Tab, value: u128) -> TestResult {
-    let closed = command(
-        client,
-        snapshot,
-        value,
-        WorkbenchAction::TabClose {
-            terminal_context_id: snapshot.navigation.workspaces[0]
-                .terminal_context_id
-                .clone(),
-            tab_id: tab.tab_id.clone(),
-        },
-    )?;
+    let closed = command(client, snapshot, value, tab_close(snapshot, tab))?;
+    settle_close(client, snapshot, tab, value, closed.outcome)
+}
+
+/// Waits until the Close that `outcome` accepted under request `value` has closed `tab`.
+fn settle_close(
+    client: &mut UnixStream,
+    snapshot: &Snapshot,
+    tab: &Tab,
+    value: u128,
+    outcome: WorkbenchCommandOutcome,
+) -> TestResult {
     let WorkbenchCommandOutcome::TabCloseAccepted {
         close_request_id, ..
-    } = closed.outcome
+    } = outcome
     else {
-        return Err(format!("Close: {:?}", closed.outcome).into());
+        return Err(format!("Close: {outcome:?}").into());
     };
     assert_eq!(close_request_id, workbench_id(value)?);
     let deadline = Instant::now() + Duration::from_secs(40);
@@ -352,7 +397,16 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
     }
     let before = snapshot(&mut clients[0], 2000)?;
     assert_eq!(tabs(&before)?.len(), 8);
-    close_tab(&mut clients[0], &before, &originals[0], 2100)?;
+    let (current, value, closed) = current_command(&mut clients[0], 2100, |current| {
+        Ok(tab_close(current, &originals[0]))
+    })?;
+    settle_close(
+        &mut clients[0],
+        &current,
+        &originals[0],
+        value,
+        closed.outcome,
+    )?;
     let removed = snapshot(&mut clients[0], 2200)?;
     assert_eq!(tabs(&removed)?.len(), 7);
     assert!(
@@ -404,10 +458,32 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
             b"exit\n".to_vec(),
         )?;
     }
-    for index in 0..8_u128 {
-        let current = snapshot(&mut clients[0], 3000 + index * 10)?;
-        let tab = tabs(&current)?.first().ok_or("cleanup target")?.clone();
-        close_tab(&mut clients[0], &current, &tab, 3001 + index * 10)?;
+    // A Panel whose Shell exited with 0 closes once any viewer, a sampling one included, reads
+    // that exit. The Server's own Close may therefore take a Tab first: an outdated revision or a
+    // Tab already inside that Close is read again until no Tab remains.
+    let deadline = Instant::now() + Duration::from_secs(40);
+    for attempt in 0.. {
+        let current = snapshot(&mut clients[0], attempt_value(3000, attempt))?;
+        let Some(tab) = tabs(&current)?.first().cloned() else {
+            break;
+        };
+        let value = attempt_value(3001, attempt);
+        let closed = command(&mut clients[0], &current, value, tab_close(&current, &tab))?;
+        if outdated(&closed.outcome)
+            || closed.outcome
+                == (WorkbenchCommandOutcome::Unavailable {
+                    reason: WorkbenchCommandUnavailableReason::TerminalBusy,
+                })
+        {
+            assert!(
+                Instant::now() < deadline,
+                "exited Tabs did not close: {:?}",
+                closed.outcome
+            );
+            thread::sleep(Duration::from_millis(10));
+            continue;
+        }
+        settle_close(&mut clients[0], &current, &tab, value, closed.outcome)?;
     }
     assert!(tabs(&snapshot(&mut clients[0], 4000)?)?.is_empty());
     Ok(())
