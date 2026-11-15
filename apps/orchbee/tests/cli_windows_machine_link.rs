@@ -5,7 +5,9 @@
 //! finds one Session and starts another, and a link ends by `bye` or by its pipe closing while the
 //! Sessions keep running. A console on the helper's standard input or output refuses its start.
 //! Started inside a Job like the one Win32-OpenSSH runs each connection in, the helper starts a
-//! Session that outlives the Job, and the next link joins it.
+//! Session that outlives the Job, and the next link joins it. Every Session and endpoint the helper
+//! opens is one the helper or its Session started, so an elevated run, whose helper relaunches with
+//! a standard token, reaches them as a run at Medium does.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -35,7 +37,7 @@ use std::{
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, Ordering},
         mpsc,
     },
     thread,
@@ -52,8 +54,10 @@ const FLOOD_BYTES: usize = 4 * 1024 * 1024;
 #[test]
 fn one_link_carries_sessions_a_route_past_a_stalled_stream_and_session_starts() {
     let fixture = Fixture::new("ml3-link-", &[]);
-    let alpha = terminal_of(&fixture, &fixture.workspace_in("alpha", "work"));
-    let beta = terminal_of(&fixture, &fixture.workspace_in("beta", "work"));
+    // The helper serves with a standard token, so on an elevated run it cannot open a Session this
+    // test starts: the default Session the link carries is the one the helper starts.
+    let stopped = fixture.run(&["server", "stop", "--confirm", "--session", "default"]);
+    assert_eq!(stopped.code, Some(0), "{stopped}");
 
     let mut hub = Hub::start(&fixture);
     let facts = hub.until(WAIT, "facts", |hub| hub.facts.clone());
@@ -68,6 +72,15 @@ fn one_link_carries_sessions_a_route_past_a_stalled_stream_and_session_starts() 
         facts.executable.as_str()
     );
     assert!(facts.store_root.is_some(), "the store root resolves");
+    let start = hub.open(link::Channel::EnsureSession {
+        session: SessionName::new("default").unwrap(),
+    });
+    let made = hub.until(START, "the default Session", |hub| {
+        hub.lanes[&start].outcome
+    });
+    assert_eq!(made, link::Outcome::Ready { started: true });
+    let alpha = terminal_of(&fixture, &fixture.workspace_in("alpha", "work"));
+    let beta = terminal_of(&fixture, &fixture.workspace_in("beta", "work"));
 
     // Two real control attachments reach the default Session, each through its own channel.
     let proxy = Proxy::start(&fixture, &hub);
@@ -108,7 +121,7 @@ fn one_link_carries_sessions_a_route_past_a_stalled_stream_and_session_starts() 
         "{listed}"
     );
     let held = hub.lock().lanes[&flooded].received.len();
-    let offered = flood.written.load(Ordering::Acquire);
+    let offered = flood.written();
     assert_eq!(held, window, "the unread channel stays at its window");
     assert!(offered < FLOOD_BYTES, "the flood is held back: {offered}");
     eprintln!(
@@ -157,7 +170,6 @@ fn one_link_carries_sessions_a_route_past_a_stalled_stream_and_session_starts() 
     drop(first);
     drop(second);
     drop(proxy);
-    drop(flood);
 
     // A second link whose pipe closes with a Session channel open: the helper exits and the
     // Session, its Worker and terminals keep running.
@@ -795,59 +807,111 @@ fn pump(shared: &Shared, channel: u32, stream: &LocalStream) {
     shared.1.notify_all();
 }
 
-/// A fake Session endpoint in the real runtime base that writes as fast as it can.
+/// A fake Session endpoint in the real runtime base that writes as fast as it can. It runs as
+/// [`flooding_endpoint`] in a terminal of the default Session, so it binds with the rights of the
+/// Sessions the helper starts: a listener this test bound would carry an elevated run's High label,
+/// which the standard helper cannot open.
 struct Flood {
-    written: Arc<AtomicUsize>,
-    task: Option<thread::JoinHandle<()>>,
+    /// The count of bytes the endpoint wrote, as it last reported.
+    report: PathBuf,
 }
 
 impl Flood {
+    /// Starts the endpoint and waits until it listens.
     fn start(fixture: &Fixture) -> Self {
-        let session = ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
-            Path::new(&fixture.path("runtime")),
-            SessionScope::parse("flood").unwrap(),
-        )
-        .unwrap();
-        let listener = LocalListener::bind(session.client_socket_path()).unwrap();
-        listener.set_nonblocking(true).unwrap();
-        let written = Arc::new(AtomicUsize::new(0));
-        let task = {
-            let written = written.clone();
-            thread::spawn(move || {
-                let _session = session;
-                let deadline = Instant::now() + WAIT;
-                let (stream, ()) = loop {
-                    match listener.accept() {
-                        Ok(stream) => break stream,
-                        Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                            assert!(Instant::now() < deadline, "the helper never connected");
-                            thread::sleep(Duration::from_millis(5));
-                        }
-                        Err(error) => panic!("flood accept: {error}"),
-                    }
-                };
-                let piece = vec![0x5a; 16 * 1024];
-                while written.load(Ordering::Acquire) < FLOOD_BYTES {
-                    match (&stream).write(&piece) {
-                        Ok(count) => {
-                            written.fetch_add(count, Ordering::AcqRel);
-                        }
-                        Err(_) => break,
-                    }
-                }
-            })
-        };
-        Self {
-            written,
-            task: Some(task),
+        // A copy under the fixture root, which this user runs with any token, as the staged cohort.
+        let program = fixture.path("flood.exe");
+        fs::copy(std::env::current_exe().unwrap(), &program).unwrap();
+        let report = PathBuf::from(fixture.path("flood-written.txt"));
+        let work = fixture.path("work");
+        let base = format!("{FLOOD_BASE}={}", fixture.path("runtime"));
+        let written = format!("{FLOOD_REPORT}={}", report.display());
+        let mut words = vec![
+            "workspace",
+            "create",
+            "--label",
+            "flood",
+            "--cwd",
+            &work,
+            "--no-focus",
+            "--exec",
+            &program,
+            "--arg",
+            "flooding_endpoint",
+            "--arg",
+            "--exact",
+            "--arg",
+            "--ignored",
+            "--env",
+            &base,
+            "--env",
+            &written,
+        ];
+        let environment = fixture.terminal_environment();
+        words.extend(environment.iter().map(String::as_str));
+        let created = fixture.run(&words);
+        assert_eq!(created.code, Some(0), "{created}");
+        let flood = Self { report };
+        let deadline = Instant::now() + WAIT;
+        while flood.read().is_none() {
+            assert!(Instant::now() < deadline, "the flood never listened");
+            thread::sleep(Duration::from_millis(50));
         }
+        flood
+    }
+
+    fn read(&self) -> Option<usize> {
+        fs::read_to_string(&self.report).ok()?.trim().parse().ok()
+    }
+
+    /// The bytes the endpoint wrote. Read while it is held back, so no report is being written.
+    fn written(&self) -> usize {
+        self.read().expect("the flood reports what it wrote")
     }
 }
 
-impl Drop for Flood {
-    fn drop(&mut self) {
-        if let Some(task) = self.task.take() {
-            let _joined = task.join();
+/// Names the runtime base when this test program runs as the flooding endpoint.
+const FLOOD_BASE: &str = "ML3_FLOOD_BASE";
+/// Names the file the flooding endpoint reports its written bytes to.
+const FLOOD_REPORT: &str = "ML3_FLOOD_REPORT";
+
+/// The flooding endpoint of [`Flood`], when a terminal runs this test program with its variables:
+/// it reports 0 once it listens and its total after each write. Without them it does nothing.
+#[test]
+#[ignore = "the endpoint the link test starts in a terminal of its Session"]
+fn flooding_endpoint() {
+    let (Some(base), Some(report)) = (std::env::var_os(FLOOD_BASE), std::env::var_os(FLOOD_REPORT))
+    else {
+        return;
+    };
+    let session = ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
+        Path::new(&base),
+        SessionScope::parse("flood").unwrap(),
+    )
+    .unwrap();
+    let listener = LocalListener::bind(session.client_socket_path()).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    fs::write(&report, "0").unwrap();
+    let deadline = Instant::now() + WAIT;
+    let (stream, ()) = loop {
+        match listener.accept() {
+            Ok(stream) => break stream,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                assert!(Instant::now() < deadline, "the helper never connected");
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => panic!("flood accept: {error}"),
+        }
+    };
+    let piece = vec![0x5a; 16 * 1024];
+    let mut written = 0;
+    while written < FLOOD_BYTES {
+        match (&stream).write(&piece) {
+            Ok(count) => {
+                written += count;
+                fs::write(&report, written.to_string()).unwrap();
+            }
+            Err(_) => break,
         }
     }
 }

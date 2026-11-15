@@ -1046,6 +1046,8 @@ fn routed_commands_share_one_carrier_answer_as_the_far_side_and_end_definitely_w
     let panel = created.document["result"]["workspace"]["result"]["panelId"].clone();
     let hub = Hub::observe(query_pid(&endpoint));
     let child = one_child(&hub, None);
+    let relaunched = standard_helper(&child);
+    let helper = relaunched.as_ref().unwrap_or(&child);
 
     // A routed command reads the far Session as the same command run there does.
     let routed = carried.run(&["--machine", FIRST, "terminal", "list"]);
@@ -1086,8 +1088,10 @@ fn routed_commands_share_one_carrier_answer_as_the_far_side_and_end_definitely_w
     );
 
     // Ending the carrier while the far command runs ends the routed command with a definite
-    // failure; the far command may have run, so its outcome is unknown, which exits 8.
-    let before: Vec<u32> = children(&child).iter().map(|process| process.pid).collect();
+    // failure; the far command may have run, so its outcome is unknown, which exits 8. The far
+    // command is a child of the helper that serves the link. Ending the carrier's root ends the
+    // carrier: the hub then terminates the rest of its Job, a relaunched helper included.
+    let before: Vec<u32> = children(helper).iter().map(|process| process.pid).collect();
     let mut waiting = carried
         .command(&[
             "--machine",
@@ -1108,7 +1112,7 @@ fn routed_commands_share_one_carrier_answer_as_the_far_side_and_end_definitely_w
         .spawn()
         .unwrap();
     let deadline = Instant::now() + WAIT;
-    while children(&child)
+    while children(helper)
         .iter()
         .all(|process| before.contains(&process.pid))
     {
@@ -1533,6 +1537,33 @@ fn another_child(hub: &Hub, known: &[u32]) -> Hub {
             Instant::now() < deadline,
             "the hub has {} new live children",
             live.len()
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// The helper a carrier's root process relaunched to serve its link, or `None` when the root
+/// serves it. A helper whose token fails the standard-rights gate only relays the status of the
+/// one child it starts with a standard token, and that child serves the link and runs its routed
+/// commands. The root inherits this test's token through the client and the hub, so the test's own
+/// token decides: elevated, as on GitHub's runner, the root relaunches; at Medium it does not.
+fn standard_helper(root: &Hub) -> Option<Hub> {
+    if orchbee_local_runtime::token_rights().unwrap().is_standard() {
+        return None;
+    }
+    let deadline = Instant::now() + WAIT;
+    loop {
+        let mut helpers: Vec<Hub> = children(root)
+            .into_iter()
+            .filter(|child| child.image().ends_with(&CohortArtifact::Client.file_name()))
+            .collect();
+        if helpers.len() == 1 {
+            return helpers.pop();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the elevated helper has {} standard helpers",
+            helpers.len()
         );
         thread::sleep(Duration::from_millis(100));
     }
