@@ -66,7 +66,7 @@
 		width: var(--ob-ref-length-website-150);
 	}
 }
-@container window-fit (max-width: 24rem) {
+@media (max-width: 40rem) {
 	[data-size='mini'] .tab {
 		width: var(--ob-ref-length-website-150);
 	}

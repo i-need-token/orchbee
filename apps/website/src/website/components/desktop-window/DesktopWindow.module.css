@@ -58,7 +58,8 @@
 	}
 }
 /* `mini` is the mini layout as a window's own size, for a figure that sets two windows side by
-   side; it takes the phone layout only in a fit narrower than that. */
+   side. It takes the phone layout on a narrow page rather than in a narrow fit: one column of a
+   wide page is as narrow a fit. */
 [data-size='mini']:is(.window, .windowWithSidebar) {
 	width: var(--ob-ref-length-website-660);
 	height: var(--ob-ref-length-website-400);
@@ -67,7 +68,7 @@
 .windowWithSidebar[data-size='mini'] {
 	grid-template-columns: var(--ob-ref-length-website-200) minmax(0, 1fr);
 }
-@container window-fit (max-width: 24rem) {
+@media (max-width: 40rem) {
 	[data-size='mini']:is(.window, .windowWithSidebar) {
 		width: var(--ob-ref-length-website-430);
 		height: var(--ob-ref-length-website-430);

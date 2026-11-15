@@ -249,6 +249,3 @@
 [data-size='mini'] .provider {
 	display: none;
 }
-[data-size='mini'] .footer {
-	justify-content: space-between;
-}
