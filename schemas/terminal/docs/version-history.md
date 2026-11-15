@@ -20,31 +20,34 @@ The NPM package version, Terminal Host executable version, Zig toolchain version
 dependency versions belong to their own release owners. They are not wire-compatibility versions
 and do not advance with these five contracts automatically.
 
-## Before the first public release
+## Before the first automatic-update release
 
 Follow the repository [pre-release version rule](../../../docs/ARCHITECTURE.md#data-boundaries).
 Update `v1/constants.json` and the Rust, TypeScript, and Zig constants, encoders, decoders, fixtures, exports, tests, and
 current protocol reference together whenever the current contract changes.
 
-## Public release and later
+## From the first automatic-update release
 
 The runtime accepts only its exact current generation; a record of any other generation is
 malformed. The accepted
 [versioning and upgrade direction](../../../proposals/platform/versioning-and-upgrade.md) adds
-negotiated generations and capability names in its P0 phase, and the first public release freezes
-the current generation of each domain. From then on, every externally observable change adds a
-release-history entry here in the same change:
+negotiated generations and capability names in its P0 phase, and the first automatic-update release
+freezes the current generation of each domain. From then on, every externally observable change
+adds a release-history entry here in the same change:
 
-- An incompatible change introduces the next generation of its domain.
 - A backward-compatible addition adds a capability name; the generation stays.
 - A backward-compatible correction changes neither.
+- An incompatible change that no capability can express introduces the next generation of its
+  domain, only as the last resort of the direction's
+  [compatibility window](../../../proposals/platform/versioning-and-upgrade.md#compatibility-window).
 
 After P0, Worker and Terminal Host negotiate a common wire-protocol generation and capability names
 in the handshake, and each attachment negotiates its frame-format generations. The wire-protocol
-generation current at the first public release stays supported in every 1.x release unless a
-security fix requires its removal; every other generation follows the direction's compatibility
-window. Fixtures of a released generation are frozen: tests never change their expected bytes to
-admit a new change.
+generation current at the first automatic-update release grows only by capabilities the Host
+advertises; if it ever advances, it stays supported in every later 1.x release unless a security
+fix requires its removal. Every other generation follows the direction's compatibility window.
+Fixtures of a released generation are frozen: tests never change their expected bytes to admit a
+new change.
 
 ## Fixture naming
 
@@ -55,4 +58,5 @@ fixtures, not a compatibility artifact.
 
 ## Released versions
 
-None. Release-history entries begin with the generations frozen at the first public release.
+None. Release-history entries begin with the generations frozen at the first automatic-update
+release.

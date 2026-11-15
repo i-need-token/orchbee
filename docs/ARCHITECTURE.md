@@ -55,25 +55,29 @@ flowchart TB
 
 ## Data boundaries
 
-Before the first public release, each wire protocol, persisted format, and machine-readable
-document retains only its current contract. Integer versions stay at `1`; the five OBTP version
-domains stay at generation 1, encoded `1.0.0`. Shape changes update that current contract directly, without historical
-versions, compatibility readers, or migrations. Strict parsing rejects files with other shapes;
-where it does not protect version reuse, replace the magic or schema identifier instead of retaining
-an older contract.
+Each wire protocol, persisted format, and machine-readable document retains only its current
+contract. Integer versions stay at `1`; the five OBTP version domains stay at generation 1, encoded
+`1.0.0`. Shape changes update that current contract directly, without historical versions,
+compatibility readers, or migrations. Strict parsing rejects files with other shapes; where it does
+not protect version reuse, replace the magic or schema identifier instead of retaining an older
+contract.
 
 Connections open with the `OBHS` handshake of
 [`crates/connection-handshake`](../crates/connection-handshake/README.md) and
-[`schemas/connection`](../schemas/connection/README.md). Before the first public release, each
-negotiated connection keeps only its current protocol generation: an incompatible change advances
-the generation and drops the previous one, so negotiation rejects a stale peer, and the first
-public release freezes each current generation. Peers of different environments never connect, and development and test builds admit a peer only with an equal protocol fingerprint, so
-an unchanged protocol lets a rebuilt Client join the running development Session while a changed
-one is refused. The accepted
-[versioning and upgrade direction](../proposals/platform/versioning-and-upgrade.md) sets the
-compatibility rules that bind from the first public release. The
+[`schemas/connection`](../schemas/connection/README.md). Every negotiated connection stays at
+generation 1 and changes shape in place, like the formats above; no change advances a generation or
+drops one. Release builds compare no fingerprint, so release builds of different versions accept
+each other at generation 1, and strict parsing refuses any message whose shape changed between
+them. Peers of different environments never connect, and development and test builds admit a peer
+only with an equal protocol fingerprint, so an unchanged protocol lets a rebuilt Client join the
+running development Session while a changed one is refused.
+
+The accepted [versioning and upgrade direction](../proposals/platform/versioning-and-upgrade.md)
+replaces these connection rules from the first automatic-update release with its
+[compatibility window](../proposals/platform/versioning-and-upgrade.md#compatibility-window). The
 [data root layout](../proposals/platform/data-root-layout.md) places every file Orchbee writes on a
-person's machine and sets the persisted-data migration rules that bind from the same release.
+person's machine and sets the persisted-data migration rules and the release from which each
+applies.
 
 The language-neutral Terminal authority is [`schemas/terminal`](../schemas/terminal/README.md).
 Its reference, version policy, constant registry and canonical fixtures govern the independent

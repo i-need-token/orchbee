@@ -16,8 +16,8 @@ generation numbers for every connection, frame format, and unnegotiated delivery
 
 `crates/connection-handshake` is the Rust binding, and `apps/terminal-host/src/handshake` is the
 Terminal Host's Zig binding. Both are independent implementations of this contract; nothing
-generates source from it. From the first public release, `OBHS` and its messages never change
-except by new members of `extensions`, and the fixtures of this directory freeze.
+generates source from it. From the first automatic-update release, `OBHS` and its messages never
+change except by new members of `extensions`, and the fixtures of this directory freeze.
 
 ## Frame
 
