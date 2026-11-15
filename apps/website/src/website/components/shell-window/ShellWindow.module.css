@@ -68,3 +68,16 @@
 		font: var(--ob-sys-typography-website-terminal-compact);
 	}
 }
+/* `strip` is a short console for a few rows under a figure; a narrow fit gets a narrower strip
+   with smaller text. */
+.window[data-size='strip'] {
+	height: var(--ob-ref-length-website-176);
+}
+@container window-fit (max-width: 48rem) {
+	.window[data-size='strip'] {
+		width: var(--ob-ref-length-website-470);
+		height: var(--ob-ref-length-website-190);
+		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-470))), 1.3);
+		font: var(--ob-sys-typography-website-terminal-compact);
+	}
+}

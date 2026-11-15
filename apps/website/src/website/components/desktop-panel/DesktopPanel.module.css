@@ -74,3 +74,6 @@
 		display: none;
 	}
 }
+[data-size='mini'] [data-panel-column]:not([data-open]) .header {
+	display: none;
+}

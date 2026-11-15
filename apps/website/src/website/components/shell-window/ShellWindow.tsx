@@ -5,8 +5,11 @@ import type { TerminalRow } from '../terminal-text/terminal-row';
 import { WindowCaption } from '../window-caption/WindowCaption';
 import styles from './ShellWindow.module.css';
 
-/** The sizes a drawn shell window comes in; `full` narrows to the mini and phone layouts. */
-export type ShellWindowSize = 'full';
+/**
+ * The sizes a drawn shell window comes in: `full` narrows to the mini and phone layouts; `strip`,
+ * a few rows high, narrows to a narrower strip.
+ */
+export type ShellWindowSize = 'full' | 'strip';
 
 /**
  * A plain terminal outside Orchbee with one PowerShell tab, in its own colors: where a person or

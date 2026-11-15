@@ -86,3 +86,39 @@
 		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-430))), 1.3);
 	}
 }
+/* `mini` is the mini layout as a window's own size, for a figure that sets two windows side by
+   side; it takes the phone layout only in a fit narrower than that. */
+.window[data-size='mini'] {
+	width: var(--ob-ref-length-website-660);
+	height: var(--ob-ref-length-website-400);
+	zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-660))), 1.3);
+}
+[data-size='mini'] .screenWithSidebar {
+	grid-template-columns: var(--ob-ref-length-website-206) minmax(0, 1fr);
+}
+@container window-fit (max-width: 24rem) {
+	.window[data-size='mini'] {
+		width: var(--ob-ref-length-website-430);
+		height: var(--ob-ref-length-website-430);
+		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-430))), 1.3);
+	}
+	[data-size='mini'] .screenWithSidebar {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	[data-size='mini'] .sidebar {
+		display: none;
+	}
+}
+/* `duo` is a lower window for two Panels side by side; a narrow fit stands it upright, with
+   smaller text, for the Panels to stack. */
+.window[data-size='duo'] {
+	height: var(--ob-ref-length-website-560);
+}
+@container window-fit (max-width: 48rem) {
+	.window[data-size='duo'] {
+		width: var(--ob-ref-length-website-430);
+		height: var(--ob-ref-length-website-660);
+		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-430))), 1.3);
+		font: var(--ob-sys-typography-website-terminal-compact);
+	}
+}

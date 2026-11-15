@@ -32,3 +32,9 @@
 	color: var(--ob-comp-website-terminal-ansi-12);
 	font: var(--ob-sys-typography-website-terminal-strong);
 }
+/* The upright duo window sets smaller text, and the focused title keeps to it. */
+@container window-fit (max-width: 48rem) {
+	[data-size='duo'] .cell[data-focus] .header {
+		font: var(--ob-sys-typography-website-terminal-compact-strong);
+	}
+}

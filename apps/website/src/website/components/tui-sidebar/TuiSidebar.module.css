@@ -59,3 +59,9 @@
 		display: none;
 	}
 }
+[data-size='mini'] .agent {
+	padding-left: calc(var(--ob-ref-length-website-12) + 2 * var(--ob-ref-length-website-1ch));
+}
+[data-size='mini'] .provider {
+	display: none;
+}

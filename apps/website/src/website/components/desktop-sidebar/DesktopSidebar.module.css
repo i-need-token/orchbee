@@ -243,3 +243,12 @@
 		display: none;
 	}
 }
+[data-size='mini'] .tree {
+	margin-top: var(--ob-ref-space-3);
+}
+[data-size='mini'] .provider {
+	display: none;
+}
+[data-size='mini'] .footer {
+	justify-content: space-between;
+}

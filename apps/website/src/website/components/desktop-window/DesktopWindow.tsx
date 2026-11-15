@@ -2,8 +2,11 @@ import type { ReactElement, ReactNode } from 'react';
 
 import styles from './DesktopWindow.module.css';
 
-/** The sizes a drawn desktop application comes in; `full` narrows to the mini and phone layouts. */
-export type DesktopWindowSize = 'full';
+/**
+ * The sizes a drawn desktop application comes in: `full` narrows to the mini and phone layouts;
+ * `mini` starts at the mini layout and narrows to the phone layout.
+ */
+export type DesktopWindowSize = 'full' | 'mini';
 
 /**
  * The Orchbee desktop application in its window: the optional sidebar beside the main area

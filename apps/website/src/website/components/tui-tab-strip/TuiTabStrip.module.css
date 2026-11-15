@@ -22,3 +22,9 @@
 .dim {
 	color: var(--ob-comp-website-terminal-dim);
 }
+/* The upright duo window sets smaller text, and the Tab keeps to it. */
+@container window-fit (max-width: 48rem) {
+	[data-size='duo'] .tab {
+		font: var(--ob-sys-typography-website-terminal-compact-strong);
+	}
+}

@@ -57,3 +57,26 @@
 		display: none;
 	}
 }
+/* `mini` is the mini layout as a window's own size, for a figure that sets two windows side by
+   side; it takes the phone layout only in a fit narrower than that. */
+[data-size='mini']:is(.window, .windowWithSidebar) {
+	width: var(--ob-ref-length-website-660);
+	height: var(--ob-ref-length-website-400);
+	zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-660))), 1.3);
+}
+.windowWithSidebar[data-size='mini'] {
+	grid-template-columns: var(--ob-ref-length-website-200) minmax(0, 1fr);
+}
+@container window-fit (max-width: 24rem) {
+	[data-size='mini']:is(.window, .windowWithSidebar) {
+		width: var(--ob-ref-length-website-430);
+		height: var(--ob-ref-length-website-430);
+		zoom: min(tan(atan2(100cqw, var(--ob-ref-length-website-430))), 1.3);
+	}
+	.windowWithSidebar[data-size='mini'] {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	[data-size='mini'] > .sidebar {
+		display: none;
+	}
+}
