@@ -1,0 +1,35 @@
+import type { WebsiteShellMessageId } from '../en-US';
+
+export const zhCNWebsiteShellMessages = {
+	'website.shell.notFound.metaTitle': '页面不存在 — Orchbee',
+	'website.shell.notFound.title': '页面不存在。',
+	'website.shell.notFound.body': '这个地址下没有内容。页面可能已经移动，或者地址输入有误。',
+	'website.shell.notFound.home': '返回首页',
+	'website.shell.skip': '跳到正文',
+	'website.shell.navigation': '客户端',
+	'website.shell.menu': '菜单',
+	'website.shell.footerNavigation': '项目',
+	'website.shell.nav.terminal': '终端界面',
+	'website.shell.nav.desktop': '桌面应用',
+	'website.shell.nav.cli': '命令行',
+	'website.shell.nav.download': '下载',
+	'website.shell.nav.install': '安装',
+	'website.shell.otherLanguage': 'English',
+	'website.shell.client.terminal': '终端界面',
+	'website.shell.client.desktop': '桌面应用',
+	'website.shell.client.cli': '命令行',
+	'website.shell.client.terminalSummary': '运行在你已有的终端里，带侧边栏、标签页与分屏面板。',
+	'website.shell.client.desktopSummary': '在独立窗口中呈现同一个会话，终端使用 WebGPU 渲染。',
+	'website.shell.client.cliSummary':
+		'人可以执行的每一项操作，Agent 都可以通过 <code>orchbee</code> 命令行完成。',
+	'website.shell.otherClients': '其他客户端',
+	'website.shell.downloadForWindows': '下载 Windows 版',
+	'website.shell.getSource': '获取源码',
+	'website.shell.installerNote':
+		'只为当前用户安装，不需要管理员权限。会把 <code>orchbee</code> 命令加入 <code>Path</code>。',
+	'website.shell.copyCommand': '复制命令',
+	'website.shell.footer.name':
+		'名字由 <b>orch</b>estrator（编排者）和 <b>bee</b>（蜜蜂）组合而来，寓意独立个体协同如一。',
+	'website.shell.footer.releases': '发布页',
+	'website.shell.footer.license': '许可证',
+} as const satisfies Readonly<Record<WebsiteShellMessageId, string>>;

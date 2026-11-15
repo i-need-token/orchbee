@@ -1,5 +1,16 @@
-.mark {
+.brand {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-10);
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-brand);
+	text-transform: none;
+}
+/* The ring follows the tile's own corner radius. */
+.logo {
 	display: block;
-	width: 100%;
-	height: 100%;
+	width: var(--ob-ref-length-website-26);
+	height: var(--ob-ref-length-website-26);
+	border-radius: 23%;
+	box-shadow: var(--ob-sys-shadow-website-logo-ring);
 }

@@ -1,0 +1,5 @@
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-length-website-10);
+}

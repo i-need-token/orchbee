@@ -18,7 +18,7 @@ export default defineConfig(({ command }) => ({
 				title: 'Orchbee',
 				scriptLoading: 'blocking',
 				inject: 'head',
-				meta: { viewport: 'width=device-width, initial-scale=1', 'color-scheme': 'dark light' },
+				meta: { viewport: 'width=device-width, initial-scale=1', 'color-scheme': 'dark' },
 			},
 			output: {
 				distPath: { root: 'dist' },

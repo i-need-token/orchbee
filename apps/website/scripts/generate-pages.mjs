@@ -6,11 +6,12 @@ import { fileURLToPath } from 'node:url';
 
 const output = new URL('../dist/', import.meta.url);
 
-const { renderNotFound, renderPage } = await import(
+const { renderPage, WEBSITE_PAGES } = await import(
 	new URL('../dist/.prerender/render.mjs', import.meta.url).href
 );
+const LOCALES = ['en-US', 'zh-CN'];
 const shell = await readFile(new URL('index.html', output), 'utf8');
-const { origin } = renderPage('en-US');
+const { origin } = renderPage('en-US', 'home');
 function escape(value) {
 	return value
 		.replaceAll('&', '&amp;')
@@ -19,11 +20,21 @@ function escape(value) {
 		.replaceAll('"', '&quot;');
 }
 
-function documentFor(locale, page, { indexable }) {
+// The alternate links of one page: every language, and English for any other.
+function alternateLinks(page, tag) {
+	const english = page.alternates.find(({ language }) => language === 'en-US');
+	return [...page.alternates, { language: 'x-default', href: english.href }]
+		.map(({ language, href }) => tag(language, href))
+		.join('');
+}
+
+function documentFor(locale, page) {
+	const indexable = page.canonical !== undefined;
+	const home = indexable && /^\/(zh-CN\/)?$/u.test(new URL(page.canonical).pathname);
 	const structuredData = JSON.stringify({
 		'@context': 'https://schema.org',
-		'@type': 'WebSite',
-		name: 'Orchbee',
+		'@type': home ? 'WebSite' : 'WebPage',
+		name: home ? 'Orchbee' : page.title,
 		url: page.canonical,
 		inLanguage: locale,
 		description: page.description,
@@ -32,10 +43,7 @@ function documentFor(locale, page, { indexable }) {
 	const policy = `default-src 'self'; script-src 'self' 'sha256-${scriptHash}'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`;
 	const discovery = indexable
 		? `<link rel="canonical" href="${page.canonical}">
-<link rel="alternate" hreflang="en-US" href="${origin}/">
-<link rel="alternate" hreflang="zh-CN" href="${origin}/zh-CN/">
-<link rel="alternate" hreflang="x-default" href="${origin}/">
-<meta property="og:type" content="website">
+${alternateLinks(page, (language, href) => `<link rel="alternate" hreflang="${language}" href="${href}">\n`)}<meta property="og:type" content="website">
 <meta property="og:site_name" content="Orchbee">
 <meta property="og:title" content="${escape(page.title)}">
 <meta property="og:description" content="${escape(page.description)}">
@@ -70,17 +78,20 @@ ${discovery}`;
 	return html;
 }
 
-for (const locale of ['en-US', 'zh-CN']) {
-	const directory = locale === 'zh-CN' ? new URL('zh-CN/', output) : output;
-	await mkdir(directory, { recursive: true });
-	await writeFile(
-		new URL('index.html', directory),
-		documentFor(locale, renderPage(locale), { indexable: true }),
-	);
+const indexed = [];
+for (const locale of LOCALES) {
+	for (const name of WEBSITE_PAGES) {
+		const page = renderPage(locale, name);
+		const directory = new URL(`.${new URL(page.canonical).pathname}`, output);
+		await mkdir(directory, { recursive: true });
+		await writeFile(new URL('index.html', directory), documentFor(locale, page));
+		indexed.push(page);
+	}
 	// Cloudflare serves the nearest 404.html above a missing path, so /zh-CN/… gets Chinese.
+	const directory = locale === 'zh-CN' ? new URL('zh-CN/', output) : output;
 	await writeFile(
 		new URL('404.html', directory),
-		documentFor(locale, renderNotFound(locale), { indexable: false }),
+		documentFor(locale, renderPage(locale, 'not-found')),
 	);
 }
 await writeFile(
@@ -90,7 +101,7 @@ await writeFile(
 await writeFile(
 	new URL('sitemap.xml', output),
 	`<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${['/', '/zh-CN/'].map((path) => `<url><loc>${origin}${path}</loc><xhtml:link rel="alternate" hreflang="en-US" href="${origin}/"/><xhtml:link rel="alternate" hreflang="zh-CN" href="${origin}/zh-CN/"/><xhtml:link rel="alternate" hreflang="x-default" href="${origin}/"/></url>`).join('')}</urlset>\n`,
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${indexed.map((page) => `<url><loc>${page.canonical}</loc>${alternateLinks(page, (language, href) => `<xhtml:link rel="alternate" hreflang="${language}" href="${href}"/>`)}</url>`).join('')}</urlset>\n`,
 );
 // The update feed is tracked as feed.json.signed, a name the formatter leaves alone, because its
 // signature covers the exact bytes; it is served as feed.json. A rename keeps every byte.
@@ -111,5 +122,5 @@ if (existsSync(update)) {
 // Build-time React code is not part of the published static artifact.
 await rm(new URL('.prerender/', output), { recursive: true });
 console.log(
-	`Generated English and Simplified Chinese static pages and 404 pages in ${fileURLToPath(output)}`,
+	`Generated ${indexed.length} static pages and ${LOCALES.length} 404 pages in ${fileURLToPath(output)}`,
 );

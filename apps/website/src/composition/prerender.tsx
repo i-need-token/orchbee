@@ -1,30 +1,26 @@
 import { OrchbeeI18nProvider, type OrchbeeLocale } from '@orchbee/i18n';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { getPageMetadata, release, Website, type Release } from '../website';
+import {
+	getPageMetadata,
+	release,
+	Website,
+	type PageMetadata,
+	type Release,
+	type RenderedPage,
+} from '../website';
 
+// Renders one page in one language to static markup, with the metadata its document head needs.
 export function renderPage(
 	locale: OrchbeeLocale,
+	page: RenderedPage,
 	currentRelease: Release = release,
-): ReturnType<typeof getPageMetadata> & { markup: string } {
+): PageMetadata & { markup: string } {
 	return {
-		...getPageMetadata(locale),
+		...getPageMetadata(locale, page),
 		markup: renderToStaticMarkup(
 			<OrchbeeI18nProvider locale={locale}>
-				<Website locale={locale} release={currentRelease} />
-			</OrchbeeI18nProvider>,
-		),
-	};
-}
-
-export function renderNotFound(
-	locale: OrchbeeLocale,
-): ReturnType<typeof getPageMetadata> & { markup: string } {
-	return {
-		...getPageMetadata(locale, 'not-found'),
-		markup: renderToStaticMarkup(
-			<OrchbeeI18nProvider locale={locale}>
-				<Website locale={locale} release={release} page='not-found' />
+				<Website locale={locale} page={page} release={currentRelease} />
 			</OrchbeeI18nProvider>,
 		),
 	};

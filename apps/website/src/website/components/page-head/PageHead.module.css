@@ -1,0 +1,41 @@
+.column {
+	composes: wrap from '../page-shell/PageShell.module.css';
+}
+.head {
+	display: grid;
+	grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-72);
+	align-items: end;
+	padding: var(--ob-ref-length-website-64) 0 var(--ob-ref-length-website-48);
+}
+.address {
+	display: block;
+	margin-bottom: var(--ob-ref-length-website-22);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-chrome);
+}
+.title {
+	font: var(--ob-sys-typography-website-display);
+}
+.lead {
+	max-width: var(--ob-ref-length-website-measure-30);
+	margin-bottom: var(--ob-ref-length-website-24);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-detail-lead);
+	text-wrap: pretty;
+}
+.note {
+	margin-top: var(--ob-ref-length-website-14);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-fine-print);
+}
+.note code {
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-fine-print);
+}
+@media (max-width: 64rem) {
+	.head {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--ob-ref-length-website-32);
+	}
+}

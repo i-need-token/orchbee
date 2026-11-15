@@ -1,0 +1,12 @@
+/* The canvas reads its stroke color from `color`; it fades out toward the bottom. */
+.lattice {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: var(--ob-ref-length-website-820);
+	pointer-events: none;
+	color: var(--ob-sys-color-website-paper);
+	-webkit-mask-image: linear-gradient(var(--ob-sys-color-website-fg) 30%, transparent);
+	mask-image: linear-gradient(var(--ob-sys-color-website-fg) 30%, transparent);
+}

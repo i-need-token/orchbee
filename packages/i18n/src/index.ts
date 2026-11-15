@@ -22,4 +22,10 @@ export type { OrchbeeLocale } from './locale';
 export { OrchbeeI18nProvider } from './orchbee-i18n-provider';
 
 export { createOrchbeeIntl, useOrchbeeIntl } from './runtime';
-export { websiteMessages } from './descriptors';
+export {
+	websiteShellMessages,
+	websiteHomeMessages,
+	websiteTerminalMessages,
+	websiteDesktopMessages,
+	websiteCliMessages,
+} from './descriptors';

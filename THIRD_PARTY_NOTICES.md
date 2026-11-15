@@ -346,19 +346,19 @@ imply endorsement by their creators.
 - License: SIL Open Font License 1.1
 - Use in Orchbee: unmodified variable terminal text faces provisioned for Browser and Desktop; the
   website serves the unmodified variable face from the `@fontsource-variable/jetbrains-mono` 5.3
-  package (Google Fonts build v24) for code and terminal text
+  package (Google Fonts build v24) for the text of drawn terminals
 - License text: [`JetBrainsMono-OFL.txt`](apps/web/src/workbench-client/projected-terminal-renderer/fonts/JetBrainsMono-OFL.txt)
 
-## Mona Sans
+## Geist and Geist Mono
 
-- Copyright notice: Copyright 2022 The Mona Sans Project Authors (https://github.com/github/mona-sans),
-  with Reserved Font Name "Mona"
-- Source: <https://github.com/github/mona-sans>, through the `@fontsource-variable/mona-sans` 5.3
-  package (Google Fonts build v4)
+- Copyright notice: Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)
+- Source: <https://github.com/vercel/geist-font>, through the `@fontsource-variable/geist` 5.3
+  package (Google Fonts build v5) and the `@fontsource-variable/geist-mono` 5.3 package (Google Fonts
+  build v6)
 - License: SIL Open Font License 1.1
-- Use in Orchbee: unmodified variable face the website serves from its own origin for headings and
-  body text
-- License text: `LICENSE` in the `@fontsource-variable/mona-sans` package
+- Use in Orchbee: unmodified variable faces the website serves from its own origin for headings,
+  body text, labels and commands
+- License text: `LICENSE` in each of the two packages
 
 ## Nerd Fonts Symbols Only
 

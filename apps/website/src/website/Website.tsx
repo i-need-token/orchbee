@@ -1,24 +1,51 @@
 import type { OrchbeeLocale } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
-import { Home } from './components/home/Home';
-import { NotFound } from './components/not-found/NotFound';
+import { CliPage } from './components/cli-page/CliPage';
+import { DesktopPage } from './components/desktop-page/DesktopPage';
+import { HomePage } from './components/home-page/HomePage';
+import { NotFoundPage } from './components/not-found-page/NotFoundPage';
 import { PageShell } from './components/page-shell/PageShell';
+import { TerminalPage } from './components/terminal-page/TerminalPage';
+import type { RenderedPage } from './pages';
 import type { Release } from './release';
 
-// One page of the site: the home page, or the page served for an address the site does not have.
-export function Website({
+function PageContent({
 	locale,
+	page,
 	release,
-	page = 'home',
 }: {
 	locale: OrchbeeLocale;
+	page: RenderedPage;
 	release: Release;
-	page?: 'home' | 'not-found';
+}): ReactElement {
+	switch (page) {
+		case 'home':
+			return <HomePage locale={locale} release={release} />;
+		case 'terminal':
+			return <TerminalPage locale={locale} release={release} />;
+		case 'desktop':
+			return <DesktopPage locale={locale} release={release} />;
+		case 'cli':
+			return <CliPage locale={locale} release={release} />;
+		case 'not-found':
+			return <NotFoundPage locale={locale} />;
+	}
+}
+
+// One page of the site in its shared chrome.
+export function Website({
+	locale,
+	page,
+	release,
+}: {
+	locale: OrchbeeLocale;
+	page: RenderedPage;
+	release: Release;
 }): ReactElement {
 	return (
-		<PageShell locale={locale} release={release}>
-			{page === 'home' ? <Home release={release} /> : <NotFound locale={locale} />}
+		<PageShell locale={locale} page={page} release={release}>
+			<PageContent locale={locale} page={page} release={release} />
 		</PageShell>
 	);
 }

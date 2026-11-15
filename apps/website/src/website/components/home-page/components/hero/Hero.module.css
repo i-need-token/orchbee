@@ -1,0 +1,41 @@
+.column {
+	composes: wrap from '../../../page-shell/PageShell.module.css';
+}
+.head {
+	display: grid;
+	grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-72);
+	align-items: end;
+	padding: var(--ob-ref-length-website-60) 0 var(--ob-ref-length-website-40);
+}
+.status {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-9);
+	margin-bottom: var(--ob-ref-length-website-22);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-label);
+}
+.title {
+	font: var(--ob-sys-typography-website-title);
+	text-wrap: balance;
+}
+.lead {
+	max-width: var(--ob-ref-length-website-measure-31);
+	margin-bottom: var(--ob-ref-length-website-24);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-lead);
+	text-wrap: pretty;
+}
+.beta {
+	margin-top: var(--ob-ref-length-website-14);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-fine-print);
+}
+@media (max-width: 64rem) {
+	.head {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--ob-ref-length-website-32);
+		padding-top: var(--ob-ref-length-website-44);
+	}
+}

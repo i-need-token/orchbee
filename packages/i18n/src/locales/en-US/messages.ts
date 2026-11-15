@@ -1,4 +1,8 @@
-import { enUSWebsiteMessages } from './website';
+import { enUSWebsiteShellMessages } from './website-shell';
+import { enUSWebsiteHomeMessages } from './website-home';
+import { enUSWebsiteTerminalMessages } from './website-terminal';
+import { enUSWebsiteDesktopMessages } from './website-desktop';
+import { enUSWebsiteCliMessages } from './website-cli';
 import { enUSApplicationRoutingMessages } from './application-routing';
 import { enUSAgentIntegrationMessages } from './agent-integrations';
 import { enUSAgentObservationMessages } from './agent-observation';
@@ -17,7 +21,11 @@ import { enUSTerminalSettingsMessages } from './terminal-settings';
 import { enUSWorkbenchMessages } from './workbench';
 
 export const enUSMessages = {
-	...enUSWebsiteMessages,
+	...enUSWebsiteShellMessages,
+	...enUSWebsiteHomeMessages,
+	...enUSWebsiteTerminalMessages,
+	...enUSWebsiteDesktopMessages,
+	...enUSWebsiteCliMessages,
 	...enUSApplicationRoutingMessages,
 	...enUSAgentIntegrationMessages,
 	...enUSAgentObservationMessages,

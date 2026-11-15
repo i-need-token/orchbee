@@ -15,4 +15,10 @@ export {
 	enUSWorkbenchMessages,
 } from './en-US';
 export { zhCNMessages } from './zh-CN';
-export { enUSWebsiteMessages } from './en-US';
+export {
+	enUSWebsiteShellMessages,
+	enUSWebsiteHomeMessages,
+	enUSWebsiteTerminalMessages,
+	enUSWebsiteDesktopMessages,
+	enUSWebsiteCliMessages,
+} from './en-US';

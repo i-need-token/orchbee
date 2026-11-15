@@ -1,210 +1,146 @@
-.nav {
-	position: fixed;
-	left: 0;
-	right: 0;
+/* The bar is clear at the top of the page and takes a blurred background once the page scrolls,
+   which activation marks with data-stuck. Without script it always has the background. */
+.header {
+	position: sticky;
 	top: 0;
-	z-index: var(--ob-ref-layer-website-nav);
-	height: var(--ob-ref-length-website-64);
+	z-index: var(--ob-ref-layer-website-navigation);
+	border-bottom: var(--ob-ref-length-website-1) solid transparent;
 	transition:
-		background var(--ob-sys-motion-duration-website-300) var(--ob-sys-motion-easing-website-ease),
-		box-shadow var(--ob-sys-motion-duration-website-300) var(--ob-sys-motion-easing-website-ease);
+		background var(--ob-sys-motion-duration-website-250) var(--ob-sys-motion-easing-website-ease),
+		border-color var(--ob-sys-motion-duration-website-250) var(--ob-sys-motion-easing-website-ease);
 }
-.nav[data-on] {
-	background: var(--ob-sys-color-website-navbg);
-	-webkit-backdrop-filter: blur(var(--ob-ref-length-website-16)) saturate(1.4);
-	backdrop-filter: blur(var(--ob-ref-length-website-16)) saturate(1.4);
-	box-shadow: var(--ob-sys-shadow-website-nav);
+.header[data-stuck],
+:global(html:not([data-js])) .header {
+	background: var(--ob-sys-color-website-navigation);
+	-webkit-backdrop-filter: blur(var(--ob-ref-length-website-14));
+	backdrop-filter: blur(var(--ob-ref-length-website-14));
+	border-bottom-color: var(--ob-sys-color-website-line);
 }
 .skip {
 	position: absolute;
-	left: var(--ob-ref-length-website-16);
-	top: calc(-1 * var(--ob-ref-length-website-64));
-	z-index: var(--ob-ref-layer-website-skip);
-	padding: var(--ob-ref-length-website-8) var(--ob-ref-length-website-14);
-	border-radius: var(--ob-ref-length-website-99);
-	background: var(--ob-sys-color-website-fg);
-	color: var(--ob-sys-color-website-bg);
-	font: var(--ob-sys-typography-website-nav-link);
-}
-.skip:focus {
+	left: var(--ob-ref-length-website-20);
 	top: var(--ob-ref-length-website-14);
+	padding: var(--ob-ref-length-website-9) var(--ob-ref-length-website-12);
+	border-radius: var(--ob-ref-length-website-8);
+	background: var(--ob-sys-color-website-fg);
+	color: var(--ob-sys-color-website-on-button);
+	font: var(--ob-sys-typography-website-button-small);
+	transform: translateY(-200%);
 }
-.inner {
+.skip:focus-visible {
+	transform: none;
+}
+.bar {
 	composes: wrap from '../page-shell/PageShell.module.css';
 	display: flex;
 	align-items: center;
-	gap: var(--ob-ref-length-website-20);
-	height: 100%;
-}
-.brand {
-	display: inline-flex;
-	flex: none;
-	align-items: center;
-	gap: var(--ob-ref-length-website-10);
-}
-.mark {
-	display: block;
-	width: var(--ob-ref-length-website-26);
-	height: var(--ob-ref-length-website-26);
-}
-.brand:hover .mark {
-	animation: buzz var(--ob-sys-motion-duration-website-600)
-		var(--ob-sys-motion-easing-website-ease-in-out);
-}
-.brand b {
-	font: var(--ob-sys-typography-website-brand);
-	font-stretch: 110%;
-}
-@keyframes buzz {
-	0%,
-	100% {
-		transform: rotate(0);
-	}
-	20% {
-		transform: rotate(-9deg);
-	}
-	40% {
-		transform: rotate(7deg);
-	}
-	60% {
-		transform: rotate(-5deg);
-	}
-	80% {
-		transform: rotate(2deg);
-	}
-}
-.scene {
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	display: inline-flex;
-	align-items: center;
-	gap: var(--ob-ref-length-website-10);
-	height: var(--ob-ref-length-website-30);
-	padding: 0 var(--ob-ref-length-website-14);
-	box-sizing: border-box;
-	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-ln2);
-	border-radius: var(--ob-ref-length-website-99);
-	background: var(--ob-sys-color-website-glass);
-	-webkit-backdrop-filter: blur(var(--ob-ref-length-website-12));
-	backdrop-filter: blur(var(--ob-ref-length-website-12));
-	font: var(--ob-sys-typography-website-scene-chip);
-	text-transform: uppercase;
+	gap: var(--ob-ref-length-website-30);
+	height: var(--ob-ref-length-website-64);
 	color: var(--ob-sys-color-website-fg2);
-	white-space: nowrap;
-	opacity: 0;
-	transform: translate(-50%, -30%);
-	transition:
-		opacity var(--ob-sys-motion-duration-website-300) var(--ob-sys-motion-easing-website-ease),
-		transform var(--ob-sys-motion-duration-website-400)
-			var(--ob-sys-motion-easing-website-out-quick);
-	pointer-events: none;
-}
-.scene:lang(zh) {
-}
-.scene[data-on] {
-	opacity: var(--ob-ref-opacity-website-100);
-	transform: translate(-50%, -50%);
-	pointer-events: auto;
-}
-.scene b {
-	font: var(--ob-sys-typography-website-scene-chip-strong);
-	color: var(--ob-sys-color-website-honey-tx);
-}
-.scene i {
-	font-style: normal;
-	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-chrome);
 }
 .links {
 	display: flex;
-	align-items: center;
-	gap: var(--ob-ref-length-website-2);
-	margin-left: auto;
+	gap: var(--ob-ref-length-website-4);
+	text-transform: lowercase;
 }
 .link {
-	display: inline-flex;
+	padding: var(--ob-ref-length-website-9) var(--ob-ref-length-website-10);
+	border-radius: var(--ob-ref-length-website-7);
+	transition:
+		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+.link:hover,
+.wide:hover {
+	color: var(--ob-sys-color-website-fg);
+}
+.link[aria-current='page'] {
+	color: var(--ob-sys-color-website-fg);
+	background: var(--ob-sys-color-website-hover-current);
+}
+.end {
+	display: flex;
 	align-items: center;
-	height: var(--ob-ref-length-website-34);
-	padding: 0 var(--ob-ref-length-website-10);
-	font: var(--ob-sys-typography-website-nav-link);
-	color: var(--ob-sys-color-website-fg2);
+	gap: var(--ob-ref-length-website-20);
+	margin-left: auto;
+	text-transform: lowercase;
+}
+/* The links that only fit a wide bar; the language link keeps its own capitals. */
+.wide {
+	text-transform: none;
 	transition: color var(--ob-sys-motion-duration-website-150)
 		var(--ob-sys-motion-easing-website-ease);
 }
-.link:hover {
-	color: var(--ob-sys-color-website-fg);
-}
-.language,
-.theme {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	height: var(--ob-ref-length-website-34);
-	min-width: var(--ob-ref-length-website-34);
-	padding: 0 var(--ob-ref-length-website-8);
-	box-sizing: border-box;
-	border-radius: var(--ob-ref-length-website-99);
-	font: var(--ob-sys-typography-website-nav-toggle);
-	color: var(--ob-sys-color-website-fg2);
-	transition:
-		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
-		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
-}
-.language {
-	font: var(--ob-sys-typography-website-nav-language);
-}
-.language:hover,
-.theme:hover {
-	background: var(--ob-sys-color-website-panel);
-	color: var(--ob-sys-color-website-fg);
-}
-.iconSystem,
-.iconLight,
-.iconDark {
+.menu {
 	display: none;
+	place-items: center;
+	width: var(--ob-ref-length-website-36);
+	height: var(--ob-ref-length-website-36);
+	margin-right: calc(-1 * var(--ob-ref-length-website-8));
+	border-radius: var(--ob-ref-length-website-8);
 }
-.theme[data-current='system'] .iconSystem,
-.theme[data-current='light'] .iconLight,
-.theme[data-current='dark'] .iconDark {
+/* Two bars that turn into a cross while the sheet is open. */
+.bars {
 	display: block;
+	width: var(--ob-ref-length-website-16);
+	height: var(--ob-ref-length-website-1-5);
+	background: var(--ob-sys-color-website-fg);
+	box-shadow: var(--ob-sys-shadow-website-menu-bar);
+	transform: translateY(calc(-1 * var(--ob-ref-length-website-2-5)));
+	transition:
+		transform var(--ob-sys-motion-duration-website-200) var(--ob-sys-motion-easing-website-ease),
+		box-shadow var(--ob-sys-motion-duration-website-200) var(--ob-sys-motion-easing-website-ease);
 }
-.progress {
+.header[data-open] .bars {
+	box-shadow: none;
+	transform: rotate(45deg);
+}
+.header[data-open] .bars::after {
+	content: '';
+	display: block;
+	width: var(--ob-ref-length-website-16);
+	height: var(--ob-ref-length-website-1-5);
+	background: var(--ob-sys-color-website-fg);
+	transform: rotate(90deg);
+}
+.sheet {
+	display: none;
 	position: absolute;
 	left: 0;
 	right: 0;
-	bottom: 0;
-	height: var(--ob-ref-length-website-1);
-	background: linear-gradient(
-		90deg,
-		var(--ob-sys-color-website-hi2),
-		var(--ob-sys-color-website-hi3)
-	);
-	transform-origin: 0 50%;
-	transform: scaleX(0);
-	opacity: 0;
-	transition: opacity var(--ob-sys-motion-duration-website-300)
-		var(--ob-sys-motion-easing-website-ease);
+	top: 100%;
+	padding: var(--ob-ref-length-website-6) var(--ob-ref-length-website-20)
+		var(--ob-ref-length-website-18);
+	background: var(--ob-sys-color-website-bg);
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	font: var(--ob-sys-typography-website-sheet);
 }
-.nav[data-on] .progress {
-	opacity: var(--ob-ref-opacity-website-100);
+.item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	height: var(--ob-ref-length-website-48);
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	color: var(--ob-sys-color-website-fg);
+}
+.path {
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-sheet-path);
 }
 @media (max-width: 64rem) {
-	.scene,
-	.link {
+	.links,
+	.wide {
 		display: none;
 	}
-}
-@media (max-width: 48rem) {
-	.inner {
-		gap: var(--ob-ref-length-website-12);
+	.menu {
+		display: grid;
 	}
-}
-@media (prefers-reduced-motion: reduce) {
-	.brand:hover .mark {
-		animation: none;
+	.header[data-open] {
+		background: var(--ob-sys-color-website-bg);
 	}
-	.scene,
-	.nav {
-		transition: none;
+	.header[data-open] .sheet {
+		display: block;
 	}
 }

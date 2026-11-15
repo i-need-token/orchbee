@@ -3,7 +3,7 @@
 	"domain": "product-website",
 	"runtime": ["browser", "node"],
 	"stability": "experimental",
-	"responsibility": "Own the static Orchbee product website, its localized presentation, discovery metadata, and local appearance preference.",
+	"responsibility": "Own the static Orchbee product website, its localized presentation, and discovery metadata; the site stores nothing in the browser.",
 	"nonGoals": [
 		"Running terminals or agents",
 		"Workbench client state or authentication",

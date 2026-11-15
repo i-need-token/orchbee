@@ -1,0 +1,46 @@
+.glyph {
+	flex: none;
+	overflow: visible;
+	width: var(--ob-ref-length-website-11);
+	height: var(--ob-ref-length-website-11);
+	color: var(--ob-sys-color-website-state-idle);
+}
+.fill,
+.ring {
+	fill: currentColor;
+	stroke: currentColor;
+	stroke-width: 1;
+	stroke-linejoin: round;
+}
+.ring {
+	display: none;
+	fill: none;
+	stroke-width: 1.5;
+}
+.glyph[data-state='working'] {
+	color: var(--ob-sys-color-website-state-working);
+	animation: breathe var(--ob-sys-motion-duration-website-breathe-slow)
+		var(--ob-sys-motion-easing-website-ease-in-out) infinite;
+}
+.glyph[data-state='attention'] {
+	color: var(--ob-sys-color-website-state-attention);
+	animation: breathe var(--ob-sys-motion-duration-website-breathe-fast)
+		var(--ob-sys-motion-easing-website-ease-in-out) infinite;
+}
+.glyph[data-state='done'] {
+	color: var(--ob-sys-color-website-state-done);
+}
+.glyph[data-state='failed'] {
+	color: var(--ob-sys-color-website-state-failed);
+}
+.glyph[data-state='idle'] .fill {
+	display: none;
+}
+.glyph[data-state='idle'] .ring {
+	display: inline;
+}
+@keyframes breathe {
+	50% {
+		opacity: var(--ob-ref-opacity-website-40);
+	}
+}

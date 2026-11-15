@@ -2,9 +2,12 @@ import type { ReactElement } from 'react';
 
 import styles from './BrandMark.module.css';
 
-// The Orchbee mark from the brand kit (resources/icon.svg, published as /icon.svg), filling the
-// box its parent sizes. It always sits beside the name or inside a labelled link, so it carries
-// no text of its own.
-export function BrandMark(): ReactElement {
-	return <img className={styles['mark']} src='/icon.svg' alt='' width='1024' height='1024' />;
+// The Orchbee mark followed by the name, linking to the home page.
+export function BrandMark({ href }: { href: string }): ReactElement {
+	return (
+		<a className={styles['brand']} href={href}>
+			<img className={styles['logo']} src='/icon.svg' alt='' width='26' height='26' />
+			Orchbee
+		</a>
+	);
 }

@@ -1,128 +1,123 @@
-import { useOrchbeeIntl, websiteMessages as messages, type OrchbeeLocale } from '@orchbee/i18n';
+import {
+	useOrchbeeIntl,
+	websiteShellMessages as messages,
+	type MessageDescriptor,
+	type OrchbeeLocale,
+} from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
-import { README_URL, REPOSITORY_URL, type Release } from '../../release';
+import { pagePath, type RenderedPage, type WebsitePage } from '../../pages';
+import { useLanguageLink } from '../../language-link/useLanguageLink';
+import { REPOSITORY_URL, type Release } from '../../release';
 import { BrandMark } from '../brand-mark/BrandMark';
-import { PillButton } from '../pill-button/PillButton';
+import { LinkButton } from '../link-button/LinkButton';
 import styles from './SiteHeader.module.css';
 
-// The fixed header: the mark, the current section chip, the links, the language and theme
-// switches and the install button. It turns to glass once the page scrolls.
+const LINKS: readonly {
+	page: Exclude<WebsitePage, 'home'>;
+	short: MessageDescriptor;
+	full: MessageDescriptor;
+	label: string;
+}[] = [
+	{
+		page: 'terminal',
+		short: messages.navTerminal,
+		full: messages.clientTerminal,
+		label: '/terminal',
+	},
+	{ page: 'desktop', short: messages.navDesktop, full: messages.clientDesktop, label: '/desktop' },
+	{ page: 'cli', short: messages.navCli, full: messages.clientCli, label: '/cli' },
+];
+
+// The sticky navigation bar. At narrow widths its links move into a sheet that the menu button,
+// shown by activation, opens.
 export function SiteHeader({
 	locale,
-	home,
-	alternate,
+	page,
 	release,
 }: {
 	locale: OrchbeeLocale;
-	home: string;
-	alternate: string;
+	page: RenderedPage;
 	release: Release;
 }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
-	const otherLocale = locale === 'zh-CN' ? 'en-US' : 'zh-CN';
+	const language = useLanguageLink(locale, page);
+	const current = (target: WebsitePage): 'page' | undefined =>
+		target === page ? 'page' : undefined;
 	return (
-		<header className={styles['nav']} data-nav=''>
+		<header className={styles['header']} data-site-header=''>
 			<a className={styles['skip']} href='#main'>
 				{t(messages.skip)}
 			</a>
-			<div className={styles['inner']}>
-				<a className={styles['brand']} href={`${home}#top`} aria-label='Orchbee'>
-					<span className={styles['mark']}>
-						<BrandMark />
-					</span>
-					<b>Orchbee</b>
-				</a>
-				<a
-					className={styles['scene']}
-					href='#anywhere'
-					aria-hidden='true'
-					tabIndex={-1}
-					data-scene-chip=''
-				>
-					<b data-scene-number=''>01</b>
-					<i>{t(messages.sceneOf)}</i>
-					<span data-scene-name=''>{t(messages.sceneAnywhere)}</span>
-				</a>
+			<div className={styles['bar']}>
+				<BrandMark href={pagePath('home', locale)} />
 				<nav className={styles['links']} aria-label={t(messages.navigation)}>
-					<a className={styles['link']} href={README_URL}>
-						{t(messages.docs)}
-					</a>
-					<a className={styles['link']} href={REPOSITORY_URL}>
-						GitHub
+					{LINKS.map(({ page: target, short }) => (
+						<a
+							className={styles['link']}
+							href={pagePath(target, locale)}
+							aria-current={current(target)}
+							key={target}
+						>
+							{t(short)}
+						</a>
+					))}
+				</nav>
+				<div className={styles['end']}>
+					<a className={styles['wide']} href={REPOSITORY_URL} target='_blank' rel='noreferrer'>
+						github ↗
 					</a>
 					<a
-						className={styles['language']}
-						href={alternate}
-						hrefLang={otherLocale}
-						lang={otherLocale}
-						aria-label={t(messages.languageSwitchLabel)}
+						className={styles['wide']}
+						href={language.href}
+						hrefLang={language.locale}
+						lang={language.locale}
 						data-language-link=''
 					>
-						{t(messages.languageSwitch)}
+						{language.label}
 					</a>
+					<LinkButton href={`${pagePath('home', locale)}#install`} size='small'>
+						{t(release.published ? messages.navDownload : messages.navInstall)}
+					</LinkButton>
 					<button
-						className={styles['theme']}
+						className={styles['menu']}
 						type='button'
-						data-appearance=''
-						data-label-system={t(messages.themeSystem)}
-						data-label-light={t(messages.themeLight)}
-						data-label-dark={t(messages.themeDark)}
-						aria-label={t(messages.themeSystem)}
-						title={t(messages.themeSystem)}
+						aria-label={t(messages.menu)}
+						aria-expanded='false'
+						aria-controls='site-menu'
+						data-site-menu=''
 						hidden
 					>
-						<svg
-							className={styles['iconSystem']}
-							width='16'
-							height='16'
-							viewBox='0 0 24 24'
-							fill='none'
-							stroke='currentColor'
-							strokeWidth='1.8'
-							strokeLinecap='round'
-							strokeLinejoin='round'
-							aria-hidden='true'
-						>
-							<rect x='3' y='4' width='18' height='12' rx='2' />
-							<path d='M8 20h8M12 16v4' />
-						</svg>
-						<svg
-							className={styles['iconLight']}
-							width='16'
-							height='16'
-							viewBox='0 0 24 24'
-							fill='none'
-							stroke='currentColor'
-							strokeWidth='1.8'
-							strokeLinecap='round'
-							strokeLinejoin='round'
-							aria-hidden='true'
-						>
-							<circle cx='12' cy='12' r='4' />
-							<path d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4' />
-						</svg>
-						<svg
-							className={styles['iconDark']}
-							width='16'
-							height='16'
-							viewBox='0 0 24 24'
-							fill='none'
-							stroke='currentColor'
-							strokeWidth='1.8'
-							strokeLinecap='round'
-							strokeLinejoin='round'
-							aria-hidden='true'
-						>
-							<path d='M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z' />
-						</svg>
+						<i className={styles['bars']} />
 					</button>
-					<PillButton variant='primary' size='nav' icon='dl' href={`${home}#install`}>
-						<span>{release.published ? t(messages.navDownload) : t(messages.navInstall)}</span>
-					</PillButton>
-				</nav>
+				</div>
 			</div>
-			<i className={styles['progress']} data-progress='' />
+			<div className={styles['sheet']} id='site-menu'>
+				{LINKS.map(({ page: target, full, label }) => (
+					<a
+						className={styles['item']}
+						href={pagePath(target, locale)}
+						aria-current={current(target)}
+						key={target}
+					>
+						<span>{t(full)}</span>
+						<span className={styles['path']}>{label}</span>
+					</a>
+				))}
+				<a className={styles['item']} href={REPOSITORY_URL} target='_blank' rel='noreferrer'>
+					<span>GitHub</span>
+					<span className={styles['path']}>↗</span>
+				</a>
+				<a
+					className={styles['item']}
+					href={language.href}
+					hrefLang={language.locale}
+					lang={language.locale}
+					data-language-link=''
+				>
+					{language.label}
+				</a>
+			</div>
 		</header>
 	);
 }

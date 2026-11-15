@@ -1106,320 +1106,110 @@
 	--ob-sys-color-data-5: var(--ob-ref-color-red-400);
 }
 
-/* The product website: its draft palette for both page themes, type, shadows, motion, layers and lengths. */
+/* The product website: its dark palette, type, shadows, motion, layers and lengths. */
 :root {
 	--ob-ref-font-family-website-sans:
-		'Mona Sans Variable', 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', 'Noto Sans CJK SC',
-		'Source Han Sans SC', system-ui, sans-serif;
+		'Geist Variable', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
 	--ob-ref-font-family-website-mono:
-		'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, Consolas, 'PingFang SC',
+		'Geist Mono Variable', ui-monospace, 'Cascadia Mono', Consolas, 'PingFang SC',
 		'Microsoft YaHei', monospace;
-	--ob-ref-color-website-dark-bg: #0a0908;
-	--ob-ref-color-website-light-bg: #f5f1e8;
-	--ob-ref-color-website-button-bottom: #f4a91a;
-	--ob-ref-color-website-button-top: #ffd75a;
-	--ob-ref-color-website-close-mark: rgba(80, 0, 0, 0.85);
-	--ob-ref-color-website-dark-fg: #f3efe6;
-	--ob-ref-color-website-light-fg: #17140e;
-	--ob-ref-color-website-dark-fg2: #aca698;
-	--ob-ref-color-website-light-fg2: #5a5347;
-	--ob-ref-color-website-dark-fg3: #858075;
-	--ob-ref-color-website-light-fg3: #6f685b;
-	--ob-ref-color-website-dark-glass: rgba(20, 18, 15, 0.58);
-	--ob-ref-color-website-light-glass: rgba(255, 252, 245, 0.62);
-	--ob-ref-color-website-dark-glow: rgba(245, 170, 30, 0.55);
-	--ob-ref-color-website-light-glow: rgba(214, 140, 10, 0.4);
-	--ob-ref-color-website-dark-hi1: #ffe58a;
-	--ob-ref-color-website-light-hi1: #9a6200;
-	--ob-ref-color-website-dark-hi2: #f6b425;
-	--ob-ref-color-website-light-hi2: #8f4f00;
-	--ob-ref-color-website-dark-hi3: #ee8a1b;
-	--ob-ref-color-website-light-hi3: #7a3a00;
-	--ob-ref-color-website-honey: #f5c21c;
-	--ob-ref-color-website-dark-honey-tx: #f6c04c;
-	--ob-ref-color-website-light-honey-tx: #8a5a00;
-	--ob-ref-color-website-dark-ln: rgba(255, 244, 220, 0.085);
-	--ob-ref-color-website-light-ln: rgba(23, 20, 14, 0.09);
-	--ob-ref-color-website-dark-ln2: rgba(255, 244, 220, 0.15);
-	--ob-ref-color-website-light-ln2: rgba(23, 20, 14, 0.16);
-	--ob-ref-color-website-dark-ln3: rgba(255, 244, 220, 0.24);
-	--ob-ref-color-website-light-ln3: rgba(23, 20, 14, 0.26);
-	--ob-ref-color-website-dark-navbg: rgba(10, 9, 8, 0.7);
-	--ob-ref-color-website-light-navbg: rgba(245, 241, 232, 0.76);
-	--ob-ref-color-website-on-button: #1d1300;
-	--ob-ref-color-website-dark-panel: rgba(255, 244, 220, 0.05);
-	--ob-ref-color-website-light-panel: rgba(23, 20, 14, 0.04);
-	--ob-ref-color-website-selection: rgba(245, 194, 28, 0.35);
-	--ob-ref-color-website-dark-shadow: rgba(0, 0, 0, 0.72);
-	--ob-ref-color-website-light-shadow: rgba(60, 40, 0, 0.24);
-	--ob-ref-color-website-dark-t-honey: #f5c21c;
-	--ob-ref-color-website-light-t-honey: #9a6b00;
-	--ob-ref-color-website-dark-t-idle: #5e5e5e;
-	--ob-ref-color-website-light-t-idle: #a3a5ab;
-	--ob-ref-color-website-dark-t-succ: #9ece6a;
-	--ob-ref-color-website-light-t-succ: #3a8a3a;
-	--ob-ref-color-website-dark-t-tp: #ccd3e0;
-	--ob-ref-color-website-light-t-tp: #383a42;
-	--ob-ref-color-website-dark-t-ts: #8e96a4;
-	--ob-ref-color-website-light-t-ts: #676a75;
-	--ob-ref-color-website-dark-t-unread: #61afef;
-	--ob-ref-color-website-light-t-unread: #3064dc;
-	--ob-ref-color-website-dark-winbg: rgba(14, 15, 17, 0.86);
-	--ob-ref-color-website-light-winbg: rgba(252, 251, 248, 0.88);
-	--ob-sys-color-website-attention: var(--ob-ref-color-traffic-light-yellow);
-	--ob-sys-color-website-bg: light-dark(
-		var(--ob-ref-color-website-light-bg),
-		var(--ob-ref-color-website-dark-bg)
-	);
-	--ob-sys-color-website-button-bottom: var(--ob-ref-color-website-button-bottom);
-	--ob-sys-color-website-button-top: var(--ob-ref-color-website-button-top);
-	--ob-sys-color-website-close-mark: var(--ob-ref-color-website-close-mark);
-	--ob-sys-color-website-done: var(--ob-ref-color-traffic-light-green);
-	--ob-sys-color-website-failed: var(--ob-ref-color-traffic-light-red);
-	--ob-sys-color-website-fg: light-dark(
-		var(--ob-ref-color-website-light-fg),
-		var(--ob-ref-color-website-dark-fg)
-	);
-	--ob-sys-color-website-fg2: light-dark(
-		var(--ob-ref-color-website-light-fg2),
-		var(--ob-ref-color-website-dark-fg2)
-	);
-	--ob-sys-color-website-fg3: light-dark(
-		var(--ob-ref-color-website-light-fg3),
-		var(--ob-ref-color-website-dark-fg3)
-	);
-	--ob-sys-color-website-glass: light-dark(
-		var(--ob-ref-color-website-light-glass),
-		var(--ob-ref-color-website-dark-glass)
-	);
-	--ob-sys-color-website-glow: light-dark(
-		var(--ob-ref-color-website-light-glow),
-		var(--ob-ref-color-website-dark-glow)
-	);
-	--ob-sys-color-website-hi1: light-dark(
-		var(--ob-ref-color-website-light-hi1),
-		var(--ob-ref-color-website-dark-hi1)
-	);
-	--ob-sys-color-website-hi2: light-dark(
-		var(--ob-ref-color-website-light-hi2),
-		var(--ob-ref-color-website-dark-hi2)
-	);
-	--ob-sys-color-website-hi3: light-dark(
-		var(--ob-ref-color-website-light-hi3),
-		var(--ob-ref-color-website-dark-hi3)
-	);
+	--ob-ref-color-website-bg: #0b0a08;
+	--ob-ref-color-website-fg: #f4f2ec;
+	--ob-ref-color-website-fg2: #a8a398;
+	--ob-ref-color-website-fg3: #716d63;
+	--ob-ref-color-website-honey: #f2b51f;
+	--ob-ref-color-website-hover-current: rgba(248, 247, 244, 0.08);
+	--ob-ref-color-website-hover-strong: rgba(248, 247, 244, 0.1);
+	--ob-ref-color-website-idle: #6c6c6c;
+	--ob-ref-color-website-ink: #16140f;
+	--ob-ref-color-website-ink-soft: #4a473f;
+	--ob-ref-color-website-line: rgba(248, 247, 244, 0.1);
+	--ob-ref-color-website-line-strong: rgba(248, 247, 244, 0.18);
+	--ob-ref-color-website-navigation: rgba(11, 10, 8, 0.8);
+	--ob-ref-color-website-paper: #f8f7f4;
+	--ob-ref-color-website-selection: rgba(242, 181, 31, 0.3);
+	--ob-ref-color-website-white: #ffffff;
+	--ob-sys-color-website-bg: var(--ob-ref-color-website-bg);
+	--ob-sys-color-website-button-hover: var(--ob-ref-color-website-white);
+	--ob-sys-color-website-fg: var(--ob-ref-color-website-fg);
+	--ob-sys-color-website-fg2: var(--ob-ref-color-website-fg2);
+	--ob-sys-color-website-fg3: var(--ob-ref-color-website-fg3);
 	--ob-sys-color-website-honey: var(--ob-ref-color-website-honey);
-	--ob-sys-color-website-honey-tx: light-dark(
-		var(--ob-ref-color-website-light-honey-tx),
-		var(--ob-ref-color-website-dark-honey-tx)
-	);
-	--ob-sys-color-website-ln: light-dark(
-		var(--ob-ref-color-website-light-ln),
-		var(--ob-ref-color-website-dark-ln)
-	);
-	--ob-sys-color-website-ln2: light-dark(
-		var(--ob-ref-color-website-light-ln2),
-		var(--ob-ref-color-website-dark-ln2)
-	);
-	--ob-sys-color-website-ln3: light-dark(
-		var(--ob-ref-color-website-light-ln3),
-		var(--ob-ref-color-website-dark-ln3)
-	);
-	--ob-sys-color-website-navbg: light-dark(
-		var(--ob-ref-color-website-light-navbg),
-		var(--ob-ref-color-website-dark-navbg)
-	);
-	--ob-sys-color-website-on-button: var(--ob-ref-color-website-on-button);
-	--ob-sys-color-website-panel: light-dark(
-		var(--ob-ref-color-website-light-panel),
-		var(--ob-ref-color-website-dark-panel)
-	);
+	--ob-sys-color-website-hover-current: var(--ob-ref-color-website-hover-current);
+	--ob-sys-color-website-hover-strong: var(--ob-ref-color-website-hover-strong);
+	--ob-sys-color-website-ink: var(--ob-ref-color-website-ink);
+	--ob-sys-color-website-ink-soft: var(--ob-ref-color-website-ink-soft);
+	--ob-sys-color-website-line: var(--ob-ref-color-website-line);
+	--ob-sys-color-website-line-strong: var(--ob-ref-color-website-line-strong);
+	--ob-sys-color-website-navigation: var(--ob-ref-color-website-navigation);
+	--ob-sys-color-website-on-button: var(--ob-ref-color-website-bg);
+	--ob-sys-color-website-paper: var(--ob-ref-color-website-paper);
 	--ob-sys-color-website-selection: var(--ob-ref-color-website-selection);
-	--ob-sys-color-website-shadow: light-dark(
-		var(--ob-ref-color-website-light-shadow),
-		var(--ob-ref-color-website-dark-shadow)
-	);
-	--ob-sys-color-website-t-honey: light-dark(
-		var(--ob-ref-color-website-light-t-honey),
-		var(--ob-ref-color-website-dark-t-honey)
-	);
-	--ob-sys-color-website-t-idle: light-dark(
-		var(--ob-ref-color-website-light-t-idle),
-		var(--ob-ref-color-website-dark-t-idle)
-	);
-	--ob-sys-color-website-t-succ: light-dark(
-		var(--ob-ref-color-website-light-t-succ),
-		var(--ob-ref-color-website-dark-t-succ)
-	);
-	--ob-sys-color-website-t-tp: light-dark(
-		var(--ob-ref-color-website-light-t-tp),
-		var(--ob-ref-color-website-dark-t-tp)
-	);
-	--ob-sys-color-website-t-ts: light-dark(
-		var(--ob-ref-color-website-light-t-ts),
-		var(--ob-ref-color-website-dark-t-ts)
-	);
-	--ob-sys-color-website-t-unread: light-dark(
-		var(--ob-ref-color-website-light-t-unread),
-		var(--ob-ref-color-website-dark-t-unread)
-	);
-	--ob-sys-color-website-t-work: light-dark(
-		var(--ob-ref-color-agent-working-light),
-		var(--ob-ref-color-agent-working-dark)
-	);
-	--ob-sys-color-website-winbg: light-dark(
-		var(--ob-ref-color-website-light-winbg),
-		var(--ob-ref-color-website-dark-winbg)
-	);
-	--ob-sys-typography-website-body: 400 17px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-body-zh: 400 17px / 1.8 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-brand: 650 18px / 1 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-button: 600 14.5px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-button-small: 600 13px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-caption: 400 11px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-caption-strong: 500 11px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-card-head: 400 13.5px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-chip: 400 12px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-clock: 400 12px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-command: 400 13px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-copy: 400 12.5px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-fact: 620 20px / 1.3 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-fact-body: 400 15px / 1.6 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-file-kind: 400 11.5px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-footer-note: 400 12.5px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-footer-tagline: 400 14px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-github: 400 14px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-h1: 640 clamp(46px, 6.6vw, 96px) / 0.96
+	--ob-sys-color-website-state-attention: var(--ob-ref-color-traffic-light-yellow);
+	--ob-sys-color-website-state-done: var(--ob-ref-color-traffic-light-green);
+	--ob-sys-color-website-state-failed: var(--ob-ref-color-traffic-light-red);
+	--ob-sys-color-website-state-idle: var(--ob-ref-color-website-idle);
+	--ob-sys-color-website-state-working: var(--ob-ref-color-agent-working-dark);
+	--ob-sys-typography-website-body: 400 16px / 1.5 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-brand: 600 16px / 1 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-button: 600 14px / 1 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-button-small: 600 13px / 1 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-chrome: 400 12.5px / 1 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-code: 400 0.92em / 1 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-command: 400 12.5px / 1 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-detail-lead: 400 17px / 1.6 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-display: 500 clamp(40px, 5.7vw, 86px) / 0.98
 		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-h1-small: 640 clamp(38px, 11vw, 46px) / 0.96
+	--ob-sys-typography-website-fine-print: 400 11.5px / 1.5 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-footer: 400 12px / 1.6 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-footer-body: 400 14px / 1.6 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-footer-strong: 500 14px / 1.6 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-heading: 500 clamp(26px, 2.7vw, 38px) / 1.1
 		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-h1-zh: 700 clamp(40px, 6vw, 86px) / 1.14
+	--ob-sys-typography-website-index-body: 400 15px / 1.55 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-index-title: 500 clamp(28px, 3.7vw, 54px) / 1
 		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-h2: 630 clamp(36px, 4.7vw, 66px) / 1
+	--ob-sys-typography-website-install-body: 400 14px / 1.5 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-install-note: 400 13px / 1.55 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-install-title: 500 16px / 1.5 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-label: 400 12px / 1 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-lead: 400 15.5px / 1.6 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-paragraph: 400 15.5px / 1.65 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-sheet: 400 15px / 1 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-sheet-path: 400 12px / 1 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-title: 500 clamp(29px, 3.3vw, 47px) / 1.08
 		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-h2-zh: 700 clamp(32px, 4.2vw, 58px) / 1.2
-		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-hive-activity: 400 15px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-hive-kind: 400 12.5px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-hive-name: 500 13.5px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-hive-title: 620 clamp(26px, 3vw, 38px) / 1.08
-		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-hive-title-zh: 700 clamp(26px, 3vw, 38px) / 1.3
-		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-install: 400 13.5px / 1.6 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-kbd: 400 12.5px / 1.6 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-kind: 400 12px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-kinds: 400 15px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-kinds-code: 400 15px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-label: 400 11.5px / 1 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-label-strong: 500 11.5px / 1 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-lead: 400 19px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-lead-zh: 400 17px / 1.85 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-legend: 400 12px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-live: 400 12px / 1 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-nav-language: 400 12.5px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-nav-link: 400 13.5px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-nav-toggle: 400 12.5px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-os-tab: 400 11.5px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-outro: 630 clamp(44px, 6.4vw, 92px) / 0.98
-		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-outro-zh: 700 clamp(38px, 5.6vw, 80px) / 1.16
-		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-p: 400 18px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-p-code: 400 18px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-p-zh: 400 16.5px / 1.85 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-planned: 400 15.5px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-platforms: 400 11px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-point: 400 15px / 1.6 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-point-title: 620 19px / 1.3 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-point-zh: 400 15px / 1.8 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-replay: 400 12px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-requirements: 400 12px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-scene-chip: 400 11px / 1 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-scene-chip-strong: 500 11px / 1 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-sound: 400 13.5px / 1.4 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-sound-small: 400 12px / 1.4 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-tag: 400 10.5px / 1 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-try: 400 12px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-window-bar: 400 12px / 1.55 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-window-bar-small: 400 11.5px / 1.55
-		var(--ob-ref-font-family-website-mono);
-	--ob-sys-shadow-website-bead: 0 0 12px 2px var(--ob-sys-color-website-glow);
-	--ob-sys-shadow-website-button:
-		inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 0 0 1px rgba(150, 86, 0, 0.4),
-		0 12px 32px -12px var(--ob-sys-color-website-glow);
-	--ob-sys-shadow-website-button-hover:
-		inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 0 0 1px rgba(150, 86, 0, 0.4),
-		0 14px 44px -10px var(--ob-sys-color-website-glow);
-	--ob-sys-shadow-website-close-ring-from: 0 0 0 0 rgba(255, 95, 87, 0.6);
-	--ob-sys-shadow-website-close-ring-to: 0 0 0 9px rgba(255, 95, 87, 0);
-	--ob-sys-shadow-website-nav: inset 0 -1px 0 var(--ob-sys-color-website-ln);
-	--ob-sys-shadow-website-os-tab: inset 0 0 0 1px var(--ob-sys-color-website-ln2);
-	--ob-sys-shadow-website-window:
-		0 0 0 1px var(--ob-sys-color-website-ln2), 0 60px 140px -60px var(--ob-sys-color-website-shadow);
-	--ob-sys-shadow-website-window-focus:
-		0 0 0 2px var(--ob-sys-color-website-honey),
-		0 50px 110px -50px var(--ob-sys-color-website-shadow);
-	--ob-ref-motion-duration-website-0: 0ms;
+	--ob-sys-shadow-website-logo-ring: 0 0 0 1px rgba(248, 247, 244, 0.2);
+	--ob-sys-shadow-website-menu-bar: 0 5px 0 var(--ob-sys-color-website-fg);
 	--ob-ref-motion-duration-website-150: 150ms;
 	--ob-ref-motion-duration-website-200: 200ms;
 	--ob-ref-motion-duration-website-250: 250ms;
-	--ob-ref-motion-duration-website-280: 280ms;
-	--ob-ref-motion-duration-website-300: 300ms;
-	--ob-ref-motion-duration-website-400: 400ms;
-	--ob-ref-motion-duration-website-450: 450ms;
-	--ob-ref-motion-duration-website-500: 500ms;
-	--ob-ref-motion-duration-website-550: 550ms;
-	--ob-ref-motion-duration-website-600: 600ms;
+	--ob-ref-motion-duration-website-800: 800ms;
 	--ob-ref-motion-duration-website-1000: 1000ms;
-	--ob-ref-motion-duration-website-2000: 2000ms;
-	--ob-ref-motion-duration-website-2400: 2400ms;
-	--ob-ref-motion-duration-website-2500: 2500ms;
-	--ob-ref-motion-duration-website-5000: 5000ms;
-	--ob-ref-motion-duration-website-7500: 7500ms;
-	--ob-sys-motion-duration-website-0: var(--ob-ref-motion-duration-website-0);
+	--ob-ref-motion-duration-website-2200: 2200ms;
 	--ob-sys-motion-duration-website-150: var(--ob-ref-motion-duration-website-150);
 	--ob-sys-motion-duration-website-200: var(--ob-ref-motion-duration-website-200);
 	--ob-sys-motion-duration-website-250: var(--ob-ref-motion-duration-website-250);
-	--ob-sys-motion-duration-website-280: var(--ob-ref-motion-duration-website-280);
-	--ob-sys-motion-duration-website-300: var(--ob-ref-motion-duration-website-300);
-	--ob-sys-motion-duration-website-400: var(--ob-ref-motion-duration-website-400);
-	--ob-sys-motion-duration-website-450: var(--ob-ref-motion-duration-website-450);
-	--ob-sys-motion-duration-website-500: var(--ob-ref-motion-duration-website-500);
-	--ob-sys-motion-duration-website-550: var(--ob-ref-motion-duration-website-550);
-	--ob-sys-motion-duration-website-600: var(--ob-ref-motion-duration-website-600);
-	--ob-sys-motion-duration-website-1000: var(--ob-ref-motion-duration-website-1000);
-	--ob-sys-motion-duration-website-2000: var(--ob-ref-motion-duration-website-2000);
-	--ob-sys-motion-duration-website-2400: var(--ob-ref-motion-duration-website-2400);
-	--ob-sys-motion-duration-website-2500: var(--ob-ref-motion-duration-website-2500);
-	--ob-sys-motion-duration-website-5000: var(--ob-ref-motion-duration-website-5000);
-	--ob-sys-motion-duration-website-7500: var(--ob-ref-motion-duration-website-7500);
+	--ob-sys-motion-duration-website-800: var(--ob-ref-motion-duration-website-800);
+	--ob-sys-motion-duration-website-breathe-fast: var(--ob-ref-motion-duration-website-1000);
+	--ob-sys-motion-duration-website-breathe-slow: var(--ob-ref-motion-duration-website-2200);
 	--ob-ref-motion-easing-website-ease: ease;
 	--ob-ref-motion-easing-website-ease-in-out: ease-in-out;
-	--ob-ref-motion-easing-website-ease-out: ease-out;
-	--ob-ref-motion-easing-website-in-quick: cubic-bezier(0.5, 0, 0.7, 0.4);
-	--ob-ref-motion-easing-website-linear: linear;
-	--ob-ref-motion-easing-website-out-quick: cubic-bezier(0.2, 0.8, 0.2, 1);
 	--ob-sys-motion-easing-website-ease: var(--ob-ref-motion-easing-website-ease);
 	--ob-sys-motion-easing-website-ease-in-out: var(--ob-ref-motion-easing-website-ease-in-out);
-	--ob-sys-motion-easing-website-ease-out: var(--ob-ref-motion-easing-website-ease-out);
-	--ob-sys-motion-easing-website-in-quick: var(--ob-ref-motion-easing-website-in-quick);
-	--ob-sys-motion-easing-website-linear: var(--ob-ref-motion-easing-website-linear);
-	--ob-sys-motion-easing-website-out-quick: var(--ob-ref-motion-easing-website-out-quick);
-	--ob-ref-opacity-website-28: 0.28;
-	--ob-ref-opacity-website-32: 0.32;
-	--ob-ref-opacity-website-50: 0.5;
+	--ob-ref-opacity-website-40: 0.4;
+	--ob-ref-opacity-website-55: 0.55;
 	--ob-ref-opacity-website-100: 1;
-	--ob-ref-layer-website-content: 1;
-	--ob-ref-layer-website-nav: 30;
-	--ob-ref-layer-website-replay: 3;
-	--ob-ref-layer-website-skip: 40;
-	--ob-ref-layer-website-swarm: 0;
-	--ob-ref-length-website-em-0-05: 0.05em;
-	--ob-ref-length-website-em-0-1: 0.1em;
-	--ob-ref-length-website-em-0-12: 0.12em;
+	--ob-ref-layer-website-navigation: 40;
+	--ob-ref-length-website-measure-30: 30em;
+	--ob-ref-length-website-measure-31: 31em;
+	--ob-ref-length-website-measure-35: 35em;
+	--ob-ref-length-website-measure-44: 44em;
+	--ob-ref-length-website-viewport-height: 100vh;
 	--ob-ref-length-website-1: 1px;
+	--ob-ref-length-website-1-5: 1.5px;
 	--ob-ref-length-website-2: 2px;
+	--ob-ref-length-website-2-5: 2.5px;
 	--ob-ref-length-website-3: 3px;
 	--ob-ref-length-website-4: 4px;
 	--ob-ref-length-website-5: 5px;
@@ -1430,52 +1220,34 @@
 	--ob-ref-length-website-10: 10px;
 	--ob-ref-length-website-11: 11px;
 	--ob-ref-length-website-12: 12px;
-	--ob-ref-length-website-13: 13px;
 	--ob-ref-length-website-14: 14px;
 	--ob-ref-length-website-15: 15px;
 	--ob-ref-length-website-16: 16px;
 	--ob-ref-length-website-18: 18px;
 	--ob-ref-length-website-20: 20px;
-	--ob-ref-length-website-21: 21px;
 	--ob-ref-length-website-22: 22px;
-	--ob-ref-length-website-23: 23px;
 	--ob-ref-length-website-24: 24px;
 	--ob-ref-length-website-26: 26px;
 	--ob-ref-length-website-28: 28px;
 	--ob-ref-length-website-30: 30px;
 	--ob-ref-length-website-32: 32px;
-	--ob-ref-length-website-34: 34px;
 	--ob-ref-length-website-36: 36px;
-	--ob-ref-length-website-38: 38px;
 	--ob-ref-length-website-40: 40px;
 	--ob-ref-length-website-44: 44px;
-	--ob-ref-length-website-46: 46px;
 	--ob-ref-length-website-48: 48px;
-	--ob-ref-length-website-54: 54px;
-	--ob-ref-length-website-56: 56px;
-	--ob-ref-length-website-62: 62px;
+	--ob-ref-length-website-60: 60px;
 	--ob-ref-length-website-64: 64px;
-	--ob-ref-length-website-68: 68px;
+	--ob-ref-length-website-65: 65px;
 	--ob-ref-length-website-72: 72px;
-	--ob-ref-length-website-84: 84px;
-	--ob-ref-length-website-86: 86px;
+	--ob-ref-length-website-80: 80px;
 	--ob-ref-length-website-88: 88px;
-	--ob-ref-length-website-99: 99px;
-	--ob-ref-length-website-104: 104px;
-	--ob-ref-length-website-112: 112px;
+	--ob-ref-length-website-100: 100px;
 	--ob-ref-length-website-120: 120px;
-	--ob-ref-length-website-144: 144px;
+	--ob-ref-length-website-130: 130px;
+	--ob-ref-length-website-132: 132px;
 	--ob-ref-length-website-150: 150px;
-	--ob-ref-length-website-210: 210px;
-	--ob-ref-length-website-230: 230px;
-	--ob-ref-length-website-240: 240px;
-	--ob-ref-length-website-260: 260px;
-	--ob-ref-length-website-440: 440px;
-	--ob-ref-length-website-540: 540px;
-	--ob-ref-length-website-560: 560px;
-	--ob-ref-length-website-780: 780px;
 	--ob-ref-length-website-820: 820px;
-	--ob-ref-length-website-1240: 1240px;
+	--ob-ref-length-website-1320: 1320px;
 }
 
 @media (prefers-reduced-motion: reduce) {

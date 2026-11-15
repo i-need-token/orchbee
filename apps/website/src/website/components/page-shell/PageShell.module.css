@@ -1,84 +1,118 @@
 :global(html) {
-	scroll-behavior: smooth;
+	scroll-padding-top: var(--ob-ref-length-website-80);
 	background: var(--ob-sys-color-website-bg);
+}
+:global(html[data-motion]) {
+	scroll-behavior: smooth;
 }
 :global(body) {
 	margin: 0;
+	overflow-x: clip;
 	background: var(--ob-sys-color-website-bg);
+}
+:global(*),
+:global(*::before),
+:global(*::after) {
+	box-sizing: border-box;
 }
 :global([hidden]) {
 	display: none !important;
 }
-.page {
-	position: relative;
-	min-height: 100%;
-	overflow-x: clip;
-	background: var(--ob-sys-color-website-bg);
+.root {
 	color: var(--ob-sys-color-website-fg);
 	font: var(--ob-sys-typography-website-body);
-	font-stretch: 104%;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
 }
-.page:lang(zh) {
-	font: var(--ob-sys-typography-website-body-zh);
-	font-stretch: 104%;
-}
-.page ::selection {
+.root ::selection {
 	background: var(--ob-sys-color-website-selection);
 }
-:where(.page) :where(a) {
+.root :focus-visible {
+	outline: var(--ob-ref-length-website-2) solid var(--ob-sys-color-website-honey);
+	outline-offset: var(--ob-ref-length-website-3);
+	border-radius: var(--ob-ref-length-website-4);
+}
+:where(.root) :where(a) {
 	color: inherit;
 	text-decoration: none;
 }
-:where(.page) :where(button) {
+:where(.root) :where(button) {
 	color: inherit;
 	background: none;
 	border: none;
 	padding: 0;
 	margin: 0;
-	cursor: pointer;
 }
-.page :focus-visible {
-	outline: var(--ob-ref-length-website-2) solid var(--ob-sys-color-website-honey);
-	outline-offset: var(--ob-ref-length-website-3);
+:where(.root) :where(h1, h2, h3, p, ol, ul, dl, dd, figure) {
+	margin: 0;
+	padding: 0;
 }
-.swarm {
-	position: fixed;
-	left: 0;
-	top: 0;
-	z-index: var(--ob-ref-layer-website-swarm);
-	width: 100%;
-	height: 100%;
-	pointer-events: none;
-	image-rendering: pixelated;
-	image-rendering: crisp-edges;
+:where(.root) :where(ol, ul) {
+	list-style: none;
 }
+:where(.root) :where(code) {
+	font: var(--ob-sys-typography-website-code);
+	color: var(--ob-sys-color-website-fg);
+}
+/* The page sits under the navigation bar, so the lattice behind its top shows through the bar. */
 .main {
 	position: relative;
-	z-index: var(--ob-ref-layer-website-content);
+	margin-top: calc(-1 * var(--ob-ref-length-website-65));
+	padding-top: var(--ob-ref-length-website-65);
 }
-/* The page column every section and the header share. */
-.wrap {
+.page {
 	position: relative;
-	max-width: var(--ob-ref-length-website-1240);
-	margin: 0 auto;
-	padding: 0 var(--ob-ref-length-website-40);
+	min-height: var(--ob-ref-length-website-viewport-height);
 }
-/* A content section below the hero. */
+/* Content revealed as it scrolls into view: activation marks it data-in. Without script, or under
+   reduced motion, it is simply there. */
+.root [data-reveal] {
+	transition:
+		opacity var(--ob-sys-motion-duration-website-800) var(--ob-sys-motion-easing-website-ease),
+		transform var(--ob-sys-motion-duration-website-800) var(--ob-sys-motion-easing-website-ease);
+}
+:global(html[data-motion]) .root [data-reveal]:not([data-in]) {
+	opacity: 0;
+	transform: translateY(var(--ob-ref-length-website-20));
+}
+
+/* The column every section shares. */
+.wrap {
+	max-width: var(--ob-ref-length-website-1320);
+	margin-inline: auto;
+	padding-left: max(var(--ob-ref-length-website-20), env(safe-area-inset-left));
+	padding-right: max(var(--ob-ref-length-website-20), env(safe-area-inset-right));
+}
+/* A section of the home page. */
 .section {
-	padding-top: var(--ob-ref-length-website-210);
+	composes: wrap;
+	margin-top: var(--ob-ref-length-website-150);
 }
-@media (max-width: 48rem) {
+/* A section of a client page. */
+.detailSection {
+	composes: wrap;
+	margin-top: var(--ob-ref-length-website-120);
+}
+@media (min-width: 48rem) {
 	.wrap {
-		padding: 0 var(--ob-ref-length-website-20);
+		padding-left: max(var(--ob-ref-length-website-40), env(safe-area-inset-left));
+		padding-right: max(var(--ob-ref-length-website-40), env(safe-area-inset-right));
 	}
+}
+@media (max-width: 64rem) {
 	.section {
-		padding-top: var(--ob-ref-length-website-144);
+		margin-top: var(--ob-ref-length-website-100);
+	}
+	.detailSection {
+		margin-top: var(--ob-ref-length-website-88);
 	}
 }
 @media (prefers-reduced-motion: reduce) {
-	:global(html) {
-		scroll-behavior: auto;
+	:global(*),
+	:global(*::before),
+	:global(*::after) {
+		animation: none !important;
+		transition: none !important;
 	}
 }

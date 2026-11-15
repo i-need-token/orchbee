@@ -4,23 +4,25 @@
 	"private": true,
 	"description": "The static, localized Orchbee product website",
 	"type": "module",
+	"sideEffects": [
+		"*.css"
+	],
 	"scripts": {
 		"dev": "rsbuild dev",
-		"build": "node ../../scripts/generate-website-pictures.mjs --check && rsbuild build && node scripts/generate-pages.mjs",
-		"pictures": "node ../../scripts/generate-website-pictures.mjs",
+		"build": "rsbuild build && node scripts/generate-pages.mjs",
 		"preview": "rsbuild preview",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},
 	"dependencies": {
+		"@fontsource-variable/geist": "^5.3.0",
+		"@fontsource-variable/geist-mono": "^5.3.0",
 		"@fontsource-variable/jetbrains-mono": "^5.3.0",
-		"@fontsource-variable/mona-sans": "^5.3.0",
 		"@orchbee/design-tokens": "workspace:*",
 		"@orchbee/i18n": "workspace:*",
 		"react": "catalog:",
-		"react-dom": "catalog:",
-		"zod": "catalog:"
+		"react-dom": "catalog:"
 	},
 	"devDependencies": {
 		"@rsbuild/core": "catalog:",
@@ -30,6 +32,7 @@
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
 		"typescript": "catalog:",
-		"vitest": "catalog:"
+		"vitest": "catalog:",
+		"zod": "catalog:"
 	}
 }

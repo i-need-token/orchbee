@@ -1,0 +1,65 @@
+.section {
+	composes: section from '../../../page-shell/PageShell.module.css';
+}
+.install {
+	display: grid;
+	grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+	gap: var(--ob-ref-length-website-72);
+	align-items: start;
+}
+.release {
+	display: inline-block;
+	margin-top: var(--ob-ref-length-website-16);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-fine-print);
+	transition: color var(--ob-sys-motion-duration-website-150)
+		var(--ob-sys-motion-easing-website-ease);
+}
+.release:hover {
+	color: var(--ob-sys-color-website-fg);
+}
+.row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--ob-ref-length-website-16) var(--ob-ref-length-website-24);
+	padding: var(--ob-ref-length-website-20) 0;
+	border-top: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+}
+.row:last-of-type {
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+}
+.title {
+	display: block;
+	font: var(--ob-sys-typography-website-install-title);
+}
+.detail {
+	display: block;
+	margin-top: var(--ob-ref-length-website-4);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-install-body);
+}
+.detail code {
+	color: var(--ob-sys-color-website-fg2);
+}
+.commands {
+	display: grid;
+	justify-items: start;
+	gap: var(--ob-ref-length-website-8);
+}
+.note {
+	margin-top: var(--ob-ref-length-website-14);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-install-note);
+}
+@media (max-width: 64rem) {
+	.install {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--ob-ref-length-website-32);
+	}
+}
+@media (max-width: 40rem) {
+	.row {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}

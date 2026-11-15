@@ -1,0 +1,24 @@
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-10);
+	max-width: 100%;
+	height: var(--ob-ref-length-website-40);
+	padding: 0 var(--ob-ref-length-website-5) 0 var(--ob-ref-length-website-14);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	border-radius: var(--ob-ref-length-website-9);
+	font: var(--ob-sys-typography-website-command);
+	white-space: nowrap;
+}
+.prompt {
+	color: var(--ob-sys-color-website-fg3);
+}
+.command {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font: var(--ob-sys-typography-website-command);
+	color: var(--ob-sys-color-website-fg);
+}
+.quiet .command {
+	color: var(--ob-sys-color-website-fg2);
+}

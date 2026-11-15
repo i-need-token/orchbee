@@ -1,0 +1,5 @@
+.kicker {
+	font: var(--ob-sys-typography-website-label);
+	color: var(--ob-sys-color-website-fg3);
+	text-transform: lowercase;
+}

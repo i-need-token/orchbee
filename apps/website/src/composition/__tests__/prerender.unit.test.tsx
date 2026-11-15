@@ -1,70 +1,74 @@
-import { existsSync } from 'node:fs';
-
 import { describe, expect, it } from 'vitest';
-import { renderNotFound, renderPage } from '../prerender';
+
+import { WEBSITE_PAGES } from '../../website';
+import { renderPage } from '../prerender';
 
 const LOCALES = ['en-US', 'zh-CN'] as const;
-const SECTIONS = ['anywhere', 'agents', 'orchestrate', 'private', 'terminal', 'install'] as const;
-const PUBLIC_DIRECTORY = new URL('../../../public/', import.meta.url);
+const PAGES = [...WEBSITE_PAGES, 'not-found'] as const;
+const CASES = LOCALES.flatMap((locale) => PAGES.map((page) => [locale, page] as const));
 const PUBLISHED = {
 	published: true,
 	version: '9.9.9-test.1',
 	installerUrl: 'https://github.com/i-need-token/orchbee/releases/download/v9.9.9-test.1/test.exe',
 } as const;
+const UNPUBLISHED = { published: false } as const;
 
-// Every resource the page loads must come from the site itself, product pictures from the
-// generated files in public/pictures; icons come from the page.
+// Every resource a page loads must come from the site itself.
 function loadedAddresses(markup: string): string[] {
-	return [...markup.matchAll(/\s(?:src|srcset|poster)="([^"]+)"/gu)].flatMap((match) =>
+	return [...markup.matchAll(/\s(?:src|srcset|poster|data)="([^"]+)"/gu)].flatMap((match) =>
 		(match[1] ?? '').split(',').map((candidate) => candidate.trim().split(/\s+/u)[0] ?? ''),
 	);
 }
 
 describe('localized static website', () => {
-	it.each(LOCALES)('renders every section of the %s page without a browser runtime', (locale) => {
-		const { markup } = renderPage(locale);
-		expect(markup.match(/<h1[\s>]/gu)).toHaveLength(1);
-		for (const section of SECTIONS) expect(markup).toContain(`id="${section}"`);
-		expect(markup).not.toContain('<iframe');
-		expect(markup).not.toContain('<form');
-		for (const address of loadedAddresses(markup)) expect(address).toMatch(/^\/(?!\/)/u);
-		for (const address of loadedAddresses(markup).filter((path) => path.startsWith('/pictures/')))
-			expect(existsSync(new URL(`.${address}`, PUBLIC_DIRECTORY))).toBe(true);
-		for (const [, icon] of markup.matchAll(/<use\s[^>]*href="([^"]*)"/gu))
-			expect(icon).toMatch(/^#/u);
+	it.each(CASES)('renders the %s %s page without a browser runtime', (locale, page) => {
+		for (const release of [PUBLISHED, UNPUBLISHED]) {
+			const { markup } = renderPage(locale, page, release);
+			expect(markup.match(/<h1[\s>]/gu)).toHaveLength(1);
+			// The Content Security Policy refuses inline styles.
+			expect(markup).not.toMatch(/\sstyle=/u);
+			expect(markup).not.toContain('<iframe');
+			expect(markup).not.toContain('<form');
+			for (const address of loadedAddresses(markup)) expect(address).toMatch(/^\/(?!\/)/u);
+		}
 	});
 
-	it.each(LOCALES)('offers the repository and a source build before a release (%s)', (locale) => {
-		const { markup } = renderPage(locale, { published: false });
-		expect(markup).toContain('href="https://github.com/i-need-token/orchbee"');
-		expect(markup).toContain('pnpm desktop');
-		expect(markup).not.toContain('npm install -g orchbee@next');
-		expect(markup).not.toContain('/releases/download/');
-	});
+	it.each(CASES)(
+		'offers the repository and a source build before a release (%s %s)',
+		(locale, page) => {
+			const { markup } = renderPage(locale, page, UNPUBLISHED);
+			expect(markup).toContain('href="https://github.com/i-need-token/orchbee"');
+			expect(markup).not.toContain('npm install -g orchbee@next');
+			expect(markup).not.toContain('/releases/download/');
+		},
+	);
 
 	it.each(LOCALES)('offers the installer and the npm package after a release (%s)', (locale) => {
-		const { markup } = renderPage(locale, PUBLISHED);
+		const { markup } = renderPage(locale, 'home', PUBLISHED);
 		expect(markup).toContain(`href="${PUBLISHED.installerUrl}"`);
 		expect(markup).toContain('npm install -g orchbee@next');
 		expect(markup).toContain(PUBLISHED.version);
 		expect(markup).not.toContain('pnpm desktop');
 	});
 
-	it('gives both languages stable canonical URLs and localized search metadata', () => {
-		const english = renderPage('en-US');
-		const chinese = renderPage('zh-CN');
-		expect(english.canonical).toBe('https://orchbee.com/');
-		expect(chinese.canonical).toBe('https://orchbee.com/zh-CN/');
-		expect(english.alternate).toBe('/zh-CN/');
-		expect(chinese.alternate).toBe('/');
+	it.each(WEBSITE_PAGES)('gives the %s page a canonical address in each language', (page) => {
+		const english = renderPage('en-US', page);
+		const chinese = renderPage('zh-CN', page);
+		expect(english.canonical).toMatch(/^https:\/\/orchbee\.com\//u);
+		expect(chinese.canonical).toBe(english.canonical?.replace('.com/', '.com/zh-CN/'));
+		for (const metadata of [english, chinese])
+			expect(metadata.alternates).toEqual([
+				{ language: 'en-US', href: english.canonical },
+				{ language: 'zh-CN', href: chinese.canonical },
+			]);
 		expect(english.title).not.toEqual(chinese.title);
 		expect(english.description).not.toEqual(chinese.description);
 	});
 
-	it.each(LOCALES)('renders a %s not-found page that leads home', (locale) => {
-		const page = renderNotFound(locale);
-		expect(page.markup.match(/<h1[\s>]/gu)).toHaveLength(1);
+	it.each(LOCALES)('renders a %s not-found page that leads home and is not indexed', (locale) => {
+		const page = renderPage(locale, 'not-found');
 		expect(page.markup).toContain(`href="${locale === 'zh-CN' ? '/zh-CN/' : '/'}"`);
-		expect(page.title).not.toEqual(renderPage(locale).title);
+		expect(page.canonical).toBeUndefined();
+		expect(page.title).not.toEqual(renderPage(locale, 'home').title);
 	});
 });

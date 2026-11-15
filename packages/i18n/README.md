@@ -39,7 +39,7 @@ const formattedNumber = intl.formatNumber(1234);
 
 Applications own locale preference, detection, persistence, and document synchronization. This package owns locale normalization, formatting, message descriptors, and translations; it does not read platform globals or mutate document state.
 
-The `websiteMessages` descriptors and mirrored `website.ts` locale catalogs own static product-site copy, including metadata and accessible control names.
+The product website's copy is split by page so pages can change in parallel: `websiteShellMessages` (`website-shell.ts`) owns the chrome every page shares, the client names and summaries, and the 404 page; `websiteHomeMessages`, `websiteTerminalMessages`, `websiteDesktopMessages` and `websiteCliMessages` own each page's metadata and content. Each pairs mirrored locale catalogs.
 
 ## Catalog structure
 

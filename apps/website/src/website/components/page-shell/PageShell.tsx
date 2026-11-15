@@ -1,37 +1,34 @@
 import type { OrchbeeLocale } from '@orchbee/i18n';
 import type { ReactElement, ReactNode } from 'react';
 
+import type { RenderedPage } from '../../pages';
 import type { Release } from '../../release';
-import { IconSprite } from '../icon-sprite/IconSprite';
+import { Lattice } from '../lattice/Lattice';
 import { SiteFooter } from '../site-footer/SiteFooter';
 import { SiteHeader } from '../site-header/SiteHeader';
 import styles from './PageShell.module.css';
 
-// The document styles, the background swarm, the header and the footer every page shares.
+// The chrome every page shares: the navigation bar, the hexagon lattice behind the top of the page,
+// and the footer. The page's own content goes between them.
 export function PageShell({
 	locale,
+	page,
 	release,
 	children,
 }: {
 	locale: OrchbeeLocale;
+	page: RenderedPage;
 	release: Release;
 	children: ReactNode;
 }): ReactElement {
-	const home = locale === 'zh-CN' ? '/zh-CN/' : '/';
 	return (
-		<div className={styles['page']} id='top'>
-			<IconSprite />
-			<canvas className={styles['swarm']} data-swarm='' aria-hidden='true' />
-			<SiteHeader
-				locale={locale}
-				home={home}
-				alternate={locale === 'zh-CN' ? '/' : '/zh-CN/'}
-				release={release}
-			/>
+		<div className={styles['root']}>
+			<SiteHeader locale={locale} page={page} release={release} />
 			<main className={styles['main']} id='main'>
-				{children}
+				<Lattice />
+				<div className={styles['page']}>{children}</div>
 			</main>
-			<SiteFooter home={home} />
+			<SiteFooter locale={locale} page={page} />
 		</div>
 	);
 }

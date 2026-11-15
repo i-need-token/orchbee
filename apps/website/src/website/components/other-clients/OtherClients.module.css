@@ -1,0 +1,9 @@
+.section {
+	composes: detailSection from '../page-shell/PageShell.module.css';
+}
+.label {
+	margin-bottom: var(--ob-ref-length-website-16);
+}
+.action {
+	margin-top: var(--ob-ref-length-website-40);
+}
