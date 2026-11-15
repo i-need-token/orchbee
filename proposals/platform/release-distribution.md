@@ -313,8 +313,11 @@ document is never reformatted.
   name, so a test feed works from a folder, and signs it with the test key. `SHA256SUMS` lists the
   feed document like any other file.
 - The release workflow's `release-publish` job signs the feed with `ORCHBEE_RELEASE_SIGNING_KEY` in
-  one step, which alone receives the key, before the draft is created; a separate job would add a
-  fourth approval. Ed25519 is deterministic, so "Re-run failed jobs" writes the same signature.
+  one step, which alone receives the key, before the draft is created. Ed25519 is deterministic, so
+  "Re-run failed jobs" writes the same signature. Proposed with the
+  [release gate](automatic-updates.md#the-release-gate): that step moves into a job of its own
+  before the gate and also signs a gate copy of the feed that names the archive by its file name;
+  the `release` environment requires no reviewer, so the job adds no approval.
 - The feed signature is the one top-level file `SHA256SUMS` does not list. `release-artifacts.mjs
 check` and `release-publish.mjs github` admit it only when it verifies under the feed domain with a
   key of the build's table; `check` also confirms the feed against the archive and the release
@@ -331,8 +334,10 @@ check` and `release-publish.mjs github` admit it only when it verifies under the
   channel move or a withdrawal is seen at once.
 - Order: the tag run drafts the release with all assets, publishes npm, then publishes the
   release, and only then are the assets public, because a draft's assets answer 404 to an anonymous
-  request; publication starts the update check, which on a fresh runner updates the version people
-  have now to the release over HTTPS ([update check workflow](../../docs/VERIFICATION.md#update-check-workflow));
+  request. The proposed [release gate](automatic-updates.md#the-release-gate) runs before all of
+  this from the run's own files, so a failing upgrade path publishes nothing. Publication starts the
+  update check, which on a fresh runner updates the version people have now to the release over
+  HTTPS ([update check workflow](../../docs/VERIFICATION.md#update-check-workflow));
   once it passes, the owner runs `pnpm website:release <version>`, commits, builds, and deploys the
   website. The channel has moved when the deploy finishes.
 - `scripts/website-release.mjs` fetches the feed pair and the archive anonymously with the system
@@ -423,12 +428,15 @@ to upgrade" and keeps `update` withheld.
    the person's choice: `install` refuses it with `downgrade-refused` before anything is copied,
    `update` finishes as up to date, since a channel pointed back after a bad release is nothing to
    do, and the completing Client refuses again before it moves the pointer. Only the person's
-   choice lifts it: `install --allow-downgrade`, or a channel switch. An `update` whose manifest is
-   the one the pointer already names finishes as up to date without hashing or completing anything;
-   `install` run from a version directory verifies and activates it again. Built on Windows.
+   choice lifts it: `install --allow-downgrade`, or a channel switch. The proposed
+   [fallback after a failed move](automatic-updates.md#falling-back-after-a-failed-move) is no
+   exception: it installs nothing and only returns the pointer to the version that ran before,
+   inside its bound. An `update` whose manifest is the one the pointer already names finishes as up
+   to date without hashing or completing anything; `install` run from a version directory verifies
+   and activates it again. Built on Windows.
 7. **Desktop identity.** The identities of [Locations and identity](#locations-and-identity), so a
    later installer replaces the installation instead of adding a second one.
 
-[Automatic updates](automatic-updates.md) design background download and the Update control after
-this minimum; restart without losing terminals and cross-version tests follow in the
+[Automatic updates](automatic-updates.md) design background download, the Update control, and the
+release gate after this minimum; restart without losing terminals follows in the
 [upgrade phases](versioning-and-upgrade.md#delivery-phases).

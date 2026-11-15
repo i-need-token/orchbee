@@ -15,6 +15,8 @@
   reopen.
 - Versions coexist: a CLI and Desktop of different versions, or a remote machine that was not
   upgraded, share one Session.
+- An upgrade that skips releases inside the [compatibility window](#compatibility-window) behaves
+  exactly like one from the release before.
 - One explicit rule decides whether a restart is needed, including after changes that no code
   anticipated.
 
@@ -48,7 +50,7 @@ installation's cohort digest — serves diagnostics and integrity; only
 | Server ↔ remote Worker                           | OBCN                                                                   | Not implemented                                         | Negotiated, when ORC-297 and ORC-338 build it               |
 | Release feed → `orchbee update`                  | Release manifest                                                       | Closed, unsigned `schemaVersion: 1`; never published    | [Release manifest](#release-manifest)                       |
 | Client → runtime store                           | Store layout, active version, and Server start                         | Built on Windows: the store's active version starts     | [Shared runtime store](#shared-runtime-store)               |
-| Persisted data                                   | Session catalogs, checkpoints, configuration, and plugin registrations | No migration before the first public release            | [Persisted data](#persisted-data)                           |
+| Persisted data                                   | Session catalogs, checkpoints, configuration, and plugin registrations | No migration step yet                                   | [Persisted data](#persisted-data)                           |
 
 ## Handshake
 
@@ -149,8 +151,8 @@ The acceptor runs these checks in order and rejects at the first failure:
   `format-unsupported`, naming the format. Inside the [window](#compatibility-window) every
   Client–Host pair attaches: a release that changes a format keeps the older generation in the Host,
   in the Client, or as a Worker conversion.
-- From the first public release, `OBHS` and its messages never change except by new members of
-  `extensions`.
+- From the first automatic-update release, `OBHS` and its messages never change except by new
+  members of `extensions`.
 
 ## Generation registry
 
@@ -159,7 +161,9 @@ invalid fixtures, and holds the one declaration of generation numbers. Its `v1/c
 lists, for each negotiated connection (`client-server`, `worker-host`), frame format (`obtf`,
 `obpb`, `obrw`, `obkg`), and unnegotiated delivery (`agent-hook`, `machine-route`), the supported
 generation range and the capability names with the release that added each, plus each negotiated
-connection's [fingerprint inputs](#development-builds).
+connection's [fingerprint inputs](#development-builds). Each generation that a later one superseded
+also names the release that superseded it and that release's date, which start its
+[window](#compatibility-window).
 
 - Every contract starts at generation 1 with no capability names. Only negotiated connections
   carry capability names, as `{name, addedIn}` entries; a frame format or a delivery gains features
@@ -198,9 +202,9 @@ connection's [fingerprint inputs](#development-builds).
 
 ## Control requests
 
-From the first public release, every version sends and answers three requests with unchanged
-meaning. They belong to the permanent handshake layer and need no common generation, so a newer
-side can always inspect and stop an older one.
+From the first automatic-update release, every version sends and answers three requests with
+unchanged meaning. They belong to the permanent handshake layer and need no common generation, so a
+newer side can always inspect and stop an older one.
 
 - A request is the only `OBHS` frame its connection sends, in place of an offer, and carries the
   requester's `environment`. The acceptor checks user and environment as for an offer, replies once,
@@ -224,10 +228,11 @@ side can always inspect and stop an older one.
 
 ## Message evolution
 
-P0 adopts these rules in every negotiated contract; they bind from the first public release.
+P0 adopts these rules in every negotiated contract; they bind from the first automatic-update
+release.
 
-1. A new feature adds a capability name. A peer without it loses only that feature, never the
-   connection.
+1. A new feature adds a capability name, not a generation. A peer without it loses only that
+   feature, never the connection: a Client shows the actions that need it as unavailable.
 2. A released message never changes a field's meaning or encoding and never loses a field; a change
    adds a message or a capability. New fields go only into declared extension slots. If an older
    peer that ignores a field could report false success, use a new message or capability instead.
@@ -250,24 +255,36 @@ These mechanisms enforce the rules:
 - A growable enum names its fallback value in its schema, and decoders map unknown values to it.
 - Each negotiated record family defines one `unsupported` reply to an unknown request kind and
   ignores unknown event kinds; OBTP keeps its optional flag for this.
-- The first public release records the SHA-256 of each released generation's fixtures in the
-  [registry](#generation-registry), and a gate check added with P2 fails when one changes.
+- The first automatic-update release records the SHA-256 of each released generation's fixtures in
+  the [registry](#generation-registry), and a gate check fails when one changes.
 
 ## Compatibility window
 
-Before the first public release no older generation is kept: an incompatible change advances the
-generation and drops the previous one, so negotiation rejects a stale pre-release peer once cohort
-admission is gone. The first public release freezes each current generation.
+Until the first automatic-update release ([automatic updates](automatic-updates.md) slice 1),
+every negotiated connection stays at generation 1 and changes shape in place, as
+[Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) states; no generation is advanced or
+dropped.
 
-From then on, a release R that introduces generation N+1 of a connection also supports N.
-Generation N stays supported in R, in at least the next two stable releases, and for at least 90
-days after R ships; a later release may drop it. The Worker ↔ Host generation current at the first
-public release stays supported in every 1.x release unless a security fix requires its removal.
-A security fix may end any generation before its window closes; a process left without a common
-generation then reaches the `required` [tier](#restart-decision).
+From that release, compatibility counts time, not releases (decided 2026-11-15):
+
+- A superseded generation stays supported for at least 90 days after the release that superseded it
+  ships, however many releases come in between; a later release may then drop it. An upgrade that
+  skips releases inside the window behaves exactly like one from the release before.
+- A change uses a new capability name whenever one can express it. A generation advances only as a
+  last resort, and the change that advances it also advances the frame versions that carry it, with
+  their fixtures: for `client-server` the OBLC, OBWP, OBCS, and OBAP frame versions; for
+  `worker-host` the OBTP major in the Rust, Zig, and TypeScript bindings and `constants.json`, the
+  versioned fixtures, and the other generation that `other-generation-conformance.json` names.
+- `worker-host` changes only by addition, through capabilities the Host advertises, because a Host
+  can run for weeks. Advancing its generation needs its own decision, and the superseded generation
+  then stays supported in every later 1.x release.
+- A security fix may end any generation before its window closes; a process left without a common
+  generation then reaches the `required` [tier](#restart-decision).
+- Outside the window an update waits for the idle move instead of interrupting anything, as
+  [automatic updates](automatic-updates.md#compatibility-counts-time) describes.
 
 The [generation registry](#generation-registry) lists each contract's supported generations, and
-every combination inside the window has [cross-version tests](#cross-version-tests).
+the [release gate](automatic-updates.md#the-release-gate) proves the window before every Publish.
 
 ## Agent hook deliveries
 
@@ -357,11 +374,11 @@ Desktop queries its Session. Each gives every Server, Worker, and Host older tha
 [active version](#shared-runtime-store) one tier, from the generation ranges and floors in the
 active version's manifest, so every evaluator reaches the same tier:
 
-| Tier          | Condition, first match                                                                                                        | Shown as                                                                                                       |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `required`    | No common generation with the active version's Client (for Server) or Worker (for a Host), or a version below `securityFloor` | A confirmation that states the effect                                                                          |
-| `recommended` | A version below `recommendedFloor`                                                                                            | The [Update control](automatic-updates.md#the-update-control), whose click restarts Server and Worker from P1b |
-| `none`        | Otherwise                                                                                                                     | Nothing                                                                                                        |
+| Tier          | Condition, first match                                                                                                        | Shown as                                                                                                                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `required`    | No common generation with the active version's Client (for Server) or Worker (for a Host), or a version below `securityFloor` | For Server and Worker, the Update control as below; for a Host, the confirmation of a [Host replacement](#required-host-replacement) |
+| `recommended` | A version below `recommendedFloor`                                                                                            | The [Update control](automatic-updates.md#the-update-control), whose click restarts Server and Worker from P1b                       |
+| `none`        | Otherwise                                                                                                                     | Nothing                                                                                                                              |
 
 - Server and Worker share one tier, the higher of their two. A Host below its `recommendedFloor`
   raises that shared tier to at least `recommended`, because only Restart Session moves new
@@ -370,10 +387,11 @@ active version's manifest, so every evaluator reaches the same tier:
 - Restart Session in TUI and Desktop, and the planned `session restart` command, replace only
   Server and Worker through [Server and Worker restart](#server-and-worker-restart); terminals and
   Agents continue.
-- A `required` confirmation names the effect, such as "Restart the Session; terminals continue" or
-  "These 3 terminals restart; supported Agents resume". Declining keeps the older processes running
-  and the tier visible. A Server and Worker restart that would leave a Host without a common
-  generation lists that Host's terminals in its confirmation.
+- The only confirmation is a Host replacement. It names the effect, such as "These 3 terminals
+  restart; supported Agents resume", lists the terminals, and defaults to No; declining keeps the
+  older Host running and the tier visible. A Server and Worker restart whose new Worker would share
+  no generation with a running Host is that Host's replacement, and declining it keeps the old
+  Server and Worker as well.
 - A running TUI or Desktop older than the active version shows the Update control, whatever its
   Client floors say, and switches only when the person clicks it, as
   [automatic updates](automatic-updates.md#what-a-click-does) describes.
@@ -393,35 +411,58 @@ active version's manifest, so every evaluator reaches the same tier:
 
 ## Server and Worker restart
 
-The Client that starts a restart runs these steps. Terminal processes keep running, and Hosts keep
-their output and screens.
+Decided 2026-11-15 with [automatic updates](automatic-updates.md#make-before-break): a restart
+never ends the old Server and Worker before the new pair has adopted every running Host and
+accepted the Clients. Terminal processes keep running, and Hosts keep their output and screens. The
+newer side decides here too: the Client that asks for the restart starts the active version's
+Server and Worker on a private standby endpoint, and that Server runs these steps.
 
-1. Send `drain` to the Server. It admits no new Client Connections or intents, finishes in-flight
-   operations, and drains its Worker.
-2. The Server records Workbench state and terminal bindings durably, in the transactional store the
-   [topology proposal](native-runtime-topology.md#accepted-production-lifecycle-direction) accepted
-   or a reviewed equivalent, not only in the Workbench checkpoint.
-3. Send `exit`. Server and Worker end; Hosts keep running.
-4. Activate the active version. Its Worker adopts every running Host through
-   [Host adoption](#host-adoption), reconciling each inventory with the recorded bindings.
-5. Clients reconnect and renegotiate without user action.
+1. **Check.** It queries the old Server, whose answer adds each connected Client's generation range
+   in `extensions` from P1b on, and each Host, and compares them with its own ranges and
+   capabilities. It reads every Session record through the opener that writes nothing. A failure
+   ends the attempt with nothing changed.
+2. **Drain.** It sends `drain`. The old Server admits no new intents, finishes in-flight operations,
+   drains its Worker, and records Workbench state and terminal bindings durably, not only in the
+   Workbench checkpoint: in the transactional store the
+   [topology proposal](native-runtime-topology.md#accepted-production-lifecycle-direction)
+   accepted, or a reviewed equivalent.
+3. **Hand over.** Each resource with a single owner passes from the old pair to the new one, one at
+   a time, and the old pair can take it back until the commit: every Host's Worker session, which
+   the new Worker takes through [Host adoption](#host-adoption) against the recorded bindings, then
+   the Session endpoint with its lifetime lock and the Session store's writer lock. Clients
+   reconnect and renegotiate without user action.
+4. **Commit.** Once every Host is adopted and the Clients are back, it sends `exit` to the old
+   Server, which ends with its Worker; Hosts keep running.
 
+- Any failure before the commit, expected or not, returns each resource to the old pair, whose
+  Worker adopts back any Host it released, and the update waits for the idle move. Server and
+  Worker never run different versions.
+- A Host holds one Worker session at a time, so its hand-over leaves it without a Worker for a
+  moment: its program keeps running, its output waits in the Host, and Clients show Reconnecting. A
+  Host capability for a standby Worker session would close that gap. P1b's decision run decides on
+  it; any Host capability ships as early as possible, because a Host started before it never gains
+  it.
+- The [Windows Server handoff](../../apps/orchbee-worker/docs/windows-server-handoff.md) already
+  passes the Server role to a standby between identical builds in two phases and restores the
+  original owner after a failure before commit. P1b extends that pattern to a new Worker and to
+  another version.
+- An old Client that cannot join the new Server switches itself to the active version, as a click
+  does.
 - Input during the gap is neither queued nor replayed; Clients show that input is unavailable.
-- If the new version fails to start or to adopt Hosts, the active pointer returns to the version
-  that was running, which starts again from its retained files. Server and Worker never run
-  different versions.
-- Any later activation completes an interrupted restart, because a new Worker always adopts running
-  Hosts.
+- A Session running a release before P1b cannot take part and waits for the idle move.
+- After the commit, a new version that keeps failing falls back inside the bound of
+  [automatic updates](automatic-updates.md#falling-back-after-a-failed-move). Any later activation
+  completes an interrupted restart, because a new Worker always adopts running Hosts.
 
 ## Host adoption
 
 Decided with [automatic updates](automatic-updates.md) on 2026-11-15: one mechanism lets a new
 Worker take over the terminals of a running Host, and both cases that need it share it.
 
-| Case                                                    | Who starts the new Worker                             | Bindings come from         | Phase |
-| ------------------------------------------------------- | ----------------------------------------------------- | -------------------------- | ----- |
-| A Worker loss while Server, Clients, and Host live      | The running Server, at once, inside a restart cap     | The Server's memory        | P1a   |
-| [Server and Worker restart](#server-and-worker-restart) | The active version's Server, after `drain` and `exit` | The durable binding record | P1b   |
+| Case                                                    | Who starts the new Worker                         | Bindings come from         | Phase |
+| ------------------------------------------------------- | ------------------------------------------------- | -------------------------- | ----- |
+| A Worker loss while Server, Clients, and Host live      | The running Server, at once, inside a restart cap | The Server's memory        | P1a   |
+| [Server and Worker restart](#server-and-worker-restart) | The active version's Server, beside the old pair  | The durable binding record | P1b   |
 
 1. **Session record.** One new transition: the previous Worker is seen gone, its slot returns to
    spawning, and the Host stays identified. Today a slot is reserved only when not started and a
@@ -471,9 +512,10 @@ never user content; and the evidence, a native Windows trace that ends a test-ow
 process id and checks that the program keeps running, its output continues, nothing is replayed,
 the cap holds, and a confirmed stop ends the Host and a restart restores the layout.
 
-P1b adds only what a restart needs beyond the core: `drain` and `exit`, both built; the durable
-binding record of the restart's second step; a newer Worker adopting an older Host inside the
-`worker-host` window; and the rollback.
+P1b adds what a restart needs beyond the core: the check, the standby Server, each hand-over with
+its way back, the durable binding record of the restart's second step, a newer Worker adopting an
+older Host inside the `worker-host` window, and the old Worker adopting back a Host it released.
+`drain` and `exit` are built.
 
 ## Host lifetime
 
@@ -494,9 +536,10 @@ binding record of the restart's second step; a newer Worker adopting an older Ho
 A Host must change only when it is below the Host `securityFloor` or shares no generation with the
 active version's Worker. Inside 1.x, only a security fix can cause either.
 
-- The first public release has no live handoff. The confirmation lists the affected terminals; once
-  the person confirms, they restart on the current Host, supported Agents resume (ORC-363), and the
-  old Host exits. Declining keeps the old Host running. A CLI path that ends terminals follows the
+- The first public release has no live handoff. The confirmation lists the affected terminals and
+  defaults to No; once the person confirms, they restart on the current Host, supported Agents
+  resume (ORC-363), and the old Host exits. Declining keeps the old Host running. A CLI path that
+  ends terminals follows the
   [release destructive-command rule](environment-isolation.md#release-destructive-commands).
 - P3 builds a Windows prototype and a feasibility report. It answers whether terminal processes
   survive the old Host's exit after its ConPTY pipes and handles are duplicated into a new Host;
@@ -520,12 +563,14 @@ active version's Worker. Inside 1.x, only a security fix can cause either.
   running one.
 - One atomic pointer names the store's active version, and activation starts that version.
   Installing a version moves the pointer to it, except that only the person's explicit choice, such
-  as switching channel, moves it to a lower version. A Client activates a Session only from a
-  verified store directory, and every process starts its children from its own directory.
+  as switching channel, or the bounded
+  [fallback after a failed move](automatic-updates.md#falling-back-after-a-failed-move) moves it to
+  a lower version. A Client activates a Session only from a verified store directory, and every
+  process starts its children from its own directory.
 - Installing only adds directories; running files are never overwritten.
 - The store layout, the choice of active version, and how a Client starts the active Server never
-  change incompatibly after the first public release, because every released Client activates
-  Sessions through them.
+  change incompatibly after the first automatic-update release, because every released Client
+  activates Sessions through them.
 - A version directory is deleted only when no process runs from it, it is not the rollback target,
   and no Session, Host, or Capsule references it. The previous version stays as the rollback target.
 - A Capsule stays while an Agent integration references it; `update` lists those integrations, and
@@ -545,8 +590,8 @@ active version's Worker. Inside 1.x, only a security fix can cause either.
   ([`status server`](../../apps/orchbee/docs/native-runtime-status.md) today), lists Server, Worker,
   and each Host with its product version, terminal count, and tier.
 - TUI and Desktop show the [Update control](automatic-updates.md#the-update-control) while a newer
-  version is active, and the confirmation at `required`; the explanation lives in the control's
-  tooltip or in the confirmation.
+  version is active, and a Host replacement's confirmation at `required`; the explanation lives in
+  the control's tooltip or in the confirmation.
 - A rejection names the side that is too old and the action to take, without internal terms such
   as generation, capability, or cohort. P0 ships the messages below; a missing version is left out
   of the text, and P1 replaces "stop it" with Restart Session.
@@ -617,23 +662,29 @@ active version's Worker. Inside 1.x, only a security fix can cause either.
 
 ## Persisted data
 
-Before the first public release, persisted formats follow
-[Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) without migration. Afterwards, a newer
-version backs up data before migrating it, and an older version refuses to open data in a newer
-format and never rewrites it, so rollback stays possible. The
-[data root layout](data-root-layout.md#persisted-data-versions-and-migration) gives every persisted
-file its version, migration owner, backups, and failure behavior (ORCL-29).
+Until the first automatic-update release, persisted formats follow
+[Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) without migration. From that release,
+Session and Client records read forward from every format since then, by migration on read, so an
+idle move or a restart never resets the layout, even across skipped releases; this is a pick of
+[automatic updates](automatic-updates.md#records-follow-the-window) that the owner may veto. The
+other records start at the first public release. A newer version backs up data before migrating
+it, and an older version refuses to open data in a newer format and never rewrites it, so rollback
+stays possible; a fallback after a failed move first restores what the failed version migrated.
+The [data root layout](data-root-layout.md#persisted-data-versions-and-migration) gives every
+persisted file its version, migration owner, backups, and failure behavior (ORCL-29).
 
 ## Cross-version tests
 
-- Before the first public release, tests cover the handshake and negotiation rules inside one
-  build.
-- From P2, every change runs the current build against the previous release in both directions for
-  every connection in the window, and the current Worker against the oldest Host generation in the
-  window. Earlier release binaries come from the release archive.
-- A scripted Windows upgrade installs the previous release, runs a long process in a terminal,
-  upgrades to the current build, and checks that the process survives, its output stays
-  continuous, Clients reconnect, and no input is replayed.
+- Until the first automatic-update release, tests cover the handshake and negotiation rules inside
+  one build.
+- P2 is the [release gate](automatic-updates.md#the-release-gate): before every Publish, upgrade
+  paths from up to four earlier releases inside the window, the oldest included, keep a program
+  running through the update and check that it was never interrupted and that the new Client
+  joins. The oldest path pairs the current Worker with the oldest Host generation in the window.
+  Earlier release archives come from GitHub Releases.
+- From the first automatic-update release, each released generation's frozen fixtures and a stored
+  sample of each released record format must keep reading; a changed fixture fails the check of
+  [message evolution](#message-evolution).
 - Tests assert these rules, not one implementation, under [Testing](../../docs/TESTING.md).
 
 ## Out of scope
@@ -651,9 +702,9 @@ file its version, migration owner, backups, and failure behavior (ORCL-29).
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
 | P0. Handshake                      | `OBHS`, the generation registry, control requests, and evolution rules on every negotiated connection; exact pairs on build identity; frame-format and Agent hook generations; saved machines on the handshake; signed release manifest version 2 with floors; the environment check on every platform; development fingerprints; the pre-release generation rule in Data boundaries; Glossary and product copy for cohort | ORC-382 slice 1, shipped            | Before the first public release                                                |
 | P1a. Host adoption (ORC-296)       | [Host adoption](#host-adoption) with Worker-loss recovery: replacement inside a restart cap, a confirmed stop that ends a stranded Host, and Client reconnect states                                                                                                                                                                                                                                                       | P0 and the Windows Host check below | Starts now, beside slice 1 of [automatic updates](automatic-updates.md#phases) |
-| P1b. Upgrade without terminal loss | Restart decision and display; Server and Worker restart on adoption with the durable binding record and rollback; required Host replacement; status output; the Update click moves the Session                                                                                                                                                                                                                             | P1a and a durable binding record    | Right after P1a, before the first public release                               |
+| P1b. Upgrade without terminal loss | Restart decision and display; Server and Worker restart by make before break: the check, the standby Server, each hand-over with its way back, and the durable binding record; required Host replacement; status output; the Update click moves the Session                                                                                                                                                                | P1a and a durable binding record    | Right after P1a, before the first public release                               |
 | P1c. Host rollover                 | [Host lifetime](#host-lifetime): one Worker brokers several Hosts, new terminals start on the newest, and older Hosts drain                                                                                                                                                                                                                                                                                                | P1b                                 | Right after P1b                                                                |
-| P2. Cross-version tests            | [Cross-version tests](#cross-version-tests) in the gate                                                                                                                                                                                                                                                                                                                                                                    | P1 and the first public release     | From the second release; automatic updates' slice 1 adds one check earlier     |
+| P2. Release gate                   | The [release gate](automatic-updates.md#the-release-gate) and the other [cross-version tests](#cross-version-tests)                                                                                                                                                                                                                                                                                                        | Automatic updates' slice 1          | From the release after slice 1; P1b adds its restart checks                    |
 | P3. Live handoff prototype         | Windows prototype, feasibility report, and Host split evaluation                                                                                                                                                                                                                                                                                                                                                           | P1                                  | Right after P1                                                                 |
 | P4. Live handoff                   | Opt-in handoff for a required replacement; POSIX with ORC-328                                                                                                                                                                                                                                                                                                                                                              | P3, accepted by the product owner   | Optional                                                                       |
 
@@ -681,10 +732,12 @@ transactional binding record.
 - **P1b and P1c**, on real Windows: with Claude Code or a long-running script in a terminal,
   upgrading Client, Server, and Worker keeps the process running and its output continuous, TUI and
   Desktop reconnect by themselves, and no input is replayed. Desktop and CLI of different versions
-  share one Session. With different Host versions, new terminals start on the new Host, old
-  terminals continue, and the old Host exits when empty. ORC-296's acceptance scenarios pass.
-- **P2:** the current build and the previous release interoperate in both directions, and the
-  oldest Host generation in the window works with the current Worker.
+  share one Session. A restart whose check fails, or that fails before its commit, leaves the old
+  pair serving every terminal. With different Host versions, new terminals start on the new Host,
+  old terminals continue, and the old Host exits when empty. ORC-296's acceptance scenarios pass.
+- **P2:** every release passes its upgrade paths before Publish, and a failing path leaves the
+  release unpublished; the oldest path pairs the current Worker with the oldest Host generation in
+  the window.
 - **P3:** the report answers every prototype question in
   [Required Host replacement](#required-host-replacement), and the product owner decides on P4.
 - **P4:** with handoff enabled, a required replacement keeps terminal processes running, and a

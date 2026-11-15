@@ -21,7 +21,9 @@
   (product owner, 2026-11-08).
 - From the first public release, a persisted format change migrates automatically after a backup; a
   failed migration keeps the old file and tells the person. Before then nothing migrates, including
-  today's release locations and pre-release data.
+  today's release locations and pre-release data. Proposed on 2026-11-15, a pick the owner may
+  veto: Session and Client records start at the first automatic-update release instead
+  ([automatic updates](automatic-updates.md#records-follow-the-window)).
 - Uninstall keeps user data by default and offers to delete all of it.
 - Logs go to `logs/`, one file per day, kept 7 days, under a total size cap. A diagnostic bundle
   gathers versions, system information, settings without secrets, and recent logs.
@@ -246,8 +248,12 @@ ships, and the person removes it.
 
 ## Persisted data versions and migration
 
-Until the first public release, [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries)
-applies and nothing migrates. From the first public release:
+Until the first automatic-update release ([automatic updates](automatic-updates.md) slice 1),
+[Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) applies and nothing migrates. The
+rows marked Migrated, which hold Session and Client state, apply from that release, so a record of
+any format since then reads forward
+([records follow the window](automatic-updates.md#records-follow-the-window), a pick the owner may
+veto). Every other row applies from the first public release:
 
 | Data                                                                                           | Version                           | On a format change                                                                                                                                                                          |
 | ---------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -269,7 +275,8 @@ applies and nothing migrates. From the first public release:
   lock. `internal/state/desktop-window.json` and `internal/state/desktop-tray.json` are the only
   records Desktop Main writes; their owners apply the same rules.
 - A step is a pure function from version N to N+1. The result must pass the current strict parser
-  before the store replaces the file through its flushed atomic replacement.
+  before the store replaces the file through its flushed atomic replacement. Steps are never
+  removed, so a record that sat unopened for many releases still reads.
 - Before the first replacement, the module copies the original into
   `internal/backups/<YYYY-MM-DD>-upgrade-<product version>/` at the same relative path and flushes
   it; all records that one product version migrates share that folder. Orchbee keeps the three
@@ -281,6 +288,9 @@ applies and nothing migrates. From the first public release:
 - A record in a newer format is never rewritten, so rollback stays possible. The store works as it
   does without the record and keeps changes to it in memory only; each store's README states that
   consequence.
+- Proposed with [automatic updates](automatic-updates.md#falling-back-after-a-failed-move): after a
+  fallback from a failed version, each writer first restores, from that version's upgrade folder,
+  every record the version migrated, so the previous version opens them as before the move.
 - Each process that needs such a record shows its message once, logs it, and `config check` lists
   it. The English source texts, shipped with `zh-CN` through the localization system, are "Orchbee
   couldn't update {item} from an earlier version and left it unchanged. {consequence}" and "{item}
@@ -299,7 +309,7 @@ applies and nothing migrates. From the first public release:
   [message evolution](versioning-and-upgrade.md#message-evolution): strictly parsed known fields plus
   one declared extension object, so an added optional field needs no migration.
 
-The first public release already has:
+The first automatic-update release already has:
 
 1. `internal/version.json` with `layout` 1 and the refusal of a higher layout.
 2. A version in every persisted record at the place above, and none in any file name.

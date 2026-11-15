@@ -2,18 +2,21 @@
 
 | Field             | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Proposed on 2026-11-15 from the product owner's request of that day. Decided restates a product-owner decision. Announced marks a pick the owner was told about and may still veto, and Chosen marks this page's own pick, which the owner may also veto. Rule marks a safety or trust rule that follows from an accepted outcome.                                                                                                                                                                                                                                                 |
+| Status            | Proposed on 2026-11-15 from the product owner's request of that day, and revised the same day after the owner asked that upgrades across several releases count as much as single ones. Decided restates a product-owner decision. Announced marks a pick the owner was told about and may still veto, and Chosen marks this page's own pick, which the owner may also veto. Rule marks a safety or trust rule that follows from an accepted outcome.                                                                                                                              |
 | Owner             | Maintainers of `apps/orchbee`, `apps/orchbee-server`, `apps/desktop`, `apps/web`, `crates/local-runtime`, the release scripts under `scripts/`, and the release workflow                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Current authority | [Windows release installation](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation), the [Windows installer](../../apps/desktop/README.md#windows-installer), [running in the notification area](../../apps/desktop/docs/window-lifecycle.md#running-in-the-notification-area), the [TUI Settings row](../../apps/orchbee/docs/tui-shell-layout.md#sidebar-toggle-and-help), [native settings](../../apps/orchbee/docs/native-settings.md), [release distribution](release-distribution.md), and [versioning and upgrade](versioning-and-upgrade.md) |
-| Exit condition    | Delete this proposal once slice 1 and P1 ship and each rule lives in its owning package reference or standard.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Exit condition    | Delete this proposal once slice 1, the window self-update release, and P1 ship and each rule lives in its owning package reference or standard.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
-Orchbee releases often. This page decides how a release reaches a running installation with no
-step from the person but one click, and without stopping anything they run. It builds on the
-signed [release feed](release-distribution.md#release-feed), the
+Orchbee releases often. This page decides how a release reaches a running installation, from any
+recent version, with no step from the person but one click, and without stopping anything they
+run. It builds on the signed [release feed](release-distribution.md#release-feed), the
 [runtime store](release-distribution.md#runtime-store), and the
 [restart decision](versioning-and-upgrade.md#restart-decision).
 [Host adoption](versioning-and-upgrade.md#host-adoption) is the one mechanism that later moves a
 running Session.
+
+Two releases are named by role, not by number: **slice 1**, the first automatic-update release, and
+the **window self-update release** after it. Each is whichever release is ready to carry it.
 
 ## Outcomes
 
@@ -21,33 +24,44 @@ running Session.
    interrupts what runs on the person's computer: terminals and their programs, Agents, and the
    background Session that holds them. Every automatic path keeps them running. Anything that would
    end or restart them is at most an explicit choice the person confirms after being told what
-   stops. When another goal conflicts with this one, this one wins.
-2. **Latest by default.** With automatic updates on, a release reaches every running installation
+   stops. An update may stall; it never interrupts. When another goal conflicts with this one, this
+   one wins.
+2. **From any recent version.** Decided 2026-11-15. An upgrade that skips releases is as much a
+   first-class case as one from the release right before. Inside the
+   [compatibility window](#compatibility-counts-time), every release of the last 90 days, it
+   behaves exactly the same.
+3. **Latest by default.** With automatic updates on, a release reaches every running installation
    within about an hour of its channel moving and installs in the background.
-3. **One click.** The Update control switches the window or TUI it sits in to the installed version
+4. **One click.** The Update control switches the window or TUI it sits in to the installed version
    at once, on the same Session and at the same place. Terminals and Agents keep running.
-4. **The Session follows.** The background Session moves to the new version by itself once no
+5. **The Session follows.** The background Session moves to the new version by itself once no
    terminal runs. After P1 the same click also moves it, and terminals continue.
-5. **Off means off.** With automatic updates off, nothing is checked or downloaded on a schedule;
+6. **Off means off.** With automatic updates off, nothing is checked or downloaded on a schedule;
    `orchbee update` keeps working.
 
-The owner's reason: releases come often so that fixes reach people quickly, and that works only if
-updating never costs them their running work.
+The owner's reasons: releases come often so that fixes reach people quickly, and that works only if
+updating never costs them their running work. On 2026-11-15 the owner added that single upgrades and
+upgrades across several releases both need care, that a backup plan must at least keep updates from
+interrupting anything, and that the person is told only in the worst case, when an update cannot go
+on without interruption.
 
 ### What still breaks the non-stop rule
 
-| Behavior today                                                                                                                                              | What the person loses                                                                                   | Removed by                                                                 |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| After a Worker loss the Host keeps every program, but nothing can show, reach, or stop them; Quit All and `orchbee server stop` refuse while the Host lives | Every terminal, until the Host is ended from outside or the computer restarts, which ends every program | P1a: the Server replaces the Worker, and a confirmed stop really stops     |
-| A Server or Worker change takes effect only after a Session stop, which ends every terminal; the `initiator-too-new` message asks for `orchbee server stop` | The terminals, or the fix                                                                               | Slice 1 for an idle Session; P1b while terminals run                       |
-| A Host change reaches a terminal only after its Host empties; a Host below its security floor changes only by restarting its terminals after a confirmation | Nothing until a security floor is set; then the listed terminals                                        | P1c for new terminals; P3 and P4 for the confirmation                      |
-| Setup refuses while terminals started by an older window run from files under `desktop\`, and asks the person to close them                                 | Those terminals, if the person follows the advice                                                       | Slice 1: Setup and `update` add window versions beside running ones        |
-| Before the first public release, Session records change format without migration                                                                            | The layout at an idle move; adoption at a restart                                                       | P1b restarts only when the new version reads the running Session's records |
+| Behavior today                                                                                                                                              | What the person loses                                                                                   | Removed by                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| After a Worker loss the Host keeps every program, but nothing can show, reach, or stop them; Quit All and `orchbee server stop` refuse while the Host lives | Every terminal, until the Host is ended from outside or the computer restarts, which ends every program | P1a: the Server replaces the Worker, and a confirmed stop really stops                           |
+| A Server or Worker change takes effect only after a Session stop, which ends every terminal; the `initiator-too-new` message asks for `orchbee server stop` | The terminals, or the fix                                                                               | Slice 1 for an idle Session; P1b while terminals run, by [make before break](#make-before-break) |
+| A Host change reaches a terminal only after its Host empties; a Host below its security floor changes only by restarting its terminals after a confirmation | Nothing until a security floor is set; then the listed terminals                                        | P1c for new terminals; P3 and P4 for the confirmation                                            |
+| Setup refuses while terminals started by an older window run from files under `desktop\`, and asks the person to close them                                 | Those terminals, if the person follows the advice                                                       | The window self-update release: Setup and `update` add window versions beside running ones       |
+| Session records change format in place, without migration                                                                                                   | The layout at an idle move; adoption at a restart                                                       | Slice 1: [records read forward](#records-follow-the-window) from every format since then         |
+| A new version that keeps crashing after it takes over has no way back but a manual reinstall                                                                | Access to the terminals until a fix ships                                                               | Slice 1: the bounded [fallback](#falling-back-after-a-failed-move)                               |
 
 A computer restart still ends every program, as
 [Host lifetime](versioning-and-upgrade.md#host-lifetime) says; it is not an update path.
 
 ## Comparable products
+
+Applying an update:
 
 | Product                                      | Checks                                           | Installs                                                          | The person sees                                    | Running work at the switch                         |
 | -------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------- |
@@ -60,23 +74,46 @@ A computer restart still ends every program, as
 Each of them ends running work when it applies an update. Orchbee can keep it because the Terminal
 Host, which owns every program, takes part in no switch.
 
+Across versions:
+
+| Product        | A newer client meets an older server                                                                                                                                                                                                                                            | Running work                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| tmux           | The client exits with "protocol version mismatch". tmux's change notes say to restart the server after an upgrade; people instead reattach through the running server's old binary, as in `/proc/<pid>/exe attach`, a community workaround                                      | Kept only while people use the old binary; restarting the server ends it                |
+| herdr          | The client negotiates an endpoint generation, and a missing server feature disables only the affected action (#3509). Replacing a server asks before stopping its pane processes, with No as the default; live handoff stays an opt-in experiment and is unsupported on Windows | Compatible servers and their agents stay untouched                                      |
+| VS Code remote | The VS Code CLI installs one server per exact commit, named `<quality>-<commit>`, side by side, and prunes only servers that are not running                                                                                                                                    | The old server keeps its processes until it stops; the new client starts its own server |
+| Orchbee        | Every generation superseded in the last 90 days stays supported, a missing capability disables one action, and a Session restarts only after the new pair has taken over every Host                                                                                             | Terminals and Agents keep running                                                       |
+
+Orchbee takes herdr's capability fallback and its No-by-default confirmation, keeps each version in
+its own directory as VS Code does, and replaces tmux's refusal with waiting: outside the window an
+update waits for the idle move instead of asking for a restart.
+
 ## Decision record
 
-| #   | Decision                                                                                                                                                | Reason                                                                                                           | Status                                            |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| 1   | The Session Server checks one minute after it starts and then hourly, through a background helper run of the store's active `orchbee`                   | One Server per Session exists for TUI, CLI, and window users alike; Clients come and go, and several may be open | Announced                                         |
-| 2   | The helper downloads, verifies, and installs beside the running version and never touches a running file                                                | The store already installs only by adding directories                                                            | Announced                                         |
-| 3   | The window application updates too, through versioned window directories behind an unchanged launcher path                                              | A switch becomes an ordinary relaunch; nothing running is replaced; shortcut, identity, and registration stay    | Announced that it updates; Chosen how             |
-| 4   | An Update control sits to the right of Settings in the TUI and in the window                                                                            | The owner's request                                                                                              | Announced                                         |
-| 5   | A click switches only the Client it is in                                                                                                               | Relaunching a Client the person is not looking at would interrupt their typing there                             | Chosen                                            |
-| 6   | The TUI relaunches in the same console through its launcher; without one it leaves with a one-line hint                                                 | Windows has no process replacement; the launcher already owns the console and the exit code                      | Chosen                                            |
-| 7   | Before P1b the Session moves by itself only when no terminal runs and no Client is connected; P1b drops the Client condition and lets the click move it | Nothing reconnects on its own yet, so ending a Server under a connected Client strands it                        | Decided by the owner; the Client condition Chosen |
-| 8   | Failed checks and installs show nothing and retry on the next hour; only a click that cannot switch says so                                             | The person cannot act on a network failure; `orchbee update` and diagnostics give details                        | Chosen                                            |
-| 9   | A Client offers Update whenever a newer version than its own is active, whatever the Client floors say                                                  | A Client relaunch stops nothing, and the owner wants people on the latest version                                | Chosen                                            |
-| 10  | Automatic updates is a Settings switch, on by default, with Server scope                                                                                | The owner's pick; the Server is what schedules                                                                   | Announced                                         |
-| 11  | `orchbee update` stays                                                                                                                                  | Scripts, people who turn automatic updates off, and the command line alone                                       | Chosen                                            |
-| 12  | Only signed archives install; a lower version never installs on its own; disk stays bounded; one update runs at a time                                  | The feed and store rules, extended to the window                                                                 | Rule                                              |
-| 13  | P1 follows slice 1 at once and starts now in parallel; its adoption core is shared with Worker-loss recovery                                            | Slice 1 already meets the non-stop rule; P1 is what lets Session fixes reach people without waiting              | Chosen                                            |
+| #   | Decision                                                                                                                                                                                                    | Reason                                                                                                           | Status                                                                                           |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 1   | The Session Server checks one minute after it starts and then hourly, through a background helper run of the store's active `orchbee`                                                                       | One Server per Session exists for TUI, CLI, and window users alike; Clients come and go, and several may be open | Announced                                                                                        |
+| 2   | The helper downloads, verifies, and installs beside the running version and never touches a running file                                                                                                    | The store already installs only by adding directories                                                            | Announced                                                                                        |
+| 3   | The window application updates too, through versioned window directories behind an unchanged launcher path, from the window self-update release on                                                          | A switch becomes an ordinary relaunch; nothing running is replaced; shortcut, identity, and registration stay    | Announced that it updates; Chosen how; its own release Decided by the owner's release-often rule |
+| 4   | An Update control sits to the right of Settings in the TUI and in the window                                                                                                                                | The owner's request                                                                                              | Announced                                                                                        |
+| 5   | A click switches only the Client it is in                                                                                                                                                                   | Relaunching a Client the person is not looking at would interrupt their typing there                             | Chosen                                                                                           |
+| 6   | The TUI relaunches in the same console through its launcher; without one it leaves with a one-line hint                                                                                                     | Windows has no process replacement; the launcher already owns the console and the exit code                      | Chosen                                                                                           |
+| 7   | Before P1b the Session moves by itself only when no terminal runs and no Client is connected; P1b drops the Client condition and lets the click move it                                                     | Nothing reconnects on its own yet, so ending a Server under a connected Client strands it                        | Decided by the owner; the Client condition Chosen                                                |
+| 8   | Failed checks, installs, and fallbacks show nothing and retry on the next hour; the only text is the waiting notice while an update waits                                                                   | The person cannot act on a network failure; `orchbee update` and diagnostics give details                        | Decided 2026-11-15                                                                               |
+| 9   | A Client offers Update whenever a newer version than its own is active, whatever the Client floors say                                                                                                      | A Client relaunch stops nothing, and the owner wants people on the latest version                                | Chosen                                                                                           |
+| 10  | Automatic updates is a Settings switch, on by default, with Server scope                                                                                                                                    | The owner's pick; the Server is what schedules                                                                   | Announced                                                                                        |
+| 11  | `orchbee update` stays                                                                                                                                                                                      | Scripts, people who turn automatic updates off, and the command line alone                                       | Chosen                                                                                           |
+| 12  | Only signed archives install; the feed never installs a lower version, and the one move back is the bounded fallback; disk stays bounded; one update runs at a time                                         | The feed and store rules, extended to the window                                                                 | Rule                                                                                             |
+| 13  | P1 follows slice 1 at once and starts now in parallel; its adoption core is shared with Worker-loss recovery                                                                                                | Slice 1 already meets the non-stop rule; P1 is what lets Session fixes reach people without waiting              | Chosen                                                                                           |
+| 14  | Upgrades that skip releases are first class: from slice 1, compatibility counts 90 days, not releases, capabilities come before generations, and `worker-host` grows only by Host capabilities              | Single and cross-version upgrades both need care                                                                 | Decided 2026-11-15                                                                               |
+| 15  | Every release passes upgrade paths from up to four earlier releases before Publish                                                                                                                          | A broken path must stop the release, not reach people                                                            | Decided 2026-11-15                                                                               |
+| 16  | Make before break: a Session restart never ends the old pair before the new one has taken over, and any failure leaves the old pair while the update waits                                                  | An update may stall but never interrupt                                                                          | Decided 2026-11-15                                                                               |
+| 17  | A new version that fails three times within ten minutes of its move falls back to the previous version                                                                                                      | The backup plan for a release that passes the gate but fails on one computer                                     | Decided 2026-11-15; its bound is a Rule                                                          |
+| 18  | Text appears only while an update waits; the only confirmation stays the required Host replacement, No by default                                                                                           | Notify only in the worst case                                                                                    | Decided 2026-11-15                                                                               |
+| 19  | Session and Client records read forward from every format since slice 1                                                                                                                                     | An idle move or a restart never resets the layout, even across skipped releases                                  | Chosen                                                                                           |
+| 20  | The copy in [the Update control](#the-update-control) as proposed                                                                                                                                           | Short words that say what keeps running, the same in both Clients                                                | Chosen                                                                                           |
+| 21  | A window installed by a release before the window self-update reaches the new layout only through that release's Setup or a moment when no window runs; its release notes say so, and nothing more is built | One Setup run per old window costs less than a migration tool                                                    | Chosen                                                                                           |
+
+Nothing waits on the owner; each Chosen row stays open to a veto.
 
 ## Who checks and installs
 
@@ -91,8 +128,8 @@ Host, which owns every program, takes part in no switch.
   The helper ends with the Server; every update step is crash safe, and the next run cleans up.
 - `--automatic-update-v1` is `update` with three differences: it never adds the `Path` entry,
   although it refreshes `bin\orchbee.exe` when that file exists; it installs the window part only
-  when `desktop\` exists; and it prints only the `orchbee.update` document. Like every helper mode,
-  its grammar never changes.
+  when `desktop\` exists, from the window self-update release on; and it prints only the
+  `orchbee.update` document. Like every helper mode, its grammar never changes.
 - Clients learn that a version is ready from the files, so no protocol changes: each Client reads
   the store's `active.json`, and the window also its window pointer, when it starts and whenever
   their last-write time changes, checked once a minute.
@@ -108,10 +145,117 @@ Host, which owns every program, takes part in no switch.
   system entry and runs while Orchbee does not; a service, which
   [versioning and upgrade](versioning-and-upgrade.md#out-of-scope) already rules out.
 
+## Upgrades across releases
+
+Decided 2026-11-15: an upgrade that skips releases is a first-class case, and five layers keep any
+upgrade from interrupting anything. The first four are decided; the fifth is this page's pick.
+
+### Compatibility counts time
+
+- From slice 1, every connection generation superseded in the last 90 days stays supported, however
+  many releases came in between; the
+  [compatibility window](versioning-and-upgrade.md#compatibility-window) holds the rule. A
+  skip-version upgrade inside the window therefore behaves exactly like an adjacent one: the new
+  Client joins the running Session, and the Session moves as it would after one release.
+- A change prefers a new negotiated capability to a generation bump. A peer without the capability
+  loses only the action that needs it, which the Client shows as unavailable, as herdr does.
+- `worker-host` changes only by addition, through capabilities the Host advertises, because a Host
+  can run for weeks. A `worker-host` generation bump is a last resort and needs its own decision.
+- Releases before slice 1 kept every connection at generation 1 while shapes changed in place, so
+  the window cannot reach back past slice 1: a Session of an earlier release moves only at the idle
+  move, and so does a Session outside the window. Either way the update stalls; it never
+  interrupts.
+
+### The release gate
+
+Every release proves the window before Publish.
+
+- Paths: one from each of the previous release, the one before it, the release nearest the middle
+  of the window, and the oldest release inside the window. The window holds the releases published
+  in the last 90 days, from slice 1 on. Picks that coincide count once, so the set never exceeds
+  four however many releases the window holds, and a window of four or fewer tests every release.
+- Each path runs on a fresh Windows runner. It installs the older release from its published
+  archive into a scratch store, starts its Session, and opens a terminal running a probe that
+  prints a numbered line every 100 ms. The older release's own automatic helper installs the new
+  release from the gate feed, and the new Client joins the running Session and shows the probe's
+  output. The probe then ends, and the idle move brings the Session up on the new version with its
+  layout unchanged. From P1b the probe keeps running instead, and a click restarts the Session: the
+  new pair adopts the probe's Host, and the layout survives.
+- Each path checks that the probe kept its process id, that its numbers have no gap, and that the
+  new Client joined.
+- A failing path stops the release before Publish: `release-publish` needs the gate, so nothing
+  reaches npm, GitHub Releases, or the update channel.
+- The feed is signed in a job of its own before the gate, which also signs a gate copy naming the
+  archive by its file name; a release build already installs from a local feed whose archive sits
+  beside it. The `release` environment requires no reviewer, so the extra job adds no approval, and
+  the repository is public, so the runners cost nothing. The paths run in parallel, about 15
+  minutes each (unmeasured).
+- The gate first runs for the release after slice 1, the first with an earlier release that updates
+  itself. The [update check workflow](../../docs/VERIFICATION.md#update-check-workflow) still runs
+  after publication, over the public route.
+
+### Make before break
+
+An update can stall but never interrupt.
+
+- A Session restart never ends the old Server and Worker before the new pair has adopted every
+  running Host and accepted the Clients;
+  [Server and Worker restart](versioning-and-upgrade.md#server-and-worker-restart) gives the steps.
+- Preconditions come first: the new version shares a generation with every running Host and every
+  connected Client, and it reads every Session record.
+- Any failure, expected or not, leaves or puts back the old pair, and the update waits for the idle
+  move. A Session running a release before P1b, which cannot take part, always waits for it.
+- Before P1b, a new Client that cannot join keeps the Client the person has: the click checks the
+  join first, and a launcher whose new Client fails to start or to join starts the previous version
+  again, at the same place.
+- From P1b, an old Client that cannot join the restarted Session switches itself to the active
+  version, as a click does, because its terminals are safe.
+
+### Falling back after a failed move
+
+- A new version that fails three times within ten minutes of its move, through a Server or Worker
+  that fails to start, crashes, or fails to adopt, or a Client that fails to start, sends the store
+  back: `active.json` returns to its `previous` version, which is still on disk, and the ordinary
+  start, with Host adoption from P1, brings the Session up on it.
+- A record that the failed version migrated to a higher format version is first restored from that
+  version's upgrade backup, so the previous version opens the Session as it was before the move;
+  changes made in those minutes are lost. A change kept in a record's `extensions` object needs no
+  restore.
+- Rule, the bound. This is no downgrade served by the feed, which stays forbidden: it installs
+  nothing and returns only to the version that ran minutes before. It moves only to `previous`,
+  never below the `securityFloor` of any component in the newest verified manifest, never to a
+  release before slice 1, only within ten minutes of a move, and at most once per version: the
+  failed version is held, so no automatic run or Client offers it until a newer one appears. Each
+  fallback is logged. A peer that can crash the new version therefore gains at most the version that
+  ran before it, never one below a security fix, because the fix's release raises the floor.
+- Where the floor forbids the fallback, the Session behaves as after a Worker loss past the
+  [restart cap](versioning-and-upgrade.md#host-adoption): the programs keep running, and only a
+  confirmed stop ends them. `orchbee update` still installs the next fix.
+
+### Notify only in the worst case
+
+- The person sees text only while an update waits under the backup plan: the existing notice "This
+  update applies when no terminal is running." A failed check, install, or fallback shows nothing;
+  the diagnostic log records it, and a held version is simply not offered.
+- The only confirmation stays the
+  [required Host replacement](versioning-and-upgrade.md#required-host-replacement) at a security
+  floor: it lists the affected terminals, defaults to No, and refusing keeps the old Host.
+
+### Records follow the window
+
+Chosen, which the owner may veto: from slice 1, Session and Client records, the rows the
+[data root layout](data-root-layout.md#persisted-data-versions-and-migration) marks Migrated, read
+forward from every format since slice 1, by migration on read. An idle move or a restart then never
+resets the layout, even across skipped releases. The migration module already exists without a
+step; from slice 1 a format change adds a step instead of changing a record in place, steps are
+never removed, and a stored sample of each released format must keep reading, as frozen generation
+fixtures must.
+
 ## How the window updates
 
-Decided: the window updates too. Chosen: each window version gets its own directory, behind a small
-launcher at the path every shortcut already names.
+Decided: the window updates too, from the window self-update release, which follows slice 1 under
+the owner's release-often rule; until then the window keeps today's Setup path. Chosen: each window
+version gets its own directory, behind a small launcher at the path every shortcut already names.
 
 ```text
 <store root>\desktop\
@@ -140,12 +284,13 @@ launcher at the path every shortcut already names.
 - Setup installs the same layout: it adds a version directory beside any running one and moves the
   window pointer, so it no longer needs the window to quit, except once to move a flat layout.
   Uninstall removes `desktop\` with every version.
-- Flat layout: a window installed by 0.1.0-beta.3 or earlier keeps its files directly in
-  `desktop\`. `update` installs the first version directory beside them and swaps them out only
-  when no process runs from them: the launcher takes the place of the flat `orchbee-desktop.exe`,
-  and the other flat files go. A running window executable is never renamed or replaced, because
-  Electron starts its helper processes from the path it started from (Unverified; the rule stands
-  either way). The 0.1.0-beta.4 Setup makes the same move once the window quits, as it asks today.
+- Flat layout: a window installed by a release before the window self-update, such as
+  0.1.0-beta.3, keeps its files directly in `desktop\`. `update` installs the first version
+  directory beside them and swaps them out only when no process runs from them: the launcher takes
+  the place of the flat `orchbee-desktop.exe`, and the other flat files go. A running window
+  executable is never renamed or replaced, because Electron starts its helper processes from the
+  path it started from (Unverified; the rule stands either way). The window self-update release's
+  Setup makes the same move once the window quits, as it asks today.
 - The window version and the runtime version move separately; any pair that shares a connection
   generation works together, because [versions coexist](versioning-and-upgrade.md#outcomes).
 - Rejected: running the downloaded Setup silently at the click, because the window stays away for
@@ -162,9 +307,9 @@ A click switches the Client it is in; other open Clients keep their own control.
 
 ### TUI
 
-1. The TUI checks that the active version can join its Session: the active manifest's `client`
-   component lists the `client-server` generation this connection negotiated. Otherwise
-   [the new Client cannot join](#when-the-new-client-cannot-join).
+1. The TUI checks that the active version can join its Session: the Session runs slice 1 or later,
+   and the active manifest's `client` component lists the `client-server` generation this
+   connection negotiated. Otherwise [the new Client cannot join](#when-the-new-client-cannot-join).
 2. It restores the console and exits with status 75. Its place is already saved: the TUI keeps the
    [Windows startup preference](../../apps/orchbee/docs/native-context-selection.md#windows-startup-preference)
    current after every successful draw.
@@ -176,6 +321,8 @@ A click switches the Client it is in; other open Clients keep their own control.
   TUI uses status 75 only when that process is its parent, so a stale inherited variable does
   nothing. Status 75 lies outside the [CLI exit codes](../../docs/cli/output.md#exit-codes). A
   launcher relaunches at most three times in ten seconds.
+- When the new TUI fails to start or to join, the launcher starts the version it replaced, with the
+  same command line, as [make before break](#make-before-break) requires.
 - A TUI started without such a launcher exits normally and prints one line: "Run orchbee to open
   version {version}."
 - macOS and Linux replace the process in place when they ship, so they need no launcher protocol.
@@ -191,21 +338,21 @@ A click switches the Client it is in; other open Clients keep their own control.
 
 ### When the new Client cannot join
 
-A newer Client joins an older Session while their `client-server` generations overlap. Every
-connection is at generation 1 today, and a newer Client checks each negotiated capability before it
-uses one. When the active version shares no generation with the running Session:
+A newer Client joins an older Session inside the [window](#compatibility-counts-time): their
+`client-server` generations overlap, and the newer Client checks each negotiated capability before
+it uses one, so a missing one disables only its action. When the active version cannot join the
+running Session, because that Session runs a release before slice 1 or one outside the window:
 
-- Before P1b the click does not switch, and a notice says "This update applies when no terminal is
-  running." The Session then [moves by itself](#how-the-session-moves), and the next start opens
-  the new version.
-- From P1b the click first restarts the Session's Server and Worker, keeping every terminal, then
-  switches the Client.
+- Before P1b the click does not switch; the person keeps the Client they have, and a notice says
+  "This update applies when no terminal is running." The Session then
+  [moves by itself](#how-the-session-moves), and the next start opens the new version.
+- From P1b the click first restarts the Session's Server and Worker by
+  [make before break](#make-before-break), keeping every terminal, then switches the Client. A
+  restart whose preconditions fail, or that fails before it commits, changes nothing and shows the
+  same notice.
 - The `initiator-too-new` message keeps naming a Session stop only until P1b replaces it with
   Restart Session; a release-build `server stop` already asks the person to type the Session's
   name.
-
-[Open question 1](#open-questions-for-the-product-owner) would keep this case from arising in
-practice.
 
 ## How the Session moves
 
@@ -215,32 +362,34 @@ Decided: the background Session moves to the new version by itself once no termi
   once all of these have held for 60 seconds: no terminal runs in the Session, no Client is
   connected, no update helper runs, and no operation is in flight. Nothing is left to end, so the
   stop asks nothing. The next Client to start finds no Session and starts the active version, which
-  restores the layout as after any stop.
+  restores the layout from records that [read forward](#records-follow-the-window).
 - The no-Client condition exists because nothing reconnects on its own yet: ending a Server under a
   connected window or TUI would leave it on a Disconnected page. A window hidden in the
   notification area quits when its last terminal ends, so the condition usually follows at once.
 - The idle move is the only automatic Session change before P1, and it cannot stop a program,
   because it waits until none runs.
 - P1b changes three things. Clients reconnect on their own, so the no-Client condition goes. A
-  click restarts Server and Worker when the Session's
-  [tier](versioning-and-upgrade.md#restart-decision) is `recommended`, keeping every terminal. A
-  `required` tier keeps its confirmation. Automatic restarts while terminals run stay
+  click restarts Server and Worker by [make before break](#make-before-break) when the Session's
+  [tier](versioning-and-upgrade.md#restart-decision) is `recommended`, or `required` for Server and
+  Worker, keeping every terminal. Only a Host that must be replaced asks for a confirmation.
+  Automatic restarts while terminals run stay
   [out of scope](versioning-and-upgrade.md#out-of-scope).
-- P1b restarts only when the active version reads the running Session's record formats. Until the
-  first public release those may change without migration; otherwise the Session waits for the
-  idle move, where the worst case is a reset layout with nothing running.
+- P1b restarts only when its preconditions hold, among them that the active version reads every
+  Session record. From slice 1 that holds unless a record is damaged, because
+  [records follow the window](#records-follow-the-window); otherwise the Session waits for the idle
+  move.
 
 ## The Update control
 
 The TUI comes first, and the window follows it under the
 [common feature contract](../../docs/INTERFACE-DESIGN.md#common-feature-contract).
 
-| State         | When                                                                      | TUI                                                                | Window                                                     |
-| ------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Absent        | No version newer than this Client's own is active, or a development build | Nothing                                                            | Nothing                                                    |
-| Ready         | A newer version is active; for the window, a newer window version         | `[ Update ]` on the Settings row, its label in `accent-action`     | An Update button in the sidebar footer, in the accent role |
-| Switching     | After a click                                                             | The TUI leaves at once and its new version opens; no pending state | The same                                                   |
-| Cannot switch | A check before the switch fails                                           | One notice; the control stays                                      | The same, in the window's notice surface                   |
+| State     | When                                                                                                               | TUI                                                                | Window                                                     |
+| --------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------- |
+| Absent    | No version newer than this Client's own is active, the active one is held after a fallback, or a development build | Nothing                                                            | Nothing                                                    |
+| Ready     | A newer version is active; for the window, a newer window version                                                  | `[ Update ]` on the Settings row, its label in `accent-action`     | An Update button in the sidebar footer, in the accent role |
+| Switching | After a click                                                                                                      | The TUI leaves at once and its new version opens; no pending state | The same                                                   |
+| Waiting   | The click cannot switch yet: the Session must move first, or a restart could not complete                          | One notice; the control stays                                      | The same, in the window's notice surface                   |
 
 - Place: on the Settings row right after Settings, one blank cell apart as adjacent buttons are.
   Development builds, whose
@@ -250,20 +399,19 @@ The TUI comes first, and the window follows it under the
   its environment marker sits.
 - Keyboard: the control invokes one Client Action, Update, which the action menu (`Ctrl+b ?`) lists
   while it is available. It has no default key.
-- A failed background check or install changes nothing on screen; the next hour retries, and
-  `orchbee update` or the diagnostic bundle shows what went wrong.
+- A failed background check, install, or fallback changes nothing on screen; the next hour retries,
+  and `orchbee update` or the diagnostic bundle shows what went wrong.
 - No operating-system notification and no badge elsewhere: the person sees the control where they
   already look for Settings.
 
-| Text                             | `en-US`                                                                                       | `zh-CN`                                                |
-| -------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Control                          | Update                                                                                        | 更新                                                   |
-| Tooltip                          | Switch to Orchbee {version}. Terminals keep running.                                          | 切换到 Orchbee {version}，终端继续运行。               |
-| Cannot switch                    | Couldn't switch to the new version.                                                           | 无法切换到新版本。                                     |
-| No common generation, before P1b | This update applies when no terminal is running.                                              | 此更新将在没有终端运行时生效。                         |
-| TUI without a launcher           | Run orchbee to open version {version}.                                                        | 运行 orchbee 打开 {version} 版本。                     |
-| Setting                          | Automatic updates                                                                             | 自动更新                                               |
-| Setting description              | Download and install new versions in the background. Nothing restarts until you click Update. | 在后台下载并安装新版本。点击“更新”前不会重启任何内容。 |
+| Text                   | `en-US`                                                                                       | `zh-CN`                                                |
+| ---------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Control                | Update                                                                                        | 更新                                                   |
+| Tooltip                | Switch to Orchbee {version}. Terminals keep running.                                          | 切换到 Orchbee {version}，终端继续运行。               |
+| Waiting                | This update applies when no terminal is running.                                              | 此更新将在没有终端运行时生效。                         |
+| TUI without a launcher | Run orchbee to open version {version}.                                                        | 运行 orchbee 打开 {version} 版本。                     |
+| Setting                | Automatic updates                                                                             | 自动更新                                               |
+| Setting description    | Download and install new versions in the background. Nothing restarts until you click Update. | 在后台下载并安装新版本。点击“更新”前不会重启任何内容。 |
 
 The copy is proposed for the owner's review before it ships. The TUI tooltip needs one amendment
 to [pointer tooltips](../../docs/tui/overlays-and-status.md#pointer-tooltips), whose action
@@ -277,9 +425,9 @@ running. The action menu entry carries the same sentence, so it stays reachable 
   and its downloads; a version installed by hand still shows the control. Development builds
   ignore it.
 - `update.channel` stays file-only. Automatic runs follow the selected channel and never change it.
-- `orchbee update` stays and also installs the window part when `desktop\` exists, so a manual
-  update leaves no older window behind. The `orchbee.update` document reports the window part
-  through added optional members.
+- `orchbee update` stays and, from the window self-update release on, also installs the window part
+  when `desktop\` exists, so a manual update leaves no older window behind. The `orchbee.update`
+  document reports the window part through added optional members.
 
 ## Cadence, cost, and the network
 
@@ -288,16 +436,17 @@ running. The action menu entry carries the same sentence, so it stays reachable 
   `run_worker_first` stays off for `/update/*`, because a Worker invocation counts against the free
   plan.
 - Archives come from GitHub Releases only when a new version appears: 24.9 MB for the 0.1.0-beta.2
-  runtime and, for window users, the window archive, about 100–130 MB (unmeasured). Nothing costs
-  the project money.
+  runtime and, for window users from the window self-update release on, the window archive, about
+  100–130 MB (unmeasured). The owner's release-often rule accepts that size; a release whose window
+  did not change may later name the previous window archive. Nothing costs the project money.
 - Offline or failing: nothing on screen, and the next hour retries. A cut download starts over,
   since neither resume nor retry is frozen.
 - Proxy: the helper passes `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` from the Server's environment
   and otherwise the per-user system proxy, as
   [release distribution](release-distribution.md#commands) already decided; slice 1 builds the
   system proxy read. Automatic configuration scripts are not read.
-- A lower version never installs automatically. A channel pointed back after a bad release reads as
-  up to date, and the next fix moves people forward.
+- The feed never installs a lower version. A channel pointed back after a bad release reads as up
+  to date, and the next fix moves people forward.
 
 ## Trust and disk
 
@@ -306,7 +455,9 @@ Rule: each step reuses a store rule.
 - Only signed archives install. The feed signature covers both archives' size and SHA-256, the
   runtime's `release.json` is verified again after unpacking, and its smoke check runs before
   completion.
-- No silent downgrade, no channel change, no elevation, and no service.
+- No downgrade from the feed, no channel change, no elevation, and no service. The one automatic
+  move to a lower version is the bounded [fallback](#falling-back-after-a-failed-move), which
+  installs nothing.
 - One update at a time: `download.lock`, then `install.lock`. A Setup that meets the lock reports it
   as it does today.
 - Bounded disk: after each install the helper deletes, under `install.lock`, every runtime and
@@ -317,47 +468,40 @@ Rule: each step reuses a store rule.
 
 ## Phases
 
-| Phase   | Content                                                                                                                                        | Size                                                                 | When                             |
-| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------- |
-| Slice 1 | Everything above except what names P1                                                                                                          | L: about 18–21 agent-days in three parallel streams, about two weeks | 0.1.0-beta.4                     |
-| P1a     | [Host adoption](versioning-and-upgrade.md#host-adoption) with Worker-loss recovery                                                             | 1.5–3 weeks after its decision run                                   | Starts now, beside slice 1       |
-| P1b     | Server and Worker restart on adoption: durable binding record, rollback, the click moves the Session, the idle move drops its Client condition | 1–2 weeks                                                            | Right after P1a and slice 1      |
-| P1c     | Host rollover: one Worker brokers several Hosts, and new terminals start on the newest                                                         | About 1 week                                                         | After P1b                        |
-| P2      | Cross-version tests: slice 1 adds one check to the Update check workflow, and the rest arrives with P1b                                        | Inside each phase                                                    | With slice 1 and P1b             |
-| P3      | Live handoff prototype, feasibility report, and Host split evaluation                                                                          | About 1 week                                                         | Right after P1                   |
-| P4      | Opt-in live handoff for a required Host replacement                                                                                            | 3–6 weeks                                                            | If the owner accepts P3's report |
+| Phase                                       | Content                                                                                                                                                                                                                                                                                                                                               | Size                                                             | When                                            |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
+| Slice 1, the first automatic-update release | Everything above except the window and what names P1, including the release gate                                                                                                                                                                                                                                                                      | About 22–25 agent-days in five parallel streams, about two weeks | The first release it is ready for               |
+| Window self-update release                  | [How the window updates](#how-the-window-updates), the window's control and relaunch, copy                                                                                                                                                                                                                                                            | About 9 agent-days, built beside slice 1, about one week         | The first release after slice 1 it is ready for |
+| P1a                                         | [Host adoption](versioning-and-upgrade.md#host-adoption) with Worker-loss recovery                                                                                                                                                                                                                                                                    | 1.5–3 weeks after its decision run                               | Starts now, beside slice 1                      |
+| P1b                                         | Server and Worker restart by [make before break](#make-before-break): preconditions, the standby Server, each Host's hand-over and its way back, the durable binding record, old Clients switching themselves, the fallback after a restart, and the gate's restart checks; the click moves the Session, and the idle move drops its Client condition | 2.5–3.5 weeks after its decision run                             | Right after P1a and slice 1                     |
+| P1c                                         | Host rollover: one Worker brokers several Hosts, and new terminals start on the newest                                                                                                                                                                                                                                                                | About 1 week                                                     | After P1b                                       |
+| P3                                          | Live handoff prototype, feasibility report, and Host split evaluation                                                                                                                                                                                                                                                                                 | About 1 week                                                     | Right after P1                                  |
+| P4                                          | Opt-in live handoff for a required Host replacement                                                                                                                                                                                                                                                                                                   | 3–6 weeks                                                        | If the owner accepts P3's report                |
 
-| Slice 1 stream | Content                                                                                                                                                                                                                                                                                                                         | Size                 |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| Runtime        | Server schedule and helper mode, outcome record, cleanup of old versions, system proxy, the idle move, `update.automatic` in both Settings pages                                                                                                                                                                                | About 7 agent-days   |
-| TUI            | The control, its Action and tooltip amendment, the relaunch status in both launchers, the join check, copy                                                                                                                                                                                                                      | About 4 agent-days   |
-| Window         | Window archive and `extensions.desktop` in release tooling, the window launcher, Setup's versioned layout and the flat move, the window part of `update`, the control and relaunch, copy                                                                                                                                        | About 9 agent-days   |
-| Evidence       | The [Update check workflow](../../docs/VERIFICATION.md#update-check-workflow) also attaches the new Client to a Session of the previous version. One scripted Windows run keeps a long program in a terminal through an automatic install and a click in each Client, and checks that it keeps running and its output continues | About 1.5 agent-days |
+The [release gate](#the-release-gate) is P2 of
+[versioning and upgrade](versioning-and-upgrade.md#delivery-phases): slice 1 builds it, and P1b adds
+its restart checks.
 
-- If 0.1.0-beta.4 must ship sooner, the runtime and TUI streams go first, in about one week, and the
-  window stream follows in 0.1.0-beta.5; until then the window keeps today's Setup path.
+| Slice 1 stream | Content                                                                                                                                                                                                                                                                      | Size                 |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| Runtime        | Server schedule and helper mode, outcome record, cleanup of old versions, system proxy, the idle move, `update.automatic` in both Settings pages                                                                                                                             | About 7 agent-days   |
+| TUI            | The control and its Waiting notice, its Action and tooltip amendment, the relaunch status and the fallback in both launchers, the join check, copy                                                                                                                           | About 4.5 agent-days |
+| Compatibility  | Supersession dates in the generation registry and the frozen-fixture check; a missing capability makes only its actions unavailable; record steps and stored samples for every Session and Client record; the fallback with its bound, held versions, and the record restore | About 6 agent-days   |
+| Release gate   | The feed-signing job and the gate feed, the probe, the path jobs, and `release-publish` waiting on them                                                                                                                                                                      | About 4.5 agent-days |
+| Evidence       | One scripted Windows run between two test builds of slice 1, through an automatic install, a click, an idle move, and a forced fallback, which also rehearses the gate                                                                                                       | About 1.5 agent-days |
+
+- Under the owner's release-often rule, slice 1 carries the runtime and the TUI, and the window
+  follows in its own release; neither waits for the other beyond the install order, runtime first.
 - P1 does not ship with slice 1, because slice 1 already meets the non-stop rule: no automatic path
-  touches a running terminal. Bundling would hold every automatic update back by three to five
-  weeks. The cost of shipping slice 1 alone is that a Server, Worker, or Host fix reaches a person
-  only once no terminal runs, while a Client fix reaches them at the next click.
+  touches a running terminal. Bundling would hold every automatic update back by four to six weeks.
+  The cost of shipping slice 1 alone is that a Server, Worker, or Host fix reaches a person only
+  once no terminal runs, while a Client fix reaches them at the next click.
+- Make before break adds about 1.5 weeks to P1b. Its decision run settles how each resource with a
+  single owner changes hands and comes back: a Host's one Worker session, the Session endpoint with
+  its lifetime lock, and the Session store's writer lock.
 - P3 does not move earlier. Inside 1.x only a security fix can force a Host change, and P3 depends
   on the adoption core. Until P4, a required Host replacement remains a confirmation that lists the
   terminals that restart, and declining keeps the old Host and its visible tier. P3 is dated right
   after P1 because its Host split evaluation could also contain a crash in output parsing, which
   today ends every program in that Host.
 - macOS and Linux join when their release platforms do.
-
-## Open questions for the product owner
-
-1. Should connections keep their previous generation from 0.1.0-beta.4 on? Today an incompatible
-   change before the first public release drops the old generation at once, so after such a
-   release a click cannot switch until the Session is idle. Recommended: yes for `client-server` and
-   `worker-host`, keeping each previous generation for the next two releases and at least 90 days,
-   the window that otherwise starts at the first public release.
-2. With releases several times a week, each window update downloads about 100–130 MB. Recommended:
-   accept it during the beta; later, a release whose window did not change names the previous
-   window archive.
-3. The copy in [the Update control](#the-update-control). Recommended: as proposed.
-4. A window installed by 0.1.0-beta.3 or earlier reaches the self-updating layout only through the
-   0.1.0-beta.4 Setup or a moment when no window runs. Recommended: say so in the 0.1.0-beta.4
-   release notes and build nothing more.
