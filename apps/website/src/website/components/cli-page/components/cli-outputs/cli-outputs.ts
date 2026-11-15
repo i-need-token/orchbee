@@ -1,3 +1,10 @@
+import {
+	type AgentListEntry,
+	CLAUDE_HANDLE,
+	CODEX_HANDLE,
+	OPENCODE_HANDLE,
+	agentListLines,
+} from '../../../session-scene/session';
 import { CLI_FAMILIES } from '../../cli-families';
 
 // What each command of the output explorer prints, line by line, as the command line writes it in
@@ -13,31 +20,11 @@ export interface CliOutput {
 	readonly lines: readonly OutputLine[];
 }
 
-const CLAUDE = '@panel:0x2a';
-const CODEX = '@panel:0x36';
-const OPENCODE = '@panel:0x41';
-
-const AGENTS = [
-	{ handle: CLAUDE, agent: 'claude-code', name: '-', state: 'Working', cwd: 'C:\\demo\\shop-api' },
-	{ handle: CODEX, agent: 'codex', name: '-', state: 'Idle', cwd: 'C:\\demo\\shop-api' },
-	{ handle: OPENCODE, agent: 'opencode', name: '-', state: 'Done', cwd: 'C:\\demo\\shop-web' },
-] as const;
-
-/** `orchbee agent list`: six columns, each padded to its width and two spaces apart. */
-function agentList(): OutputLine[] {
-	const handleWidth = Math.max(...AGENTS.map((agent) => agent.handle.length));
-	const nameWidth = Math.min(12, Math.max(4, ...AGENTS.map((agent) => agent.name.length)));
-	const widths = [4, handleWidth, 12, nameWidth, 9];
-	const line = (cells: readonly string[]): OutputLine => [
-		cells.map((cell, index) => cell.padEnd(widths[index] ?? 0)).join('  '),
-	];
-	return [
-		line(['#', 'HANDLE', 'AGENT', 'NAME', 'STATE', 'CWD']),
-		...AGENTS.map((agent, index) =>
-			line([String(index + 1), agent.handle, agent.agent, agent.name, agent.state, agent.cwd]),
-		),
-	];
-}
+const AGENTS: readonly AgentListEntry[] = [
+	{ handle: CLAUDE_HANDLE, agent: 'claude-code', state: 'working', cwd: 'C:\\demo\\shop-api' },
+	{ handle: CODEX_HANDLE, agent: 'codex', state: 'idle', cwd: 'C:\\demo\\shop-api' },
+	{ handle: OPENCODE_HANDLE, agent: 'opencode', state: 'done', cwd: 'C:\\demo\\shop-web' },
+];
 
 const key = (text: string): OutputSegment => ({ tone: 'key', text: `"${text}"` });
 const ELIDED: OutputSegment = { tone: 'elided', text: '…' };
@@ -159,24 +146,27 @@ function help(): OutputLine[] {
 }
 
 export const CLI_OUTPUTS: readonly CliOutput[] = [
-	{ command: 'orchbee agent list', lines: agentList() },
+	{
+		command: 'orchbee agent list',
+		lines: agentListLines(AGENTS).map((line): OutputLine => [line]),
+	},
 	{
 		command: 'orchbee agent start codex --split right',
 		lines: [
-			[`Started Codex in a new Panel on the right (Panel ${CODEX}).`],
-			[`Next: orchbee agent wait --panel ${CODEX} --until idle`],
+			[`Started Codex in a new Panel on the right (Panel ${CODEX_HANDLE}).`],
+			[`Next: orchbee agent wait --panel ${CODEX_HANDLE} --until idle`],
 		],
 	},
 	{
-		command: `orchbee agent prompt ${CODEX} "Review the current changes"`,
-		lines: [[`Prompt submitted to ${CODEX}.`]],
+		command: `orchbee agent prompt ${CODEX_HANDLE} "Review the current changes"`,
+		lines: [[`Prompt submitted to ${CODEX_HANDLE}.`]],
 	},
 	{
-		command: `orchbee agent wait ${CODEX} --until idle --timeout 120000`,
-		lines: [[`${CODEX} matched idle at state sequence 3 after 8412ms`]],
+		command: `orchbee agent wait ${CODEX_HANDLE} --until idle --timeout 120000`,
+		lines: [[`${CODEX_HANDLE} matched idle at state sequence 3 after 8412ms`]],
 	},
 	{
-		command: `orchbee agent read ${CODEX} --source recent --lines 40`,
+		command: `orchbee agent read ${CODEX_HANDLE} --source recent --lines 40`,
 		lines: [
 			['› Review the current changes'],
 			['• Ran git diff --stat'],

@@ -147,16 +147,21 @@ export interface AgentListEntry {
 }
 
 /** `orchbee agent list`, default text: six padded columns, two spaces apart. */
-export function agentList(agents: readonly AgentListEntry[]): TerminalRow[] {
+export function agentListLines(agents: readonly AgentListEntry[]): string[] {
 	const widths = [4, Math.max(...agents.map((agent) => agent.handle.length)), 12, 4, 9];
-	const line = (cells: readonly string[]): TerminalRow =>
-		textRow(cells.map((cell, index) => cell.padEnd(widths[index] ?? 0)).join('  '));
+	const line = (cells: readonly string[]): string =>
+		cells.map((cell, index) => cell.padEnd(widths[index] ?? 0)).join('  ');
 	return [
 		line(['#', 'HANDLE', 'AGENT', 'NAME', 'STATE', 'CWD']),
 		...agents.map((agent, index) =>
 			line([String(index + 1), agent.handle, agent.agent, '-', CLI_STATE[agent.state], agent.cwd]),
 		),
 	];
+}
+
+/** The same table as terminal rows. */
+export function agentList(agents: readonly AgentListEntry[]): TerminalRow[] {
+	return agentListLines(agents).map((line) => textRow(line));
 }
 
 function agentTable(state: SessionState): TerminalRow[] {
