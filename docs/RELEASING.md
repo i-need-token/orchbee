@@ -136,6 +136,16 @@ repository>`. Print each public half with the command in
   the release cannot be updated to: fix the cause on `main` and release the next version; the
   failed release stays public for people who install it by hand.
 
+## Release directory per platform
+
+Each platform row stages its cohort with `--artifact-stem orchbee` and writes `release.json` with
+`scripts/package-native-release.mjs` on a runner of that platform: the manifest's `platform` is the
+runner's own token, such as `windows-x86_64` or `macos-aarch64`, never an argument. A Windows
+directory holds `orchbee.exe` and its peers, both launchers and the pinned ConPTY bundle; a macOS
+directory holds `orchbee`, `orchbee-server`, `orchbee-worker` and `orchbee-terminal-host`, the
+adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. Only the Windows row
+builds and publishes today.
+
 ## What clients rely on
 
 - A published archive stays at its address for as long as a channel's feed names it. A feed is

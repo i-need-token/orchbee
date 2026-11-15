@@ -1,8 +1,11 @@
-// Produce the updater's version 2 release manifest from a completed staged Windows cohort. Signing
-// is a separate step, `scripts/sign-release-manifest.mjs`, which writes `release.json.sig`.
+// Produce the updater's version 2 release manifest from a completed staged cohort of this host's
+// platform, which names the manifest's `platform` token, such as `windows-x86_64` or `macos-aarch64`.
+// Signing is a separate step, `scripts/sign-release-manifest.mjs`, which writes `release.json.sig`.
 // No upload, application launch, installation or PATH mutation occurs here. A release feed packages
 // a cohort staged with `--artifact-stem orchbee`; a test cohort (`ob-test-<16 hex>`) packages the
-// same way for rehearsals signed with the test key. Development cohorts are refused.
+// same way for rehearsals signed with the test key. Development cohorts are refused. A Windows cohort
+// names its programs `<stem>*.exe` and also carries both launchers and the pinned ConPTY bundle; a
+// macOS or Linux cohort names them `<stem>*` and carries neither.
 import { createHash } from 'node:crypto';
 import {
 	closeSync,
@@ -28,6 +31,17 @@ const peers = [
 	['orchbee-terminal-host', '-terminal-host'],
 ];
 const packagedStem = /^(?:orchbee|ob-test-[0-9a-f]{16})$/u;
+// Node's host names → the release platform token's operating system and architecture.
+const releaseSystems = new Map([
+	['win32', 'windows'],
+	['darwin', 'macos'],
+	['linux', 'linux'],
+]);
+const releaseArchitectures = new Map([
+	['x64', 'x86_64'],
+	['arm64', 'aarch64'],
+]);
+const releasePlatform = /^(?:windows|macos|linux)-(?:x86_64|aarch64)$/u;
 const maximumFile = 512 * 1024 * 1024;
 const maximumTotal = 2 * 1024 * 1024 * 1024;
 // The updater reads at most 1 MiB of manifest; this bound never shrinks.
@@ -37,22 +51,23 @@ const frames = ['obkg', 'obpb', 'obrw', 'obtf'];
 const components = [
 	{
 		id: 'client',
-		files: (file, stem) => file === `${stem}.exe`,
+		files: (file, stem, executable) => file === stem + executable,
 		contracts: ['client-server', 'machine-hub', 'machine-link', ...frames, 'machine-route'],
 	},
 	{
 		id: 'server',
-		files: (file, stem) => file === `${stem}-server.exe`,
+		files: (file, stem, executable) => file === `${stem}-server${executable}`,
 		contracts: ['client-server', 'agent-hook'],
 	},
 	{
 		id: 'worker',
-		files: (file, stem) => file === `${stem}-worker.exe`,
+		files: (file, stem, executable) => file === `${stem}-worker${executable}`,
 		contracts: ['worker-host', ...frames],
 	},
 	{
 		id: 'terminal-host',
-		files: (file, stem) => file === `${stem}-terminal-host.exe` || file.startsWith('conpty/'),
+		files: (file, stem, executable) =>
+			file === `${stem}-terminal-host${executable}` || file.startsWith('conpty/'),
 		contracts: ['worker-host', ...frames],
 	},
 	{
@@ -80,17 +95,29 @@ function generationRanges() {
 	return ranges;
 }
 
+/** The release platform token of a host, such as `windows-x86_64` or `macos-aarch64`. */
+export function hostReleasePlatform(platform = process.platform, arch = process.arch) {
+	const system = releaseSystems.get(platform);
+	const architecture = releaseArchitectures.get(arch);
+	if (system === undefined || architecture === undefined)
+		throw new Error(`No release platform for ${platform} ${arch}`);
+	return `${system}-${architecture}`;
+}
+
 /**
- * The manifest's component entries for a cohort whose executables carry `stem`; every registry
- * contract must belong to a component.
+ * The manifest's component entries for a cohort whose executables carry `stem` and the platform's
+ * `executable` suffix (`.exe` on Windows, none elsewhere); every registry contract must belong to a
+ * component.
  */
-export function componentEntries(files, version, stem = 'orchbee') {
+export function componentEntries(files, version, stem = 'orchbee', executable = '.exe') {
 	const ranges = generationRanges();
 	const listed = new Set(components.flatMap((component) => component.contracts));
 	for (const name of ranges.keys())
 		if (!listed.has(name)) throw new Error(`No component lists the registry contract ${name}`);
 	return components.map((component) => {
-		const paths = files.map((file) => file.path).filter((file) => component.files(file, stem));
+		const paths = files
+			.map((file) => file.path)
+			.filter((file) => component.files(file, stem, executable));
 		if (paths.length === 0) throw new Error(`Component ${component.id} has no files`);
 		const connections = Object.fromEntries(
 			component.contracts.map((name) => {
@@ -184,7 +211,19 @@ export function releaseFiles(root, { exclude = [] } = {}) {
 	);
 }
 
-export function packageWindows(cohort, channel, version, buildId) {
+/**
+ * Write `release.json` into the staged cohort and return its path. `platform` is the release
+ * platform token, this host's unless given.
+ */
+export function packageRelease(
+	cohort,
+	channel,
+	version,
+	buildId,
+	{ platform = hostReleasePlatform() } = {},
+) {
+	if (typeof platform !== 'string' || !releasePlatform.test(platform))
+		throw new Error(`Unknown release platform ${String(platform)}`);
 	if (
 		!path.isAbsolute(cohort) ||
 		!['stable', 'preview'].includes(channel) ||
@@ -220,37 +259,44 @@ export function packageWindows(cohort, channel, version, buildId) {
 		Object.keys(manifest.artifacts ?? {}).length !== 5
 	)
 		throw new Error('Invalid native cohort manifest');
+	const windows = platform.startsWith('windows-');
+	const executable = windows ? '.exe' : '';
 	const stems = files
-		.map((entry) => /^([0-9a-z-]+)\.exe$/u.exec(entry.path)?.[1])
-		.filter((stem) => stem !== undefined && packagedStem.test(stem));
+		.filter((entry) => entry.path.endsWith(executable))
+		.map((entry) => entry.path.slice(0, entry.path.length - executable.length))
+		.filter((stem) => packagedStem.test(stem));
 	if (stems.length !== 1)
 		throw new Error(
-			'Expected one orchbee.exe or ob-test-<16 hex>.exe: a release feed packages a cohort staged with --artifact-stem orchbee',
+			`Expected one orchbee${executable} or ob-test-<16 hex>${executable}: a release feed packages a cohort staged with --artifact-stem orchbee`,
 		);
 	const stem = stems[0];
 	for (const [peer, suffix] of peers) {
-		const file = files.find((entry) => entry.path === `${stem}${suffix}.exe`);
-		if (!file) throw new Error(`Missing ${stem}${suffix}.exe`);
+		const file = files.find((entry) => entry.path === stem + suffix + executable);
+		if (!file) throw new Error(`Missing ${stem}${suffix}${executable}`);
 		if (file.sha256 !== manifest.artifacts[peer]) throw new Error('Cohort binary digest mismatch');
 	}
-	// The launcher `install` copies to `bin\<stem>.exe` and the window launcher the window step
-	// places as the window entry; they belong to no component.
-	for (const launcher of [`${stem}-launcher.exe`, `${stem}-desktop-launcher.exe`])
-		if (!files.some((entry) => entry.path === launcher)) throw new Error(`Missing ${launcher}`);
 	const capsule = verifiedCapsuleDigest(path.join(cohort, 'agent-observation-adapters'));
 	if (capsule === null || capsule !== manifest.artifacts['agent-observation-adapters'])
 		throw new Error('Cohort adapter capsule digest mismatch');
-	verifyConptyBundle(path.join(cohort, 'conpty'));
+	if (windows) {
+		// The launcher `install` copies to `bin\<stem>.exe` and the window launcher the window step
+		// places as the window entry; they belong to no component.
+		for (const launcher of [`${stem}-launcher.exe`, `${stem}-desktop-launcher.exe`])
+			if (!files.some((entry) => entry.path === launcher)) throw new Error(`Missing ${launcher}`);
+		verifyConptyBundle(path.join(cohort, 'conpty'));
+	} else if (files.some((entry) => entry.path.startsWith('conpty/'))) {
+		throw new Error('A ConPTY bundle belongs only in a Windows cohort');
+	}
 	const bytes =
 		JSON.stringify({
 			schemaVersion: 2,
 			product: 'orchbee',
 			channel,
-			platform: 'windows-x86_64',
+			platform,
 			version,
 			buildId,
 			files,
-			components: componentEntries(files, version, stem),
+			components: componentEntries(files, version, stem, executable),
 		}) + '\n';
 	if (Buffer.byteLength(bytes) > maximumManifest) throw new Error('Release manifest exceeds 1 MiB');
 	const fd = openSync(destination, 'wx');
@@ -273,7 +319,7 @@ if (
 	const [cohort, channel, version, buildId, extra] = process.argv.slice(2);
 	if (!cohort || !channel || !version || !buildId || extra !== undefined)
 		throw new Error(
-			'Usage: node scripts/package-native-windows.mjs <absolute-cohort> <stable|preview> <version> <build-id>',
+			'Usage: node scripts/package-native-release.mjs <absolute-cohort> <stable|preview> <version> <build-id>',
 		);
-	process.stdout.write(packageWindows(cohort, channel, version, buildId) + '\n');
+	process.stdout.write(packageRelease(cohort, channel, version, buildId) + '\n');
 }

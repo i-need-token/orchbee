@@ -360,7 +360,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
           BUILD_ID: ${{ github.sha }}.${{ github.run_number }}
-        run: node scripts/package-native-windows.mjs "$env:RUNNER_TEMP\cohort" stable "$env:RELEASE_VERSION" "$env:BUILD_ID"
+        run: node scripts/package-native-release.mjs "$env:RUNNER_TEMP\cohort" stable "$env:RELEASE_VERSION" "$env:BUILD_ID"
 
       - name: Upload the unsigned cohort
         uses: actions/upload-artifact@v4

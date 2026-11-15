@@ -160,7 +160,7 @@ try {
 	}
 	if (signsReleaseDirectory && packaging.cohort === undefined) {
 		// Every version is published on `stable` until `channel set preview` is released.
-		runNode('package-native-windows.mjs', [
+		runNode('package-native-release.mjs', [
 			cohortRoot,
 			'stable',
 			productVersion,

@@ -10,7 +10,7 @@
 // `--repository-url` writes the `repository` field npm provenance compares with the building
 // repository; release-artifacts.mjs passes the repository of the workflow run.
 //
-// A release directory is the output of `package-native-windows.mjs` plus `sign-release-manifest.mjs`.
+// A release directory is the output of `package-native-release.mjs` plus `sign-release-manifest.mjs`.
 // The release stem names the packages `orchbee` and `@orchbee/cli-<platform>-<arch>`; a test-stem
 // rehearsal names them `<stem>` and `@<stem>/cli-<platform>-<arch>`, so it can never produce a release
 // name.

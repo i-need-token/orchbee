@@ -644,8 +644,8 @@ Citations name today's code; `orchbee.iss` is `apps/desktop/installer/windows/or
   Start menu shortcut and the uninstall list take from it (`orchbee.iss:31`, `:79`).
 - `scripts/stage-native-windows.mjs` stages it as `<stem>-desktop-launcher.exe` the way it stages
   `<stem>-launcher.exe`: no cohort role, listed by the release manifest like every file
-  (`stage-native-windows.mjs:170-176`). `scripts/package-native-windows.mjs` requires it
-  (`:216-218`). Every window version therefore holds its own launcher under `resources\cohort\`.
+  (`stage-native-windows.mjs:170-176`). `scripts/package-native-release.mjs` requires it
+  (`:284-285`). Every window version therefore holds its own launcher under `resources\cohort\`.
 - Rejected: a second binary of `apps/orchbee-launcher`, because a crate has one crate root
   (`docs/RUST.md:67`) and the two share only the pointer parser and two messages; a resource
   compiler crate, because a new dependency is a reserved decision (`docs/RUST.md:109-114`).

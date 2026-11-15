@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { componentEntries, packageWindows } from './package-native-windows.mjs';
+import { componentEntries, packageRelease } from './package-native-release.mjs';
 
 test('release packaging rejects incomplete cohorts and preserves existing feeds', (t) => {
 	const parent = realpathSync(tmpdir());
@@ -22,16 +22,16 @@ test('release packaging rejects incomplete cohorts and preserves existing feeds'
 		assert.ok(path.basename(actual).startsWith('orchbee-release-test-'));
 		rmSync(actual, { recursive: true });
 	});
-	assert.throws(() => packageWindows(root, 'nightly', '0.1.0', 'test'));
+	assert.throws(() => packageRelease(root, 'nightly', '0.1.0', 'test'));
 	for (const version of ['0.1.0+build.1', '01.0.0', '0.1', '0.1.0-01', 'a'.repeat(65)])
-		assert.throws(() => packageWindows(root, 'stable', version, 'test'), /SemVer/u, version);
-	assert.throws(() => packageWindows(root, 'stable', '0.1.0', 'test'));
+		assert.throws(() => packageRelease(root, 'stable', version, 'test'), /SemVer/u, version);
+	assert.throws(() => packageRelease(root, 'stable', '0.1.0', 'test'));
 	assert.equal(existsSync(path.join(root, 'release.json')), false);
 	writeFileSync(path.join(root, 'cohort.json'), '{"schemaVersion":1,"artifacts":{}}');
-	assert.throws(() => packageWindows(root, 'stable', '0.1.0', 'test'), /cohort manifest/u);
+	assert.throws(() => packageRelease(root, 'stable', '0.1.0', 'test'), /cohort manifest/u);
 	for (const name of ['release.json', 'release.json.sig']) {
 		writeFileSync(path.join(root, name), 'existing immutable release');
-		assert.throws(() => packageWindows(root, 'stable', '0.1.0', 'test'), /already exists/u);
+		assert.throws(() => packageRelease(root, 'stable', '0.1.0', 'test'), /already exists/u);
 		assert.equal(readFileSync(path.join(root, name), 'utf8'), 'existing immutable release');
 		unlinkSync(path.join(root, name));
 	}

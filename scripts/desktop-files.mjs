@@ -5,7 +5,7 @@
 // `{"schemaVersion": 1, "version", "files": [{"path", "size", "sha256"}]}`, plus an optional
 // `extensions` object that readers check is an object and otherwise ignore. It names every other
 // regular file of the directory once, by a `/`-separated path, under the release manifest's file
-// rules (scripts/package-native-windows.mjs), and is itself at most 1 MiB. The update feed binds it
+// rules (scripts/package-native-release.mjs), and is itself at most 1 MiB. The update feed binds it
 // by its SHA-256 in `extensions.desktop.manifest` (scripts/release-feed.mjs), so the feed signature
 // covers every file of the window. The release zips the directory, list included, as
 // `<stem>-desktop-<version>-<platform>.zip` under one top-level folder of that name.
@@ -20,7 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
 
-import { releaseFiles, validReleaseFilePath } from './package-native-windows.mjs';
+import { releaseFiles, validReleaseFilePath } from './package-native-release.mjs';
 import { sha256, validVersion } from './release-feed.mjs';
 
 /** The list's name at the root of a window directory. */

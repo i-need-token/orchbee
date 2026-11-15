@@ -314,7 +314,7 @@ development package, and macOS and Linux, run this cohort. The cohort and the We
 outside `app.asar` as `resources/cohort` and `resources/dist`.
 
 On Windows the test and release commands then make the cohort a signed release directory before
-packaging it: `scripts/package-native-windows.mjs` writes its `release.json` for the `stable`
+packaging it: `scripts/package-native-release.mjs` writes its `release.json` for the `stable`
 channel, the workspace version (which must equal this package's version) and a build id, and
 `scripts/sign-release-manifest.mjs` signs it. `--build-id <id>` sets the build id, which the release
 workflow passes as `<commit>.<run number>`; otherwise it is `<commit>.local`. `--key-file <absolute
