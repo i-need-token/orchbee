@@ -308,6 +308,10 @@ fn workspace_tab_unknown_after_worker_loss_retains_membership_across_worker_gene
     let binding = workspace_binding(&committed)?;
     assert_eq!(committed.revision.value(), initial.revision.value() + 1);
     assert_authorized_binding(&binding, launch.authorization());
+    // Shut the connection down instead of only closing this descriptor. macOS creates a socket
+    // before marking it close-on-exec, so a process another test spawns in between keeps a copy,
+    // and the Server would not read the Worker's loss until that process exits.
+    worker.shutdown(std::net::Shutdown::Both)?;
     drop(worker);
     let result = tab_outcome(&mut first)?;
     assert!(matches!(

@@ -152,6 +152,10 @@ fn lost_worker_after_delivery_returns_unknown_and_never_retargets_create_referen
         read_obcn(&mut worker)?,
         CapabilityNodeMessage::AuthorizedTerminalLaunch(_)
     ));
+    // Shut the connection down instead of only closing this descriptor. macOS creates a socket
+    // before marking it close-on-exec, so a process another test spawns in between keeps a copy,
+    // and the Server would not read the Worker's loss until that process exits.
+    worker.shutdown(std::net::Shutdown::Both)?;
     drop(worker);
     assert!(
         matches!(read_server_message(&mut client)?,ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::OutcomeUnknown)
