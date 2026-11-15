@@ -313,8 +313,8 @@ installs, and starts this cohort only when the store holds no usable version
 development package, and macOS and Linux, run this cohort. The cohort and the Web resources stay
 outside `app.asar` as `resources/cohort` and `resources/dist`.
 
-On Windows the test and release commands then make the cohort a signed release directory before
-packaging it: `scripts/package-native-release.mjs` writes its `release.json` for the `stable`
+On Windows and macOS the test and release commands then make the cohort a signed release directory
+before packaging it: `scripts/package-native-release.mjs` writes its `release.json` for the `stable`
 channel, the workspace version (which must equal this package's version) and a build id, and
 `scripts/sign-release-manifest.mjs` signs it. `--build-id <id>` sets the build id, which the release
 workflow passes as `<commit>.<run number>`; otherwise it is `<commit>.local`. `--key-file <absolute
@@ -334,14 +334,23 @@ list with the window, and the release tooling's window archive carries the same 
 signed update feed binds every window file
 ([window archive](../../proposals/platform/automatic-updates.md#window-archive-and-file-list)).
 
+On macOS every package command then signs the packaged application ad hoc
+(`codesign --force --deep --sign -`) and checks it with `codesign --verify --deep --strict`: Apple
+silicon runs no unsigned code, and the packager's renames break Electron's own signatures. The one
+function `signMacApplication` holds the identity, so a Developer ID identity later replaces only it.
+Signing never rewrites the cohort, which `Contents/Resources/cohort` seals as resources: the command
+compares every bundled cohort file with the staged cohort by SHA-256 after signing, checks the four
+programs against `cohort.json`, and checks a signed release directory against its `release.json`,
+and stops on any difference.
+
 All three package commands write beneath their profile-specific directory in `apps/desktop/out/`.
-They do not perform Electron code signing, notarization, publication, or update distribution; the
-Windows installer below is built from the test and release packages.
+They do not perform Developer ID signing, notarization, publication, or update distribution; the
+Windows installer and the macOS disk image below are built from the test and release packages.
 
 ### Windows installer
 
-`pnpm desktop:installer:test` and `pnpm desktop:installer:release` package their profile as above
-and then compile `installer/windows/orchbee.iss` with Inno Setup into
+On Windows, `pnpm desktop:installer:test` and `pnpm desktop:installer:release` package their
+profile as above and then compile `installer/windows/orchbee.iss` with Inno Setup into
 `apps/desktop/out/<profile>/installer/`. Extra arguments after `--` reach `scripts/package.mjs`, for
 example `pnpm desktop:installer:release --build-id <id> --key-env <VARIABLE>`. The compiler is
 `ORCHBEE_INNO_SETUP_COMPILER`, an absolute path to `ISCC.exe`, or else `ISCC.exe` in the default
@@ -425,6 +434,25 @@ with the exit code and output of each Client command. Setup exits 0 on success, 
 from the installation, 10 when the window application was installed but `orchbee install` failed,
 and otherwise with Inno Setup's own codes, such as 2 when cancelled before installing. The
 uninstaller exits 0 when the removal finished and non-zero when it stopped.
+
+### macOS disk image
+
+On macOS, `pnpm desktop:installer:test` and `pnpm desktop:installer:release` package their profile
+as above and then write `apps/desktop/out/<profile>/installer/<name>.dmg` with `hdiutil`: a
+compressed read-only HFS+ image whose volume is named after the application and holds the signed
+application beside an `Applications` link to `/Applications`. `hdiutil verify` checks the image
+before the command reports it. `<platform>` is the signed `release.json`'s token, `macos-aarch64` or
+`macos-x86_64`, so the command names nothing by the host's architecture.
+
+| Profile | Disk image                                       | Application        |
+| ------- | ------------------------------------------------ | ------------------ |
+| release | `Orchbee-<version>-<platform>.dmg`               | `Orchbee.app`      |
+| test    | `ob-test-<home-digest>-<version>-<platform>.dmg` | `Orchbee Test.app` |
+
+The release workflow's form, from a release directory staged and signed in a job of its own, is
+`node apps/desktop/scripts/package.mjs --profile release --installer --cohort <signed cohort>`.
+An ad-hoc signed application is not notarized, so `spctl --assess` rejects it and a browser download
+meets Gatekeeper's Open Anyway steps; a download without the quarantine attribute opens directly.
 
 ### Verification
 
