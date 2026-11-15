@@ -211,6 +211,70 @@ test "resize synchronization adopts a runtime revision that advances after commi
     try std.testing.expect(runtime_geometry.revision > resized.revision);
 }
 
+const TerminalControlCommitProbe = struct {
+    calls: usize = 0,
+    observed: ?terminal_runtime.Geometry = null,
+
+    fn commitScreenSwitch(
+        context: ?*anyopaque,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) void {
+        const self: *TerminalControlCommitProbe = @ptrCast(@alignCast(context.?));
+        std.debug.assert(commitReaderBatch(runtime, "\x1b[?1049h") == .committed);
+        self.calls += 1;
+        self.observed = runtime.geometry();
+    }
+};
+
+// Reader output can commit between the control and the Host's next observation; the
+// terminal and the Host keep running and the reply still names the control's own commit.
+test "terminal control synchronization adopts runtime output committed after the control" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const attachment_id = testId(core_module.AttachmentId, 0x7a);
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x78),
+    );
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    var preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x79),
+        launch_fixture.validated,
+    );
+    defer preparation.deinit();
+    const terminal_id = switch (try aggregate.commitPreparedTerminal(&preparation)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    _ = try aggregate.attach(
+        connection_id,
+        attachment_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = false },
+        false,
+    );
+
+    var probe: TerminalControlCommitProbe = .{};
+    subject.testing.setAfterTerminalControlCommitHook(
+        &aggregate,
+        TerminalControlCommitProbe.commitScreenSwitch,
+        &probe,
+    );
+    defer subject.testing.setAfterTerminalControlCommitHook(&aggregate, null, null);
+    const control = try aggregate.applyTerminalControl(connection_id, attachment_id, .clear);
+
+    try std.testing.expectEqual(@as(usize, 1), probe.calls);
+    const later = probe.observed.?;
+    try std.testing.expect(later.revision > control.revision);
+    try std.testing.expect(later.generation > control.generation);
+    const observed = aggregate.core().findTerminal(terminal_id).?;
+    try std.testing.expectEqual(later.revision, observed.observedRevision());
+    try std.testing.expectEqual(core_module.TerminalPhase.running, observed.phase());
+}
+
 test "configuration and resize preflight preserve Core without a runtime" {
     var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(false) catch unreachable;

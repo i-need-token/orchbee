@@ -125,6 +125,15 @@ pub const testing = if (target_builtin.is_test) struct {
         aggregate.testing_state.after_resize_commit_context = context;
     }
 
+    pub fn setAfterTerminalControlCommitHook(
+        aggregate: *HostRuntimeAggregate,
+        hook: ?*const fn (?*anyopaque, *terminal_runtime.TerminalRuntime) void,
+        context: ?*anyopaque,
+    ) void {
+        aggregate.testing_state.after_terminal_control_commit = hook;
+        aggregate.testing_state.after_terminal_control_commit_context = context;
+    }
+
     pub fn retainedCleanupPending(aggregate: *const HostRuntimeAggregate) bool {
         return aggregate.retainedCleanupPending();
     }

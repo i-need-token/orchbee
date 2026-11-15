@@ -27,6 +27,8 @@ pub const HostRuntimeAggregateTestingState = if (target_builtin.is_test) struct 
     after_configuration_commit_context: ?*anyopaque = null,
     after_resize_commit: ?*const fn (?*anyopaque, *terminal_runtime.TerminalRuntime) void = null,
     after_resize_commit_context: ?*anyopaque = null,
+    after_terminal_control_commit: ?*const fn (?*anyopaque, *terminal_runtime.TerminalRuntime) void = null,
+    after_terminal_control_commit_context: ?*anyopaque = null,
     /// Counts projection-release decisions so disconnect teardown can prove
     /// that each affected terminal is considered at most once.
     projection_release_decisions: usize = 0,

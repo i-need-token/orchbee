@@ -1609,7 +1609,10 @@ at `r'` only when `r' >= r`. An observation at `r` must contain the requested co
 output may commit between the resize and that observation; when it advances to `r' > r`, the newer
 complete geometry and revision are canonical and are copied into Core without rewriting them or
 aborting the Host. The resize acknowledgement continues to identify the accepted request commit at
-`r`, while subsequent projection carries the newer observation.
+`r`, while subsequent projection carries the newer observation. An application clear or reset that
+commits generation `g` and revision `r` follows the same rule: the observation that follows may
+already be at `g' >= g` and `r' >= r` because PTY output committed in between, Core adopts it, and
+the control result still names `g` and `r`.
 
 For each running terminal, the broker grants at most one mutable resize lease. Attachment admission
 retains the immutable `requestResizeLease` fact separately from current ownership, so an exact

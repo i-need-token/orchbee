@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 const core_module = @import("terminal-host-core").state;
 const terminal_runtime = @import("terminal-host-engine").runtime;
 const contracts = @import("contracts.zig");
@@ -25,9 +26,17 @@ pub fn applyTerminalControl(
         error.TerminalRuntimeUnavailable,
         => error.InvalidPhase,
     };
+    if (comptime target_builtin.is_test) {
+        if (self.testing_state.after_terminal_control_commit) |hook| {
+            hook(self.testing_state.after_terminal_control_commit_context, runtime);
+        }
+    }
+    // The PTY reader keeps committing output after the control releases the terminal, so the
+    // observation may already be newer than the control's own commit; Core adopts that newer
+    // state. Both counters only grow under the terminal mutex, so it is never older.
     const observation = self.synchronizeRuntimeObservation(terminal_id, runtime) catch unreachable;
-    std.debug.assert(observation.generation == update.generation);
-    std.debug.assert(observation.revision == update.revision);
+    std.debug.assert(observation.generation >= update.generation);
+    std.debug.assert(observation.revision >= update.revision);
     return .{
         .attachment_id = attachment_id,
         .generation = update.generation,
