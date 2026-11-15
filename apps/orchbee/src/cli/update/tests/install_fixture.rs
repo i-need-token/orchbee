@@ -195,7 +195,7 @@ impl Drop for Fixture {
 pub(super) fn context() -> Context {
     let give_up = Instant::now() + Duration::from_secs(30);
     loop {
-        match ArmedSignals::arm_interrupts() {
+        match ArmedSignals::arm_interrupts_or_inherit() {
             Ok(signals) => {
                 return Context {
                     signals,

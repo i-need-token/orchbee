@@ -4,10 +4,21 @@ use super::NativeSignals;
 use std::io;
 
 /// No signal policy: the invocation keeps its inherited dispositions and never reports a signal.
-#[cfg(target_os = "macos")]
-pub(super) struct Inherited;
+pub(super) struct Inherited {
+    /// The thread's signal mask when the command began, which the owed finalization restores as it
+    /// was, since nothing here changes it.
+    #[cfg(target_os = "linux")]
+    mask: nix::sys::signal::SigSet,
+}
 
-#[cfg(target_os = "macos")]
+/// Keeps the inherited dispositions, recording the thread's signal mask on Linux.
+pub(super) fn inherit() -> io::Result<Box<dyn NativeSignals>> {
+    Ok(Box::new(Inherited {
+        #[cfg(target_os = "linux")]
+        mask: nix::sys::signal::SigSet::thread_get_mask()?,
+    }))
+}
+
 impl NativeSignals for Inherited {
     fn wake(&self) -> Option<orchbee_local_ipc::LocalIo<'_>> {
         None
@@ -22,6 +33,9 @@ impl NativeSignals for Inherited {
         Ok(None)
     }
     fn into_finalization(self: Box<Self>) -> crate::cli::SourceFinalization {
+        #[cfg(target_os = "linux")]
+        return crate::cli::SourceFinalization::new(self.mask);
+        #[cfg(not(target_os = "linux"))]
         crate::cli::SourceFinalization {}
     }
 }

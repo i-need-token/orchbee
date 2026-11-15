@@ -70,13 +70,13 @@ impl ArmedSignals {
         platform::arm().map(Self)
     }
 
-    /// [`Self::arm_interrupts`], except on macOS, which has no signal owner yet: there `SIGINT` and
-    /// `SIGTERM` keep their inherited action and end the invocation at once as `128 + signo`,
-    /// leaving an accepted operation running and writing no document.
+    /// [`Self::arm_interrupts`], except on macOS and Linux, which have no console signal owner yet:
+    /// there `SIGINT` and `SIGTERM` keep their inherited action and end the invocation at once as
+    /// `128 + signo`, leaving an accepted operation running and writing no document.
     pub(super) fn arm_interrupts_or_inherit() -> io::Result<Self> {
-        #[cfg(target_os = "macos")]
-        return Ok(Self(Box::new(platform::Inherited)));
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(windows))]
+        return platform::inherit().map(Self);
+        #[cfg(windows)]
         return Self::arm_interrupts();
     }
 

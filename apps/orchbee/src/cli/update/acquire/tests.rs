@@ -52,11 +52,12 @@ fn curl_stream_limit_and_https_resolution_do_not_silently_degrade() {
         #[cfg(windows)]
         assert_windows_source_compatibility(value, Some(&path));
     }
-    // An absolute POSIX path is a local source only on macOS and Linux.
+    // An absolute POSIX path, one that spells a Windows device path after its slashes included, is
+    // a local source only on macOS and Linux.
     #[cfg(windows)]
-    {
-        assert!(Source::parse("/release.json").is_err());
-        assert_windows_source_compatibility("/release.json", None);
+    for value in ["/release.json", "//?/C:/release.json"] {
+        assert!(Source::parse(value).is_err(), "{value}");
+        assert_windows_source_compatibility(value, None);
     }
     for value in [
         r"\release.json",
@@ -68,7 +69,6 @@ fn curl_stream_limit_and_https_resolution_do_not_silently_degrade() {
         r"\\?\C:\release.json",
         r"\\?\C:/release.json",
         r"\\.\C:\release.json",
-        "//?/C:/release.json",
         "C:/../release.json",
         "C:/feed/../release.json",
         "C:/release\0.json",

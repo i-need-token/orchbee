@@ -399,7 +399,8 @@ struct Settled {
     finalization: Option<super::SourceFinalization>,
 }
 
-/// Arms the console interrupt and builds the run's context, or answers the failure.
+/// Arms the console interrupt, or keeps the inherited signal dispositions on macOS and Linux, and
+/// builds the run's context, or answers the failure.
 fn start(
     capability: super::execution::Capability,
     format: OutputFormat,
@@ -407,7 +408,7 @@ fn start(
 ) -> Result<Context, Box<Output>> {
     super::execution::admit(capability)
         .map_err(|failure| Box::new(failure_output(failure, Some(format), locale)))?;
-    let signals = ArmedSignals::arm_interrupts().map_err(|_| {
+    let signals = ArmedSignals::arm_interrupts_or_inherit().map_err(|_| {
         Box::new(failure_output(
             Failure::new(FailureKind::InternalFailure),
             Some(format),

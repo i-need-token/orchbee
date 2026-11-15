@@ -153,7 +153,7 @@ fn execute(delete_data: bool, caller: Caller, locale: Locale) -> Output {
             return *refusal;
         }
     }
-    let Ok(mut signals) = ArmedSignals::arm_interrupts() else {
+    let Ok(mut signals) = ArmedSignals::arm_interrupts_or_inherit() else {
         return failure_output(
             Failure::new(FailureKind::InternalFailure),
             Some(format),
