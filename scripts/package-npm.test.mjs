@@ -298,7 +298,7 @@ test('the launcher relaunches at most three times in ten seconds', () => {
 	const now = 60_000;
 	for (const [history, step] of [
 		[[now - 9_900, now - 5_000], { step: 'relaunch' }],
-		[[now - 9_900, now - 5_000, now - 100], { step: 'end', status: 75 }],
+		[[now - 9_900, now - 5_000, now - 100], { step: 'end', status: 1 }],
 		[[now - 10_000, now - 5_000, now - 100], { step: 'relaunch' }],
 		[[now - 30_000, now - 20_000, now - 12_000], { step: 'relaunch' }],
 	])

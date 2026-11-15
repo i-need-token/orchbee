@@ -43,7 +43,8 @@ as above and sets no variable. The npm launcher follows the same rule on Windows
   from another launcher does nothing.
 - Status `75`: the Client restored the console and asks for the active version. The launcher reads
   `active.json` again and starts that version with the same command line in the same console, at
-  most three times in ten seconds; a fourth request inside that time ends the launcher with `75`.
+  most three times in ten seconds; a fourth request inside that time ends the launcher with `1`, so
+  no status outside the CLI exit codes reaches the caller.
 - Status `76`: the Client could not join its Session. It uses it in place of the startup failure
   `1` it ends with without a launcher, so a caller still reads `1` once the launcher ends.
 - After every start, the first one or a relaunch, the launcher tells a failed start or join from a

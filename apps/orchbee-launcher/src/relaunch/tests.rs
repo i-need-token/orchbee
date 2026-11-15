@@ -77,7 +77,7 @@ fn a_launcher_relaunches_at_most_three_times_in_ten_seconds() {
     let ago = |seconds: f64| now - Duration::from_secs_f64(seconds);
     for (history, step) in [
         (vec![ago(9.9), ago(5.0)], Next::Relaunch),
-        (vec![ago(9.9), ago(5.0), ago(0.1)], Next::End(75)),
+        (vec![ago(9.9), ago(5.0), ago(0.1)], Next::End(1)),
         (vec![ago(10.0), ago(5.0), ago(0.1)], Next::Relaunch),
         (vec![ago(30.0), ago(20.0), ago(12.0)], Next::Relaunch),
     ] {

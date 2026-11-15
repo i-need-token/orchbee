@@ -94,7 +94,8 @@ pub(crate) enum Next {
 /// The step after `start` came to `outcome`, given the instants of the earlier relaunches. A
 /// relaunch whose new Client fails to start or to join returns to the version it replaced; after a
 /// first start or a return, a failure ends with the Client's status. A fourth relaunch inside ten
-/// seconds is refused, and the launcher ends with the Client's status.
+/// seconds is refused and ends as `STARTUP_FAILURE`, so no status outside the CLI exit codes reaches
+/// the caller.
 pub(crate) fn next(start: Start, outcome: Outcome, relaunches: &[Instant], now: Instant) -> Next {
     match (judge(outcome), outcome) {
         (Verdict::Relaunch, _) => {
@@ -105,7 +106,7 @@ pub(crate) fn next(start: Start, outcome: Outcome, relaunches: &[Instant], now: 
             if recent < RELAUNCH_LIMIT {
                 Next::Relaunch
             } else {
-                Next::End(RELAUNCH)
+                Next::End(STARTUP_FAILURE)
             }
         }
         (Verdict::Failed, _) if start == Start::Relaunch => Next::Return,

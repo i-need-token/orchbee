@@ -304,13 +304,15 @@ export function judgeClientExit(code) {
  * replaced) ended with `code`, given the times of the earlier relaunches: `{ step: 'end', status }`,
  * `{ step: 'unavailable' }`, `{ step: 'relaunch' }`, or `{ step: 'return' }`. A relaunched Client that
  * fails to start or to join returns to the one it replaced; a fourth relaunch inside ten seconds is
- * refused.
+ * refused and ends as a startup failure, so no status outside the CLI exit codes reaches the caller.
  */
 export function nextStart(start, code, relaunches, now) {
 	const verdict = judgeClientExit(code);
 	if (verdict === 'relaunch') {
 		const recent = relaunches.filter((at) => now - at < relaunchWindowMilliseconds).length;
-		return recent < relaunchLimit ? { step: 'relaunch' } : { step: 'end', status: relaunchStatus };
+		return recent < relaunchLimit
+			? { step: 'relaunch' }
+			: { step: 'end', status: startupFailureStatus };
 	}
 	if (verdict === 'failed' && start === 'relaunch') return { step: 'return' };
 	if (code === null) return { step: 'unavailable' };

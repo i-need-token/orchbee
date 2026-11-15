@@ -629,7 +629,8 @@ A click switches the Client it is in; other open Clients keep their own control.
 - A launcher announces the protocol through `ORCHBEE_RELAUNCH_V1`, which carries its own process
   id, and the TUI uses status 75 only when that process is its parent, so a stale inherited variable
   does nothing. Status 75 lies outside the [CLI exit codes](../../docs/cli/output.md#exit-codes). A
-  launcher relaunches at most three times in ten seconds.
+  launcher relaunches at most three times in ten seconds; a fourth request ends it with 1, so 75
+  never reaches the launcher's caller.
 - When the new TUI fails to start or to join, the launcher starts the version it replaced, with the
   same command line, as [make before break](#make-before-break) requires. Chosen: the launcher
   tells a failed start or join by status alone. Under the same parent check, a TUI that cannot join
