@@ -22,7 +22,7 @@ export const zhCNWebsiteCliMessages = {
 	'website.cli.grammar.argument.title': '参数',
 	'website.cli.grammar.argument.body': '这里是要提交的 prompt。',
 	'website.cli.grammar.option.title': '选项',
-	'website.cli.grammar.option.body': '<code>--wait</code> 让命令一直等到 Agent 处理完这个 prompt。',
+	'website.cli.grammar.option.body': '<code>--wait</code> 会等到 Agent 空闲、完成或需要处理。',
 	'website.cli.output.kicker': '输出',
 	'website.cli.output.title': '命令的输出',
 	'website.cli.output.lead': '默认输出给人看的文本。点选一条命令。',

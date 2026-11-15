@@ -23,7 +23,7 @@ export const enUSWebsiteCliMessages = {
 	'website.cli.grammar.argument.body': 'Here, the prompt to submit.',
 	'website.cli.grammar.option.title': 'Option',
 	'website.cli.grammar.option.body':
-		'<code>--wait</code> keeps the command open until the agent has dealt with the prompt.',
+		'<code>--wait</code> keeps the command open until the agent is idle, done, or blocked.',
 	'website.cli.output.kicker': 'output',
 	'website.cli.output.title': 'What the commands print',
 	'website.cli.output.lead': 'Text for people by default. Choose a command.',

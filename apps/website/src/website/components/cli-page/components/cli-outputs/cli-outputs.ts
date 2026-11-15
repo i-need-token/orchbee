@@ -70,8 +70,6 @@ function agentListJson(): OutputLine[] {
 		['    ', key('items'), ': ['],
 		...jsonItem(1, 'claude-code', 'working', 'C:\\demo\\shop-api'),
 		['      },'],
-		...jsonItem(2, 'codex', 'idle', 'C:\\demo\\shop-api'),
-		['      },'],
 		['      ', ELIDED],
 		['    ],'],
 		['    ', key('kind'), ': "listed",'],
