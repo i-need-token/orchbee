@@ -20,3 +20,4 @@ export { websiteHomeMessages } from './website-home';
 export { websiteTerminalMessages } from './website-terminal';
 export { websiteDesktopMessages } from './website-desktop';
 export { websiteCliMessages } from './website-cli';
+export { websiteProductMessages } from './website-product';

@@ -1,0 +1,33 @@
+.panels {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	min-height: 0;
+	padding: var(--ob-ref-length-website-2) var(--ob-ref-length-website-6)
+		var(--ob-ref-length-website-8) var(--ob-ref-length-website-4);
+}
+.column,
+.secondColumn {
+	display: grid;
+	grid-template-rows: minmax(0, 1fr) minmax(0, 0fr);
+	min-height: 0;
+}
+/* Codex's Panel opens below the shell when the command starts it. */
+.column {
+	transition: grid-template-rows var(--ob-sys-motion-duration-website-340)
+		var(--ob-sys-motion-easing-website-split);
+}
+.column[data-open] {
+	grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+.column:not([data-open]) > :last-child {
+	padding: 0;
+	visibility: hidden;
+}
+@container window-fit (max-width: 48rem) {
+	[data-size='full'] .panels {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	[data-size='full'] .secondColumn {
+		display: none;
+	}
+}

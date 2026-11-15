@@ -39,3 +39,5 @@ export { enUSWebsiteDesktopMessages } from './website-desktop';
 export type { WebsiteDesktopMessageId } from './website-desktop';
 export { enUSWebsiteCliMessages } from './website-cli';
 export type { WebsiteCliMessageId } from './website-cli';
+export { enUSWebsiteProductMessages } from './website-product';
+export type { WebsiteProductMessageId } from './website-product';

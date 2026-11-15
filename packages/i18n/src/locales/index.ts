@@ -21,4 +21,5 @@ export {
 	enUSWebsiteTerminalMessages,
 	enUSWebsiteDesktopMessages,
 	enUSWebsiteCliMessages,
+	enUSWebsiteProductMessages,
 } from './en-US';

@@ -28,4 +28,5 @@ export {
 	websiteTerminalMessages,
 	websiteDesktopMessages,
 	websiteCliMessages,
+	websiteProductMessages,
 } from './descriptors';

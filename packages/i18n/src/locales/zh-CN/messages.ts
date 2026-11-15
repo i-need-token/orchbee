@@ -3,6 +3,7 @@ import { zhCNWebsiteHomeMessages } from './website-home';
 import { zhCNWebsiteTerminalMessages } from './website-terminal';
 import { zhCNWebsiteDesktopMessages } from './website-desktop';
 import { zhCNWebsiteCliMessages } from './website-cli';
+import { zhCNWebsiteProductMessages } from './website-product';
 import type { OrchbeeMessageId } from '../en-US';
 import { zhCNAgentIntegrationMessages } from './agent-integrations';
 import { zhCNAgentObservationMessages } from './agent-observation';
@@ -27,6 +28,7 @@ export const zhCNMessages = {
 	...zhCNWebsiteTerminalMessages,
 	...zhCNWebsiteDesktopMessages,
 	...zhCNWebsiteCliMessages,
+	...zhCNWebsiteProductMessages,
 	...zhCNAgentIntegrationMessages,
 	...zhCNAgentObservationMessages,
 	...zhCNAgentStartMessages,

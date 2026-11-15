@@ -3,6 +3,7 @@ import { enUSWebsiteHomeMessages } from './website-home';
 import { enUSWebsiteTerminalMessages } from './website-terminal';
 import { enUSWebsiteDesktopMessages } from './website-desktop';
 import { enUSWebsiteCliMessages } from './website-cli';
+import { enUSWebsiteProductMessages } from './website-product';
 import { enUSApplicationRoutingMessages } from './application-routing';
 import { enUSAgentIntegrationMessages } from './agent-integrations';
 import { enUSAgentObservationMessages } from './agent-observation';
@@ -26,6 +27,7 @@ export const enUSMessages = {
 	...enUSWebsiteTerminalMessages,
 	...enUSWebsiteDesktopMessages,
 	...enUSWebsiteCliMessages,
+	...enUSWebsiteProductMessages,
 	...enUSApplicationRoutingMessages,
 	...enUSAgentIntegrationMessages,
 	...enUSAgentObservationMessages,
