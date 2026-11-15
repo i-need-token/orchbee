@@ -1,4 +1,5 @@
 const target_builtin = @import("builtin");
+const fatal_record = @import("terminal-host-platform").fatal_record;
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const failure_ops = @import("failure.zig");
@@ -104,6 +105,7 @@ pub fn stopWriterAfterOwnershipLoss(self: *state.State) void {
 }
 
 pub fn writerThread(self: *state.State) void {
+    fatal_record.markThread(.@"terminal-input");
     defer {
         self.writer_stopped.store(true, .release);
         self.input_mutex.lock();

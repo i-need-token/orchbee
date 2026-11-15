@@ -30,6 +30,12 @@ ObWindowsLocalServer *ob_windows_local_server_create_instance(
     int *status
 );
 void ob_windows_local_server_destroy(ObWindowsLocalServer *server);
+/* The Win32 code of the last accept or listen failure on `server`, 0 when none was recorded. */
+uint32_t ob_windows_local_server_last_error(const ObWindowsLocalServer *server);
+/* Replaces `primary`'s pipe instance with a new instance of the same pipe after an accept failure,
+ * ending any connection and listen on the old one. The lifetime mutex stays held. Call it only
+ * while no control-lane instance exists. */
+int ob_windows_local_server_renew(ObWindowsLocalServer *primary);
 /* Ends every instance's accept wait, now and until resumed, as a timeout. Each instance waits on
  * an event `primary` owns, so every instance is destroyed before `primary`. */
 void ob_windows_local_server_stop_instances(ObWindowsLocalServer *primary);
@@ -75,6 +81,18 @@ int ob_windows_local_server_write_before(
     uint32_t timeout_ms,
     uint32_t *written_bytes
 );
+/* Starts a write of `buffer`, or continues the one already pending, and waits at most
+ * `timeout_ms` for it. A write still pending returns OK with `written_bytes` 0; the caller then
+ * passes the same buffer again, or cancels, before releasing it. */
+int ob_windows_local_server_write_wait(
+    ObWindowsLocalServer *server,
+    const uint8_t *buffer,
+    uint32_t length,
+    uint32_t timeout_ms,
+    uint32_t *written_bytes
+);
+/* Cancels a pending write and waits until the kernel has released its buffer. */
+void ob_windows_local_server_cancel_write(ObWindowsLocalServer *server);
 void ob_windows_local_server_disconnect(ObWindowsLocalServer *server);
 
 void *ob_windows_local_test_client_connect(const wchar_t *endpoint_id, int *status);

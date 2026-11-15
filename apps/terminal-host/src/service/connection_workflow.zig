@@ -10,6 +10,7 @@ const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_request_context = @import("request_context.zig");
 const host_request_dispatch = @import("request_dispatch.zig");
+const request_failure = @import("request_failure.zig");
 const host_response = @import("response.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 const identifiers = @import("terminal-host-model").identifiers;
@@ -83,8 +84,27 @@ pub const Workflow = struct {
         var outgoing = Outgoing.init(allocator);
         errdefer outgoing.deinit();
 
-        const envelope = protocol.validateTransportEnvelope(record) catch
-            return error.InvalidTransportRecord;
+        const envelope = protocol.validateTransportEnvelope(record) catch |err| {
+            // The record is framed, so the session keeps its place in the stream: an active
+            // session answers an envelope it cannot accept on that request's correlation id.
+            const answerable = switch (err) {
+                error.UnknownRequiredFlag, error.UnknownRequiredMessage, error.InvalidField => true,
+                else => false,
+            };
+            const correlation_id = request_failure.headerCorrelationId(record) orelse
+                return error.InvalidTransportRecord;
+            if (!answerable or connection.* != .active) return error.InvalidTransportRecord;
+            try addFailure(
+                allocator,
+                runtime_aggregate,
+                &outgoing,
+                correlation_id,
+                "invalid-envelope",
+                "request envelope has an unknown required flag or message kind, or conflicting flags",
+                false,
+            );
+            return outgoing;
+        };
         const active: ?*ConnectionState.Active = switch (connection.*) {
             .awaiting_hello => null,
             .active => |*active| active,

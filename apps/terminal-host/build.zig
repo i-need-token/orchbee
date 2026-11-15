@@ -227,6 +227,11 @@ pub fn build(builder: *std.Build) void {
     conpty_options.addOption([]const u8, "console_sha256", conpty_files.get("console").?.object.get("sha256").?.string);
     platform_module.addOptions("windows-conpty-options", conpty_options);
     platform_module.addImport("powershell-startup-options", powershellStartupModule(builder));
+    // The fatal record and the diagnostic log write through one C file on every target.
+    platform_module.addCSourceFile(.{
+        .file = builder.path("src/platform/host_record.c"),
+        .flags = authored_c_flags,
+    });
     const engine_module = builder.createModule(.{
         .root_source_file = builder.path("src/engine/root.zig"),
         .target = target,
@@ -432,6 +437,18 @@ pub fn build(builder: *std.Build) void {
     } else {
         platform_test_options.addOption([]const u8, "retained_descendant_fixture", "");
     }
+    const fatal_record_fixture_module = builder.createModule(.{
+        .root_source_file = builder.path("src/platform/__tests__/fatal_record_fixture.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    fatal_record_fixture_module.addImport("terminal-host-platform", platform_module);
+    const fatal_record_fixture = builder.addExecutable(.{
+        .name = "terminal-host-fatal-record-fixture",
+        .root_module = fatal_record_fixture_module,
+    });
+    platform_test_options.addOptionPath("fatal_record_fixture", fatal_record_fixture.getEmittedBin());
     platform_test_module.addOptions("platform_test_options", platform_test_options);
     const engine_test_module = builder.createModule(.{
         .root_source_file = builder.path("src/engine/__tests__/engine_test.zig"),

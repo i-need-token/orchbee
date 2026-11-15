@@ -18,11 +18,11 @@ pub fn streamModeChangedLocked(
     self: *state.State,
     mode: ghostty_vt.Mode,
     enabled: bool,
-) !void {
+) void {
     if (isMouseMode(mode)) _ = advanceMouseInputEpochLocked(self);
     switch (mode) {
         .synchronized_output => updateSynchronizedOutputLocked(self, enabled),
-        .focus_event => if (enabled) try reportFocusLocked(self),
+        .focus_event => if (enabled) reportFocusLocked(self),
         // The pinned Ghostty handler reports committed geometry when mode
         // 2048 is enabled. Host-driven geometry commits still use
         // `geometryCommittedLocked` below.
@@ -72,28 +72,29 @@ pub fn recoverMouseTrackingAtPromptLocked(self: *state.State) void {
 
 /// Applies the non-parser half of a successful geometry commit. The caller
 /// holds terminal_mutex and has already installed the exact new geometry.
-pub fn geometryCommittedLocked(self: *state.State) !void {
+/// A size report that cannot be queued is dropped and counted.
+pub fn geometryCommittedLocked(self: *state.State) void {
     clearSynchronizedOutputLocked(self);
     if (self.terminal.modes.get(.in_band_size_reports)) {
-        try reportSizeLocked(self);
+        reportSizeLocked(self);
     }
 }
 
 /// Queues the scheme report that a program which enabled mode 2031 needs when the effective
 /// appearance changes. A palette-only edit, or a program that has not enabled 2031, queues nothing.
 /// The caller holds terminal_mutex and has not installed `scheme` yet, because the check compares
-/// against the installed scheme. A notice that cannot be queued is dropped by the caller, and the
+/// against the installed scheme. A notice that cannot be queued is dropped and counted, and the
 /// theme installs anyway.
-pub fn colorSchemeChangingLocked(self: *state.State, scheme: terminal_theme.ColorScheme) !void {
+pub fn colorSchemeChangingLocked(self: *state.State, scheme: terminal_theme.ColorScheme) void {
     if (self.profile.color_scheme == scheme) return;
     if (!self.terminal.modes.get(.report_color_scheme)) return;
     var buffer: [ghostty_vt.device_status.max_color_scheme_report_encode_size]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buffer);
-    try ghostty_vt.device_status.encodeColorSchemeReport(
+    ghostty_vt.device_status.encodeColorSchemeReport(
         &writer,
         engine_profile.reportedColorSchemeFor(scheme),
-    );
-    try terminal_reply.enqueueLocked(self, writer.buffered());
+    ) catch return terminal_reply.noteDropped(self);
+    terminal_reply.enqueueLocked(self, writer.buffered());
 }
 
 /// Follows one reader batch. Only the visible-to-hidden edge opens the wait: a program that keeps
@@ -209,25 +210,25 @@ fn mouseConfigurationActiveLocked(self: *const state.State) bool {
     return false;
 }
 
-fn reportFocusLocked(self: *state.State) !void {
+fn reportFocusLocked(self: *state.State) void {
     var buffer: [terminal_input_encoding.max_focus_bytes]u8 = undefined;
     self.input_mutex.lock();
     defer self.input_mutex.unlock();
-    const encoded = try terminal_input_encoding.encodeFocus(
+    const encoded = terminal_input_encoding.encodeFocus(
         &buffer,
         self.input_ownership.focusedCount() != 0,
-    );
-    try terminal_reply.enqueueInputLocked(self, encoded);
+    ) catch return terminal_reply.noteDropped(self);
+    terminal_reply.enqueueInputLocked(self, encoded);
 }
 
-fn reportSizeLocked(self: *state.State) !void {
+fn reportSizeLocked(self: *state.State) void {
     var buffer: [128]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buffer);
-    try ghostty_vt.size_report.encode(&writer, .mode_2048, .{
+    ghostty_vt.size_report.encode(&writer, .mode_2048, .{
         .cell_height = self.cell_pixel_height,
         .cell_width = self.cell_pixel_width,
         .columns = self.terminal.cols,
         .rows = self.terminal.rows,
-    });
-    try terminal_reply.enqueueLocked(self, writer.buffered());
+    }) catch return terminal_reply.noteDropped(self);
+    terminal_reply.enqueueLocked(self, writer.buffered());
 }

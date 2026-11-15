@@ -6,6 +6,14 @@ const platform = @import("terminal-host-platform");
 const host_service = terminal_host.host_service;
 const launcher_arguments = terminal_host.launcher_arguments;
 const local_ipc = terminal_host.local_ipc;
+const fatal_record = platform.fatal_record;
+
+/// A panic or a processor exception writes the fatal record, once it is armed, and exits with
+/// `fatal_record.exit_code`.
+pub const panic = fatal_record.panic;
+pub const debug = struct {
+    pub const handleSegfault = fatal_record.handleSegfault;
+};
 
 pub fn main(init: std.process.Init) !void {
     // The pinned process.Init has not opened application descriptors or started
@@ -37,8 +45,9 @@ fn writeVersion(io: std.Io) !void {
 }
 
 /// The exit code of a failed Host, which the Worker that started it records: a Host that could not
-/// begin serving names the step, and one whose serving failed names the failure's class. Every
-/// other failure keeps the default error exit code 1.
+/// begin serving names the step, and one whose serving failed names the failure's class. A panic
+/// or processor exception exits with `fatal_record.exit_code` (16). Every other failure keeps the
+/// default error exit code 1.
 const FailureExit = enum(u8) {
     control_signal = 10,
     runtime_directory = 11,
@@ -84,6 +93,23 @@ fn serve(
         }, err);
     };
     defer server.deinit();
+    // The endpoint's lifetime lock is held from here on, so the runtime directory is this Host's.
+    fatal_record.arm(options.runtime_directory);
+    platform.diagnostic_log.arm(options.runtime_directory);
+    fatal_record.markThread(.dispatch);
+    serveHeld(allocator, environment, options, &server) catch |err| {
+        // Recorded before `server.deinit`, while the directory is still held.
+        fatal_record.recordExit(.@"serving-failed", err);
+        return err;
+    };
+}
+
+fn serveHeld(
+    allocator: std.mem.Allocator,
+    environment: *const std.process.Environ.Map,
+    options: launcher_arguments.ServeOptions,
+    server: *local_ipc.LocalServer,
+) !void {
     var service = host_service.HostService.initWithOptions(allocator, .{
         .terminal_defaults = options.terminal_defaults,
         .trace_interactions = environment.contains("ORCHBEE_TERMINAL_HOST_TRACE"),

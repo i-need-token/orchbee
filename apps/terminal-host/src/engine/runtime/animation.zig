@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const fatal_record = @import("terminal-host-platform").fatal_record;
 const thread_sync = @import("terminal-host-platform").thread_sync;
 const failure_ops = @import("failure.zig");
 const scrollback_compression_ops = @import("scrollback_compression.zig");
@@ -57,6 +58,7 @@ pub fn tickLockedAt(self: *state.State, now_milliseconds: u64) error{CounterExha
 }
 
 pub fn animationThread(self: *state.State) void {
+    fatal_record.markThread(.@"terminal-animation");
     if (!self.startup.await()) return;
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();

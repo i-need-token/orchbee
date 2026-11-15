@@ -4,6 +4,7 @@ const target_builtin = @import("builtin");
 
 const candidate_admission = @import("candidate_admission.zig");
 const control_encode = @import("terminal-host-control").encode;
+const diagnostic_log = @import("terminal-host-platform").diagnostic_log;
 const host_connection = @import("connection_workflow.zig");
 const host_event_delivery = @import("event_delivery.zig");
 const host_failure = @import("failure.zig");
@@ -11,6 +12,7 @@ const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_request_dispatch = @import("request_dispatch.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
+const request_failure = @import("request_failure.zig");
 const terminal_configuration = @import("terminal-host-model").configuration;
 
 pub const host_version = build_options.host_version;
@@ -142,6 +144,7 @@ pub const HostService = struct {
     pub fn maintain(self: *HostService) void {
         if (self.lifecycle == .shutting_down) return;
         self.runtime_aggregate.synchronizeRuntimes();
+        diagnostic_log.flush();
     }
 
     pub fn pollEvents(self: *HostService, connection: *const ConnectionState) !Outgoing {
@@ -168,7 +171,31 @@ pub const HostService = struct {
             record,
         );
     }
+
+    /// The typed failure that answers a request whose handling failed with `err`, encoded into
+    /// `storage` from the request's framed `header`; null when the connection closes instead,
+    /// because it is not an active session, the Host is shutting down, or the record cannot be
+    /// answered.
+    pub fn answerFailedRequest(
+        self: *const HostService,
+        connection: *const ConnectionState,
+        header: []const u8,
+        err: anyerror,
+        storage: *[failed_request_answer_bytes]u8,
+    ) ?[]const u8 {
+        if (self.lifecycle == .shutting_down) return null;
+        switch (connection.*) {
+            .active => {},
+            .awaiting_hello, .closing => return null,
+        }
+        const answer = request_failure.classify(err) orelse return null;
+        return request_failure.encode(storage, header, self.runtime_aggregate.hostEpoch().bytes, answer);
+    }
 };
+
+pub const failed_request_answer_bytes = request_failure.answer_bytes;
+/// The request kind a framed header names, for diagnostics.
+pub const requestKind = request_failure.headerKind;
 
 fn scheduleEgressForTesting(
     service: *HostService,

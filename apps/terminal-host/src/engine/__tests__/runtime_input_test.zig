@@ -2367,67 +2367,6 @@ test "in-band size mode reports enable and both geometry commit paths" {
     );
 }
 
-test "mode-effect reply exhaustion fences reader and attachment resize commits" {
-    {
-        const runtime = try createIdleRuntime(.{});
-        defer runtime.destroy();
-        _ = try reserveInput(
-            runtime,
-            max_pending_terminal_reply_bytes,
-            false,
-            .terminal,
-        );
-        try std.testing.expectEqual(
-            ReaderBatchOutcome.runtime_failed,
-            commitReaderBatch(runtime, "\x1b[?2048h"),
-        );
-        try std.testing.expectEqual(
-            subject.RuntimeFailureKind.terminal_reply,
-            runtime.primaryFailure().?,
-        );
-        const runtime_state = runtimeState(runtime);
-        runtime_state.terminal_mutex.lock();
-        defer runtime_state.terminal_mutex.unlock();
-        try std.testing.expect(runtime_state.terminal.modes.get(.in_band_size_reports));
-    }
-
-    {
-        var probe: WriterProbe = .{ .pause_at = .copied };
-        const runtime = try createRuntimeWithHooks(probe.hooks());
-        defer {
-            probe.copied.release();
-            runtime.destroy();
-        }
-        try std.testing.expectEqual(
-            ReaderBatchOutcome.committed,
-            commitReaderBatch(runtime, "\x1b[?2048h"),
-        );
-        var expected: [128]u8 = undefined;
-        const enable_reply = try expectNextQueuedTerminalBytes(
-            runtime,
-            try inBandSizeReport(&expected, runtime.geometry()),
-        );
-        cancelInput(runtime, enable_reply);
-        _ = try reserveInput(
-            runtime,
-            max_pending_terminal_reply_bytes,
-            false,
-            .terminal,
-        );
-        try std.testing.expectError(
-            error.TerminalRuntimeUnavailable,
-            runtime.resizeGeometry(90, 25, 8, 16),
-        );
-        try std.testing.expectEqual(
-            subject.RuntimeFailureKind.terminal_reply,
-            runtime.primaryFailure().?,
-        );
-        const retained = runtime.geometry();
-        try std.testing.expectEqual(@as(u16, 90), retained.columns);
-        try std.testing.expectEqual(@as(u16, 25), retained.rows);
-    }
-}
-
 /// Parks the real writer at its post-copy seam for the first slice of each
 /// observed queue entry so a test can inspect that entry deterministically
 /// while the writer still owns the slice, then releases it to perform the

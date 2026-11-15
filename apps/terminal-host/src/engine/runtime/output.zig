@@ -1,6 +1,7 @@
 const std = @import("std");
 const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
+const fatal_record = @import("terminal-host-platform").fatal_record;
 const output_wake = @import("terminal-host-platform").output_wake;
 const terminal_geometry = @import("terminal-host-model").geometry;
 const terminal_stream = @import("../terminal_stream.zig");
@@ -27,9 +28,7 @@ pub fn writePtyEffect(handler: *ghostty_vt.TerminalStream.Handler, bytes: []cons
     // authoritative: 18t and mode-2048 reports continue with real cells.
     if ((self.cell_pixel_width == 0 or self.cell_pixel_height == 0) and
         isPixelSizeReply(bytes)) return;
-    terminal_reply.enqueueLocked(self, bytes) catch {
-        self.reply_failure_pending = true;
-    };
+    terminal_reply.enqueueLocked(self, bytes);
 }
 
 /// Matches one complete XTWINOPS pixel-size reply: `ESC [ 4 ; h ; w t` (the
@@ -80,9 +79,7 @@ pub fn modeChangedEffect(
     if (mode == .enable_mode_3 and !restoreViewportGeometryEffect(handler)) {
         return false;
     }
-    mode_effects.streamModeChangedLocked(self, mode, enabled) catch {
-        self.reply_failure_pending = true;
-    };
+    mode_effects.streamModeChangedLocked(self, mode, enabled);
     return true;
 }
 
@@ -184,9 +181,7 @@ fn terminalDrivenGeometryEffect(
 
     self.terminal_driven_resize_target = next_geometry;
     if (geometry_changes) {
-        mode_effects.geometryCommittedLocked(self) catch {
-            self.reply_failure_pending = true;
-        };
+        mode_effects.geometryCommittedLocked(self);
         resize_ops.finishResizeEffectLocked(self);
     }
     return true;
@@ -315,7 +310,6 @@ fn commitObservedReaderBatch(
 
     std.debug.assert(!self.reader_commit_in_progress);
     self.reader_commit_in_progress = true;
-    std.debug.assert(!self.reply_failure_pending);
     std.debug.assert(!self.bell_sequence_overflow_pending);
     std.debug.assert(!self.feedback_sequence_overflow_pending);
     std.debug.assert(!self.mouse_input_epoch_exhausted);
@@ -358,7 +352,6 @@ fn commitObservedReaderBatch(
     if (terminal_resize_failed) {
         std.debug.assert(!self.resize_effect_in_flight);
         self.resize_fenced.store(true, .release);
-        self.reply_failure_pending = false;
         self.bell_sequence_overflow_pending = false;
         self.feedback_sequence_overflow_pending = false;
         feedback_ops.abortReaderBatch(self);
@@ -387,17 +380,13 @@ fn commitObservedReaderBatch(
     }
     _ = self.output_batches_since_sync.fetchAdd(1, .release);
 
-    const reply_failed = self.reply_failure_pending;
-    self.reply_failure_pending = false;
-    if (reply_failed) feedback_ops.abortReaderBatch(self) else feedback_ops.commitReaderBatch(self);
+    feedback_ops.commitReaderBatch(self);
     const bell_sequence_overflowed = self.bell_sequence_overflow_pending;
     self.bell_sequence_overflow_pending = false;
     const feedback_sequence_overflowed = self.feedback_sequence_overflow_pending;
     self.feedback_sequence_overflow_pending = false;
     const mouse_input_epoch_exhausted = self.mouse_input_epoch_exhausted;
-    const failure_won = if (reply_failed)
-        failure_ops.closeFailureFenceLocked(self, .terminal_reply)
-    else if (bell_sequence_overflowed)
+    const failure_won = if (bell_sequence_overflowed)
         failure_ops.closeFailureFenceLocked(self, .worker_integrity)
     else if (feedback_sequence_overflowed)
         failure_ops.closeFailureFenceLocked(self, .worker_integrity)
@@ -409,9 +398,8 @@ fn commitObservedReaderBatch(
     if (graphics_changed) animation_ops.requestWakeLocked(self);
     self.terminal_mutex.unlock();
 
-    const outcome: contracts.ReaderBatchOutcome = if (reply_failed or
-        bell_sequence_overflowed or feedback_sequence_overflowed or
-        mouse_input_epoch_exhausted)
+    const outcome: contracts.ReaderBatchOutcome = if (bell_sequence_overflowed or
+        feedback_sequence_overflowed or mouse_input_epoch_exhausted)
         .runtime_failed
     else
         .committed;
@@ -444,6 +432,7 @@ pub fn publishPtyDrained(self: *state.State) bool {
 }
 
 pub fn readerThread(self: *state.State) void {
+    fatal_record.markThread(.@"terminal-output");
     defer notifyReaderStopped(self);
     if (!self.startup.await()) return;
     var buffer: [contracts.max_pty_read_batch_bytes]u8 = undefined;

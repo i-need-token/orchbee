@@ -56,6 +56,7 @@ const FailingThreadSpawner = harness.FailingThreadSpawner;
 const CountingThreadSpawner = harness.CountingThreadSpawner;
 const HookedThreadSpawner = harness.HookedThreadSpawner;
 const createRuntimeWithHooks = harness.createRuntimeWithHooks;
+const GatedPtyProbe = harness.GatedPtyProbe;
 const createRuntimeWithHooksAndCommand = harness.createRuntimeWithHooksAndCommand;
 const waitForWriterStop = harness.waitForWriterStop;
 const createIdleRuntime = harness.createIdleRuntime;
@@ -160,48 +161,44 @@ test "prepared export cancellation commits after an uncontained fatal failure" {
         );
     }
 }
-test "terminal reply failure fences only after its coherent reader batch commits" {
-    var probe: ReaderProbe = .{ .batch = "coherent-reply\x1b[c" };
+test "a terminal reply flood that does not fit is dropped and counted and the terminal keeps running" {
+    var probe: GatedPtyProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
-    defer runtime.destroy();
-    defer probe.batch_read.release();
-    defer probe.batch_finished.release();
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        probe.probe.copied.release();
+        runtime.destroy();
+    }
+    // The real PTY's own startup queries stay unread, so only this test's batches produce replies.
+    probe.reader.wait();
 
-    probe.batch_read.wait();
-    const reply_reservation = try reserveInput(
-        runtime,
-        max_pending_terminal_reply_bytes,
-        false,
-        .terminal,
-    );
-    _ = reply_reservation;
-    var before = try canonicalSnapshot(runtime);
-    defer before.deinit();
+    // An unpublished reservation takes the whole reply budget, so no reply fits.
+    const budget = try reserveInput(runtime, max_pending_terminal_reply_bytes, false, .terminal);
+    defer cancelInput(runtime, budget.identifier);
+    const dropped = &runtimeState(runtime).dropped_terminal_replies;
 
-    probe.batch_read.release();
-    probe.batch_finished.wait();
-    try std.testing.expectEqual(ReaderBatchOutcome.runtime_failed, probe.observedOutcome().?);
-    try std.testing.expect(subject.testing.failureFenced(runtime));
-    try std.testing.expectEqual(
-        subject.RuntimeFailureKind.terminal_reply,
-        runtime.primaryFailure().?,
-    );
+    const query_count = 1000;
+    const flood = "flood\x1b[c" ++ "\x1b[c" ** (query_count - 1);
+    const before = runtime.geometry();
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, flood));
+    try std.testing.expectEqual(before.revision + 1, runtime.geometry().revision);
+    try std.testing.expectEqual(@as(u64, query_count), dropped.load(.monotonic));
 
-    var committed = try canonicalSnapshot(runtime);
-    defer committed.deinit();
-    try std.testing.expectEqual(before.revision + 1, committed.revision);
-    try std.testing.expect(std.mem.indexOf(u8, committed.text, "coherent-reply") != null);
-    try std.testing.expectEqual(@as(u64, 1), runtime.takeOutputBatches());
-    waitForWriterStop(runtime);
-    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    // A mode-effect report that does not fit is dropped too, and its resize still commits.
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b[?2048h"));
+    const enabled_drops = dropped.load(.monotonic);
+    try std.testing.expect(enabled_drops > query_count);
+    _ = try runtime.resizeGeometry(90, 25, 8, 16);
+    try std.testing.expectEqual(@as(u16, 90), runtime.geometry().columns);
+    try std.testing.expectEqual(enabled_drops + 1, dropped.load(.monotonic));
 
-    probe.batch_finished.release();
-    probe.stopped.wait();
-    var frozen = try canonicalSnapshot(runtime);
-    defer frozen.deinit();
-    try std.testing.expectEqual(committed.revision, frozen.revision);
-    try std.testing.expectEqualStrings(committed.text, frozen.text);
-    try std.testing.expectEqual(@as(usize, 1), probe.readCallCount());
+    // The program still runs: no failure, its output commits, and client input is still admitted.
+    try std.testing.expect(runtime.primaryFailure() == null);
+    try std.testing.expect(!subject.testing.failureFenced(runtime));
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "after"));
+    const client = try reserveInput(runtime, 1, false, .client);
+    cancelInput(runtime, client.identifier);
 }
 test "concurrent engine reporters leave the first containment attempt with the fence winner" {
     var probe: ContainmentProbe = .{ .pause_first_attempt = true };

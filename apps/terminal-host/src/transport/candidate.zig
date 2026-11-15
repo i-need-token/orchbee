@@ -16,8 +16,8 @@ const host_service = service_boundary.service;
 /// How long a connection whose final reply is written waits for its peer to close.
 pub const reply_linger_ns = std.time.ns_per_s;
 /// How long a control lane waits for the dispatch thread to apply a posted `drain` or `exit`. The
-/// dispatch thread applies posted requests between two Worker requests, and reading one record and
-/// writing one reply each stop at `connection.record_read_timeout_ns`.
+/// dispatch thread applies posted requests between two Worker requests and whenever it waits for
+/// the Worker to send or take a record, so only one dispatch turn delays a request.
 pub const request_apply_deadline_ns = 2 * connection.record_read_timeout_ns;
 
 pub const Outcome = enum {

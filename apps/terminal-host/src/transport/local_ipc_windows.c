@@ -42,6 +42,12 @@ struct ObWindowsLocalServer {
      * connects between two waits is accepted by the next one instead of being disconnected. */
     OVERLAPPED listen;
     BOOL listening;
+    /* A Worker-session write may stay pending across waits; the caller keeps its buffer alive
+     * until the write completes or is cancelled. */
+    OVERLAPPED write;
+    BOOL write_pending;
+    /* The Win32 code of the last accept or listen failure, for the Host's diagnostic log. */
+    DWORD last_error;
     BOOL connected;
     /* A pipe server can impersonate its client only after reading from the pipe, so the peer's
      * identity is checked when its first byte arrives; nothing is written to it before. */
@@ -90,8 +96,15 @@ static int ob_wait_for_overlapped(
     return OB_WINDOWS_IPC_OK;
 }
 
+static void ob_windows_local_server_cancel_pending_write(ObWindowsLocalServer *server) {
+    if (!server->write_pending) return;
+    ob_cancel_overlapped(server->pipe, &server->write);
+    server->write_pending = FALSE;
+}
+
 /* Ends the accepted connection, if any; an armed listen stays armed. */
 static void ob_windows_local_server_end_connection(ObWindowsLocalServer *server) {
+    ob_windows_local_server_cancel_pending_write(server);
     if (server->read_state == OB_WINDOWS_READ_PENDING) {
         ob_cancel_overlapped(server->pipe, &server->readiness_read);
     }
@@ -323,9 +336,12 @@ static ObWindowsLocalServer *ob_windows_local_server_open_instance(
     }
     server->readiness_read.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     server->listen.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (server->readiness_read.hEvent == NULL || server->listen.hEvent == NULL) {
+    server->write.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (server->readiness_read.hEvent == NULL || server->listen.hEvent == NULL ||
+        server->write.hEvent == NULL) {
         if (server->readiness_read.hEvent != NULL) CloseHandle(server->readiness_read.hEvent);
         if (server->listen.hEvent != NULL) CloseHandle(server->listen.hEvent);
+        if (server->write.hEvent != NULL) CloseHandle(server->write.hEvent);
         HeapFree(GetProcessHeap(), 0, server);
         CloseHandle(pipe);
         HeapFree(GetProcessHeap(), 0, token_user);
@@ -455,6 +471,7 @@ void ob_windows_local_server_destroy(ObWindowsLocalServer *server) {
         server->listening = FALSE;
     }
     ob_windows_local_server_end_connection(server);
+    CloseHandle(server->write.hEvent);
     CloseHandle(server->listen.hEvent);
     CloseHandle(server->readiness_read.hEvent);
     CloseHandle(server->pipe);
@@ -465,6 +482,34 @@ void ob_windows_local_server_destroy(ObWindowsLocalServer *server) {
     }
     HeapFree(GetProcessHeap(), 0, server->token_user);
     HeapFree(GetProcessHeap(), 0, server);
+}
+
+uint32_t ob_windows_local_server_last_error(const ObWindowsLocalServer *server) {
+    return (uint32_t)server->last_error;
+}
+
+int ob_windows_local_server_renew(ObWindowsLocalServer *primary) {
+    int status = OB_WINDOWS_IPC_SYSTEM_ERROR;
+    // The new instance exists before the old one closes, so the pipe name is never free for
+    // another process to claim between the two.
+    ObWindowsLocalServer *fresh = ob_windows_local_server_create_instance(primary, &status);
+    if (fresh == NULL) {
+        primary->last_error = GetLastError();
+        return status;
+    }
+    if (primary->listening) {
+        ob_cancel_overlapped(primary->pipe, &primary->listen);
+        primary->listening = FALSE;
+    }
+    ob_windows_local_server_end_connection(primary);
+    HANDLE old_pipe = primary->pipe;
+    primary->pipe = fresh->pipe;
+    fresh->pipe = old_pipe;
+    // `fresh` borrowed the primary's stop event; destroying it closes only the old pipe, its own
+    // events and its identity copy.
+    fresh->accept_wake = NULL;
+    ob_windows_local_server_destroy(fresh);
+    return OB_WINDOWS_IPC_OK;
 }
 
 void ob_windows_local_server_stop_instances(ObWindowsLocalServer *primary) {
@@ -564,7 +609,10 @@ static int ob_windows_local_server_listen(
     HANDLE listen_event = server->listen.hEvent;
     ZeroMemory(&server->listen, sizeof(server->listen));
     server->listen.hEvent = listen_event;
-    if (!ResetEvent(listen_event)) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    if (!ResetEvent(listen_event)) {
+        server->last_error = GetLastError();
+        return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    }
     if (ConnectNamedPipe(server->pipe, &server->listen)) {
         *client_connected = TRUE;
         return OB_WINDOWS_IPC_OK;
@@ -582,6 +630,7 @@ static int ob_windows_local_server_listen(
             (void)DisconnectNamedPipe(server->pipe);
             return OB_WINDOWS_IPC_CONNECTION_CLOSED;
         default:
+            server->last_error = listen_error;
             return ob_connection_status(listen_error);
     }
 }
@@ -594,6 +643,7 @@ static int ob_windows_local_server_accept_with_timeout(
     DWORD timeout_ms
 ) {
     ob_windows_local_server_end_connection(server);
+    server->last_error = ERROR_SUCCESS;
     for (;;) {
         BOOL client_connected = FALSE;
         if (!server->listening) {
@@ -609,7 +659,10 @@ static int ob_windows_local_server_accept_with_timeout(
             (event_count == 2 && wait_result == WAIT_OBJECT_0 + 1)) {
             return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
         }
-        if (wait_result != WAIT_OBJECT_0) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+        if (wait_result != WAIT_OBJECT_0) {
+            server->last_error = wait_result == WAIT_FAILED ? GetLastError() : wait_result;
+            return OB_WINDOWS_IPC_SYSTEM_ERROR;
+        }
         server->listening = FALSE;
         DWORD ignored = 0;
         if (GetOverlappedResult(server->pipe, &server->listen, &ignored, FALSE)) break;
@@ -617,6 +670,7 @@ static int ob_windows_local_server_accept_with_timeout(
         // Windows cancels a thread's pending I/O when the thread exits, so a listen armed by an
         // earlier caller's thread is armed again here.
         if (listen_error == ERROR_OPERATION_ABORTED) continue;
+        server->last_error = listen_error;
         (void)DisconnectNamedPipe(server->pipe);
         return ob_connection_status(listen_error);
     }
@@ -869,6 +923,49 @@ int ob_windows_local_server_write_before(
         return OB_WINDOWS_IPC_CONNECTION_CLOSED;
     }
     return OB_WINDOWS_IPC_OK;
+}
+
+int ob_windows_local_server_write_wait(
+    ObWindowsLocalServer *server,
+    const uint8_t *buffer,
+    uint32_t length,
+    uint32_t timeout_ms,
+    uint32_t *written_bytes
+) {
+    *written_bytes = 0;
+    if (!server->peer_verified) return OB_WINDOWS_IPC_CONNECTION_CLOSED;
+    if (!server->write_pending) {
+        HANDLE write_event = server->write.hEvent;
+        ZeroMemory(&server->write, sizeof(server->write));
+        server->write.hEvent = write_event;
+        if (!ResetEvent(write_event)) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+        const BOOL completed = WriteFile(server->pipe, buffer, length, NULL, &server->write);
+        if (!completed) {
+            const DWORD start_error = GetLastError();
+            if (start_error != ERROR_IO_PENDING) return ob_connection_status(start_error);
+            server->write_pending = TRUE;
+        }
+    }
+    if (server->write_pending) {
+        const DWORD wait_result = WaitForSingleObject(server->write.hEvent, timeout_ms);
+        if (wait_result == WAIT_TIMEOUT) return OB_WINDOWS_IPC_OK;
+        if (wait_result != WAIT_OBJECT_0) {
+            ob_windows_local_server_cancel_pending_write(server);
+            return OB_WINDOWS_IPC_SYSTEM_ERROR;
+        }
+        server->write_pending = FALSE;
+    }
+    DWORD transferred = 0;
+    if (!GetOverlappedResult(server->pipe, &server->write, &transferred, FALSE)) {
+        return ob_connection_status(GetLastError());
+    }
+    if (transferred == 0 || transferred > length) return OB_WINDOWS_IPC_CONNECTION_CLOSED;
+    *written_bytes = (uint32_t)transferred;
+    return OB_WINDOWS_IPC_OK;
+}
+
+void ob_windows_local_server_cancel_write(ObWindowsLocalServer *server) {
+    ob_windows_local_server_cancel_pending_write(server);
 }
 
 void ob_windows_local_server_disconnect(ObWindowsLocalServer *server) {

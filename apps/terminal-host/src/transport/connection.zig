@@ -2,6 +2,7 @@ const std = @import("std");
 
 const handshake = @import("terminal-host-handshake");
 const host_service = @import("terminal-host-service").service;
+const diagnostic_log = @import("terminal-host-platform").diagnostic_log;
 const monotonic = @import("terminal-host-platform").monotonic;
 const protocol = @import("terminal-protocol");
 const candidate = @import("candidate.zig");
@@ -138,25 +139,155 @@ fn serveSession(
                 else => return err,
             };
             defer outgoing.deinit();
-            try writeOutgoing(transport, outgoing.records());
+            try writeSession(transport, outgoing.records(), service, lanes);
             if (connection.shouldClose()) return;
             continue;
         }
 
-        var events = try service.pollEvents(&connection);
+        var events = events: {
+            var turn = TurnClock.start();
+            defer turn.finish(.events);
+            break :events try service.pollEvents(&connection);
+        };
         defer events.deinit();
-        try writeOutgoing(transport, events.records());
+        try writeSession(transport, events.records(), service, lanes);
 
         if (!try transport.waitReadable()) continue;
-        const record = try readRecordMaintaining(service.allocator, transport, service);
-        defer service.allocator.free(record);
-        var outgoing = service.handle(&connection, record) catch |err| switch (err) {
-            error.InvalidTransportRecord => return error.ConnectionClosed,
-            else => return err,
-        };
-        defer outgoing.deinit();
-        try writeOutgoing(transport, outgoing.records());
+        switch (try readSessionRecord(service.allocator, transport, service, lanes)) {
+            .record => |record| {
+                defer service.allocator.free(record);
+                var turn = TurnClock.start();
+                const handled = service.handle(&connection, record);
+                turn.finish(.{ .request = host_service.requestKind(record) orelse 0 });
+                var outgoing = handled catch |err| {
+                    try answerFailedRequest(transport, service, &connection, record, err, lanes);
+                    continue;
+                };
+                defer outgoing.deinit();
+                try writeSession(transport, outgoing.records(), service, lanes);
+            },
+            .unheld => |header| try answerFailedRequest(
+                transport,
+                service,
+                &connection,
+                &header,
+                error.OutOfMemory,
+                lanes,
+            ),
+        }
         if (connection.shouldClose()) return;
+    }
+}
+
+/// Answers one request that could not be carried out on its own correlation id, so the session
+/// serves the next request; a failure that cannot be answered closes the connection.
+fn answerFailedRequest(
+    transport: anytype,
+    service: *host_service.HostService,
+    connection: *const host_service.ConnectionState,
+    header: []const u8,
+    err: anyerror,
+    lanes: anytype,
+) !void {
+    var storage: [host_service.failed_request_answer_bytes]u8 = undefined;
+    const answer = service.answerFailedRequest(connection, header, err, &storage) orelse
+        return if (err == error.InvalidTransportRecord) error.ConnectionClosed else err;
+    std.log.warn("answering a terminal Host request that failed: {s}", .{@errorName(err)});
+    try writeSession(transport, &.{answer}, service, lanes);
+}
+
+/// Times one dispatch turn for the diagnostic log; a missing clock records nothing.
+const TurnClock = struct {
+    timer: ?monotonic.Timer,
+
+    fn start() TurnClock {
+        return .{ .timer = monotonic.Timer.start() catch null };
+    }
+
+    fn finish(self: *TurnClock, turn: diagnostic_log.Turn) void {
+        const timer = if (self.timer) |*value| value else return;
+        diagnostic_log.slowTurn(turn, timer.read());
+    }
+};
+
+/// Writes an active session's records. The session has no write deadline: while the Worker is
+/// not reading, the Host keeps maintaining terminals and applying control requests, and closes
+/// only when the pipe breaks, a write fails, or an `exit` becomes due, which cancels the write
+/// partway and so ends the stream.
+fn writeSession(
+    transport: anytype,
+    records: []const []const u8,
+    service: *host_service.HostService,
+    lanes: anytype,
+) !void {
+    if (!@hasDecl(@TypeOf(transport.*), "writeSome")) return writeOutgoing(transport, records);
+    for (records) |record| {
+        errdefer transport.cancelPendingWrite();
+        var offset: usize = 0;
+        while (offset < record.len) {
+            const written = try transport.writeSome(record[offset..], poll_interval_ms);
+            if (written != 0) {
+                offset += written;
+                continue;
+            }
+            lanes.serve(service);
+            service.maintain();
+            if (service.controlExitDue()) return error.ConnectionClosed;
+        }
+    }
+}
+
+const SessionRecord = union(enum) {
+    record: []u8,
+    /// A whole record the Host had no memory to hold; only its header was kept.
+    unheld: [protocol.transport_envelope_header_bytes]u8,
+};
+
+/// Reads one record of an active session. Like its writes, the read has no deadline once the
+/// header began: the Host keeps maintaining terminals and applying control requests meanwhile.
+fn readSessionRecord(
+    allocator: std.mem.Allocator,
+    transport: anytype,
+    service: *host_service.HostService,
+    lanes: anytype,
+) !SessionRecord {
+    var header: [protocol.transport_envelope_header_bytes]u8 = undefined;
+    try readSessionBytes(transport, &header, service, lanes);
+    const total_length = protocol.transportRecordLength(&header) catch return error.ConnectionClosed;
+    const record = allocator.alloc(u8, total_length) catch {
+        // The stream stays framed: discard the body so the next record starts where it should.
+        var discard: [4096]u8 = undefined;
+        var remaining = total_length - header.len;
+        while (remaining != 0) {
+            const length = @min(remaining, discard.len);
+            try readSessionBytes(transport, discard[0..length], service, lanes);
+            remaining -= length;
+        }
+        return .{ .unheld = header };
+    };
+    errdefer allocator.free(record);
+    @memcpy(record[0..header.len], &header);
+    try readSessionBytes(transport, record[header.len..], service, lanes);
+    return .{ .record = record };
+}
+
+fn readSessionBytes(
+    transport: anytype,
+    bytes: []u8,
+    service: *host_service.HostService,
+    lanes: anytype,
+) !void {
+    var offset: usize = 0;
+    while (offset < bytes.len) {
+        service.maintain();
+        if (!try transport.waitReadable()) {
+            lanes.serve(service);
+            if (service.controlExitDue()) return error.ConnectionClosed;
+            continue;
+        }
+        const length = transport.read(bytes[offset..]) catch return error.ConnectionClosed;
+        if (length == 0) return error.ConnectionClosed;
+        offset += length;
     }
 }
 
@@ -173,34 +304,8 @@ pub fn serveAcceptedConnection(
     };
 }
 
-pub fn serveUntilIdleLoop(
-    server: anytype,
-    service: anytype,
-    comptime recoverable_failure: fn (anyerror) bool,
-) !void {
-    var completed_accept = false;
-    while (true) {
-        // `drain` or `exit` can end the Host before its Worker arrives as well as after.
-        if (service.controlExitDue()) return;
-        if (!completed_accept) {
-            // A control request answered before the Worker arrives keeps the Host waiting.
-            const served: Served = server.serveOne(service) catch |err| served: {
-                if (!recoverable_failure(err)) return err;
-                break :served .worker;
-            };
-            completed_accept = served != .control_request;
-            continue;
-        }
-        service.maintain();
-        if (service.canStopWhenIdle()) return;
-        const served = server.serveOneBefore(service, poll_interval_ms) catch |err| {
-            if (!recoverable_failure(err)) return err;
-            continue;
-        };
-        _ = served;
-    }
-}
-
+/// Writes records with one deadline for the batch: the bound for a connection that is not yet,
+/// or never becomes, the Worker's session.
 pub fn writeOutgoing(transport: anytype, records: []const []const u8) !void {
     var timer = monotonic.Timer.start() catch return error.ConnectionClosed;
     var deadline = try Deadline.init(&timer, record_read_timeout_ns);
@@ -215,16 +320,6 @@ pub fn writeOutgoing(transport: anytype, records: []const []const u8) !void {
 
 pub fn readRecord(allocator: std.mem.Allocator, transport: anytype) ![]u8 {
     return readRecordWithTimeout(allocator, transport, record_read_timeout_ns);
-}
-
-fn readRecordMaintaining(
-    allocator: std.mem.Allocator,
-    transport: anytype,
-    service: *host_service.HostService,
-) ![]u8 {
-    var timer = monotonic.Timer.start() catch return error.ConnectionClosed;
-    var deadline = try Deadline.init(&timer, record_read_timeout_ns);
-    return readRecordBeforeMaintaining(allocator, transport, &deadline, service);
 }
 
 pub fn readRecordWithTimeout(

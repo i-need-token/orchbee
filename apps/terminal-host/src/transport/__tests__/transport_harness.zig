@@ -254,6 +254,11 @@ pub fn expectOfferAnswered(client: anytype) !void {
 }
 
 pub fn expectHandshakeAccepted(client: *TestClient) !void {
+    _ = try openWorkerSession(client);
+}
+
+/// Completes the offer and the Hello, and returns the session's HostEpoch.
+pub fn openWorkerSession(client: *TestClient) ![16]u8 {
     try expectOfferAnswered(client);
     const hello_payload = try std.fmt.allocPrint(
         std.testing.allocator,
@@ -281,6 +286,7 @@ pub fn expectHandshakeAccepted(client: *TestClient) !void {
     defer std.testing.allocator.free(response_record);
     const response = try protocol.validateTransportEnvelope(response_record);
     try std.testing.expectEqual(@as(u16, 2), response.kind);
+    return response.host_epoch orelse error.TestMissingHostEpoch;
 }
 
 pub const ServeThreadContext = struct {

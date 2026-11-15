@@ -45,9 +45,9 @@ pub fn applyTheme(
     }
 
     // The notice is queued before the theme installs, because its check compares against the
-    // installed scheme. A notice that cannot be queued is dropped instead of failing the terminal:
-    // the theme still installs, and a program that queries CSI ? 996 n reads the new scheme.
-    mode_effects.colorSchemeChangingLocked(self, next_theme.color_scheme) catch {};
+    // installed scheme. A notice that cannot be queued is dropped and counted instead of failing
+    // the terminal: the theme still installs, and a program that queries CSI ? 996 n reads the new scheme.
+    mode_effects.colorSchemeChangingLocked(self, next_theme.color_scheme);
     self.profile.applyTheme(&self.terminal, next_theme);
     const revision = current_revision + 1;
     self.revision.store(revision, .release);

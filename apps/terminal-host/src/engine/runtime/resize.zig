@@ -167,13 +167,7 @@ pub fn resizeGeometry(
     self.generation = next_generation;
     self.revision.store(revision, .release);
     self.history.generationChanged(&self.terminal, revision, self.generation);
-    mode_effects.geometryCommittedLocked(self) catch {
-        const won = failure_ops.closeFailureFenceLocked(self, .terminal_reply);
-        finishResizeEffectLocked(self);
-        self.terminal_mutex.unlock();
-        if (won) failure_ops.finishFailureFence(self);
-        return error.TerminalRuntimeUnavailable;
-    };
+    mode_effects.geometryCommittedLocked(self);
     finishResizeEffectLocked(self);
     self.terminal_mutex.unlock();
     completion_ops.markNormalCompletionReady(self);

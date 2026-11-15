@@ -203,8 +203,15 @@ A Host that cannot begin serving exits `10` when the Windows control-signal prep
 `11` when the runtime directory was refused as not private, `12` when another Host holds the
 endpoint and `13` when the endpoint could not be created. A Host whose serving failed after
 releasing its endpoint exits `14` when a client failed the same-user check that ends a Windows
-Host, and `15` when a Windows local IPC call failed. Invalid arguments and every other failure
-keep exit code `1`.
+Host, and `15` when a Windows local IPC call failed. A Host that panicked or took a processor
+exception exits `16`. Invalid arguments and every other failure keep exit code `1`.
+
+Once it holds its endpoint, the Host writes two files in the runtime directory. `host-fatal.json`
+is the one closed record a fatal exit leaves: role, kind, reason class, error name, thread kind,
+module offset, process ID, and time, never program output, titles, paths, or peer bytes.
+`host-diagnostics.jsonl` records the faults the Host survives: accept failures with their system
+code, dispatch turns over 250 ms, and dropped terminal replies, bounded at 256 KiB. The
+[runtime model](docs/runtime-model.md#fatal-record-and-diagnostic-log) owns both formats.
 
 `--scrollback-bytes` sets the startup default for newly created terminals. The current default is 10,000,000 decimal bytes; accepted values range from `0` through `1,000,000,000`. A broker may replace the process default for later terminals or supply an explicit configuration when creating one. Zero disables retained scrollback.
 

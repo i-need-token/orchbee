@@ -151,6 +151,65 @@ test "accept timeouts continue Host maintenance without a broker" {
     try std.testing.expectEqual(@as(usize, 2), service.maintenance_calls);
     try std.testing.expectEqual(@as(usize, 2), server.calls);
 }
+test "an accept failure while terminals are retained renews the endpoint and keeps serving" {
+    const FailingAcceptServer = struct {
+        before_calls: usize = 0,
+        renewals: usize = 0,
+
+        pub fn serveOne(_: *@This(), _: *host_service.HostService) !Served {
+            return .worker;
+        }
+
+        pub fn serveOneBefore(self: *@This(), service: *host_service.HostService, _: u32) !bool {
+            self.before_calls += 1;
+            switch (self.before_calls) {
+                1 => return error.WindowsIpcFailure,
+                2 => return false,
+                else => {
+                    // The loop served on after the failure; an `exit` ends the test run.
+                    _ = service.applyControlRequest(.exit);
+                    return false;
+                },
+            }
+        }
+
+        pub fn lastSystemCode(_: *const @This()) ?u32 {
+            return 233;
+        }
+
+        pub fn renewAfterAcceptFailure(self: *@This()) void {
+            self.renewals += 1;
+        }
+    };
+    const never_recoverable = struct {
+        fn check(_: anyerror) bool {
+            return false;
+        }
+    }.check;
+
+    var service = host_service.HostService.init(std.testing.allocator);
+    defer service.deinit();
+    const core = harness.serviceCore(&service);
+    const setup_connection: u64 = 9;
+    _ = try core.connect(setup_connection, host_core.ClientId.fromBytes([_]u8{1} ** 16));
+    const terminal_id = host_core.TerminalId.fromBytes([_]u8{3} ** 16);
+    _ = try createModel(
+        core,
+        setup_connection,
+        host_core.CreationId.fromBytes([_]u8{2} ** 16),
+        terminal_id,
+        [_]u8{4} ** 32,
+        80,
+        24,
+    );
+    _ = core.disconnect(setup_connection);
+    var server: FailingAcceptServer = .{};
+
+    try serveUntilIdleLoop(&server, &service, never_recoverable);
+    try std.testing.expectEqual(@as(usize, 3), server.before_calls);
+    try std.testing.expectEqual(@as(usize, 1), server.renewals);
+    try std.testing.expect(core.findTerminal(terminal_id) != null);
+}
 test "Windows IPC transfer adapters reject invalid C boundary lengths" {
     try std.testing.expectEqual(@as(u32, 4096), try checkedWindowsBufferLength(4096));
     if (@sizeOf(usize) > @sizeOf(u32)) {

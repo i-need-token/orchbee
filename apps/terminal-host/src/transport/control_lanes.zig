@@ -7,6 +7,7 @@
 
 const std = @import("std");
 
+const fatal_record = @import("terminal-host-platform").fatal_record;
 const monotonic = @import("terminal-host-platform").monotonic;
 const service_boundary = @import("terminal-host-service");
 const candidate = @import("candidate.zig");
@@ -85,6 +86,7 @@ pub fn ControlLanes(comptime Endpoint: type) type {
         }
 
         fn run(self: *Self, index: usize) void {
+            fatal_record.markThread(.@"control-lane");
             defer self.finished[index].store(true, .release);
             var lane = Endpoint.Lane.open(&self.endpoint) catch |err| {
                 std.log.warn("terminal Host control lane could not listen: {s}", .{@errorName(err)});

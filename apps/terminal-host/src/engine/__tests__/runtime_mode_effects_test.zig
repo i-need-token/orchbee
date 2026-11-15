@@ -222,7 +222,7 @@ test "mode 40 PTY restore failure fences before Ghostty geometry mutation" {
     try std.testing.expectEqual(@as(u16, 100), calls[2].next.columns);
 }
 
-test "mode 2048 reports exact mode 40 geometry and fences a dropped restore report" {
+test "mode 2048 reports exact mode 40 geometry" {
     var probe: GatedPtyProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
     probe.runtime = runtime;
@@ -231,8 +231,6 @@ test "mode 2048 reports exact mode 40 geometry and fences a dropped restore repo
         probe.probe.copied.release();
         runtime.destroy();
     }
-    // Native startup mode effects must not consume the reply quota before
-    // the deliberately dropped restore report exercises the failure fence.
     probe.reader.wait();
     var expected: [128]u8 = undefined;
 
@@ -268,22 +266,6 @@ test "mode 2048 reports exact mode 40 geometry and fences a dropped restore repo
         runtime,
         try inBandSizeReport(&expected, restored),
     ));
-
-    try std.testing.expectEqual(
-        ReaderBatchOutcome.committed,
-        commitReaderBatch(runtime, "\x1b[?40h\x1b[?3h"),
-    );
-    cancelInput(runtime, try expectNextQueuedTerminalBytes(
-        runtime,
-        try inBandSizeReport(&expected, runtime.geometry()),
-    ));
-    _ = try reserveInput(runtime, max_pending_terminal_reply_bytes, false, .terminal);
-    try std.testing.expectEqual(
-        ReaderBatchOutcome.runtime_failed,
-        commitReaderBatch(runtime, "\x1b[?40l"),
-    );
-    try std.testing.expectEqual(subject.RuntimeFailureKind.terminal_reply, runtime.primaryFailure().?);
-    try std.testing.expectEqual(@as(u16, 100), runtime.geometry().columns);
 }
 
 test "pixel size queries have no reply while cell queries still answer under unknown pixels" {

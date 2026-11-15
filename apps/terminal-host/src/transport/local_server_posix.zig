@@ -8,6 +8,7 @@ const posix_compat = @import("terminal-host-platform").posix_compat;
 const thread_sync = @import("terminal-host-platform").thread_sync;
 const connection = @import("connection.zig");
 const control_lanes = @import("control_lanes.zig");
+const serve_loop = @import("serve_loop.zig");
 
 pub const endpoint_security = @import("posix_endpoint_security.zig");
 
@@ -64,6 +65,32 @@ const Connection = if (builtin.os.tag == .windows) void else struct {
             offset += written;
         }
     }
+
+    /// Writes part of `bytes`, waiting at most `wait_ms` for room; zero when none was made.
+    pub fn writeSome(self: *Connection, bytes: []const u8, wait_ms: u32) !usize {
+        var descriptors = [_]std.posix.pollfd{.{
+            .fd = self.stream.socket.handle,
+            .events = std.posix.POLL.OUT,
+            .revents = 0,
+        }};
+        if (try std.posix.poll(&descriptors, @intCast(wait_ms)) == 0) return 0;
+        if (descriptors[0].revents & (std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL) != 0) {
+            return error.ConnectionClosed;
+        }
+        const written = posix_compat.send(
+            self.stream.socket.handle,
+            bytes,
+            send_flags,
+        ) catch |err| switch (err) {
+            error.WouldBlock => return 0,
+            else => return error.ConnectionClosed,
+        };
+        if (written == 0) return error.ConnectionClosed;
+        return written;
+    }
+
+    /// A POSIX send never stays pending.
+    pub fn cancelPendingWrite(_: *Connection) void {}
 
     pub fn waitReadable(self: *Connection) !bool {
         var descriptors = [_]std.posix.pollfd{
@@ -221,7 +248,7 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
     }
 
     pub fn serveUntilIdle(self: *Server, service: *host_service.HostService) !void {
-        return connection.serveUntilIdleLoop(self, service, struct {
+        return serve_loop.serveUntilIdleLoop(self, service, struct {
             fn recoverable(err: anyerror) bool {
                 return err == error.PeerIdentityMismatch;
             }

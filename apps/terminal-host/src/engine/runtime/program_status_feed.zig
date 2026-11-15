@@ -21,9 +21,7 @@ pub fn feedLocked(self: *state.State, bytes: []const u8) void {
             .query => |terminator| terminal_reply.enqueueLocked(self, switch (terminator) {
                 .bel => "\x1b]7501;?\x07",
                 .st => "\x1b]7501;?\x1b\\",
-            }) catch {
-                self.reply_failure_pending = true;
-            },
+            }),
             .report => |body| switch (program_status.parse(body) orelse continue) {
                 .clear => self.program_status_staged = null,
                 .set => |reported| self.program_status_staged = .{

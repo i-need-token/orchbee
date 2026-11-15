@@ -6,6 +6,7 @@ const monotonic = @import("terminal-host-platform").monotonic;
 const output_wake = @import("terminal-host-platform").output_wake;
 const connection = @import("connection.zig");
 const control_lanes = @import("control_lanes.zig");
+const serve_loop = @import("serve_loop.zig");
 
 const windows_c = if (builtin.os.tag == .windows) @cImport({
     @cInclude("local_ipc_windows.h");
@@ -53,11 +54,22 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn serveUntilIdle(self: *Server, service: *host_service.HostService) !void {
-        return connection.serveUntilIdleLoop(self, service, struct {
+        return serve_loop.serveUntilIdleLoop(self, service, struct {
             fn recoverable(err: anyerror) bool {
                 return err == error.ConnectionClosed;
             }
         }.recoverable);
+    }
+
+    /// The Win32 code of the last accept failure, 0 when none was recorded.
+    pub fn lastSystemCode(self: *const Server) ?u32 {
+        return windows_c.ob_windows_local_server_last_error(self.handle);
+    }
+
+    /// Replaces the pipe instance after an accept failure; the lifetime mutex stays held. A
+    /// failure keeps the old instance, and the next accept reports it again.
+    pub fn renewAfterAcceptFailure(self: *Server) void {
+        _ = windows_c.ob_windows_local_server_renew(self.handle);
     }
 
     pub fn serveOne(self: *Server, service: *host_service.HostService) !connection.Served {
@@ -121,6 +133,25 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
             ));
             offset += try checkedTransfer(written_bytes, remaining);
         }
+    }
+
+    /// Writes part of `bytes`, waiting at most `wait_ms`. Zero means the write is still pending:
+    /// the caller passes the same bytes again, or calls `cancelPendingWrite`, before releasing them.
+    pub fn writeSome(self: *Server, bytes: []const u8, wait_ms: u32) !usize {
+        var written_bytes: u32 = 0;
+        try requireStatus(windows_c.ob_windows_local_server_write_wait(
+            self.handle,
+            bytes.ptr,
+            try checkedBufferLength(bytes.len),
+            wait_ms,
+            &written_bytes,
+        ));
+        if (written_bytes > bytes.len) return error.ConnectionClosed;
+        return written_bytes;
+    }
+
+    pub fn cancelPendingWrite(self: *Server) void {
+        windows_c.ob_windows_local_server_cancel_write(self.handle);
     }
 
     pub fn waitReadable(self: *Server) !bool {

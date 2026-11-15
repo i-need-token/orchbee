@@ -627,6 +627,195 @@ test "dispatch resource failure closes only the accepted connection" {
         serviceCore(&service).findTerminal(host_core.TerminalId.fromBytes([_]u8{3} ** 16)) != null,
     );
 }
+/// Refuses every allocation of `refused_bytes` or more, so a request that large cannot be held.
+const LargeAllocationRefusal = struct {
+    parent: std.mem.Allocator,
+    refused_bytes: usize,
+
+    fn allocator(self: *@This()) std.mem.Allocator {
+        return .{ .ptr = self, .vtable = &.{
+            .alloc = alloc,
+            .resize = resize,
+            .remap = remap,
+            .free = free,
+        } };
+    }
+
+    fn alloc(context: *anyopaque, len: usize, alignment: std.mem.Alignment, ra: usize) ?[*]u8 {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        if (len >= self.refused_bytes) return null;
+        return self.parent.rawAlloc(len, alignment, ra);
+    }
+
+    fn resize(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, len: usize, ra: usize) bool {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        if (len >= self.refused_bytes) return false;
+        return self.parent.rawResize(memory, alignment, len, ra);
+    }
+
+    fn remap(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, len: usize, ra: usize) ?[*]u8 {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        if (len >= self.refused_bytes) return null;
+        return self.parent.rawRemap(memory, alignment, len, ra);
+    }
+
+    fn free(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, ra: usize) void {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        self.parent.rawFree(memory, alignment, ra);
+    }
+};
+
+/// One Worker session on a real local endpoint, served on its own thread.
+const SessionFixture = struct {
+    runtime: TestRuntimeDirectory,
+    server: LocalServer,
+    context: ServeThreadContext,
+    thread: ThreadJoinGuard,
+    client: TestClient,
+    client_open: bool = true,
+    host_epoch: [16]u8,
+
+    fn start(self: *SessionFixture, service: *host_service.HostService, endpoint_id: []const u8) !void {
+        self.runtime = try TestRuntimeDirectory.init(std.testing.allocator);
+        errdefer self.runtime.deinit();
+        self.server = try LocalServer.init(std.testing.allocator, self.runtime.path(), endpoint_id);
+        errdefer self.server.deinit();
+        self.context = .{ .server = &self.server, .service = service };
+        self.thread = ThreadJoinGuard.init(try std.Thread.spawn(.{}, serveTestConnection, .{&self.context}));
+        errdefer self.thread.join();
+        self.client = try TestClient.connect(&self.server, std.testing.allocator, endpoint_id);
+        self.client_open = true;
+        errdefer self.client.close();
+        self.host_epoch = try harness.openWorkerSession(&self.client);
+    }
+
+    /// Sends one request and returns its reply, which must answer `correlation_id`.
+    fn exchange(self: *SessionFixture, record: []const u8, correlation_id: [16]u8) ![]u8 {
+        try self.client.writeAll(record);
+        const reply = try readRecord(std.testing.allocator, &self.client);
+        errdefer std.testing.allocator.free(reply);
+        const envelope = try protocol.validateTransportEnvelope(reply);
+        try std.testing.expect(envelope.response);
+        try std.testing.expectEqualSlices(u8, &correlation_id, &envelope.correlation_id.?);
+        return reply;
+    }
+
+    /// Shows the session still serves: a ping is answered with its own success.
+    fn expectPingServed(self: *SessionFixture) !void {
+        const correlation_id = [_]u8{0x5a} ** 16;
+        const ping = try protocol.encodeTransportEnvelope(
+            std.testing.allocator,
+            protocol.MessageKind.ping,
+            .control_json,
+            "{}",
+            correlation_id,
+            self.host_epoch,
+            false,
+            false,
+        );
+        defer std.testing.allocator.free(ping);
+        const reply = try self.exchange(ping, correlation_id);
+        defer std.testing.allocator.free(reply);
+        const envelope = try protocol.validateTransportEnvelope(reply);
+        try std.testing.expectEqual(protocol.MessageKind.ping, envelope.kind);
+    }
+
+    fn finish(self: *SessionFixture) !void {
+        self.client.close();
+        self.client_open = false;
+        self.thread.join();
+        self.server.deinit();
+        self.runtime.deinit();
+        if (self.context.failure) |failure| return failure;
+    }
+
+    fn abandon(self: *SessionFixture) void {
+        if (self.client_open) self.client.close();
+        self.client_open = false;
+        self.thread.join();
+        self.server.deinit();
+        self.runtime.deinit();
+    }
+};
+
+fn expectTypedFailure(reply: []const u8, code: []const u8, retryable: bool) !void {
+    const envelope = try protocol.validateTransportEnvelope(reply);
+    try std.testing.expectEqual(protocol.MessageKind.typed_failure, envelope.kind);
+    const quoted_code = try std.fmt.allocPrint(std.testing.allocator, "\"code\":\"{s}\"", .{code});
+    defer std.testing.allocator.free(quoted_code);
+    try std.testing.expect(std.mem.indexOf(u8, envelope.payload, quoted_code) != null);
+    const retry = if (retryable) "\"retryable\":true" else "\"retryable\":false";
+    try std.testing.expect(std.mem.indexOf(u8, envelope.payload, retry) != null);
+}
+
+test "a request too large to hold is answered resource-exhausted and the session serves the next" {
+    const payload_bytes = 512 * 1024;
+    var refusal: LargeAllocationRefusal = .{
+        .parent = std.testing.allocator,
+        .refused_bytes = payload_bytes,
+    };
+    var service = host_service.HostService.init(refusal.allocator());
+    defer service.deinit();
+    var session: SessionFixture = undefined;
+    try session.start(&service, "dddddddddddddddddddddddddddddddd");
+    var finished = false;
+    defer if (!finished) session.abandon();
+
+    const payload = try std.testing.allocator.alloc(u8, payload_bytes);
+    defer std.testing.allocator.free(payload);
+    @memset(payload, 0);
+    const correlation_id = [_]u8{0x51} ** 16;
+    const large = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        protocol.MessageKind.write_input,
+        .raw_bytes,
+        payload,
+        correlation_id,
+        session.host_epoch,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(large);
+    const reply = try session.exchange(large, correlation_id);
+    defer std.testing.allocator.free(reply);
+    try expectTypedFailure(reply, "resource-exhausted", true);
+    try session.expectPingServed();
+
+    finished = true;
+    try session.finish();
+}
+
+test "an envelope with an unknown required flag is answered invalid-envelope and the session serves the next" {
+    var service = host_service.HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var session: SessionFixture = undefined;
+    try session.start(&service, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+    var finished = false;
+    defer if (!finished) session.abandon();
+
+    const correlation_id = [_]u8{0x52} ** 16;
+    const flagged = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        protocol.MessageKind.ping,
+        .control_json,
+        "{}",
+        correlation_id,
+        session.host_epoch,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(flagged);
+    // A required flag this Host does not know.
+    std.mem.writeInt(u16, flagged[6..8], 0x0100, .little);
+    const reply = try session.exchange(flagged, correlation_id);
+    defer std.testing.allocator.free(reply);
+    try expectTypedFailure(reply, "invalid-envelope", false);
+    try session.expectPingServed();
+
+    finished = true;
+    try session.finish();
+}
+
 test "failed response handoff destroys the broker but preserves retained terminals" {
     const hello_payload = try std.fmt.allocPrint(
         std.testing.allocator,

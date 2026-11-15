@@ -119,10 +119,9 @@ pub const State = struct {
     projection: terminal_projection.Projection,
     projection_mutex: thread_sync.Mutex = .{},
     pty_drained: std.atomic.Value(bool) = .init(false),
-    // Ghostty may discover a reply-admission failure synchronously while a
-    // reader batch is being parsed. terminal_mutex protects this deferred
-    // marker until the complete batch has committed coherently.
-    reply_failure_pending: bool = false,
+    // Terminal-generated replies that could not be queued and were dropped;
+    // a reply never fails the terminal.
+    dropped_terminal_replies: std.atomic.Value(u64) = .init(0),
     // A failed Ghostty resize may leave its internal screen state undefined.
     // Once set, no new terminal work is admitted and the owner must tear down
     // the runtime instead of attempting to continue with mixed geometry.

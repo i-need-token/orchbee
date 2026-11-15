@@ -1,4 +1,5 @@
 comptime {
+    _ = @import("fatal_record_test.zig");
     _ = @import("process_test.zig");
     _ = @import("windows_launch_test.zig");
     _ = @import("windows_environment_test.zig");

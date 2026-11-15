@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const connection = @import("connection.zig");
 const control_lanes = @import("control_lanes.zig");
 const posix = @import("local_server_posix.zig");
+const serve_loop = @import("serve_loop.zig");
 const windows = @import("local_server_windows.zig");
 
 pub const LocalServer = switch (builtin.os.tag) {
@@ -31,7 +32,7 @@ pub const testing = if (builtin.is_test) struct {
     }
     pub const serveConnectionFn = connection.serveConnection;
     pub const serveConnectionWithHandshakeTimeoutFn = connection.serveConnectionWithHandshakeTimeout;
-    pub const serveUntilIdleLoopFn = connection.serveUntilIdleLoop;
+    pub const serveUntilIdleLoopFn = serve_loop.serveUntilIdleLoop;
     pub const writeOutgoingFn = connection.writeOutgoing;
     pub const WindowsServerType = windows.Server;
     pub const windowsStatusErrorFn = windows.statusError;
