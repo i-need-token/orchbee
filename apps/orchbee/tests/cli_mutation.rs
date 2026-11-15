@@ -1237,7 +1237,7 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
     let document = envelope(&moved);
     assert_eq!(document["result"]["action"], "panel.move");
     assert_eq!(document["result"]["outcome"], "committed");
-    assert_eq!(document["result"]["direction"], "down");
+    assert_eq!(document["result"]["direction"], "below");
     assert_eq!(document["result"]["panelId"], LEFT_PANEL);
     assert_eq!(document["result"]["targetPanelId"], RIGHT_PANEL);
     peer.join().expect("peer finished");
@@ -1307,7 +1307,7 @@ fn tab_and_panel_move_report_unchanged() -> TestResult {
     assert_eq!(document["result"]["action"], "panel.move");
     assert_eq!(document["result"]["outcome"], "unchanged");
     assert_eq!(document["result"]["revision"], "7");
-    assert_eq!(document["result"]["direction"], "up");
+    assert_eq!(document["result"]["direction"], "above");
     peer.join().expect("peer finished");
     Ok(())
 }
