@@ -5,7 +5,7 @@ import { desktopPageActivations } from './components/desktop-page/activations';
 import { homePageActivations } from './components/home-page/activations';
 import { activateLattice } from './components/lattice/activateLattice';
 import { activateLanguageLinks } from './language-link/activateLanguageLinks';
-import { activateNumberedMarks } from './components/numbered-marks/activateNumberedMarks';
+import { activateNumberedMarks } from './components/numbered-mark/activateNumberedMarks';
 import { activateReveal } from './components/page-shell/activateReveal';
 import { activatePanelPlay } from './components/panel-play/activatePanelPlay';
 import { activateSessionScene } from './components/session-scene/activateSessionScene';

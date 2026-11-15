@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 
 import { richText } from '../../../../rich-text';
 import { DetailSection } from '../../../detail-section/DetailSection';
-import { MarkScope, NumberedMark } from '../../../numbered-marks/NumberedMarks';
+import { NumberedMark } from '../../../numbered-mark/NumberedMark';
 import styles from './CliGrammar.module.css';
 
 // One command line taken apart: each part, in order, with the note that names it. The command is
@@ -28,7 +28,7 @@ export function CliGrammar(): ReactElement {
 			title={t(messages.grammarTitle)}
 			lead={t(messages.grammarLead)}
 		>
-			<MarkScope>
+			<div data-marks=''>
 				<div className={styles['figure']} data-reveal=''>
 					<div className={styles['line']}>
 						<span className={styles['program']}>orchbee</span>
@@ -53,7 +53,7 @@ export function CliGrammar(): ReactElement {
 						</li>
 					))}
 				</ol>
-			</MarkScope>
+			</div>
 		</DetailSection>
 	);
 }

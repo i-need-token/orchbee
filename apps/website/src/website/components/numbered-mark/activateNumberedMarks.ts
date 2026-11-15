@@ -1,8 +1,8 @@
 import type { ActivationContext } from '../../activation';
 
-// Lights every element of a MarkScope that names the same mark while one of them is under the
-// pointer or a note has keyboard focus. Notes become focusable here, because focusing them only
-// means something once script lights their parts.
+// Lights every element of a `data-marks` scope that names the same mark while one of them is under
+// the pointer or a note has keyboard focus. Notes become focusable here, because focusing them
+// only means something once script lights their parts.
 export function activateNumberedMarks({ document }: ActivationContext): void {
 	for (const scope of document.querySelectorAll<HTMLElement>('[data-marks]')) {
 		const targets = [...scope.querySelectorAll<HTMLElement>('[data-mark]')];
