@@ -190,8 +190,9 @@ peer would never see it close. On macOS, `RetainedChild` therefore starts its ch
 private `src/retained_spawn_native.rs` adapter, this crate's second authored unsafe boundary, with
 `POSIX_SPAWN_CLOEXEC_DEFAULT`: the child receives only `/dev/null` as its three standard streams.
 It otherwise keeps the standard library's launch: `/` as the working directory, the parent's
-environment without the relaunch protocol's variable (and with the given `PATH`), the parent's
-signal mask and `SIGPIPE` at its default action. The executable must be an absolute path. Linux
+environment without the relaunch protocol's variable (and with the given `PATH`), an empty signal
+mask and `SIGPIPE` at its default action, so a signal the spawning thread blocks still reaches the
+child. The executable must be an absolute path. Linux
 creates these descriptors close-on-exec atomically and keeps the standard library's spawn; Windows
 is unchanged. Short-lived commands, such as Git or `run_unix_command`, keep the standard library's
 spawn too, because they end before any caller waits on a peer end they might hold.

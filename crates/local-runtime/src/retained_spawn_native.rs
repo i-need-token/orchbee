@@ -1,6 +1,7 @@
 //! The reviewed macOS adapter that starts a retained child through `posix_spawn` with
 //! `POSIX_SPAWN_CLOEXEC_DEFAULT`, so the child receives only the standard streams its file actions
-//! open, and that reaps the child. macOS marks a new socket or pipe close-on-exec only after
+//! open, and that reaps the child. Like the standard library's spawn, it also clears the child's
+//! signal mask and resets `SIGPIPE` to its default action. macOS marks a new socket or pipe close-on-exec only after
 //! creating it, so without that flag a descriptor another thread is creating at that moment would
 //! reach the child and outlive this process's own use of it. [`crate::retained_child`] is the only
 //! caller; the crate README's safety contract lists every invariant the unsafe blocks below rely on.
@@ -25,8 +26,9 @@ unsafe extern "C" {
 const NULL_DEVICE: &CStr = c"/dev/null";
 
 /// Starts `executable` with `arguments` after it in its argument vector, exactly `environment`,
-/// `directory` as its working directory, `/dev/null` as its three standard streams, `SIGPIPE` at its
-/// default action and this thread's signal mask. It inherits no other descriptor. Returns the
+/// `directory` as its working directory, `/dev/null` as its three standard streams, an empty signal
+/// mask and `SIGPIPE` at its default action, whatever this thread blocks or ignores. It inherits no
+/// other descriptor. Returns the
 /// child's process identifier; the caller reaps it through [`wait`].
 pub(crate) fn spawn(
     executable: &Path,
@@ -59,8 +61,13 @@ pub(crate) fn spawn(
     actions.open_null(libc::STDERR_FILENO, libc::O_WRONLY)?;
     actions.change_directory(&directory)?;
     let mut attributes = Attributes::new()?;
+    attributes.empty_signal_mask()?;
     attributes.default_pipe_signal()?;
-    attributes.set_flags(libc::POSIX_SPAWN_CLOEXEC_DEFAULT | libc::POSIX_SPAWN_SETSIGDEF)?;
+    attributes.set_flags(
+        libc::POSIX_SPAWN_CLOEXEC_DEFAULT
+            | libc::POSIX_SPAWN_SETSIGMASK
+            | libc::POSIX_SPAWN_SETSIGDEF,
+    )?;
 
     let mut process: libc::pid_t = 0;
     // SAFETY: `program` and every string the two vectors point to outlive the call; both vectors
@@ -162,6 +169,24 @@ impl Attributes {
         status(unsafe { libc::posix_spawnattr_init(attributes.as_mut_ptr()) })?;
         // SAFETY: a successful init initialized `attributes`.
         Ok(Self(unsafe { attributes.assume_init() }))
+    }
+
+    /// Gives the child an empty signal mask, as the standard library's spawn does, so a signal the
+    /// spawning thread blocks, such as `SIGTERM` around a signal-handling thread, still reaches it;
+    /// the flag `POSIX_SPAWN_SETSIGMASK` applies it.
+    fn empty_signal_mask(&mut self) -> io::Result<()> {
+        let mut signals = MaybeUninit::<libc::sigset_t>::uninit();
+        // SAFETY: both calls receive a pointer to a signal set owned here; sigemptyset initializes
+        // it before posix_spawnattr_setsigmask reads it, and that call copies it.
+        unsafe {
+            if libc::sigemptyset(signals.as_mut_ptr()) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            status(libc::posix_spawnattr_setsigmask(
+                &raw mut self.0,
+                signals.as_ptr(),
+            ))
+        }
     }
 
     /// Resets `SIGPIPE` to its default action in the child, as the standard library's spawn does;
