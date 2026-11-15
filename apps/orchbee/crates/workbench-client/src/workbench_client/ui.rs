@@ -2315,12 +2315,17 @@ impl WorkbenchClientUi {
 
     pub(super) fn observe_focus(&mut self, focused: bool) {
         self.inherit_host_focus(Some(focused));
+        if focused {
+            self.observe_foreground(false);
+        }
     }
     pub(super) fn observe_keyboard(&mut self) {
         // Windows Terminal can route keys before its FocusIn bytes. A later identical report
         // must preserve this activation and its unsent keys.
-        self.inherit_host_focus(Some(true));
-        self.focus_control.keyboard();
+        self.observe_foreground(true);
+    }
+    pub(super) fn observe_pointer_press(&mut self) {
+        self.observe_foreground(true);
     }
     pub(super) fn inherit_host_focus(&mut self, focused: Option<bool>) {
         if self.outer_focused != focused {
@@ -3119,6 +3124,7 @@ impl WorkbenchClientUi {
         probe.focus = state.focus_pane_ref();
         probe.desired = state.desired().cloned();
         probe.viewport_non_live = self.focus_viewport_non_live();
+        probe.control_claim = self.focus_claim_settling();
         probe.panes = state
             .pane_facts()
             .map(|(record, attached, mode)| PointerPane {

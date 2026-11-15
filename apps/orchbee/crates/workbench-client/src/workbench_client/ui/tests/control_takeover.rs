@@ -290,6 +290,109 @@ fn an_unknown_focus_transfer_does_not_loop_and_a_later_activation_can_reconcile_
     assert!(!ui.drive_focus_control());
 }
 
+/// Two TUIs of one Session: this one's host already reported focus, its focus-out never came,
+/// and another Client took the terminal. Raw host bytes through the real dispatcher and the
+/// production port still claim the size: a repeated FocusIn, a click, or a typed key, which
+/// waits for the claim instead of reaching the old controller.
+#[test]
+fn a_viewer_with_stale_host_focus_claims_the_size_from_raw_focus_click_or_key() {
+    use crate::terminal_input::InputDispatcher;
+    use crate::workbench_client::{ClientBackend, WorkbenchClient};
+    fn dispatch(
+        dispatcher: &mut InputDispatcher,
+        view: &mut ClientView,
+        client: &mut WorkbenchClient,
+        bytes: &[u8],
+    ) {
+        dispatcher
+            .dispatch(
+                view,
+                bytes,
+                client,
+                std::time::Instant::now(),
+                |_, _| Ok::<bool, std::io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+    }
+    for evidence in [
+        b"\x1b[I".as_slice(),
+        b"\x1b[<0;10;5M\x1b[<0;10;5m".as_slice(),
+        b"x".as_slice(),
+    ] {
+        let (ui, mailbox, clock, _) = ready_ui();
+        let (shutdown, _peer) = orchbee_local_ipc::LocalStream::pair().unwrap();
+        let mut client = WorkbenchClient {
+            position_writer: None,
+            position_startup: None,
+            configuration: None,
+            notifications: None,
+            window_title: None,
+            terminal_titles: None,
+            client_control: None,
+            backend: ClientBackend::Native(Box::new(ui)),
+            task: None,
+            shutdown: crate::local_client::test_support::server::shutdown_handle(shutdown),
+            retirement_redraw_pending: false,
+            origin: None,
+            recovery_shutdown: None,
+        };
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(120);
+
+        dispatch(&mut dispatcher, &mut view, &mut client, b"\x1b[I");
+        let ui = client.backend.native_mut().unwrap();
+        assert!(ui.drive_focus_control(), "the first FocusIn claims");
+        let lease = mailbox.try_recv().unwrap().unwrap();
+        let QueuedCommand::Refresh(marker) = lease.record() else {
+            panic!("focus claim");
+        };
+        let operation = marker.takeover().unwrap().clone();
+        mailbox
+            .mark_refresh_in_flight(operation.generation)
+            .unwrap();
+        let lost = TakeoverEvidence {
+            operation: operation.clone(),
+            result: TakeoverResult::Lost(ControllerId::parse(&"77".repeat(16)).unwrap()),
+        };
+        assert!(mailbox.retain_takeover_result(&operation, lost.result.clone()));
+        let wait = mailbox
+            .publish_event_before(
+                WorkerEvent::ControlTakeoverResult { evidence: lost },
+                EventDeadline::PlacementOnly(operation.deadlines.forward_cutoff()),
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+        assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+        mailbox.finish_lease(lease).unwrap();
+        assert_eq!(
+            ui.state.as_ref().unwrap().controller_mode(),
+            Some(&ControllerMode::ReadOnly)
+        );
+        assert!(!ui.drive_focus_control(), "nothing claims again by itself");
+
+        dispatch(&mut dispatcher, &mut view, &mut client, evidence);
+        let ui = client.backend.native_mut().unwrap();
+        assert!(ui.drive_focus_control(), "{evidence:?} claims the size");
+        let lease = mailbox.try_recv().unwrap().unwrap();
+        let QueuedCommand::Refresh(marker) = lease.record() else {
+            panic!("{evidence:?}: the claim comes before any input");
+        };
+        let claim = marker.takeover().unwrap();
+        assert!(claim.automatic);
+        assert_eq!(
+            Some(&claim.key),
+            ui.state.as_ref().unwrap().focus_pane_ref().as_ref()
+        );
+        assert!(
+            mailbox.try_recv().unwrap().is_none(),
+            "{evidence:?}: typing waits for the claim"
+        );
+        assert_eq!(view.notice(), None, "{evidence:?}: no refusal is shown");
+    }
+}
+
 #[test]
 fn focus_activation_queues_one_transfer_and_focus_loss_cancels_unsubmitted_intent() {
     let (mut ui, mailbox, _, _) = ready_ui();

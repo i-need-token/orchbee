@@ -1296,46 +1296,50 @@ fn pane_press_on_reminted_incarnation_drops_without_focus() {
 fn pane_press_can_focus_a_readonly_tracking_pane_without_application_input() {
     // Read focus is independent of the exact pane's application-input mode.
     // Even a contradictory global input-ready flag cannot admit tracked
-    // program bytes through a settled ReadOnly leaf.
-    let mut pointer = PointerState::default();
-    pointer.set_capture(true);
-    let mut view = ClientView::new(120);
-    let mut port = RecordingPort {
-        probe: {
-            let mut probe = active_probe(0, 0, 1, 2);
-            set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, Some(false), true));
-            probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
-            probe
-        },
-        ..RecordingPort::default()
-    };
-    publish_two_panel_map(&mut pointer);
-    assert!(
-        pointer
-            .event(&mut view, &mut port, now(), press(2, 2))
-            .handled()
-    );
-    assert_eq!(
-        view.notice(),
-        Some(crate::client_view::Notice::PointerInputDropped)
-    );
-    assert_eq!(port.actions, [ClientAction::FocusPanel(panel_id(2))]);
-    assert_eq!(port.probe.focus, Some(pane_ref(1, 1, 2, 0)));
-    assert!(port.forwarded.is_empty());
-    assert!(port.selections.is_empty());
-    assert!(matches!(pointer.gesture, Gesture::Idle));
+    // program bytes through a settled ReadOnly leaf. While this Client claims
+    // the terminal, the press has done its job and reports no failure.
+    for control_claim in [false, true] {
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        let mut view = ClientView::new(120);
+        let mut port = RecordingPort {
+            probe: {
+                let mut probe = active_probe(0, 0, 1, 2);
+                set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, Some(false), true));
+                probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
+                probe.control_claim = control_claim;
+                probe
+            },
+            ..RecordingPort::default()
+        };
+        publish_two_panel_map(&mut pointer);
+        assert!(
+            pointer
+                .event(&mut view, &mut port, now(), press(2, 2))
+                .handled()
+        );
+        assert_eq!(
+            view.notice(),
+            (!control_claim).then_some(crate::client_view::Notice::PointerInputDropped)
+        );
+        assert_eq!(port.actions, [ClientAction::FocusPanel(panel_id(2))]);
+        assert_eq!(port.probe.focus, Some(pane_ref(1, 1, 2, 0)));
+        assert!(port.forwarded.is_empty());
+        assert!(port.selections.is_empty());
+        assert!(matches!(pointer.gesture, Gesture::Idle));
 
-    // A title press on the now-focused read-only pane remains quiet.
-    port.actions.clear();
-    let mut view = ClientView::new(120);
-    assert!(
-        !pointer
-            .event(&mut view, &mut port, now(), press(2, 0))
-            .handled()
-    );
-    assert_eq!(view.notice(), None);
-    assert!(port.actions.is_empty());
-    assert!(matches!(pointer.gesture, Gesture::Idle));
+        // A title press on the now-focused read-only pane remains quiet.
+        port.actions.clear();
+        let mut view = ClientView::new(120);
+        assert!(
+            !pointer
+                .event(&mut view, &mut port, now(), press(2, 0))
+                .handled()
+        );
+        assert_eq!(view.notice(), None);
+        assert!(port.actions.is_empty());
+        assert!(matches!(pointer.gesture, Gesture::Idle));
+    }
 }
 
 #[test]

@@ -77,8 +77,9 @@ by Claude; parity requires its controller, focus and geometry projections to con
 
 Only the controller's surface sizes the terminal. A transfer or Server promotion restores that
 controller's recorded content geometry; afterwards its surface changes resize it. A focus
-activation may request a transfer. A routed key can supply foreground evidence before the
-emulator's delayed focus report; ordinary input submission, selection and observation grant no
+activation may request a transfer. A routed key or a button press is foreground evidence: it
+starts that activation before the emulator's delayed focus report, and for a Viewer whose focus
+report was missed or repeated; ordinary input submission, selection and observation grant no
 authority themselves.
 A takeover leaves the old controller an ordinary Viewer. A Viewer keeps the controller's grid and adapts locally: a smaller
 surface shows the cells around the visible cursor, or the bottom-left corner while the cursor is

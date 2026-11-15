@@ -81,6 +81,9 @@ pub enum TerminalObservation {
     InputIntent,
     /// Input routed to the terminal proves keyboard delivery even if FocusIn arrives later.
     KeyboardIntent,
+    /// A button press reached this Client: like routed keys, it proves the host window is in
+    /// front even if FocusIn arrives later or never. Wheel and motion are not presses.
+    PointerPress,
     /// The host window changed size: painted close, rename, setup and worktree decisions stay
     /// stale until their next draw.
     DisplayInvalidated,
@@ -217,6 +220,10 @@ pub struct PointerProbe {
     /// wheel gestures over it scroll locally instead of encoding to the
     /// pane. Read fresh per event, like every other probe fact.
     pub(crate) viewport_non_live: bool,
+    /// This Client is claiming the focused terminal: a focus activation is armed, or its
+    /// transfer has not settled. A program press that cannot reach the pane yet has already
+    /// claimed it and is not a failure.
+    pub(crate) control_claim: bool,
 }
 
 impl PointerProbe {
@@ -558,6 +565,7 @@ pub struct PointerProbeFixture {
     pub tabs: Vec<PointerTab>,
     pub frame: Option<PointerFrameFacts>,
     pub viewport_non_live: bool,
+    pub control_claim: bool,
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -574,6 +582,7 @@ impl From<PointerProbeFixture> for PointerProbe {
             tabs,
             frame,
             viewport_non_live,
+            control_claim,
         } = fixture;
         Self {
             input_captured,
@@ -586,6 +595,7 @@ impl From<PointerProbeFixture> for PointerProbe {
             tabs,
             frame,
             viewport_non_live,
+            control_claim,
         }
     }
 }

@@ -91,6 +91,16 @@ impl WorkbenchClientState {
     pub(crate) fn takeover_pending(&self) -> bool {
         self.takeover.pending.is_some()
     }
+    /// A transfer is in flight, or the focused pane's new grant still waits for its first
+    /// compatible frame.
+    pub(crate) fn takeover_settling(&self) -> bool {
+        self.takeover_pending()
+            || self
+                .takeover
+                .awaiting_frame
+                .as_ref()
+                .is_some_and(|key| self.focus_pane_ref().as_ref() == Some(key))
+    }
     fn focus_retains_grant(&self) -> bool {
         // A focus observation is not a transfer while the accepted grant and geometry remain
         // ours. Input stays in the ordinary ordered mailbox, behind that observation.

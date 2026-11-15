@@ -451,10 +451,14 @@ requests `SgrPixels` (`?1016`), without inventing a pixel position or enabling `
 Byte delivery reuses the existing `forward` path, including its `Controlling` check, read-only
 refusal, and acknowledgement semantics. An attached pane may receive local read focus without input
 authority; an unbound leaf's press focuses without pane input. A content press whose mode is still unknown
-waits within the original pending deadline. Once a reporting pane settles as `ReadOnly`, its
-program-owned press is dropped with the input notice and no implicit acquire. Read focus never
-substitutes for application-input permission, and history never converts a captured program gesture
-into Client selection.
+waits within the original pending deadline. Every left, middle or right press is foreground
+evidence for [controller takeover](native-control-takeover.md#ownership-and-activation): in a
+terminal this Client only views, it starts a focus activation that claims the terminal and its
+size. Once a reporting pane settles as `ReadOnly`, its program-owned press reaches no program; it
+shows no failure while that claim is armed or settling, because the claim may resize the terminal
+and move what the press pointed at, and the input notice otherwise. Read focus never substitutes
+for application-input permission, and history never converts a captured program gesture into
+Client selection.
 
 ## Link activation
 

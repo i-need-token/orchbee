@@ -1643,6 +1643,18 @@ impl InputDispatcher {
         } {
             port.observe_terminal(TerminalObservation::InputIntent);
         }
+        if let DecodedKind::Mouse(event) = &item.kind
+            && event.action == super::mouse::MouseAction::Press
+            && matches!(
+                event.button,
+                super::mouse::MouseButton::Left
+                    | super::mouse::MouseButton::Middle
+                    | super::mouse::MouseButton::Right
+            )
+        {
+            // Observed before routing, so the press's own probe already sees the claim.
+            port.observe_terminal(TerminalObservation::PointerPress);
+        }
         if self.navigator.packet || view.navigator_active() {
             self.flush_pending(view, port);
             if self.navigator.packet {

@@ -15,13 +15,21 @@ geometry keeps the current frame, grant and input sequence without another Host 
 projection reactivation or control-acquired notice. The first activation also preserves a fresh
 startup grant, so initial pointer selection and drag do not acquire a redundant barrier.
 
-Routed keyboard input may precede the emulator's FocusIn report. It supplies foreground evidence
-early enough to start the same activation and hold its first keys; the later identical focus
-report cannot rearm it. Background pointer motion and host-query replies supply no such evidence.
+Routed keyboard input and button presses may precede the emulator's FocusIn report. They supply
+foreground evidence early enough to start the same activation and hold its first keys; the later
+identical focus report cannot rearm it. Background pointer motion, wheel and host-query replies
+supply no such evidence.
 
-An activation submits at most one transfer. Repeated focus reports are idempotent. Refusal and
-uncertainty never rearm it; a later focus activation is a new intent that may reconcile Server
-ownership. The Panel menu's take-control row remains an explicit alternative; it has no default
+A host's FocusOut can go missing, for example between two emulator windows, so the next FocusIn
+repeats a state the Client already holds. While the Client only views its focused terminal and
+has no activation armed or settling, a FocusIn, a routed key or a button press is therefore a new
+activation, and the Client the person is using takes the terminal's size. While it controls the
+terminal, or an activation is armed or settling, repeated focus reports and input change nothing.
+A program-tracked press in a terminal being claimed this way reaches no program and shows no
+failure: the claim may resize the terminal and move what the press pointed at.
+
+An activation submits at most one transfer. Refusal and uncertainty never rearm it; a later focus
+activation is a new intent that may reconcile Server ownership. The Panel menu's take-control row remains an explicit alternative; it has no default
 key. A known grant never regresses to unknown
 within its operation. Exact operation, pane incarnation and original deadlines qualify receipts.
 
@@ -62,7 +70,8 @@ transfer when needed. Terminal processes and viewing attachments survive these h
 ## Evidence and staged delivery
 
 State, carrier and UI regressions cover unchanged-owner typing, no repeated activation, fresh
-activation after uncertainty, frame-before-input, receipt monotonicity and peer geometry.
+activation after uncertainty, frame-before-input, receipt monotonicity and peer geometry. Raw
+FocusIn, click and key bytes through the real dispatcher cover a Viewer with stale host focus.
 Server tests cover public/private observation, recent focus, exact reservation and cleanup.
 The Windows process witness in `tests/cli_windows_terminal_viewer_session/focus_control.rs`
 checks transfer, recent-Viewer restoration and shared completion; physical Windows Terminal

@@ -1012,6 +1012,11 @@ impl TerminalInputPort for WorkbenchClient {
                     native.observe_keyboard();
                 }
             }
+            TerminalObservation::PointerPress => {
+                if let Some(native) = self.backend.native_mut() {
+                    native.observe_pointer_press();
+                }
+            }
             TerminalObservation::DisplayInvalidated => {
                 if let Some(native) = self.backend.native_mut() {
                     native.invalidate_close_display();

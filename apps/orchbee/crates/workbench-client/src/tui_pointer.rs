@@ -1290,7 +1290,11 @@ impl PointerState {
                     return PointerOutcome::Handled;
                 }
                 if !pane_input_ready(probe, &expected) {
-                    view.report_pointer_input_dropped();
+                    // A press in a terminal this Client only views claims it; the claim may
+                    // resize the terminal, so the press is not replayed onto moved content.
+                    if !probe.control_claim {
+                        view.report_pointer_input_dropped();
+                    }
                     return PointerOutcome::Handled;
                 }
                 self.gesture = Gesture::Pane(PaneGesture {
@@ -2927,7 +2931,9 @@ impl PointerState {
                     return true;
                 }
                 if !pane_input_ready(probe, &pending.expected) {
-                    view.report_pointer_input_dropped();
+                    if !probe.control_claim {
+                        view.report_pointer_input_dropped();
+                    }
                     return true;
                 }
                 let mut forwarder = PaneGesture {

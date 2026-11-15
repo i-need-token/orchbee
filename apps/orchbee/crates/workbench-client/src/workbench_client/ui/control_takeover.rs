@@ -13,7 +13,8 @@ use orchbee_client_server_protocol::RequestId;
 use std::sync::Arc;
 
 /// A focus activation admits at most one transfer. Failure never rearms it; a later host or
-/// pane focus change is a new activation. Readiness may defer admission, never replay input.
+/// pane focus change, or later foreground evidence while this Client only views the focused
+/// terminal, is a new activation. Readiness may defer admission, never replay input.
 #[derive(Default)]
 pub(super) struct FocusControl {
     pane: Option<crate::workbench_state::PaneRef>,
@@ -34,9 +35,21 @@ enum FocusActivation {
 }
 
 impl FocusControl {
-    pub(super) fn keyboard(&mut self) {
-        if matches!(self.pending, Some(FocusActivation::Initial)) {
-            self.pending = Some(FocusActivation::Return);
+    /// Foreground evidence: a focus-in report, a routed key or a button press. Input upgrades the
+    /// first activation, which a startup grant would otherwise satisfy. While this Client only
+    /// views the focused terminal, evidence with no armed activation starts one, so a focus
+    /// report the host never sent, sent late or repeated cannot leave another Client's size in
+    /// place. An armed activation keeps its held input.
+    fn foreground(&mut self, input: bool, viewing: bool) {
+        match self.pending {
+            Some(FocusActivation::Initial) if input => {
+                self.pending = Some(FocusActivation::Return);
+            }
+            None if viewing => {
+                self.pending = Some(FocusActivation::Return);
+                self.activated = true;
+            }
+            _ => {}
         }
     }
     pub(super) fn activate(&mut self, focused: bool) {
@@ -56,6 +69,39 @@ impl WorkbenchClientView<'_> {
     }
 }
 impl WorkbenchClientUi {
+    /// A focus-in report, or input (a routed key or a button press) that proves the host window
+    /// is in front even when its FocusIn report is late or missing.
+    pub(super) fn observe_foreground(&mut self, input: bool) {
+        if input {
+            self.inherit_host_focus(Some(true));
+        }
+        let viewing = {
+            let view = self.view();
+            let ended = view
+                .focus_panel_id()
+                .is_some_and(|panel| view.settled_end(panel).is_some());
+            !ended
+                && self.state.as_ref().is_some_and(|state| {
+                    !state.takeover_pending()
+                        && matches!(
+                            state.controller_mode(),
+                            Some(crate::workbench_state::ControllerMode::ReadOnly)
+                        )
+                })
+        };
+        self.focus_control.foreground(input, viewing);
+    }
+
+    /// The focused terminal is being claimed: an activation is armed, or its transfer has not
+    /// settled.
+    pub(super) fn focus_claim_settling(&self) -> bool {
+        self.focus_control.pending.is_some()
+            || self
+                .state
+                .as_ref()
+                .is_some_and(crate::workbench_state::WorkbenchClientState::takeover_settling)
+    }
+
     pub(super) fn drive_focus_control(&mut self) -> bool {
         let pane = self.state.as_ref().and_then(|state| state.focus_pane_ref());
         if pane != self.focus_control.pane {
