@@ -5,6 +5,7 @@ const state = @import("state.zig");
 const completion_ops = @import("completion.zig");
 const failure_ops = @import("failure.zig");
 const mode_effects = @import("mode_effects.zig");
+const reflow_hyperlinks = @import("reflow_hyperlinks.zig");
 
 pub fn resize(self: *state.State, columns: u16, rows: u16) !void {
     self.terminal_mutex.lock();
@@ -134,6 +135,7 @@ pub fn resizeGeometry(
         // Ghostty skips grid work when columns/rows are unchanged but applies
         // the explicit cell_size_px pair, so {0,0} clears stale extents rather
         // than inheriting them.
+        reflow_hyperlinks.fitReflow(&self.terminal, columns);
         self.terminal.resize(self.allocator, .{
             .cell_size_px = .{
                 .height = cell_pixel_height,

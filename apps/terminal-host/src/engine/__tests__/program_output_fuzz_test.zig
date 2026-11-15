@@ -578,3 +578,36 @@ test "program output fuzz commits or fences one terminal and never ends the Host
         .{ seeds.len, seeds[0], totals.batches, totals.bytes, totals.resizes, totals.projections, totals.terminals, totals.fenced_terminals, timer.read() / std.time.ns_per_ms },
     );
 }
+
+// Found by seed 1: Ghostty's reflow assumes one capacity increase always fits another hyperlinked
+// cell, and a page's hyperlink capacity saturates near 26,000 cells. Reaching it links tens of
+// thousands of cells, and Ghostty's Debug integrity check scans the page after each one, which
+// outlasts the gate's per-test bound; the release-mode `test-output-fuzz` step runs it.
+test "program output fuzz: a reflow after a long hyperlinked listing keeps the terminal and its newest links" {
+    if (builtin.mode == .Debug) return error.SkipZigTest;
+    var terminal: Terminal = .{};
+    try terminal.start();
+    defer terminal.stop();
+    const lines = 1000;
+    var line: [64]u8 = undefined;
+    for (0..lines) |number| {
+        var writer: std.Io.Writer = .fixed(&line);
+        try writer.print("\x1b]8;;f:{d}\x1b\\", .{number});
+        try writer.splatByteAll('f', 40);
+        try writer.writeAll("\x1b]8;;\x1b\\\r\n");
+        try std.testing.expectEqual(.committed, commitReaderBatch(terminal.runtime, writer.buffered()));
+    }
+
+    _ = try terminal.runtime.resizeGeometry(60, 24, 0, 0);
+    try std.testing.expect(terminal.runtime.primaryFailure() == null);
+    try terminal.project();
+    {
+        const state = harness.runtimeState(terminal.runtime);
+        state.terminal_mutex.lock();
+        defer state.terminal_mutex.unlock();
+        const screen = state.terminal.screens.active;
+        const newest = screen.pages.pin(.{ .active = .{ .x = 0, .y = screen.cursor.y - 1 } }).?;
+        try std.testing.expect(newest.rowAndCell().cell.hyperlink);
+    }
+    try harness.subject.testing.checkInvariants(terminal.runtime);
+}

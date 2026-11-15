@@ -15,6 +15,7 @@ const resize_ops = @import("resize.zig");
 const metadata_ops = @import("metadata.zig");
 const mode_effects = @import("mode_effects.zig");
 const program_status_feed = @import("program_status_feed.zig");
+const reflow_hyperlinks = @import("reflow_hyperlinks.zig");
 const scrollback_compression_ops = @import("scrollback_compression.zig");
 const terminal_reply = @import("terminal_reply.zig");
 
@@ -194,11 +195,15 @@ fn applyTerminalGeometryMutation(
     mutation: TerminalGeometryMutation,
 ) !void {
     switch (mutation) {
-        .column_mode => |enabled| try terminal.deccolm(
-            terminal.screens.active.alloc,
-            if (enabled) .@"132_cols" else .@"80_cols",
-        ),
+        .column_mode => |enabled| {
+            if (terminal.modes.get(.enable_mode_3)) reflow_hyperlinks.fitReflow(terminal, if (enabled) 132 else 80);
+            try terminal.deccolm(
+                terminal.screens.active.alloc,
+                if (enabled) .@"132_cols" else .@"80_cols",
+            );
+        },
         .viewport => {
+            reflow_hyperlinks.fitReflow(terminal, next_geometry.columns);
             try terminal.resize(
                 self.allocator,
                 .{
