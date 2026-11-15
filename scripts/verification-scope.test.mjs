@@ -40,15 +40,8 @@ test('one fixed point reaches cross-language transitive consumers and keeps inde
 	assert.deepEqual(selectVerificationScope(graph, ['apps/client/src/main.rs']).cargo, ['client']);
 });
 
-test('manifests, unknown/global paths and unsupported graphs select all rather than omit evidence', () => {
-	for (const file of [
-		'apps/client/Cargo.toml',
-		'packages/protocol/package.json',
-		'pnpm-lock.yaml',
-		'docs/TESTING.md',
-		'nul',
-		'apps/retired/src/main.rs',
-	])
+test('unknown/global paths and unsupported graphs select all rather than omit evidence', () => {
+	for (const file of ['docs/diagram.svg', 'LICENSE', 'nul', 'apps/retired/src/main.rs'])
 		assert.equal(selectVerificationScope(graph, [file]).all, true, file);
 	for (const invalid of [
 		[...graph, graph[0]],
@@ -61,6 +54,44 @@ test('manifests, unknown/global paths and unsupported graphs select all rather t
 		graph.map((entry, index) => (index === 0 ? { ...entry, name: '...*' } : entry)),
 	])
 		assert.equal(selectVerificationScope(invalid, []).all, true);
+});
+
+test("a manifest change selects its package manager's owners and their consumer closure", () => {
+	const cargo = selectVerificationScope(graph, ['Cargo.lock']);
+	assert.equal(cargo.all, false, cargo.reasons.join('\n'));
+	assert.deepEqual(cargo.cargo, ['client', 'rust-protocol', 'server', 'worker']);
+	assert.deepEqual(cargo.pnpm, []);
+	const pnpm = selectVerificationScope(graph, ['packages/protocol/package.json']);
+	assert.equal(pnpm.all, false, pnpm.reasons.join('\n'));
+	assert.deepEqual(pnpm.pnpm, ['@test/independent', '@test/protocol', '@test/web']);
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	const lockfile = selectVerificationScope(actual, ['pnpm-lock.yaml']);
+	assert.equal(lockfile.all, false, lockfile.reasons.join('\n'));
+	// The Host is a pnpm owner; its native process consumers follow the reviewed foreign edges.
+	for (const name of ['orchbee', 'orchbee-server', 'orchbee-worker'])
+		assert.ok(lockfile.cargo.includes(name), `pnpm-lock.yaml must select ${name}`);
+	const bundle = selectVerificationScope(actual, [
+		'crates/agent-integration-writer/agent-observation-adapters/bundle/package.json',
+	]);
+	assert.equal(bundle.all, false, bundle.reasons.join('\n'));
+	assert.ok(bundle.cargo.includes('orchbee-agent-integration-writer'), 'own owner');
+});
+
+test('documentation without a test consumer selects no suite', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	for (const changed of [
+		'proposals/example.md',
+		'proposals/example/diagram.png',
+		'docs/TESTING.md',
+		'docs/frontend/react.md',
+		'README.md',
+	]) {
+		const selected = selectVerificationScope(actual, [changed]);
+		assert.equal(selected.all, false, changed);
+		assert.deepEqual([...selected.pnpm, ...selected.cargo], [], changed);
+	}
+	for (const changed of ['docs/diagram.svg', 'docs/tui/assets/frame.txt'])
+		assert.equal(selectVerificationScope(actual, [changed]).all, true, changed);
 });
 
 test('internal Cargo source selects its exact owner and dependent siblings before the enclosing application', () => {
@@ -217,8 +248,12 @@ test('shared PowerShell startup assets select the Host and its native process co
 		assert.ok(selected.pnpm.includes('@orchbee/terminal-host'), asset);
 		for (const consumer of ['orchbee', 'orchbee-server', 'orchbee-worker'])
 			assert.ok(selected.cargo.includes(consumer), `${asset} must select ${consumer}`);
+		// Only the exact asset is a Host input; a sibling still reaches the Host's ConPTY witness
+		// through orchbee, so the probe is the foreign-input reason rather than the selection.
 		assert.equal(
-			selectVerificationScope(actual, [asset + '.bak']).pnpm.includes('@orchbee/terminal-host'),
+			selectVerificationScope(actual, [asset + '.bak']).reasons.includes(
+				`apps/terminal-host <- ${asset}.bak`,
+			),
 			false,
 		);
 	}
@@ -232,7 +267,8 @@ test('TUI standards retain native ownership without selecting every suite', () =
 	]);
 	assert.equal(selected.all, false, selected.reasons.join('\n'));
 	assert.deepEqual(selected.cargo, ['orchbee', 'orchbee-workbench-client']);
-	assert.deepEqual(selected.pnpm, []);
+	// The Host's suite runs the orchbee binary's ConPTY witness, so it joins without its consumers.
+	assert.deepEqual(selected.pnpm, ['@orchbee/terminal-host']);
 	for (const standard of [
 		'keyboard-input',
 		'layout',
@@ -246,12 +282,9 @@ test('TUI standards retain native ownership without selecting every suite', () =
 		assert.equal(result.all, false);
 		assert.deepEqual(result.cargo, ['orchbee']);
 	}
-	for (const source of ['docs/TESTING.md', 'docs/tui/new.md']) {
-		assert.equal(selectVerificationScope(actual, [source]).all, true);
-	}
 });
 
-test('only declared verification helpers use root tooling evidence; new helpers and shared policies remain conservative', () => {
+test('only declared verification helpers use root tooling evidence; new helpers remain conservative', () => {
 	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
 	for (const changed of [
 		'scripts/run-checks.mjs',
@@ -275,7 +308,7 @@ test('only declared verification helpers use root tooling evidence; new helpers 
 			['format:check', 'test:tla:inventory', 'build:packages', 'lint', 'typecheck', 'test:exports'],
 		);
 	}
-	for (const changed of ['scripts/tla/new-helper.mjs', 'formal/tla/New.tla', 'docs/TESTING.md'])
+	for (const changed of ['scripts/tla/new-helper.mjs', 'formal/tla/New.tla'])
 		assert.equal(selectVerificationScope(actual, [changed]).all, true, changed);
 });
 
@@ -341,9 +374,27 @@ test('Git selection covers committed, staged, dirty, untracked, removed and rena
 		.map((file) => `apps/client/${file}`)
 		.toSorted();
 	assert.deepEqual(changedVerificationPaths(root, base).paths, expected);
-	assert.equal(resolveVerificationScope(root, 'no-such-base').all, true);
+	// A base that does not bound the change never yields a plan: it is refused, not widened.
+	const sibling = git(
+		'-c',
+		'user.name=Fixture',
+		'-c',
+		'user.email=fixture@example.invalid',
+		'commit-tree',
+		'HEAD^{tree}',
+		'-p',
+		base,
+		'-m',
+		'sibling',
+	).trim();
+	for (const [reference, problem] of [
+		['no-such-base', /no-such-base does not resolve.*git merge-base no-such-base HEAD/su],
+		[sibling, /is not an ancestor of HEAD\. Rebase onto/u],
+	])
+		assert.throws(() => resolveVerificationScope(root, reference), problem);
 	git('update-index', '--assume-unchanged', 'apps/client/dirty.rs');
 	assert.throws(() => changedVerificationPaths(root, base), /assume-unchanged/u);
+	assert.equal(resolveVerificationScope(root, base).all, true);
 });
 
 test('verification CLI rejects incomplete/duplicate scope and preserves verbose parsing', () => {
@@ -404,7 +455,7 @@ test('native test prerequisites follow their real consumers and host platform ev
 			['apps/orchbee-worker/src/main.rs', true, cliCohort],
 			['apps/desktop/src/main.ts', false, false],
 			['scripts/run-checks.mjs', false, false],
-			['pnpm-lock.yaml', true, cliCohort],
+			['nul', true, cliCohort],
 		]) {
 			const scope = selectVerificationScope(actual, [changed]);
 			const steps = checkSteps('test', scope, platform);

@@ -3,8 +3,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 const packageName = /^(?:@[a-z\d._-]+\/)?[a-z\d][a-z\d._-]*$/u;
-const manifestName =
-	/(?:^|\/)(?:package\.json|Cargo\.toml|Cargo\.lock|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/u;
+const pnpmManifestName = /(?:^|\/)(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/u;
+const cargoManifestName = /(?:^|\/)(?:Cargo\.toml|Cargo\.lock)$/u;
 
 // Runtime/process inputs not represented by package managers. The root verification owner
 // maintains these edges with their consumers; a new foreign input needs a positive control.
@@ -16,6 +16,13 @@ const foreignDependencies = [
 	['apps/orchbee-server', 'apps/terminal-host'],
 	['apps/orchbee-worker', 'apps/terminal-host'],
 	['apps/desktop', 'apps/web'],
+];
+// Suites that run a provider's built artifact while their own artifact stays unchanged. They join
+// the plan after consumer closure and select no consumers of their own; a dependency edge would
+// close a cycle with the provider's own edge to them.
+const testWitnesses = [
+	// On Windows x64 the Host's test step builds and runs the orchbee binary's ConPTY pointer witness.
+	['apps/terminal-host', 'apps/orchbee'],
 ];
 const foreignPaths = [
 	['crates/local-runtime/src/directory/windows/initialization.ps1', 'apps/terminal-host'],
@@ -42,8 +49,8 @@ const sharedContractInputs = [
 	],
 ];
 
-// Exact shared-input ownership; new standards/helpers require review rather than
-// inheriting a directory-wide exemption from product verification.
+// Exact shared-input ownership claimed before the documentation rule. No test reads these TUI
+// standards; the mapping is a review policy that re-verifies the native client they govern.
 const tuiStandards = new Set(
 	[
 		'keyboard-input',
@@ -92,18 +99,45 @@ const rootToolInputs = new Set([
 		'select-changed-models.mjs',
 	].map((name) => `scripts/tla/${name}`),
 ]);
-function capture(root, command, args) {
-	return execFileSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 ** 2 });
+function capture(root, command, args, stdio) {
+	return execFileSync(command, args, {
+		cwd: root,
+		encoding: 'utf8',
+		maxBuffer: 16 * 1024 ** 2,
+		...(stdio === undefined ? {} : { stdio }),
+	});
+}
+
+// A base that does not bound the change is refused rather than widened: the caller must choose
+// between rebasing and checking the branch from its fork point.
+class UnboundedBaseError extends Error {}
+
+function refuseBase(reference, problem) {
+	return new UnboundedBaseError(
+		`Base ${reference} ${problem}. Rebase onto ${reference}, or pass its fork point ` +
+			`(git merge-base ${reference} HEAD) to check the branch as it stands.`,
+	);
 }
 
 export function changedVerificationPaths(root, reference) {
-	const base = capture(root, 'git', [
-		'rev-parse',
-		'--verify',
-		'--end-of-options',
-		`${reference}^{commit}`,
-	]).trim();
-	capture(root, 'git', ['merge-base', '--is-ancestor', base, 'HEAD']);
+	let base;
+	try {
+		base = capture(
+			root,
+			'git',
+			['rev-parse', '--verify', '--end-of-options', `${reference}^{commit}`],
+			['ignore', 'pipe', 'pipe'],
+		).trim();
+	} catch {
+		throw refuseBase(reference, 'does not resolve to a commit');
+	}
+	try {
+		capture(root, 'git', ['merge-base', '--is-ancestor', base, 'HEAD'], ['ignore', 'pipe', 'pipe']);
+	} catch (error) {
+		// Exit status 1 is Git's answer "not an ancestor"; any other failure is a Git error.
+		if (error.status === 1) throw refuseBase(reference, 'is not an ancestor of HEAD');
+		throw error;
+	}
 	const hidden = capture(root, 'git', ['ls-files', '-v', '-z']).split('\0');
 	if (hidden.some((entry) => entry[0] === 'S' || (entry && entry[0] === entry[0].toLowerCase())))
 		throw new Error('Git skip-worktree or assume-unchanged inputs prevent affected verification');
@@ -273,7 +307,22 @@ export function selectVerificationScope(graph, paths) {
 		// Nested Cargo members own their source before the enclosing application's prefix.
 		const owners = graph.toSorted((left, right) => right.root.length - left.root.length);
 		for (const changed of paths) {
-			if (manifestName.test(changed)) throw new Error(`Dependency manifest changed: ${changed}`);
+			const manager = [
+				['pnpm', pnpmManifestName],
+				['cargo', cargoManifestName],
+			].find(([, name]) => name.test(changed))?.[0];
+			if (manager !== undefined) {
+				// A manifest or lockfile change reaches no further than every owner of its package
+				// manager; consumer closure below carries it across reviewed foreign edges.
+				for (const entry of graph) if (entry.kind === manager) selected.add(entry.root);
+				reasons.push(`every ${manager === 'pnpm' ? 'pnpm' : 'Cargo'} workspace <- ${changed}`);
+				const owner = owners.find((entry) => changed.startsWith(`${entry.root}/`));
+				if (owner) {
+					selected.add(owner.root);
+					reasons.push(`${owner.root} <- ${changed}`);
+				}
+				continue;
+			}
 			if (rootToolInputs.has(changed)) {
 				reasons.push(`root tooling <- ${changed}`);
 				continue;
@@ -301,6 +350,16 @@ export function selectVerificationScope(graph, paths) {
 					selected.add(root);
 					reasons.push(`${root} <- ${changed}`);
 				}
+				continue;
+			}
+			// Proposals are never current authority, and repository standards and root Markdown
+			// have no test reader; Markdown inside an owner stays with that owner.
+			if (
+				!tuiStandards.has(changed) &&
+				(changed.startsWith('proposals/') ||
+					(changed.endsWith('.md') && (changed.startsWith('docs/') || !changed.includes('/'))))
+			) {
+				reasons.push(`documentation <- ${changed}`);
 				continue;
 			}
 			const owner = owners.find((entry) =>
@@ -331,6 +390,13 @@ export function selectVerificationScope(graph, paths) {
 				}
 			}
 		} while (selected.size !== size);
+		for (const [witness, provider] of testWitnesses) {
+			if (!selected.has(provider) || selected.has(witness)) continue;
+			if (!graph.some((entry) => entry.root === witness))
+				throw new Error(`Missing test witness ${witness}`);
+			selected.add(witness);
+			reasons.push(`${witness} <- ${provider} (test witness)`);
+		}
 		return Object.freeze({
 			all: false,
 			pnpm: Object.freeze(
@@ -367,6 +433,7 @@ export function resolveVerificationScope(root, reference) {
 			changedPathCount: paths.length,
 		});
 	} catch (error) {
+		if (error instanceof UnboundedBaseError) throw error;
 		return Object.freeze({ all: true, reasons: Object.freeze([error.message]) });
 	}
 }

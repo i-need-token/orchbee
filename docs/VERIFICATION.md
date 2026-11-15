@@ -33,13 +33,26 @@ checked inputs are unchanged does not need a duplicate gate or build.
 
 `pnpm verify:changed -- <base>` is the daily root gate. `pnpm verify --changed-since <base>` is
 equivalent; add `--plan` to inspect the exact resolution without running checks. The base must resolve
-to an ancestor commit of HEAD. The resolver includes committed, staged, unstaged, deleted, renamed
+to an ancestor commit of HEAD, because only such a base bounds the change. A reference that does not
+resolve, or a commit that is not an ancestor, fails the command before any plan or check, also with
+`--plan`; its message names the reference and the two remedies: rebase onto it, or pass the fork
+point (`git merge-base <base> HEAD`) to check the branch as it stands. A base that does not bound
+the change therefore never yields an affected plan, and a typo or an unrebased branch is reported
+instead of silently running every suite.
+The resolver includes committed, staged, unstaged, deleted, renamed
 and nonignored untracked paths. It reads NUL-delimited Git output; both ends of a rename matter.
 It unions base-to-HEAD, HEAD-to-index and index-to-worktree changes so reverting a working file
 cannot hide its staged change.
-An invalid base, changed dependency manifest, unknown path or unsupported dependency graph selects
-the full test scope. An unrelated untracked file can therefore cause a full fallback; the resolver
-does not delete or ignore it.
+Hidden Git inputs, an unknown path or an unsupported dependency graph select the full test scope.
+An unrelated untracked file can therefore cause a full fallback; the resolver does not delete or
+ignore it.
+
+A changed `package.json`, `pnpm-lock.yaml` or `pnpm-workspace.yaml` selects every pnpm owner, and a
+changed `Cargo.toml` or `Cargo.lock` selects every Cargo owner. A manifest inside an owner also
+selects that owner, whatever its package manager. Normal consumer closure follows, so the reviewed
+foreign edges carry the change across languages. A manifest change reaches no further than a change
+to every file of that package manager's owners, whose cross-language consumers those edges already
+record.
 
 Only expensive test scope is narrowed in this implementation. Formatting, TLA inventory, library
 preparation, lint, type checking, export checks and root tooling tests remain complete. Selected
@@ -54,15 +67,23 @@ The private root verification owner maintains `scripts/verification-scope.mjs`. 
 takes current pnpm/Cargo workspace dependencies and changed paths, and returns one immutable plan.
 The plan contains the affected owner and transitive consumer closure across normal, development,
 optional, peer, build and target-specific local dependencies. Reviewed foreign edges also cover
-native process cohorts, shared protocol fixtures and Storybook discovery.
+native process cohorts, shared protocol fixtures and Storybook discovery. A test witness, a suite
+that runs another owner's built artifact while its own artifact is unchanged, joins the plan after
+closure without selecting its consumers.
 Changes to those relationships must update the resolver and its positive controls in the same change.
 Missing or ambiguous owners fail conservatively. The command reports selected and unaffected suites
 separately from executed results; an unaffected suite is unexecuted, never a pass or a cache hit.
 
 Shared paths need explicit ownership. The existing `docs/tui/` standards select the native
-terminal client and its consumers. Root verification commands, their declared helpers/tests select
-root tooling evidence; the complete prerequisites above still run. New root helpers or standards
-remain unknown until reviewed. An unknown document owner selects the full test scope.
+terminal client and its consumers by review policy; no test reads them. Root verification commands,
+their declared helpers/tests select root tooling evidence; the complete prerequisites above still
+run. New root helpers remain unknown until reviewed.
+Documentation without a test consumer selects no suite and reports `documentation <- <path>`:
+anything under `proposals/`, which is never current authority, and Markdown under `docs/` or
+directly at the repository root, which no product test or build reads. The explicit mappings above
+claim their paths first. Other files under `docs/` or at the root remain unknown, and Markdown
+inside an owner selects that owner. A new test or build that reads such documentation must add an
+explicit mapping in the same change.
 
 The evidence is Git boundary fixtures, dependency-closure positive and negative controls, command
 selection witnesses and the existing real Cargo runner tests. These establish the supported ownership
