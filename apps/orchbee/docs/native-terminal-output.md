@@ -2,7 +2,7 @@
 
 ## Authority and grammar
 
-This reference owns Linux/Windows `terminal read` and `agent read`. Both default to recent
+This reference owns Linux, macOS and Windows `terminal read` and `agent read`. Both default to recent
 output (80 physical rows). `--source visible|recent|recent-unwrapped|detection` selects the
 snapshot; `--lines` accepts an unsigned 32-bit count, clamps to 1000 and permits zero. Geometry
 commands use `--rows` for dimensions.
@@ -87,7 +87,7 @@ checks and model review, not an unrun model-checking claim.
 
 ## Source-selected waits
 
-Linux/Windows `terminal wait-output` uses this source model, defaulting to recent (80 physical
+Linux, macOS and Windows `terminal wait-output` uses this source model, defaulting to recent (80 physical
 rows) and a 30000 ms total deadline. `--timeout` accepts 1..3600000 ms; explicit `--forever`
 removes the total deadline and conflicts with timeout. `--lines` controls the window; legacy
 `--rows` is refused. Source waits use version 1; `after` is always present and is null without `--after`. The source range
@@ -125,7 +125,7 @@ source and lifetime rules. This workflow uses implementation tests.
 
 ## ANSI snapshot export
 
-Linux/Windows `terminal read` and `agent read` accept `--ansi` as a styled data export. It defaults to
+Linux, macOS and Windows `terminal read` and `agent read` accept `--ansi` as a styled data export. It defaults to
 `recent`, accepts the four source selectors and source-mode line limits, and excludes `--plain`.
 Use `recent-unwrapped` to join soft wraps. Grammar is resolved
 before runtime admission. `--format json` remains available; otherwise stdout contains the prepared
@@ -180,7 +180,7 @@ The read payload limit remains 8 MiB. A render window can exceed it because of g
 text would fit. Report that bounded failure; never silently change detail, discard payload bytes,
 increase the budget or retry a different request. Old binaries reject the new detail/tag. Deploy or
 roll back the matching Client/Server/Worker/Host development cohort together; no durable state or
-migration is added. Linux and Windows share the command runtime and wire/codecs.
+migration is added. Linux, macOS and Windows share the command runtime and wire/codecs.
 
 | Observation                                                | Required outcome                                                           |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------- |

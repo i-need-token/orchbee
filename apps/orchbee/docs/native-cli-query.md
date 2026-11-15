@@ -623,10 +623,11 @@ These repair stale schema projections; wire and receipt versions remain unchange
 ## Agent prompt submission
 
 The prompt workflow compiles on every host. Capability admission precedes deadline creation,
-signal registration and Session access. Linux retains its canonical sampled observation;
+signal registration and Session access. Linux and macOS use the canonical sampled observation;
 Windows retains physical targets, journal history and Client evidence. The common INT/TERM
 port delegates to each existing native guard, and the Client Connection is dropped before
-signal finalization and receipt projection. Unsupported hosts return the existing platform
+signal finalization and receipt projection. macOS has no guard yet: `SIGINT` and `SIGTERM` keep
+their inherited action, so an interrupted prompt ends at once with `128 + signo` and no document. Unsupported hosts return the existing platform
 failure without acquiring those resources; Unix prompt results keep their existing
 unsupported journal and Client fields.
 
@@ -684,11 +685,11 @@ only Agent status authority; this command does not add screen inference or a pro
 
 ## Agent wait policy
 
-Windows `agent wait` and `agent prompt --wait` default to no total timeout and the ordered conditions `idle`, `done`, `blocked`. `--forever` remains an explicit synonym and conflicts with `--timeout`; prompt requires `--wait`. Finite timeouts remain 1–3600000 ms. Admission, resolution and each read remain bounded to five seconds; interruption stops the wait and never reconnects. Existing Linux polling defaults are unchanged. Prompt retains its five-second non-working activity gate.
+Windows `agent wait` and `agent prompt --wait` default to no total timeout and the ordered conditions `idle`, `done`, `blocked`. `--forever` remains an explicit synonym and conflicts with `--timeout`; prompt requires `--wait`. Finite timeouts remain 1–3600000 ms. Admission, resolution and each read remain bounded to five seconds; interruption stops the wait and never reconnects. Existing Linux and macOS polling defaults are unchanged. Prompt retains its five-second non-working activity gate.
 
 Windows wait establishes an authenticated changes checkpoint before its first canonical Get, then consumes contiguous retained pages before subsequent Gets. The single admitted session, optional monotonic total deadline and cancellation owner cover all steps. Each evaluation drains at most 512 changes, 100 per page, retaining at most one matching change. No cursor reset or foreign boot is silently recovered: lost history is an explicit rejection. A partial/failed read cannot become a matching observation.
 
-Wait version 1 on Windows adds nullable `matchedChange`. Null means the current sample matched; otherwise the historical change is the matching evidence, while `revision` and `session` remain the separate latest Get sample. The historical record never overwrites current status. `source.requestId` identifies the matching Get or changes read. Requested condition order is preserved. `--after-revision` remains a global revision fence, not turn causality. Linux wait and prompt success retain version 1. Finite/infinite failures keep their existing version and null timeout distinction.
+Wait version 1 on Windows adds nullable `matchedChange`. Null means the current sample matched; otherwise the historical change is the matching evidence, while `revision` and `session` remain the separate latest Get sample. The historical record never overwrites current status. `source.requestId` identifies the matching Get or changes read. Requested condition order is preserved. `--after-revision` remains a global revision fence, not turn causality. Linux and macOS wait and prompt success retain version 1. Finite/infinite failures keep their existing version and null timeout distinction.
 
 `blocked` matches fresh needs-attention; `done` currently matches fresh succeeded/failed/canceled/interrupted. Client-relative unseen enrichment is a separate dependent consumer and is not implied by the change feed. Evidence covers transient states, unrelated sessions, ordered pages, reset refusal, retained identity, deadline and cancellation cleanup.
 
@@ -807,7 +808,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   any runtime access under a 1 MiB program-size limit and a 1 MiB lazy-DFA cache limit.
   A missing, empty, oversized, or non-compiling value — or coexistence with `--match` — is
   `invalid-usage`.
-- `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (defaults to `30000` on every platform) and on `agent wait` (Windows defaults to no total timeout, Linux to `600000`); one decimal `u32` in `1..=3600000`.
+- `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (defaults to `30000` on every platform) and on `agent wait` (Windows defaults to no total timeout, Linux and macOS to `600000`); one decimal `u32` in `1..=3600000`.
   A repeated, non-numeric, or out-of-range value is `invalid-usage`.
 
 - `--target-panel <target>`: optional single-use value flag with `panel move --into-tab`;
@@ -855,7 +856,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   `idle`, `unknown`, `ended`, `fresh`, `stale`, `disconnected`. Repeated values
   stay in requested order for matching and the emitted echo; a duplicate value or
   an unknown name is `invalid-usage`. Absent `--until` entirely, the effective set
-  on Windows is `idle`, `done`, `blocked`; Linux retains `needs-attention`, `failed`,
+  on Windows is `idle`, `done`, `blocked`; on Linux and macOS it is `needs-attention`, `failed`,
   `succeeded`, `canceled`, `interrupted`, `idle`, `ended`, each in that order.
 - `--after-revision <n>`: single-use value flag, admitted only on `agent wait`;
   the optional global-revision fence as one decimal `u64` in the safe-integer
@@ -1085,7 +1086,7 @@ terminal or schema — ends with its one hint: the command that lists that resou
 ## Query state machine and budgets
 
 Every network query (`status`, `list`/`get`, `api snapshot`) performs exactly this ordered
-sequence on Linux; the first failing stage wins and determines the failure:
+sequence on Linux and macOS; the first failing stage wins and determines the failure:
 
 1. **Cohort** — `Cohort::current` under one checked 5-second monotonic deadline
    (`Instant::now().checked_add(5s)`; a failed `checked_add` is `internal-failure`, exit 1).
@@ -1121,10 +1122,10 @@ sequence on Linux; the first failing stage wins and determines the failure:
 5-second cohort budget for its cohort check. `doctor` is local in the same way: its runtime folder
 check observes descriptor-relative paths and locks only, never creates a lock or a marker, and never
 repairs, over one cooperative 5-second budget checked between bounded filesystem operations; its
-only connection is the Session check's handshake `query`. Platforms other than Linux and Windows produce `service-unavailable`
+only connection is the Session check's handshake `query`. Platforms other than Linux, macOS and Windows produce `service-unavailable`
 `{stage:"platform",reason:"unsupported-platform"}` for network queries and mutations and
 `service-unavailable` with the same details for `config check`; there is no fallback to unbounded
-connection APIs. `server start` outside Linux/Windows answers `service-unavailable` with the same platform details.
+connection APIs. `server start` outside Linux, macOS and Windows answers `service-unavailable` with the same platform details.
 
 Capsule manifests use contract 1 with exactly `contractVersion` and `payloadSha256`.
 The integration result's `capsule.payloadSha256` replaces payload-version fields;
@@ -1227,8 +1228,10 @@ the source limit plus one byte into a private output pipe. The CLI polls under t
 existing deadline and interrupt guard, and kills/reaps the child on success and handled failures.
 It does not change the caller's pipe mode or leave a blocking reader thread behind.
 The shared send workflow keeps source arbitration, one submission and receipt projection together.
-Linux and Windows retain their existing send routes; shell-run observation remains Windows-admitted,
-and unavailable commands refuse before source, signal or Session effects.
+Linux and Windows retain their existing send routes. macOS takes the Linux route for inline input
+but refuses a declared `--file` or `--stdin` source, which needs a signal watch macOS does not have
+yet; shell-run observation remains Windows-admitted, and unavailable commands refuse before source,
+signal or Session effects.
 Regular-file stdin retains direct reads. Process startup and termination remain OS
 scheduling boundaries, not hard real-time guarantees.
 
@@ -1372,7 +1375,8 @@ for either member. 130 is deliberate for both SIGINT and SIGTERM — it is not
 transport fault, and admission outcomes at the single finish arbitration, which still
 runs only after the admitted session is dropped. A provisional wake observation
 surviving a clear arbitration is an `internal-failure`, never a transport or timeout
-verdict.
+verdict. macOS has no such watch yet: both signals keep their inherited action for the whole
+invocation, so an interrupted Agent read ends at once with `128 + signo` and no document.
 
 Semantic answers map to fixed failure kinds under the `orchbee.cli.failure.agent`
 document: `listed`/`found` are the only success outcomes; `rejected{read-denied}` →
@@ -1387,7 +1391,7 @@ canonical Agent sessions only; an `ended` session is reported, never resurrected
 `--include-ended` widens the page filter rather than the lifecycle itself.
 
 `agent wait` holds one admitted Client Connection. Windows follows canonical changes as described
-in the Agent wait policy above and also reads current detail; Linux retains Get polling.
+in the Agent wait policy above and also reads current detail; Linux and macOS use Get polling.
 Every exchange has a fresh request identity, and no historical fields overwrite current detail. One
 optional absolute monotonic deadline sampled at command start covers admission, every read, and
 every backoff; `--forever` omits only that total ceiling; each poll runs under `min(5 s, remaining total)`. Between non-matching
@@ -1427,7 +1431,7 @@ deadline that ended the wait — the `--timeout` value for `wait-deadline`, the 
 for `read-deadline`, the five-second activity gate for a prompt's `effect-deadline` — and
 the `--until` conditions it was waiting for; those conditions reach standard error only.
 
-The existing Linux wait samples the current projected state at each completed poll — it is not a
+The existing Linux and macOS wait samples the current projected state at each completed poll — it is not a
 subscription and provides no change notification. A transition that begins and ends
 between two completed observations is missed: pending requests may clear, turn
 outcomes are replaced by later turns, and freshness moves between polls. The miss
@@ -1498,8 +1502,8 @@ envelope. Windows explicit stop and subsequent start are described below; there 
 
 ## Runtime folder facts
 
-`doctor`'s runtime check carries the same closed runtime folder report in `details` on Linux and
-Windows. The same existing-only runtime path/SID scope is used without cohort admission,
+`doctor`'s runtime check carries the same closed runtime folder report in `details` on Linux,
+macOS and Windows. The same existing-only runtime path/SID scope is used without cohort admission,
 activation, endpoint connection or process discovery. Ordered rows describe the
 selected base, admitted runtime directory, marker, activation/lifetime locks and
 five named-pipe addresses. Windows reports the filesystem Host socket scope and POSIX mode/UID members as unsupported. `private` means the private owner rule (the token user, SYSTEM or
@@ -1531,7 +1535,7 @@ leaves it; `unreadable` marks a record at the Session's own location that its ad
 Each item carries `record` (`runtime-directory`, `catalog-record` or `deletion-intent`), `reason`
 and the record's `path` or `pathUtf16`. The member's `state` is `known`, or `uninspectable` with
 `denied`, `io-error`, `invalid-path`, `parent-unavailable`, `deadline` or `observation-limit`;
-Linux reports the member as unsupported. A non-empty list adds the `unrecognized-records`
+Linux and macOS report the member as unsupported. A non-empty list adds the `unrecognized-records`
 advisory: the records are retained as found and never migrated, they refuse only this Session,
 and the next step is another `--session` name or moving the listed paths away after confirming
 no older build still uses them. Doctor never moves, repairs or deletes a record.
@@ -1787,7 +1791,7 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, 
   `{matchedConditions,revision,session,wait}` where `matchedConditions` is the
   satisfying subset of the effective `until` list in requested order (1–14 unique
   condition names), `revision` is the satisfying poll's global runtime revision,
-  `session` is that poll's wire `AgentSessionDetail` verbatim. `matchedChange` separates historical matching evidence from that sample; it is nullable on Windows and unsupported on Linux; `wait` echoes the
+  `session` is that poll's wire `AgentSessionDetail` verbatim. `matchedChange` separates historical matching evidence from that sample; it is nullable on Windows and unsupported on Linux and macOS; `wait` echoes the
   effective run `{until,afterRevision,timeoutMs,observations,elapsedMs}` —
   `afterRevision` always present, null when no revision was selected.
 - `orchbee.api.snapshot` → `{snapshot}`: the complete `WorkbenchProtocolDocument::Snapshot`
@@ -2185,7 +2189,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | `server start` marker or sockets committed without a live owner; Server spawn or `try_wait` io failure                                    | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required"}`                                                       |
 | `server start` activation deadline elapsed; lock acquisition `TimedOut`                                                                   | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                                  |
 | `server start` marker/probe/lock io failure (non-timeout)                                                                                 | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                                  |
-| Network query, mutation, `server start` or `config check` outside Linux/Windows                                                           | `service-unavailable`                                                      | 4         | `{stage:"platform",reason:"unsupported-platform"}`                                                      |
+| Network query, mutation, `server start` or `config check` outside Linux/macOS/Windows                                                     | `service-unavailable`                                                      | 4         | `{stage:"platform",reason:"unsupported-platform"}`                                                      |
 | A `plugin`, `popup` or `channel` invocation in a release build (0.1.0-beta.1 also withheld `update`)                                      | `service-unavailable`                                                      | 4         | `{stage:"release",reason:"withheld-in-release",feature}`                                                |
 | `terminal wait-output` deadline exhausted without a match                                                                                 | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                                     |
 | HUP/INT/QUIT/TERM during `terminal wait-output`                                                                                           | `cancelled`                                                                | 130       | `{stage:"wait",cleanup}`                                                                                |
@@ -2638,7 +2642,7 @@ Windows `project close-all <target> --confirm` explicitly closes captured member
 
 ## Windows Client navigation
 
-[Windows Client view control](windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. The current catalog includes `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`; view/control are v1, routing failure is v1 and composed Agent Client read failure is v1. No operating-system window activation or Mac/Linux control runtime is added; Linux admits only the read-only `client list` and `client get`.
+[Windows Client view control](windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. The current catalog includes `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`; view/control are v1, routing failure is v1 and composed Agent Client read failure is v1. No operating-system window activation or Mac/Linux control runtime is added; Linux and macOS admit only the read-only `client list` and `client get`.
 
 ## Windows offline schema export
 
@@ -2706,7 +2710,7 @@ not evaluated or admitted by this repair.
 
 ## Source-selected terminal output
 
-Linux/Windows reads use `--source` and `--lines`, defaulting to recent80. Plain JSON emits
+Linux, macOS and Windows reads use `--source` and `--lines`, defaulting to recent80. Plain JSON emits
 `orchbee.terminal.output` v1; ANSI emits v1. `--plain` exports UTF-8 directly and excludes JSON.
 `--ansi` preserves styled blanks and Unicode using SGR, with no PTY-byte or graphics replay.
 The [output contract](native-terminal-output.md) owns source

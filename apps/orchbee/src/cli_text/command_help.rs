@@ -4,12 +4,12 @@ use super::Locale;
 
 const HELP_TUI_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee tui [--mouse on|off]",
-    "Open the terminal interface on Windows or Linux. Running orchbee without a command does the same. Mouse capture defaults to on; --mouse is accepted on this explicit tui route.",
+    "Open the terminal interface on Windows, Linux or macOS. Running orchbee without a command does the same. Mouse capture defaults to on; --mouse is accepted on this explicit tui route.",
 );
 
 const HELP_TUI_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee tui [--mouse on|off]",
-    "在 Windows 或 Linux 上打开终端界面。不带命令运行 orchbee 也会打开该界面。鼠标捕获默认开启；显式 tui 路由支持 --mouse 选项。",
+    "在 Windows、Linux 或 macOS 上打开终端界面。不带命令运行 orchbee 也会打开该界面。鼠标捕获默认开启；显式 tui 路由支持 --mouse 选项。",
 );
 
 const HELP_STATUS_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(

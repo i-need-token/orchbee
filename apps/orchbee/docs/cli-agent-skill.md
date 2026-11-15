@@ -81,7 +81,7 @@ Retain observed revisions and inspect `agent wait --help` before using `--after-
 
 `--until`, `--timeout` and `--forever` require `agent prompt --wait`; `--forever`
 conflicts with `--timeout`. Windows Codex input includes a Right key between paste and
-Enter. Linux retains a 600000 ms default wait deadline. A wait failure retains any
+Enter. Linux and macOS retain a 600000 ms default wait deadline. A wait failure retains any
 accepted input receipt, so never replay uncertain input.
 
 ## Events and terminal streams

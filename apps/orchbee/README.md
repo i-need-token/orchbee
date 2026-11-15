@@ -207,9 +207,11 @@ orchbee agent list                        # sessions the running Session observe
 orchbee agent wait <session-id> --until ended
 ```
 
-The Apple Silicon macOS development cohort supports the Session-backed `agent list` query and its
-bounded page options. The per-Client projection (`--client`) remains Windows-only; other Agent
-observation commands retain their documented platform limits.
+The Apple Silicon macOS development cohort runs the same Session-backed Agent commands as Linux:
+`agent list`, `get`, `read` and `wait`, `agent prompt`, and Agent names through `agent resolve` and
+`agent rename`. The per-Client projection (`--client`) and `agent start` remain Windows-only. macOS
+keeps the inherited `SIGINT` and `SIGTERM` action, so an interrupted command ends at once without a
+document.
 
 `orchbee help <family>` prints the same grammar from the binary itself, and
 `orchbee completion <shell>` prints the matching key-driven discovery script
@@ -1006,7 +1008,7 @@ Windows CLI Panel/Tab/Workspace Close captures and settles every bound primary a
 
 ## Windows Client navigation
 
-[Windows Client view control](docs/windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. Catalog v68 includes 76 schemas, adding `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`, all v1. No operating-system window activation or Mac/Linux control runtime is added; Linux admits only the read-only `client list` and `client get`.
+[Windows Client view control](docs/windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. Catalog v68 includes 76 schemas, adding `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`, all v1. No operating-system window activation or Mac/Linux control runtime is added; Linux and macOS admit only the read-only `client list` and `client get`.
 
 Windows process tests execute the emitted completion in Git for Windows Bash, found relative to `git --exec-path`; that installed Bash is required for this witness. Conflicting flags are checked before and after their command verb without contacting a Session. PowerShell has a separate real-shell grammar witness.
 
@@ -1081,7 +1083,7 @@ The [Tab label contract](docs/native-tab-labels.md) owns optional `automaticLabe
 
 ## Source-selected terminal output
 
-Linux and Windows `terminal read` and `agent read` accept
+Linux, macOS and Windows `terminal read` and `agent read` accept
 `--source visible|recent|recent-unwrapped|detection`, defaulting to recent output.
 Recent combines retained history with the live screen; detection reads the recent screen-height
 range. `--lines` permits zero, clamps to 1000 and defaults to 80 for recent. The retired
@@ -1161,4 +1163,4 @@ Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action l
 
 ## Native Settings
 
-Press Ctrl+b , in the Windows or Linux TUI to open the Settings page; Windows also exposes Settings through navigation. All common settings are the same `config.toml` keys Desktop edits through the Server, including locale, application and terminal themes, selection, Agent tail display, notifications, sound, scrollback and launch profiles. Each change applies at once as one edit, Del restores a changed row's default, and a refused or unknown result puts the row back and names the reason without replay. See the [native Settings contract](docs/native-settings.md) and the [settings registry](../../crates/local-runtime/README.md#user-settings).
+Press Ctrl+b , in the Windows, Linux or macOS TUI to open the Settings page; Windows also exposes Settings through navigation. All common settings are the same `config.toml` keys Desktop edits through the Server, including locale, application and terminal themes, selection, Agent tail display, notifications, sound, scrollback and launch profiles. Each change applies at once as one edit, Del restores a changed row's default, and a refused or unknown result puts the row back and names the reason without replay. See the [native Settings contract](docs/native-settings.md) and the [settings registry](../../crates/local-runtime/README.md#user-settings).

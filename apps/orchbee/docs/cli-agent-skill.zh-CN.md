@@ -81,7 +81,7 @@ Windows 上，`@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选择当前�
 
 `--until`、`--timeout` 和 `--forever` 要求 `agent prompt --wait`；`--forever`
 与 `--timeout` 互斥。Windows Codex 的输入在 paste 与 Enter 之间包含 Right 键。
-Linux 保留 600000 毫秒的默认等待期限。等待失败会保留已接受的输入回执，因此不要
+Linux 和 macOS 保留 600000 毫秒的默认等待期限。等待失败会保留已接受的输入回执，因此不要
 重放结果不确定的输入。
 
 ## 事件与终端流

@@ -5,13 +5,15 @@ use super::{Failure, FailureKind, stage_reason_details};
 #[derive(Clone, Copy)]
 pub(super) enum Capability {
     AgentProjection,
+    /// `agent list` and `agent get` over the canonical Agent sessions, and `agent wait`.
     CanonicalAgentRead,
-    CanonicalAgentList,
     AgentNames,
     RetainedCloseOperation,
     CanonicalWorkbenchRead,
     RuntimeInspection,
     TerminalInput,
+    /// A declared `terminal send --file` or `--stdin` source, read under its own signal watch.
+    TerminalInputSource,
     AgentPrompt,
     IntegrationOutdated,
     TerminalRun,
@@ -59,12 +61,12 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
     platform::admit(capability).map_err(|Unsupported(capability)| match capability {
         Capability::AgentProjection
         | Capability::CanonicalAgentRead
-        | Capability::CanonicalAgentList
         | Capability::AgentNames
         | Capability::RetainedCloseOperation
         | Capability::CanonicalWorkbenchRead
         | Capability::RuntimeInspection
         | Capability::TerminalInput
+        | Capability::TerminalInputSource
         | Capability::AgentPrompt
         | Capability::IntegrationOutdated
         | Capability::TerminalRun

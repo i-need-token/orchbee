@@ -166,6 +166,8 @@ fn execute(target: SendTarget<'_>, input: &TerminalSendInput) -> Result<SendAnsw
     // request identity.
     let input = match input {
         TerminalSendInput::File { .. } | TerminalSendInput::Stdin { .. } => {
+            crate::cli::execution::admit(crate::cli::execution::Capability::TerminalInputSource)
+                .map_err(SendError::Failure)?;
             let mut armed = ArmedSignals::arm()
                 .map_err(|_| SendError::Failure(Failure::new(FailureKind::InternalFailure)))?;
             match source::materialize(input, deadline, &mut armed) {

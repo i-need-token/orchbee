@@ -103,8 +103,6 @@ use orchbee_workbench_protocol::{
 };
 use std::time::{Duration, Instant};
 
-mod agent_list_unarmed;
-
 const COHORT_BUDGET: Duration = Duration::from_secs(5);
 /// The Agent read's whole-command budget: one absolute deadline sampled
 /// once at invocation entry and shared by the preamble, the admission, and
@@ -2383,11 +2381,8 @@ pub(crate) fn agent_list(
     limit: u64,
     cursor: Option<orchbee_agent_observation_protocol::AgentListCursor>,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
-    super::execution::admit(super::execution::Capability::CanonicalAgentList)
+    super::execution::admit(super::execution::Capability::CanonicalAgentRead)
         .map_err(AgentQueryError::Admission)?;
-    if super::execution::admit(super::execution::Capability::CanonicalAgentRead).is_err() {
-        return agent_list_unarmed::run(include_ended, limit, cursor);
-    }
     let (request_id, attempt) =
         agent_armed_run(AgentReadOperation::List, |_, request_id, _, _| {
             Ok(AgentReadRequest::List {
