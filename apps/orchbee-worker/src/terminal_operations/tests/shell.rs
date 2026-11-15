@@ -13,7 +13,7 @@ use std::{
     path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
     thread,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 pub(super) const WORKER: orchbee_local_worker_protocol::WorkerId =

@@ -150,8 +150,10 @@ one Host `ClearTerminal` with `preservePrompt: true`, validates attachment/termi
 and positive generation/revision acknowledgement, and detaches. Existing controller
 ownership and resize geometry are unchanged. Every ClearTerminal request includes `preservePrompt`; explicit false selects screen erase/home.
 
-One cancellable five-second CLI budget covers discovery and submission. Host work
-has a three-second effect budget and a separate one-second cleanup allowance.
+One cancellable five-second CLI budget covers discovery and submission. The Worker
+submits the Host effect only within three seconds of the request; each Host exchange,
+cleanup included, then waits up to the Worker's
+[Host exchange bound](../../orchbee-worker/README.md#integrated-authorized-request-loop).
 Pre-submission failures cannot clear content; a missing or malformed acknowledgement
 after submission is unknown and never replayed. A known clear with unconfirmed
 cleanup retains the confirmed effect and exits 8. Closing a failed Host carrier

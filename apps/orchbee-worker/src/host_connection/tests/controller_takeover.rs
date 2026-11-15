@@ -137,6 +137,7 @@ fn fixture() -> Result<(HostBrokerConnection, UnixStream), Box<dyn Error>> {
         titles: RefCell::new(titles::Titles::default()),
         host_colors: RefCell::new(crate::host_connection::HostColors::default()),
         drain: Rc::new(RefCell::new(AgentDrain::new())),
+        pacing: crate::host_connection::Pacing::default(),
     };
     for viewer in [10, 20] {
         host.viewers

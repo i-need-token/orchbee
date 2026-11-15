@@ -2,7 +2,7 @@
 //! correlated Host result. It creates no viewer or Host and does not render or retain the
 //! decoded image.
 
-use super::{HostBrokerConnection, HostExchange, UnixStream, invalid};
+use super::{HostBrokerConnection, HostExchange, PeerFailure, UnexpectedAnswer, UnixStream};
 use orchbee_capability_node_protocol::{
     TerminalGraphicsDecodeRequest, TerminalViewerOutcome as Outcome, TerminalViewerResult,
     ViewerRejection,
@@ -27,7 +27,10 @@ pub(crate) fn execute(
     } else if request.worker_generation.get() != generation.get() {
         Outcome::Rejected(ViewerRejection::StaleWorkerGeneration)
     } else {
-        read(&request, host, server)?
+        match read(&request, host, server) {
+            Ok(outcome) => outcome,
+            Err(error) => super::contain(error, host, request.attachment_id)?,
+        }
     };
     Ok(TerminalViewerResult {
         request_id: request.request_id,
@@ -62,17 +65,14 @@ fn read(
         protocol: CURRENT_PROTOCOL_VERSION,
         role: MessageRole::Request,
     })?;
-    let mut exchange = HostExchange::new(host, server, std::time::Duration::from_secs(5))
-        .ok_or_else(|| invalid("graphics decode budget is invalid"))?;
-    exchange
-        .prepare()
-        .map_err(|_| invalid("graphics decode preflight failed"))?;
+    let mut exchange = HostExchange::open(host, server);
+    exchange.prepare().map_err(|class| exchange.error(class))?;
     let record = exchange
         .round_trip_bounded(
             &record,
             MAXIMUM_GRAPHICS_RGBA_BYTES + GRAPHICS_DECODE_RESULT_HEADER_BYTES,
         )
-        .map_err(|_| invalid("graphics decode exchange failed"))?;
+        .map_err(|class| exchange.error(class))?;
     let envelope = decode_transport_envelope(&record)?;
     if envelope.correlation_id != Some(correlation)
         || envelope.host_epoch != Some(host.host_epoch())
@@ -80,16 +80,18 @@ fn read(
         || envelope.role != MessageRole::Response
         || envelope.optional_message
     {
-        return Err(invalid("graphics decode response envelope disagrees").into());
+        return Err(exchange.error(PeerFailure::Protocol).into());
     }
     if envelope.kind == 81 && envelope.payload_encoding == PayloadEncoding::GraphicsImage {
-        let image = decode_graphics_decode_result(envelope.payload)?;
+        let Ok(image) = decode_graphics_decode_result(envelope.payload) else {
+            return Err(UnexpectedAnswer::of(&record).into());
+        };
         if image.attachment_id != attachment_id
             || image.terminal_id.as_bytes() != &target.as_bytes()
             || image.width != request.width
             || image.height != request.height
         {
-            return Err(invalid("graphics decode response target or dimensions disagree").into());
+            return Err(UnexpectedAnswer::of(&record).into());
         }
     } else if envelope.payload_encoding != PayloadEncoding::ControlJson
         || !matches!(
@@ -97,7 +99,7 @@ fn read(
             Ok(ConnectionControl::TypedFailure(_))
         )
     {
-        return Err(invalid("graphics decode response kind disagrees").into());
+        return Err(UnexpectedAnswer::of(&record).into());
     }
     Ok(Outcome::Record(record))
 }

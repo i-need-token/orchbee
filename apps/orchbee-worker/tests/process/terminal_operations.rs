@@ -541,34 +541,6 @@ fn malformed_partial_and_pipelined_server_records_never_reach_host() -> TestResu
 }
 
 #[test]
-fn silent_host_returns_unknown_once_then_worker_disconnects() -> TestResult {
-    let fixture = RuntimeFixture::new()?;
-    let listener = fixture.bind_host_listener()?;
-    let host = thread::spawn(move || {
-        let mut host = admit_host(&listener)?;
-        let record = read_terminal_record(&mut host)?;
-        let envelope = decode_transport_envelope(&record).map_err(protocol_io)?;
-        assert_eq!(envelope.role, MessageRole::Request);
-        assert_eq!(envelope.kind, 11);
-        require_connection_closed(&mut host)
-    });
-    let worker = RunningWorker::start(&fixture)?;
-    let (mut server, _) = admit_worker(&fixture.server_listener)?;
-    assert_eq!(worker.await_readiness()?, Some(*b"ready\n"));
-    let result = request_launch(&mut server, &launch(1, None, TerminalLaunchMode::Deferred)?)?;
-    assert_eq!(
-        result.outcome(),
-        TerminalLaunchOutcome::OutcomeUnknown {
-            host_epoch: orchbee_capability_node_protocol::HostEpoch::from_bytes([0x44; 16])?
-        }
-    );
-    require_connection_closed(&mut server)?;
-    assert_failed_after_exact_readiness(worker.finish()?);
-    join_peer(host, "silent Host")?;
-    Ok(())
-}
-
-#[test]
 fn exact_result_is_delivered_even_when_host_closes_after_its_response() -> TestResult {
     let fixture = RuntimeFixture::new()?;
     let listener = fixture.bind_host_listener()?;
@@ -616,24 +588,6 @@ fn exact_result_is_delivered_even_when_host_closes_after_its_response() -> TestR
     require_connection_closed(&mut server)?;
     assert_failed_after_exact_readiness(worker.finish()?);
     join_peer(host, "Host final-response observer")?;
-    Ok(())
-}
-
-#[test]
-fn a_partial_idle_host_event_has_a_deadline_and_closes_both_peers() -> TestResult {
-    let fixture = RuntimeFixture::new()?;
-    let listener = fixture.bind_host_listener()?;
-    let host = thread::spawn(move || {
-        let mut host = admit_host(&listener)?;
-        host.write_all(b"OB")?;
-        require_connection_closed(&mut host)
-    });
-    let worker = RunningWorker::start(&fixture)?;
-    let (mut server, _) = admit_worker(&fixture.server_listener)?;
-    assert_eq!(worker.await_readiness()?, Some(*b"ready\n"));
-    require_connection_closed(&mut server)?;
-    assert_failed_after_exact_readiness(worker.finish()?);
-    join_peer(host, "partial Host event observer")?;
     Ok(())
 }
 

@@ -1,7 +1,5 @@
 //! Windows observation-only request. No Host startup, viewer, input or Agent acknowledgement.
-use super::{
-    Error, HOST_OPERATION_BUDGET, HostBrokerConnection, NonZeroU64, UnixStream, WorkerId, io,
-};
+use super::{Error, HostBrokerConnection, NonZeroU64, UnixStream, WorkerId};
 use orchbee_capability_node_protocol::{
     TerminalTitleObservation, TerminalTitleRow, TerminalTitlesRequest, TerminalTitlesResult,
 };
@@ -16,10 +14,10 @@ pub(super) fn execute(
     let current = request.worker_id.as_bytes() == worker.as_bytes()
         && request.worker_generation.get() == generation.get();
     if current && let Some(host) = host {
-        crate::host_connection::HostExchange::new(host, server, HOST_OPERATION_BUDGET)
-            .ok_or_else(|| io::Error::other("invalid title read budget"))?
+        let observation = crate::host_connection::HostExchange::open(host, server);
+        observation
             .observe_pending(32)
-            .map_err(|_| io::Error::other("title observation Host unavailable"))?;
+            .map_err(|class| observation.error(class))?;
     }
     let rows = request
         .identities

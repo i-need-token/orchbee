@@ -3,8 +3,9 @@
 //! deciding Server-side Client authority or replaying uncertain effects.
 
 use crate::{
+    diagnostic_events::{self, Site},
     host_connection::{HostBrokerConnection, exchange},
-    terminal_viewer_operation::set_attachment_demand,
+    terminal_viewer_operation::{UnexpectedAnswer, set_attachment_demand},
     worker_identity::fresh_identity,
 };
 mod host_colors;
@@ -42,7 +43,10 @@ pub(crate) fn execute(
     } else if request.worker_generation.get() != generation.get() {
         Outcome::Rejected(Rejection::StaleWorkerGeneration)
     } else {
-        apply(&request, host, server)?
+        match apply(&request, host, server) {
+            Ok(outcome) => outcome,
+            Err(error) => contain(error, host, server, request.viewer_id)?,
+        }
     };
     Ok(TerminalControlResult {
         request_id: request.request_id,
@@ -50,6 +54,20 @@ pub(crate) fn execute(
         controller_id: request.controller_id,
         outcome,
     })
+}
+/// An unexpected answer refuses this request and releases its viewer's controller, so a Client
+/// that wants control again acquires it anew and nothing is replayed; every other failure still
+/// ends the connection.
+fn contain(
+    error: Box<dyn Error>,
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    viewer: OperationId,
+) -> Result<Outcome, Box<dyn Error>> {
+    let answer = error.downcast::<UnexpectedAnswer>()?;
+    diagnostic_events::host_unexpected(Site::Control, answer.kind);
+    release_viewer(host, server, viewer)?;
+    Ok(Outcome::Rejected(Rejection::HostRejected))
 }
 fn apply(
     request: &TerminalControlRequest,
@@ -137,19 +155,18 @@ fn apply(
             host.controllers.borrow_mut().remove(request.controller_id);
             return Ok(Outcome::Rejected(Rejection::HostRejected));
         }
-        let AttachmentControl::AttachmentCapabilities(accepted) =
-            decode_attachment_control(envelope.kind, envelope.role, envelope.payload)?
+        let Ok(AttachmentControl::AttachmentCapabilities(accepted)) =
+            decode_attachment_control(envelope.kind, envelope.role, envelope.payload)
         else {
-            return Err(invalid("Host did not acknowledge controller capabilities"));
+            return Err(UnexpectedAnswer::of(&response).into());
         };
+        // A grant that disagrees with the Server's authority is never used: it is released.
         if accepted.attachment_id != id
             || accepted.terminal_id != terminal_id
             || accepted.capabilities != capabilities
             || !accepted.resize_lease
         {
-            return Err(invalid(
-                "Host controller grant disagrees with Server authority",
-            ));
+            return Err(UnexpectedAnswer::of(&response).into());
         }
         host.controllers
             .borrow_mut()
@@ -259,47 +276,47 @@ fn apply(
     }
     match &request.action {
         Action::Input { bytes, .. } => {
-            let InputMessage::InputAccepted(accepted) =
-                decode_input_message(envelope.kind, envelope.role, envelope.payload)?
+            let Ok(InputMessage::InputAccepted(accepted)) =
+                decode_input_message(envelope.kind, envelope.role, envelope.payload)
             else {
-                return Err(invalid("Host did not acknowledge input"));
+                return Err(UnexpectedAnswer::of(&response).into());
             };
             if accepted.attachment_id != id
                 || accepted.capability_revision != revision
                 || usize::try_from(accepted.accepted_bytes)? != bytes.as_bytes().len()
             {
-                return Err(invalid("Host input acknowledgement disagrees"));
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(Outcome::InputAccepted)
         }
         Action::SemanticInput { .. } => {
             // Semantic encodings depend on terminal modes, so the admitted count is unpredictable.
-            let InputMessage::InputAccepted(accepted) =
-                decode_input_message(envelope.kind, envelope.role, envelope.payload)?
+            let Ok(InputMessage::InputAccepted(accepted)) =
+                decode_input_message(envelope.kind, envelope.role, envelope.payload)
             else {
-                return Err(invalid("Host did not acknowledge semantic input"));
+                return Err(UnexpectedAnswer::of(&response).into());
             };
             if accepted.attachment_id != id || accepted.capability_revision != revision {
-                return Err(invalid("Host semantic input acknowledgement disagrees"));
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(Outcome::InputAccepted)
         }
         Action::Resize { geometry, .. } => {
-            let ResizeControl::ResizeAccepted(accepted) =
-                decode_resize_control(envelope.kind, envelope.role, envelope.payload)?
+            let Ok(ResizeControl::ResizeAccepted(accepted)) =
+                decode_resize_control(envelope.kind, envelope.role, envelope.payload)
             else {
-                return Err(invalid("Host did not acknowledge resize"));
+                return Err(UnexpectedAnswer::of(&response).into());
             };
             if accepted.attachment_id != id || accepted.geometry != host_geometry(*geometry) {
-                return Err(invalid("Host resize acknowledgement disagrees"));
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(Outcome::Resized(*geometry))
         }
         Action::Paste { content, .. } => {
-            let InputMessage::InputAccepted(accepted) =
-                decode_input_message(envelope.kind, envelope.role, envelope.payload)?
+            let Ok(InputMessage::InputAccepted(accepted)) =
+                decode_input_message(envelope.kind, envelope.role, envelope.payload)
             else {
-                return Err(invalid("Host did not acknowledge paste"));
+                return Err(UnexpectedAnswer::of(&response).into());
             };
             let content_length = content.as_bytes().len();
             let bound = content_length
@@ -312,7 +329,7 @@ fn apply(
                 || accepted.accepted_bytes == 0
                 || usize::try_from(accepted.accepted_bytes)? > bound
             {
-                return Err(invalid("Host paste acknowledgement disagrees"));
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(Outcome::Pasted {
                 accepted_bytes: orchbee_capability_node_protocol::PasteAcceptedBytes::new(
@@ -370,6 +387,9 @@ fn controlled_semantic_input(
     Some(message)
 }
 
+/// Releases the controller attached for `viewer`, if any. Any correlated answer ends the
+/// controller: a refusal counts as released, and another answer is recorded and the controller
+/// forgotten all the same. Only a failed exchange is an error.
 pub(crate) fn release_viewer(
     host: &HostBrokerConnection,
     server: &UnixStream,
@@ -391,12 +411,12 @@ pub(crate) fn release_viewer(
         PayloadEncoding::ControlJson,
     )?;
     let envelope = decode_transport_envelope(&response)?;
-    if decode_attachment_control(envelope.kind, envelope.role, envelope.payload)?
-        != AttachmentControl::DetachTerminalAccepted(target)
+    if decode_attachment_control(envelope.kind, envelope.role, envelope.payload).ok()
+        != Some(AttachmentControl::DetachTerminalAccepted(target))
     {
-        return Err(invalid("Host did not release controller"));
+        diagnostic_events::host_unexpected(host.pacing.site(), envelope.kind);
     }
-    host.controllers.borrow_mut().remove(grant.controller_id);
+    host.forget_controller(grant.controller_id);
     Ok(())
 }
 fn host_geometry(

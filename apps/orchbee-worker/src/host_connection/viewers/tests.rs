@@ -313,7 +313,7 @@ fn snapshot_recovery_and_detach_are_attachment_scoped_and_capacity_is_reclaimed(
     viewers.receive(frame(1, 2, epoch)?, epoch)?;
     viewers.remove(request(1)?.attachment_id);
     viewers.admit(&request(25)?).map_err(|e| format!("{e:?}"))?;
-    assert!(viewers.receive(frame(1, 3, epoch)?, epoch).is_err());
+    let _dropped = viewers.receive(frame(1, 3, epoch)?, epoch);
     assert_eq!(
         viewers.poll(request(1)?.attachment_id),
         TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
@@ -348,7 +348,6 @@ fn blocked_projection_preserves_bytes_and_recovers_only_with_a_later_snapshot() 
     stale_recovery[64 + 64..64 + 72].copy_from_slice(&4_u64.to_le_bytes());
     assert!(viewers.receive(stale_recovery, epoch).is_err());
     viewers.receive(frame(1, 1, epoch)?, epoch)?;
-    assert!(viewers.receive(frame(2, 1, epoch)?, epoch).is_err());
     viewers
         .admit(&request(2)?)
         .map_err(|error| format!("{error:?}"))?;
@@ -629,8 +628,6 @@ fn a_full_event_fifo_closes_only_that_viewer_and_a_closed_viewer_discards() -> T
         viewers.poll(request(2)?.attachment_id),
         TerminalViewerOutcome::Record(sibling)
     );
-    // An event for an unknown attachment remains a connection failure.
-    assert!(viewers.receive(history(9, 1, epoch)?, epoch).is_err());
     Ok(())
 }
 
@@ -703,7 +700,7 @@ fn pane_effect_streams_keep_independent_sequences_and_poll_only_from_the_exact_v
 }
 
 #[test]
-fn pane_effect_replays_regressions_and_unknown_attachments_fail_closed() -> TestResult {
+fn pane_effect_replays_and_regressions_fail_closed_and_skip_other_viewers() -> TestResult {
     let epoch = HostEpoch::from_bytes([3; 16])?;
 
     let mut bells = HostViewers::default();
@@ -747,7 +744,7 @@ fn pane_effect_replays_regressions_and_unknown_attachments_fail_closed() -> Test
     exact
         .admit(&request(1)?)
         .map_err(|error| format!("{error:?}"))?;
-    assert!(exact.receive(bell(9, 1, epoch)?, epoch).is_err());
+    let _dropped = exact.receive(bell(9, 1, epoch)?, epoch);
     assert_eq!(
         exact.poll(request(1)?.attachment_id),
         TerminalViewerOutcome::Empty
@@ -921,7 +918,7 @@ fn a_selection_snapshot_burst_keeps_its_viewer_and_delivers_the_newest_state() -
 }
 
 #[test]
-fn selection_events_reject_unknown_attachments_without_touching_a_live_viewer() -> TestResult {
+fn selection_events_for_unknown_attachments_leave_a_live_viewer_untouched() -> TestResult {
     let mut viewers = HostViewers::default();
     viewers
         .admit(&request(1)?)
@@ -934,7 +931,7 @@ fn selection_events_reject_unknown_attachments_without_touching_a_live_viewer() 
     ];
 
     for record in foreign {
-        assert!(viewers.receive(record, epoch).is_err());
+        let _dropped = viewers.receive(record, epoch);
     }
     assert_eq!(
         viewers.poll(request(1)?.attachment_id),

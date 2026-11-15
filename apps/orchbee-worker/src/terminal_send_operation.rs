@@ -30,7 +30,7 @@ use orchbee_terminal_protocol::{
     encode_attachment_control, encode_input_message, encode_transport_envelope,
 };
 
-use crate::host_connection::{HostBrokerConnection, HostExchange, PeerFailure};
+use crate::host_connection::{HostBrokerConnection, HostExchange, HostFailure, PeerFailure};
 use crate::worker_identity::fresh_identity;
 
 /// A send never opens a readable or resizable surface: the temporary
@@ -41,15 +41,12 @@ const INPUT_CAPABILITIES: AttachmentCapabilityState = AttachmentCapabilityState 
     resize: false,
 };
 
-/// One absolute input budget sampled once when the operation starts; it
-/// covers the attach exchange plus every record exchange, and each exchange
-/// gets at most the lesser of the shared step budget and what remains.
+/// One absolute input budget sampled once when the operation starts: the
+/// attach and every record exchange start only before it passes. An exchange
+/// once started waits up to the connection's Host exchange bound, within the
+/// request's bound, so a slow but answering Host never loses the carrier.
+/// Cleanup detach is not gated by it and never runs more than once.
 const INPUT_BUDGET: Duration = Duration::from_secs(3);
-/// A single Host exchange never exceeds this step budget.
-const HOST_STEP_BUDGET: Duration = Duration::from_secs(1);
-/// Cleanup detach is a separate allowance outside the input budget; it never
-/// renews input time and it never runs more than once.
-const CLEANUP_BUDGET: Duration = Duration::from_secs(1);
 
 /// The operation result plus whether the Host carrier is still trustworthy.
 /// `host_failed` asks the caller to deliver the result and then end the
@@ -199,7 +196,7 @@ fn apply(
         request_resize_lease: false,
         terminal_id,
     }))?;
-    let Some(attach_budget) = step_budget(input_deadline) else {
+    if !may_start(input_deadline) {
         return respond(
             &request,
             TerminalSendOutcome::Unavailable {
@@ -210,14 +207,13 @@ fn apply(
             host,
             false,
         );
-    };
+    }
     let capability_revision = match exchange_fresh(
         host,
         server,
         command.kind,
         &command.payload,
         PayloadEncoding::ControlJson,
-        attach_budget,
     )? {
         StepAnswer::Record(record) => match attach_outcome(&record, attachment_id, terminal_id)? {
             AttachOutcome::Revision(revision) => revision,
@@ -289,7 +285,7 @@ fn apply(
     };
     let mut index = 0;
     for step in steps {
-        let Some(budget) = step_budget(input_deadline) else {
+        if !may_start(input_deadline) {
             // The input deadline expired between records: a determinate stop.
             // The confirmed prefix stands, the stopped record provably never
             // left this Worker, and cleanup still gets its own allowance.
@@ -304,7 +300,7 @@ fn apply(
                 host,
                 host_failed,
             );
-        };
+        }
         let (command, expected_bytes) = step_command(step, attachment_id, capability_revision)?;
         // Input messages ride the raw-bytes encoding while every response is
         // still ControlJson.
@@ -314,7 +310,6 @@ fn apply(
             command.kind,
             &command.payload,
             PayloadEncoding::RawBytes,
-            budget,
         )? {
             StepAnswer::Record(record) => {
                 match input_outcome(
@@ -392,15 +387,13 @@ fn apply(
     )
 }
 
-/// What one exchange may spend: at most the shared step budget and never
-/// past the absolute input deadline. `None` means the deadline already ran
-/// out — the caller must not start another record.
-fn step_budget(input_deadline: Instant) -> Option<Duration> {
-    let remaining = input_deadline.checked_duration_since(Instant::now())?;
-    Some(remaining.min(HOST_STEP_BUDGET))
+/// Whether another step may start: `false` once the absolute input deadline
+/// has passed, and the caller must not start another record.
+fn may_start(input_deadline: Instant) -> bool {
+    Instant::now() < input_deadline
 }
 
-/// One Host round trip under a fresh correlation and the given budget. The
+/// One Host round trip under a fresh correlation and the exchange bound. The
 /// answer is classified by where the exchange ended so the caller can tell a
 /// dead carrier from a desynchronized one; a Server-side failure is fatal to
 /// the whole session and propagates instead.
@@ -410,7 +403,6 @@ fn exchange_fresh(
     kind: u16,
     payload: &[u8],
     encoding: PayloadEncoding,
-    budget: Duration,
 ) -> Result<StepAnswer, Box<dyn Error>> {
     let local = (|| -> Result<(CorrelationId, Vec<u8>), Box<dyn Error>> {
         let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
@@ -429,9 +421,7 @@ fn exchange_fresh(
     let Ok((correlation, record)) = local else {
         return Ok(StepAnswer::LocalFault);
     };
-    let Some(mut exchange) = HostExchange::new(host, server, budget) else {
-        return Ok(StepAnswer::LocalFault);
-    };
+    let mut exchange = HostExchange::open(host, server);
     match exchange.prepare() {
         Ok(()) => {}
         Err(PeerFailure::Host) => return Ok(StepAnswer::TransportLost),
@@ -454,6 +444,7 @@ fn exchange_fresh(
         || envelope.optional_message
         || envelope.payload_encoding != PayloadEncoding::ControlJson
     {
+        host.pacing.note_failure(protocol_fault());
         return Ok(StepAnswer::ProtocolFault);
     }
     Ok(StepAnswer::Record(record))
@@ -525,7 +516,7 @@ fn input_outcome(
     Ok(InputOutcome::Accepted(bytes))
 }
 
-/// Best-effort detach under its own cleanup allowance for the paths where
+/// Best-effort detach under the exchange bound for the paths where
 /// the carrier stayed healthy enough to try: a typed input refusal, a
 /// validated InputAccepted, or a determinate budget stop between records. A
 /// local construction failure still counts as unreachable — the resulting
@@ -546,7 +537,6 @@ fn detach(
         command.kind,
         &command.payload,
         PayloadEncoding::ControlJson,
-        CLEANUP_BUDGET,
     ) {
         Ok(answer) => answer,
         Err(error) => return unreachable_detach(error),
@@ -717,6 +707,9 @@ fn respond(
     host_failed: bool,
 ) -> Result<SendExecution, Box<dyn Error>> {
     if host_failed {
+        // A failed exchange recorded its own class first; an answer that left the carrier
+        // untrusted is recorded as a protocol failure.
+        host.pacing.note_failure(protocol_fault());
         let _closed = host.stream().shutdown(Shutdown::Both);
     }
     Ok(SendExecution {
@@ -737,6 +730,16 @@ fn close(
 
 fn invalid(message: &'static str) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::InvalidData, message)
+}
+
+/// A carrier ended for an answer it could not trust, with no exchange bound involved.
+const fn protocol_fault() -> HostFailure {
+    HostFailure {
+        class: PeerFailure::Protocol,
+        deadline: false,
+        waited: Duration::ZERO,
+        budget: Duration::ZERO,
+    }
 }
 
 fn server_interference() -> Box<dyn Error> {

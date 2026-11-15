@@ -954,83 +954,63 @@ fn viewer_lifecycle_reads_only_exact_settlement_without_acquiring_a_close_owner(
 }
 
 #[test]
-fn viewer_lifecycle_absence_and_recycled_host_identity_never_mean_exit() -> TestResult {
+fn viewer_lifecycle_absence_never_means_exit() -> TestResult {
     use orchbee_capability_node_protocol::{
         TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerRejection,
     };
-    for terminals in [
-        vec![],
-        vec![TerminalSummary::AwaitingStart {
-            core: summary_core(5, 99)?,
-        }],
-        vec![TerminalSummary::AwaitingStart {
-            core: summary_core(99, 2)?,
-        }],
-    ] {
-        let fixture = Fixture::new()?;
-        let target = request(TerminalLifecycleAction::Dispose)?.target;
-        let attach = TerminalViewerRequest {
-            request_id: OperationId::from_bytes([61; 16])?,
-            attachment_id: OperationId::from_bytes([60; 16])?,
-            worker_id: WorkerId::from_bytes([3; 16])?,
-            worker_generation: WorkerGeneration::new(nz(7)),
-            action: TerminalViewerAction::Attach {
-                host_epoch: target.host_epoch(),
-                terminal_id: target.terminal_id(),
-            },
+    let fixture = Fixture::new()?;
+    let target = request(TerminalLifecycleAction::Dispose)?.target;
+    let attach = TerminalViewerRequest {
+        request_id: OperationId::from_bytes([61; 16])?,
+        attachment_id: OperationId::from_bytes([60; 16])?,
+        worker_id: WorkerId::from_bytes([3; 16])?,
+        worker_generation: WorkerGeneration::new(nz(7)),
+        action: TerminalViewerAction::Attach {
+            host_epoch: target.host_epoch(),
+            terminal_id: target.terminal_id(),
+        },
+    };
+    fixture.host.viewers.borrow_mut().admit(&attach).unwrap();
+    let mut peer = fixture.peer.try_clone()?;
+    let task = thread::spawn(move || -> Result<(), String> {
+        let mut run = || -> TestResult {
+            let bytes = read_record(&mut peer)?;
+            let envelope = decode_transport_envelope(&bytes)?;
+            let control = encode_inventory_control(&InventoryControl::TerminalList(
+                orchbee_terminal_protocol::TerminalList {
+                    inventory_generation: nz(7),
+                    next_cursor: None,
+                    terminals: Vec::new(),
+                },
+            ))?;
+            peer.write_all(&wire(
+                control.kind,
+                control.role,
+                &control.payload,
+                HostEpoch::from_bytes([4; 16])?,
+                envelope.correlation_id.ok_or("correlation")?,
+            )?)?;
+            Ok(())
         };
-        fixture.host.viewers.borrow_mut().admit(&attach).unwrap();
-        let empty = terminals.is_empty();
-        let mut peer = fixture.peer.try_clone()?;
-        let task = thread::spawn(move || -> Result<(), String> {
-            let run = || -> TestResult {
-                let bytes = read_record(&mut peer)?;
-                let envelope = decode_transport_envelope(&bytes)?;
-                let control = encode_inventory_control(&InventoryControl::TerminalList(
-                    orchbee_terminal_protocol::TerminalList {
-                        inventory_generation: nz(7),
-                        next_cursor: None,
-                        terminals,
-                    },
-                ))?;
-                peer.write_all(&wire(
-                    control.kind,
-                    control.role,
-                    &control.payload,
-                    HostEpoch::from_bytes([4; 16])?,
-                    envelope.correlation_id.ok_or("correlation")?,
-                )?)?;
-                Ok(())
-            };
-            run().map_err(|e| e.to_string())
-        });
-        let result = crate::terminal_viewer_operation::execute(
-            TerminalViewerRequest {
-                action: TerminalViewerAction::ReadLifecycle { target },
-                ..attach
-            },
-            orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
-            nz(7),
-            &fixture.host,
-            &fixture.server,
-        );
-        task.join()
-            .map_err(|_| "observation peer panic")?
-            .map_err(io::Error::other)?;
-        if empty {
-            assert_eq!(
-                result?.outcome,
-                TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
-            );
-        } else {
-            assert!(result.is_err());
-        }
-        fixture
-            .host
-            .viewers
-            .borrow_mut()
-            .remove(attach.attachment_id);
-    }
+        run().map_err(|e| e.to_string())
+    });
+    let result = crate::terminal_viewer_operation::execute(
+        TerminalViewerRequest {
+            action: TerminalViewerAction::ReadLifecycle { target },
+            ..attach
+        },
+        orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
+        nz(7),
+        &fixture.host,
+        &fixture.server,
+    );
+    task.join()
+        .map_err(|_| "observation peer panic")?
+        .map_err(io::Error::other)?;
+    assert_eq!(
+        result?.outcome,
+        TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
+    );
     Ok(())
 }
 

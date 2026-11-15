@@ -164,6 +164,15 @@ impl HostViewers {
         }
     }
 
+    /// Closes one viewer whose Host answer this Worker could not accept. Its Client learns of the
+    /// close by Poll, and the next request detaches it before anything else.
+    pub(crate) fn close(&mut self, id: OperationId) {
+        if let Some(viewer) = self.viewers.get_mut(&id.as_bytes()) {
+            self.retained_record_bytes -= viewer.close();
+        }
+        self.note_ready();
+    }
+
     #[cfg(test)]
     fn with_retained_record_limit(limit: usize) -> Self {
         Self {
@@ -358,10 +367,10 @@ impl HostViewers {
             if route.host_epoch != epoch || (envelope.kind == 41) != route.base_revision.is_none() {
                 return Err(invalid("Host frame envelope and route disagree"));
             }
-            let viewer = self
-                .viewers
-                .get_mut(route.attachment_id.as_bytes())
-                .ok_or_else(|| invalid("Host event targets an unknown attachment"))?;
+            let Some(viewer) = self.viewers.get_mut(route.attachment_id.as_bytes()) else {
+                unknown_attachment(&record);
+                return Ok(());
+            };
             if viewer.closed {
                 return Ok(());
             }
@@ -453,10 +462,10 @@ impl HostViewers {
             else {
                 return Err(invalid("unexpected projection-demand event"));
             };
-            let viewer = self
-                .viewers
-                .get_mut(blocked.attachment_id.as_bytes())
-                .ok_or_else(|| invalid("Host event targets an unknown attachment"))?;
+            let Some(viewer) = self.viewers.get_mut(blocked.attachment_id.as_bytes()) else {
+                unknown_attachment(&record);
+                return Ok(());
+            };
             if viewer.closed {
                 return Ok(());
             }
@@ -522,12 +531,6 @@ impl HostViewers {
         }
     }
 
-    fn viewer(&mut self, id: AttachmentId) -> io::Result<&mut Viewer> {
-        self.viewers
-            .get_mut(id.as_bytes())
-            .ok_or_else(|| invalid("Host event targets an unknown attachment"))
-    }
-
     fn receive_effect(
         &mut self,
         id: AttachmentId,
@@ -536,7 +539,10 @@ impl HostViewers {
         record: Vec<u8>,
     ) -> io::Result<()> {
         {
-            let viewer = self.viewer(id)?;
+            let Some(viewer) = self.viewers.get_mut(id.as_bytes()) else {
+                unknown_attachment(&record);
+                return Ok(());
+            };
             if viewer.closed {
                 return Ok(());
             }
@@ -561,7 +567,10 @@ impl HostViewers {
         changed: SelectionChanged,
         record: Vec<u8>,
     ) -> io::Result<()> {
-        let viewer = self.viewer(changed.attachment_id)?;
+        let Some(viewer) = self.viewers.get_mut(changed.attachment_id.as_bytes()) else {
+            unknown_attachment(&record);
+            return Ok(());
+        };
         let mut released = 0;
         viewer.events.retain(|event| {
             if event.replaceable {
@@ -580,10 +589,10 @@ impl HostViewers {
         record: Vec<u8>,
         replaceable: bool,
     ) -> io::Result<()> {
-        let viewer = self
-            .viewers
-            .get_mut(id.as_bytes())
-            .ok_or_else(|| invalid("Host event targets an unknown attachment"))?;
+        let Some(viewer) = self.viewers.get_mut(id.as_bytes()) else {
+            unknown_attachment(&record);
+            return Ok(());
+        };
         if viewer.closed {
             return Ok(());
         }
@@ -627,6 +636,13 @@ impl Viewer {
             .sum::<usize>();
         frame + events + self.lifecycle.take().map_or(0, |record| record.len())
     }
+}
+
+/// An intact event for an attachment this Worker does not hold is dropped and recorded; events for
+/// attachments it detached never reach here (the connection drops them first).
+fn unknown_attachment(record: &[u8]) {
+    let kind = decode_transport_envelope(record).map_or(0, |envelope| envelope.kind);
+    crate::diagnostic_events::host_unexpected(crate::diagnostic_events::Site::Viewer, kind);
 }
 
 fn invalid(error: impl std::fmt::Display) -> io::Error {

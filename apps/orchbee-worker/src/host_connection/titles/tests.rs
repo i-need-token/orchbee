@@ -99,6 +99,7 @@ fn windows_host() -> Result<
         titles: RefCell::new(Titles::default()),
         host_colors: RefCell::new(crate::host_connection::HostColors::default()),
         drain: Rc::new(RefCell::new(AgentDrain::new())),
+        pacing: crate::host_connection::Pacing::default(),
     };
     Ok((host, peer, server, server_peer))
 }

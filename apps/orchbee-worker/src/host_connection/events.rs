@@ -16,6 +16,8 @@ use orchbee_terminal_protocol::{
     decode_lifecycle_control, decode_terminal_effect_event, decode_transport_envelope,
 };
 
+use super::{PeerFailure, pacing::HostFailure};
+
 pub(crate) fn validate_event(record: &[u8], epoch: HostEpoch) -> io::Result<()> {
     let envelope = decode_transport_envelope(record).map_err(invalid)?;
     if envelope.protocol != CURRENT_PROTOCOL_VERSION
@@ -47,16 +49,49 @@ pub(crate) fn validate_event(record: &[u8], epoch: HostEpoch) -> io::Result<()> 
     Ok(())
 }
 
+/// Reads one whole event and routes it. Bytes that have already arrived are read before the
+/// deadline is checked, so the deadline ends the read only while the Host has sent nothing more.
+/// A failure is recorded on the connection with its class.
 pub(crate) fn consume_event(
     connection: &super::HostBrokerConnection,
     server: &UnixStream,
     deadline: Instant,
 ) -> io::Result<()> {
+    let started = Instant::now();
     let mut reader = EventReader {
         host: connection.stream(),
         server,
         deadline,
+        server_lost: false,
     };
+    let failure = |class, error: &io::Error| HostFailure {
+        class,
+        deadline: error.kind() == io::ErrorKind::TimedOut,
+        waited: started.elapsed(),
+        budget: deadline.saturating_duration_since(started),
+    };
+    let record = match read_event(&mut reader) {
+        Ok(record) => record,
+        Err(error) => {
+            let class = if reader.server_lost {
+                PeerFailure::Server
+            } else if error.kind() == io::ErrorKind::InvalidData {
+                PeerFailure::Protocol
+            } else {
+                PeerFailure::Host
+            };
+            connection.pacing.note_failure(failure(class, &error));
+            return Err(error);
+        }
+    };
+    connection.receive_event(record).inspect_err(|error| {
+        connection
+            .pacing
+            .note_failure(failure(PeerFailure::Protocol, error));
+    })
+}
+
+fn read_event(reader: &mut EventReader<'_>) -> io::Result<Vec<u8>> {
     let mut header = [0; TRANSPORT_ENVELOPE_HEADER_BYTES];
     reader.read_exact(&mut header)?;
     let length = usize::try_from(u32::from_le_bytes([
@@ -74,24 +109,26 @@ pub(crate) fn consume_event(
     let mut record = vec![0; length];
     record[..TRANSPORT_ENVELOPE_HEADER_BYTES].copy_from_slice(&header);
     reader.read_exact(&mut record[TRANSPORT_ENVELOPE_HEADER_BYTES..])?;
-    connection.receive_event(record)
+    Ok(record)
 }
 
 struct EventReader<'a> {
     host: &'a UnixStream,
     server: &'a UnixStream,
     deadline: Instant,
+    server_lost: bool,
 }
 
 impl Read for EventReader<'_> {
     fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
         loop {
             let remaining = self.deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                return Err(io::ErrorKind::TimedOut.into());
-            }
-            let timeout =
-                PollTimeout::try_from(remaining.as_millis().saturating_add(1)).map_err(invalid)?;
+            let milliseconds = if remaining.is_zero() {
+                0
+            } else {
+                remaining.as_millis().saturating_add(1)
+            };
+            let timeout = PollTimeout::try_from(milliseconds).map_err(invalid)?;
             let mut descriptors = [
                 PollFd::new(self.host.as_local_io(), PollFlags::POLLIN),
                 // A Server request may already be queued while idle; observe loss
@@ -107,6 +144,7 @@ impl Read for EventReader<'_> {
                 .revents()
                 .is_none_or(|events| !events.is_empty())
             {
+                self.server_lost = true;
                 return Err(io::ErrorKind::ConnectionAborted.into());
             }
             let events = descriptors[0]
@@ -123,6 +161,9 @@ impl Read for EventReader<'_> {
             }
             if events.contains(PollFlags::POLLHUP) {
                 return Err(io::ErrorKind::UnexpectedEof.into());
+            }
+            if remaining.is_zero() {
+                return Err(io::ErrorKind::TimedOut.into());
             }
         }
     }

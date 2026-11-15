@@ -603,14 +603,17 @@ Resize acknowledges the exact complete geometry. No new Host wire contract or VT
 Host cleanup releases the control attachment before the viewer. Explicit OBCN Detach performs that order inside Worker; the later Server lease Drop sends an idempotent Release to settle its registry. Connection Drop submits OBCN Release before Detach. The Server reservation
 remains occupied until generation-pinned cleanup completes or that Worker becomes unavailable;
 cleanup admission uses the existing bounded request queue, with no lock held across I/O. A stale
-cleanup cannot clear a new grant. Failed or contradictory Host exchanges end the Worker connection;
-the Server reports an unknown control outcome after complete delivery. No other viewer is promoted.
+cleanup cannot clear a new grant. A failed Host exchange ends the Worker connection, and the Server
+reports an unknown control outcome after complete delivery; a contradictory Host answer refuses only
+that request as `HostRejected` and releases the grant. No other viewer is promoted.
 Explicit takeover now follows the [controller takeover model](docs/terminal-controller-takeover.md):
 Pending reservations fence both competing takeover and stale effects; the candidate owns old/new
 cleanup until acknowledged transfer. Independent release while retaining the Viewer remains later work.
 
 At most eight viewers imply at most eight control attachments. Cleanup can therefore perform sixteen
-one-second Host exchanges before the next request. The Worker response budget is twenty seconds,
+Host exchanges before the next request, all inside that request's fifteen-second
+[Worker Host bound](../orchbee-worker/README.md#integrated-authorized-request-loop). The Worker
+response budget is twenty seconds,
 launch leases last forty-six seconds, and native Client submissions allow fifty seconds. Request
 writes and Client record reads/writes retain their existing two-second bounds. These are local
 implementation limits, not release performance budgets.
@@ -648,8 +651,8 @@ Each send submits one OBCN request whose identity correlates exactly one request
 persistent dedupe ledger is added, and a manually retried send is a new request that may deliver
 input twice. Sends serialize on the single Worker carrier alongside controller exchanges, so input
 order equals arrival order. The existing twenty-second Worker response budget, two-second write
-bounds, and fifty-second Client submission window all hold; three one-second Host exchanges fit
-inside them without enlargement.
+bounds, and fifty-second Client submission window all hold; the three Host exchanges share the
+Worker's fifteen-second request bound, which fits inside them without enlargement.
 
 ## Accepted terminal Client authority and relay modeling record
 
@@ -682,7 +685,7 @@ representation; the OBCN viewer section of the capability-node README owns the t
 | Outputs        | Exactly one of: complete correlated OBTP response record through OBNR/OBSR, `RowsRejected` with one of the nine closed reasons, or the existing explicit `Rejected`/`Unavailable` outcomes. A byte-budget overrun is a typed failure, never a partial success. `Empty` never answers `read-rows`.                                                                                                                                                                                |
 | Routing        | Server resolves the selector within the issuing Connection (unowned → `terminal-unavailable`), revalidates the pinned Worker/generation/current-worker, then dispatches OBCN tag 6. The response record's Host correlation must equal this dispatch's Worker `OperationId`; role, kind, encoding, Host epoch, and attachment must match the request scope. The record bypasses frame-only `projection.receive`. Interleaved Host events still route to their owning attachments. |
 | Settlement     | Host `TypedFailure` maps to the closed `RowsRejected` reason set; a legal `RowsRejected` does not retire a healthy viewer. `RowsRejected` on a non-`ReadRows` operation, or a response `Record` in an invalid phase, is a protocol violation. No acknowledgement (`RowsApplied`) is sent for buffer reads, and no implicit retry, resend, or retargeting follows any failure.                                                                                                    |
-| Lifetime       | The exchange is bounded by the existing one-second Worker/Host budget inside the caller's deadline. Viewer slot release and detach/drop stay with the existing Connection cleanup; nothing here extends viewer lifetime.                                                                                                                                                                                                                                                         |
+| Lifetime       | The exchange is bounded by the Worker's ten-second Host exchange bound inside the caller's deadline. Viewer slot release and detach/drop stay with the existing Connection cleanup; nothing here extends viewer lifetime.                                                                                                                                                                                                                                                        |
 
 The action is additive and matched-cohort only: an older Worker rejects tag 6, and a same-cohort
 violation (wrong inner correlation, response record in the wrong phase, `RowsRejected` on another

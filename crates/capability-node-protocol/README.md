@@ -107,7 +107,7 @@ Worker retains exact lifecycle observations and cleans only the disposed target'
 and queued feedback/frame entries before returning Disposed. Server retains exact target revocation
 and clears its matching reservations; lost acknowledgments preserve known/unknown facts at the owner
 that observed them. New Control Acquire is fenced with Attach/Input/Resize/Start. Close keeps the
-existing 1s Host exchange, 2s Server frame I/O and separate 20s response wait; the Server's 30s
+Worker's 10s Host exchange bound, 2s Server frame I/O and separate 20s response wait; the Server's 30s
 attempt budget only gates next-step admission and cannot discard an outstanding receipt.
 
 The lifecycle codec and Server carrier correlation implement the following bounded representation.

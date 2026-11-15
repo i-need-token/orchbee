@@ -435,7 +435,7 @@ budget is spent, the park reports the last such cause: `worker-unavailable`, `ho
 `cleanup-incomplete` or `inventory-incomplete`. Identity conflicts, a mutating step's unknown
 outcome, local cleanup failure and publication failure are not retried within the attempt.
 
-Preserve the existing independent budgets: Worker HostExchange is **1s**; Server carrier frame I/O
+Preserve the existing independent budgets: Worker HostExchange is **10s**; Server carrier frame I/O
 is **2s**, with a separate **20s response wait**; submission waits on `result.recv()`. The 30s
 attempt budget governs next-step admission, not Host join, scheduling or total return time.
 Never discard an already-dispatched receipt at expiry or Resume over it: settle its exact known

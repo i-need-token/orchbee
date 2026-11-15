@@ -9,7 +9,7 @@ use std::{
     io,
     num::NonZeroU64,
     rc::Rc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use orchbee_capability_node_protocol::{CapabilityNodeMessage, HostEpoch, LaunchPreferences};
@@ -19,6 +19,7 @@ use orchbee_terminal_protocol::CorrelationId;
 use crate::{
     agent_drain::AgentDrain,
     default_interactive_launch::SystemShell,
+    diagnostic_events::Site,
     host_connection::HostBrokerConnection,
     terminal_authorization::{
         AuthorizedHostDispatch, AuthorizedHostOperation, AuthorizedHostOperationKernel,
@@ -28,6 +29,7 @@ use crate::{
 };
 
 mod background_jobs;
+mod exit_cause;
 mod host_query;
 mod launch_facts;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -45,9 +47,6 @@ mod titles;
 
 #[cfg(test)]
 mod tests;
-
-// Leave room for result delivery within the Server carrier's response budget.
-const HOST_OPERATION_BUDGET: Duration = Duration::from_secs(1);
 
 pub(crate) fn run(
     server: &UnixStream,
@@ -139,7 +138,34 @@ pub(crate) fn run_admitted(
     )
 }
 
+/// Serves the admitted connection and attaches the classified cause to the error that ends it.
 fn run_admitted_with_handoff(
+    server: UnixStream,
+    host: &mut HostBrokerConnection,
+    worker_id: WorkerId,
+    generation: NonZeroU64,
+    kernel: AuthorizedHostOperationKernel,
+    aux: AdmittedAux<'_>,
+    #[cfg(windows)] handoff: handoff::Handoff,
+) -> Result<(), Box<dyn Error>> {
+    let outcome = serve(
+        server,
+        host,
+        worker_id,
+        generation,
+        kernel,
+        aux,
+        #[cfg(windows)]
+        handoff,
+    );
+    outcome.map_err(|error| exit_cause::attach(error, host))
+}
+
+/// Each Server request bounds its Host exchanges from its arrival ([`Pacing`]), and names the
+/// site its failure would be recorded at.
+///
+/// [`Pacing`]: crate::host_connection::Pacing
+fn serve(
     server: UnixStream,
     host: &mut HostBrokerConnection,
     worker_id: WorkerId,
@@ -152,6 +178,8 @@ fn run_admitted_with_handoff(
     let mut server = server;
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
     loop {
+        host.pacing.end_request();
+        host.pacing.set_site(Site::ServerReceive);
         #[cfg(not(windows))]
         let request = server_transport::receive(&server, Some(host))?;
         #[cfg(windows)]
@@ -163,10 +191,12 @@ fn run_admitted_with_handoff(
             }
             handoff.expire(std::time::Instant::now());
         };
+        host.pacing.begin_request();
         #[cfg(windows)]
         handoff.expire(std::time::Instant::now());
         #[cfg(windows)]
         if let CapabilityNodeMessage::WorkerHandoffRequest(request) = request {
+            host.pacing.set_site(Site::Handoff);
             handoff.execute(&mut server, Some(host), request, worker_id, generation)?;
             continue;
         }
@@ -191,6 +221,7 @@ fn run_admitted_with_handoff(
         }
         #[cfg(windows)]
         if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
+            host.pacing.set_site(Site::Shutdown);
             if let Some(reason) =
                 shutdown::refusal(request, worker_id, generation, aux.managed_host.is_some())
             {
@@ -228,6 +259,7 @@ fn run_admitted_with_handoff(
         }
         #[cfg(windows)]
         if let CapabilityNodeMessage::TerminalTitlesRequest(request) = request {
+            host.pacing.set_site(Site::Titles);
             let result = titles::execute(&server, Some(host), request, worker_id, generation)?;
             if server_transport::send(
                 &server,
@@ -250,6 +282,7 @@ fn run_admitted_with_handoff(
             continue;
         }
         if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
+            host.pacing.set_site(Site::Drain);
             let host_closed = dispatch_drain_request(
                 &server,
                 Some(host),
@@ -354,6 +387,7 @@ fn run_admitted_with_handoff(
             continue;
         }
         if let CapabilityNodeMessage::TerminalLifecycleRequest(request) = request {
+            host.pacing.set_site(Site::Lifecycle);
             let disposition = match kernel.admit_lifecycle(request, unix_milliseconds(), epoch)? {
                 crate::terminal_authorization::LifecycleAdmission::Dispatch(dispatch) => {
                     crate::terminal_lifecycle_operation::PreparedLifecycleOperation::new(
@@ -364,7 +398,7 @@ fn run_admitted_with_handoff(
                         host,
                         &server,
                         unix_milliseconds,
-                        HOST_OPERATION_BUDGET,
+                        host.pacing.exchange_bound(),
                     )?
                 }
                 crate::terminal_authorization::LifecycleAdmission::ResultReady => {
@@ -391,6 +425,7 @@ fn run_admitted_with_handoff(
         }
         crate::terminal_viewer_operation::cleanup_closed(host, &server)?;
         if let CapabilityNodeMessage::TerminalControlRequest(request) = request {
+            host.pacing.set_site(Site::Control);
             let result = crate::terminal_control_operation::execute(
                 request, worker_id, generation, host, &server,
             )?;
@@ -404,6 +439,7 @@ fn run_admitted_with_handoff(
             continue;
         }
         if let CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) = request {
+            host.pacing.set_site(Site::Graphics);
             let result = crate::terminal_viewer_operation::decode_graphics(
                 request, worker_id, generation, host, &server,
             )?;
@@ -417,6 +453,7 @@ fn run_admitted_with_handoff(
             continue;
         }
         if let CapabilityNodeMessage::TerminalViewerRequest(request) = request {
+            host.pacing.set_site(Site::Viewer);
             let result = crate::terminal_viewer_operation::execute(
                 request, worker_id, generation, host, &server,
             )?;
@@ -430,6 +467,7 @@ fn run_admitted_with_handoff(
             continue;
         }
         if let CapabilityNodeMessage::TerminalSendRequest(request) = request {
+            host.pacing.set_site(Site::Send);
             let execution = crate::terminal_send_operation::execute(
                 request, worker_id, generation, host, &server,
             )?;
@@ -450,11 +488,13 @@ fn run_admitted_with_handoff(
         let mut output_seed = None;
         let admission = match request {
             CapabilityNodeMessage::AuthorizedTerminalLaunch(mut launch) => {
+                host.pacing.set_site(Site::Launch);
                 // The kernel retains its launch for replay; the earlier output travels apart.
                 output_seed = launch.take_output_seed();
                 kernel.admit_launch(launch, now)?
             }
             CapabilityNodeMessage::AuthorizedTerminalStart(start) => {
+                host.pacing.set_site(Site::Start);
                 kernel.admit_start(start, now, epoch)?
             }
             CapabilityNodeMessage::WorkerHandoffRequest(_)
@@ -507,6 +547,7 @@ fn run_admitted_with_handoff(
         let observed_colors = host.host_colors.borrow().latest();
         let disposition = match admission {
             HostOperationAdmission::Dispatch(dispatch) => {
+                let bound = host.pacing.exchange_bound();
                 match prepare_or_fail(
                     &mut kernel,
                     &dispatch,
@@ -516,13 +557,9 @@ fn run_admitted_with_handoff(
                 )?
                 .map(|prepared| prepared.with_output_seed(output_seed))
                 {
-                    Some(prepared) => prepared.execute(
-                        &mut kernel,
-                        host,
-                        &server,
-                        unix_milliseconds,
-                        HOST_OPERATION_BUDGET,
-                    )?,
+                    Some(prepared) => {
+                        prepared.execute(&mut kernel, host, &server, unix_milliseconds, bound)?
+                    }
                     None => HostOperationDisposition::ResultReady,
                 }
             }

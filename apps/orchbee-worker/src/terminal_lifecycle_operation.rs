@@ -134,7 +134,10 @@ impl PreparedLifecycleOperation {
                     }
                     return Ok(HostOperationDisposition::ResultReady);
                 }
-                Err(_) => (PeerFailure::Host, LifecycleUnknownReason::InvalidResponse),
+                Err(_) => {
+                    exchange.note(PeerFailure::Protocol);
+                    (PeerFailure::Host, LifecycleUnknownReason::InvalidResponse)
+                }
             },
             Err(failure) => (
                 failure,

@@ -4,9 +4,9 @@
 
 use super::{
     AttachmentId, AttachmentTarget, CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId,
-    Envelope, Error, HostBrokerConnection, HostExchange, MessageRole, PayloadEncoding,
-    TerminalViewerOutcome, UnixStream, ViewerRejection, decode_connection_control,
-    decode_transport_envelope, encode_transport_envelope, invalid,
+    Envelope, Error, HostBrokerConnection, HostExchange, MessageRole, PayloadEncoding, PeerFailure,
+    TerminalViewerOutcome, UnexpectedAnswer, UnixStream, ViewerRejection,
+    decode_connection_control, decode_transport_envelope, encode_transport_envelope,
 };
 use orchbee_terminal_protocol::{
     MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl, ReadProcessInfo, decode_process_info_control,
@@ -43,23 +43,24 @@ pub(super) fn read(
         protocol: CURRENT_PROTOCOL_VERSION,
         role: MessageRole::Request,
     })?;
-    let mut exchange = HostExchange::new(host, server, std::time::Duration::from_secs(1))
-        .ok_or_else(|| invalid("process read budget is invalid"))?;
-    exchange
-        .prepare()
-        .map_err(|_| invalid("process read preflight failed"))?;
+    host.pacing
+        .set_site(crate::diagnostic_events::Site::ProcessRead);
+    let mut exchange = HostExchange::open(host, server);
+    exchange.prepare().map_err(|class| exchange.error(class))?;
     let record = exchange
         .round_trip_bounded(&record, MAXIMUM_CONTROL_JSON_BYTES)
-        .map_err(|_| invalid("process read exchange failed"))?;
+        .map_err(|class| exchange.error(class))?;
     let envelope = decode_transport_envelope(&record)?;
     if envelope.correlation_id != Some(correlation)
         || envelope.host_epoch != Some(host.host_epoch())
         || envelope.protocol != CURRENT_PROTOCOL_VERSION
         || envelope.role != MessageRole::Response
-        || envelope.payload_encoding != PayloadEncoding::ControlJson
         || envelope.optional_message
     {
-        return Err(invalid("process read response has the wrong envelope").into());
+        return Err(exchange.error(PeerFailure::Protocol).into());
+    }
+    if envelope.payload_encoding != PayloadEncoding::ControlJson {
+        return Err(UnexpectedAnswer::of(&record).into());
     }
     match decode_process_info_control(envelope.kind, envelope.role, envelope.payload) {
         Ok(ProcessInfoControl::ProcessInfo(info))
@@ -69,7 +70,7 @@ pub(super) fn read(
             Ok(ConnectionControl::TypedFailure(_))
         ) => {}
         // Only the requested Host acknowledgment can confirm this attachment/process operation.
-        _ => return Err(invalid("process read response has the wrong target or payload").into()),
+        _ => return Err(UnexpectedAnswer::of(&record).into()),
     }
     Ok(TerminalViewerOutcome::Record(record))
 }

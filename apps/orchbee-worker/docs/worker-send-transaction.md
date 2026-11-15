@@ -91,7 +91,7 @@ retires it, and unconfirmed cleanup at `done` implies a dead carrier.
 One request, one terminal pair, one TUI attachment, byte domain 0..2
 (`acceptedBytes` is a singleton set once the input is acked, `{}` before),
 per-stage send counters ≤1, event drains ≤3. Refinement consumers are the
-scripted-Host suite (`tests/process/terminal_operations/send.rs`, 15 cases)
+scripted-Host suite (`tests/process/terminal_operations/send.rs`, 14 cases)
 and the public send tests; this model does not replace them — they pin wire
 bytes it abstracts.
 
@@ -152,7 +152,7 @@ acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
   alive at `done`; a real worker exit would drop the carrier and release
   `tui`. The terminal state is optimistic here but supports no false
   property.
-- `eventDrains <= 3` is an arbitrary bound; a real one-second step may drain
+- `eventDrains <= 3` is an arbitrary bound; a real step, bounded at ten seconds, may drain
   more interleaved Host events. The bound only limits stutter depth.
 - `CarrierLost` at a between-exchange phase folds "death discovered at the
   next write" into a lossless transition; the dominant real trace (zero-byte

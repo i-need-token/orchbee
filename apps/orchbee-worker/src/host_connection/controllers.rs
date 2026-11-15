@@ -121,6 +121,9 @@ impl HostControllers {
             .find(|grant| grant.terminal_id == terminal)
             .map(|grant| grant.controller_id)
     }
+    pub(super) fn holds(&self, attachment: orchbee_terminal_protocol::AttachmentId) -> bool {
+        self.grants.contains_key(attachment.as_bytes())
+    }
     pub(crate) fn validate_lease_event(
         &self,
         event: orchbee_terminal_protocol::ResizeLeaseChanged,

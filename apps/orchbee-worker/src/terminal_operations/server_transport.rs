@@ -68,6 +68,10 @@ pub(super) fn send_until(
     deadline: Instant,
 ) -> Result<bool, WriteMessageError> {
     let deadline = deadline.min(Instant::now() + RECORD_BUDGET);
+    if let Some(host) = host {
+        host.pacing
+            .set_site(crate::diagnostic_events::Site::ServerSend);
+    }
     let mut transport = ServerRecord {
         server,
         host,
@@ -160,7 +164,9 @@ impl ServerRecord<'_> {
                 .is_some_and(|host| host.revents().is_none_or(|events| !events.is_empty()))
             {
                 let event = self.host.ok_or_else(super::peer_closed).and_then(|host| {
-                    let event_deadline = Instant::now() + Duration::from_secs(1);
+                    // One event that has begun arrives within the Host exchange bound, and never
+                    // past an open record's own deadline.
+                    let event_deadline = Instant::now() + host.pacing.exchange_bound();
                     let deadline = event_deadline.min(self.deadline.unwrap_or(event_deadline));
                     consume_event(host, self.server, deadline)
                 });

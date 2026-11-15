@@ -1137,40 +1137,6 @@ fn send_attach_capability_echo_mismatches_are_protocol_faults() -> TestResult {
     Ok(())
 }
 
-/// A silent Host burns the step budget: the exchange ends as transport loss,
-/// the outcome is HostUnavailable with unconfirmed cleanup, and the session
-/// ends without another Host request.
-#[test]
-fn send_attach_response_deadline_is_unavailable() -> TestResult {
-    let fixture = RuntimeFixture::new()?;
-    let listener = fixture.bind_host_listener()?;
-    let host = thread::spawn(move || -> io::Result<()> {
-        let mut host = admit_host(&listener)?;
-        let _attach = expect_attach(&mut host).map_err(protocol_io)?;
-        // No response ever arrives; the one-second exchange budget expires.
-        require_connection_closed(&mut host)
-    });
-    let worker = RunningWorker::start(&fixture)?;
-    let (mut server, _) = admit_worker(&fixture.server_listener)?;
-    assert_eq!(worker.await_readiness()?, Some(*b"ready\n"));
-    assert_eq!(
-        send(
-            &mut server,
-            send_request(1, 7, identity(SCRIPT_EPOCH, TERMINAL)?, text("ls", false)?)?,
-        )?
-        .outcome(),
-        TerminalSendOutcome::Unavailable {
-            progress: SendProgress::none(),
-            reason: SendUnavailable::HostUnavailable,
-            cleanup: SendCleanupStatus::Unconfirmed,
-        }
-    );
-    require_connection_closed(&mut server)?;
-    assert_failed_after_exact_readiness(worker.finish()?);
-    join_peer(host, "silent Host")?;
-    Ok(())
-}
-
 /// An echo violation on the input acknowledgement is the same desync class as
 /// a dead carrier after the input may have landed: unknown, never resent,
 /// and no third request leaves on the stream.

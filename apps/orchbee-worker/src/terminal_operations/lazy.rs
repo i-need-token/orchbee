@@ -6,6 +6,7 @@ use super::{server_transport, unix_milliseconds};
 use crate::{
     agent_drain::AgentDrain,
     default_interactive_launch::SystemShell,
+    diagnostic_events::{ExitCause, Peer, Reason, Site},
     host_connection::{DialFailure, HostBrokerConnection},
     terminal_authorization::{AuthorizedHostOperationKernel, HostOperationAdmission},
     terminal_host_operation::HostOperationDisposition,
@@ -19,7 +20,7 @@ use orchbee_local_worker_protocol::WorkerId;
 #[cfg(unix)]
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     error::Error,
     io,
     num::NonZeroU64,
@@ -56,8 +57,11 @@ pub(crate) fn run(
     let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
     let mutation_slot =
         crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
+    // Where the pre-Host loop was when it ended; the admitted loop classifies its own end.
+    let site = Cell::new(Site::ServerReceive);
     let outcome = (|| {
         loop {
+            site.set(Site::ServerReceive);
             #[cfg(not(windows))]
             let request = server_transport::receive(&server, None)?;
             #[cfg(windows)]
@@ -69,10 +73,12 @@ pub(crate) fn run(
                 }
                 handoff.expire(Instant::now());
             };
+            let arrived = Instant::now();
             #[cfg(windows)]
             handoff.expire(std::time::Instant::now());
             #[cfg(windows)]
             if let CapabilityNodeMessage::WorkerHandoffRequest(request) = request {
+                site.set(Site::Handoff);
                 handoff.execute(&mut server, None, request, worker_id, generation)?;
                 continue;
             }
@@ -120,6 +126,7 @@ pub(crate) fn run(
             }
             #[cfg(windows)]
             if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
+                site.set(Site::Shutdown);
                 if let Some(reason) = super::shutdown::refusal(request, worker_id, generation, true)
                 {
                     let _no_host = server_transport::send(
@@ -154,6 +161,7 @@ pub(crate) fn run(
             }
             #[cfg(windows)]
             if let CapabilityNodeMessage::TerminalTitlesRequest(request) = request {
+                site.set(Site::Titles);
                 let result = super::titles::execute(&server, None, request, worker_id, generation)?;
                 let _no_host = server_transport::send(
                     &server,
@@ -172,6 +180,7 @@ pub(crate) fn run(
                 continue;
             }
             if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
+                site.set(Site::Drain);
                 // Without a Host, send always reports host_closed=true; that flag
                 // is expected here and does not retire the Server connection.
                 let _no_host = super::dispatch_drain_request(
@@ -266,6 +275,7 @@ pub(crate) fn run(
                 )
                 .into());
             };
+            site.set(Site::Launch);
             // The kernel retains its launch for replay; the earlier output travels apart.
             let output_seed = launch.take_output_seed();
             let dispatch = match kernel.admit_launch(launch, unix_milliseconds())? {
@@ -288,6 +298,7 @@ pub(crate) fn run(
                 let _no_host = server_transport::send(&server, None, &result)?;
                 continue;
             };
+            site.set(Site::HostStart);
             let started =
                 start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host));
             let (prepared, (mut host, _child)) = match started {
@@ -305,28 +316,36 @@ pub(crate) fn run(
                     kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
                     let result = super::take_result(&mut kernel)?;
                     let _delivery = server_transport::send(&server, None, &result);
-                    return Err(failure.error);
+                    return Err(failure.into_exit_cause());
                 }
             };
             host.stream().set_nonblocking(true)?;
-            let disposition = prepared.execute(
-                &mut kernel,
-                &mut host,
-                &server,
-                unix_milliseconds,
-                super::HOST_OPERATION_BUDGET,
-            )?;
-            if disposition == HostOperationDisposition::ServerClosed {
-                return Err(super::peer_closed().into());
-            }
-            let result = super::take_result(&mut kernel)?;
-            let closed = server_transport::send(
-                &server,
-                (disposition == HostOperationDisposition::ResultReady).then_some(&host),
-                &result,
-            )?;
-            if closed {
-                return Err(super::peer_closed().into());
+            // The Launch's bound runs from its arrival, which the Host start already used.
+            host.pacing.begin_request_at(arrived);
+            host.pacing.set_site(Site::Launch);
+            let bound = host.pacing.exchange_bound();
+            let delivered = (|| -> Result<bool, Box<dyn Error>> {
+                let disposition =
+                    prepared.execute(&mut kernel, &mut host, &server, unix_milliseconds, bound)?;
+                if disposition == HostOperationDisposition::ServerClosed {
+                    return Err(super::peer_closed().into());
+                }
+                let result = super::take_result(&mut kernel)?;
+                Ok(server_transport::send(
+                    &server,
+                    (disposition == HostOperationDisposition::ResultReady).then_some(&host),
+                    &result,
+                )?)
+            })();
+            match delivered {
+                Ok(false) => {}
+                Ok(true) => {
+                    return Err(super::exit_cause::attach(
+                        super::peer_closed().into(),
+                        &host,
+                    ));
+                }
+                Err(error) => return Err(super::exit_cause::attach(error, &host)),
             }
             #[cfg(windows)]
             let mut managed_host = super::shutdown::ManagedHost::new(_child);
@@ -353,7 +372,8 @@ pub(crate) fn run(
                 handoff,
             );
         }
-    })();
+    })()
+    .map_err(|error| super::exit_cause::attach_without_host(error, site.get()));
     super::background_jobs::BackgroundJobs {
         discovery: &worktree_slot,
         integrations: &agent_integrations,
@@ -417,6 +437,27 @@ struct HostStartFailure {
     elapsed: Duration,
     host_exit: Option<u32>,
     error: Box<dyn Error>,
+}
+
+impl HostStartFailure {
+    /// The loop's end after this failure: the Host never answered in time, ended before it was
+    /// reached, or a local step failed.
+    fn into_exit_cause(self) -> Box<dyn Error> {
+        let (reason, peer) = match self.stage {
+            HostStartStage::Deadline => (Reason::Deadline, Peer::Host),
+            HostStartStage::Exited | HostStartStage::Connect | HostStartStage::Handshake => {
+                (Reason::HostClosed, Peer::Host)
+            }
+            _ => (Reason::Local, Peer::None),
+        };
+        Box::new(ExitCause {
+            site: Site::HostStart,
+            reason,
+            peer,
+            waited: None,
+            source: self.error,
+        })
+    }
 }
 
 /// How long a failed dial waits for the Host to exit, so the record carries the exit code of a

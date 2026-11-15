@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_terminal_protocol::{
-    AttachmentId, ClearTerminal, ScreenControl, ScreenControlOperation, TerminalControlAccepted,
-    TerminalId, decode_screen_control, encode_screen_control,
+    ClearTerminal, ScreenControl, ScreenControlOperation, TerminalControlAccepted, TerminalId,
+    decode_screen_control, encode_screen_control,
 };
 
 #[test]
@@ -15,7 +15,6 @@ fn clear_pipe_owns_one_input_attachment_preserves_controller_and_reports_effect_
         "wrong-operation",
         "zero-revision",
         "alternate",
-        "attach-mismatch",
     ] {
         let (host, mut peer) = fixture()?;
         let (server, _quiet) = UnixStream::pair()?;
@@ -38,11 +37,7 @@ fn clear_pipe_owns_one_input_attachment_preserves_controller_and_reports_effect_
                 );
                 let granted = encode_attachment_control(
                     &AttachmentControl::AttachmentCapabilities(AttachmentCapabilities {
-                        attachment_id: if mode == "attach-mismatch" {
-                            AttachmentId::from_bytes([22; 16]).unwrap()
-                        } else {
-                            attach.attachment_id
-                        },
+                        attachment_id: attach.attachment_id,
                         terminal_id: attach.terminal_id,
                         capability_revision: NonZeroU64::MIN,
                         capabilities: attach.capabilities,
@@ -57,9 +52,6 @@ fn clear_pipe_owns_one_input_attachment_preserves_controller_and_reports_effect_
                     &granted.payload,
                     PayloadEncoding::ControlJson,
                 );
-                if mode == "attach-mismatch" {
-                    return;
-                }
                 let record = read_transport_record(&mut peer).unwrap();
                 let envelope = decode_transport_envelope(&record).unwrap();
                 assert_eq!(
@@ -154,10 +146,6 @@ fn clear_pipe_owns_one_input_attachment_preserves_controller_and_reports_effect_
                 "alternate" => assert_eq!(
                     result,
                     Outcome::Rejected(ControlRejection::HostClearAlternateScreen)
-                ),
-                "attach-mismatch" => assert_eq!(
-                    result,
-                    Outcome::Rejected(ControlRejection::HostInputUnavailable)
                 ),
                 _ => assert_eq!(result, Outcome::ClearOutcomeUnknown),
             }

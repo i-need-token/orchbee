@@ -2,9 +2,10 @@
 //! launch's display mode. Unknown outer ANSI colors keep the current fallback.
 use super::{
     ConnectionControl, CorrelationId, Error, HostBrokerConnection, Outcome, PayloadEncoding,
-    TerminalId, UnixStream, decode_connection_control, decode_transport_envelope, exchange,
-    fresh_identity, invalid,
+    TerminalId, UnixStream, decode_connection_control, decode_transport_envelope,
+    diagnostic_events, exchange, fresh_identity,
 };
+use crate::diagnostic_events::Site;
 use orchbee_capability_node_protocol::{HostDefaultColors, HostTerminalId};
 use orchbee_local_runtime::UserTerminalColors;
 use orchbee_terminal_protocol::{
@@ -12,7 +13,8 @@ use orchbee_terminal_protocol::{
     decode_theme_control, encode_theme_control,
 };
 
-/// Best effort: a rejected or exited target stops following and keeps its current colors.
+/// Best effort: a rejected or exited target stops following and keeps its current colors, and so
+/// does a target whose Host answer this Worker cannot accept.
 pub(super) fn apply(
     host: &HostBrokerConnection,
     server: &UnixStream,
@@ -59,14 +61,16 @@ pub(super) fn apply(
             host.host_colors.borrow_mut().remove(key);
             break;
         }
-        let ThemeControl::TerminalThemeResult(result) =
-            decode_theme_control(envelope.kind, envelope.role, envelope.payload)?
-        else {
-            return Err(invalid("Host did not answer the theme update"));
+        let result = match decode_theme_control(envelope.kind, envelope.role, envelope.payload) {
+            Ok(ThemeControl::TerminalThemeResult(result)) if result.terminal_id == terminal_id => {
+                result
+            }
+            _ => {
+                diagnostic_events::host_unexpected(Site::Control, envelope.kind);
+                host.host_colors.borrow_mut().remove(key);
+                break;
+            }
         };
-        if result.terminal_id != terminal_id {
-            return Err(invalid("Host theme result names another terminal"));
-        }
         host.host_colors
             .borrow_mut()
             .commit(key, result.current.clone());

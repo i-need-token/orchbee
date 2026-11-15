@@ -235,7 +235,10 @@ impl PreparedHostOperation {
                     }
                     return Ok(HostOperationDisposition::ResultReady);
                 }
-                Err(_invalid_response) => PeerFailure::Host,
+                Err(_invalid_response) => {
+                    exchange.note(PeerFailure::Protocol);
+                    PeerFailure::Host
+                }
             },
             Err(failure) => failure,
         };

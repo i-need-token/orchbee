@@ -5,7 +5,7 @@ use super::shell::{WORKER, connected_host, record, reply, timeout};
 use orchbee_capability_node_protocol::{self as node, *};
 use orchbee_local_ipc::LocalStream;
 use orchbee_terminal_protocol::{self as terminal, decode_transport_envelope};
-use std::{net::Shutdown, thread};
+use std::{net::Shutdown, thread, time::Duration};
 
 const EPOCH: [u8; 16] = [4; 16];
 const TARGET: [u8; 16] = [91; 16];

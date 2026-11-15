@@ -3,7 +3,7 @@
 //! projections without rendering them or deciding product exposure and Client authorization.
 
 use orchbee_local_ipc::LocalStream as UnixStream;
-use std::{error::Error, io, num::NonZeroU64, time::Duration};
+use std::{error::Error, fmt, num::NonZeroU64};
 
 use orchbee_capability_node_protocol::{
     MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
@@ -34,7 +34,7 @@ use orchbee_terminal_protocol::{
     encode_transport_envelope, message_contract,
 };
 
-use crate::host_connection::{HostBrokerConnection, HostExchange, exchange};
+use crate::host_connection::{HostBrokerConnection, HostExchange, PeerFailure, exchange};
 use crate::worker_identity::fresh_identity;
 
 mod graphics_decode;
@@ -45,6 +45,31 @@ mod process_info;
 fn invalid(error: impl std::fmt::Display) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string())
 }
+
+/// A correlated Host answer other than the exact acknowledgement: a refusal where none is
+/// expected, or a payload for another target or value. The envelope was in step, so it concerns
+/// only its own request: the request is refused and its viewer or controller is closed.
+#[derive(Debug)]
+pub(crate) struct UnexpectedAnswer {
+    /// The answer's message kind, the only part of it the diagnostic log keeps.
+    pub(crate) kind: u16,
+}
+
+impl UnexpectedAnswer {
+    pub(crate) fn of(record: &[u8]) -> Self {
+        Self {
+            kind: decode_transport_envelope(record).map_or(0, |envelope| envelope.kind),
+        }
+    }
+}
+
+impl fmt::Display for UnexpectedAnswer {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Host answered with an unexpected message")
+    }
+}
+
+impl Error for UnexpectedAnswer {}
 
 pub(crate) fn execute(
     request: TerminalViewerRequest,
@@ -58,7 +83,10 @@ pub(crate) fn execute(
     } else if request.worker_generation.get() != generation.get() {
         TerminalViewerOutcome::Rejected(ViewerRejection::StaleWorkerGeneration)
     } else {
-        apply(request, host, server)?
+        match apply(request, host, server) {
+            Ok(outcome) => outcome,
+            Err(error) => contain(error, host, request.attachment_id)?,
+        }
     };
     Ok(TerminalViewerResult {
         request_id: request.request_id,
@@ -67,37 +95,52 @@ pub(crate) fn execute(
     })
 }
 
+/// An unexpected answer refuses this request and closes its viewer, which the next request
+/// detaches; every other failure still ends the connection.
+fn contain(
+    error: Box<dyn Error>,
+    host: &HostBrokerConnection,
+    attachment: orchbee_capability_node_protocol::OperationId,
+) -> Result<TerminalViewerOutcome, Box<dyn Error>> {
+    let answer = error.downcast::<UnexpectedAnswer>()?;
+    crate::diagnostic_events::host_unexpected(host.pacing.site(), answer.kind);
+    host.viewers.borrow_mut().close(attachment);
+    Ok(TerminalViewerOutcome::Rejected(
+        ViewerRejection::HostRejected,
+    ))
+}
+
 // Queue saturation retires only that viewer. Cleanup runs before the next Server
 // operation, through the same Host writer; it cannot retain another output frame.
+// Any correlated answer ends the viewer: a refused Detach counts as detached, and another answer
+// is recorded and the viewer forgotten all the same.
 pub(crate) fn cleanup_closed(
     host: &HostBrokerConnection,
     server: &UnixStream,
 ) -> Result<(), Box<dyn Error>> {
     let ids = host.viewers.borrow().closed_ids();
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let site = host.pacing.site();
+    host.pacing
+        .set_site(crate::diagnostic_events::Site::Cleanup);
     for bytes in ids {
         let id = orchbee_capability_node_protocol::OperationId::from_bytes(bytes)?;
         crate::terminal_control_operation::release_viewer(host, server, id)?;
-        let target = AttachmentTarget {
-            attachment_id: AttachmentId::from_bytes(bytes)?,
-        };
-        let command = encode_attachment_control(&AttachmentControl::DetachTerminal(target))?;
         let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
-        let response = exchange(
-            host,
-            server,
-            correlation,
-            command.kind,
-            &command.payload,
-            PayloadEncoding::ControlJson,
-        )?;
-        let envelope = decode_transport_envelope(&response)?;
-        if decode_attachment_control(envelope.kind, envelope.role, envelope.payload)?
-            != AttachmentControl::DetachTerminalAccepted(target)
-        {
-            return Err(invalid("Host did not clean up the closed viewer").into());
+        match detach_attachment(host, server, correlation, AttachmentId::from_bytes(bytes)?)? {
+            DetachAnswer::Detached => {}
+            DetachAnswer::Refused(kind) | DetachAnswer::Unexpected(UnexpectedAnswer { kind }) => {
+                crate::diagnostic_events::host_unexpected(
+                    crate::diagnostic_events::Site::Cleanup,
+                    kind,
+                );
+            }
         }
-        host.viewers.borrow_mut().remove(id);
+        host.forget_viewer(id);
     }
+    host.pacing.set_site(site);
     Ok(())
 }
 
@@ -132,6 +175,7 @@ fn apply(
             if let Err(reason) = admission {
                 return Ok(TerminalViewerOutcome::Rejected(reason));
             }
+            host.note_attached(request.attachment_id);
             let terminal_id = TerminalId::from_bytes(terminal_id.as_bytes())?;
             let capabilities = AttachmentCapabilityState {
                 read: true,
@@ -163,17 +207,18 @@ fn apply(
                     ViewerRejection::HostRejected,
                 ));
             }
-            let AttachmentControl::AttachmentCapabilities(accepted) =
-                decode_attachment_control(envelope.kind, envelope.role, envelope.payload)?
+            let Ok(AttachmentControl::AttachmentCapabilities(accepted)) =
+                decode_attachment_control(envelope.kind, envelope.role, envelope.payload)
             else {
-                return Err(invalid("Host did not acknowledge viewer attachment").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             };
+            // Capabilities beyond the Server's grant are never used: the viewer is closed.
             if accepted.attachment_id != id
                 || accepted.terminal_id != terminal_id
                 || accepted.capabilities != capabilities
                 || accepted.resize_lease
             {
-                return Err(invalid("Host viewer capabilities exceed the Server grant").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             let demand = SetProjectionDemand {
                 attachment_id: id,
@@ -191,13 +236,13 @@ fn apply(
                 PayloadEncoding::ControlJson,
             )?;
             let envelope = decode_transport_envelope(&response)?;
-            let ProjectionDemandControl::ProjectionDemandAccepted(accepted) =
-                decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)?
+            let Ok(ProjectionDemandControl::ProjectionDemandAccepted(accepted)) =
+                decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)
             else {
-                return Err(invalid("Host did not activate viewer projection").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             };
             if accepted.attachment_id != id || accepted.demand != ProjectionDemand::Active {
-                return Err(invalid("Host projection demand acknowledgement disagrees").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             match lifecycle::snapshot(
                 host,
@@ -213,8 +258,8 @@ fn apply(
                 Ok(None) => {}
                 // A refused Attach grants nothing, so the new Host attachment goes first.
                 Err(reason) => {
-                    detach_attachment(host, server, correlation, id)?;
-                    host.viewers.borrow_mut().remove(request.attachment_id);
+                    detach_viewer(host, server, correlation, id)?;
+                    host.forget_viewer(request.attachment_id);
                     return Ok(TerminalViewerOutcome::Rejected(reason));
                 }
             }
@@ -312,8 +357,8 @@ fn apply(
                 ));
             }
             crate::terminal_control_operation::release_viewer(host, server, request.attachment_id)?;
-            detach_attachment(host, server, correlation, id)?;
-            host.viewers.borrow_mut().remove(request.attachment_id);
+            detach_viewer(host, server, correlation, id)?;
+            host.forget_viewer(request.attachment_id);
             Ok(TerminalViewerOutcome::Detached)
         }
         TerminalViewerAction::SetProjectionDemand { demand } => {
@@ -370,13 +415,13 @@ fn apply(
                 ));
             };
             let envelope = decode_transport_envelope(&response)?;
-            let HistoryControl::HistoryDemandAccepted(accepted) =
-                decode_history_control(envelope.kind, envelope.role, envelope.payload)?
+            let Ok(HistoryControl::HistoryDemandAccepted(accepted)) =
+                decode_history_control(envelope.kind, envelope.role, envelope.payload)
             else {
-                return Err(invalid("Host did not acknowledge the viewer history demand").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             };
             if accepted.attachment_id != id || accepted.demand != demand {
-                return Err(invalid("Host history demand acknowledgement disagrees").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(TerminalViewerOutcome::FeedbackAccepted)
         }
@@ -406,10 +451,10 @@ fn apply(
                 ));
             };
             let envelope = decode_transport_envelope(&response)?;
-            if decode_row_access_control(envelope.kind, envelope.role, envelope.payload)?
-                != RowAccessControl::RowsAppliedResponse(applied)
+            if decode_row_access_control(envelope.kind, envelope.role, envelope.payload).ok()
+                != Some(RowAccessControl::RowsAppliedResponse(applied))
             {
-                return Err(invalid("Host did not acknowledge the exact rows applied").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(TerminalViewerOutcome::FeedbackAccepted)
         }
@@ -439,10 +484,10 @@ fn apply(
                 ));
             };
             let envelope = decode_transport_envelope(&response)?;
-            if decode_history_control(envelope.kind, envelope.role, envelope.payload)?
-                != HistoryControl::HistoryObservedResponse(observed)
+            if decode_history_control(envelope.kind, envelope.role, envelope.payload).ok()
+                != Some(HistoryControl::HistoryObservedResponse(observed))
             {
-                return Err(invalid("Host did not acknowledge the exact history observed").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(TerminalViewerOutcome::FeedbackAccepted)
         }
@@ -522,16 +567,16 @@ fn apply(
                 }
             };
             let envelope = decode_transport_envelope(&response)?;
-            let SelectionExportControl::StartedResponse(started) =
-                decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)?
+            let Ok(SelectionExportControl::StartedResponse(started)) =
+                decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)
             else {
-                return Err(invalid("Host did not start the selection export").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             };
             if started.attachment_id != id
                 || started.export_sequence != export_sequence
                 || started.format != format
             {
-                return Err(invalid("Host started a different selection export").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(TerminalViewerOutcome::Record(response))
         }
@@ -565,10 +610,10 @@ fn apply(
                 }
             };
             let envelope = decode_transport_envelope(&response)?;
-            if decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)?
-                != SelectionExportControl::ChunkAppliedResponse(applied)
+            if decode_selection_export_control(envelope.kind, envelope.role, envelope.payload).ok()
+                != Some(SelectionExportControl::ChunkAppliedResponse(applied))
             {
-                return Err(invalid("Host acknowledged a different selection export chunk").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(TerminalViewerOutcome::FeedbackAccepted)
         }
@@ -613,27 +658,26 @@ fn apply(
                 }
             };
             let envelope = decode_transport_envelope(&response)?;
-            let SelectionExportControl::FinishedResponse(finished) =
-                decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)?
+            let Ok(SelectionExportControl::FinishedResponse(finished)) =
+                decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)
             else {
-                return Err(invalid("Host did not finish the cancelled selection export").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             };
             if finished.attachment_id != id
                 || finished.export_sequence != export_sequence
                 || finished.status != SelectionExportStatus::Cancelled
             {
-                return Err(invalid("Host finished a different selection export").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(TerminalViewerOutcome::Record(response))
         }
         TerminalViewerAction::FrameApplied { .. } | TerminalViewerAction::NeedSnapshot { .. } => {
             // Drain pending events before changing feedback state. HostExchange's preflight
             // repeats this check to preserve the shared broker's no-pipelining boundary.
-            let preflight = HostExchange::new(host, server, Duration::from_secs(1))
-                .ok_or_else(|| invalid("invalid viewer budget"))?;
+            let preflight = HostExchange::open(host, server);
             preflight
                 .prepare()
-                .map_err(|_| invalid("viewer Host preflight failed"))?;
+                .map_err(|class| preflight.error(class))?;
             let admission = host.viewers.borrow_mut().feedback(&request);
             if let Err(reason) = admission {
                 return Ok(TerminalViewerOutcome::Rejected(reason));
@@ -679,23 +723,33 @@ fn apply(
                 PayloadEncoding::ControlJson,
             )?;
             let envelope = decode_transport_envelope(&response)?;
-            if decode_projection_feedback_control(envelope.kind, envelope.role, envelope.payload)?
-                != expected
+            if decode_projection_feedback_control(envelope.kind, envelope.role, envelope.payload)
+                .ok()
+                != Some(expected)
             {
-                return Err(invalid("Host did not acknowledge the exact viewer feedback").into());
+                return Err(UnexpectedAnswer::of(&response).into());
             }
             Ok(TerminalViewerOutcome::FeedbackAccepted)
         }
     }
 }
 
-/// Detaches one viewer attachment from the Host; any other answer breaks the Host contract.
+/// The Host's answer to a viewer Detach.
+enum DetachAnswer {
+    Detached,
+    /// A correlated refusal of this kind; the attachment counts as detached.
+    Refused(u16),
+    /// Another correlated answer; the attachment's fate is unknown.
+    Unexpected(UnexpectedAnswer),
+}
+
+/// Detaches one viewer attachment from the Host. Only a failed exchange is an error.
 fn detach_attachment(
     host: &HostBrokerConnection,
     server: &UnixStream,
     correlation: CorrelationId,
     id: AttachmentId,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<DetachAnswer, Box<dyn Error>> {
     let target = AttachmentTarget { attachment_id: id };
     let command = encode_attachment_control(&AttachmentControl::DetachTerminal(target))?;
     let response = exchange(
@@ -707,12 +761,38 @@ fn detach_attachment(
         PayloadEncoding::ControlJson,
     )?;
     let envelope = decode_transport_envelope(&response)?;
-    if decode_attachment_control(envelope.kind, envelope.role, envelope.payload)?
-        != AttachmentControl::DetachTerminalAccepted(target)
-    {
-        return Err(invalid("Host did not detach the exact viewer").into());
+    if matches!(
+        decode_connection_control(envelope.kind, envelope.role, envelope.payload),
+        Ok(ConnectionControl::TypedFailure(_))
+    ) {
+        return Ok(DetachAnswer::Refused(envelope.kind));
     }
-    Ok(())
+    Ok(
+        match decode_attachment_control(envelope.kind, envelope.role, envelope.payload) {
+            Ok(AttachmentControl::DetachTerminalAccepted(accepted)) if accepted == target => {
+                DetachAnswer::Detached
+            }
+            _ => DetachAnswer::Unexpected(UnexpectedAnswer::of(&response)),
+        },
+    )
+}
+
+/// Detaches a viewer for its own request: a refusal counts as detached and is recorded, and
+/// another answer is the request's unexpected answer.
+fn detach_viewer(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    correlation: CorrelationId,
+    id: AttachmentId,
+) -> Result<(), Box<dyn Error>> {
+    match detach_attachment(host, server, correlation, id)? {
+        DetachAnswer::Detached => Ok(()),
+        DetachAnswer::Refused(kind) => {
+            crate::diagnostic_events::host_unexpected(host.pacing.site(), kind);
+            Ok(())
+        }
+        DetachAnswer::Unexpected(answer) => Err(answer.into()),
+    }
 }
 
 const fn selection_gesture_action(gesture: ViewerSelectionGestureAction) -> SelectionGestureAction {
@@ -852,12 +932,12 @@ fn read_rows(
     let Ok(ConnectionControl::TypedFailure(failure)) =
         decode_connection_control(envelope.kind, envelope.role, envelope.payload)
     else {
-        return Err(invalid("Host did not answer the row request").into());
+        return Err(UnexpectedAnswer::of(&response).into());
     };
-    Ok(TerminalViewerOutcome::RowsRejected(
-        rows_rejection_reason(&failure.code)
-            .ok_or_else(|| invalid("Host row rejection used an unknown reason"))?,
-    ))
+    let Some(reason) = rows_rejection_reason(&failure.code) else {
+        return Err(UnexpectedAnswer::of(&response).into());
+    };
+    Ok(TerminalViewerOutcome::RowsRejected(reason))
 }
 
 /// A control acknowledgement round trip answers either the control family's
@@ -906,13 +986,13 @@ pub(crate) fn set_attachment_demand(
         return Ok(false);
     };
     let envelope = decode_transport_envelope(&response)?;
-    let ProjectionDemandControl::ProjectionDemandAccepted(accepted) =
-        decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)?
+    let Ok(ProjectionDemandControl::ProjectionDemandAccepted(accepted)) =
+        decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)
     else {
-        return Err(invalid("Host did not acknowledge the projection demand").into());
+        return Err(UnexpectedAnswer::of(&response).into());
     };
     if accepted.attachment_id != attachment_id || accepted.demand != demand {
-        return Err(invalid("Host projection demand acknowledgement disagrees").into());
+        return Err(UnexpectedAnswer::of(&response).into());
     }
     Ok(true)
 }
@@ -968,13 +1048,13 @@ fn selection_changed_exchange(
             }
         };
     let envelope = decode_transport_envelope(&response)?;
-    let SelectionControl::ChangedResponse(changed) =
-        decode_selection_control(envelope.kind, envelope.role, envelope.payload)?
+    let Ok(SelectionControl::ChangedResponse(changed)) =
+        decode_selection_control(envelope.kind, envelope.role, envelope.payload)
     else {
-        return Err(invalid("Host did not answer the selection control").into());
+        return Err(UnexpectedAnswer::of(&response).into());
     };
     if changed.attachment_id != id {
-        return Err(invalid("Host changed a different viewer selection").into());
+        return Err(UnexpectedAnswer::of(&response).into());
     }
     Ok(TerminalViewerOutcome::Record(response))
 }
@@ -1017,15 +1097,20 @@ fn exchange_rows(
         protocol: CURRENT_PROTOCOL_VERSION,
         role: MessageRole::Request,
     })?;
-    let mut exchange = HostExchange::new(host, server, Duration::from_secs(1))
-        .ok_or_else(|| io::Error::other("invalid Host request budget"))?;
-    exchange
-        .prepare()
-        .map_err(|_| io::Error::other("Host request preflight failed"))?;
+    let mut exchange = HostExchange::open(host, server);
+    exchange.prepare().map_err(|class| exchange.error(class))?;
     let record = exchange
         .round_trip_bounded(&record, maximum_record_bytes)
-        .map_err(|_| io::Error::other("Host request exchange failed"))?;
+        .map_err(|class| exchange.error(class))?;
     let envelope = decode_transport_envelope(&record)?;
+    if envelope.correlation_id != Some(correlation)
+        || envelope.host_epoch != Some(host.host_epoch())
+        || envelope.role != MessageRole::Response
+        || envelope.protocol != CURRENT_PROTOCOL_VERSION
+        || envelope.optional_message
+    {
+        return Err(exchange.error(PeerFailure::Protocol).into());
+    }
     let row_window =
         envelope.kind == expected && envelope.payload_encoding == PayloadEncoding::RowWindow;
     let typed_failure = envelope.payload_encoding == PayloadEncoding::ControlJson
@@ -1033,14 +1118,8 @@ fn exchange_rows(
             decode_connection_control(envelope.kind, envelope.role, envelope.payload),
             Ok(ConnectionControl::TypedFailure(_))
         );
-    if envelope.correlation_id != Some(correlation)
-        || envelope.host_epoch != Some(host.host_epoch())
-        || envelope.role != MessageRole::Response
-        || envelope.protocol != CURRENT_PROTOCOL_VERSION
-        || envelope.optional_message
-        || !(row_window || typed_failure)
-    {
-        return Err(io::Error::other("unexpected Host row response envelope").into());
+    if !(row_window || typed_failure) {
+        return Err(UnexpectedAnswer::of(&record).into());
     }
     Ok(record)
 }

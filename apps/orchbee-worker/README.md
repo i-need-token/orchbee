@@ -19,8 +19,20 @@ endpoint within the shared five seconds); `osError`, the operating-system error 
 carries, when it has one; `hostExit`, the Host's exit code when it had exited, which a failed dial
 waits up to 250 milliseconds to observe (the Host's failure codes are in its
 [executable interface](../terminal-host/README.md#executable-interface)); and `elapsedMs`, the
-milliseconds since the start began. These are the only Host diagnostics the log holds; terminal
-content, input and paths never reach it.
+milliseconds since the start began.
+
+A failed `exited` also names where and why the Worker stopped: `site`, the step it was serving
+(`server-receive`, `server-send`, `viewer`, `process-read`, `lifecycle`, `graphics`, `control`,
+`send`, `launch`, `start`, `drain`, `titles`, `cleanup`, `handoff`, `host-start` or `shutdown`);
+`reason`, one of `deadline` (a peer stayed silent past its bound), `host-closed`, `host-protocol`
+(the Host broke its framing or a contract the Worker cannot contain), `server-closed`,
+`server-protocol`, `state` (a Worker invariant refused to continue) or `local`; `peer`, `host`,
+`server` or `none`; and, for a bound that passed, `waitedMs` and `budgetMs`. `host-slow` records a
+Host exchange that succeeded after more than a second, with its `site` and `waitedMs`;
+`host-unexpected` records an intact Host message the Worker dropped or refused instead of ending,
+with its `site` and `kind`, the Host message kind number. Each of the two is written at most once a
+minute. `panicked` records the `file` stem and `line` of a Worker panic, never its message. These
+are the only Host diagnostics the log holds; terminal content, input and paths never reach it.
 
 ## Child CLI routing
 
@@ -269,7 +281,9 @@ viewer, other than an eviction the Client must observe, before it is queued. Onl
 can therefore fill the FIFO. FIFO or aggregate-byte saturation closes only that viewer; close,
 remove, cleanup, Host loss, and target cleanup release frame and event bytes exactly once. A valid
 viewer event addressed to an already-retired viewer is consumed like a late frame record instead of
-retiring the broker.
+retiring the broker. So is one for an attachment this Host epoch detached, whose identity the broker
+keeps among the last 256 detached, and one for any other attachment it does not hold, which also
+writes a rate-limited `host-unexpected` record.
 
 The OBCN viewer carrier and Worker attachment transitions now serve Server's admitted Client
 Session relay, with actual Host process traces. Server owns OBCS viewer messages and Session cleanup;
@@ -288,7 +302,10 @@ module owns event routing, viewer slots, controller grants, and the shared deadl
 maps admitted read-only commands and validates their exact Host responses. No viewer-state borrow
 survives Host I/O. Attach performs two sequential bounded exchanges (capabilities, then active
 projection demand); cleanup may perform up to thirty-two bounded viewer/control detach exchanges before a request.
-Server now budgets twenty seconds for those exchanges and OBNR record delivery. Lifecycle and
+Server now budgets twenty seconds for those exchanges and OBNR record delivery. A correlated Host
+refusal or other answer than the exact acknowledgement refuses only that request as `HostRejected`
+and closes that viewer, which the next request detaches; a refused Detach counts as detached.
+Lifecycle and
 metadata notifications are validated and drained, while application-signal effects use the Agent
 drain. Bell, clipboard-write, selection-changed, selection-export-chunk, and
 selection-export-finished records retain their original bytes in the exact viewer's bounded event
@@ -323,19 +340,23 @@ entire byte count. Resize must acknowledge the complete geometry. Paste preserve
 262,144 opaque bytes as kind-39 `PasteAutoInput`; the Host must acknowledge a positive
 `accepted_bytes` no greater than `min(2 × content + 12, negotiated input limit)`, and its typed
 failures map to the four `HostInput*` rejections. These actions reject a wrong
-viewer/grant or non-increasing sequence before Host I/O. Known Host rejection consumes the sequence;
-ambiguous or contradictory effects close the broker without replay.
+viewer/grant or non-increasing sequence before Host I/O. Known Host rejection consumes the sequence.
+A contradictory acknowledgement consumes it too, refuses the request as `HostRejected` and releases
+the grant, so a Client that wants control acquires it anew; a lost exchange closes the broker.
+Nothing is replayed.
 
 Viewer detach or closure first releases its controller, then detaches the viewer. Internal release
 is idempotent only when that viewer has no controller; it never clears a different current grant.
-Unexpected resize-lease revocation of a live grant retires the broker. Exact retired-target events
+Unexpected resize-lease revocation of a live grant retires the broker; a lease event for a
+controller the broker does not hold is dropped and recorded. A release whose Detach the Host
+refuses or answers otherwise still forgets the grant. Exact retired-target events
 after known Dispose are validated and drained. Neither release nor loss promotes another
 viewer or terminates retained execution. Controller grants stay capped at eight regardless of
 viewer count; cleanup and normal operations share the single Host writer.
 
 Deterministic grant tests cover exclusivity, stale scope, pending acquisition, sequence exhaustion,
-and explicit re-acquisition. Fault process tests cover silent and contradictory Host input
-acknowledgements with no replay. Server's real two-Client process witness verifies shell input,
+and explicit re-acquisition. The paste process test covers typed Host failures with no replay.
+Server's real two-Client process witness verifies shell input,
 actual PTY geometry, non-controller rejection, detach, and a fresh grant for the other Client.
 These runtime witnesses refine the existing authority/relay models; they do not establish public
 TUI behavior, independent review, or measured release performance.
@@ -677,9 +698,24 @@ is observable, all its fragments share a two-second monotonic budget. Result wri
 two-second budget. Both waits observe Host loss. Host loss during result delivery preserves that
 bounded delivery attempt, then ends the Worker; Server loss abandons delivery and closes Host.
 
-Each actual Host exchange has a one-second total write/read budget, leaving time for result delivery
-inside the Server carrier's twenty-second result wait. This is an experimental local bound,
-not a measured release performance claim. Local account/filesystem resolution is synchronous;
+A Host that answers slowly is waited for; only one that stays silent past a hard bound is lost.
+Each Host exchange, its request written and its answer read, ends within ten seconds, and every
+exchange of one Server request ends within fifteen seconds of the request's arrival, leaving time
+for result delivery inside the Server carrier's twenty-second result wait. Smaller budgets an
+operation keeps for itself, such as the input step of a send or the inventory walk of a viewer
+attachment, only decide whether it starts or continues; they never end the Worker. While it writes
+a request and waits for the answer, the Worker reads the Host's events, so a Host writing to a
+full stream is never stalled by a Worker waiting on it. Bytes that have already arrived are read
+before a bound is checked: a late Worker never refuses an answer that is waiting, and a bound ends
+an exchange only while the Host has sent nothing more. Before a request, the Worker drains at most
+64 queued events, and after the bound it reads at most 64 more records that have already arrived,
+so a Host that floods events cannot hold the serving thread. A bound that passes in the middle of
+a record ends the connection, never leaving half a record for a later read. An exchange that
+succeeds after more than a second writes `host-slow`. The serving thread stops reading the Host
+only for Worker work between exchanges, for local resolution below, and for the directory check of
+`TerminalCwdValidation`, which runs on a helper thread and answers inaccessible after two seconds,
+discarding a late result. These are experimental local bounds, not a measured release
+performance claim. Local account/filesystem resolution is synchronous;
 those OS calls are not covered by the socket deadline. A slow or failed resolution may therefore
 make Server's outcome unknown. A preparation failure closes the attachment before any Host command,
 without inventing a Host-reported failure. A missing or unrepresentable wall clock expires leases;
@@ -701,8 +737,9 @@ Event role, absent correlation, exact protocol/epoch, payload codec, and matchin
 It drains these notifications without a lifecycle/metadata projection. The broker routes viewer
 frames and blocked events through their independent slots, including events interleaved with a
 Launch/Start response. Events never acknowledge an operation or adopt retained terminals.
-Response-like, unknown, malformed, or wrong-epoch events fail closed. An event has a one-second
-read budget capped by an active OBCN deadline. Allocation is bounded by the OBTP header plus the
+Response-like, unknown, malformed, or wrong-epoch events fail closed. An event that has begun to
+arrive while the Worker is idle has the ten-second exchange bound, capped by an active OBCN
+deadline. Allocation is bounded by the OBTP header plus the
 36 MiB frame limit; the envelope still enforces the 64 KiB control limit. Valid discarded lifecycle
 events remain state-preserving steps in the symbolic operation model.
 
@@ -717,8 +754,12 @@ Process witnesses in `tests/process/terminal_operations.rs` cover real Worker an
 Create, Start, immediate Create, exact replay, and both retained terminals after Server/Worker loss;
 a fake Host checks omitted/explicit cwd, launch environment, profile, and independent identities.
 Further partitions cover authorization rejection with no command, wrong-direction/oversized/partial/
-pipelined OBCN, a silent Host yielding one exact unknown result followed by disconnection, and exact result
-delivery after Host closes immediately after its response.
+pipelined OBCN, and exact result delivery after Host closes immediately after its response. The
+Host bounds have unit witnesses with injected bounds, so none waits ten seconds:
+`src/host_connection/tests/host_pacing.rs` covers a drain resumed after its deadline, a busy Host
+and a Host that pauses mid-record, and a late event, refused Detach and refused feedback that leave
+the Worker serving; `src/terminal_operations/tests/host_bound.rs` covers a silent Host ending the
+connection with reason `deadline`.
 These are concrete admission, delivery, loss and no-retry witnesses on the actual carrier. They do not
 prove Server Client Session viewer routing, activation, restart reconciliation, or another OS platform.
 The viewer process trace separately proves two read attachments, a stalled viewer, exact feedback,
@@ -761,8 +802,11 @@ The integrated request loop handles `TerminalCwdValidationRequest` before termin
 viewer/controller cleanup. The lazy Linux loop handles it before resolving launch facts or starting
 a Terminal Host. Worker first compares the request's exact logical Worker ID and generation with its
 admitted OBLW identity. A mismatch returns `WorkerUnavailable` without observing the path. A match
-uses one synchronous `std::fs::metadata` lookup, follows symbolic links, and preserves the supplied
-path spelling. An existing directory then gets one `std::fs::read_dir` open to prove that the account
+uses one `std::fs::metadata` lookup on a helper thread, follows symbolic links, and preserves the
+supplied path spelling. The serving thread waits at most two seconds for the helper, so a stalled
+filesystem, such as an unreachable network share, cannot keep it from reading the Terminal Host;
+past that wait, or while four probes are still running, the answer is `DirectoryInaccessible` and
+any late result is dropped. An existing directory then gets one `std::fs::read_dir` open to prove that the account
 can list it; its entries are never read. `DirectoryAvailable` is returned only when that open
 succeeds. A missing path, or one whose parent component is not a directory, returns
 `DirectoryMissing`; an existing non-directory returns `NotADirectory`; a directory that cannot be
@@ -819,7 +863,7 @@ no symmetry, state constraint or fairness assumption and claim no eventual clean
 
 `prepared` includes the admitted carrier step and cleanup seal; `sent` marks the first possible Host effect. Result-ready and completed/abandoned boundaries retain the exact receipt without evicting launch bindings. A generic typed failure validates its correlated envelope and is known failure even if an effect preceded it. An inventory-page success is an opaque exact page observation, never absence or disposal permission. Host containment and whole-walk validation remain with Host and Server; lifecycle implementation tests check these decisions.
 
-Independent expiry actions abstract the existing **1s Worker HostExchange**, **2s Server frame
+Independent expiry actions abstract the existing **10s Worker HostExchange**, **2s Server frame
 I/O**, **20s Server response wait** and **30s Close attempt admission** boundaries. They do not
 simulate numeric timing or guarantee return/join time. Exact Worker Dispose knowledge survives
 loss even when Server can report only Unknown. Server-local cleanup can stay pending indefinitely;
@@ -878,7 +922,7 @@ existing event rules and adds no speculative pre-ACK revocation policy.
 ### Worker runtime refinement
 
 [The lifecycle adapter](src/terminal_lifecycle_operation.rs) consumes one admitted request and uses
-the existing one-second `HostExchange`. Its dispatch branch precedes `cleanup_closed`, so unrelated
+the bounded `HostExchange`. Its dispatch branch precedes `cleanup_closed`, so unrelated
 closed viewers cannot add Host requests to a lifecycle step. Preflight Host loss is the known
 `HostUnavailableBeforeHandoff`; loss after handoff is Unknown. Exact ACK knowledge is retained before
 result delivery, including Host or Server loss after that observation. Inventory requests ask for

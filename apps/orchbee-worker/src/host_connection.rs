@@ -37,6 +37,7 @@ mod controllers;
 mod exchange;
 mod host_colors;
 mod offer;
+mod pacing;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod process_query;
 mod target_cleanup;
@@ -49,6 +50,7 @@ pub(crate) use exchange::{HostExchange, PeerFailure, exchange, exchange_before};
 pub(crate) use host_colors::HostColors;
 #[cfg(test)]
 pub(crate) use offer::answer_test_offer;
+pub(crate) use pacing::{HostFailure, Pacing};
 pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;
 
@@ -73,6 +75,8 @@ pub(crate) struct HostBrokerConnection {
     /// The broker only appends; the connection loop owns the watermark and
     /// outlives this Host attachment, so dropping the broker never resets it.
     drain: Rc<RefCell<AgentDrain>>,
+    /// Exchange bounds, the current request's deadline and site, and the first Host failure.
+    pub(crate) pacing: Pacing,
 }
 
 /// A failed bounded Host dial, split where the Host answered: `Connect` never reached it, while
@@ -135,6 +139,7 @@ impl HostBrokerConnection {
             titles: RefCell::new(titles::Titles::default()),
             host_colors: RefCell::new(HostColors::default()),
             drain,
+            pacing: Pacing::default(),
         })
     }
 
@@ -182,6 +187,7 @@ impl HostBrokerConnection {
             titles: RefCell::new(titles::Titles::default()),
             host_colors: RefCell::new(HostColors::default()),
             drain,
+            pacing: Pacing::default(),
         })
     }
 
@@ -243,9 +249,21 @@ impl HostBrokerConnection {
                 envelope.payload,
             )
             .map_err(io::Error::other)?;
-            if let orchbee_terminal_protocol::AttachmentControl::ResizeLeaseChanged(event) = event
-                && self.controllers.borrow().validate_lease_event(event)
-            {
+            let orchbee_terminal_protocol::AttachmentControl::ResizeLeaseChanged(event) = event
+            else {
+                return Err(io::Error::other("unexpected controller resize lease event"));
+            };
+            let controllers = self.controllers.borrow();
+            if !controllers.holds(event.attachment_id) {
+                // Released controllers were excused by the retired-target check above; a lease
+                // for any other attachment this Worker does not hold is dropped and recorded.
+                crate::diagnostic_events::host_unexpected(
+                    crate::diagnostic_events::Site::Control,
+                    envelope.kind,
+                );
+                return Ok(());
+            }
+            if controllers.validate_lease_event(event) {
                 return Ok(());
             }
             return Err(io::Error::other("unexpected controller resize lease event"));

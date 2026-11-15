@@ -572,7 +572,8 @@ eight camelCase fields. Event names and text values are `&'static str` tokens of
 `.`, `_` and `-`, at most 64 bytes, and other values are counts and flags; a token outside the
 grammar is written as `invalid`. A record therefore cannot carry terminal content, typed input,
 prompts, arguments, environment or configuration values, file contents or credentials. Host
-diagnostics reach the log only as the Worker's Terminal Host start and failure records. Event names
+diagnostics reach the log only through the Worker's records: its Terminal Host start and failure,
+the Host anomalies it contains, and the wait that ended it. Event names
 and record fields are unstable: a release may add, rename or drop them without migration, so read
 the log as diagnostics, not as an interface.
 

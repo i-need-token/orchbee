@@ -70,6 +70,8 @@ fn main() -> ExitCode {
     #[cfg(any(unix, windows))]
     orchbee_local_runtime::install_diagnostic_log(orchbee_local_runtime::LogRole::Worker);
     #[cfg(any(unix, windows))]
+    diagnostic_events::install_panic_hook();
+    #[cfg(any(unix, windows))]
     if worker_connection::run(env::args_os().skip(1), env!("CARGO_PKG_VERSION")).is_ok() {
         return ExitCode::SUCCESS;
     }
