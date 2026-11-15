@@ -366,6 +366,10 @@ fn lost_worker_after_input_delivery_reports_unknown_and_retires_the_grant() -> T
     )?;
     let input = read_control(&mut worker)?;
     assert!(matches!(input.action, WorkerControl::Input { .. }));
+    // Shut the connection down instead of only closing this descriptor. macOS creates a socket
+    // before marking it close-on-exec, so a process another test spawns in between keeps a copy,
+    // and the Server would not read the Worker's loss until that process exits.
+    worker.shutdown(std::net::Shutdown::Both)?;
     drop(worker);
     assert!(
         matches!(read_server_message(&mut client)?,ServerMessage::TerminalControlResult(result) if result.request_id()==&request_id && result.outcome()==&ControlOutcome::OutcomeUnknown {})
