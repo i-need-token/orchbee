@@ -344,7 +344,8 @@ disposes every terminal, and after the Client listeners stop the owner removes t
 socket files before it publishes the Stopped record, which is the receipt the next start consumes.
 Every stop the Server begins itself, on a signal or once its Worker exited and its Host is gone,
 uses one identity, and a later signal or loss check retries that identity once its attempt failed.
-An `exit` request also disposes the terminals: no later Linux or macOS Server can adopt a Host
+After its Worker exited, a stop fails while that Worker's Host still runs, since nothing here may
+end it, and the loss check completes the stop once the Host is gone. An `exit` request also disposes the terminals: no later Linux or macOS Server can adopt a Host
 that keeps them, and that Host's lock would refuse every recovery while it runs.
 
 A Server ended by `SIGKILL` or a crash leaves an Active record and stale socket files. The next
