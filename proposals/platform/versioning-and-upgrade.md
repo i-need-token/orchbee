@@ -10,6 +10,7 @@
 ## Outcomes
 
 - An upgrade never interrupts running terminals or Agents.
+  [Automatic updates](automatic-updates.md#outcomes) rank this above every other outcome.
 - An update replaces only the components it changed: a Client-only change needs only a Client
   reopen.
 - Versions coexist: a CLI and Desktop of different versions, or a remote machine that was not
@@ -356,11 +357,11 @@ Desktop queries its Session. Each gives every Server, Worker, and Host older tha
 [active version](#shared-runtime-store) one tier, from the generation ranges and floors in the
 active version's manifest, so every evaluator reaches the same tier:
 
-| Tier          | Condition, first match                                                                                                        | Shown as                                                                         |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `required`    | No common generation with the active version's Client (for Server) or Worker (for a Host), or a version below `securityFloor` | A confirmation that states the effect                                            |
-| `recommended` | A version below `recommendedFloor`                                                                                            | One status word, such as "Update available", whose details offer Restart Session |
-| `none`        | Otherwise                                                                                                                     | Nothing                                                                          |
+| Tier          | Condition, first match                                                                                                        | Shown as                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `required`    | No common generation with the active version's Client (for Server) or Worker (for a Host), or a version below `securityFloor` | A confirmation that states the effect                                                                          |
+| `recommended` | A version below `recommendedFloor`                                                                                            | The [Update control](automatic-updates.md#the-update-control), whose click restarts Server and Worker from P1b |
+| `none`        | Otherwise                                                                                                                     | Nothing                                                                                                        |
 
 - Server and Worker share one tier, the higher of their two. A Host below its `recommendedFloor`
   raises that shared tier to at least `recommended`, because only Restart Session moves new
@@ -373,21 +374,22 @@ active version's manifest, so every evaluator reaches the same tier:
   "These 3 terminals restart; supported Agents resume". Declining keeps the older processes running
   and the tier visible. A Server and Worker restart that would leave a Host without a common
   generation lists that Host's terminals in its confirmation.
-- A running TUI older than the active version applies the active manifest's Client floors to itself
-  and shows the resulting tier. It never restarts itself.
+- A running TUI or Desktop older than the active version shows the Update control, whatever its
+  Client floors say, and switches only when the person clicks it, as
+  [automatic updates](automatic-updates.md#what-a-click-does) describes.
 - `update` text and `orchbee.update` JSON, under [CLI output](../../docs/cli/output.md), list each
   older running process with its tier. `update` itself never restarts or stops a process.
 
 ## Component upgrade
 
-| Component                     | After a newer version installs                                                         | The person sees                                     |
-| ----------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| CLI command                   | The next invocation runs it                                                            | Nothing                                             |
-| TUI                           | Keeps running and shows its tier; reopening runs the newer version on the same Session | One reopen; terminals continue                      |
-| Desktop                       | Updates through its own updater and restarts; the Session is untouched                 | An application restart; terminals continue          |
-| Server and Worker             | Keep running while compatible; Restart Session replaces them                           | A few seconds of "reconnecting"; terminals continue |
-| Terminal Host                 | Never replaced; see [Host lifetime](#host-lifetime)                                    | Nothing                                             |
-| Host that must change, rarely | See [Required Host replacement](#required-host-replacement)                            | One confirmation                                    |
+| Component                     | After a newer version installs                                                                                                                                    | The person sees                                     |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| CLI command                   | The next invocation runs it                                                                                                                                       | Nothing                                             |
+| TUI                           | Keeps running and shows the [Update control](automatic-updates.md#the-update-control); a click relaunches it on the newer version in the same console and Session | One click; terminals continue                       |
+| Desktop                       | Its newer version installs beside it; a click relaunches it through the [window launcher](automatic-updates.md#how-the-window-updates); the Session is untouched  | One click; terminals continue                       |
+| Server and Worker             | Keep running while compatible; Restart Session replaces them                                                                                                      | A few seconds of "reconnecting"; terminals continue |
+| Terminal Host                 | Never replaced; see [Host lifetime](#host-lifetime)                                                                                                               | Nothing                                             |
+| Host that must change, rarely | See [Required Host replacement](#required-host-replacement)                                                                                                       | One confirmation                                    |
 
 ## Server and Worker restart
 
@@ -400,10 +402,8 @@ their output and screens.
    [topology proposal](native-runtime-topology.md#accepted-production-lifecycle-direction) accepted
    or a reviewed equivalent, not only in the Workbench checkpoint.
 3. Send `exit`. Server and Worker end; Hosts keep running.
-4. Activate the active version. Its Worker finds running Hosts through their registrations in the
-   Session runtime directory, verifies user, environment, and Host epoch, negotiates, and reconciles
-   each inventory with the recorded bindings. A terminal it cannot match enters `RecoveryRequired`
-   quarantine and is never guessed at, deleted, or sent input.
+4. Activate the active version. Its Worker adopts every running Host through
+   [Host adoption](#host-adoption), reconciling each inventory with the recorded bindings.
 5. Clients reconnect and renegotiate without user action.
 
 - Input during the gap is neither queued nor replayed; Clients show that input is unavailable.
@@ -412,6 +412,68 @@ their output and screens.
   different versions.
 - Any later activation completes an interrupted restart, because a new Worker always adopts running
   Hosts.
+
+## Host adoption
+
+Decided with [automatic updates](automatic-updates.md) on 2026-11-15: one mechanism lets a new
+Worker take over the terminals of a running Host, and both cases that need it share it.
+
+| Case                                                    | Who starts the new Worker                             | Bindings come from         | Phase |
+| ------------------------------------------------------- | ----------------------------------------------------- | -------------------------- | ----- |
+| A Worker loss while Server, Clients, and Host live      | The running Server, at once, inside a restart cap     | The Server's memory        | P1a   |
+| [Server and Worker restart](#server-and-worker-restart) | The active version's Server, after `drain` and `exit` | The durable binding record | P1b   |
+
+1. **Session record.** One new transition: the previous Worker is seen gone, its slot returns to
+   spawning, and the Host stays identified. Today a slot is reserved only when not started and a
+   recorded Host needs an identified Worker, so this changes a persisted-record rule. The record's
+   shape stays if possible, and the Session record's TLA+ model gains the transition while keeping
+   its existing properties.
+2. **Server.** It admits exactly one replacement Worker per Session at a time and rebinds every
+   binding to the new Worker generation: coordinator, viewer routes, titles, Agent carriers and
+   observers, and authorizations. The Worker registry already keys everything by generation, so an
+   older Worker never clears a newer one.
+3. **Request.** One additive Server–Worker request on the capability-node connection carries the
+   bindings to the new Worker, with its capability name, codec, and fixtures.
+4. **Worker.** In adopt mode it dials the Host's recorded endpoint instead of refusing it, verifies
+   the Host by recorded process id and creation time, user, environment, and Host epoch, negotiates
+   `worker-host`, pages the inventory with `ListTerminals`, and imports each terminal that matches a
+   binding through one kernel import transition. A terminal it cannot match enters
+   `RecoveryRequired` quarantine and is never guessed at, deleted, or sent input. It holds a handle
+   to the Host process, because Stop waits on it.
+5. **Clients.** Each affected terminal shows a short Reconnecting state and returns with its screen,
+   scrollback, and running program; Clients reattach on their own. Input during the gap is refused,
+   never replayed.
+
+Adoption never ends a program and never starts a second copy of one; the Host stays the only owner.
+
+Decided by the product owner on 2026-11-14 for a Worker loss:
+
+- The Server replaces a lost Worker by itself, and every terminal comes back after a few seconds.
+  Repeated failures stop at a restart cap, and Clients say so plainly.
+- Past the cap, or when adoption is impossible, the person may end the stranded programs, but only
+  after a confirmation that says how many terminals stop. Quit All and `orchbee server stop` then
+  really stop: the Server verifies the Host by recorded process id and creation time, sends it the
+  Host's `exit` control request, and waits for it to end; the next start restores the layout.
+  Without confirmation the programs keep running.
+- Clients say what happened in a word or two, with the explanation in a description. The Retry that
+  cannot succeed goes, and quitting stays possible and visible. The TUI and the window use the same
+  words, and new copy is shown to the owner before it ships.
+- The design holds for any Worker death, including one caused by data the Host sends back; the cap
+  is what ends a loop.
+
+P1a's decision run settles, starting from the 2026-11-14 recovery research: the record transition
+and its model; the request's members; the cap's count and window and what counts as a failure, for
+which the research suggested 3 in 10 minutes; what each operation in flight at the loss does — a
+Close, input, an Agent drain, viewer leases, a Tab being created, a stop — and how a confirmed stop
+meets a replacement in progress; the adopt mode's failure paths; Client states and copy in both
+locales; the `worker-lost` diagnostic with its exit status and replacement and adoption counts,
+never user content; and the evidence, a native Windows trace that ends a test-owned Worker by
+process id and checks that the program keeps running, its output continues, nothing is replayed,
+the cap holds, and a confirmed stop ends the Host and a restart restores the layout.
+
+P1b adds only what a restart needs beyond the core: `drain` and `exit`, both built; the durable
+binding record of the restart's second step; a newer Worker adopting an older Host inside the
+`worker-host` window; and the rollback.
 
 ## Host lifetime
 
@@ -453,7 +515,9 @@ active version's Worker. Inside 1.x, only a security fix can cause either.
 - Release Desktop and CLI share one per-user store with one immutable directory per installed
   version, extending the existing
   [Windows release store](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation).
-  Desktop copies its bundled runtime into the store when it is installed or updated.
+  Desktop copies its bundled runtime into the store when it is installed or updated, and
+  [automatic updates](automatic-updates.md#how-the-window-updates) install a newer window beside a
+  running one.
 - One atomic pointer names the store's active version, and activation starts that version.
   Installing a version moves the pointer to it, except that only the person's explicit choice, such
   as switching channel, moves it to a lower version. A Client activates a Session only from a
@@ -480,8 +544,9 @@ active version's Worker. Inside 1.x, only a security fix can cause either.
 - Session status, in text and JSON
   ([`status server`](../../apps/orchbee/docs/native-runtime-status.md) today), lists Server, Worker,
   and each Host with its product version, terminal count, and tier.
-- TUI and Desktop show one short status word only at `recommended` or `required`; the explanation
-  lives in details the person opens or in the confirmation.
+- TUI and Desktop show the [Update control](automatic-updates.md#the-update-control) while a newer
+  version is active, and the confirmation at `required`; the explanation lives in the control's
+  tooltip or in the confirmation.
 - A rejection names the side that is too old and the action to take, without internal terms such
   as generation, capability, or cohort. P0 ships the messages below; a missing version is left out
   of the text, and P1 replaces "stop it" with Restart Session.
@@ -582,13 +647,18 @@ file its version, migration owner, backups, and failure behavior (ORCL-29).
 
 ## Delivery phases
 
-| Phase                                       | Content                                                                                                                                                                                                                                                                                                                                                                                                                    | Depends on                                                     | Gate                            |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------- |
-| P0. Handshake                               | `OBHS`, the generation registry, control requests, and evolution rules on every negotiated connection; exact pairs on build identity; frame-format and Agent hook generations; saved machines on the handshake; signed release manifest version 2 with floors; the environment check on every platform; development fingerprints; the pre-release generation rule in Data boundaries; Glossary and product copy for cohort | ORC-382 slice 1, shipped                                       | Before the first public release |
-| P1. Upgrade without terminal loss (ORC-296) | Restart decision and display; Server and Worker restart; Host adoption, lifetime, and required replacement; the shared runtime store; status output                                                                                                                                                                                                                                                                        | P0, the Windows Host check below, and a durable binding record | Before the first public release |
-| P2. Cross-version tests                     | [Cross-version tests](#cross-version-tests) in the gate                                                                                                                                                                                                                                                                                                                                                                    | P1 and the first public release                                | From the second release         |
-| P3. Live handoff prototype                  | Windows prototype, feasibility report, and Host split evaluation                                                                                                                                                                                                                                                                                                                                                           | P1                                                             | Optional; no date               |
-| P4. Live handoff                            | Opt-in handoff for a required replacement; POSIX with ORC-328                                                                                                                                                                                                                                                                                                                                                              | P3, accepted by the product owner                              | Optional                        |
+| Phase                              | Content                                                                                                                                                                                                                                                                                                                                                                                                                    | Depends on                          | Gate                                                                           |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
+| P0. Handshake                      | `OBHS`, the generation registry, control requests, and evolution rules on every negotiated connection; exact pairs on build identity; frame-format and Agent hook generations; saved machines on the handshake; signed release manifest version 2 with floors; the environment check on every platform; development fingerprints; the pre-release generation rule in Data boundaries; Glossary and product copy for cohort | ORC-382 slice 1, shipped            | Before the first public release                                                |
+| P1a. Host adoption (ORC-296)       | [Host adoption](#host-adoption) with Worker-loss recovery: replacement inside a restart cap, a confirmed stop that ends a stranded Host, and Client reconnect states                                                                                                                                                                                                                                                       | P0 and the Windows Host check below | Starts now, beside slice 1 of [automatic updates](automatic-updates.md#phases) |
+| P1b. Upgrade without terminal loss | Restart decision and display; Server and Worker restart on adoption with the durable binding record and rollback; required Host replacement; status output; the Update click moves the Session                                                                                                                                                                                                                             | P1a and a durable binding record    | Right after P1a, before the first public release                               |
+| P1c. Host rollover                 | [Host lifetime](#host-lifetime): one Worker brokers several Hosts, new terminals start on the newest, and older Hosts drain                                                                                                                                                                                                                                                                                                | P1b                                 | Right after P1b                                                                |
+| P2. Cross-version tests            | [Cross-version tests](#cross-version-tests) in the gate                                                                                                                                                                                                                                                                                                                                                                    | P1 and the first public release     | From the second release; automatic updates' slice 1 adds one check earlier     |
+| P3. Live handoff prototype         | Windows prototype, feasibility report, and Host split evaluation                                                                                                                                                                                                                                                                                                                                                           | P1                                  | Right after P1                                                                 |
+| P4. Live handoff                   | Opt-in handoff for a required replacement; POSIX with ORC-328                                                                                                                                                                                                                                                                                                                                                              | P3, accepted by the product owner   | Optional                                                                       |
+
+Automatic updates' slice 1 ships before P1, because none of its automatic paths touches a running
+terminal; P1a starts at the same time.
 
 P1 starts only after a Windows check shows that a Host and its running terminal processes survive
 Server and Worker exit, in Sessions started by the CLI and by Desktop. The check ends Server and
@@ -604,11 +674,15 @@ transactional binding record.
   message naming the older side; a Client of another environment that reaches a Session through
   explicit runtime variables is refused; `query` reports every process's version; `orchbee update`
   installs only a manifest whose signature verifies with a compiled key.
-- **P1**, on real Windows: with Claude Code or a long-running script in a terminal, upgrading
-  Client, Server, and Worker keeps the process running and its output continuous, TUI and Desktop
-  reconnect by themselves, and no input is replayed. Desktop and CLI of different versions share
-  one Session. With different Host versions, new terminals start on the new Host, old terminals
-  continue, and the old Host exits when empty. ORC-296's acceptance scenarios pass.
+- **P1a**, on real Windows: a test-owned Worker ended by process id is replaced inside the restart
+  cap; the program in a terminal keeps running, its output continues, nothing is replayed, and
+  Clients come back by themselves. Past the cap, a confirmed stop ends the Host, and the next start
+  restores the layout.
+- **P1b and P1c**, on real Windows: with Claude Code or a long-running script in a terminal,
+  upgrading Client, Server, and Worker keeps the process running and its output continuous, TUI and
+  Desktop reconnect by themselves, and no input is replayed. Desktop and CLI of different versions
+  share one Session. With different Host versions, new terminals start on the new Host, old
+  terminals continue, and the old Host exits when empty. ORC-296's acceptance scenarios pass.
 - **P2:** the current build and the previous release interoperate in both directions, and the
   oldest Host generation in the window works with the current Worker.
 - **P3:** the report answers every prototype question in
