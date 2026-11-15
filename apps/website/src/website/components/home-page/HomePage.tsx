@@ -3,8 +3,11 @@ import type { ReactElement } from 'react';
 
 import type { Release } from '../../release';
 import { Clients } from './components/clients/Clients';
+import { Collaboration } from './components/collaboration/Collaboration';
 import { Hero } from './components/hero/Hero';
 import { Install } from './components/install/Install';
+import { Multiplexing } from './components/multiplexing/Multiplexing';
+import { Statement } from './components/statement/Statement';
 
 // The home page, section by section. Each section is a private component under `components/`.
 export function HomePage({
@@ -17,6 +20,9 @@ export function HomePage({
 	return (
 		<>
 			<Hero release={release} />
+			<Statement />
+			<Multiplexing />
+			<Collaboration />
 			<Clients locale={locale} />
 			<Install release={release} />
 		</>

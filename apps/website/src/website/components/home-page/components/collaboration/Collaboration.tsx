@@ -1,0 +1,75 @@
+import { useOrchbeeIntl, websiteHomeMessages as messages } from '@orchbee/i18n';
+import type { ReactElement } from 'react';
+
+import { sceneFinalState } from '../../../../scene/scene';
+import { richText } from '../../../../rich-text';
+import { FigureCaption } from '../../../figure-caption/FigureCaption';
+import { SectionHead } from '../../../section-head/SectionHead';
+import { WindowFit } from '../../../window-fit/WindowFit';
+import { HexDot } from '../hex-dot/HexDot';
+import {
+	COLLABORATION_COMMANDS,
+	collaborationFrame,
+	createCollaborationScene,
+	stepProgress,
+} from './collaboration-scene';
+import { CollaborationWindow } from './components/collaboration-window/CollaborationWindow';
+import styles from './Collaboration.module.css';
+
+// Each step's command and what it does.
+const STEPS = [
+	{ command: COLLABORATION_COMMANDS[0], what: messages.collaborationStep1 },
+	{ command: COLLABORATION_COMMANDS[1], what: messages.collaborationStep2 },
+	{ command: COLLABORATION_COMMANDS[2], what: messages.collaborationStep3 },
+	{ command: COLLABORATION_COMMANDS[3], what: messages.collaborationStep4 },
+	{ command: COLLABORATION_COMMANDS[4], what: messages.collaborationStep5 },
+] as const;
+
+/**
+ * One agent directing another: the drawn window, its caption, the rail of the five commands, and
+ * the note on the person's role. Without script the window and the rail show all five steps
+ * finished and the steps are not buttons yet; with script a step replays from its start when
+ * chosen.
+ */
+export function Collaboration(): ReactElement {
+	const { formatMessage: t } = useOrchbeeIntl();
+	const state = sceneFinalState(createCollaborationScene());
+	return (
+		<section className={styles['section']} id='collaboration'>
+			<SectionHead
+				kicker={t(messages.collaborationKicker)}
+				title={t(messages.collaborationTitle)}
+				lead={t(messages.collaborationLead)}
+			/>
+			<div data-reveal='' data-scene='collaboration'>
+				<WindowFit>
+					<CollaborationWindow frame={collaborationFrame(state)} />
+				</WindowFit>
+				<FigureCaption>{t(messages.collaborationCaption, richText)}</FigureCaption>
+				<ol className={styles['rail']}>
+					{STEPS.map(({ command, what }, index) => (
+						<li
+							key={command}
+							className={styles['step']}
+							data-step={index}
+							data-done={stepProgress(state, index) === 'done' ? '' : undefined}
+						>
+							<span className={styles['progress']} data-step-progress='' />
+							<button className={styles['button']} type='button' disabled>
+								<i className={styles['mark']}>{index + 1}</i>
+								<code className={styles['command']}>{command}</code>
+								<span className={styles['what']}>{t(what, richText)}</span>
+							</button>
+						</li>
+					))}
+				</ol>
+			</div>
+			<div className={styles['note']} data-reveal=''>
+				<span className={styles['noteMark']}>
+					<HexDot />
+				</span>
+				<p className={styles['noteText']}>{t(messages.collaborationNote, richText)}</p>
+			</div>
+		</section>
+	);
+}

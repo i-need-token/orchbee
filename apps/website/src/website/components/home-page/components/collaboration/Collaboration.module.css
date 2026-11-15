@@ -1,0 +1,138 @@
+.section {
+	composes: section from '../../../page-shell/PageShell.module.css';
+}
+/* The five steps under the figure. A line along each step's top fills while the step plays, over
+   the step's length that script sets, and stays full once it has run. */
+.rail {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	gap: 0 var(--ob-ref-length-website-26);
+	margin-top: var(--ob-ref-length-website-30);
+}
+.step {
+	position: relative;
+	border-top: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+}
+.progress {
+	position: absolute;
+	top: calc(-1 * var(--ob-ref-length-website-1));
+	left: 0;
+	width: 0;
+	height: var(--ob-ref-length-website-1);
+	background: var(--ob-sys-color-website-fg);
+}
+.step[data-done] .progress {
+	width: 100%;
+}
+.step[data-on] .progress {
+	width: 100%;
+	transition: width var(--ob-sys-motion-duration-website-step) var(--ob-sys-motion-easing-linear);
+}
+.button {
+	display: block;
+	width: 100%;
+	padding: var(--ob-ref-length-website-16) 0 var(--ob-ref-length-website-4);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-body);
+	text-align: left;
+	transition: color var(--ob-sys-motion-duration-website-200)
+		var(--ob-sys-motion-easing-website-ease);
+}
+.button:enabled:hover {
+	color: var(--ob-sys-color-website-fg2);
+}
+.mark {
+	display: grid;
+	place-items: center;
+	width: var(--ob-ref-length-website-24);
+	height: var(--ob-ref-length-website-24);
+	margin-bottom: var(--ob-ref-length-website-14);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	border-radius: 50%;
+	background: var(--ob-sys-color-website-bg);
+	color: inherit;
+	font: var(--ob-sys-typography-website-mark);
+	font-style: normal;
+	transition:
+		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		border-color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+.command {
+	display: block;
+	overflow-wrap: anywhere;
+	color: inherit;
+	font: var(--ob-sys-typography-website-rail-command);
+	font-variant-ligatures: none;
+}
+.what {
+	display: block;
+	margin-top: var(--ob-ref-length-website-8);
+	font: var(--ob-sys-typography-website-rail-body);
+}
+.what code {
+	font: var(--ob-sys-typography-website-rail-code);
+	font-variant-ligatures: none;
+}
+.step:is([data-on], [data-done]) .button {
+	color: var(--ob-sys-color-website-fg);
+}
+.step:is([data-on], [data-done]) .what {
+	color: var(--ob-sys-color-website-fg2);
+}
+.step[data-on] .mark {
+	border-color: var(--ob-sys-color-website-fg);
+	background: var(--ob-sys-color-website-fg);
+	color: var(--ob-sys-color-website-bg);
+}
+.step[data-done] .mark {
+	border-color: var(--ob-sys-color-website-line-mark);
+}
+.note {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-16);
+	max-width: var(--ob-ref-length-website-900);
+	margin-top: var(--ob-ref-length-website-64);
+	padding: var(--ob-ref-length-website-24) var(--ob-ref-length-website-28);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-radius: var(--ob-ref-length-website-14);
+	background: var(--ob-sys-color-website-surface);
+}
+.noteMark {
+	display: flex;
+	padding-top: var(--ob-ref-length-website-9);
+}
+.noteText {
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-note);
+	text-wrap: pretty;
+}
+.noteText b {
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-note-strong);
+}
+@media (max-width: 64rem) {
+	.rail {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.button {
+		display: grid;
+		grid-template-columns: var(--ob-ref-length-website-24) minmax(0, 1fr);
+		gap: 0 var(--ob-ref-length-website-14);
+		padding: var(--ob-ref-length-website-14) 0;
+	}
+	.mark {
+		grid-row: 1 / 3;
+		margin: 0;
+	}
+}
+@media (max-width: 40rem) {
+	.note {
+		grid-template-columns: minmax(0, 1fr);
+		padding: var(--ob-ref-length-website-20);
+	}
+	.noteMark {
+		display: none;
+	}
+}

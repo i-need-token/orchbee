@@ -18,6 +18,44 @@ export const enUSWebsiteHomeMessages = {
 	'website.home.stage.reattach': 'Reattach',
 	'website.home.stage.caption':
 		'<b>Demo</b>One Session with a shell and two agents, drawn from the real interface and played from a script.',
+	'website.home.statement':
+		'Orchbee is a modern terminal built for the age of AI agents. <quiet>It is a complete terminal first, built on the core of Ghostty, and everything else is built around it.</quiet>',
+	'website.home.sheet.clients': 'Clients',
+	'website.home.sheet.clientsValue': 'Terminal interface, desktop application, command line',
+	'website.home.sheet.agents': 'Agents',
+	'website.home.sheet.agentsValue': 'More than 30 agent CLIs recognized',
+	'website.home.sheet.terminal': 'Terminal',
+	'website.home.sheet.terminalValue': 'Built on the core of Ghostty',
+	'website.home.sheet.platform': 'Platform',
+	'website.home.sheet.platformValue':
+		'Windows 11 (x86_64) today. macOS and Linux builds are in progress.',
+	'website.home.sheet.license': 'License',
+	'website.home.sheet.source': 'Source',
+	'website.home.multiplexing.kicker': 'multiplexing',
+	'website.home.multiplexing.title': 'Multiplexed Sessions',
+	'website.home.multiplexing.lead':
+		'A Session keeps running in the background after its window is closed, along with the shells and agents in it. The terminal interface, the desktop application, and the command line can attach to the same Session at the same time, and input from one is visible in the others.',
+	'website.home.multiplexing.input': 'Type here',
+	'website.home.multiplexing.session': 'One Session',
+	'website.home.multiplexing.reader':
+		'reads the same terminal from outside, each time you press Enter',
+	'website.home.collaboration.kicker': 'collaboration',
+	'website.home.collaboration.title': 'Agent-to-Agent Collaboration',
+	'website.home.collaboration.lead':
+		"Stop managing agents one terminal at a time. Agents can prompt and spawn other agents, read each other's output, send commands across terminals, delegate tasks, and coordinate work—while you stay in control from one place.",
+	'website.home.collaboration.window':
+		'Claude Code starting and prompting Codex with orchbee commands',
+	'website.home.collaboration.caption':
+		'<b>Each step is one <code>orchbee</code> command.</b>On the left, Claude Code runs them through its shell tool. Codex starts in the Panel on the right.',
+	'website.home.collaboration.step1': 'Starts Codex in a new Panel on the right.',
+	'website.home.collaboration.step2':
+		'Prints the handle of each agent, such as <code>@panel:0x36</code>.',
+	'website.home.collaboration.step3': 'Submits the prompt to that agent.',
+	'website.home.collaboration.step4':
+		'Blocks until the agent is idle again, for two minutes at most.',
+	'website.home.collaboration.step5': 'Reads the last 40 lines of its terminal.',
+	'website.home.collaboration.note':
+		'Orchbee does not replace your existing CLI agents; it provides the terminal environment in which they can work together. It shifts your role from <b>human-in-the-loop</b> to <b>human-on-the-loop</b>: instead of driving every step, you supervise the system and step in when needed.',
 	'website.home.clients.kicker': 'clients',
 	'website.home.clients.title': 'Each client in detail',
 	'website.home.clients.lead':

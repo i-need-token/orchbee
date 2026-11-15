@@ -20,11 +20,11 @@ import type { DesktopSidebarWorkspace } from '../desktop-sidebar/DesktopSidebar'
 // what the real commands print; the text formats are the ones in apps/orchbee/src/cli_text.
 // Terminal contents are English in every page language.
 
-const PROMPT = 'PS C:\\demo\\shop-api> ';
-const OUTSIDE = 'PS C:\\demo> ';
-const CLAUDE_HANDLE = '@panel:0x2a';
-const CODEX_HANDLE = '@panel:0x36';
-const OPENCODE_HANDLE = '@panel:0x41';
+export const PROMPT = 'PS C:\\demo\\shop-api> ';
+export const OUTSIDE = 'PS C:\\demo> ';
+export const CLAUDE_HANDLE = '@panel:0x2a';
+export const CODEX_HANDLE = '@panel:0x36';
+export const OPENCODE_HANDLE = '@panel:0x41';
 const CODEX_TASK = 'Review the current changes';
 
 /** The title of the Claude Code Agent. */
@@ -42,7 +42,7 @@ const CLAUDE_ROWS = [
 	textRow('  The check now runs before the insert.'),
 ] as const;
 const CLAUDE_ALLOWED = row`  Allow this edit?  ${dim('Yes')}`;
-const CODEX_ROWS = [
+export const CODEX_ROWS = [
 	inputRow`${dim('›')} `,
 	inputRow`${dim('›')} ${CODEX_TASK}`,
 	row`• ${bold('Ran')} ${dim('git diff --stat')}`,
@@ -52,7 +52,7 @@ const CODEX_ROWS = [
 	textRow('  One test still posts quantity 0 on purpose.'),
 	textRow('  Suggest updating the fixture in orders.test.ts.'),
 ] as const;
-const GIT_LOG = [
+export const GIT_LOG = [
 	row`${yellow('2905180')} (${cyan('HEAD ->')} ${green('main')}) Add order routes`,
 	row`${yellow('a6baeab')} Initial service skeleton`,
 ] as const;
@@ -138,9 +138,29 @@ function withUnread(state: SessionState, agent: 'cc' | 'cx', unread: boolean): S
 	return { ...state, unread: { ...state.unread, [agent]: unread } };
 }
 
+/** An Agent as `orchbee agent list` prints it. */
+export interface AgentListEntry {
+	readonly handle: string;
+	readonly agent: string;
+	readonly state: AgentState;
+	readonly cwd: string;
+}
+
 /** `orchbee agent list`, default text: six padded columns, two spaces apart. */
+export function agentList(agents: readonly AgentListEntry[]): TerminalRow[] {
+	const widths = [4, Math.max(...agents.map((agent) => agent.handle.length)), 12, 4, 9];
+	const line = (cells: readonly string[]): TerminalRow =>
+		textRow(cells.map((cell, index) => cell.padEnd(widths[index] ?? 0)).join('  '));
+	return [
+		line(['#', 'HANDLE', 'AGENT', 'NAME', 'STATE', 'CWD']),
+		...agents.map((agent, index) =>
+			line([String(index + 1), agent.handle, agent.agent, '-', CLI_STATE[agent.state], agent.cwd]),
+		),
+	];
+}
+
 function agentTable(state: SessionState): TerminalRow[] {
-	const agents = [
+	return agentList([
 		{
 			handle: CLAUDE_HANDLE,
 			agent: 'claude-code',
@@ -163,16 +183,7 @@ function agentTable(state: SessionState): TerminalRow[] {
 			state: state.states.oc,
 			cwd: 'C:\\demo\\shop-web',
 		},
-	];
-	const widths = [4, Math.max(...agents.map((agent) => agent.handle.length)), 12, 4, 9];
-	const line = (cells: readonly string[]): TerminalRow =>
-		textRow(cells.map((cell, index) => cell.padEnd(widths[index] ?? 0)).join('  '));
-	return [
-		line(['#', 'HANDLE', 'AGENT', 'NAME', 'STATE', 'CWD']),
-		...agents.map((agent, index) =>
-			line([String(index + 1), agent.handle, agent.agent, '-', CLI_STATE[agent.state], agent.cwd]),
-		),
-	];
+	]);
 }
 
 function initialState(): SessionState {

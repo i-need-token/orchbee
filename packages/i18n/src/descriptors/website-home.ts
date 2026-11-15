@@ -46,6 +46,109 @@ export const websiteHomeMessages = defineMessages({
 		'website.home.stage.caption',
 		'Caption under the drawn Session; <b> marks the word that labels it a demo.',
 	),
+	statement: message(
+		'website.home.statement',
+		'Large paragraph under the home stage; <quiet> marks the second sentence, set in a quieter color.',
+	),
+	sheetClients: message(
+		'website.home.sheet.clients',
+		'Lowercase label of the data sheet row that lists the clients.',
+	),
+	sheetClientsValue: message(
+		'website.home.sheet.clientsValue',
+		'Value of the clients row of the data sheet.',
+	),
+	sheetAgents: message(
+		'website.home.sheet.agents',
+		'Lowercase label of the data sheet row about agents.',
+	),
+	sheetAgentsValue: message(
+		'website.home.sheet.agentsValue',
+		'Value of the agents row of the data sheet.',
+	),
+	sheetTerminal: message(
+		'website.home.sheet.terminal',
+		'Lowercase label of the data sheet row about the terminal.',
+	),
+	sheetTerminalValue: message(
+		'website.home.sheet.terminalValue',
+		'Value of the terminal row of the data sheet.',
+	),
+	sheetPlatform: message(
+		'website.home.sheet.platform',
+		'Lowercase label of the data sheet row about platforms.',
+	),
+	sheetPlatformValue: message(
+		'website.home.sheet.platformValue',
+		'Value of the platform row of the data sheet.',
+	),
+	sheetLicense: message(
+		'website.home.sheet.license',
+		'Lowercase label of the data sheet row that names the license.',
+	),
+	sheetSource: message(
+		'website.home.sheet.source',
+		'Lowercase label of the data sheet row that links the source repository.',
+	),
+	multiplexingKicker: message(
+		'website.home.multiplexing.kicker',
+		'Lowercase label above the multiplexing heading.',
+	),
+	multiplexingTitle: message(
+		'website.home.multiplexing.title',
+		'Heading of the multiplexing section.',
+	),
+	multiplexingLead: message(
+		'website.home.multiplexing.lead',
+		'Paragraph beside the multiplexing heading.',
+	),
+	multiplexingInput: message(
+		'website.home.multiplexing.input',
+		'Label of the field where the visitor types a command into the drawn shell.',
+	),
+	multiplexingSession: message(
+		'website.home.multiplexing.session',
+		'Label on the line that joins the two drawn clients: both show the same Session.',
+	),
+	multiplexingReader: message(
+		'website.home.multiplexing.reader',
+		'Note after the client name above the drawn console that reads the same shell.',
+	),
+	collaborationKicker: message(
+		'website.home.collaboration.kicker',
+		'Lowercase label above the collaboration heading.',
+	),
+	collaborationTitle: message(
+		'website.home.collaboration.title',
+		'Heading of the collaboration section.',
+	),
+	collaborationLead: message(
+		'website.home.collaboration.lead',
+		'Paragraph beside the collaboration heading.',
+	),
+	collaborationWindow: message(
+		'website.home.collaboration.window',
+		'Accessible name of the drawn terminal interface where one agent directs another.',
+	),
+	collaborationCaption: message(
+		'website.home.collaboration.caption',
+		'Caption under the collaboration figure; <b> marks its label, <code> a command name.',
+	),
+	collaborationStep1: message(
+		'website.home.collaboration.step1',
+		'What the first command of the collaboration figure does.',
+	),
+	collaborationStep2: message(
+		'website.home.collaboration.step2',
+		'What the second command does; <code> marks an agent handle.',
+	),
+	collaborationStep3: message('website.home.collaboration.step3', 'What the third command does.'),
+	collaborationStep4: message('website.home.collaboration.step4', 'What the fourth command does.'),
+	collaborationStep5: message('website.home.collaboration.step5', 'What the fifth command does.'),
+	collaborationNote: message(
+		'website.home.collaboration.note',
+		'Note under the collaboration figure; <b> marks the two named roles.',
+	),
 	clientsKicker: message(
 		'website.home.clients.kicker',
 		'Lowercase label above the client index heading.',

@@ -1,0 +1,30 @@
+/* Codex's Panel opens beside Claude Code's when the first command starts it; in the upright
+   window it opens below. */
+.panels {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+	min-height: 0;
+	padding: var(--ob-ref-length-website-2) var(--ob-ref-length-website-6)
+		var(--ob-ref-length-website-8) var(--ob-ref-length-website-4);
+	transition: grid-template-columns var(--ob-sys-motion-duration-website-400)
+		var(--ob-sys-motion-easing-website-split);
+}
+.panels[data-open] {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.panels:not([data-open]) > :last-child {
+	padding: 0;
+	visibility: hidden;
+}
+@container window-fit (max-width: 48rem) {
+	.panels {
+		grid-template-rows: minmax(0, 1fr) minmax(0, 0fr);
+		grid-template-columns: minmax(0, 1fr);
+		transition: grid-template-rows var(--ob-sys-motion-duration-website-400)
+			var(--ob-sys-motion-easing-website-split);
+	}
+	.panels[data-open] {
+		grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1fr);
+	}
+}

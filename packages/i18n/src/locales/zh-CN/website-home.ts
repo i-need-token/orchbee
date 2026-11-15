@@ -17,6 +17,40 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.stage.reattach': '重新接入',
 	'website.home.stage.caption':
 		'<b>演示</b>一个会话，里面有一个 Shell 和两个 Agent；画面按真实界面绘制，按脚本播放。',
+	'website.home.statement':
+		'Orchbee 是为 AI Agent 时代打造的现代终端。<quiet>它首先是一个完整的终端，基于 Ghostty 的核心构建，其余能力都围绕终端展开。</quiet>',
+	'website.home.sheet.clients': '客户端',
+	'website.home.sheet.clientsValue': '终端界面、桌面应用、命令行',
+	'website.home.sheet.agents': 'Agent',
+	'website.home.sheet.agentsValue': '可识别 30 余种 CLI Agent',
+	'website.home.sheet.terminal': '终端',
+	'website.home.sheet.terminalValue': '基于 Ghostty 的核心构建',
+	'website.home.sheet.platform': '平台',
+	'website.home.sheet.platformValue':
+		'目前支持 Windows 11（x86_64），macOS 和 Linux 版本正在开发中。',
+	'website.home.sheet.license': '许可证',
+	'website.home.sheet.source': '源码',
+	'website.home.multiplexing.kicker': '多路复用',
+	'website.home.multiplexing.title': '会话多路复用',
+	'website.home.multiplexing.lead':
+		'会话在窗口关闭后继续在后台运行，其中的 Shell 与 Agent 不会中断。终端界面、桌面应用与命令行可以同时接入同一个会话，在一处输入，其他各处同步可见。',
+	'website.home.multiplexing.input': '在此输入',
+	'website.home.multiplexing.session': '同一个会话',
+	'website.home.multiplexing.reader': '每次按下回车，从外部读取同一个终端',
+	'website.home.collaboration.kicker': '协作',
+	'website.home.collaboration.title': 'Agent 间协作',
+	'website.home.collaboration.lead':
+		'不再逐个盯着彼此孤立的终端。Agent 可以 prompt 和拉起其他 Agent、读取彼此的输出、跨终端发送命令、分派任务并协同推进；你只需在一个地方掌握全局。',
+	'website.home.collaboration.window': 'Claude Code 用 orchbee 命令启动 Codex 并向它提交 prompt',
+	'website.home.collaboration.caption':
+		'<b>每一步都是一条 <code>orchbee</code> 命令。</b>左侧的 Claude Code 通过自己的 Shell 工具执行这些命令，Codex 在右侧的面板中启动。',
+	'website.home.collaboration.step1': '在右侧的新面板中启动 Codex。',
+	'website.home.collaboration.step2': '列出每个 Agent 的句柄，例如 <code>@panel:0x36</code>。',
+	'website.home.collaboration.step3': '把 prompt 提交给这个 Agent。',
+	'website.home.collaboration.step4': '等到这个 Agent 回到空闲状态，最多等两分钟。',
+	'website.home.collaboration.step5': '读取它的终端最近 40 行输出。',
+	'website.home.collaboration.note':
+		'Orchbee 不替代你现有的 CLI Agent，而是提供让它们协同工作的终端环境。它让你的角色从 <b>human-in-the-loop</b> 转向 <b>human-on-the-loop</b>：不再亲自推动每一步，而是监督整个系统，并在必要时介入。',
 	'website.home.clients.kicker': '客户端',
 	'website.home.clients.title': '各客户端详解',
 	'website.home.clients.lead': '终端界面、桌面应用与命令行呈现并控制同一个会话，各有一页单独介绍。',
