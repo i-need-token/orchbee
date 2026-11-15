@@ -3,7 +3,7 @@ import type { ProjectedTerminalMessageId } from '../en-US';
 export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.action.category': '终端',
 	'terminal.projected.action.clear': '清除终端',
-	'terminal.projected.action.copy': '复制所选内容',
+	'terminal.projected.action.copy': '复制',
 	'terminal.projected.action.findNext': '查找下一个匹配项',
 	'terminal.projected.action.findOpen': '在终端中查找',
 	'terminal.projected.action.findPrevious': '查找上一个匹配项',

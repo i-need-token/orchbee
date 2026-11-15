@@ -36,25 +36,33 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 	// As the TUI moves a Panel whichever terminal it shows, only a lone Panel has nowhere to go.
 	const canDrag = view.panelCount > 1;
 	const closeShortcut = view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeActiveTerminal);
+	const headerRef = React.useRef<HTMLElement>(null);
 	const splitTookFocus = React.useRef(false);
 	const panelMenuEntries = buildWorkbenchPanelMenuEntries({
 		panelId: panel.id,
+		rename: true,
 		source: 'menu',
 		split: (direction) => {
 			splitTookFocus.current = view.splitPanel(panel.id, direction, 'menu') !== null;
 		},
 		view,
 	});
-	// The new panel's terminal takes focus after a split; returning it to this header would undo that.
+	// The new panel's terminal takes focus after a split, and a dialog a row opened, such as Rename,
+	// takes it as the menu closes. Base UI returns focus unconditionally for a callback, so returning
+	// it to this header would undo either.
 	const menuFinalFocus = (): boolean => {
 		const tookFocus = splitTookFocus.current;
 		splitTookFocus.current = false;
-		return !tookFocus;
+		const dialog =
+			headerRef.current?.ownerDocument.querySelector('[role="dialog"], [role="alertdialog"]') ??
+			null;
+		return !tookFocus && dialog === null;
 	};
 
 	const header = (
 		<header
 			className={styles['root']}
+			ref={headerRef}
 			data-drag-enabled={canDrag || undefined}
 			data-slot='workbench-panel-header'
 			onPointerDown={

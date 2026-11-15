@@ -920,7 +920,10 @@ describe('Workbench Project and Workspace management', () => {
 		'renames and clears the captured primary Panel from its menu in $locale',
 		async ({ locale, rename, title, cancel }) => {
 			const projectWorkspaceRuntime = createSnapshotRuntime(
-				oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]),
+				oneWorkspaceSnapshot(1, [
+					snapshotTab(1, snapshotSplit(1, 'horizontal', snapshotPanel(1), snapshotPanel(3))),
+					snapshotTab(2),
+				]),
 			);
 			const change = completingChange();
 			renderWorkbench({
@@ -929,11 +932,9 @@ describe('Workbench Project and Workspace management', () => {
 				locale,
 			});
 			const open = async (): Promise<HTMLElement> => {
-				const viewport = document.querySelector<HTMLElement>(
-					'[data-slot="workbench-terminal-viewport"]',
-				);
-				if (viewport === null) throw new Error('Expected a Panel menu trigger.');
-				fireEvent.contextMenu(viewport, { clientX: 400, clientY: 300 });
+				const header = document.querySelector<HTMLElement>('[data-slot="workbench-panel-header"]');
+				if (header === null) throw new Error('Expected a Panel menu trigger.');
+				fireEvent.contextMenu(header, { clientX: 400, clientY: 10 });
 				fireEvent.click(await screen.findByRole('menuitem', { name: rename }));
 				return screen.findByRole('dialog', { name: title });
 			};

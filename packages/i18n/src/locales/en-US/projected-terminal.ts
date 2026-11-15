@@ -1,7 +1,7 @@
 export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.category': 'Terminal',
 	'terminal.projected.action.clear': 'Clear terminal',
-	'terminal.projected.action.copy': 'Copy selection',
+	'terminal.projected.action.copy': 'Copy',
 	'terminal.projected.action.findNext': 'Find next match',
 	'terminal.projected.action.findOpen': 'Find in terminal',
 	'terminal.projected.action.findPrevious': 'Find previous match',

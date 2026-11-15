@@ -9,6 +9,8 @@ import type { WorkbenchPanelWorkspaceView } from '../../../../../types/panel-wor
 
 interface WorkbenchPanelMenuOptions {
 	readonly panelId: string;
+	/** Only the header's menu offers Rename; the terminal's right-click menu leaves it to the header. */
+	readonly rename?: boolean | undefined;
 	readonly source: Extract<ActionInvocationSource, 'context-menu' | 'menu'>;
 	readonly split: (direction: 'below' | 'right') => void;
 	/** Present only while another Client holds the panel's size. */
@@ -17,14 +19,16 @@ interface WorkbenchPanelMenuOptions {
 }
 
 /**
- * A panel's menu, composed as the TUI's pane menu with no GUI-only section: Split right and Split
- * below, Maximize only beside another panel and Take control only while another Client holds the
- * panel's size, then the red Close. The other split directions, resizing and equalizing stay in
- * Search and their shortcuts. Opening the menu focuses its panel, so a row's active-panel shortcut
- * does what the row does.
+ * A panel's menu, composed as the TUI's pane menu with no GUI-only section: Rename only in the
+ * panel header's menu, which names the panel, then Split right and Split below, Maximize only
+ * beside another panel and Take control only while another Client holds the panel's size, then the
+ * red Close. The other split directions, resizing and equalizing stay in Search and their
+ * shortcuts. Opening the menu focuses its panel, so a row's active-panel shortcut does what the row
+ * does.
  */
 export function buildWorkbenchPanelMenuEntries({
 	panelId,
+	rename = false,
 	source,
 	split,
 	takeControl,
@@ -32,13 +36,17 @@ export function buildWorkbenchPanelMenuEntries({
 }: WorkbenchPanelMenuOptions): readonly WorkbenchActionMenuEntry[] {
 	const isMaximized = view.maximizedPanelId === panelId;
 	return [
-		{
-			icon: 'edit',
-			id: 'rename-panel',
-			kind: 'command',
-			label: view.messages.rename,
-			onSelect: () => view.renamePanel(panelId, source),
-		},
+		...(rename
+			? [
+					{
+						icon: 'edit',
+						id: 'rename-panel',
+						kind: 'command',
+						label: view.messages.rename,
+						onSelect: () => view.renamePanel(panelId, source),
+					} satisfies WorkbenchActionMenuCommand,
+				]
+			: []),
 		{
 			icon: 'panels',
 			id: 'split-panel-right',

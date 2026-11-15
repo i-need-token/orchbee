@@ -463,7 +463,7 @@ export const PanelWorkspace: Story = {
 	),
 };
 
-/** Inspect Rename and its blank-name help through the same Panel menu in Chinese. */
+/** Inspect Rename and its blank-name help through the same Panel header menu in Chinese. */
 export const PanelWorkspaceChinese: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),

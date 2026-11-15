@@ -45,7 +45,7 @@
 			"file": "apps/web/stories/workbench.stories.tsx",
 			"id": "applications-web-workbench--panel-workspace",
 			"states": [
-				"Choose Rename from the Panel menu; inspect its primary override even when a child terminal is displayed, then clear the field to see the original-name help and cancel without a write."
+				"Split the Panel, then choose Rename from a Panel header's menu; inspect the focused field and its primary override even when a child terminal is displayed, then clear the field to see the original-name help and cancel without a write."
 			]
 		},
 		{
@@ -53,7 +53,7 @@
 			"file": "apps/web/stories/workbench.stories.tsx",
 			"id": "applications-web-workbench--panel-workspace-chinese",
 			"states": [
-				"Inspect the same Panel rename menu, single-field editor, blank-name help and cancellation in Chinese."
+				"Inspect the same Panel header rename menu, single-field editor, blank-name help and cancellation in Chinese."
 			]
 		}
 	],
