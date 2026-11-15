@@ -551,17 +551,19 @@ fn checkpoint_locks_and_endpoints_cannot_bypass_admission() {
         Reason::InUse
     );
     drop(held);
-    let listener =
-        orchbee_local_ipc::LocalListener::bind(&Rendezvous::socket_paths(&runtime)[0]).unwrap();
-    assert!(catalog.prepare_activation(&name).is_err());
-    assert_eq!(
-        entries[1].absent_runtime_state().unwrap(),
-        Some(ActivationState::Active)
-    );
-    drop(listener);
-    // A POSIX socket outlives its listener until its owner removes it; a Windows pipe does not.
-    #[cfg(unix)]
-    fs::remove_file(&Rendezvous::socket_paths(&runtime)[0]).unwrap();
+    // A live Windows pipe is a serving process; a POSIX socket file is no evidence (see
+    // `posix_recovery`).
+    #[cfg(windows)]
+    {
+        let listener =
+            orchbee_local_ipc::LocalListener::bind(&Rendezvous::socket_paths(&runtime)[0]).unwrap();
+        assert!(catalog.prepare_activation(&name).is_err());
+        assert_eq!(
+            entries[1].absent_runtime_state().unwrap(),
+            Some(ActivationState::Active)
+        );
+        drop(listener);
+    }
     assert!(state_path.join("checkpoint.json").exists());
     assert!(catalog.prepare_activation(&name).is_ok());
 }
