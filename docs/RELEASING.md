@@ -22,8 +22,7 @@ repository>`. Print each public half with the command in
    exists) plus the `orchbee` scope, "Bypass two-factor authentication" checked, and an expiry that
    covers the release.
 3. **GitHub environment.** Settings › Environments › New environment `release`:
-   - Required reviewers: the owner. Leave "Prevent self-review" off, because the owner also pushes
-     the tag.
+   - Required reviewers: none. A pushed tag publishes with no approval.
    - Deployment branches and tags: Selected branches and tags, branch `main` and tag `v*`.
    - Environment secrets: `ORCHBEE_RELEASE_SIGNING_KEY`, the working key's whole PEM text, which
      signs the manifest and, in the publication job, the update feed document, set with
@@ -42,29 +41,30 @@ repository>`. Print each public half with the command in
    `gh workflow run release.yml --ref main -f version=0.1.0-beta.1`. It builds, signs and smoke-tests
    the release identity and publishes nothing. Its artifacts are a different build of the same
    version: never install them.
-3. Tag the commit and push the tag: `git tag -a v0.1.0-beta.1 -m "Orchbee 0.1.0-beta.1"`, then
-   `git push origin v0.1.0-beta.1`.
-4. Approve each job that waits for `release` on the run page (Review deployments › `release` ›
-   Approve and deploy): the preconditions at the start, signing after the build, and publication
-   after both smoke jobs pass. A rehearsal asks for the first two. Approve publication within 14
-   days, while the run's artifacts are kept.
+3. Write the release notes in Markdown in a file outside the repository, with their own headings;
+   they follow the generated Install section verbatim. Tag the commit with them and push the tag:
+   `git tag -a v0.1.0-beta.1 --cleanup=verbatim -F <notes file>`, then
+   `git push origin v0.1.0-beta.1`. `--cleanup=verbatim` keeps lines that start with `#`, which
+   git's default cleanup deletes. A lightweight tag or an empty message fails the run's first job,
+   before any build: delete the tag and tag again.
+4. The run then needs no human step. To stop a release, cancel the run (Cancel workflow on the run
+   page) before its job "Publish v0.1.0-beta.1" starts; until then nothing is public.
 5. Publication signs the update feed document with the release key, then creates a draft release
    `v0.1.0-beta.1` holding the setup file, the `.zip`, the feed document
    `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, the npm tarballs and
-   `SHA256SUMS`, and then publishes `@orchbee/cli-win32-x64` and
-   `orchbee` under the dist-tag `next`, then moves their `latest` to this version while `latest`
-   is still an older beta. The draft's notes open with an Install section that links
-   the setup file and the `.zip` and gives the npm command. Open the draft, replace the Changes
-   placeholder with the notes, make sure Set as the latest release is ticked, and press Publish
-   release. The draft is not a pre-release even for a beta: GitHub shows a Latest release on the
-   repository page, and answers `/releases/latest`, only for a release that is not one.
-   The npm packages are public as soon as the job ends, before the draft is published.
-6. Wait for the update check: pressing Publish release starts Actions › Update check for the tag,
+   `SHA256SUMS`, then publishes `@orchbee/cli-win32-x64` and `orchbee` under the dist-tag `next`
+   and moves their `latest` to this version while `latest` is still an older beta, and then
+   publishes the draft as the Latest release. Its notes are an Install section that links the
+   setup file and the `.zip` and gives the npm command, followed by the tag message. The release
+   is not a pre-release even for a beta: GitHub shows a Latest release on the repository page, and
+   answers `/releases/latest`, only for a release that is not one.
+6. Wait for the update check: the publication job starts Actions › Update check for the tag,
    which on a fresh runner installs the version people have now and updates it to the release
    through `orchbee update` from the published assets
    ([Update check workflow](VERIFICATION.md#update-check-workflow)). Go on only when it passes; to
    run it again, Run workflow with the tag, or
-   `gh workflow run update-check.yml --ref main -f tag=v0.1.0-beta.1`.
+   `gh workflow run update-check.yml --ref main -f tag=v0.1.0-beta.1`. A release published by
+   hand starts it too.
 7. Move the website to the release once the update check passed: on `main`, run
    `pnpm website:release 0.1.0-beta.1`, commit the update feed pair under
    `apps/website/public/update/` and `apps/website/src/website/release.ts` it wrote, then build and
@@ -86,13 +86,16 @@ repository>`. Print each public half with the command in
 
 - Before publication nothing is public. Fix the cause on `main`; for a tag run, delete the tag
   (`git push origin :refs/tags/v0.1.0-beta.1` and `git tag -d v0.1.0-beta.1`) and tag the fixed
-  commit. A failed precondition names the missing secret, key or table entry.
-- During publication, use "Re-run failed jobs" on the same run, never "Re-run all jobs": the re-run
-  publishes from the same artifacts, signs the feed document again to the same bytes, completes the
-  draft with the assets it lacks, skips each npm
-  package already published with the same tarball, and publishes the rest. This is how a run that
-  published `@orchbee/cli-win32-x64` but not `orchbee` is finished. A rebuild would produce other
-  bytes, and the job refuses them.
+  commit. A failed precondition names the missing secret, key or table entry; a lightweight tag or
+  an empty tag message gives the tag command.
+- A failed publication job is run again: "Re-run failed jobs" on the same run, within 14 days while
+  its artifacts are kept, never "Re-run all jobs". A failed npm step leaves the release a draft.
+  The re-run publishes from the same artifacts, signs the feed document again to the same bytes,
+  completes the draft with the assets it lacks, skips each npm package already published with the
+  same tarball and publishes the rest, publishes the draft as the Latest release or confirms a
+  published one, and starts the update check. This is how a run that published
+  `@orchbee/cli-win32-x64` but not `orchbee` is finished. A rebuild would produce other bytes, and
+  the job refuses them.
 - If the artifacts have expired, or the job reports a release or npm version with other content, the
   version cannot be finished: npm never accepts the same version twice. Delete the draft release, run
   `npm deprecate @orchbee/cli-win32-x64@0.1.0-beta.1 "Incomplete release; install the next version"`

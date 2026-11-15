@@ -15,6 +15,7 @@ import {
 	registryIntegrity,
 	releaseAssets,
 	releaseTable,
+	tagNotes,
 } from './release-publish.mjs';
 import {
 	FEED_DOMAIN,
@@ -71,6 +72,32 @@ test('a pre-release goes to the dist-tag next and only a plain version to latest
 		planRelease({ event: 'push', ref: 'refs/tags/v0.1.0', platforms: rows }).distTag,
 		'latest',
 	);
+});
+
+// Answers the two API reads of tagNotes the way `gh api --jq` prints them.
+const github =
+	(object, message = '') =>
+	([, route]) => ({
+		stdout: route.includes('/git/ref/tags/') ? JSON.stringify(object) : `${message}\n`,
+	});
+
+test('the notes are the tag message without its signature, and a tag without notes stops', () => {
+	const annotated = (message) => github({ type: 'tag', sha: 'a'.repeat(40) }, message);
+	const notes = '## Fixed\n\n- # in a list item stays\n-----BEGIN quoted text-----';
+	const signed = `\n${notes}\n\n-----BEGIN PGP SIGNATURE-----\n\nwsBc\n-----END PGP SIGNATURE-----`;
+	assert.equal(tagNotes('v0.1.0', 'owner/orchbee', annotated(signed)), notes);
+	const ssh = `${notes}\n-----BEGIN SSH SIGNATURE-----\nU1NI\n-----END SSH SIGNATURE-----`;
+	assert.equal(tagNotes('v0.1.0', 'owner/orchbee', annotated(ssh)), notes);
+	const refusals = [
+		github({ type: 'commit', sha: 'b'.repeat(40) }),
+		annotated(' \n\n'),
+		annotated('-----BEGIN PGP SIGNATURE-----\nwsBc\n-----END PGP SIGNATURE-----'),
+	];
+	for (const gh of refusals)
+		assert.throws(
+			() => tagNotes('v0.1.0', 'owner/orchbee', gh),
+			/git tag -a v0\.1\.0 --cleanup=verbatim -F <notes file>/u,
+		);
 });
 
 // The repository's public test key stands in for a release key; nothing here is a release key.

@@ -4,8 +4,10 @@ name: Release
 # `build` with the TEST identity, signs its manifest with the repository's test key, proves the
 # result on fresh runners, and publishes nothing. A pushed tag v<version>, or a manual run naming a
 # version (a rehearsal): the release path builds the rows marked `build` and `publish` with the
-# release identity, signs in the protected environment `release`, proves the files on fresh runners,
-# and, for a tag only, publishes a draft GitHub release and the npm packages.
+# release identity, signs in the environment `release`, and proves the files on fresh runners. A tag
+# run alone then publishes with no human step: a draft GitHub release whose notes are the annotated
+# tag's message, the npm packages, then the release as Latest, and starts the Update check. A
+# lightweight tag or an empty tag message stops it before the build.
 # Contract: docs/VERIFICATION.md#release-workflow; the owner's steps: docs/RELEASING.md.
 on:
   workflow_dispatch:
@@ -255,6 +257,15 @@ jobs:
           VERSION_INPUT: ${{ inputs.version }}
         run: node scripts/release-publish.mjs plan --event "$GITHUB_EVENT_NAME" --ref "$GITHUB_REF" --version "$VERSION_INPUT"
 
+      # A tag run's notes are its annotated message, read through the API because the checkout
+      # drops tag annotations; a rehearsal needs none.
+      - name: Read the release notes from the tag message
+        if: steps.plan.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.plan.outputs.tag }}
+        run: node scripts/release-publish.mjs notes --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY"
+
       - name: Check every version source against the version
         env:
           RELEASE_TAG: ${{ steps.plan.outputs.tag }}
@@ -474,7 +485,8 @@ jobs:
       - name: Collect the release artifacts
         run: node scripts/release-artifacts.mjs collect --profile release --output "$env:RUNNER_TEMP\release-artifacts"
 
-      # A tag run keeps them until the owner approves publication; a rehearsal only for its smoke.
+      # A tag run keeps them long enough to run a failed publication again; a rehearsal only for
+      # its smoke.
       - name: Upload the release artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -564,8 +576,10 @@ jobs:
       - name: Scan for leftovers
         run: node scripts/release-smoke-windows.mjs leftovers "$env:RUNNER_TEMP\release-artifacts"
 
-  # Tag runs only, after the owner approves. GitHub first, as a draft; npm last, because a published
-  # npm version can never be replaced. Run again, the job finishes a partial publication.
+  # Tag runs only, with no approval: cancelling the run before this job starts is the way to stop a
+  # release. GitHub first, as a draft; then npm, because a published npm version can never be
+  # replaced; then the draft becomes the Latest release, so a failed npm step leaves it a draft.
+  # Run again, the job finishes a partial publication.
   release-publish:
     name: Publish ${{ needs.release-plan.outputs.tag }}
     needs: [release-plan, release-smoke, release-smoke-npm]
@@ -574,6 +588,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      # actions: write lets the token dispatch the Update check.
+      actions: write
       contents: write
       id-token: write
     env:
@@ -626,3 +642,15 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: node scripts/release-publish.mjs npm "$ARTIFACTS" --version "$RELEASE_VERSION" --repository-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+
+      - name: Publish the draft as the Latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-publish.mjs publish "$ARTIFACTS" --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY"
+
+      # A release published with this job's token raises no `release: published` run, but the token
+      # may dispatch a workflow.
+      - name: Start the Update check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run update-check.yml --repo "$GITHUB_REPOSITORY" --ref main -f tag="$RELEASE_TAG"

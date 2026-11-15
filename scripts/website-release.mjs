@@ -255,7 +255,7 @@ export function curl(source, url, { probe = false, output, limit }) {
 }
 
 function notPublic(version, name, where) {
-	return `${name} is not public at ${where}. If v${version} is still a draft, publish it on GitHub (Publish release) and run this again; if the release lacks the file, release the next version.`;
+	return `${name} is not public at ${where}. If v${version} is still a draft, re-run the failed jobs of its release run and run this again; if the release lacks the file, release the next version.`;
 }
 
 /** The bytes of `name` from the source, at most `limit`, or a refusal sentence. */

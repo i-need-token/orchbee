@@ -314,10 +314,10 @@ check` and `release-publish.mjs github` admit it only when it verifies under the
   `/update/stable/windows-x86_64/` will exist; a channel or platform without files answers 404,
   which `update` reports as `download`. `/update/*` is served with `Cache-Control: no-cache`, so a
   channel move or a withdrawal is seen at once.
-- Order: the tag run drafts the release with all assets; the owner presses Publish release, and
-  only then are the assets public, because a draft's assets answer 404 to an anonymous request;
-  publication starts the update check, which on a fresh runner updates the version people have now
-  to the release over HTTPS ([update check workflow](../../docs/VERIFICATION.md#update-check-workflow));
+- Order: the tag run drafts the release with all assets, publishes npm, then publishes the
+  release, and only then are the assets public, because a draft's assets answer 404 to an anonymous
+  request; publication starts the update check, which on a fresh runner updates the version people
+  have now to the release over HTTPS ([update check workflow](../../docs/VERIFICATION.md#update-check-workflow));
   once it passes, the owner runs `pnpm website:release <version>`, commits, builds, and deploys the
   website. The channel has moved when the deploy finishes.
 - `scripts/website-release.mjs` fetches the feed pair and the archive anonymously with the system

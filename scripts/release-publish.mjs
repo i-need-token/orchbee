@@ -1,17 +1,22 @@
-// The steps of the release workflow around the build: what a run releases, whether its secrets and
-// trusted key are in place, and the publication of the collected artifacts as a draft GitHub
-// release and on npm. Each step either finishes or stops with sentences that name what is wrong;
-// none prints a secret, and a step run again after a partial publication finishes it without
-// duplicating or replacing anything already published.
+// The steps of the release workflow around the build: what a run releases, its release notes,
+// whether its secrets and trusted key are in place, and the publication of the collected artifacts
+// as a GitHub release and on npm. Each step either finishes or stops with sentences that name what
+// is wrong; none prints a secret, and a step run again after a partial publication finishes it
+// without duplicating or replacing anything already published.
 //
 //   node scripts/release-publish.mjs plan --event <name> --ref <git ref> [--version <version>]
+//   node scripts/release-publish.mjs notes --tag v<version> --repository <owner/name>
 //   node scripts/release-publish.mjs preconditions --signing-key-env <VARIABLE> [--npm-token-env <VARIABLE>]
 //   node scripts/release-publish.mjs github <artifacts> --tag v<version> --repository <owner/name>
 //   node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>
+//   node scripts/release-publish.mjs publish <artifacts> --tag v<version> --repository <owner/name>
 //
 // - plan: a pushed tag `v<version>` releases and publishes that version; a manual run names the
 //   version to rehearse and publishes nothing. Reads the platform rows from RELEASE_PLATFORMS and
 //   writes `version`, `tag`, `publish`, `prerelease`, `dist-tag` and `matrix` to GITHUB_OUTPUT.
+// - notes: prints the release notes, the message of the annotated tag read through the GitHub API
+//   (a checkout drops tag annotations) without a trailing signature block. A lightweight tag or an
+//   empty message fails with the command that tags correctly.
 // - preconditions: the signing key variable holds an Ed25519 PKCS #8 PEM key whose public half is in
 //   RELEASE_KEYS of apps/orchbee/src/cli/update/signature.rs, and the npm token variable, when named,
 //   is not empty.
@@ -19,15 +24,19 @@
 //   completes the draft a stopped run left; a published release is only confirmed, never changed.
 //   Every update feed document must carry its `.sig`, verified with a key of RELEASE_KEYS. The
 //   draft is never a pre-release, so publishing it makes it the repository's Latest release even
-//   for a beta, and its notes open with an Install section linking the files a person downloads.
-//   Runs `gh` with the token in GH_TOKEN.
+//   for a beta. Its notes are an Install section linking the files a person downloads, followed by
+//   the tag's notes.
 // - npm: publishes every tarball of <artifacts>, platform packages first and the main package last,
 //   with provenance and the dist-tag `next` for a pre-release or `latest` otherwise. A version the
 //   registry already holds with the same tarball is skipped; one with another tarball fails. A
 //   pre-release then also takes `latest` while `latest` is missing or an older pre-release, so a
 //   plain `npm install` gets the newest beta until a stable version exists.
+// - publish: after npm, publishes the tag's draft release, holding exactly the files of
+//   <artifacts>, as the repository's Latest release and not a pre-release; a published release is
+//   only confirmed.
 //
-// <artifacts> is a directory `node scripts/release-artifacts.mjs collect --profile release` wrote.
+// notes, github and publish run `gh` with the token in GH_TOKEN. <artifacts> is a directory
+// `node scripts/release-artifacts.mjs collect --profile release` wrote.
 // Exit codes: 0 done; 1 a step failed or a check found a problem; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
 import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
@@ -46,9 +55,11 @@ const releaseStem = 'orchbee';
 const platformPackage = /^@orchbee\/cli-[a-z\d]+-[a-z\d]+$/u;
 const usage =
 	'Usage: node scripts/release-publish.mjs plan --event <name> --ref <git ref> [--version <version>]\n' +
+	'       node scripts/release-publish.mjs notes --tag v<version> --repository <owner/name>\n' +
 	'       node scripts/release-publish.mjs preconditions --signing-key-env <VARIABLE> [--npm-token-env <VARIABLE>]\n' +
 	'       node scripts/release-publish.mjs github <artifacts> --tag v<version> --repository <owner/name>\n' +
-	'       node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>';
+	'       node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>\n' +
+	'       node scripts/release-publish.mjs publish <artifacts> --tag v<version> --repository <owner/name>';
 
 class UsageError extends Error {}
 class StepFailure extends Error {}
@@ -443,7 +454,7 @@ export function githubReleases(tag, repositoryName, gh = (argv) => run('gh', arg
 		'--paginate',
 		`repos/${repositoryName}/releases?per_page=100`,
 		'--jq',
-		`.[] | select(.tag_name == ${JSON.stringify(tag)}) | {draft, assets: [.assets[] | {name, digest}]}`,
+		`.[] | select(.tag_name == ${JSON.stringify(tag)}) | {id, draft, assets: [.assets[] | {name, digest}]}`,
 	]);
 	return result.stdout
 		.split('\n')
@@ -451,11 +462,46 @@ export function githubReleases(tag, repositoryName, gh = (argv) => run('gh', arg
 		.map((line) => JSON.parse(line));
 }
 
+/** The one sentence a run without usable release notes stops with. */
+function untaggedNotes(tag, why) {
+	return `${tag} ${why}: delete the tag, then tag again with \`git tag -a ${tag} --cleanup=verbatim -F <notes file>\`, whose message becomes the release notes.`;
+}
+
+// git ends a signed tag's message with the signature block, starting at the last line that opens one.
+const signatureStart =
+	/^-----BEGIN (?:PGP SIGNATURE|PGP MESSAGE|SSH SIGNATURE|SIGNED MESSAGE)-----$/u;
+
 /**
- * The notes a new draft release starts with: an Install section linking the files a person
- * downloads, then a Changes placeholder the owner replaces before publishing.
+ * The release notes of `tag`: its annotated tag's message from the GitHub API, without a trailing
+ * signature block or surrounding blank lines. A lightweight tag or an empty message is a failure.
  */
-function draftNotes({ version, tag, repositoryName, names }) {
+export function tagNotes(tag, repositoryName, gh = (argv) => run('gh', argv)) {
+	const reference = JSON.parse(
+		gh(['api', `repos/${repositoryName}/git/ref/tags/${tag}`, '--jq', '.object']).stdout,
+	);
+	if (reference.type !== 'tag')
+		throw new StepFailure(untaggedNotes(tag, 'is a lightweight tag, which carries no notes'));
+	const message = gh([
+		'api',
+		`repos/${repositoryName}/git/tags/${reference.sha}`,
+		'--jq',
+		'.message',
+	]).stdout;
+	const lines = message.split('\n');
+	const start = lines.findLastIndex((line) => signatureStart.test(line.trimEnd()));
+	const notes = (start === -1 ? lines : lines.slice(0, start))
+		.join('\n')
+		.replace(/^(?:[ \t]*\n)+/u, '')
+		.trimEnd();
+	if (notes === '') throw new StepFailure(untaggedNotes(tag, 'has an empty message'));
+	return notes;
+}
+
+/**
+ * The notes of a new draft release: an Install section linking the files a person downloads, then
+ * the tag's notes.
+ */
+function releaseNotes({ version, tag, repositoryName, names, changes }) {
 	const link = (pattern) => {
 		const name = names.find((candidate) => pattern.test(candidate));
 		if (name === undefined) return undefined;
@@ -476,9 +522,7 @@ function draftNotes({ version, tag, repositoryName, names }) {
 		'',
 		'The `.feed.json`, `.sig` and `.tgz` files serve `orchbee update` and npm; `SHA256SUMS` holds the checksums.',
 		'',
-		'## Changes',
-		'',
-		'Draft made by the release workflow: write the changes here, check the assets against SHA256SUMS, then publish.',
+		changes,
 	].join('\n');
 }
 
@@ -490,7 +534,8 @@ function publishGithub({ artifacts, tag, repositoryName }, gh = (argv) => run('g
 	const files = (names) => names.map((name) => assets.find((asset) => asset.name === name).path);
 	if (plan.action === 'create') {
 		const names = assets.map((asset) => asset.name);
-		const notes = draftNotes({ version, tag, repositoryName, names });
+		const changes = tagNotes(tag, repositoryName, gh);
+		const notes = releaseNotes({ version, tag, repositoryName, names, changes });
 		gh([
 			'release',
 			'create',
@@ -513,6 +558,39 @@ function publishGithub({ artifacts, tag, repositoryName }, gh = (argv) => run('g
 	} else {
 		log(`The release ${tag} already holds every asset of this run; nothing changed.`);
 	}
+}
+
+function publishRelease({ artifacts, tag, repositoryName }, gh = (argv) => run('gh', argv)) {
+	const existing = githubReleases(tag, repositoryName, gh);
+	const plan = planGithubRelease({ existing, assets: releaseAssets(artifacts) });
+	if (plan.action === 'create')
+		throw new StepFailure(
+			`No release names ${tag}: run the publication job again, which creates its draft first.`,
+		);
+	if (plan.problems.length > 0) throw new StepFailure(plan.problems.join('\n'));
+	if (plan.action !== 'none')
+		throw new StepFailure(
+			`The draft release ${tag} lacks ${plan.upload.join(', ')}: run the publication job again, which completes it first.`,
+		);
+	const [release] = existing;
+	if (!release.draft) {
+		log(`The release ${tag} is already published; nothing changed.`);
+		return;
+	}
+	gh([
+		'api',
+		'--method',
+		'PATCH',
+		`repos/${repositoryName}/releases/${release.id}`,
+		'-F',
+		'draft=false',
+		'-F',
+		'prerelease=false',
+		'-f',
+		'make_latest=true',
+		'--silent',
+	]);
+	log(`Published the release ${tag} as the Latest release.`);
 }
 
 async function publishNpm({ artifacts, version, repositoryUrl }) {
@@ -650,17 +728,22 @@ async function main(argv) {
 		if (problems.length > 0) throw new StepFailure(problems.join('\n'));
 		return;
 	}
-	if (command === 'github') {
+	if (command === 'notes' || command === 'github' || command === 'publish') {
 		const { positional, options } = parseOptions(rest, ['tag', 'repository']);
 		const tag = /^v(.+)$/u.exec(options.tag ?? '');
 		if (
-			positional.length !== 1 ||
+			positional.length !== (command === 'notes' ? 0 : 1) ||
 			tag === null ||
 			!SEMVER.test(tag[1]) ||
 			!/^[\w.-]+\/[\w.-]+$/u.test(options.repository ?? '')
 		)
 			throw new UsageError(usage);
-		publishGithub({
+		if (command === 'notes') {
+			log(`The release notes of ${options.tag}:\n${tagNotes(options.tag, options.repository)}`);
+			return;
+		}
+		const step = command === 'github' ? publishGithub : publishRelease;
+		step({
 			artifacts: path.resolve(positional[0]),
 			tag: options.tag,
 			repositoryName: options.repository,

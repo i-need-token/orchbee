@@ -1,10 +1,12 @@
 name: Update check
 
-# Runs once the owner presses Publish release, or by hand with a published tag, and proves on a
-# fresh Windows runner that the version people have now updates to the new release through its own
-# `orchbee update` over HTTPS, reading the release's feed asset. The owner moves the update channel
-# with `pnpm website:release` only after it passes. Every request is an anonymous GET to the public
-# release: no secret, no environment, read-only permissions.
+# Runs when the release workflow's publication job dispatches it with the tag it published (a
+# release published with that job's token raises no `release: published`), when a release is
+# published by hand, or by hand with a published tag, and proves on a fresh Windows runner that the
+# version people have now updates to the new release through its own `orchbee update` over HTTPS,
+# reading the release's feed asset. The owner moves the update channel with `pnpm website:release`
+# only after it passes. Every request is an anonymous GET to the public release: no secret, no
+# environment, read-only permissions.
 # Contract: docs/VERIFICATION.md#update-check-workflow; the owner's steps: docs/RELEASING.md.
 on:
   release:

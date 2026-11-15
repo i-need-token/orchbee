@@ -848,7 +848,7 @@ function updateCheck(options, progress) {
 		feedAddress,
 		feedFile,
 		FEED_LIMIT,
-		`${name} is not public at ${feedAddress}. If v${version} is still a draft, publish it (Publish release) and run this check again`,
+		`${name} is not public at ${feedAddress}. If v${version} is still a draft, re-run the failed jobs of its release run, which also starts this check again`,
 	);
 	fetchAsset(
 		source,
