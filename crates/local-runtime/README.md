@@ -96,7 +96,7 @@ last handle closes, so the owner's end, however abrupt, ends the command's whole
 hub starts its carriers this way, and `run_contained_command_exchange`, the contained form of
 `run_windows_command_exchange`, runs the updater's `curl` and `tar`. Otherwise neither platform ends owned processes when the owning
 process dies abruptly:
-`PR_SET_PDEATHSIG` would need `pre_exec`, which `unsafe_code = "forbid"` excludes, and is
+`PR_SET_PDEATHSIG` would need `pre_exec`, which this crate's denial of unsafe code excludes, and is
 Linux-only and thread-scoped. Output pipes still close then, so a writer receives `SIGPIPE` or an
 error. Unix tests cover root exit, cancellation, ignored `SIGTERM`, dropped owners and missing
 programs with a real descendant in the group.
@@ -106,6 +106,70 @@ PowerShell, is named by its full path from `windows_system_program`, which reads
 the operating system rather than from `PATH` or `SystemRoot`. A same-named program earlier on the
 search path, such as a tool manager's shim, cannot stand in for it. Programs the person chooses,
 such as an Agent, Git or a configured shell, keep their own resolution.
+
+## Windows standard rights
+
+`token_rights` reads this process's own token through safe calls: its integrity (above Medium,
+`0x2000`, is High), whether BUILTIN Administrators is enabled (`CheckTokenMembership`), listed for
+deny only or absent, and `TokenIsElevated`, which callers record but never decide on.
+`TokenRights::is_standard` holds at integrity Medium or below with Administrators not enabled.
+`relaunch_with_standard_rights` serves a process that fails it, such as the remote link helper
+Win32-OpenSSH starts with an elevated administrator token: it derives a standard token from the
+process's own, starts the same executable with one argument and that token, waits, and returns the
+child's exit status. It never starts anything with the elevated token; a failure is `Derive` (a
+derivation call failed), `StillElevated` (the re-read token kept integrity above Medium or an
+enabled filtered group) or `Start` (the executable path, the standard handles, the start or the
+wait failed).
+
+The derived token keeps the user and the logon session. Every group UAC filters from an elevated
+token (BUILTIN `S-1-5-32-544`, `-547` to `-551`, `-553`, `-556`, `-569`, and the domain RIDs 498,
+512, 516 and 518 to 521) becomes deny-only; every privilege except SeChangeNotify, SeShutdown,
+SeUndock, SeIncreaseWorkingSet and SeTimeZone is deleted; the integrity is Medium, the owner is the
+user, and the default DACL grants `GENERIC_ALL` to the user and SYSTEM, so the child's process and
+every object it creates admit a Medium process of the same user. The child stays in the parent's
+Job.
+
+The private `src/standard_rights_native.rs` adapter is this crate's only authored unsafe boundary,
+admitted by the [Rust policy](../../docs/RUST.md#lint-policy-and-enforcement):
+
+- **Handles.** Each handle a call returns moves at once into one owner, an `OwnedHandle` or, for the
+  derived token that safe code reads through winsafe, a `CloseHandleGuard`, and is closed exactly
+  once. A failed call returns nothing to close; the current-process pseudo handle is never wrapped.
+- **Token information.** `GetTokenInformation` runs twice: a null probe for the size, then a read
+  into `u64` storage of at least that size, so the structure at its start and the SIDs the system
+  places after it are 8-aligned. The reported length must fit the storage; an entry count is checked
+  against it before a slice is formed; a SID pointer must lie inside the same block and its
+  sub-authority count must keep it there, or the derivation refuses.
+- **SIDs and ACLs.** The SIDs passed to `CreateRestrictedToken`, `TokenOwner` and
+  `AddAccessAllowedAce` point into token-information blocks or 8-aligned `SECURITY_MAX_SID_SIZE`
+  storage that outlive each call, and the system copies them. The Medium label structure and its SID
+  share one value, so the length passed with it covers only memory that value owns. The ACL storage
+  is sized for its header and both entries, DWORD-aligned, initialized before entries are added, and
+  outlives `SetTokenInformation`.
+- **Attribute list.** A null probe sizes it; it is initialized into 8-aligned storage and deleted
+  exactly once by `Drop`, before its storage and the handle array it names are freed. That array is
+  a boxed slice, which never moves while the list refers to it.
+- **Inheritance.** The parent takes its three standard handles: it reads each slot, clears all
+  three with `SetStdHandle`, and owns each handle once; a slot that repeats an earlier one receives
+  its own duplicate, so the handle list holds only distinct values. Only these handles are marked
+  inheritable, and `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` limits inheritance to them; without a
+  standard handle the child inherits nothing.
+- **Start.** `CreateProcessAsUserW` receives the executable path as the application name, a
+  writable NUL-terminated command line `"<executable>" <argument>`, a pointer that reaches the whole
+  `STARTUPINFOEXW`, `CREATE_NO_WINDOW` without breakaway, and a NULL environment, directory and
+  desktop, which inherit the parent's. A restricted copy of the caller's own token needs no
+  SeAssignPrimaryToken.
+- **Closing and relay.** Right after the start the parent closes the thread handle, the attribute
+  list and its copies of the standard handles, so the child is their only holder and its exit ends
+  the parent's channel; the parent then waits on the process handle and returns
+  `GetExitCodeProcess`'s status unchanged. The caller turns a status above 255 into a refusal.
+
+The adjacent safe test derives a token from the test process's own, reads it back through winsafe
+(integrity at most Medium, no enabled filtered group, privileges within the kept set, the user as
+owner), starts `cmd.exe` with a test pipe as its only standard handle, reads the child process's
+owner and DACL (the user; allow entries for the user and SYSTEM only), and receives its output and
+exit status 7. It runs non-elevated, so it does not prove the High-to-Medium step, sshd's window
+station or sshd's Job.
 
 ## Data root
 

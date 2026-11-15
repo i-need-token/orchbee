@@ -95,6 +95,12 @@ fn main() -> ExitCode {
     if let Some(status) = cli::machines::askpass::run_if_selected() {
         return status;
     }
+    // Win32-OpenSSH may give the link helper an elevated token; the helper relaunches itself with
+    // a standard one before anything reads Orchbee state.
+    #[cfg(windows)]
+    if let Some(status) = cli::machines::link::admit_rights() {
+        return status;
+    }
     let selected = parse_selected_request(env::args_os().skip(1));
     if let Ok(selected) = &selected
         && let Some(output) = cli::invocation_route::offline_default_config(&selected.request)

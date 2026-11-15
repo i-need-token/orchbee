@@ -22,7 +22,7 @@ use std::{
 /// The status of a link that ended without a violation.
 const ENDED: u8 = 0;
 /// The status of a refused start, a refused `OBHS` frame, or a violation.
-const REFUSED: u8 = 5;
+pub(super) const REFUSED: u8 = 5;
 /// Silence after which the link counts as lost.
 const IDLE: Duration = Duration::from_secs(90);
 /// One read of standard input.

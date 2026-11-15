@@ -300,10 +300,11 @@ inside third-party dependencies; dependency and feature review remain necessary.
 
 The accepted operating-system exceptions are limited to these private modules:
 
-| Package and location                                            | Private module          | Owned safety contract                                                                                               |
-| --------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `orchbee-windows-console-host` at `crates/windows-console-host` | `src/sys.rs`            | [Console handle, count, Unicode, tagged-union, and input-wait boundaries](../crates/windows-console-host/README.md) |
-| `orchbee-local-ipc` at `crates/local-ipc`                       | `src/windows_native.rs` | [Exact Win32 name query, pipe counters, zero-byte read watch, and multi-event wait](../crates/local-ipc/README.md)  |
+| Package and location                                            | Private module                  | Owned safety contract                                                                                                                     |
+| --------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `orchbee-windows-console-host` at `crates/windows-console-host` | `src/sys.rs`                    | [Console handle, count, Unicode, tagged-union, and input-wait boundaries](../crates/windows-console-host/README.md)                       |
+| `orchbee-local-ipc` at `crates/local-ipc`                       | `src/windows_native.rs`         | [Exact Win32 name query, pipe counters, zero-byte read watch, and multi-event wait](../crates/local-ipc/README.md)                        |
+| `orchbee-local-runtime` at `crates/local-runtime`               | `src/standard_rights_native.rs` | [Standard token derivation, inherited standard handles, and exit-status relay](../crates/local-runtime/README.md#windows-standard-rights) |
 
 These crates declare `unsafe_code = "deny"` instead of inheriting the workspace `forbid`;
 only the listed private module has a reasoned `allow`. The Rust runner pins each package,

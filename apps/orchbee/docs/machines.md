@@ -501,6 +501,23 @@ earlier `--machine-tunnel-v1` and `--machine-relay-v1` helpers are gone, and a b
 starts one finds an unknown argument. The contract owns every byte; this section owns how the
 helper meets it.
 
+Before it reads any Orchbee state, the helper reads its own token. Win32-OpenSSH gives an
+administrator's logon an elevated token, and a Session started with it refuses the Clients the
+person starts at the desktop. A token above Medium integrity or with BUILTIN Administrators enabled
+therefore never serves the link: the helper starts itself again with a
+[standard token](../../../crates/local-runtime/README.md#windows-standard-rights) derived from its
+own (administrator groups for deny only, the privileges a filtered token keeps, Medium integrity,
+the user as owner, a default access list of the user and SYSTEM), hands it its standard input,
+output and error, closes its own copies, and exits with the child's status. The child is the
+helper, and the Session it starts runs with standard rights. When the derivation or the start
+fails, or the derived token is still elevated, the helper exits 5 and writes `link-rights` to the
+remote's [daily log](../../../crates/local-runtime/README.md#windows-diagnostic-log) with
+`outcome` `refused` and `reason` `derive`, `still-elevated` or `start`; it never starts an elevated
+Session. A child status above 255 also ends with 5 and `link-rights` `outcome` `child-failed` with
+that `status`. Every helper that passes the check writes `link-rights` with `level` `low` or
+`medium`, `admin` `deny-only` or `absent`, and `elevated`, the token's `TokenIsElevated` as 0 or 1.
+An administrator who wants an elevated remote terminal opens a plain `ssh` session instead.
+
 A console on standard input or output refuses the start: the helper writes nothing and exits 5.
 Otherwise it answers the `OBHS` frame within the 2-second candidate deadline counted from its
 start. A `machine-link` offer gets the answer and then the `facts` event: `platform`
@@ -527,7 +544,8 @@ connection closes and lets a member create a child outside it on request
 `contrib/win32/win32compat/w32-doexec.c` from 7.9 on and in `session.c` in 7.7.2). The helper
 therefore creates the Server with `CREATE_BREAKAWAY_FROM_JOB`: the Server, its Worker, Host and
 terminals run outside that Job, so disconnecting, a killed `ssh` and a dropped connection leave
-them running, and the next link's `ensure-session` joins the same Server. A Job that keeps its
+them running, and the next link's `ensure-session` joins the same Server. An elevated helper and
+the standard helper it starts both stay in the Job and end with the connection. A Job that keeps its
 processes refuses the request, and the Server then starts inside it, as before, and ends with the
 connection. The start itself succeeds either way. Each start writes `session-start-source` and
 `server-job` to the remote's

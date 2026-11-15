@@ -27,6 +27,16 @@ const unsafeBoundaries = Object.freeze([
 		systemTests: 'crates/local-ipc/src/windows_native/tests.rs',
 		reason: 'reviewed Win32 name queries, pipe counters, read watches and waits are isolated here',
 	},
+	{
+		name: 'orchbee-local-runtime',
+		manifest: 'crates/local-runtime/Cargo.toml',
+		library: 'crates/local-runtime/src/lib.rs',
+		module: 'standard_rights_native',
+		system: 'crates/local-runtime/src/standard_rights_native.rs',
+		systemTests: 'crates/local-runtime/src/standard_rights_native/tests.rs',
+		reason:
+			'reviewed Win32 token restriction, attribute lists and process creation are isolated here',
+	},
 ]);
 const task = process.argv[2];
 const selectedPackages = [];

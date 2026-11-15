@@ -2,6 +2,7 @@
 //! plugin registry semantics, and storage capabilities to application owners. It does not choose
 //! application startup policy or own Workbench state; the Server retains the meaning of opaque
 //! Session checkpoint payloads.
+#![deny(unsafe_code)]
 
 mod admission_refusal;
 pub use admission_refusal::{AdmissionRefusal, RefusalReason};
@@ -102,6 +103,19 @@ mod destructive_log;
 pub use data_root::{create_private_directory, prepare_default_runtime_base};
 #[cfg(windows)]
 pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_request};
+#[cfg(windows)]
+mod standard_rights;
+#[cfg(windows)]
+#[allow(
+    unsafe_code,
+    reason = "reviewed Win32 token restriction, attribute lists and process creation are isolated here"
+)]
+mod standard_rights_native;
+#[cfg(windows)]
+pub use standard_rights::{
+    Administrators, IntegrityLevel, RelaunchFailure, TokenRights, relaunch_with_standard_rights,
+    token_rights,
+};
 mod process_observation;
 mod process_registration;
 mod registered_child;
