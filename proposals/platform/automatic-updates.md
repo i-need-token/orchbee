@@ -565,50 +565,303 @@ fixtures must.
 Decided: the window updates too, from the window self-update release, which follows slice 1 under
 the owner's release-often rule; until then the window keeps today's Setup path. Chosen: each window
 version gets its own directory, behind a small launcher at the path every shortcut already names.
+Citations name today's code; `orchbee.iss` is `apps/desktop/installer/windows/orchbee.iss` and
+`entry.ts` is `apps/desktop/src/main/composition/entry.ts`.
 
 ```text
 <store root>\desktop\
-├── orchbee-desktop.exe     the window launcher
-├── active.json             the window pointer
-└── versions\<version>\     one window version: the directory Setup installs today
+├── orchbee-desktop.exe      the window entry: a copy of the active version's window launcher
+├── active.json              the window pointer
+├── install.lock             the window writer lock
+└── versions\<version>\      one window version: the packaged window directory
+    ├── orchbee-desktop.exe  the window
+    ├── desktop-files.json   the window file list
+    └── resources\cohort\    its bundled release directory, which holds the window launcher
 ```
 
-- A release adds `orchbee-desktop-<version>-windows-x86_64.zip`, the packaged window directory.
-  Its feed names it in `extensions.desktop` by address, size, and SHA-256, so the feed signature
-  covers it, and version 1 readers already ignore `extensions`.
-- The helper installs the runtime first, then the window: download into `.download\`, check size
-  and SHA-256, unpack, publish by rename into `desktop\versions\<version>\`, then move the window
-  pointer under `install.lock`. A running window is never touched.
-- The window launcher is `orchbee-desktop-launcher.exe` from the signed release directory, copied
-  to `desktop\orchbee-desktop.exe` by Setup and by completion when its bytes differ, as the PATH
-  step copies the command launcher. It starts the pointer's version with its own command line.
-  Given `--relaunch-after-v1 <process id>`, it first waits up to 30 seconds for that process to
-  end, because the window's single-instance lock would otherwise hand the new window to the old
-  one. When the active version cannot start, it starts the previous one.
-- The Start menu shortcut, AppUserModelID `com.orchbee.desktop`, the uninstall registration, and
-  Setup's Launch box keep naming `desktop\orchbee-desktop.exe`, so the identity does not change.
-  The window sets its taskbar relaunch command to the launcher, so a pinned window starts the
-  active version. Unverified: a pin made while the window runs from a version directory keeps the
-  launcher.
-- Setup installs the same layout: it adds a version directory beside any running one and moves the
-  window pointer, so it no longer needs the window to quit, except once to move a flat layout.
-  Uninstall removes `desktop\` with every version.
-- Flat layout: a window installed by a release before the window self-update, such as
-  0.1.0-beta.3, keeps its files directly in `desktop\`. `update` installs the first version
-  directory beside them and swaps them out only when no process runs from them: the launcher takes
-  the place of the flat `orchbee-desktop.exe`, and the other flat files go. A running window
-  executable is never renamed or replaced, because Electron starts its helper processes from the
-  path it started from (Unverified; the rule stands either way). The window self-update release's
-  Setup makes the same move once the window quits, as it asks today.
 - The window version and the runtime version move separately; any pair that shares a connection
   generation works together, because [versions coexist](versioning-and-upgrade.md#outcomes).
+- The launcher's switches `--relaunch-after-v1`, `--fallback-from-v1`, `--select-terminal-v1`, and
+  `--select-workspace-v1` are a contract between builds, like the helper modes: a change adds a new
+  name, so every launcher starts every window version from the window self-update release on.
+- The uninstall registration keeps the version of the last Setup run; nothing rewrites it.
+- macOS and Linux follow the same idea when they ship, a versioned bundle or tree behind a stable
+  entry; this page settles Windows.
+
+### Window archive and file list
+
+- Chosen: every window version carries `desktop-files.json` at its root:
+  `{"schemaVersion": 1, "version", "files": [{"path", "size", "sha256"}], "extensions"?}`, listing
+  every other file of the directory once by a `/`-separated path. It takes the release manifest's
+  file rules: the release path grammar, uniqueness ignoring case, at most 4096 files, 512 MiB each,
+  2 GiB in all, and 1 MiB for the list itself (`apps/orchbee/src/cli/update/manifest.rs:13-16`,
+  `:100-110`; `apps/orchbee/src/cli/update/signature.rs:12`). A current test package passes: 126
+  files, the longest path 90 characters, no links.
+- `apps/desktop/scripts/package.mjs` writes the list from the final bytes, after the packager
+  returns and before Setup is compiled (`package.mjs:193-234`), and refuses a link or a name outside
+  the grammar. The release zips that same directory, list included, as
+  `orchbee-desktop-<version>-windows-x86_64.zip` under one top-level folder, the shape the runtime
+  archive has (`apps/orchbee/src/cli/update/archive.rs:27-30`); Setup carries the same directory.
+- The feed names the archive in `extensions.desktop`, which version 1 readers skip
+  (`apps/orchbee/src/cli/update/feed.rs:6-8`). It is a closed object of `version`,
+  `"manifest": {"sha256"}`, `"archive": {"format": "zip", "url", "size", "sha256"}`, and an optional
+  `extensions`, each bounded as the feed's own member of that name (`feed.rs:41-107`).
+  `manifest.sha256` is the SHA-256 of the archive's `desktop-files.json`, so the feed signature
+  covers every file of the window. A release whose window did not change may name an earlier window
+  version here.
+- After unpacking, the list must match that digest and name the offered version. The install then
+  copies exactly the listed files, each checked by size and SHA-256, and refuses a listed path that
+  is missing or not a regular file.
+- Rejected: the archive digest alone, because Setup installs without an archive and a stored version
+  must stay checkable on disk; a signature on the list, because the signed feed already binds it and
+  Setup stands on the person's own download.
+
+### Window pointer
+
+- Chosen: `desktop\active.json` has the store pointer's grammar and its one parser, `Pointer` in
+  `crates/release-records/src/pointer.rs:46-106`. `active.product` is the window version,
+  `active.manifest` the SHA-256 of its `desktop-files.json`, so the digest binds every file of the
+  directory, and `previous` is the version `activate` replaced. The module's doc gains this second
+  meaning.
+- The window step opens `desktop\` as a second store root through `ReleaseStore`
+  (`apps/orchbee/src/release_store/store.rs:28-67`), which brings `desktop\install.lock`,
+  `desktop\versions\`, the flushed pointer rename through `active.pending`, the removal of a crashed
+  writer's `active.pending`, private stages, and publishing without replacing, under the store
+  root's private rule (`store.rs:7-12`). It holds the store root's `install.lock` first, after
+  `download.lock` when it downloads, so [one update runs at a time](#trust-and-disk).
+- Readers take no lock. The launcher and the window read at most 16 KiB, as the command launcher
+  does (`apps/orchbee-launcher/src/windows.rs:15`, `:52-61`).
+- Rejected: binding the archive digest, which Setup lacks; binding the bundled
+  `resources\cohort\release.json`, which leaves the window's own files unbound.
+
+### Window launcher
+
+- Chosen: its own application, `apps/orchbee-desktop-launcher`, a Windows GUI-subsystem binary that
+  depends on `orchbee-release-records` and on `winsafe` with `kernel` and `user`, in the required
+  crate shape (`docs/RUST.md:58-67`) and without `package.json` (`docs/APPLICATIONS.md:32`). Its
+  `build.rs` writes a resource file holding `resources/brand/ico/orchbee.ico` into `OUT_DIR` and
+  links it on Windows MSVC targets (`docs/RUST.md:93-94`), so the entry keeps the icon that the
+  Start menu shortcut and the uninstall list take from it (`orchbee.iss:31`, `:79`).
+- `scripts/stage-native-windows.mjs` stages it as `<stem>-desktop-launcher.exe` the way it stages
+  `<stem>-launcher.exe`: no cohort role, listed by the release manifest like every file
+  (`stage-native-windows.mjs:170-176`). `scripts/package-native-windows.mjs` requires it
+  (`:216-218`). Every window version therefore holds its own launcher under `resources\cohort\`.
+- Rejected: a second binary of `apps/orchbee-launcher`, because a crate has one crate root
+  (`docs/RUST.md:67`) and the two share only the pointer parser and two messages; a resource
+  compiler crate, because a new dependency is a reserved decision (`docs/RUST.md:109-114`).
+
+Its decision is one pure function of the pointer, the arguments, the parent check, and which
+programs exist:
+
+1. The launcher's root is its own folder. It reads `active.json` there and starts
+   `versions\<active>\<its own file name>`, as the command launcher resolves its Client
+   (`apps/orchbee-launcher/src/resolve.rs:18-37`).
+2. When its first two arguments are `--relaunch-after-v1 <process id>`, it drops them. When that
+   process is its parent, confirmed by start times as `ancestors` confirms a parent
+   (`apps/orchbee/src/cli/update/uninstall/windows.rs:251-253`), it first waits up to 30 seconds for
+   that process to end, because the window's single-instance lock would otherwise hand the new
+   command line to the old window, which only comes forward (`entry.ts:380-401`). After 30 seconds
+   it starts anyway: the second instance exits with status 0, and nothing breaks.
+3. It passes the remaining arguments one by one and the environment unchanged, gives the window its
+   version folder as working folder, so no window holds another version's folder, and starts no
+   Job.
+4. When the pointer names a `previous` version whose program exists, it sets the
+   [launcher protocol](#tui) variable to its own process id and watches the window for 120 seconds.
+   If the window cannot start, or ends within them with a non-zero status, it starts the previous
+   version once, with the same arguments plus `--fallback-from-v1=<active version>` and without the
+   variable, as [make before break](#make-before-break) asks. Without such a version it exits once
+   the window has started.
+5. When nothing starts, it shows the matching message of the command launcher
+   (`apps/orchbee-launcher/src/localization.rs:29-50`) in a message box, in the Windows display
+   language as Setup chooses its own (`orchbee.iss:44`), and exits with status 1.
+
+- The launcher moves no pointer and records no Client failure: a window failure says nothing about
+  the runtime, whose [fallback](#falling-back-after-a-failed-move) keeps its own count.
+- Rejected: moving the window pointer back after a failure, because a window that cannot join this
+  Session joins the next one, and a held window version would need the bound and the records of the
+  runtime fallback.
+
+### Installing a window version
+
+- The window part runs in `update` and `--automatic-update-v1` when `desktop\` exists, after the
+  runtime part ends. It installs a window version only when the feed has `extensions.desktop` and
+  the store's active runtime version is not lower than that window version, so the window's bundled
+  Client hands its Session start to the store
+  (`apps/orchbee/docs/windows-cli-configuration.md:345`) and a failed runtime part leaves the
+  window for the next run.
+- It decides from the feed, the window pointer, and `desktop\versions\` alone, in the runtime's
+  order (`apps/orchbee/src/cli/update/engine.rs:212-216`): the offered version is active or lower
+  than the active one (up to date); it is stored with other list bytes (`version-conflict`); it is
+  stored with the same list bytes (every file verified, then activated); otherwise it is
+  downloaded.
+- The download uses `.download\` after the runtime part has finished with it, and nothing is
+  unpacked before size and SHA-256 match (`archive.rs:1-10`). Under the store root's `install.lock`
+  and `desktop\install.lock`, the step checks the list, copies the listed files into a private
+  `desktop\.stage-*` and flushes each, verifies each, publishes the stage as
+  `desktop\versions\<version>` without replacing, and moves the window pointer with `activate`, as
+  the runtime publish does (`apps/orchbee/src/cli/update/install.rs:220-302`). A running window is
+  never touched.
+- Then every run that finds `desktop\`, whatever its version step did, places the entry,
+  [moves a flat layout](#moving-a-flat-layout) on, and [cleans up](#window-cleanup).
+- Placing the entry: when the entry differs from the active version's
+  `resources\cohort\<stem>-desktop-launcher.exe`, the step writes a flushed `desktop\.new-<nonce>`
+  and renames it over the entry in one step. Windows refuses that rename while the entry runs,
+  because it neither deletes nor overwrites a running executable
+  (`apps/orchbee/src/cli/update/path_step.rs:90`); the step then removes its copy, and the next run
+  tries again. An equal entry is left alone. The runtime's completion never touches `desktop\`, as
+  the store never opens it (`store.rs:1-5`).
+- The `orchbee.update` result gains an optional `desktop` member that carries the runtime members of
+  the same meaning for the window part: `phase`, `releasePath`, `reused`, `activated`, `upToDate`,
+  `releaseVersion`, `cleanupPending`, and `error` (`apps/orchbee/src/cli/update.rs:278-299`). It is
+  absent when the run had no window part; an added optional member keeps the document's `version`
+  (`docs/cli/output.md:54`). Text output adds one line from the copy below.
+- Rejected: the PATH step's move aside (`path_step.rs:61-112`), because in a flat layout the entry
+  is the window itself, and Electron starts its helper processes from the path it started from
+  (Unverified; the rule stands either way).
+
+### What Setup does
+
+- Setup extracts the packaged window into `{tmp}\desktop` instead of `{app}\desktop`
+  (`orchbee.iss:76`), so it writes no file under `desktop\` itself.
+- After its files, the bundled Client in `{tmp}\desktop\resources\cohort\` runs
+  `install --format json` as today (`orchbee.iss:255-274`) and then the new helper mode
+  `orchbee --installer-window-v1`. That mode installs the window directory two levels above its own
+  folder as the window part installs an unpacked archive, then places the entry, moves a flat layout
+  on, and cleans up. It answers like `install`: exit 0, or exit 3 with `downgrade-refused` when a
+  higher window version is active and stays active, which Setup accepts (`orchbee.iss:266-270`).
+  It runs whatever `install` answered, because the window is what Setup installs; a store lower than
+  the window only makes its bundled Client start the Session from the window's folder, as today
+  (`windows-cli-configuration.md:345`), which no longer blocks a later install. Release
+  distribution's helper table gains its row.
+- Setup then shows at most one message: WindowFailed when the window step failed, with exit code
+  11; otherwise CommandFailed when `install` failed, with exit code 10 as today
+  (`orchbee.iss:70-71`, `:98-99`, `:298-303`), whose words stay true because the window is in place.
+  An entry left for a later run because it runs is no failure.
+- Setup refuses with WindowInUse (`orchbee.iss:68-69`) only while a flat window runs:
+  `desktop\resources\app.asar`, which only a flat layout has, exists, and the entry, which is then
+  the flat window's executable, is in use by Setup's own probe (`orchbee.iss:165-181`).
+  SessionInUse, `SessionRunsFrom`, the move to `desktop.previous`, and its restore go
+  (`orchbee.iss:66-67`, `:211-253`, `:276-296`): no file a process runs from is removed, so a
+  Session started by an older window blocks nothing. A leftover `desktop.previous` goes once no
+  program runs from it.
+- Uninstall still asks the store's active version through `bin\` and falls back to the flat bundled
+  Client (`orchbee.iss:310-331`), then to any window version's bundled Client.
+  `--installer-uninstall-v1` already removes `desktop\` with every version
+  (`windows-cli-configuration.md:355`).
+- The Start menu shortcut, AppUserModelID `com.orchbee.desktop`, the uninstall registration and its
+  icon, and Setup's Launch box keep naming `desktop\orchbee-desktop.exe` (`orchbee.iss:31`, `:79`,
+  `:84`), so the identity does not change.
+- Rejected: installing the window in Pascal, which would repeat the locks, the pointer replacement,
+  and the file checks of the Rust step.
+
+### Moving a flat layout
+
+- A window installed by a release before the window self-update, such as 0.1.0-beta.3, keeps its
+  files directly in `desktop\`. The first window step that finds them moves the layout in four
+  steps. Each step is one rename or can resume, and the locks make a second run end as `busy`, so a
+  crash, a power loss, or a second instance at any point leaves a state that still starts a window
+  and that the next run continues from:
+  1. Publish the first window version beside the flat files.
+  2. Move the window pointer. The entry is still the flat window, which starts as before.
+  3. Place the entry. Its refusal while the flat window runs is the check that the window quit; from
+     here every start runs the active window version.
+  4. Remove the leftovers, never a file a process runs from. The flat window's own files, everything
+     outside `resources\cohort\` and the layout's names, go file by file after the check below,
+     which passes at once after step 3. The flat bundled release directory `resources\cohort\` goes
+     whole, as a window version goes in the cleanup, because a Session an older window started may
+     still run from it (`orchbee.iss:211-224`).
+- No process runs from a set of files when the shared process scan
+  (`apps/orchbee/src/cli/update/uninstall/windows.rs:209-249`) finds no process whose program lies
+  inside, and every `.exe`, `.dll`, and `.node` inside opens for writing, as Setup's probe checks
+  (`orchbee.iss:165-209`). The second check catches what the scan cannot query (the same file,
+  `:210-211`); a folder rename proves nothing, because Windows moves a folder while a program runs
+  from it (`orchbee.iss:183-184`).
+- The layout's names, which no step removes: `versions\`, `active.json`, `active.pending`,
+  `install.lock`, the entry, and `.stage-*`, `.new-*`, and `.remove-*`. No packaged window file uses
+  them.
+- Who moves: Setup, once the flat window quits; `update` and the automatic helper, on any run that
+  finds no flat window running. A person who uses only the window and never runs Setup may offer no
+  such run, because the Server outlives the window only while a terminal or another Client keeps
+  it; [decision 21](#decision-record) accepts that, and the release notes say to run Setup once.
+- Rejected: a helper that waits for the flat window to quit, polling every 10 seconds for up to 55
+  minutes, which would move that person at their next quit but is the migration tool decision 21
+  declines.
+
+### Window cleanup
+
+- After each window step, under both locks, the [bounded disk rule](#trust-and-disk) removes window
+  versions as it removes runtime versions: neither active nor previous, no process runs from it, and
+  nothing refers to it. Each goes by a rename to `desktop\.remove-<nonce>` first, so `versions\`
+  only ever holds whole versions, and then a deletion; whatever cannot be deleted stays for the next
+  run. A crashed run's `.stage-*` and `.new-*` leftovers go the same way.
+
+### Taskbar and Jump List
+
+- Chosen: no relaunch properties. The Start menu shortcut carries the AppUserModelID
+  (`orchbee.iss:79`) that the window sets for its process (`entry.ts:78-83`), and Microsoft's
+  [AppUserModelID guidance](https://learn.microsoft.com/en-us/windows/win32/shell/appids) says the
+  shell then takes the command line, icon, and text from that shortcut; relaunch properties serve an
+  ID set on one window. A pin made while the window runs from a version folder therefore starts the
+  entry. Unverified until the real window run.
+- The Jump List's Save Diagnostic Bundle task names `process.execPath` today (`entry.ts:260-271`); a
+  window that runs from a version folder names the entry instead, so the task outlives that version.
+- Rejected: Electron's per-window relaunch properties through `setAppDetails`, a second source of
+  identity for nothing the shortcut does not already give.
+
+### Negotiated capabilities in the window
+
+- Chosen: `orchbee.server.start` (`apps/orchbee/docs/native-cli-query.md:1873-1878`) gains an
+  optional `negotiatedCapabilities` member: the capability names both sides listed in the
+  `client-server` handshake (`crates/connection-handshake/src/message.rs:35`), which
+  `LocalClient::server_serves` answers one at a time today
+  (`apps/orchbee/crates/local-client/src/local_client.rs:389-397`).
+- Desktop Main already runs `server start` before each document's relay
+  (`apps/desktop/src/main/server-connection/readServerRestoreState.ts:8-28`). It strict-parses the
+  member beside `restoreNotice` (`interpretServerStartAnswer.ts:4-6` in the same folder) and gives
+  the page a bootstrap member of the same name
+  (`packages/desktop-client-protocol/src/desktop-server-connection-contract.ts:44-71`), an empty
+  list when the answer has none. The relay's own handshake joins the same Server with the same
+  Client, so it negotiates the same names, and each document reads them anew. The window checks
+  each action's capability against that list.
+- Rejected: a first frame on the relay. Main and its bundled Client are an exact pair
+  ([what stays exact](versioning-and-upgrade.md#what-stays-exact)), so it would be allowed, but it
+  changes both ends of the page's stream, whose bytes Main keeps opaque
+  (`readServerRestoreState.ts:9-11`).
+
+### What the window takes from comparable updaters
+
+- VS Code's user setup runs its own Inno Setup silently with `/update`. It installs beside the
+  running copy, into `_` or, for a versioned update, a version folder with `new_`-prefixed
+  executables, waits for the window by checking its mutex every second, and then runs
+  `inno_updater`, which renames `Code.exe` to `old_Code.exe` and `new_Code.exe` to `Code.exe` and,
+  with `--gc`, removes old versions
+  ([`code.iss`](https://github.com/microsoft/vscode/blob/main/build/win32/code.iss),
+  [inno-updater](https://github.com/microsoft/inno-updater)).
+- Squirrel.Windows, which GitHub Desktop uses, keeps each version in its own `app-<version>` folder.
+  Since 1.5.0 the shortcuts name a stub in the root that keeps the application's icon and version
+  metadata and starts the newest version, because pinning was "tricky" with `Update.exe` as a
+  trampoline ([release 1.5.0](https://github.com/Squirrel/Squirrel.Windows/releases/tag/1.5.0)).
+- Taken: installing beside the running copy and switching after the window ends, from both; one
+  folder per version behind a stub with the application's icon at the path every shortcut names,
+  from Squirrel, which keeps shortcuts and pins valid; a cleanup that skips what runs and retries,
+  from both.
+- Not taken: a Setup run per update, renamed executables, mutexes, a separate `Update.exe`, and
+  rewritten shortcuts, because the store already owns the locks, the pointer, and the checks, and an
+  unchanged entry path needs no shortcut change.
 - Rejected: running the downloaded Setup silently at the click, because the window stays away for
   the whole install and Setup's rule against running files ties updating to Inno Setup, which macOS
   and Linux lack; renaming the running window's files aside, because a half-swapped Electron tree
-  breaks the window. VS Code likewise installs in the background and swaps at Restart to Update, and
-  Squirrel.Windows keeps each version in its own directory behind a stub.
-- macOS and Linux follow the same idea when they ship, a versioned bundle or tree behind a stable
-  entry; this page settles Windows.
+  breaks the window.
+
+The launcher reuses the command launcher's two messages. The new copy is proposed for the owner's
+review before it ships:
+
+| Text                             | `en-US`                                                                  | `zh-CN`                                                  |
+| -------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Setup, WindowFailed              | The %1 window could not be installed:%n%n%2%n%nRun Setup again to retry. | 无法安装 %1 窗口程序：%n%n%2%n%n请重新运行安装程序重试。 |
+| `update`, window installed       | Window updated to {version}                                              | 窗口程序已更新到 {version}                               |
+| `update`, window already current | Window up to date: {version}                                             | 窗口程序已是最新版本：{version}                          |
+| `update`, window part failed     | Window not updated: {reason}                                             | 窗口程序未更新：{reason}                                 |
 
 ## What a click does
 
@@ -645,12 +898,49 @@ A click switches the Client it is in; other open Clients keep their own control.
 
 ### Window
 
-1. The window makes the same check against its active window version.
-2. It starts the window launcher with `--relaunch-after-v1` and its own process id, then quits the
-   way Quit Orchbee, Keep Terminals Running does: the Session and every terminal keep running.
+1. The window checks the join with the new version itself. It runs the active window version's
+   bundled Client, `desktop\versions\<active>\resources\cohort\<stem>.exe`, as
+   `server start --format json` with its own Session arguments and environment, as it does before
+   each document (`apps/desktop/src/main/server-connection/readServerRestoreState.ts:14-28`). The
+   check passes when that start succeeds and its `negotiatedCapabilities` lists
+   `compatibility-window` (`crates/connection-handshake/src/registry.rs:17-21`): the handshake
+   proves a shared `client-server` generation, and the name proves a Session of slice 1 or later.
+   Otherwise [the new Client cannot join](#when-the-new-client-cannot-join), and the diagnostic log
+   records why.
+2. It starts the window entry detached, so the entry outlives it, with `desktop\` as working folder
+   and the arguments `--relaunch-after-v1 <its process id>` and its place, then quits the way Quit
+   Orchbee, Keep Terminals Running does (`apps/desktop/docs/window-lifecycle.md:102-103`): the
+   Session and every terminal keep running.
 3. The launcher waits for it to end and starts the active window version, which joins the same
-   Session. The new window restores its bounds as every start does, and the selected Workspace,
-   Tab, and Panel through a one-time hand-off from the old window.
+   Session, restores its bounds as every start does (`apps/desktop/docs/data-root.md:82-96`), and
+   opens at the same place.
+
+- The place: `--select-terminal-v1=<TerminalPresentationId>` names the displayed terminal, the one
+  renderer reload recovery keeps; with none, `--select-workspace-v1=<WorkspaceId>` names the
+  selected Workspace; with neither, nothing is passed. Desktop Main strict-parses them with the
+  identity schemas (`packages/workbench-client-protocol/src/terminal-presentation-contract.ts:3-10`
+  and `src/workbench-protocol/workbench-semantic-contract.ts:27-35` in the same package) and gives
+  them to its first document only, as the bootstrap member `relaunchPlace`. The page projects a
+  terminal the way reload recovery projects its record, selecting its Workspace, exact Tab, and
+  focused Panel (`apps/web/docs/navigation-routing.md:81-89`), and opens a Workspace by its route; a
+  target that no longer resolves changes nothing. Nothing is stored, so nothing is left to delete.
+  The exclusion of recovery across a restart (`navigation-routing.md:94-95`,
+  `apps/web/docs/publication-and-client-view.md:138-143`) narrows by this one case.
+- Rejected: a hand-off record such as `internal/state/desktop-relaunch.json`, which would add a data
+  root file, a writer, a reader, and a removal rule for a value that fits on a command line.
+- An announced window: Desktop Main reads the [launcher protocol](#tui) variable and removes it from
+  its environment at start, so nothing it starts inherits it. When the value is its parent's process
+  id and its first `server start` answer within 90 seconds refuses with `session-too-old`
+  (`apps/desktop/src/main/server-connection/interpretServerStartAnswer.ts:67-77`), it exits with
+  status 1 instead of showing the refusal, and the launcher starts the previous window version. The
+  window never uses status 75; its relaunch is step 2.
+- A returning window: started with `--fallback-from-v1=<version>`, it offers no Update for that
+  version while it runs, and a newer version as usual. Nothing is stored, so the next start through
+  the entry tries the active version again.
+- Ready, for the window: it runs from `desktop\versions\<its own version>\`, the window pointer's
+  active version is higher by SemVer precedence, and that version is not the one
+  `--fallback-from-v1` named. A window that runs from anywhere else, such as a flat layout or a test
+  build's output folder, never shows the control.
 
 ### When the new Client cannot join
 
