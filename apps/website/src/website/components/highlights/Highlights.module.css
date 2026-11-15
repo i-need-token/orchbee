@@ -1,0 +1,44 @@
+/* Each item draws its left and top rules and overlaps its neighbors by one pixel, so the grid's own
+   border closes every cell. */
+.grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	overflow: hidden;
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-radius: var(--ob-ref-length-website-14);
+}
+.item {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-length-website-12);
+	margin: calc(-1 * var(--ob-ref-length-website-1)) 0 0 calc(-1 * var(--ob-ref-length-website-1));
+	padding: var(--ob-ref-length-website-28) var(--ob-ref-length-website-28)
+		var(--ob-ref-length-website-26);
+	border-top: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+	border-left: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
+}
+.title {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-10);
+	font: var(--ob-sys-typography-website-highlight-title);
+	letter-spacing: var(--ob-sys-typography-website-highlight-title-tracking);
+}
+.body {
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-highlight-body);
+}
+.body code {
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-highlight-code);
+}
+.keys {
+	display: flex;
+	margin-top: auto;
+	padding-top: var(--ob-ref-length-website-8);
+}
+@media (max-width: 64rem) {
+	.grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}

@@ -1,0 +1,16 @@
+.section {
+	composes: detailSection from '../page-shell/PageShell.module.css';
+}
+.title {
+	margin: var(--ob-ref-length-website-16) 0 var(--ob-ref-length-website-12);
+	font: var(--ob-sys-typography-website-heading);
+	letter-spacing: var(--ob-sys-typography-website-heading-tracking);
+	text-wrap: balance;
+}
+.lead {
+	max-width: var(--ob-ref-length-website-measure-35);
+	margin-bottom: var(--ob-ref-length-website-36);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-paragraph);
+	text-wrap: pretty;
+}

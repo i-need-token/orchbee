@@ -33,6 +33,26 @@ export const enUSWebsiteShellMessages = {
 		'The name combines <b>orch</b>estrator with <b>bee</b>—independent workers coordinating as one.',
 	'website.shell.footer.releases': 'Releases',
 	'website.shell.footer.license': 'License',
+	'website.shell.detail.highlights': 'in detail',
+	'website.shell.detail.reference': 'reference',
+	'website.shell.panelPlay.label': 'Panels you can split, focus, resize and close',
+	'website.shell.panelPlay.help':
+		'While the window has focus, keys act on its Panels. Tab or Escape leaves the window.',
+	'website.shell.panelPlay.splitRight': 'Split right',
+	'website.shell.panelPlay.splitDown': 'Split down',
+	'website.shell.panelPlay.splitLeft': 'Split left',
+	'website.shell.panelPlay.splitUp': 'Split up',
+	'website.shell.panelPlay.maximize': 'Maximize / Restore',
+	'website.shell.panelPlay.equalize': 'Equalize Panels',
+	'website.shell.panelPlay.close': 'Close Panel',
+	'website.shell.panelPlay.resize': 'Resize',
+	'website.shell.panelPlay.idle': 'Click the window, then press a key.',
+	'website.shell.panelPlay.prefix': '<b>Ctrl+b</b> The prefix. Now press one key.',
+	'website.shell.panelPlay.full': 'Six Panels fill this window. Close one first.',
+	'website.shell.panelPlay.small': 'This Panel is too small to split that way.',
+	'website.shell.panelPlay.last': 'The last Panel stays.',
+	'website.shell.panelPlay.one': 'Split first. A single Panel already fills the window.',
+	'website.shell.panelPlay.none': 'There is no divider to move in that direction.',
 } as const;
 
 export type WebsiteShellMessageId = keyof typeof enUSWebsiteShellMessages;

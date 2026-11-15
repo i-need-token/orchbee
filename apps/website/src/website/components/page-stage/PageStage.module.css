@@ -1,0 +1,13 @@
+.stage {
+	position: relative;
+}
+:global(html[data-motion]) .stage {
+	animation: rise var(--ob-sys-motion-duration-website-1000)
+		var(--ob-sys-motion-easing-website-settle) var(--ob-sys-motion-duration-website-100) both;
+}
+@keyframes rise {
+	from {
+		opacity: 0;
+		transform: translateY(var(--ob-ref-length-website-22));
+	}
+}

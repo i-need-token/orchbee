@@ -54,6 +54,9 @@
 .console .row [data-tone='dim'] {
 	color: var(--ob-sys-color-website-console-dim);
 }
+.row [data-tone='red'] {
+	color: var(--ob-comp-website-terminal-ansi-9);
+}
 .row [data-tone='yellow'] {
 	color: var(--ob-comp-website-terminal-ansi-3);
 }

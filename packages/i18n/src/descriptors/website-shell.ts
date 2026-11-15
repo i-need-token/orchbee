@@ -100,4 +100,80 @@ export const websiteShellMessages = defineMessages({
 		'website.shell.footer.license',
 		'Footer link to the license; shown in lowercase.',
 	),
+	detailHighlights: message(
+		'website.shell.detail.highlights',
+		'Lowercase label above the highlights of a client page.',
+	),
+	detailReference: message(
+		'website.shell.detail.reference',
+		'Lowercase label above the key or command reference of a client page.',
+	),
+	panelPlayLabel: message(
+		'website.shell.panelPlay.label',
+		'Accessible name of the drawn window whose Panels the visitor splits, focuses, resizes and closes.',
+	),
+	panelPlayHelp: message(
+		'website.shell.panelPlay.help',
+		'Accessible description of that window: what keys do while it has focus and how to leave it.',
+	),
+	panelPlaySplitRight: message(
+		'website.shell.panelPlay.splitRight',
+		'Button and notice: the Panel action that splits the focused Panel to the right.',
+	),
+	panelPlaySplitDown: message(
+		'website.shell.panelPlay.splitDown',
+		'Button and notice: the Panel action that splits the focused Panel downward.',
+	),
+	panelPlaySplitLeft: message(
+		'website.shell.panelPlay.splitLeft',
+		'Button and notice: the Panel action that splits the focused Panel to the left.',
+	),
+	panelPlaySplitUp: message(
+		'website.shell.panelPlay.splitUp',
+		'Button and notice: the Panel action that splits the focused Panel upward.',
+	),
+	panelPlayMaximize: message(
+		'website.shell.panelPlay.maximize',
+		'Button and notice: the Panel action that maximizes the focused Panel or restores the layout.',
+	),
+	panelPlayEqualize: message(
+		'website.shell.panelPlay.equalize',
+		'Button and notice: the Panel action that gives every Panel an equal share.',
+	),
+	panelPlayClose: message(
+		'website.shell.panelPlay.close',
+		'Button and notice: the Panel action that closes the focused Panel.',
+	),
+	panelPlayResize: message(
+		'website.shell.panelPlay.resize',
+		'Notice after the visitor moved a Panel divider with the keyboard.',
+	),
+	panelPlayIdle: message(
+		'website.shell.panelPlay.idle',
+		'Notice before the visitor has used the window: how to start.',
+	),
+	panelPlayPrefix: message(
+		'website.shell.panelPlay.prefix',
+		'Notice after the visitor pressed the prefix key; <b> marks the key.',
+	),
+	panelPlayFull: message(
+		'website.shell.panelPlay.full',
+		'Notice when a split is refused because the window holds the most Panels it shows.',
+	),
+	panelPlaySmall: message(
+		'website.shell.panelPlay.small',
+		'Notice when a split is refused because the focused Panel is too small in that direction.',
+	),
+	panelPlayLast: message(
+		'website.shell.panelPlay.last',
+		'Notice when closing is refused because only one Panel is left.',
+	),
+	panelPlayOne: message(
+		'website.shell.panelPlay.one',
+		'Notice when maximizing is refused because the window has a single Panel.',
+	),
+	panelPlayNone: message(
+		'website.shell.panelPlay.none',
+		'Notice when a resize is refused because no divider lies in that direction.',
+	),
 });

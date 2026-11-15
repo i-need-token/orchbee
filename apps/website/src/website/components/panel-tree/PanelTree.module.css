@@ -1,0 +1,58 @@
+/* Panels fill the slot; a split shares its room between its two parts, the first part's share being
+   the split's ratio (script writes the parts' flex-grow; both start equal). */
+.slot {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+.split {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+.split[data-axis='column'] {
+	flex-direction: column;
+}
+.part {
+	display: flex;
+	flex: 1 1 0;
+	min-width: 0;
+	min-height: 0;
+}
+.slot [data-leaf] {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	cursor: pointer;
+}
+:global(html[data-motion]) .slot [data-leaf][data-fresh] {
+	animation: arrive var(--ob-sys-motion-duration-website-280)
+		var(--ob-sys-motion-easing-website-settle);
+}
+@keyframes arrive {
+	from {
+		opacity: 0;
+	}
+}
+/* A divider takes no room; its grip reaches a few pixels to either side. */
+.divider {
+	position: relative;
+	z-index: var(--ob-ref-layer-website-divider);
+	flex: none;
+	touch-action: none;
+}
+.split[data-axis='row'] > .divider {
+	width: 0;
+	cursor: col-resize;
+}
+.split[data-axis='column'] > .divider {
+	height: 0;
+	cursor: row-resize;
+}
+.divider::before {
+	position: absolute;
+	inset: calc(-1 * var(--ob-ref-length-website-5));
+	content: '';
+}

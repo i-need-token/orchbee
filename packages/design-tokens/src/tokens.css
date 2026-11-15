@@ -1135,12 +1135,14 @@
 	--ob-ref-color-website-host-edge: #2b2b2b;
 	--ob-ref-color-website-host-title: #7c7c7c;
 	--ob-ref-color-website-hover-current: rgba(248, 247, 244, 0.08);
+	--ob-ref-color-website-hover-faint: rgba(248, 247, 244, 0.06);
 	--ob-ref-color-website-hover-soft: rgba(248, 247, 244, 0.07);
 	--ob-ref-color-website-hover-strong: rgba(248, 247, 244, 0.1);
 	--ob-ref-color-website-idle: #6c6c6c;
 	--ob-ref-color-website-ink: #16140f;
 	--ob-ref-color-website-ink-soft: #4a473f;
 	--ob-ref-color-website-line: rgba(248, 247, 244, 0.1);
+	--ob-ref-color-website-line-hover: rgba(248, 247, 244, 0.35);
 	--ob-ref-color-website-line-strong: rgba(248, 247, 244, 0.18);
 	--ob-ref-color-website-navigation: rgba(11, 10, 8, 0.8);
 	--ob-ref-color-website-paper: #f8f7f4;
@@ -1148,6 +1150,7 @@
 	--ob-ref-color-website-selection: rgba(242, 181, 31, 0.3);
 	--ob-ref-color-website-surface: rgba(248, 247, 244, 0.035);
 	--ob-ref-color-website-terminal-ansi-3: #e5e510;
+	--ob-ref-color-website-terminal-ansi-9: #f14c4c;
 	--ob-ref-color-website-terminal-ansi-10: #23d18b;
 	--ob-ref-color-website-terminal-ansi-12: #3b8eea;
 	--ob-ref-color-website-terminal-ansi-14: #29b8db;
@@ -1177,11 +1180,13 @@
 	--ob-sys-color-website-host-edge: var(--ob-ref-color-website-host-edge);
 	--ob-sys-color-website-host-title: var(--ob-ref-color-website-host-title);
 	--ob-sys-color-website-hover-current: var(--ob-ref-color-website-hover-current);
+	--ob-sys-color-website-hover-faint: var(--ob-ref-color-website-hover-faint);
 	--ob-sys-color-website-hover-soft: var(--ob-ref-color-website-hover-soft);
 	--ob-sys-color-website-hover-strong: var(--ob-ref-color-website-hover-strong);
 	--ob-sys-color-website-ink: var(--ob-ref-color-website-ink);
 	--ob-sys-color-website-ink-soft: var(--ob-ref-color-website-ink-soft);
 	--ob-sys-color-website-line: var(--ob-ref-color-website-line);
+	--ob-sys-color-website-line-hover: var(--ob-ref-color-website-line-hover);
 	--ob-sys-color-website-line-strong: var(--ob-ref-color-website-line-strong);
 	--ob-sys-color-website-navigation: var(--ob-ref-color-website-navigation);
 	--ob-sys-color-website-on-button: var(--ob-ref-color-website-bg);
@@ -1197,6 +1202,7 @@
 	/* The terminal palette is public so a page can re-theme a drawn terminal by overriding these
 	 * on its window. */
 	--ob-comp-website-terminal-ansi-3: var(--ob-ref-color-website-terminal-ansi-3);
+	--ob-comp-website-terminal-ansi-9: var(--ob-ref-color-website-terminal-ansi-9);
 	--ob-comp-website-terminal-ansi-10: var(--ob-ref-color-website-terminal-ansi-10);
 	--ob-comp-website-terminal-ansi-12: var(--ob-ref-color-website-terminal-ansi-12);
 	--ob-comp-website-terminal-ansi-14: var(--ob-ref-color-website-terminal-ansi-14);
@@ -1218,6 +1224,7 @@
 	--ob-sys-typography-website-button-small: 600 13px / 1 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-caption: 400 12px / 1.5 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-caption-strong: 500 12px / 1.5 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-chip: 400 13.5px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-chrome: 400 12.5px / 1 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-code: 400 0.92em / 1 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-command: 400 12.5px / 1 var(--ob-ref-font-family-website-mono);
@@ -1233,6 +1240,11 @@
 	--ob-sys-typography-website-heading: 500 clamp(26px, 2.7vw, 38px) / 1.1
 		var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-heading-tracking: -0.035em;
+	--ob-sys-typography-website-highlight-body: 400 14.5px / 1.6
+		var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-highlight-code: 400 0.9em / 1 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-highlight-title: 500 19px / 1.5 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-highlight-title-tracking: -0.02em;
 	--ob-sys-typography-website-index-body: 400 15px / 1.55 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-index-title: 500 clamp(28px, 3.7vw, 54px) / 1
 		var(--ob-ref-font-family-website-sans);
@@ -1240,6 +1252,10 @@
 	--ob-sys-typography-website-install-body: 400 14px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-install-note: 400 13px / 1.55 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-install-title: 500 16px / 1.5 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-key: 500 11.5px / 1 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-key-row: 400 14.5px / 1.5 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-key-small: 500 11px / 1 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-keys: 400 11.5px / 1 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-label: 400 12px / 1 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-lead: 400 15.5px / 1.6 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-paragraph: 400 15.5px / 1.65 var(--ob-ref-font-family-website-sans);
@@ -1258,10 +1274,13 @@
 	--ob-sys-shadow-website-logo-ring: 0 0 0 1px rgba(248, 247, 244, 0.2);
 	--ob-sys-shadow-website-menu-bar: 0 5px 0 var(--ob-sys-color-website-fg);
 	--ob-sys-shadow-website-window: 0 0 0 1px rgba(248, 247, 244, 0.17), 0 60px 120px -60px #000000;
+	--ob-sys-shadow-website-window-focus:
+		0 0 0 1px var(--ob-sys-color-website-honey), 0 60px 120px -60px #000000;
 	--ob-ref-motion-duration-website-100: 100ms;
 	--ob-ref-motion-duration-website-150: 150ms;
 	--ob-ref-motion-duration-website-200: 200ms;
 	--ob-ref-motion-duration-website-250: 250ms;
+	--ob-ref-motion-duration-website-280: 280ms;
 	--ob-ref-motion-duration-website-300: 300ms;
 	--ob-ref-motion-duration-website-340: 340ms;
 	--ob-ref-motion-duration-website-400: 400ms;
@@ -1274,6 +1293,7 @@
 	--ob-sys-motion-duration-website-150: var(--ob-ref-motion-duration-website-150);
 	--ob-sys-motion-duration-website-200: var(--ob-ref-motion-duration-website-200);
 	--ob-sys-motion-duration-website-250: var(--ob-ref-motion-duration-website-250);
+	--ob-sys-motion-duration-website-280: var(--ob-ref-motion-duration-website-280);
 	--ob-sys-motion-duration-website-300: var(--ob-ref-motion-duration-website-300);
 	--ob-sys-motion-duration-website-340: var(--ob-ref-motion-duration-website-340);
 	--ob-sys-motion-duration-website-400: var(--ob-ref-motion-duration-website-400);
@@ -1299,6 +1319,7 @@
 	--ob-ref-opacity-website-45: 0.45;
 	--ob-ref-opacity-website-55: 0.55;
 	--ob-ref-opacity-website-100: 1;
+	--ob-ref-layer-website-divider: 3;
 	--ob-ref-layer-website-navigation: 40;
 	--ob-ref-length-website-1ch: 1ch;
 	--ob-ref-length-website-measure-30: 30em;
@@ -1325,7 +1346,9 @@
 	--ob-ref-length-website-16: 16px;
 	--ob-ref-length-website-18: 18px;
 	--ob-ref-length-website-20: 20px;
+	--ob-ref-length-website-21: 21px;
 	--ob-ref-length-website-22: 22px;
+	--ob-ref-length-website-23: 23px;
 	--ob-ref-length-website-24: 24px;
 	--ob-ref-length-website-26: 26px;
 	--ob-ref-length-website-28: 28px;
@@ -1339,6 +1362,7 @@
 	--ob-ref-length-website-44: 44px;
 	--ob-ref-length-website-46: 46px;
 	--ob-ref-length-website-48: 48px;
+	--ob-ref-length-website-56: 56px;
 	--ob-ref-length-website-60: 60px;
 	--ob-ref-length-website-64: 64px;
 	--ob-ref-length-website-65: 65px;
@@ -1354,7 +1378,9 @@
 	--ob-ref-length-website-262: 262px;
 	--ob-ref-length-website-400: 400px;
 	--ob-ref-length-website-430: 430px;
+	--ob-ref-length-website-460: 460px;
 	--ob-ref-length-website-470: 470px;
+	--ob-ref-length-website-500: 500px;
 	--ob-ref-length-website-640: 640px;
 	--ob-ref-length-website-660: 660px;
 	--ob-ref-length-website-820: 820px;

@@ -3,8 +3,11 @@ import type { ReactElement, ReactNode } from 'react';
 import { WindowCaption } from '../window-caption/WindowCaption';
 import styles from './TuiWindow.module.css';
 
-/** The sizes a drawn terminal interface comes in; `full` narrows to the mini and phone layouts. */
-export type TuiWindowSize = 'full';
+/**
+ * The sizes a drawn terminal interface comes in: `full` narrows to the mini and phone layouts;
+ * `play`, the window of a PanelPlay, narrows to its phone layout.
+ */
+export type TuiWindowSize = 'full' | 'play';
 
 /**
  * The Orchbee terminal interface in the window of the host terminal that runs it: the title bar,

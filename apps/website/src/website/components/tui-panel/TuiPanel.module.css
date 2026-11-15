@@ -4,15 +4,14 @@
 	min-height: 0;
 	padding: var(--ob-ref-length-website-10) var(--ob-ref-length-website-2) 0;
 }
-.panel,
-.focusedPanel {
+.panel {
 	position: relative;
 	display: flex;
 	flex: 1;
 	min-height: 0;
 	border: var(--ob-ref-length-website-1) solid var(--ob-comp-website-terminal-line);
 }
-.focusedPanel {
+.cell[data-focus] > .panel {
 	border-color: var(--ob-comp-website-terminal-ansi-12);
 }
 .header {
@@ -29,7 +28,7 @@
 	color: var(--ob-comp-website-terminal-dim);
 	white-space: nowrap;
 }
-.focusedPanel > .header {
+.cell[data-focus] .header {
 	color: var(--ob-comp-website-terminal-ansi-12);
 	font: var(--ob-sys-typography-website-terminal-strong);
 }

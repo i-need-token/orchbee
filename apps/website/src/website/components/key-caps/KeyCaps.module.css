@@ -1,0 +1,29 @@
+.keys,
+.smallKeys {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ob-ref-length-website-4);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-keys);
+}
+.cap {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: var(--ob-ref-length-website-24);
+	height: var(--ob-ref-length-website-23);
+	padding: 0 var(--ob-ref-length-website-7);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	border-bottom-width: var(--ob-ref-length-website-2);
+	border-radius: var(--ob-ref-length-website-6);
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-key);
+	white-space: nowrap;
+}
+.smallKeys .cap {
+	min-width: var(--ob-ref-length-website-21);
+	height: var(--ob-ref-length-website-21);
+	padding: 0 var(--ob-ref-length-website-6);
+	font: var(--ob-sys-typography-website-key-small);
+}

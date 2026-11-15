@@ -3,7 +3,7 @@
 // whether it was prerendered or written by script.
 
 /** The terminal colors a run may take; each maps to a color of the window's terminal palette. */
-type TerminalTone = 'dim' | 'yellow' | 'green' | 'cyan' | 'blue';
+type TerminalTone = 'dim' | 'red' | 'yellow' | 'green' | 'cyan' | 'blue';
 
 export type TerminalSegment =
 	| string
@@ -56,6 +56,10 @@ export function bold(text: string): TerminalSegment {
 
 export function dim(text: string): TerminalSegment {
 	return { text, tone: 'dim' };
+}
+
+export function red(text: string): TerminalSegment {
+	return { text, tone: 'red' };
 }
 
 export function yellow(text: string): TerminalSegment {

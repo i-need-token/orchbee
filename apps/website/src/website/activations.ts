@@ -6,6 +6,7 @@ import { homePageActivations } from './components/home-page/activations';
 import { activateLattice } from './components/lattice/activateLattice';
 import { activateLanguageLinks } from './language-link/activateLanguageLinks';
 import { activateReveal } from './components/page-shell/activateReveal';
+import { activatePanelPlay } from './components/panel-play/activatePanelPlay';
 import { activateSessionScene } from './components/session-scene/activateSessionScene';
 import { activateSiteHeader } from './components/site-header/activateSiteHeader';
 import { terminalPageActivations } from './components/terminal-page/activations';
@@ -19,6 +20,7 @@ export const activations: readonly Activation[] = [
 	activateReveal,
 	activateCopyButtons,
 	activateSessionScene,
+	activatePanelPlay,
 	...homePageActivations,
 	...terminalPageActivations,
 	...desktopPageActivations,
