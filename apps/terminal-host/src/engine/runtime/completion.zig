@@ -41,7 +41,6 @@ pub fn waitForCompletion(self: *state.State) !contracts.Completion {
                 .process_observation => error.ProcessObservationFailed,
                 .pty_read => error.PtyReadFailed,
                 .pty_write => error.PtyWriteFailed,
-                .terminal_reply => error.TerminalReplyDropped,
                 .worker_integrity => error.WorkerIntegrityFailed,
             },
         }

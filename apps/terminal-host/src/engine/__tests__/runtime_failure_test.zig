@@ -40,7 +40,6 @@ const max_writer_slice_bytes = harness.max_writer_slice_bytes;
 const terminal_reply_burst_bound = harness.terminal_reply_burst_bound;
 const publishInput = harness.publishInput;
 const recordReaderFailure = harness.recordReaderFailure;
-const recordTerminalReplyFailure = harness.recordTerminalReplyFailure;
 const recordWorkerIntegrityFailure = harness.recordWorkerIntegrityFailure;
 const recordWriterFailure = harness.recordWriterFailure;
 const releaseOutputForShutdown = harness.releaseOutputForShutdown;

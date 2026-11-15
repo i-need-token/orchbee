@@ -6,8 +6,10 @@
 //!
 //! The executable's root installs `panic` as its panic namespace and `handleSegfault` as
 //! `debug.handleSegfault`. Both write the record, when one is armed, and end the process with
-//! `exit_code`. A fault before `arm` still exits with that code but leaves no record, because no
-//! runtime directory is known to belong to this Host yet.
+//! `exit_code`, or with the code of a fatal exit already recorded. A fault before `arm` still exits
+//! with that code but leaves no record, because no runtime directory is known to belong to this
+//! Host yet. Only the faults these handlers receive are recorded: a fail-fast exit, an exception
+//! the standard handler passes on, `abort`, or an external kill leaves no record.
 const std = @import("std");
 const record_file = @import("record_file.zig");
 
@@ -36,7 +38,9 @@ pub const ThreadKind = enum {
 pub const Kind = enum {
     /// A safety check or an explicit panic.
     panic,
-    /// A processor exception or fatal signal.
+    /// A processor exception the standard handler routes: an access violation, misaligned access,
+    /// illegal instruction or stack overflow on Windows; `SIGSEGV`, `SIGILL`, `SIGBUS` or `SIGFPE`
+    /// elsewhere.
     exception,
     /// A serving or shutdown failure the Host returned from `main`.
     exit,
@@ -137,6 +141,11 @@ var executable: record_file.ExecutableRange = .{};
 var armed = std.atomic.Value(bool).init(false);
 /// The first fault or fatal exit claims the one record.
 var record_claimed = std.atomic.Value(bool).init(false);
+/// The code a fault exits with: `exit_code`, or the code of a fatal exit already recorded, so a
+/// fault in that exit's teardown does not hide why the Host was ending.
+var kept_exit_code = std.atomic.Value(u8).init(exit_code);
+/// Set once a fatal exit's record is written; a later fault then has nothing to wait for.
+var exit_recorded = std.atomic.Value(bool).init(false);
 
 /// Names the calling thread's kind for any record written on it.
 pub fn markThread(kind: ThreadKind) void {
@@ -153,10 +162,13 @@ pub fn arm(runtime_directory: []const u8) void {
 }
 
 /// Writes the record for a serving or shutdown failure that ends the Host through `main`, while
-/// the runtime directory is still held. The caller then exits with its own code.
-pub fn recordExit(reason: Reason, err: anyerror) void {
+/// the runtime directory is still held. The caller then exits with `code`, and a fault in the
+/// teardown before that exit uses `code` as well.
+pub fn recordExit(reason: Reason, err: anyerror, code: u8) void {
     if (record_claimed.swap(true, .acq_rel)) return;
+    kept_exit_code.store(code, .release);
     writeRecord(.exit, reason, @errorName(err), null);
+    exit_recorded.store(true, .release);
 }
 
 fn writeRecord(kind: Kind, reason: Reason, error_name: ?[]const u8, address: ?usize) void {
@@ -182,12 +194,13 @@ fn fail(
     context: ?std.debug.CpuContextPtr,
 ) noreturn {
     @branchHint(.cold);
-    if (handling_fault) record_file.exitNow(exit_code);
+    if (handling_fault) record_file.exitNow(kept_exit_code.load(.acquire));
     handling_fault = true;
     if (record_claimed.swap(true, .acq_rel)) {
-        // Another thread owns the record and ends the process once it is written.
-        record_file.waitMilliseconds(concurrent_fault_grace_ms);
-        record_file.exitNow(exit_code);
+        // Another fault owns the record and ends the process once it is written; a recorded
+        // fatal exit is already written and keeps its own code.
+        if (!exit_recorded.load(.acquire)) record_file.waitMilliseconds(concurrent_fault_grace_ms);
+        record_file.exitNow(kept_exit_code.load(.acquire));
     }
     writeRecord(kind, reason, error_name, address);
     if (record_file.stderrAttached()) reportToStderr(kind, reason, address, context);

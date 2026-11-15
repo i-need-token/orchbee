@@ -401,10 +401,6 @@ pub const testing = if (builtin.is_test) struct {
         return runtime_state.resize_effect_in_flight;
     }
 
-    pub fn recordTerminalReplyFailure(runtime: *handle.TerminalRuntime) void {
-        failure_ops.recordFailure(handle.stateFrom(runtime), .terminal_reply);
-    }
-
     pub fn fenceResizeFailure(runtime: *handle.TerminalRuntime) void {
         resize_ops.fenceResizeFailure(handle.stateFrom(runtime));
     }

@@ -177,8 +177,9 @@ test "an accept failure while terminals are retained renews the endpoint and kee
             return 233;
         }
 
-        pub fn renewAfterAcceptFailure(self: *@This()) void {
+        pub fn renewAfterAcceptFailure(self: *@This()) ?u32 {
             self.renewals += 1;
+            return null;
         }
     };
     const never_recoverable = struct {

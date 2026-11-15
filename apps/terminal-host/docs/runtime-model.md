@@ -504,7 +504,6 @@ const EngineFailure = enum {
     pty_read,
     pty_write,
     resize,
-    terminal_reply,
     worker_integrity,
 };
 
@@ -525,8 +524,9 @@ const EngineCompletion = struct {
 `RuntimeFailure` is one semantic operation-stage variant. Its stable coarse wire kind is derived
 from that variant, so an invalid kind/stage combination cannot be retained. It is not an English
 product message. At minimum, unrecoverable PTY read, PTY write, resize fencing, process
-observation, and worker-integrity failures remain distinguishable. `terminal_reply` is retained for
-wire compatibility and is no longer produced: a reply that does not fit is dropped, not a failure.
+observation, and worker-integrity failures remain distinguishable. The wire keeps the
+`terminal-reply` kind and its `admit-terminal-reply` stage for compatibility, but the engine has no
+such failure and never produces them: a reply that does not fit is dropped, not a failure.
 The primary terminal-failure type excludes all cleanup stages. `contain_process`,
 `release_output`, and `release_process_identity` exist only in `RuntimeCleanupFailure` after a
 primary failure has already been retained.
@@ -871,9 +871,9 @@ their replies, or a reply cannot be encoded or copied, the Host drops that one r
 as xterm does; the reader batch still commits and the program keeps running. A fenced or exiting
 runtime discards replies because no program is left to answer. The dispatch thread records the
 dropped count in the [diagnostic log](#fatal-record-and-diagnostic-log) at most once a minute. Only a
-real PTY write error fails the terminal, as `pty_write`. The `terminal_reply` kind stays in the wire
-vocabulary for compatibility, but no runtime produces it. A prepared client input reserves its FIFO
-position and budget before reply preparation; cancelling it releases both and admits no bytes.
+real PTY write error fails the terminal, as `pty_write`. The `terminal-reply` kind stays in the
+wire vocabulary for compatibility, but no runtime produces it. A prepared client input reserves its
+FIFO position and budget before reply preparation; cancelling it releases both and admits no bytes.
 
 Ghostty's terminal handler remains the only terminal-state mutator. The Host-owned stream adapter
 delegates every ordinary parser action and effect to that handler and intercepts the bounded
@@ -995,27 +995,42 @@ timeout, or transient system failure ends it (`TH-027`).
 
 - **Accept failures**: before the Worker's first session the Host holds no terminal, and an accept
   failure that is not one connection's own still ends it. After that, the serve loop runs only
-  while terminals are retained, and an accept failure never leaves it. The loop records the failure
-  in the [diagnostic log](#fatal-record-and-diagnostic-log) with the Win32 error code on Windows,
-  replaces the broker pipe instance while the lifetime mutex stays held, and waits 100 ms before
-  the next accept, doubling to at most 5 s while failures continue. It keeps maintaining terminals
-  during the wait and ends it early once `exit` is due or no terminal remains. A successful accept
-  resets the wait. POSIX keeps its listening socket and records no system code.
+  while terminals are retained, and an accept failure never leaves it. The loop replaces the broker
+  pipe instance while the lifetime mutex stays held; a replacement that fails keeps the old
+  instance. It records the failure in the [diagnostic log](#fatal-record-and-diagnostic-log) with
+  the Win32 codes of the accept and of a failed replacement, and waits 100 ms before the next
+  accept, doubling to at most 5 s while failures continue. Only an accepted connection resets the
+  wait; an accept that times out does not. It keeps maintaining terminals during the wait and ends
+  it early once `exit` is due or no terminal remains. POSIX keeps its listening socket and records
+  no system code.
 - **Worker session I/O**: from the Hello reply onward, a Worker read or write has no deadline.
   While the Worker sends or takes nothing, the dispatch thread maintains terminals every 20 ms and
-  applies posted control requests, so `drain` and `exit` still take effect. The session closes only
-  when the pipe breaks or a read or write fails, when framing is lost, or when `exit` becomes due;
-  an `exit` cancels a write that is still pending, which ends the stream. Worker liveness belongs
-  to the Worker's supervisor and to the pipe, not to a Host timer: a slow Worker is never closed
-  for being slow, and a hung one held the session before this rule too, because the session has no
-  idle timeout. The candidate frame, the Hello, and control-lane replies keep their bounded 2 s
-  and 5 s deadlines because they come before, or outside, the Worker's session.
+  applies posted control requests, so `drain` and `exit` take effect within one 20 ms step. The
+  session closes only when the pipe breaks or a read or write fails, when framing is lost, or when
+  `exit` becomes due; an `exit` cancels a write that is still pending, which ends the stream. A
+  slow Worker is never closed for being slow. Before this rule, a Worker that stopped reading while
+  the Host had records to send, or stopped partway through a record, was closed after 5 s. Such a
+  Worker now holds the session, and with it the only Worker slot, until its handle closes or
+  `exit` arrives, and a new offer meanwhile is refused with `capacity`. Worker liveness therefore
+  belongs to the Worker side, which must meet three requirements:
+  - its supervisor ends a stuck Worker before it admits a new one, so the stuck Worker's handle
+    closes and frees the session;
+  - a Worker that abandons a record it has partly written closes its connection;
+  - a Worker keeps reading Host records while it writes, because the Host does not read while one
+    of its own writes is pending, and two full pipe buffers would otherwise leave both sides
+    waiting.
+
+  The candidate frame, the Hello, and control-lane replies keep their bounded 2 s and 5 s deadlines
+  because they come before, or outside, the Worker's session.
+
 - **Request failures**: an active-session request that fails before its commit is answered on its
   own correlation id, and the session serves the next request. `OutOfMemory`, which includes a
   framed record too large to hold (its body is read and discarded so framing is kept), and an
   outgoing-capacity invariant answer `resource-exhausted`, retryable. A framed envelope with an
-  unknown required message kind or flag, or conflicting flags, answers `invalid-envelope`, not
-  retryable. Any other escaped error answers `internal-error`, not retryable. The commit discipline
+  unknown required message kind or flag, conflicting flags, or a payload encoding this Host does
+  not know answers `invalid-envelope`, not retryable; a record of an unknown encoding is read whole
+  and discarded first, so framing is kept. Any other escaped error answers `internal-error`, not
+  retryable. The commit discipline
   guarantees that such an error escaped before the commit. A request without a correlation id, or
   a failure while the connection is not active, still closes the connection, as does an
   event-delivery error.
@@ -1024,9 +1039,10 @@ timeout, or transient system failure ends it (`TH-027`).
 
 ### Fatal record and diagnostic log
 
-Every fatal Host exit leaves one closed record, and the faults the Host survives leave bounded
-lines. Neither carries program output, titles, paths, environment, or peer bytes; panic messages
-are dropped because they may be formatted from any of those.
+A panic, a routed processor exception, or a failed serve loop leaves one closed record, and the
+faults the Host survives leave bounded lines. Neither carries program output, titles, paths,
+environment, or peer bytes; panic messages are dropped because they may be formatted from any of
+those.
 
 The fatal record is `<runtime_directory>/host-fatal.json`. It is armed once the Host holds its
 endpoint and runtime directory, and each fatal exit replaces it with one JSON object written as a
@@ -1046,24 +1062,35 @@ single line, shown formatted here:
 }
 ```
 
-`kind` is `panic` (a safety check or explicit panic), `exception` (a processor exception or fatal
-signal, routed through the standard exception handler), or `exit` (the serve loop or its teardown
-returned an error while the endpoint was held). `reason` is the hyphenated class: one per safety
+`kind` is `panic` (a safety check or explicit panic), `exception` (a processor exception the
+standard handler routes: an access violation, misaligned access, illegal instruction, or stack
+overflow on Windows; `SIGSEGV`, `SIGILL`, `SIGBUS`, or `SIGFPE` elsewhere), or `exit` (the serve
+loop or its teardown returned an error while the endpoint was held). Every other abnormal end
+leaves no record and does not exit `16`: a fail-fast exit such as heap corruption or
+`__fastfail`, an in-page error or any other exception the handler passes on, `abort`, or an
+external kill keeps the code the system gives it. A missing record is therefore never evidence
+that the Host did not crash. A stack overflow writes its record on the overflowed stack, which is
+not verified. `reason` is the hyphenated class: one per safety
 check, one per exception name, or `serving-failed`. `error` is a source-defined error name for
 `unwrap-error` and `exit` records, and `null` otherwise or when the name is not a plain identifier.
 `thread` is `dispatch`, `control-lane`, `terminal-output`, `terminal-input`, `terminal-wait`,
 `terminal-animation`, or `other`. `module_offset` is the faulting return or instruction address as
 an offset into the Host executable image, or `null` outside it. The first fault claims the record;
 a fault on another thread waits up to 2 s for it and then exits. A panic or exception exits with
-code `16`; an `exit` record keeps the Host's own failure code. A fault before the record is armed
-exits with `16` and leaves no record. A Host started from a console also writes the class and a
-stack trace to standard error; a Worker-started Host has no standard error.
+code `16`; an `exit` record keeps the Host's own failure code, and a fault in the teardown that
+follows it exits with that recorded code rather than `16`. A fault before the record is armed
+exits with `16` and leaves no record. A Host whose standard error leads somewhere, such as one
+started from a console, also writes the class and a stack trace there; a Worker-started Host has
+no standard error on Windows and `/dev/null` elsewhere, and skips it. Neither the record write
+nor the stack trace on the faulting thread is bounded in time.
 
 The diagnostic log is `<runtime_directory>/host-diagnostics.jsonl`, one JSON line per event,
 starting over when it would pass 256 KiB:
 
-- `accept-failure`: `error` (the Host's own error name), `system_code` (Win32 code or `null`),
-  `retry_after_ms`.
+- `accept-failure`: `error` (the Host's own error name), `system_code` (the accept's Win32 code or
+  `null`), `renew_system_code` (the Win32 code of a failed pipe replacement, or `null` when the
+  pipe was replaced or the platform keeps its socket), `retry_after_ms`, and `suppressed` (the
+  failures since the previous line that were not written), at most once a minute.
 - `slow-turn`: `turn` (`request` or `events`), `request_kind` (message kind or `null`),
   `elapsed_ms`.
 - `terminal-replies-dropped`: `count` since the previous line and `total`, at most once a minute.
@@ -2025,7 +2052,7 @@ and raw VT formats are rejected before runtime access.
 | `TH-024`           | `src/engine/__tests__/runtime_state_test.zig`: non-blocking lock contention, exact idle deadline, one-page-per-step bound, pending-to-complete convergence, cold-page backing savings, same-line output and prepared client-input idle restart, dormant interaction absorption, and unchanged revision/generation; `src/service/__tests__/runtime_aggregate_maintenance_test.zig`: global cadence, round-robin fairness, and no catch-up burst; controlled implementation tests: scheduling and representation-only refinement checks                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `TH-025`           | `src/service/__tests__/host_lifecycle_test.zig`: every forward-only transition, terminal admission and end conditions, the `host-draining` refusal while a replayed creation is still answered, and the end after the last disposal; `src/transport/__tests__/candidate_test.zig`: `drain` and `exit` on the dispatch thread before the Worker, and on a control connection during a live Worker session, ending the session and the serve loop                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `TH-026`           | `src/engine/__tests__/prompt_gate_test.zig`: every refusal reason, `settling` as the last rule without a wait, publication-time refusal, and no reservation on refusal; `prompt_gate_witness_test.zig`: real cmd and managed PowerShell on system ConHost and the pinned bundle; `src/service/__tests__/input_request_test.zig`: the `prompt-unconfirmed` reply and its `reason` member.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `TH-027`           | `src/transport/__tests__/transport_adapter_test.zig`: an accept failure while a terminal is retained renews the endpoint, records the system code, and keeps serving; `src/transport/__tests__/local_endpoint_test.zig`: a request too large to hold answers `resource-exhausted` and an unknown required flag answers `invalid-envelope` on its correlation id, and each session then serves a ping; `src/platform/__tests__/fatal_record_test.zig`: the closed record encoder and a real subprocess panic that leaves one record without its message and exits with `16`; `src/engine/__tests__/runtime_failure_test.zig`: a terminal reply flood leaves the program running                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `TH-027`           | `src/transport/__tests__/transport_adapter_test.zig`: an accept failure while a terminal is retained renews the endpoint, records the system code, and keeps serving; `src/transport/__tests__/local_endpoint_test.zig`: a request too large to hold answers `resource-exhausted`, and an unknown required flag or payload encoding answers `invalid-envelope`, on its correlation id, and each session then serves a ping; `src/transport/__tests__/transport_maintenance_test.zig`: a Worker that stops reading or stops partway through a record holds its session until `exit`, which ends it in the same step and cancels a pending write, while the retained terminal is maintained; `src/platform/__tests__/fatal_record_test.zig`: the closed record encoder and a real subprocess panic that leaves one record without its message and exits with `16`; `src/engine/__tests__/runtime_failure_test.zig`: a terminal reply flood leaves the program running                                                                                                                                                                                                                                                                                                                            |
 
 The deterministic commit-seam set is: creation preparation/spawn/admission; deferred-start spawn;
 control-reply
@@ -2049,8 +2076,9 @@ named failure test before the implementation may rely on `catch unreachable` aft
 Each stable seam has one required failure disposition and one scheduling class. `rollback` restores
 the pre-transition observation, `reject_without_commit` reserves or validates before mutation,
 `preserve_for_retry` retains an owned value for a later handoff, `publish_prefix` exposes only the
-fully committed prefix, and `contain_and_retain` fences unsafe work while retaining lifecycle
-ownership. Allocation-index schedules fail a chosen allocation, deterministic-interleaving
+fully committed prefix, `contain_and_retain` fences unsafe work while retaining lifecycle
+ownership, and `commit_and_drop` commits the transition and drops, and counts, the optional effect
+that did not fit. Allocation-index schedules fail a chosen allocation, deterministic-interleaving
 schedules admit an explicit named event order, native-boundary schedules use a failing platform or
 transport adapter, and single-owner schedules exercise an ordered local transaction.
 
@@ -2081,7 +2109,7 @@ transport adapter, and single-owner schedules exercise an ordered local transact
 | `CS-023` | `MultiRuntimeShutdown`                 | contain and retain           | deterministic interleaving |
 | `CS-024` | `DeferredStartSpawn`                   | contain and retain           | native boundary            |
 | `CS-025` | `RuntimeThemeCommit`                   | reject without commit        | single owner               |
-| `CS-026` | `ModeEffectReplyAdmission`             | reject without commit        | single owner               |
+| `CS-026` | `ModeEffectReplyAdmission`             | commit and drop              | single owner               |
 | `CS-027` | `FocusModeRevalidation`                | reject without commit        | deterministic interleaving |
 | `CS-028` | `SynchronizedOutputDeadlineRelease`    | preserve for retry           | deterministic interleaving |
 | `CS-029` | `MouseInputEpochRetirement`            | reject without commit        | deterministic interleaving |

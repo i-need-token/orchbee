@@ -66,6 +66,15 @@ pub fn validateTransportEnvelope(bytes: []const u8) contract.ProtocolError!Summa
 }
 
 pub fn transportRecordLength(header: []const u8) contract.ProtocolError!usize {
+    const total_length = try transportRecordFramedLength(header);
+    const payload_length = total_length - contract.transport_envelope_header_bytes;
+    if (payload_length > try contract.maximumPayloadBytes(header[22])) return error.LimitExceeded;
+    return total_length;
+}
+
+/// The length of the record `header` frames, checked against the transport's own bound only, so a
+/// reader can step over a framed record whose payload encoding it does not know.
+pub fn transportRecordFramedLength(header: []const u8) contract.ProtocolError!usize {
     if (header.len < contract.transport_envelope_header_bytes) return error.Truncated;
     try wire.requireMagic(header, "OBTP");
     const header_length = std.mem.readInt(u16, header[4..6], .little);
@@ -78,7 +87,6 @@ pub fn transportRecordLength(header: []const u8) contract.ProtocolError!usize {
         return error.LengthMismatch;
     }
     if (total_length > contract.Limits.transport_record_bytes) return error.LimitExceeded;
-    if (payload_length > try contract.maximumPayloadBytes(header[22])) return error.LimitExceeded;
     return total_length;
 }
 

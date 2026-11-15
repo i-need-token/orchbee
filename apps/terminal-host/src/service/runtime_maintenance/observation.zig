@@ -70,7 +70,6 @@ pub fn runtimeFailureFromEngineKind(
         .process_observation => .observe_process,
         .pty_read => .read_output,
         .pty_write => .write_input,
-        .terminal_reply => .admit_terminal_reply,
         .worker_integrity => .synchronize_worker,
     };
 }

@@ -13,11 +13,13 @@ pub const answer_bytes = protocol.transport_envelope_header_bytes + 512;
 
 pub const Answer = enum {
     resource_exhausted,
+    invalid_envelope,
     internal_error,
 
     fn code(self: Answer) []const u8 {
         return switch (self) {
             .resource_exhausted => "resource-exhausted",
+            .invalid_envelope => "invalid-envelope",
             .internal_error => "internal-error",
         };
     }
@@ -25,6 +27,7 @@ pub const Answer = enum {
     fn message(self: Answer) []const u8 {
         return switch (self) {
             .resource_exhausted => "Host could not hold this request; retry it",
+            .invalid_envelope => "request envelope has a payload encoding this Host does not know",
             .internal_error => "Host could not carry out this request",
         };
     }
@@ -41,6 +44,8 @@ pub fn classify(err: anyerror) ?Answer {
     return switch (err) {
         error.InvalidTransportRecord, error.ConnectionClosing, error.ServiceShuttingDown => null,
         error.OutOfMemory, error.OutgoingCapacityInvariant => .resource_exhausted,
+        // A framed record of an unknown payload encoding, read whole and discarded.
+        error.UnknownPayloadEncoding => .invalid_envelope,
         else => .internal_error,
     };
 }

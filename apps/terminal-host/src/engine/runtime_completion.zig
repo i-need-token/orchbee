@@ -2,12 +2,13 @@ const std = @import("std");
 
 const pty_process = @import("terminal-host-platform").process;
 
+/// Code 5 was a terminal-reply failure; a reply that does not fit is now dropped, so the code stays
+/// unused rather than renumbering the others.
 pub const FailureKind = enum(u8) {
     process_observation = 1,
     pty_read = 2,
     pty_write = 3,
     resize = 4,
-    terminal_reply = 5,
     worker_integrity = 6,
 };
 

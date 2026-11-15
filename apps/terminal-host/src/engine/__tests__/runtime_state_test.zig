@@ -45,7 +45,6 @@ const max_writer_slice_bytes = harness.max_writer_slice_bytes;
 const terminal_reply_burst_bound = harness.terminal_reply_burst_bound;
 const publishInput = harness.publishInput;
 const recordReaderFailure = harness.recordReaderFailure;
-const recordTerminalReplyFailure = harness.recordTerminalReplyFailure;
 const recordWorkerIntegrityFailure = harness.recordWorkerIntegrityFailure;
 const recordWriterFailure = harness.recordWriterFailure;
 const releaseOutputForShutdown = harness.releaseOutputForShutdown;
@@ -736,11 +735,6 @@ test "unrecoverable worker failures contain the process tree without a connected
             .expected_error = error.PtyWriteFailed,
             .expected_kind = .pty_write,
             .inject = recordWriterFailure,
-        },
-        .{
-            .expected_error = error.TerminalReplyDropped,
-            .expected_kind = .terminal_reply,
-            .inject = recordTerminalReplyFailure,
         },
         .{
             .expected_error = error.WorkerIntegrityFailed,

@@ -281,7 +281,6 @@ fn validateRuntimeHealth(completion: terminal_runtime.Completion) !void {
             .pty_read => error.PtyReadFailed,
             .pty_write => error.PtyWriteFailed,
             .resize => error.TerminalResizeFailed,
-            .terminal_reply => error.TerminalReplyDropped,
             .worker_integrity => error.WorkerIntegrityFailed,
         },
     };

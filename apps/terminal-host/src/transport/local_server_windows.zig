@@ -66,10 +66,14 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
         return windows_c.ob_windows_local_server_last_error(self.handle);
     }
 
-    /// Replaces the pipe instance after an accept failure; the lifetime mutex stays held. A
-    /// failure keeps the old instance, and the next accept reports it again.
-    pub fn renewAfterAcceptFailure(self: *Server) void {
-        _ = windows_c.ob_windows_local_server_renew(self.handle);
+    /// Replaces the pipe instance after an accept failure; the lifetime mutex stays held. Returns
+    /// null once replaced, or the Win32 code of a failed replacement, which keeps the old instance
+    /// for the next accept.
+    pub fn renewAfterAcceptFailure(self: *Server) ?u32 {
+        if (windows_c.ob_windows_local_server_renew(self.handle) == windows_c.OB_WINDOWS_IPC_OK) {
+            return null;
+        }
+        return windows_c.ob_windows_local_server_last_error(self.handle);
     }
 
     pub fn serveOne(self: *Server, service: *host_service.HostService) !connection.Served {

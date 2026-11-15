@@ -49,7 +49,6 @@ pub const max_writer_slice_bytes = subject.testing.writer_slice_limit;
 pub const terminal_reply_burst_bound: usize = 64;
 pub const publishInput = subject.testing.publishInputFn;
 pub const recordReaderFailure = subject.testing.recordReaderFailureFn;
-pub const recordTerminalReplyFailure = subject.testing.recordTerminalReplyFailure;
 pub const recordWorkerIntegrityFailure = subject.testing.recordWorkerIntegrityFailureFn;
 pub const recordWriterFailure = subject.testing.recordWriterFailureFn;
 pub const releaseOutputForShutdown = subject.testing.releaseOutputForShutdown;

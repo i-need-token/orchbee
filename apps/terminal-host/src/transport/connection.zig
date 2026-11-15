@@ -166,12 +166,12 @@ fn serveSession(
                 defer outgoing.deinit();
                 try writeSession(transport, outgoing.records(), service, lanes);
             },
-            .unheld => |header| try answerFailedRequest(
+            .discarded => |discarded| try answerFailedRequest(
                 transport,
                 service,
                 &connection,
-                &header,
-                error.OutOfMemory,
+                &discarded.header,
+                discarded.reason,
                 lanes,
             ),
         }
@@ -191,7 +191,10 @@ fn answerFailedRequest(
 ) !void {
     var storage: [host_service.failed_request_answer_bytes]u8 = undefined;
     const answer = service.answerFailedRequest(connection, header, err, &storage) orelse
-        return if (err == error.InvalidTransportRecord) error.ConnectionClosed else err;
+        return switch (err) {
+            error.InvalidTransportRecord, error.UnknownPayloadEncoding => error.ConnectionClosed,
+            else => err,
+        };
     std.log.warn("answering a terminal Host request that failed: {s}", .{@errorName(err)});
     try writeSession(transport, &.{answer}, service, lanes);
 }
@@ -239,8 +242,12 @@ fn writeSession(
 
 const SessionRecord = union(enum) {
     record: []u8,
-    /// A whole record the Host had no memory to hold; only its header was kept.
-    unheld: [protocol.transport_envelope_header_bytes]u8,
+    /// A whole framed record the Host read and discarded, keeping only its header to answer it.
+    discarded: struct {
+        header: [protocol.transport_envelope_header_bytes]u8,
+        /// `OutOfMemory` for a record too large to hold, or `UnknownPayloadEncoding`.
+        reason: anyerror,
+    },
 };
 
 /// Reads one record of an active session. Like its writes, the read has no deadline once the
@@ -253,22 +260,41 @@ fn readSessionRecord(
 ) !SessionRecord {
     var header: [protocol.transport_envelope_header_bytes]u8 = undefined;
     try readSessionBytes(transport, &header, service, lanes);
-    const total_length = protocol.transportRecordLength(&header) catch return error.ConnectionClosed;
+    const total_length = protocol.transportRecordLength(&header) catch |err| switch (err) {
+        // Framing passed and only the payload encoding is unknown, so the record can be stepped
+        // over and answered.
+        error.InvalidField => {
+            const framed_length = protocol.transportRecordFramedLength(&header) catch
+                return error.ConnectionClosed;
+            try discardSessionBytes(transport, framed_length - header.len, service, lanes);
+            return .{ .discarded = .{ .header = header, .reason = error.UnknownPayloadEncoding } };
+        },
+        else => return error.ConnectionClosed,
+    };
     const record = allocator.alloc(u8, total_length) catch {
         // The stream stays framed: discard the body so the next record starts where it should.
-        var discard: [4096]u8 = undefined;
-        var remaining = total_length - header.len;
-        while (remaining != 0) {
-            const length = @min(remaining, discard.len);
-            try readSessionBytes(transport, discard[0..length], service, lanes);
-            remaining -= length;
-        }
-        return .{ .unheld = header };
+        try discardSessionBytes(transport, total_length - header.len, service, lanes);
+        return .{ .discarded = .{ .header = header, .reason = error.OutOfMemory } };
     };
     errdefer allocator.free(record);
     @memcpy(record[0..header.len], &header);
     try readSessionBytes(transport, record[header.len..], service, lanes);
     return .{ .record = record };
+}
+
+fn discardSessionBytes(
+    transport: anytype,
+    length: usize,
+    service: *host_service.HostService,
+    lanes: anytype,
+) !void {
+    var discard: [4096]u8 = undefined;
+    var remaining = length;
+    while (remaining != 0) {
+        const step = @min(remaining, discard.len);
+        try readSessionBytes(transport, discard[0..step], service, lanes);
+        remaining -= step;
+    }
 }
 
 fn readSessionBytes(

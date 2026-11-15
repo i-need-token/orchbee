@@ -27,12 +27,8 @@ pub fn main(init: std.process.Init) !void {
         .version => try writeVersion(init.io),
         .serve => |options| serve(allocator, init.io, init.environ_map, options) catch |err| {
             // `serve` has returned, so the endpoint and its lifetime lock are already released.
-            const any_error: anyerror = err;
-            switch (any_error) {
-                error.PeerIdentityMismatch => failed(.peer_identity, err),
-                error.WindowsIpcFailure => failed(.local_ipc, err),
-                else => return err,
-            }
+            if (servingFailureExit(err)) |exit| failed(exit, err);
+            return err;
         },
     }
 }
@@ -56,6 +52,15 @@ const FailureExit = enum(u8) {
     peer_identity = 14,
     local_ipc = 15,
 };
+
+/// The named exit of a failure that ends serving, or null for the default error exit code 1.
+fn servingFailureExit(err: anyerror) ?FailureExit {
+    return switch (err) {
+        error.PeerIdentityMismatch => .peer_identity,
+        error.WindowsIpcFailure => .local_ipc,
+        else => null,
+    };
+}
 
 fn failed(exit: FailureExit, err: anyerror) noreturn {
     std.log.err("terminal Host failed: {s}", .{@errorName(err)});
@@ -98,8 +103,10 @@ fn serve(
     platform.diagnostic_log.arm(options.runtime_directory);
     fatal_record.markThread(.dispatch);
     serveHeld(allocator, environment, options, &server) catch |err| {
-        // Recorded before `server.deinit`, while the directory is still held.
-        fatal_record.recordExit(.@"serving-failed", err);
+        // Recorded before `server.deinit`, while the directory is still held, with the code the
+        // Host exits with, so a fault in the teardown that follows keeps it.
+        const code: u8 = if (servingFailureExit(err)) |exit| @intFromEnum(exit) else 1;
+        fatal_record.recordExit(.@"serving-failed", err, code);
         return err;
     };
 }

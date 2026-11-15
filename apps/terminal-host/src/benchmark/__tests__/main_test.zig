@@ -98,8 +98,6 @@ test "benchmark requires a successful child completion" {
     try std.testing.expectError(error.PtyWriteFailed, validateCompletion(completion));
     completion.classification = .{ .failed = .resize };
     try std.testing.expectError(error.TerminalResizeFailed, validateCompletion(completion));
-    completion.classification = .{ .failed = .terminal_reply };
-    try std.testing.expectError(error.TerminalReplyDropped, validateCompletion(completion));
     completion.classification = .{ .failed = .worker_integrity };
     try std.testing.expectError(error.WorkerIntegrityFailed, validateCompletion(completion));
     completion.classification = .pending;

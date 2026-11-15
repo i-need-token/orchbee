@@ -1,6 +1,8 @@
-/* The operating-system half of the Host's fatal record and diagnostic log. Every function that
- * runs after a fault (write, clock, process id, stderr, wait, exit) takes no lock, allocates
- * nothing and calls no Zig code, so a crashing thread can still use it. */
+/* The operating-system half of the Host's fatal record and diagnostic log. The functions that run
+ * after a fault (write, clock, process id, stderr, wait, exit) call no Zig code and allocate
+ * nothing of their own. The system calls under them may: on Windows, CreateFileW takes the process
+ * heap lock and allocates, so a fault that corrupted the heap or holds that lock can stop the
+ * record from being written. */
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -194,13 +196,21 @@ uint32_t ob_host_record_process_id(void) {
 #endif
 }
 
-/* Whether standard error leads anywhere; a Host its Worker started has none. */
+/* Whether standard error leads anywhere. A Host its Worker started has none on Windows and
+ * /dev/null elsewhere, which counts as none. */
 int ob_host_record_stderr_attached(void) {
 #if defined(_WIN32)
     const HANDLE handle = GetStdHandle(STD_ERROR_HANDLE);
     return handle != NULL && handle != INVALID_HANDLE_VALUE;
 #else
-    return fcntl(STDERR_FILENO, F_GETFD) != -1;
+    struct stat standard_error;
+    if (fstat(STDERR_FILENO, &standard_error) != 0) return 0;
+    struct stat null_device;
+    if (S_ISCHR(standard_error.st_mode) && stat("/dev/null", &null_device) == 0 &&
+        standard_error.st_rdev == null_device.st_rdev) {
+        return 0;
+    }
+    return 1;
 #endif
 }
 

@@ -816,6 +816,37 @@ test "an envelope with an unknown required flag is answered invalid-envelope and
     try session.finish();
 }
 
+test "a framed envelope of an unknown payload encoding is answered invalid-envelope and the session serves the next" {
+    var service = host_service.HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var session: SessionFixture = undefined;
+    try session.start(&service, "fe" ** 16);
+    var finished = false;
+    defer if (!finished) session.abandon();
+
+    const correlation_id = [_]u8{0x53} ** 16;
+    const unknown = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        protocol.MessageKind.ping,
+        .control_json,
+        "{\"padding\":\"a body the Host must step over\"}",
+        correlation_id,
+        session.host_epoch,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(unknown);
+    // A payload encoding this Host does not know, in a record whose framing is intact.
+    unknown[22] = 0x7f;
+    const reply = try session.exchange(unknown, correlation_id);
+    defer std.testing.allocator.free(reply);
+    try expectTypedFailure(reply, "invalid-envelope", false);
+    try session.expectPingServed();
+
+    finished = true;
+    try session.finish();
+}
+
 test "failed response handoff destroys the broker but preserves retained terminals" {
     const hello_payload = try std.fmt.allocPrint(
         std.testing.allocator,

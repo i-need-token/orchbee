@@ -34,6 +34,7 @@ const Seam = enum(u8) {
 };
 
 const Disposition = enum {
+    commit_and_drop,
     contain_and_retain,
     preserve_for_retry,
     publish_prefix,
@@ -88,7 +89,7 @@ const matrix = [_]Entry{
     entry(.multi_runtime_shutdown, "CS-023", "MultiRuntimeShutdown", .contain_and_retain, .deterministic_interleaving, "src/service/__tests__/runtime_aggregate_cleanup_test.zig", "runtime destruction starts only after every shutdown succeeds"),
     entry(.deferred_start_spawn, "CS-024", "DeferredStartSpawn", .contain_and_retain, .native_boundary, "src/service/__tests__/runtime_aggregate_lifecycle_test.zig", "deferred creation retains launch ownership and failed start stays retryable"),
     entry(.runtime_theme_commit, "CS-025", "RuntimeThemeCommit", .reject_without_commit, .single_owner, "src/service/__tests__/runtime_aggregate_theme_test.zig", "runtime theme failure never commits the semantic theme revision"),
-    entry(.mode_effect_reply_admission, "CS-026", "ModeEffectReplyAdmission", .reject_without_commit, .single_owner, "src/engine/__tests__/runtime_failure_test.zig", "a terminal reply flood that does not fit is dropped and counted and the terminal keeps running"),
+    entry(.mode_effect_reply_admission, "CS-026", "ModeEffectReplyAdmission", .commit_and_drop, .single_owner, "src/engine/__tests__/runtime_failure_test.zig", "a terminal reply flood that does not fit is dropped and counted and the terminal keeps running"),
     entry(.focus_mode_revalidation, "CS-027", "FocusModeRevalidation", .reject_without_commit, .deterministic_interleaving, "src/engine/__tests__/runtime_input_test.zig", "focus mode reports the aggregate immediately and rejects stale preparation"),
     entry(.synchronized_output_deadline_release, "CS-028", "SynchronizedOutputDeadlineRelease", .preserve_for_retry, .deterministic_interleaving, "src/engine/__tests__/runtime_state_test.zig", "synchronized output suppresses capture only until its monotonic deadline"),
     entry(.mouse_input_epoch_retirement, "CS-029", "MouseInputEpochRetirement", .reject_without_commit, .deterministic_interleaving, "src/engine/__tests__/runtime_input_test.zig", "mouse input epoch rejects stale preparation and retires only unstarted hover"),

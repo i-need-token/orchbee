@@ -14,9 +14,10 @@ pub const file_name = "host-diagnostics.jsonl";
 pub const max_file_bytes: u32 = 256 * 1024;
 /// A dispatch turn longer than this is recorded.
 pub const slow_turn_threshold_ns: u64 = 250 * std.time.ns_per_ms;
-/// Each slow-turn kind and the dropped-reply count are recorded at most once per window.
+/// Each slow-turn kind, the dropped-reply count, and accept failures are recorded at most once
+/// per window.
 pub const rate_window_ns: u64 = 60 * std.time.ns_per_s;
-const max_line_bytes = 256;
+const max_line_bytes = 320;
 const rate_slots = 32;
 
 /// One dispatch turn: a Worker request of the given message kind, or one pass of event delivery.
@@ -43,6 +44,8 @@ var slow_turns: [rate_slots]?RateSlot = @splat(null);
 var dropped_replies = std.atomic.Value(u64).init(0);
 var recorded_dropped_replies: u64 = 0;
 var dropped_recorded_at_ns: ?u64 = null;
+var accept_recorded_at_ns: ?u64 = null;
+var suppressed_accept_failures: u64 = 0;
 
 /// Arms the log in `runtime_directory`, which this Host must already hold exclusively.
 pub fn arm(runtime_directory: []const u8) void {
@@ -51,22 +54,54 @@ pub fn arm(runtime_directory: []const u8) void {
     path = record_file.Path.init(runtime_directory, file_name);
 }
 
-/// Records an accept failure the serve loop survives: the Host's own error name, the operating
-/// system's code where the platform keeps one, and the wait before the next attempt.
-pub fn acceptFailure(error_name: []const u8, system_code: ?u32, retry_after_ms: u32) void {
+/// An accept failure the serve loop survives.
+pub const AcceptFailure = struct {
+    /// The Host's own error name.
+    error_name: []const u8,
+    /// The accept's operating-system code, where the platform keeps one.
+    system_code: ?u32,
+    /// The code of a failed endpoint replacement; null when it was replaced or never attempted.
+    renew_system_code: ?u32,
+    /// The wait before the next attempt.
+    retry_after_ms: u32,
+};
+
+/// Records an accept failure, at most once per window; a line counts the failures since the
+/// previous line that were not written, so a failing endpoint cannot fill the log.
+pub fn acceptFailure(failure: AcceptFailure) void {
     if (path == null) return;
+    // Without a clock every failure is written; the file's own bound still holds.
+    const now = nowNs();
+    if (now) |current| {
+        if (accept_recorded_at_ns) |recorded_at| {
+            if (current -| recorded_at < rate_window_ns) {
+                suppressed_accept_failures +|= 1;
+                return;
+            }
+        }
+    }
     var buffer: [max_line_bytes]u8 = undefined;
-    const name = if (isIdentifier(error_name)) error_name else "Unnamed";
-    const line = (if (system_code) |code| std.fmt.bufPrint(
-        &buffer,
-        "{{\"time_unix_ms\":{d},\"event\":\"accept-failure\",\"error\":\"{s}\",\"system_code\":{d},\"retry_after_ms\":{d}}}\n",
-        .{ record_file.unixMilliseconds(), name, code, retry_after_ms },
-    ) else std.fmt.bufPrint(
-        &buffer,
-        "{{\"time_unix_ms\":{d},\"event\":\"accept-failure\",\"error\":\"{s}\",\"system_code\":null,\"retry_after_ms\":{d}}}\n",
-        .{ record_file.unixMilliseconds(), name, retry_after_ms },
-    )) catch return;
-    writeLine(line);
+    var writer: std.Io.Writer = .fixed(&buffer);
+    const name = if (isIdentifier(failure.error_name)) failure.error_name else "Unnamed";
+    writer.print(
+        "{{\"time_unix_ms\":{d},\"event\":\"accept-failure\",\"error\":\"{s}\",\"system_code\":",
+        .{ record_file.unixMilliseconds(), name },
+    ) catch return;
+    writeOptionalCode(&writer, failure.system_code) catch return;
+    writer.writeAll(",\"renew_system_code\":") catch return;
+    writeOptionalCode(&writer, failure.renew_system_code) catch return;
+    writer.print(
+        ",\"retry_after_ms\":{d},\"suppressed\":{d}}}\n",
+        .{ failure.retry_after_ms, suppressed_accept_failures },
+    ) catch return;
+    accept_recorded_at_ns = now;
+    suppressed_accept_failures = 0;
+    writeLine(writer.buffered());
+}
+
+fn writeOptionalCode(writer: *std.Io.Writer, code: ?u32) std.Io.Writer.Error!void {
+    if (code) |value| return writer.print("{d}", .{value});
+    return writer.writeAll("null");
 }
 
 /// Error names come from the Host's own code; anything else is dropped rather than written.

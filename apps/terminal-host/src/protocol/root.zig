@@ -109,6 +109,7 @@ pub const validateTerminalRowWindow = row_window_codec.validateTerminalRowWindow
 
 pub const validateTransportEnvelope = envelope.validateTransportEnvelope;
 pub const transportRecordLength = envelope.transportRecordLength;
+pub const transportRecordFramedLength = envelope.transportRecordFramedLength;
 pub const encodeTransportEnvelope = envelope.encodeTransportEnvelope;
 pub const transportEnvelopeLength = envelope.transportEnvelopeLength;
 pub const transportEnvelopeAllocationLength = envelope.transportEnvelopeAllocationLength;

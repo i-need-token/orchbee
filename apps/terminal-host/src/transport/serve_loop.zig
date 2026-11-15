@@ -51,21 +51,34 @@ pub fn serveUntilIdleLoop(
         service.maintain();
         if (service.canStopWhenIdle()) return;
         // Terminals are retained from here on, so no accept failure may end the Host.
-        _ = server.serveOneBefore(service, connection.poll_interval_ms) catch |err| {
+        const accepted = server.serveOneBefore(service, connection.poll_interval_ms) catch |err| {
             if (recoverable_failure(err)) continue;
             const delay_ms = backoff.take();
-            diagnostic_log.acceptFailure(@errorName(err), systemCode(server), delay_ms);
-            if (@hasDecl(@TypeOf(server.*), "renewAfterAcceptFailure")) server.renewAfterAcceptFailure();
+            // Read before the renewal, which records its own code in the same place.
+            const system_code = systemCode(server);
+            diagnostic_log.acceptFailure(.{
+                .error_name = @errorName(err),
+                .system_code = system_code,
+                .renew_system_code = renew(server),
+                .retry_after_ms = delay_ms,
+            });
             waitMaintaining(service, delay_ms);
             continue;
         };
-        backoff.reset();
+        // An accept that only timed out says nothing about the endpoint's health.
+        if (accepted) backoff.reset();
     }
 }
 
 fn systemCode(server: anytype) ?u32 {
     if (!@hasDecl(@TypeOf(server.*), "lastSystemCode")) return null;
     return server.lastSystemCode();
+}
+
+/// Replaces the endpoint where the platform can; the system code of a failed replacement, or null.
+fn renew(server: anytype) ?u32 {
+    if (!@hasDecl(@TypeOf(server.*), "renewAfterAcceptFailure")) return null;
+    return server.renewAfterAcceptFailure();
 }
 
 /// Waits `delay_ms` in maintenance-sized steps, ending early once the Host may stop.
