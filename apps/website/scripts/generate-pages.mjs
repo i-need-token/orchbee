@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import { fileURLToPath } from 'node:url';
 
@@ -11,6 +12,19 @@ const { renderPage, WEBSITE_PAGES } = await import(
 );
 const LOCALES = ['en-US', 'zh-CN'];
 const shell = await readFile(new URL('index.html', output), 'utf8');
+
+// The published script only activates prerendered markup, so it stays small. A build over budget
+// almost always means an activation imported a build-time-only package or the renderer.
+const SCRIPT_BUDGET_BYTES = 128_000;
+const scripts = new URL('static/js/', output);
+let scriptBytes = 0;
+for (const entry of await readdir(scripts, { recursive: true, withFileTypes: true }))
+	if (entry.isFile() && entry.name.endsWith('.js'))
+		scriptBytes += (await stat(path.join(entry.parentPath, entry.name))).size;
+if (scriptBytes > SCRIPT_BUDGET_BYTES)
+	throw new Error(
+		`The published script is ${scriptBytes} bytes, over its budget of ${SCRIPT_BUDGET_BYTES}. An activation probably imports a build-time-only package (such as @orchbee/terminal) or the renderer; keep those in components that render at build time and pass their results to the page as data.`,
+	);
 const { origin } = renderPage('en-US', 'home');
 function escape(value) {
 	return value
