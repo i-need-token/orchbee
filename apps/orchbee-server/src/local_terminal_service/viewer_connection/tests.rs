@@ -913,6 +913,171 @@ fn explicit_takeover_transfers_cleanup_and_old_connection_cannot_dispatch_effect
     }
 }
 
+/// A host-rejected input or paste may have reached the Host, and the Worker has already released
+/// that controller: the Server forgets the grant and its claim at once, so the viewer's next input
+/// is refused without reaching the Worker, nothing is replayed, and another viewer may acquire.
+#[test]
+fn host_rejected_input_or_paste_forgets_the_grant_and_frees_the_terminal() {
+    use orchbee_capability_node_protocol::{
+        ControlRejection, TerminalControlAction as WAction, TerminalControlOutcome as WOutcome,
+        TerminalControlResult,
+    };
+    use orchbee_client_server_protocol::{
+        ControlInput, ControlRejectedReason, PasteContent, TerminalControlAction as CAction,
+        TerminalControlOutcome as COutcome, TerminalControlRequest,
+    };
+    fn run<'a>(
+        service: &'a LocalTerminalService,
+        viewer: &mut ViewerAttachment<'a>,
+        action: CAction,
+    ) -> COutcome {
+        super::super::controller_connection::execute(
+            service,
+            Some(viewer),
+            &TerminalControlRequest::new(
+                RequestId::parse("99999999999999999999999999999999").unwrap(),
+                action,
+            ),
+        )
+    }
+    for paste in [false, true] {
+        let service = service();
+        let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
+        let handle = carrier.request_handle();
+        assert!(matches!(
+            service.workers.lock().unwrap().admit(WORKER_ID, None),
+            crate::worker_registry::WorkerAdmission::Accepted { .. }
+        ));
+        let owner =
+            WorkerRegistry::register_carrier(&service.workers, NonZeroU64::MIN, carrier).unwrap();
+        let (server, mut peer) = UnixStream::pair().unwrap();
+        peer.set_read_timeout(Some(std::time::Duration::from_secs(2)))
+            .unwrap();
+        let (checks_done, checks_finished) = channel::<()>();
+        thread::scope(|scope| {
+            let server_thread = scope.spawn(move || owner.run(server));
+            let worker = scope.spawn(move || {
+                // The first grant, the rejected input, that grant's release, the other viewer's
+                // grant and, at teardown, its release.
+                let mut seen = Vec::new();
+                for _ in 0..5 {
+                    let CapabilityNodeMessage::TerminalControlRequest(request) =
+                        read_message(&mut peer).unwrap()
+                    else {
+                        panic!("expected control")
+                    };
+                    let (kind, outcome) = match request.action {
+                        WAction::Acquire => ("acquire", WOutcome::Acquired),
+                        WAction::Input { .. } => {
+                            ("input", WOutcome::Rejected(ControlRejection::HostRejected))
+                        }
+                        WAction::Paste { .. } => {
+                            ("paste", WOutcome::Rejected(ControlRejection::HostRejected))
+                        }
+                        WAction::Release => ("release", WOutcome::Released),
+                        _ => panic!("unexpected control action"),
+                    };
+                    seen.push((kind, request.viewer_id, request.controller_id));
+                    write_message(
+                        &mut peer,
+                        &CapabilityNodeMessage::TerminalControlResult(TerminalControlResult {
+                            request_id: request.request_id,
+                            viewer_id: request.viewer_id,
+                            controller_id: request.controller_id,
+                            outcome,
+                        }),
+                    )
+                    .unwrap();
+                }
+                let _finished = checks_finished.recv();
+                seen
+            });
+            let mut old = viewer(&service, handle.clone());
+            let mut new = viewer(&service, handle.clone());
+            let new_viewer = OperationId::from_bytes([20; 16]).unwrap();
+            new.attachment_id = ViewerId::parse(&format!(
+                "{:032x}",
+                u128::from_be_bytes(new_viewer.as_bytes())
+            ))
+            .unwrap();
+            new.cleanup.as_mut().unwrap().attachment_id = new_viewer;
+            let acquire = CAction::Acquire {
+                attachment_id: old.attachment_id.clone(),
+            };
+            let COutcome::Acquired { controller_id } = run(&service, &mut old, acquire) else {
+                panic!("first grant")
+            };
+            let effect = |sequence| {
+                if paste {
+                    CAction::Paste {
+                        attachment_id: old.attachment_id.clone(),
+                        controller_id: controller_id.clone(),
+                        sequence,
+                        content: PasteContent::new(b"paste".to_vec()).unwrap(),
+                    }
+                } else {
+                    CAction::Input {
+                        attachment_id: old.attachment_id.clone(),
+                        controller_id: controller_id.clone(),
+                        sequence,
+                        bytes: ControlInput::new(b"ls".to_vec()).unwrap(),
+                    }
+                }
+            };
+            let first = effect(NonZeroU64::MIN);
+            let next = effect(NonZeroU64::new(2).unwrap());
+            assert_eq!(
+                run(&service, &mut old, first),
+                COutcome::Rejected {
+                    reason: ControlRejectedReason::HostRejected
+                }
+            );
+            assert!(old.controller.is_none());
+            assert!(service.controllers.lock().unwrap().is_empty());
+            assert_eq!(
+                run(&service, &mut old, next),
+                COutcome::Rejected {
+                    reason: ControlRejectedReason::NotController
+                }
+            );
+            let acquire = CAction::Acquire {
+                attachment_id: new.attachment_id.clone(),
+            };
+            assert!(matches!(
+                run(&service, &mut new, acquire),
+                COutcome::Acquired { .. }
+            ));
+            // These manually seeded viewers have no Host viewing attachment; only controller
+            // cleanup is exercised.
+            old.cleanup = None;
+            new.cleanup = None;
+            drop(old);
+            drop(new);
+            assert!(service.controllers.lock().unwrap().is_empty());
+            drop(checks_done);
+            let seen = worker.join().unwrap();
+            let kinds: Vec<_> = seen
+                .iter()
+                .map(|(kind, viewer, _)| (*kind, *viewer))
+                .collect();
+            let old_viewer = OperationId::from_bytes([2; 16]).unwrap();
+            assert_eq!(
+                kinds,
+                [
+                    ("acquire", old_viewer),
+                    (if paste { "paste" } else { "input" }, old_viewer),
+                    ("release", old_viewer),
+                    ("acquire", new_viewer),
+                    ("release", new_viewer),
+                ]
+            );
+            // The release ends the very grant the input was refused under.
+            assert_eq!(seen[2].2, seen[0].2);
+            let _exit = server_thread.join().unwrap();
+        });
+    }
+}
+
 #[cfg(windows)]
 mod pane_graphics;
 #[cfg(windows)]

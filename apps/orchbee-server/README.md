@@ -605,7 +605,11 @@ remains occupied until generation-pinned cleanup completes or that Worker become
 cleanup admission uses the existing bounded request queue, with no lock held across I/O. A stale
 cleanup cannot clear a new grant. A failed Host exchange ends the Worker connection, and the Server
 reports an unknown control outcome after complete delivery; a contradictory Host answer refuses only
-that request as `HostRejected` and releases the grant. No other viewer is promoted.
+that request as `HostRejected` and releases the grant. Because such an input or paste may have
+reached the Host and the Worker has already released its grant, the Server forgets that viewer's
+lease on a `HostRejected` input, semantic input or paste, which also frees its reservation: the
+viewer's next input meets `NotController` without reaching the Worker, nothing is replayed, and a
+Client that wants control acquires it anew. No other viewer is promoted.
 Explicit takeover now follows the [controller takeover model](docs/terminal-controller-takeover.md):
 Pending reservations fence both competing takeover and stale effects; the candidate owns old/new
 cleanup until acknowledged transfer. Independent release while retaining the Viewer remains later work.

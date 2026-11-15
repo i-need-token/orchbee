@@ -372,7 +372,21 @@ pub(super) fn execute<'service>(
                     }
                 }
             }
-            WorkerOutcome::Rejected(reason) => rejected(worker_rejection(reason)),
+            WorkerOutcome::Rejected(reason) => {
+                // The Worker answers an intact but contradictory input answer as host-rejected
+                // and releases that controller, and the input may have reached the Host. The lease
+                // goes with it: the viewer's next input meets NotController instead of a grant
+                // that is gone, and nothing is replayed.
+                if reason == ControlRejection::HostRejected
+                    && matches!(
+                        request.action(),
+                        Action::Input { .. } | Action::Paste { .. } | Action::SemanticInput { .. }
+                    )
+                {
+                    viewer.controller.take();
+                }
+                rejected(worker_rejection(reason))
+            }
             WorkerOutcome::Pasted { accepted_bytes } => {
                 match orchbee_client_server_protocol::PasteAcceptedBytes::new(accepted_bytes.get())
                 {
