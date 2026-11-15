@@ -392,7 +392,10 @@ lifecycle outcome variants. Viewer results additionally match the attachment ide
 action/outcome kind. A request that failed while the connection kept serving is recorded as
 `worker-request-failed`. The owner remembers the last eight such requests: a reply that echoes one
 of them, whether it arrives while another request waits or between requests, is dropped and
-recorded as a late `worker-reply-dropped`, never taken as another request's result. Between
+recorded as a late `worker-reply-dropped`, never taken as another request's result. The current
+Worker ends its session if it sees the next request while it still runs a failed one, so
+containment reaches it only as the [failure scope](docs/worker-carrier-model.md#failure-scope)
+describes. Between
 requests the Worker may only hint or note; any other whole frame is dropped and recorded, and only
 bytes that do not begin a frame, or a frame that stops arriving, retire the connection. Dropping
 the whole registry requests private shutdown but cannot admit a replacement; the owner's queue wake

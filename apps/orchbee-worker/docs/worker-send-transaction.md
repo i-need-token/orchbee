@@ -47,7 +47,11 @@
   answer that contradicts the stage: another message, an echo mismatch or a
   bound violation), `*Malformed` (envelope contract violation), `*Lost`
   (EOF/write failure/step deadline), `*LocalFault` (pre-write, or no room left
-  in the request), and `ServerLost`/`CarrierLost` peer events. An intact answer
+  in the request), and `ServerLost`/`CarrierLost` peer events. `ServerLost*`
+  also stands for a Server request observed during the send: the Server may
+  write its next request behind one it stopped waiting for, and the Worker
+  treats it as Server loss and ends the session, so the next send never starts
+  behind this one and no input is resent. An intact answer
   never retires the carrier: `AttachDesync` refuses the send and `InputDesync`
   settles it unknown, and both detach the attachment (`detach-pending`), as
   `InputLocalFault` does. At detach, `DetachRefused` confirms cleanup like

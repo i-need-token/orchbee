@@ -109,7 +109,12 @@ is incomplete, an in-flight `Required` completion cannot be delivered, or a `Han
 `Shutdown` fails, since both belong to the generation. The owner remembers the last eight requests
 that failed while the wire kept serving; a later reply that echoes one is dropped and recorded,
 whether it arrives during another exchange or while idle, so it never stands in for another
-request's result.
+request's result. The current Worker reads no request until it has delivered the previous result
+and ends its session when it observes one written earlier, as its
+[request loop](../../orchbee-worker/README.md#integrated-authorized-request-loop) states. A request
+dispatched while the Worker still runs a failed one therefore retires the carrier once the Worker
+sees it; a failed request stays contained at the Worker only when its late reply arrives before the
+next request is written.
 
 ## Drain and tombstone
 

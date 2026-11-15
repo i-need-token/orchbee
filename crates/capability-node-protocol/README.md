@@ -576,44 +576,14 @@ Its streaming helpers borrow a caller-owned `Read` or `Write` only for one frame
 socket, buffer, connection, or phase state.
 Unix-domain sockets, same-user peer credentials, executable cohort, the `OBLW` admission handshake,
 remote transport, encryption, and connection state machines belong to carrier adapters and their
-own protocols. The current local Server adapter owns a capacity-one submitted slot behind at most
-one wire request, serializes complete request/result exchanges, validates exact correlation and
-echoed authorization, and distinguishes failures before and after a complete request write. It
-does not map OBCS, synthesize semantic outcomes, retry, or reconcile. Server owns local terminal authorization and
-reconciliation; a Capability Node adapter owns explicit mapping to its Worker
-admission identity and Terminal Host protocol. This crate depends on neither protocol.
+own protocols; the Server's [Local Worker service](../../apps/orchbee-server/README.md#local-worker-service)
+describes its adapter. Server owns local terminal authorization and reconciliation; a Capability
+Node adapter owns explicit mapping to its Worker admission identity and Terminal Host protocol. This
+crate depends on neither protocol.
 
-For the current adapter, an attached generation remains registered until its sole wire owner has
-settled or conservatively abandoned the current exchange and drained the submitted slot. Only then
-does a lifetime guard remove that exact generation, so no replacement overlaps an old write or
-exact-result publication. Normal return, completion-receiver loss, thread-spawn failure, and panic
-unwinding follow the same ordering. Abandonment after a complete write remains a typed carrier-level
-post-delivery unknown; the adapter does not manufacture an OBCN result.
+## Authorization evidence
 
-## Checked authorization model
-
-The model permits one outstanding request and one pending-result slot. Worker loss before
-admission, after admission, and after Host handoff is checked separately and always occupies that
-empty slot with an unknown result. A replacement Worker generation is not activated until that
-pending loss observation is settled, so reconnection cannot make the current unknown result appear
-stale. Start acceptance separately explores `Started` and `AlreadyStarted`. Once an admitted
-operation has a terminal result, the model caches its exact outcome, Host epoch, and transition. An
-exact replay returns that cache without a new Host effect—including after lease expiry—so a
-rejection, failure, or unknown result can never be manufactured into success.
-
-The only fairness condition settles a pending result while Server remains connected. It does not
-require any healthy connection to fail and does not promise automatic reconnection, authorization,
-or terminal recovery. The model is bounded to two operation IDs, two distinct lease identities, and
-two Worker generations, fences, and Host epochs. Its deterministic fence-to-operation-and-lease
-mapping is a state-space symmetry reduction, not a runtime derivation rule; a checked no-revival
-property prevents an expired accepted lease from becoming valid again without replacing that
-binding. `FreshOperation` is the one-retained-terminal projection of the global Server producer
-invariant and remains in force across modeled Worker reconnection because current authority and Host
-effects are retained. The model does not enumerate the cross-terminal and cross-Worker namespace or
-a successor Server-authority transition. Future runtime adapters require separate refinement
-evidence.
-
-Worker authorization/capacity implementation tests cover below-limit admission, the full threshold, rejection of a new identity, occupied-slot priority, result clearing, cached replay, higher-fence replacement only after the global slot is empty, rejection preservation and classification priority. Production retains exactly 1,024 bindings per Worker generation, with no release, TTL, LRU or eviction path; explicit retirement remains required before production. This sampled implementation evidence replaces the separate bounded capacity model and is not an exhaustive proof over all 1,024 entries.
+No TLA+ model checks this authorization. Worker authorization/capacity implementation tests cover below-limit admission, the full threshold, rejection of a new identity, occupied-slot priority, result clearing, cached replay, higher-fence replacement only after the global slot is empty, rejection preservation and classification priority. Production retains exactly 1,024 bindings per Worker generation, with no release, TTL, LRU or eviction path; explicit retirement remains required before production. This sampled implementation evidence replaces the separate bounded capacity model and is not an exhaustive proof over all 1,024 entries.
 
 ## Verification
 
