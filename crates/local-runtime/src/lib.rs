@@ -35,7 +35,9 @@ pub use release_store::{
     is_release_version_directory, release_store_root,
 };
 mod automatic_updates;
-pub use automatic_updates::{AUTOMATIC_UPDATE_HELPER, automatic_updates_live};
+pub use automatic_updates::{
+    AUTOMATIC_UPDATE_HELPER, RELAUNCH_PROTOCOL_VARIABLE, automatic_updates_live,
+};
 mod user_path;
 pub use user_path::{USER_PATH_LIMIT, UserPathError, UserPathOperand, normalize_user_path};
 mod user_settings;

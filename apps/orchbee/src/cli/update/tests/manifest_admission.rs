@@ -89,6 +89,29 @@ fn extensions_unknown_components_and_unknown_connections_are_ignored() {
     }
 }
 
+/// The TUI's join check reads the `client` component's `client-server` range and no other
+/// component's or kind's.
+#[test]
+fn the_client_server_range_comes_from_the_client_component_only() {
+    let range = |release: Release| {
+        release
+            .client_server
+            .map(|range| (range.lowest().get(), range.highest().get()))
+    };
+    assert_eq!(range(parse(&sample()).unwrap()), Some((1, 1)));
+    let wider = with(|value| {
+        value["components"][0]["connections"]["client-server"] =
+            json!({"generations": {"lowest": 2, "highest": 5}});
+    });
+    assert_eq!(range(parse(&wider).unwrap()), Some((2, 5)));
+    let elsewhere = with(|value| {
+        let generations = json!({"generations": {"lowest": 1, "highest": 1}});
+        value["components"][0]["connections"] = json!({"later-link": generations});
+        value["components"][1]["connections"]["client-server"] = generations;
+    });
+    assert_eq!(range(parse(&elsewhere).unwrap()), None);
+}
+
 #[test]
 fn every_bound_admits_its_limit_and_refuses_one_more() {
     let longest_version = format!("1.2.3-{}", "a".repeat(58));

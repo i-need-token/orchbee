@@ -2,6 +2,7 @@
 	"contractVersion": 1,
 	"catalogs": {
 		"workbench": [
+			"workbench.client.update",
 			"workbench.focus.sidebar",
 			"workbench.panel.active.focus-down",
 			"workbench.panel.active.focus-left",

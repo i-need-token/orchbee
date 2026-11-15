@@ -12,9 +12,10 @@ pub(crate) fn tui_started() {
     log_event(LogLevel::Info, "tui-started", &[("version", VERSION)]);
 }
 
-pub(crate) fn tui_exited(outcome: &Result<(), StartupFailure>) {
+pub(crate) fn tui_exited(outcome: &crate::relaunch::TuiOutcome) {
     let (level, outcome) = match outcome {
-        Ok(()) => (LogLevel::Info, "ok"),
+        Ok(None) => (LogLevel::Info, "ok"),
+        Ok(Some(_)) => (LogLevel::Info, "update"),
         Err(failure) => (LogLevel::Error, startup_failure(failure)),
     };
     log_event(

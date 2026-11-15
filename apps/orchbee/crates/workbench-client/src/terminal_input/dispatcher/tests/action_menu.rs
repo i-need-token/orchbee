@@ -11,6 +11,7 @@ mod mouse_controls;
 mod sidebar_overlap;
 mod sidebar_prefix;
 mod tab_drag;
+mod update;
 
 struct Port {
     menu: ActionMenu,
@@ -24,6 +25,8 @@ struct Port {
     drag: Option<crate::workbench_client::input::TabDragSource>,
     arrangements: Vec<orchbee_workbench_protocol::TabConfiguration>,
     settings_capture: bool,
+    /// The Update control and the Session facts a click checks against.
+    update: Option<(crate::release_update::Updater, bool)>,
 }
 
 fn sidebar_context() -> crate::workbench_projection::ClientContextTarget {
@@ -616,6 +619,7 @@ impl Port {
             drag: None,
             arrangements: Vec::new(),
             settings_capture: false,
+            update: None,
         }
     }
     fn arm(&mut self) {
@@ -718,6 +722,15 @@ impl Port {
 }
 
 impl TerminalInputPort for Port {
+    fn switch_to_update(&mut self) -> crate::release_update::UpdateSwitch {
+        self.update.as_mut().map_or(
+            crate::release_update::UpdateSwitch::Unavailable,
+            |(updater, marker)| {
+                updater.switch(*marker, orchbee_connection_handshake::Generation::new(1))
+            },
+        )
+    }
+
     fn surface_action(
         &mut self,
         action: crate::terminal_input::SurfaceAction<'_>,

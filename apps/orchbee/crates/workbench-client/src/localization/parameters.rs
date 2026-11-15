@@ -46,6 +46,10 @@ pub enum Notice {
     PasswordNotSaved,
     /// Go to the Agent that notified found no current Agent card; nothing moved.
     NoNotificationTarget,
+    /// Update found that the active version cannot join this Session yet; nothing switched.
+    UpdateWaiting,
+    /// Update found the control no longer Ready, as after the store moved back; nothing switched.
+    UpdateUnavailable,
     NavigatorChanged,
     NavigatorTooSmall,
     ResizeBusy,

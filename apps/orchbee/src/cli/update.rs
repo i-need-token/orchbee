@@ -35,6 +35,14 @@ use crate::{invocation::OutputFormat, localization::Locale};
 pub(crate) use automatic::run as automatic_update;
 pub(crate) use complete::run as complete_install;
 pub(in crate::cli) use installed::{VerifiedRelease, observe as observe_installation};
+
+/// The `client-server` generations the active release's manifest lists for its `client`
+/// component, for the TUI's join check before an Update switch.
+pub(crate) fn active_client_generations(
+    release: &orchbee_local_runtime::ActiveRelease,
+) -> Option<orchbee_connection_handshake::GenerationRange> {
+    installed::client_generations(&release.directory)
+}
 use orchbee_local_runtime::{
     AdmissionRefusal, CohortArtifact, CommandFailure, CommandOutput, EnvironmentKind,
     RefusalReason, UpdateChannel, environment_kind,

@@ -16,6 +16,9 @@ pub enum ClientAction {
     ToggleTabGroup(orchbee_workbench_protocol::WorkbenchTabGroupId),
     OpenActionMenu,
     OpenSettings,
+    /// Switches this TUI to the newer version the release store names active, keeping every
+    /// terminal; only offered while the Update control is Ready.
+    Update,
     ConfiguredCommand(String),
     EnterCopyMode,
     /// Opens the Find bar over the focused Panel.
@@ -98,7 +101,7 @@ impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
             Self::OpenActionMenu | Self::FocusBusinessSidebar => None,
-            Self::OpenSettings => None,
+            Self::OpenSettings | Self::Update => None,
             Self::EnterCopyMode
             | Self::FindInTerminal
             | Self::CopySelection
@@ -231,6 +234,8 @@ pub enum MenuAction {
     NewWorktree,
     OpenWorktree,
     Settings,
+    /// Shown only while the Update control is Ready; its row carries the control's tooltip.
+    Update,
     Machines,
     Sidebar,
     Navigator,
@@ -334,6 +339,7 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::NewWorktree => Self::NewWorktree,
             MenuAction::OpenWorktree => Self::OpenWorktree,
             MenuAction::Settings => Self::Settings,
+            MenuAction::Update => Self::Update,
             MenuAction::Machines => Self::Machines,
             MenuAction::Sidebar => Self::Sidebar,
             MenuAction::Navigator => Self::Navigator,
@@ -427,6 +433,7 @@ impl MenuAction {
             Self::NewWorktree => ClientAction::RequestWorktreeCreate,
             Self::OpenWorktree => ClientAction::RequestWorktreeOpen,
             Self::Settings => ClientAction::OpenSettings,
+            Self::Update => ClientAction::Update,
             Self::Machines => ClientAction::OpenMachines,
             Self::Sidebar => ClientAction::ToggleBusinessSidebar,
             Self::Navigator => ClientAction::OpenWorkbenchNavigator,

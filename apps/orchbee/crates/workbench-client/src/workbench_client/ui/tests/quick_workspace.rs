@@ -325,6 +325,7 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                     retirement_redraw_pending: false,
                     origin: None,
                     recovery_shutdown: None,
+                    updater: None,
                 };
                 let mut view = ClientView::new(width);
                 let transition = view.decide_action(ClientAction::CreateTab);

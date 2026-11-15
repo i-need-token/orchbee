@@ -191,6 +191,13 @@ impl LocalClientOrigin {
             .as_ref()
             .map(|connection| connection.capabilities())
     }
+    /// The `client-server` generation the Session's handshake answer chose on the promoted
+    /// connection's current carrier; a reconnect replaces it. `None` without a promoted connection.
+    pub fn session_generation(&self) -> Option<orchbee_connection_handshake::Generation> {
+        self.multiplex
+            .as_ref()
+            .map(|connection| connection.negotiated_generation())
+    }
 
     pub fn lane_before(
         &self,

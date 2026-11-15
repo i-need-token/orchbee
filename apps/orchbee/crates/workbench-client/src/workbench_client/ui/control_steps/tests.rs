@@ -252,6 +252,7 @@ fn decoded_local_input_reaches_pending_focus_before_terminal_routing() {
                 retirement_redraw_pending: false,
                 origin: None,
                 recovery_shutdown: None,
+                updater: None,
             };
             let mut view = crate::client_view::ClientView::new(120);
             InputDispatcher::default()

@@ -222,7 +222,8 @@ enum Run {
 }
 
 /// Runs `[--session <name>] server start --format json` with the store's Client, which inherits
-/// this process's environment unchanged, so it selects the same Session. It gets no console window,
+/// this process's environment, so it selects the same Session, except the relaunch protocol's
+/// variable, which no process a Client starts receives. It gets no console window,
 /// null standard input and error, a bounded standard output, and the system folder as its working
 /// folder, since a Session it starts outlives this Client.
 fn run(client: &Path, explicit: Option<&str>, deadline: Instant) -> Run {
@@ -241,6 +242,7 @@ fn run(client: &Path, explicit: Option<&str>, deadline: Instant) -> Run {
     }
     command
         .args(["server", "start", "--format", "json"])
+        .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
         .current_dir(directory)
         .stdin(Stdio::null())
         .stdout(writer)

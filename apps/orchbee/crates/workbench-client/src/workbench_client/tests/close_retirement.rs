@@ -91,6 +91,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         retirement_redraw_pending: false,
         origin: Some(origin),
         recovery_shutdown: None,
+        updater: None,
     };
     assert!(spin_with_draw(
         &mut workbench_client,

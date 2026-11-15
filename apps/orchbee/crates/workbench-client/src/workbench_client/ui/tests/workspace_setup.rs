@@ -436,6 +436,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                     retirement_redraw_pending: false,
                     origin: None,
                     recovery_shutdown: None,
+                    updater: None,
                 };
                 let mut view = ClientView::new(width);
                 let action = match entry {

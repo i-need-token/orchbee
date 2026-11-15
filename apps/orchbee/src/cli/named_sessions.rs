@@ -10,7 +10,6 @@ use crate::cli_text::CliText;
 use crate::{
     invocation::{NamedSessionCommand, OutputFormat, ServerStopCommand},
     localization::Locale,
-    presentation::ProcessResult,
 };
 use orchbee_connection_handshake::ProcessState;
 use orchbee_local_client_protocol::ConnectClientError;
@@ -38,17 +37,7 @@ pub(crate) fn run(command: &NamedSessionCommand, format: OutputFormat, locale: L
     }
     match command {
         NamedSessionCommand::Attach { mouse, .. } => {
-            match crate::local_startup::run(locale, *mouse) {
-                Ok(()) => super::process_result(
-                    ProcessResult {
-                        status: 0,
-                        stdout: "",
-                        stderr: "",
-                    },
-                    locale,
-                ),
-                Err(failure) => super::startup_failure(&failure, locale),
-            }
+            crate::relaunch::tui_output(&crate::local_startup::run(locale, *mouse), locale)
         }
         NamedSessionCommand::Stop { name, command } => {
             if let ServerStopCommand::Stop { confirm, .. } = command

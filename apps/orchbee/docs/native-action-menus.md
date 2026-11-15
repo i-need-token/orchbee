@@ -167,6 +167,20 @@ leaving, quit and exit (退出 and 关闭 in Chinese), so search finds it withou
 This differs from closing a Panel, Tab or Workspace; the existing detach/reconnect behavior and
 confirmation policy remain unchanged.
 
+The global Update row, identity `workbench.client.update` as in the window, has no default key and
+appears only while the
+[Update control](../../../proposals/platform/automatic-updates.md#the-update-control) is Ready:
+the release store, read every ten seconds, names a version newer than this Client active, on Windows
+in a test or release build that the automatic-update switch admits. Its row carries the control's
+sentence, Update · Switch to Orchbee {version}. Terminals keep running. Choosing it checks that the
+new version joins the running Session: the Session's answer lists `compatibility-window` and the
+active manifest's `client` component lists the `client-server` generation this connection
+negotiated. When it joins, the TUI restores the console and exits, with status `75` to an
+announcing [launcher](../../orchbee-launcher/README.md#relaunch-protocol) and otherwise with `0`
+and one line naming the command that opens that version. When it does not, nothing switches and
+the status line says the update applies when no terminal is running; a row chosen after the store
+moved back says there is no update to switch to.
+
 Each displayed chord occupies a separate right-aligned slot after the navigation track and localized
 label, with at least one blank cell between the label and chord. The chord remains complete;
 constrained rows truncate the label first and omit the whole chord only when the remaining row cannot

@@ -2,6 +2,7 @@
 //! bytes a compiled key verified, or an earlier verified installation stored, reach this parser.
 use super::signature::TrustedManifest;
 use crate::release_store::valid_release_path;
+use orchbee_connection_handshake::{ConnectionKind, Generation, GenerationRange};
 use orchbee_local_runtime::UpdateChannel;
 use orchbee_release_records::{
     check_extensions, closed_object, lowercase_sha256, parse_object, valid_version,
@@ -40,6 +41,8 @@ pub(super) struct Release {
     pub version: String,
     pub build_id: String,
     pub files: Vec<Artifact>,
+    /// The `client-server` generations the `client` component lists, when it lists that kind.
+    pub client_server: Option<GenerationRange>,
 }
 pub(super) struct Artifact {
     pub path: String,
@@ -80,7 +83,7 @@ impl Release {
         let version = semantic_version(object.get("version")?)?;
         let build_id = label(object.get("buildId")?)?;
         let files = files(object.get("files")?)?;
-        components(object.get("components")?, &files)?;
+        let client_server = components(object.get("components")?, &files)?;
         Some(Self {
             encoded: bytes.to_vec(),
             channel,
@@ -88,6 +91,7 @@ impl Release {
             version,
             build_id,
             files,
+            client_server,
         })
     }
 }
@@ -152,25 +156,31 @@ fn files(value: &Value) -> Option<Vec<Artifact>> {
 }
 
 /// Checks every known component strictly and skips unknown ones. A missing entry imposes nothing.
-fn components(value: &Value, files: &[Artifact]) -> Option<()> {
+/// Answers the `client` component's `client-server` generations, when it lists them.
+fn components(value: &Value, files: &[Artifact]) -> Option<Option<GenerationRange>> {
     let array = value.as_array()?;
     if array.len() > COMPONENT_LIMIT {
         return None;
     }
     let mut ids = BTreeSet::new();
+    let mut client_server = None;
     for value in array {
         let id = token(value.as_object()?.get("id")?, 64, false)?;
         if !ids.insert(id) {
             return None;
         }
         if KNOWN_COMPONENTS.contains(&id) {
-            component(value, files)?;
+            let connections = component(value, files)?;
+            if id == "client" {
+                client_server = connections;
+            }
         }
     }
-    Some(())
+    Some(client_server)
 }
 
-fn component(value: &Value, files: &[Artifact]) -> Option<()> {
+/// Answers the component's `client-server` generations, when it lists that kind.
+fn component(value: &Value, files: &[Artifact]) -> Option<Option<GenerationRange>> {
     let object = closed_object(
         value,
         &["id", "version", "files", "connections"],
@@ -199,27 +209,28 @@ fn component(value: &Value, files: &[Artifact]) -> Option<()> {
 
 /// Each connection kind with its generation range. Kinds this build does not know are validated
 /// and ignored, as unknown components are, so a later connection never makes older updaters refuse.
-fn connections(object: &Map<String, Value>) -> Option<()> {
+/// Answers the `client-server` range, when listed.
+fn connections(object: &Map<String, Value>) -> Option<Option<GenerationRange>> {
     if object.len() > CONNECTION_LIMIT {
         return None;
     }
+    let mut client_server = None;
     for (kind, value) in object {
         name(kind, 64, false)?;
         let entry = closed_object(value, &["generations"], &[])?;
         let range = closed_object(entry.get("generations")?, &["lowest", "highest"], &[])?;
         let lowest = generation(range.get("lowest")?)?;
         let highest = generation(range.get("highest")?)?;
-        if lowest > highest {
-            return None;
+        let range = GenerationRange::new(lowest, highest).ok()?;
+        if kind == ConnectionKind::ClientServer.name() {
+            client_server = Some(range);
         }
     }
-    Some(())
+    Some(client_server)
 }
 
-fn generation(value: &Value) -> Option<u64> {
-    value
-        .as_u64()
-        .filter(|generation| (1..=65_535).contains(generation))
+fn generation(value: &Value) -> Option<Generation> {
+    Generation::new(u16::try_from(value.as_u64()?).ok()?)
 }
 
 /// A channel token this updater knows: `stable` or `preview`.

@@ -46,7 +46,14 @@ as above and sets no variable. The npm launcher follows the same rule on Windows
   most three times in ten seconds; a fourth request inside that time ends the launcher with `1`, so
   no status outside the CLI exit codes reaches the caller.
 - Status `76`: the Client could not join its Session. It uses it in place of the startup failure
-  `1` it ends with without a launcher, so a caller still reads `1` once the launcher ends.
+  `1` it ends with without a launcher, so a caller still reads `1` once the launcher ends. Only the
+  TUI's two failures that speak against its version count: its cohort check fails, or the running
+  Session is older than it can join. A console, deadline, environment, or connection failure stays
+  `1`, so it never sends the person back a version.
+- The Client keeps the variable from every process it starts where its spawner can: on Unix, and
+  for the store Client's `server start`. A Windows Server started directly inherits it, because the
+  safe process creation this repository uses cannot pass a changed environment; the parent check
+  keeps that copy inert.
 - After every start, the first one or a relaunch, the launcher tells a failed start or join from a
   normal exit by status alone: no process started, status `76`, Rust's panic status `101`, or an
   error-severity `NTSTATUS` other than `STATUS_CONTROL_C_EXIT` is a failure; every other status,

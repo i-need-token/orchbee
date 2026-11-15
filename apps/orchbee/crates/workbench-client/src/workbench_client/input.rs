@@ -406,6 +406,12 @@ pub trait TerminalInputPort {
     ) -> crate::client_view::notifications::TargetOpening {
         crate::client_view::notifications::TargetOpening::Unavailable
     }
+
+    /// Runs a click on Update: leave for the active version, wait for the Session to move, or
+    /// refuse because the control is no longer Ready. The default has no control.
+    fn switch_to_update(&mut self) -> crate::release_update::UpdateSwitch {
+        crate::release_update::UpdateSwitch::Unavailable
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]

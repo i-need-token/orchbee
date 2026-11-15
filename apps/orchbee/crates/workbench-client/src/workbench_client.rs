@@ -136,6 +136,8 @@ pub struct WorkbenchClient {
     retirement_redraw_pending: bool,
     origin: Option<crate::local_client::LocalClientOrigin>,
     recovery_shutdown: Option<connection::RecoveryShutdown>,
+    /// The Update control; only a local TUI that the application gave a manifest reader has one.
+    updater: Option<crate::release_update::Updater>,
 }
 
 impl WorkbenchClient {
@@ -373,6 +375,7 @@ impl WorkbenchClient {
             retirement_redraw_pending: false,
             origin: Some(origin),
             recovery_shutdown: None,
+            updater: None,
         })
     }
 
@@ -415,6 +418,18 @@ impl WorkbenchClient {
         self.tick_with_client_capture(crate::tui_composition::ClientCaptureClaims::default())
     }
 
+    /// Gives this TUI its Update control, which watches the release store from now on.
+    pub fn offer_updates(&mut self, updater: crate::release_update::Updater) {
+        self.updater = Some(updater);
+    }
+
+    /// Whether a click on Update chose to leave for a newer version.
+    pub fn leaves_for_update(&self) -> bool {
+        self.updater
+            .as_ref()
+            .is_some_and(|updater| updater.departure().chosen())
+    }
+
     pub fn tick_with_client_capture(
         &mut self,
         client_capture: crate::tui_composition::ClientCaptureClaims,
@@ -426,6 +441,7 @@ impl WorkbenchClient {
         let changed = match &mut self.backend {
             ClientBackend::Native(native) => native.tick_with_client_capture(client_capture),
         };
+        let changed = self.update_tick() || changed;
         let changed = if position_failed {
             if let Some(native) = self.backend.native_mut() {
                 native.report_position_notice(false);
@@ -436,6 +452,24 @@ impl WorkbenchClient {
         };
         self.finalize_native_retirement();
         std::mem::take(&mut self.retirement_redraw_pending) || changed
+    }
+
+    /// Mirrors a changed Update control into the action menu's offer.
+    fn update_tick(&mut self) -> bool {
+        let Some(updater) = self.updater.as_mut() else {
+            return false;
+        };
+        if !updater.tick() {
+            return false;
+        }
+        let version = match updater.control() {
+            crate::release_update::UpdateControl::Ready { version } => Some(version.clone()),
+            crate::release_update::UpdateControl::Absent => None,
+        };
+        if let Some(native) = self.backend.native_mut() {
+            native.observe_update(version);
+        }
+        true
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -859,6 +893,14 @@ impl WorkbenchClient {
 }
 
 impl TerminalInputPort for WorkbenchClient {
+    fn switch_to_update(&mut self) -> crate::release_update::UpdateSwitch {
+        let Some(updater) = self.updater.as_mut() else {
+            return crate::release_update::UpdateSwitch::Unavailable;
+        };
+        let (marker, negotiated) = crate::release_update::session_facts(self.origin.as_ref());
+        updater.switch(marker, negotiated)
+    }
+
     fn open_notification_target(
         &mut self,
         target: &crate::machine_agents::Target,

@@ -820,6 +820,10 @@ impl WorkbenchClientUi {
             // The action opens only the Agent card shown now; without one it is irrelevant.
             actions.retain(|action| *action != MenuAction::OpenNotificationTarget);
         }
+        if self.update_version.is_none() {
+            // The switch exists only while a newer version is active.
+            actions.retain(|action| *action != MenuAction::Update);
+        }
         let project_choices = if matches!(entry, MenuTarget::WorkspaceProjects(_)) {
             let Some(choices) = state.and_then(|state| sidebar::project_choices(state, &target))
             else {
@@ -970,6 +974,8 @@ impl WorkbenchClientUi {
                 .iter()
                 .find(|(command, _)| *command == id)
                 .and_then(|(_, name)| name.clone()),
+            // The renderer turns the version into the row's tooltip sentence.
+            MenuAction::Update => self.update_version.clone(),
             _ => None,
         });
         if tab_profiles {

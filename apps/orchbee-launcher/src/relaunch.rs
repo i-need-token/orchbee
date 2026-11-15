@@ -9,7 +9,7 @@ mod tests;
 /// The variable through which the launcher announces the protocol to every Client it starts: the
 /// launcher's own process id in decimal. A Client uses the protocol's statuses only when that process
 /// is its parent, so a stale inherited value does nothing.
-pub(crate) const PROTOCOL_VARIABLE: &str = "ORCHBEE_RELAUNCH_V1";
+pub(crate) use orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE as PROTOCOL_VARIABLE;
 
 /// The Client restored the console and asks to be started again on the store's active version.
 const RELAUNCH: i32 = 75;

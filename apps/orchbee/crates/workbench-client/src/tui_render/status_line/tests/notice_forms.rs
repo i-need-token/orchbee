@@ -294,6 +294,8 @@ fn every_client_notice() -> Vec<Notice> {
         Notice::UnknownPrefix,
         Notice::PointerInputDropped,
         Notice::PasswordNotSaved,
+        Notice::UpdateWaiting,
+        Notice::UpdateUnavailable,
     ];
     all.extend(
         [
@@ -382,7 +384,9 @@ fn every_client_notice() -> Vec<Notice> {
             | Notice::NavigationInputHeld
             | Notice::UnknownPrefix
             | Notice::PointerInputDropped
-            | Notice::PasswordNotSaved => {}
+            | Notice::PasswordNotSaved
+            | Notice::UpdateWaiting
+            | Notice::UpdateUnavailable => {}
         }
     }
     all

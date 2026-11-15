@@ -182,6 +182,7 @@ fn expiration_after_blocking_restoration_closes_the_candidate() -> TestResult {
         finish_admission(
             stream,
             generation,
+            orchbee_connection_handshake::Generation::new(1).unwrap(),
             orchbee_connection_handshake::CapabilitySet::default(),
             deadline
         ),

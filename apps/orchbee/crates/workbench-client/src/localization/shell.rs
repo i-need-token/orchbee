@@ -446,6 +446,12 @@ impl Locale {
             (Self::ZhCn, Some(Notice::PasswordNotSaved)) => "没能保存密码。",
             (Self::EnUs, Some(Notice::NoNotificationTarget)) => "No Agent notification",
             (Self::ZhCn, Some(Notice::NoNotificationTarget)) => "没有智能体通知",
+            (Self::EnUs, Some(Notice::UpdateWaiting)) => {
+                "This update applies when no terminal is running."
+            }
+            (Self::ZhCn, Some(Notice::UpdateWaiting)) => "此更新将在没有终端运行时生效。",
+            (Self::EnUs, Some(Notice::UpdateUnavailable)) => "No update to switch to.",
+            (Self::ZhCn, Some(Notice::UpdateUnavailable)) => "没有可切换的更新。",
             (Self::EnUs, Some(Notice::PointerInputDropped)) => "Couldn't handle the click.",
             (Self::ZhCn, Some(Notice::PointerInputDropped)) => "没能处理这次点击。",
             (Self::EnUs, Some(Notice::NavigatorChanged)) => "Couldn't go there.",
@@ -532,6 +538,8 @@ impl Locale {
             | Notice::MachineRefused(_)
             | Notice::PasswordNotSaved
             | Notice::NoNotificationTarget
+            | Notice::UpdateWaiting
+            | Notice::UpdateUnavailable
             | Notice::NavigatorChanged
             | Notice::ResizeBusy
             | Notice::ResizeFailed

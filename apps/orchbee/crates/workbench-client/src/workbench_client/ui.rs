@@ -1532,6 +1532,9 @@ pub(super) struct WorkbenchClientUi {
     /// Whether the `ClientView` card announces an Agent now; composition writes it from that
     /// owner's answer on every automatic-notification tick.
     notification_target: bool,
+    /// The version the Update control offers while it is Ready; composition writes it on every
+    /// tick from the release store watcher.
+    update_version: Option<String>,
     menus: action_menus::MenuEpisode,
     /// The installed configured commands the global menu lists, from the applied key profile,
     /// each with the Server's name for it.
@@ -1740,6 +1743,7 @@ impl WorkbenchClientUi {
             viewer_recovery: viewer_recovery::ViewerRecovery::default(),
             retirement_failure: None,
             notification_target: false,
+            update_version: None,
             retirement_finalized: false,
             retirement: None,
             retired_mailbox_seed: None,
@@ -3242,7 +3246,8 @@ impl WorkbenchClientUi {
             | ClientAction::PreviousAgent
             | ClientAction::NextAgent
             | ClientAction::FocusAgent(_)
-            | ClientAction::OpenNotificationTarget => ClientActionDisposition::KeepNavigator,
+            | ClientAction::OpenNotificationTarget
+            | ClientAction::Update => ClientActionDisposition::KeepNavigator,
             ClientAction::RequestWorktreeCreate => self.request_worktree(WorktreeMode::Create),
             ClientAction::RequestWorktreeOpen => self.request_worktree(WorktreeMode::Open),
             ClientAction::RequestQuickWorkspace | ClientAction::RequestWorkspaceCreate => {

@@ -511,6 +511,7 @@ pub(super) fn workbench_client_with_identity(
             retirement_redraw_pending: false,
             origin: Some(origin),
             recovery_shutdown: None,
+            updater: None,
         },
         mailbox,
     ))

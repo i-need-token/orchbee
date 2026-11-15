@@ -336,6 +336,7 @@ fn a_viewer_with_stale_host_focus_claims_the_size_from_raw_focus_click_or_key() 
             retirement_redraw_pending: false,
             origin: None,
             recovery_shutdown: None,
+            updater: None,
         };
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(120);

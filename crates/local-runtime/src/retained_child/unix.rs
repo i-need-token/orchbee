@@ -17,9 +17,11 @@ impl RetainedChild {
         arguments: &[&std::ffi::OsStr],
     ) -> io::Result<Self> {
         // The child outlives the activating Client, so it keeps none of that Client's directories
-        // busy or reachable, such as a Worktree the person later removes or unmounts.
+        // busy or reachable, such as a Worktree the person later removes or unmounts. Nor does it
+        // receive the relaunch protocol's variable, which only a launcher's own Client may read.
         let child = std::process::Command::new(executable)
             .args(arguments)
+            .env_remove(crate::RELAUNCH_PROTOCOL_VARIABLE)
             .current_dir("/")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())

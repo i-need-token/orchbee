@@ -182,6 +182,11 @@ impl WorkbenchClientUi {
         self.notification_target = visible;
     }
 
+    /// Mirrors the version the Update control offers, for the action menu's offer.
+    pub(in crate::workbench_client) fn observe_update(&mut self, version: Option<String>) {
+        self.update_version = version;
+    }
+
     pub(in crate::workbench_client) fn take_agent_notification(
         &mut self,
         locale: crate::localization::Locale,

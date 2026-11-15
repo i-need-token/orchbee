@@ -29,6 +29,7 @@ pub(crate) use machines::{MachineControlLabel, SidebarPlacementLabel};
 mod navigator;
 mod notification;
 mod presentation;
+mod release_update;
 mod tab_menu;
 pub(crate) use presentation::RecoveryVerb;
 pub(crate) use tab_menu::TabMenuScope;

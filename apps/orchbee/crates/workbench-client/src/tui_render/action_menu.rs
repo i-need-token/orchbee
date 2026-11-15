@@ -1480,6 +1480,11 @@ fn action_label(
             format!("{text} {separator} {name}")
         };
     }
+    if let (MenuAction::Update, Some(version)) = (action, label) {
+        // The row carries the control's tooltip sentence, naming the version it switches to.
+        let sentence = locale.update_tooltip(&sanitize_terminal_text(version));
+        return format!("{text} {separator} {sentence}");
+    }
     let text = if let Some(label) = label {
         let label = if matches!(action, MenuAction::JoinWorkspaceProject(_)) {
             crate::machine_discovery::display_label(label)

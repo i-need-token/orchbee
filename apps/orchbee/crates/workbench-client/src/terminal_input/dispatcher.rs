@@ -2353,6 +2353,10 @@ impl InputDispatcher {
             self.cancel_pointer(port);
         }
         let applied = action.clone().and_then(|action| {
+            // The switch is this dispatcher's exit, not a Workbench change.
+            if action == ClientAction::Update {
+                return Some(ClientActionDisposition::KeepNavigator);
+            }
             // Without an Agent card the action has nothing to open and leaves every surface as is.
             if action == ClientAction::OpenNotificationTarget
                 && view.notifications.agent_card().is_none()
@@ -2397,6 +2401,15 @@ impl InputDispatcher {
         );
         let opened = action == Some(ClientAction::OpenNotificationTarget)
             && self.open_notification_target(view, port);
+        if action == Some(ClientAction::Update) {
+            let switch = port.switch_to_update();
+            if switch == crate::release_update::UpdateSwitch::Leave {
+                // The port kept the version; the TUI restores the console and exits for it.
+                self.cancel_pointer(port);
+                return Ok(DispatchOutcome::Exit);
+            }
+            view.update_refused(switch);
+        }
         if action == Some(ClientAction::FocusBusinessSidebar) {
             self.sidebar_packet = true;
             self.keys.capture_pending();

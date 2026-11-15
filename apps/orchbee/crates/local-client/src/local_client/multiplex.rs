@@ -1,6 +1,6 @@
 //! The sole TUI connection owner. Lanes submit complete records and never own a Server socket.
 use super::LocalClientOrigin;
-use orchbee_connection_handshake::CapabilitySet;
+use orchbee_connection_handshake::{CapabilitySet, Generation};
 use orchbee_local_client_protocol::ClientConnection;
 use orchbee_local_ipc::{AsLocalIo, LocalIo, LocalStream, PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
@@ -14,7 +14,7 @@ use std::{
     num::NonZeroU64,
     sync::{
         Arc, Mutex, OnceLock,
-        atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU8, AtomicU16, AtomicU64, AtomicUsize, Ordering},
     },
     thread::{self, JoinHandle},
     time::{Duration, Instant},
@@ -373,6 +373,8 @@ struct Shared {
     generation: AtomicU64,
     /// The capabilities the current carrier's handshake answer listed; a reconnect replaces them.
     capabilities: Mutex<CapabilitySet>,
+    /// The `client-server` generation the current carrier's answer chose; a reconnect replaces it.
+    negotiated: AtomicU16,
     budget: Arc<AtomicUsize>,
     streams: Arc<AtomicUsize>,
     current_until: Mutex<Option<Instant>>,
@@ -546,6 +548,7 @@ impl Connection {
             stopped: AtomicBool::new(false),
             generation: AtomicU64::new(connection.generation().get()),
             capabilities: Mutex::new(connection.capabilities().clone()),
+            negotiated: AtomicU16::new(connection.negotiated_generation().get()),
             // The control reservation is part of, not additional to, the public connection cap.
             budget: Arc::new(AtomicUsize::new(health::RESERVED_BYTES)),
             streams: Arc::new(AtomicUsize::new(health::RESERVED_STREAMS)),
@@ -589,6 +592,11 @@ impl Connection {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .contains(capability)
+    }
+    /// The `client-server` generation the current carrier's handshake answer chose.
+    pub(super) fn negotiated_generation(&self) -> Generation {
+        Generation::new(self.shared.negotiated.load(Ordering::Acquire))
+            .expect("an admitted answer names a nonzero generation")
     }
     /// The capabilities the current carrier's handshake answer listed.
     pub(super) fn capabilities(&self) -> CapabilitySet {
@@ -928,6 +936,9 @@ fn actor(
                     shared
                         .generation
                         .store(next.generation().get(), Ordering::Release);
+                    shared
+                        .negotiated
+                        .store(next.negotiated_generation().get(), Ordering::Release);
                     next.capabilities().clone_into(
                         &mut shared
                             .capabilities

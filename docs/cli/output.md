@@ -112,6 +112,10 @@ every failure kind and terminal result to exactly one code, and the mapping is t
 - Codes not in the table are reserved and unreachable, except the source-stage interruption
   exits: a declared `terminal send` input source interrupted inside its materialization window
   exits `128 + signo` — 129, 130, 131, or 143 — on the `orchbee.cli.failure.source` envelope.
+- Statuses `75` and `76` exist only under the
+  [relaunch protocol](../../apps/orchbee-launcher/README.md#relaunch-protocol), between a launcher
+  and the Client it started and announced the protocol to. Both launchers map them back to `1`, `76`
+  always and `75` past the relaunch limit, so no caller of a launcher receives either.
 - The `orchbee.cli.failure.source` envelope is a machine document only: it is written to
   standard output solely under `--format json`. Under `text` a source failure writes nothing
   to standard output, and the localized diagnostic on standard error carries the cause.

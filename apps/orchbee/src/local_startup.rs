@@ -28,7 +28,8 @@ use std::{
 // sessions and the localization routing on their existing path.
 pub(crate) use crate::local_activation::StartupFailure;
 
-pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
+/// Runs the TUI until it closes, answering the version a click on Update left for.
+pub(crate) fn run(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
     #[cfg(windows)]
     if local_activation::inside_selected_session().map_err(|_| StartupFailure::Runtime)? {
         return Err(StartupFailure::AlreadyInSession);
@@ -47,7 +48,7 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
         Some(dimensions) if startup_presentable_area(dimensions).is_some() => dimensions,
         _ => match await_geometry(&inherited, locale, deadline) {
             StartupWait::Available(dimensions) => dimensions,
-            StartupWait::Cancelled => return Ok(()),
+            StartupWait::Cancelled => return Ok(None),
             StartupWait::TimedOut => return Err(StartupFailure::TimedOut),
             StartupWait::Fault(error) => return Err(failure(error, StartupFailure::Terminal)),
         },
@@ -117,6 +118,11 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     }
     ready?;
     workbench_client.finish_local_startup();
+    let updater = crate::release_update::Updater::start(Box::new(
+        crate::cli::update::active_client_generations,
+    ));
+    let departure = updater.departure();
+    workbench_client.offer_updates(updater);
     drop(progress);
     tui_shell::run_prepared(
         locale,
@@ -126,7 +132,8 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
         mouse,
         notice,
     )
-    .map_err(|_| StartupFailure::Interface)
+    .map_err(|_| StartupFailure::Interface)?;
+    Ok(departure.take())
 }
 
 fn await_geometry(inherited: &InheritedTerminal, locale: Locale, deadline: Instant) -> StartupWait {

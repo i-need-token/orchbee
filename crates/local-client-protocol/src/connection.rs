@@ -2,7 +2,9 @@
 //! control request. Each attempt owns its candidate stream until failure or transfer; callers
 //! retain the offer, deadline, endpoint, cancellation arbitration and service-lifecycle policy.
 
-use orchbee_connection_handshake::{CANDIDATE_DEADLINE, CapabilitySet, Offer, Rejection};
+use orchbee_connection_handshake::{
+    CANDIDATE_DEADLINE, CapabilitySet, Generation, Offer, Rejection,
+};
 use orchbee_local_ipc::LocalStream as UnixStream;
 #[cfg(windows)]
 use orchbee_local_ipc::{AsLocalIo, LocalIo};
@@ -143,6 +145,8 @@ mod admission_deadline;
 #[derive(Debug)]
 pub struct ClientConnection {
     generation: std::num::NonZeroU64,
+    /// The `client-server` generation the Server's answer chose for this connection.
+    negotiated: Generation,
     /// The capabilities the Server's answer listed for this connection.
     capabilities: CapabilitySet,
     stream: UnixStream,
@@ -187,12 +191,13 @@ impl ClientConnection {
         require_same_effective_user(&stream)?;
         stream.set_read_timeout(Some(CANDIDATE_DEADLINE))?;
         stream.set_write_timeout(Some(CANDIDATE_DEADLINE))?;
-        let capabilities = handshake::offer(&mut stream, offer)?;
+        let (negotiated, capabilities) = handshake::offer(&mut stream, offer)?;
         let generation = handshake::enter_client_phase(&mut stream)?;
         stream.set_read_timeout(None)?;
         stream.set_write_timeout(None)?;
         Ok(Self {
             generation,
+            negotiated,
             capabilities,
             stream,
         })
@@ -201,6 +206,12 @@ impl ClientConnection {
     #[must_use]
     pub const fn generation(&self) -> std::num::NonZeroU64 {
         self.generation
+    }
+
+    /// The `client-server` generation the Server's answer chose: the highest both sides support.
+    #[must_use]
+    pub const fn negotiated_generation(&self) -> Generation {
+        self.negotiated
     }
 
     /// The capabilities both this Client and the Server listed in the handshake. A request that

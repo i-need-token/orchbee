@@ -43,6 +43,7 @@ mod machines;
 mod native_settings;
 mod notifications;
 mod pane_canvas;
+mod release_update;
 mod session_capabilities;
 mod sidebar_width;
 mod startup_directory;
@@ -326,6 +327,13 @@ pub mod application {
         pub use crate::notifications::paint::render;
         pub use crate::notifications::system::{SystemNotifications, sound};
         pub use crate::workbench_client::notification_available as available;
+    }
+
+    pub mod release_update {
+        pub use crate::release_update::{
+            ClientGenerations, Departure, Launcher, RELAUNCH_STATUS, UpdateDeparture, Updater,
+            depart,
+        };
     }
 
     pub mod terminal_content {

@@ -13,6 +13,7 @@ mod invocation;
 mod local_startup;
 mod native_path;
 mod presentation;
+mod relaunch;
 mod release_store;
 mod startup_wait;
 mod tui_backend;
@@ -34,6 +35,7 @@ use orchbee_workbench_client::application::machine_refusal;
 use orchbee_workbench_client::application::machine_spaces;
 use orchbee_workbench_client::application::machines;
 use orchbee_workbench_client::application::notifications;
+use orchbee_workbench_client::application::release_update;
 use orchbee_workbench_client::application::terminal_copy;
 use orchbee_workbench_client::application::terminal_device;
 use orchbee_workbench_client::application::terminal_graphics;
@@ -130,10 +132,7 @@ fn main() -> ExitCode {
         diagnostic_events::tui_started();
         let outcome = local_startup::run(locale, *mouse);
         diagnostic_events::tui_exited(&outcome);
-        return match outcome {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(failure) => emit(cli::startup_failure(&failure, locale), locale),
-        };
+        return emit(relaunch::tui_output(&outcome, locale), locale);
     }
     emit(
         match parsed {

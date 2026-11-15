@@ -295,6 +295,8 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         }
         A::RemoveWorktree => built_in("orchbee.native.worktree.remove", C::Workspace, WORKTREE),
         A::Settings => built_in("workbench.settings.open", C::Application, PREFERENCES),
+        // Shares the window's identity: the same switch to the active version.
+        A::Update => built_in("workbench.client.update", C::Client, NONE),
         A::Machines => built_in("orchbee.native.machines.open", C::Navigation, NONE),
         A::Sidebar => built_in("workbench.sidebar.toggle", C::Navigation, SIDEBAR),
         A::Navigator => built_in(

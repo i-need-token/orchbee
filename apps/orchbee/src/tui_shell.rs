@@ -504,10 +504,13 @@ fn run_prepared_surface(
     .map_err(LoopFailure::into_io_error);
     let cleanup =
         settle_background_exit(&mut surface, machines.as_mut(), &mut system_notifications);
+    // Leaving for a newer version is not a detach: the launcher starts that version, or the
+    // application names the command that does.
+    let leaves_for_update = surface.active().leaves_for_update();
     let detach_notice = run_result
         .as_ref()
         .ok()
-        .filter(|completion| completion.exit == LoopExit::User)
+        .filter(|completion| completion.exit == LoopExit::User && !leaves_for_update)
         .map(|completion| completion.locale.tui_detached(&completion.return_command));
     if run_result.is_err() {
         // BufWriter's drop may retry buffered bytes. Fence incomplete frame
@@ -1521,6 +1524,11 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         true
     }
 
+    /// Whether the user exit leaves for a newer version, which names its own next step.
+    fn leaves_for_update(&self) -> bool {
+        false
+    }
+
     fn client_control_tick(
         &mut self,
         _view: &mut ClientView,
@@ -1570,6 +1578,9 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::workbench_client::WorkbenchClient {
+    fn leaves_for_update(&self) -> bool {
+        crate::workbench_client::WorkbenchClient::leaves_for_update(self)
+    }
     fn navigate_agent(
         &mut self,
         target: &crate::machine_agents::Target,

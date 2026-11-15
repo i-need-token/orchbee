@@ -5,6 +5,7 @@ use super::{
     signature::{MANIFEST_LIMIT, TrustedManifest},
 };
 use crate::release_store::{open_release_file, read_pointer, version_directory_parts};
+use orchbee_connection_handshake::GenerationRange;
 use orchbee_local_runtime::{Cohort, CohortArtifact, UpdateChannel};
 use orchbee_release_records::{Entry, Pointer};
 use sha2::{Digest, Sha256};
@@ -33,36 +34,10 @@ pub(in crate::cli) fn observe(
     let Some(root) = executable.parent() else {
         return Err(());
     };
-    let file = match open_release_file(root, "release.json") {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(_) => return Err(()),
+    let Some(release) = bound_release(root)? else {
+        return Ok(None);
     };
-    let mut bytes = Vec::new();
-    if file
-        .take(MANIFEST_LIMIT as u64 + 1)
-        .read_to_end(&mut bytes)
-        .is_err()
-    {
-        return Err(());
-    }
-    // The store pointer, checked below, binds these bytes to the verified installation.
-    let Some(release) = Release::parse(TrustedManifest::installed(&bytes), &own_platform()) else {
-        return Err(());
-    };
-    let Some((store, directory)) = version_directory_parts(root) else {
-        return Err(());
-    };
-    let entry = Entry {
-        product: release.version.clone(),
-        manifest: release.identity.clone(),
-    };
-    let bound = read_pointer(store)
-        .ok()
-        .flatten()
-        .and_then(|bytes| Pointer::parse(&bytes))
-        .is_some_and(|pointer| pointer.names(&entry));
-    if !bound || directory != release.version || release.version != version {
+    if release.version != version {
         return Err(());
     }
     for artifact in [
@@ -102,4 +77,48 @@ pub(in crate::cli) fn observe(
         build_id: release.build_id,
         manifest: release.identity,
     }))
+}
+
+/// The `client-server` generations the `client` component of the active release in `directory`
+/// lists; `None` when its manifest is missing, does not parse, or the store pointer does not name it.
+pub(in crate::cli) fn client_generations(directory: &Path) -> Option<GenerationRange> {
+    bound_release(directory).ok()??.client_server
+}
+
+/// The release whose `release.json` lies in the version folder `root`, when the store pointer names
+/// those bytes and the folder is named after its version; `None` without a manifest.
+fn bound_release(root: &Path) -> Result<Option<Release>, ()> {
+    let file = match open_release_file(root, "release.json") {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(()),
+    };
+    let mut bytes = Vec::new();
+    if file
+        .take(MANIFEST_LIMIT as u64 + 1)
+        .read_to_end(&mut bytes)
+        .is_err()
+    {
+        return Err(());
+    }
+    // The store pointer, checked below, binds these bytes to the verified installation.
+    let Some(release) = Release::parse(TrustedManifest::installed(&bytes), &own_platform()) else {
+        return Err(());
+    };
+    let Some((store, directory)) = version_directory_parts(root) else {
+        return Err(());
+    };
+    let entry = Entry {
+        product: release.version.clone(),
+        manifest: release.identity.clone(),
+    };
+    let bound = read_pointer(store)
+        .ok()
+        .flatten()
+        .and_then(|bytes| Pointer::parse(&bytes))
+        .is_some_and(|pointer| pointer.names(&entry));
+    if !bound || directory != release.version {
+        return Err(());
+    }
+    Ok(Some(release))
 }

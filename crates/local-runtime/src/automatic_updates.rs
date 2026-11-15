@@ -8,6 +8,12 @@ use crate::{EnvironmentKind, environment_kind};
 /// update. Its spelling never changes; a changed helper takes a new name.
 pub const AUTOMATIC_UPDATE_HELPER: &str = "--automatic-update-v1";
 
+/// The variable through which a launcher announces the relaunch protocol to the Client it starts:
+/// the launcher's own process id in decimal. A Client uses the protocol's statuses only when that
+/// process is its parent, so a value another process inherits does nothing. Its spelling never
+/// changes.
+pub const RELAUNCH_PROTOCOL_VARIABLE: &str = "ORCHBEE_RELAUNCH_V1";
+
 /// Whether release builds run automatic updates. While it is false, a release build neither shows
 /// nor runs any automatic-update behavior. The npm launcher keeps the same value as
 /// `automaticUpdatesInReleaseBuilds`, and a change sets both.
