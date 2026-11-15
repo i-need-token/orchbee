@@ -1166,6 +1166,19 @@
 	--ob-ref-color-website-terminal-input: #2a2a2a;
 	--ob-ref-color-website-terminal-line: #4e4e4e;
 	--ob-ref-color-website-terminal-row-selection: #2d2d2d;
+	--ob-ref-color-website-tray-backdrop-bottom: #0f0e0b;
+	--ob-ref-color-website-tray-backdrop-top: #17150f;
+	--ob-ref-color-website-tray-menu-current: #3b3b3b;
+	--ob-ref-color-website-tray-menu-disabled: #8f8f8f;
+	--ob-ref-color-website-tray-menu-rule: #3f3f3f;
+	--ob-ref-color-website-tray-menu-text: #f2f2f2;
+	--ob-ref-color-website-tray-notice-text: #c9c9c9;
+	--ob-ref-color-website-tray-surface: #2b2b2b;
+	--ob-ref-color-website-tray-taskbar: #1c1c1c;
+	--ob-ref-color-website-tray-taskbar-current: #333333;
+	--ob-ref-color-website-tray-taskbar-edge: #2e2e2e;
+	--ob-ref-color-website-tray-taskbar-glyph: #cfcfcf;
+	--ob-ref-color-website-tray-taskbar-text: #e4e4e4;
 	--ob-ref-color-website-white: #ffffff;
 	--ob-sys-color-website-bg: var(--ob-ref-color-website-bg);
 	--ob-sys-color-website-button-hover: var(--ob-ref-color-website-white);
@@ -1207,6 +1220,20 @@
 	--ob-sys-color-website-state-idle: var(--ob-ref-color-website-idle);
 	--ob-sys-color-website-state-working: var(--ob-ref-color-agent-working-dark);
 	--ob-sys-color-website-surface: var(--ob-ref-color-website-surface);
+	--ob-sys-color-website-tray-backdrop-bottom: var(--ob-ref-color-website-tray-backdrop-bottom);
+	--ob-sys-color-website-tray-backdrop-top: var(--ob-ref-color-website-tray-backdrop-top);
+	--ob-sys-color-website-tray-menu-current: var(--ob-ref-color-website-tray-menu-current);
+	--ob-sys-color-website-tray-menu-disabled: var(--ob-ref-color-website-tray-menu-disabled);
+	--ob-sys-color-website-tray-menu-rule: var(--ob-ref-color-website-tray-menu-rule);
+	--ob-sys-color-website-tray-menu-text: var(--ob-ref-color-website-tray-menu-text);
+	--ob-sys-color-website-tray-notice-text: var(--ob-ref-color-website-tray-notice-text);
+	--ob-sys-color-website-tray-notice-title: var(--ob-ref-color-website-white);
+	--ob-sys-color-website-tray-surface: var(--ob-ref-color-website-tray-surface);
+	--ob-sys-color-website-tray-taskbar: var(--ob-ref-color-website-tray-taskbar);
+	--ob-sys-color-website-tray-taskbar-current: var(--ob-ref-color-website-tray-taskbar-current);
+	--ob-sys-color-website-tray-taskbar-edge: var(--ob-ref-color-website-tray-taskbar-edge);
+	--ob-sys-color-website-tray-taskbar-glyph: var(--ob-ref-color-website-tray-taskbar-glyph);
+	--ob-sys-color-website-tray-taskbar-text: var(--ob-ref-color-website-tray-taskbar-text);
 	/* The terminal palette is public so a page can re-theme a drawn terminal by overriding these
 	 * on its window. */
 	--ob-comp-website-terminal-ansi-3: var(--ob-ref-color-website-terminal-ansi-3);
@@ -1283,6 +1310,10 @@
 		var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-note: 400 16px / 1.65 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-note-strong: 500 16px / 1.65 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-ligatures: 400 clamp(15px, 1.7vw, 22px) / 1.7
+		var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-ligatures-compact: 400 13px / 1.7
+		var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-paragraph: 400 15.5px / 1.65 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-rail-body: 400 13.5px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-rail-code: 400 12px / 1 var(--ob-ref-font-family-website-terminal);
@@ -1310,8 +1341,18 @@
 		var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-title-tracking: -0.04em;
 	--ob-sys-typography-website-typed-command: 400 13px / 1 var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-tray-label: 400 11.5px / 1 var(--ob-ref-font-family-website-mono);
+	--ob-sys-typography-website-tray-menu: 400 12.5px / 1 var(--ob-ref-font-family-website-console);
+	--ob-sys-typography-website-tray-notice: 400 12.5px / 1.45
+		var(--ob-ref-font-family-website-console);
+	--ob-sys-typography-website-tray-notice-title: 600 13.5px / 1.45
+		var(--ob-ref-font-family-website-console);
+	--ob-sys-typography-website-tray-taskbar: 400 11.5px / 1.3
+		var(--ob-ref-font-family-website-console);
 	--ob-sys-shadow-website-logo-ring: 0 0 0 1px rgba(248, 247, 244, 0.2);
 	--ob-sys-shadow-website-menu-bar: 0 5px 0 var(--ob-sys-color-website-fg);
+	--ob-sys-shadow-website-tray-menu: 0 0 0 1px #3f3f3f, 0 18px 40px -14px #000000;
+	--ob-sys-shadow-website-tray-notice: 0 0 0 1px #3d3d3d, 0 18px 40px -14px #000000;
 	--ob-sys-shadow-website-window: 0 0 0 1px rgba(248, 247, 244, 0.17), 0 60px 120px -60px #000000;
 	--ob-sys-shadow-website-window-focus:
 		0 0 0 1px var(--ob-sys-color-website-honey), 0 60px 120px -60px #000000;
@@ -1371,6 +1412,7 @@
 	--ob-ref-length-website-measure-44: 44em;
 	--ob-ref-length-website-viewport-height: 100vh;
 	--ob-ref-length-website-1: 1px;
+	--ob-ref-length-website-1-3: 1.3px;
 	--ob-ref-length-website-1-5: 1.5px;
 	--ob-ref-length-website-2: 2px;
 	--ob-ref-length-website-2-5: 2.5px;
@@ -1429,6 +1471,7 @@
 	--ob-ref-length-website-250: 250px;
 	--ob-ref-length-website-262: 262px;
 	--ob-ref-length-website-340: 340px;
+	--ob-ref-length-website-372: 372px;
 	--ob-ref-length-website-400: 400px;
 	--ob-ref-length-website-420: 420px;
 	--ob-ref-length-website-430: 430px;
