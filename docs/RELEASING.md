@@ -40,8 +40,9 @@ repository>`. Print each public half with the command in
    pre-release is `<version>-beta.<n>`.
 2. Optional rehearsal: Actions › Release › Run workflow on `main` with `version` `0.1.0-beta.1`, or
    `gh workflow run release.yml --ref main -f version=0.1.0-beta.1`. It builds, signs and smoke-tests
-   the release identity and publishes nothing. Its artifacts are a different build of the same
-   version: never install them.
+   the release identity on every row with `build` set, macOS rows not yet published included, joins
+   the rows the way a tag run would, and publishes nothing. Its artifacts are a different build of
+   the same version: never install them.
 3. Write the release notes in Markdown in a file outside the repository, with their own headings;
    they follow the generated Install section verbatim. Tag the commit with them and push the tag:
    `git tag -a v0.1.0-beta.1 --cleanup=verbatim -F <notes file>`, then
@@ -143,8 +144,13 @@ Each platform row stages its cohort with `--artifact-stem orchbee` and writes `r
 runner's own token, such as `windows-x86_64` or `macos-aarch64`, never an argument. A Windows
 directory holds `orchbee.exe` and its peers, both launchers and the pinned ConPTY bundle; a macOS
 directory holds `orchbee`, `orchbee-server`, `orchbee-worker` and `orchbee-terminal-host`, the
-adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. Only the Windows row
-builds and publishes today.
+adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. The Windows row builds and
+publishes. The macOS rows build in rehearsals only: a macOS release adds the disk image
+`Orchbee-<version>-macos-<cpu>.dmg`, the `.tar.gz` and its feed document, and the platform package
+`@orchbee/cli-darwin-<cpu>`. To publish them, after a rehearsal in which `release-build-macos`,
+`release-package-macos`, `release-smoke-macos` and `release-join` passed for both rows, set
+`"publish": true` on the `macos-aarch64` and `macos-x86_64` rows of `RELEASE_PLATFORMS` in
+`.github/workflows/release.yml`.
 
 ## What clients rely on
 

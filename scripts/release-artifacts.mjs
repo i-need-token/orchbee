@@ -4,6 +4,7 @@
 //   node scripts/release-artifacts.mjs collect --profile <test|release> --output <absolute new directory>
 //     [--repository-url https://<host>/<owner>/<name>]
 //   node scripts/release-artifacts.mjs check <directory>
+//   node scripts/release-artifacts.mjs join --output <absolute new directory> <directory>...
 //
 // `collect` runs on Windows or macOS and reads what `pnpm desktop:installer:<profile>` (on macOS,
 // `apps/desktop/scripts/package.mjs --installer`) left under apps/desktop/out/<profile>/: the
@@ -51,6 +52,14 @@
 // Linux npm platform package must hold its release the same way under `package/release/`. The
 // release directory's own modes are not checked: a moved copy has lost them. Nothing is published
 // or sent anywhere.
+//
+// `join` gathers the checked directories of a release run's platform rows, each with its feed
+// signature beside the feed, into the one set the run publishes. One row is copied unchanged.
+// Several must carry one stem and version and distinct names, apart from SHA256SUMS and the main npm
+// package `<stem>-<version>.tgz`: the main package's files must be the same in every row but for
+// the optional dependencies its package.json lists, and the joined set holds it once, listing every
+// row's platform package, with SHA256SUMS written again by the rule above. The result must pass
+// `check`.
 //
 // Exit codes: 0 written or intact; 1 a missing, changed or unexpected file; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
@@ -113,9 +122,11 @@ const tarGzipSuffix = '.tar.gz';
 // The npm platform packages whose programs must stay executable, as `npm pack` names them.
 const posixNpmPackage = /-cli-(?:darwin|linux)-(?:arm64|x64)-[^/\\]+\.tgz$/u;
 const npmRelease = 'package/release/';
+const npmManifest = 'package/package.json';
 const usage =
 	'Usage: node scripts/release-artifacts.mjs collect --profile <test|release> --output <absolute new directory> [--repository-url https://<host>/<owner>/<name>]\n' +
-	'       node scripts/release-artifacts.mjs check <directory>';
+	'       node scripts/release-artifacts.mjs check <directory>\n' +
+	'       node scripts/release-artifacts.mjs join --output <absolute new directory> <directory>...';
 
 class UsageError extends Error {}
 
@@ -710,9 +721,139 @@ function collect({ profile, output, repositoryUrl = runRepository() }) {
 	return readdirSync(output).toSorted(byName);
 }
 
+/** `manifest` without its optional dependencies, the one member the rows' main packages differ in. */
+function withoutOptionalDependencies(manifest) {
+	return Object.fromEntries(
+		Object.entries(manifest).filter(([member]) => member !== 'optionalDependencies'),
+	);
+}
+
+/**
+ * The main npm package of several rows, from their own main tarballs: the first one's entries with a
+ * package.json that lists every row's optional dependencies. Every row's package must hold the same
+ * entries with the same modes and bytes, and the same package.json but for those dependencies.
+ */
+function joinedMainPackage(tarballs) {
+	const read = tarballs.map((file) => {
+		const entries = readTarGzip(readFileSync(file));
+		const manifest = entries.find((entry) => entry.path === npmManifest);
+		if (manifest === undefined) throw new Error(`${file} holds no ${npmManifest}`);
+		return { file, entries, manifest: JSON.parse(manifest.bytes.toString('utf8')) };
+	});
+	const [first] = read;
+	const base = JSON.stringify(withoutOptionalDependencies(first.manifest));
+	const listed = new Map();
+	for (const { file, entries, manifest } of read) {
+		const same =
+			entries.length === first.entries.length &&
+			entries.every((entry, index) => {
+				const other = first.entries[index];
+				return (
+					entry.path === other.path &&
+					entry.type === other.type &&
+					entry.mode === other.mode &&
+					(entry.path === npmManifest || entry.bytes.equals(other.bytes))
+				);
+			});
+		if (!same) throw new Error(`${file} holds other files than ${first.file}`);
+		if (JSON.stringify(withoutOptionalDependencies(manifest)) !== base)
+			throw new Error(`${file} has another package.json than ${first.file}`);
+		for (const [name, version] of Object.entries(manifest.optionalDependencies ?? {})) {
+			if (listed.has(name)) throw new Error(`Two rows list the optional dependency ${name}`);
+			listed.set(name, version);
+		}
+	}
+	// The member keeps its place in the document; package-npm.mjs writes it in name order.
+	const manifest = {
+		...first.manifest,
+		optionalDependencies: Object.fromEntries(
+			[...listed].toSorted(([left], [right]) => byName(left, right)),
+		),
+	};
+	const manifestBytes = Buffer.from(`${JSON.stringify(manifest, null, '\t')}\n`);
+	return tarGzip(
+		first.entries.map((entry) =>
+			entry.type === 'directory'
+				? { path: entry.path, directory: true, mode: entry.mode, mtime: entry.mtime }
+				: {
+						path: entry.path,
+						mode: entry.mode,
+						mtime: entry.mtime,
+						bytes: entry.path === npmManifest ? manifestBytes : entry.bytes,
+					},
+		),
+	);
+}
+
+/**
+ * Joins the artifacts directories `rows` of one run, each holding its feed signature, into
+ * `output`, a new directory, and returns its names. One row is copied unchanged. Several must carry
+ * one stem and version, each its own platform, and distinct names apart from SHA256SUMS and the
+ * main npm package; the joined set holds that package once, listing every row's platform package
+ * (`joinedMainPackage`), and SHA256SUMS over its files by the collect rule. The result must pass
+ * `check`.
+ */
+export function joinArtifacts({ output, rows }) {
+	if (!path.isAbsolute(output)) throw new UsageError('The output directory must be absolute');
+	if (existsSync(output)) throw new Error(`Refusing to write into an existing ${output}`);
+	const described = rows.map((directory) => {
+		const releaseDirectory = single(
+			directory,
+			(entry) =>
+				entry.isDirectory() && existsSync(path.join(directory, entry.name, 'release.json')),
+			'release directory',
+		);
+		const version = manifestVersion(releaseDirectory);
+		const { stem, manifest } = readRelease(releaseDirectory, version);
+		return { directory, stem, version, platform: manifest.platform };
+	});
+	const [first] = described;
+	const problems = [];
+	const platforms = new Set();
+	for (const row of described) {
+		if (row.stem !== first.stem || row.version !== first.version)
+			problems.push(
+				`${row.directory} holds ${row.stem} ${row.version}, not ${first.stem} ${first.version}`,
+			);
+		if (platforms.has(row.platform)) problems.push(`Two rows hold ${row.platform}`);
+		platforms.add(row.platform);
+	}
+	const copy = { recursive: true, errorOnExist: true, force: false, verbatimSymlinks: true };
+	const mainName = `${first.stem}-${first.version}.tgz`;
+	const sources = new Map();
+	if (rows.length > 1) {
+		for (const { directory } of described) {
+			for (const name of readdirSync(directory)) {
+				if (name === checksumsName || name === mainName) continue;
+				if (sources.has(name))
+					problems.push(`${sources.get(name)} and ${directory} both hold ${name}`);
+				else sources.set(name, directory);
+			}
+		}
+	}
+	if (problems.length > 0) throw new Error(problems.join('\n'));
+	if (rows.length === 1) {
+		cpSync(first.directory, output, copy);
+	} else {
+		mkdirSync(output, { recursive: true });
+		for (const [name, directory] of sources)
+			cpSync(path.join(directory, name), path.join(output, name), copy);
+		const joined = joinedMainPackage(
+			described.map(({ directory }) => path.join(directory, mainName)),
+		);
+		writeFileSync(path.join(output, mainName), joined, { flag: 'wx' });
+		writeChecksums(output);
+	}
+	const found = checkArtifacts(output);
+	if (found.length > 0) throw new Error(found.join('\n'));
+	return readdirSync(output).toSorted(byName);
+}
+
 function parseArguments(argv) {
 	const [command, ...rest] = argv;
 	if (command === 'check' && rest.length === 1) return { command, directory: rest[0] };
+	if (command === 'join' && rest[0] === '--output' && rest.length >= 3)
+		return { command, output: rest[1], rows: rest.slice(2).map((row) => path.resolve(row)) };
 	if (command === 'collect') {
 		const options = {};
 		for (let index = 0; index < rest.length; index += 2) {
@@ -739,6 +880,8 @@ if (
 		const options = parseArguments(process.argv.slice(2));
 		if (options.command === 'collect') {
 			for (const name of collect(options)) process.stdout.write(`${name}\n`);
+		} else if (options.command === 'join') {
+			for (const name of joinArtifacts(options)) process.stdout.write(`${name}\n`);
 		} else {
 			const problems = checkArtifacts(path.resolve(options.directory));
 			for (const problem of problems) process.stderr.write(`${problem}\n`);

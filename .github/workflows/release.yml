@@ -1,13 +1,16 @@
 name: Release
 
-# Two ways in. Started by hand without a version: the dry run builds every platform row marked
-# `build` with the TEST identity, signs its manifest with the repository's test key, proves the
-# result on fresh runners, and publishes nothing. A pushed tag v<version>, or a manual run naming a
-# version (a rehearsal): the release path builds the rows marked `build` and `publish` with the
-# release identity, signs in the environment `release`, and proves the files on fresh runners. A tag
-# run alone then publishes with no human step: a draft GitHub release whose notes are the annotated
-# tag's message, the npm packages, then the release as Latest, and starts the Update check. A
-# lightweight tag or an empty tag message stops it before the build.
+# Two ways in. Started by hand without a version: the dry run builds every Windows platform row
+# marked `build` with the TEST identity, signs its manifest with the repository's test key, proves
+# the result on fresh runners, and publishes nothing. A pushed tag v<version>, or a manual run naming
+# a version (a rehearsal): the release path builds the rows with the release identity, signs in the
+# environment `release`, proves the files on fresh runners, and joins every row's files into one
+# set. A tag takes the rows marked `build` and `publish`; a rehearsal takes every row marked `build`,
+# so a row is rehearsed before it publishes. A tag run alone then publishes with no human step: a
+# draft GitHub release whose notes are the annotated tag's message, the npm packages, then the
+# release as Latest, and starts the Update check. A lightweight tag or an empty tag message stops it
+# before the build. A rehearsal cannot publish: `release-publish` is the only job with write
+# permissions or the npm token, and it runs only for a `push` event whose plan says `publish`.
 # Contract: docs/VERIFICATION.md#release-workflow; the owner's steps: docs/RELEASING.md.
 on:
   workflow_dispatch:
@@ -30,14 +33,15 @@ concurrency:
 
 env:
   # One row per release platform token. `build` builds, packages and smoke-tests the row on its
-  # runner in the dry run; the release path takes the rows with `build` and `publish`. Only Windows
-  # x64 has build steps today.
+  # runner, in a rehearsal and, for Windows rows, in the dry run; a tag takes the rows with `build`
+  # and `publish`. Windows and macOS rows have jobs. The macOS rows set `publish` once a rehearsal
+  # passed; from then on a macOS failure stops the whole tag.
   RELEASE_PLATFORMS: >-
     [
     {"platform": "windows-x86_64", "runner": "windows-latest", "build": true, "publish": true},
     {"platform": "windows-aarch64", "runner": "windows-11-arm", "build": false, "publish": false},
-    {"platform": "macos-aarch64", "runner": "macos-15", "build": false, "publish": false},
-    {"platform": "macos-x86_64", "runner": "macos-15-intel", "build": false, "publish": false},
+    {"platform": "macos-aarch64", "runner": "macos-15", "build": true, "publish": false},
+    {"platform": "macos-x86_64", "runner": "macos-15-intel", "build": true, "publish": false},
     {"platform": "linux-x86_64", "runner": "ubuntu-24.04", "build": false, "publish": false},
     {"platform": "linux-aarch64", "runner": "ubuntu-24.04-arm", "build": false, "publish": false}
     ]
@@ -52,10 +56,11 @@ jobs:
     outputs:
       build: ${{ steps.rows.outputs.build }}
     steps:
+      # Its jobs build Windows only; a rehearsal proves the macOS rows.
       - name: Select the rows to build
         id: rows
         run: |
-          echo "build=$(jq --compact-output '{include: map(select(.build))}' <<< "$RELEASE_PLATFORMS")" >> "$GITHUB_OUTPUT"
+          echo "build=$(jq --compact-output '{include: map(select(.build and (.platform | startswith("windows-"))))}' <<< "$RELEASE_PLATFORMS")" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build ${{ matrix.platform }}
@@ -239,7 +244,11 @@ jobs:
       tag: ${{ steps.plan.outputs.tag }}
       publish: ${{ steps.plan.outputs.publish }}
       dist-tag: ${{ steps.plan.outputs.dist-tag }}
+      # Every row; the Windows and the macOS rows; whether there is a macOS row.
       matrix: ${{ steps.plan.outputs.matrix }}
+      windows-matrix: ${{ steps.plan.outputs.windows-matrix }}
+      macos-matrix: ${{ steps.plan.outputs.macos-matrix }}
+      macos: ${{ steps.plan.outputs.macos }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -304,7 +313,7 @@ jobs:
     needs: [release-plan, release-preconditions]
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.release-plan.outputs.windows-matrix) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     defaults:
@@ -380,9 +389,114 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # The macOS rows' `release-build`, in bash, with the pinned Zig download and the arocc prefetch of
+  # the Verify job `rust-macos`. The macOS jobs run only when the plan has a macOS row, since a job
+  # with no row fails.
+  release-build-macos:
+    name: Release build ${{ matrix.platform }}
+    needs: [release-plan, release-preconditions]
+    if: needs.release-plan.outputs.macos == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      ORCHBEE_SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install --profile minimal
+          rustc --version
+          cargo --version
+
+      # The same pinned download as the Verify job `rust-macos`.
+      - name: Set up Zig
+        run: |
+          case "$(uname -m)" in
+            arm64)
+              zig_url="https://ziglang.org/download/0.16.0/zig-aarch64-macos-0.16.0.tar.xz"
+              zig_sha256="b23d70deaa879b5c2d486ed3316f7eaa53e84acf6fc9cc747de152450d401489"
+              ;;
+            x86_64)
+              zig_url="https://ziglang.org/download/0.16.0/zig-x86_64-macos-0.16.0.tar.xz"
+              zig_sha256="0387557ed1877bc6a2e1802c8391953baddba76081876301c522f52977b52ba7"
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
+          curl --fail --location --silent --show-error --retry 5 --retry-all-errors "$zig_url" --output "$RUNNER_TEMP/orchbee-zig.tar.xz"
+          echo "$zig_sha256  $RUNNER_TEMP/orchbee-zig.tar.xz" | shasum -a 256 -c
+          mkdir -p "$RUNNER_TEMP/orchbee-zig"
+          tar -xJf "$RUNNER_TEMP/orchbee-zig.tar.xz" --strip-components=1 --directory "$RUNNER_TEMP/orchbee-zig"
+          echo "$RUNNER_TEMP/orchbee-zig" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/orchbee-zig/zig" version
+
+      # Zig's own arocc download fails on macOS runners too; see the Windows step of this name.
+      - name: Prefetch the arocc Zig package
+        working-directory: apps/terminal-host
+        run: |
+          archive="$RUNNER_TEMP/arocc.tar.gz"
+          curl --fail --location --silent --show-error --retry 5 --retry-all-errors 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output "$archive"
+          hash="$(zig fetch "$archive")"
+          if [ "$hash" != 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD' ]; then echo "Unexpected arocc package hash: $hash" >&2; exit 1; fi
+
+      - name: Stage the release cohort
+        run: node scripts/stage-local-runtime.mjs --output "$RUNNER_TEMP/cohort" --artifact-stem orchbee
+
+      - name: Describe the release cohort
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
+          BUILD_ID: ${{ github.sha }}.${{ github.run_number }}
+        run: node scripts/package-native-release.mjs "$RUNNER_TEMP/cohort" stable "$RELEASE_VERSION" "$BUILD_ID"
+
+      # The manifest's platform is the runner's own; an Intel row built on Apple silicon would fail here.
+      - name: Check the platform token
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          token="$(jq -r .platform "$RUNNER_TEMP/cohort/release.json")"
+          if [ "$token" != "$PLATFORM" ]; then echo "The cohort is for $token, not $PLATFORM" >&2; exit 1; fi
+
+      - name: Upload the unsigned cohort
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-cohort-${{ matrix.platform }}
+          path: ${{ runner.temp }}/cohort
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Upload the manifest to sign
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest-${{ matrix.platform }}
+          path: ${{ runner.temp }}/cohort/release.json
+          if-no-files-found: error
+          retention-days: 1
+
+  # Every row's manifest. A family's build counts only when the plan has its rows: a job the plan
+  # leaves out is skipped, and a skipped build of a planned family stops the run here.
   release-sign:
     name: Release sign ${{ matrix.platform }}
-    needs: [release-plan, release-build]
+    needs: [release-plan, release-build, release-build-macos]
+    if: >-
+      ${{ !cancelled() && needs.release-build.result == 'success' &&
+      (needs.release-build-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
@@ -420,12 +534,15 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # From `release-sign` on, every job states the results it needs: GitHub's implied `success()`
+  # also fails for a skipped ancestor, such as the macOS build of a run without macOS rows.
   release-package:
     name: Release package ${{ matrix.platform }}
     needs: [release-plan, release-sign]
+    if: ${{ !cancelled() && needs.release-sign.result == 'success' }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.release-plan.outputs.windows-matrix) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     defaults:
@@ -506,13 +623,92 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
 
+  # The macOS rows' `release-package`, in bash: the Desktop's ad hoc signed application and disk
+  # image from the signed cohort, then the collected artifacts with the `.tar.gz`.
+  release-package-macos:
+    name: Release package ${{ matrix.platform }}
+    needs: [release-plan, release-sign]
+    if: ${{ !cancelled() && needs.release-plan.outputs.macos == 'true' && needs.release-sign.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download the unsigned cohort
+        uses: actions/download-artifact@v4
+        with:
+          name: release-cohort-${{ matrix.platform }}
+          path: ${{ runner.temp }}/cohort
+
+      - name: Download the signature beside it
+        uses: actions/download-artifact@v4
+        with:
+          name: release-signature-${{ matrix.platform }}
+          path: ${{ runner.temp }}/cohort
+
+      # Artifacts keep no file modes; the packaging and the manifest's programs need these four.
+      - name: Restore the programs' executable bit
+        run: |
+          for program in orchbee orchbee-server orchbee-worker orchbee-terminal-host; do
+            chmod +x "$RUNNER_TEMP/cohort/$program"
+          done
+
+      - name: Build the package inputs
+        run: pnpm --filter @orchbee/desktop build:package-inputs
+
+      - name: Build the application and disk image from the signed cohort
+        run: node apps/desktop/scripts/package.mjs --profile release --installer --cohort "$RUNNER_TEMP/cohort"
+
+      - name: Collect the release artifacts
+        run: node scripts/release-artifacts.mjs collect --profile release --output "$RUNNER_TEMP/release-artifacts"
+
+      - name: Upload the release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.platform }}
+          path: ${{ runner.temp }}/release-artifacts
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+
+      - name: Upload the feed to sign
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-feed-${{ matrix.platform }}
+          path: ${{ runner.temp }}/release-artifacts/orchbee-${{ needs.release-plan.outputs.version }}-${{ matrix.platform }}.feed.json
+          if-no-files-found: error
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+
   # Signs the update feed document and the release gate's copy of it, which names the archive by its
-  # file name. Every release-path run signs, so a rehearsal proves this job before a tag does. Like
-  # `release-sign`, it runs only scripts that use Node built-ins. Ed25519 is deterministic, so a
-  # re-run writes the same signatures.
+  # file name, for every row. Every release-path run signs, so a rehearsal proves this job before a
+  # tag does. Like `release-sign`, it runs only scripts that use Node built-ins. Ed25519 is
+  # deterministic, so a re-run writes the same signatures.
   release-feed:
     name: Release feed ${{ matrix.platform }}
-    needs: [release-plan, release-package]
+    needs: [release-plan, release-package, release-package-macos]
+    if: >-
+      ${{ !cancelled() && needs.release-package.result == 'success' &&
+      (needs.release-package-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
@@ -572,9 +768,10 @@ jobs:
   release-smoke:
     name: Release smoke ${{ matrix.platform }} installer
     needs: [release-plan, release-package]
+    if: ${{ !cancelled() && needs.release-package.result == 'success' }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.release-plan.outputs.windows-matrix) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     defaults:
@@ -615,9 +812,10 @@ jobs:
   release-smoke-npm:
     name: Release smoke ${{ matrix.platform }} npm
     needs: [release-plan, release-package]
+    if: ${{ !cancelled() && needs.release-package.result == 'success' }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.release-plan.outputs.windows-matrix) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     defaults:
@@ -649,14 +847,121 @@ jobs:
       - name: Scan for leftovers
         run: node scripts/release-smoke-windows.mjs leftovers "$env:RUNNER_TEMP\release-artifacts"
 
+  # The macOS rows' smoke on fresh runners with those exact files: the disk image, the `.tar.gz`
+  # through `orchbee install`, and the npm route, each in its own scratch HOME.
+  release-smoke-macos:
+    name: Release smoke ${{ matrix.platform }}
+    needs: [release-plan, release-package-macos]
+    if: ${{ !cancelled() && needs.release-plan.outputs.macos == 'true' && needs.release-package-macos.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets-${{ matrix.platform }}
+          path: ${{ runner.temp }}/release-artifacts
+
+      - name: Check the release artifacts
+        run: node scripts/release-artifacts.mjs check "$RUNNER_TEMP/release-artifacts"
+
+      - name: Mount, verify and run the disk image
+        run: node scripts/release-smoke-macos.mjs disk-image "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-disk-image"
+
+      - name: Install and uninstall the archive
+        run: node scripts/release-smoke-macos.mjs archive "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-archive"
+
+      - name: Install, start and uninstall through npm
+        run: node scripts/release-smoke-macos.mjs npm "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-npm"
+
+  # Joins every row's artifacts, each with the feed signature `release-feed` made beside its feed,
+  # into the one set `release-publish` publishes: one row unchanged, several with one main npm
+  # package listing every row's platform package and one SHA256SUMS. A rehearsal runs it too, so it
+  # proves the set a tag with the same rows publishes. No secret, no environment.
+  release-join:
+    name: Release join
+    needs: [release-plan, release-feed]
+    if: ${{ !cancelled() && needs.release-feed.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          path: ${{ runner.temp }}/release
+
+      - name: Download the feed signatures
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-feed-signature-*
+          path: ${{ runner.temp }}/feed-signatures
+
+      # Every row of the plan, each checked with its signature beside the feed; SHA256SUMS does not
+      # list the signature.
+      - name: Check every row and join them
+        env:
+          ROWS: ${{ needs.release-plan.outputs.matrix }}
+        run: |
+          rows=()
+          for platform in $(jq -r '.include[].platform' <<< "$ROWS"); do
+            row="$RUNNER_TEMP/release/release-assets-$platform"
+            cp "$RUNNER_TEMP/feed-signatures/release-feed-signature-$platform/"*.feed.json.sig "$row/"
+            node scripts/release-artifacts.mjs check "$row"
+            rows+=("$row")
+          done
+          node scripts/release-artifacts.mjs join --output "$RUNNER_TEMP/release-joined" "${rows[@]}"
+
+      # A tag run keeps it as long as the row artifacts, for a re-run of the publication.
+      - name: Upload the joined release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-joined
+          path: ${{ runner.temp }}/release-joined
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+
   # Tag runs only, with no approval: cancelling the run before this job starts is the way to stop a
   # release. GitHub first, as a draft; then npm, because a published npm version can never be
   # replaced; then the draft becomes the Latest release, so a failed npm step leaves it a draft.
-  # Run again, the job finishes a partial publication.
+  # Run again, the job finishes a partial publication. The condition names the `push` event as well
+  # as the plan's `publish`, so no manual run reaches it; every needed job must have passed, and the
+  # macOS smoke may be skipped only when the plan has no macOS row.
   release-publish:
     name: Publish ${{ needs.release-plan.outputs.tag }}
-    needs: [release-plan, release-feed, release-smoke, release-smoke-npm]
-    if: needs.release-plan.outputs.publish == 'true'
+    needs: [release-plan, release-join, release-smoke, release-smoke-npm, release-smoke-macos]
+    if: >-
+      ${{ !cancelled() && github.event_name == 'push' && needs.release-plan.outputs.publish == 'true' &&
+      needs.release-join.result == 'success' && needs.release-smoke.result == 'success' &&
+      needs.release-smoke-npm.result == 'success' &&
+      (needs.release-smoke-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') }}
     environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -666,8 +971,6 @@ jobs:
       contents: write
       id-token: write
     env:
-      # The plan admits exactly one publishing row.
-      RELEASE_PLATFORM: ${{ fromJSON(needs.release-plan.outputs.matrix).include[0].platform }}
       RELEASE_TAG: ${{ needs.release-plan.outputs.tag }}
       RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
     steps:
@@ -677,7 +980,7 @@ jobs:
           persist-credentials: false
 
       - name: Name the artifacts directory
-        run: echo "ARTIFACTS=$RUNNER_TEMP/release/release-assets-$RELEASE_PLATFORM" >> "$GITHUB_ENV"
+        run: echo "ARTIFACTS=$RUNNER_TEMP/release" >> "$GITHUB_ENV"
 
       # registry-url makes npm read its credential from NODE_AUTH_TOKEN, set only in the npm step.
       - name: Set up Node.js
@@ -686,20 +989,14 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Download the release artifacts
+      # The joined set, every feed signature `release-feed` made beside its feed.
+      - name: Download the joined release artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: release-assets-*
+          name: release-joined
           path: ${{ runner.temp }}/release
 
-      # The signature `release-feed` made, beside the feed it signs; SHA256SUMS does not list it.
-      - name: Download the feed signature beside the feed
-        uses: actions/download-artifact@v4
-        with:
-          name: release-feed-signature-${{ env.RELEASE_PLATFORM }}
-          path: ${{ runner.temp }}/release/release-assets-${{ env.RELEASE_PLATFORM }}
-
-      # Also verifies the feed signature with RELEASE_KEYS and the feed against the archive.
+      # Also verifies each feed signature with RELEASE_KEYS and each feed against its archive.
       - name: Check the release artifacts
         run: node scripts/release-artifacts.mjs check "$ARTIFACTS"
 

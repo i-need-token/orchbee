@@ -109,8 +109,8 @@ function paxPath(data) {
 }
 
 /**
- * The entries of the tar.gz `bytes` as `{ path, type: 'file' | 'directory', mode, bytes }`, a
- * directory's path without its trailing slash. Throws for a malformed archive or an entry of any
+ * The entries of the tar.gz `bytes` as `{ path, type: 'file' | 'directory', mode, mtime, bytes }`,
+ * a directory's path without its trailing slash and `mtime` in whole seconds. Throws for a malformed archive or an entry of any
  * other kind.
  */
 export function readTarGzip(bytes) {
@@ -145,9 +145,10 @@ export function readTarGzip(bytes) {
 		const name = longPath ?? (prefix === '' ? '' : `${prefix}/`) + text(record, 0, 100);
 		longPath = undefined;
 		const mode = readOctal(record, 100, 8) & 0o7777;
-		if (type === '0') entries.push({ path: name, type: 'file', mode, bytes: data });
+		const mtime = readOctal(record, 136, 12);
+		if (type === '0') entries.push({ path: name, type: 'file', mode, mtime, bytes: data });
 		else if (type === '5')
-			entries.push({ path: name.replace(/\/$/u, ''), type: 'directory', mode, bytes: data });
+			entries.push({ path: name.replace(/\/$/u, ''), type: 'directory', mode, mtime, bytes: data });
 		else throw new Error(`The archive holds ${name}, which is neither a file nor a directory`);
 	}
 	throw new Error('The archive has no end-of-archive marker');

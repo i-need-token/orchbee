@@ -28,7 +28,7 @@ concurrency:
 jobs:
   update-check:
     name: Update check ${{ github.event.release.tag_name || inputs.tag }}
-    # The one platform the release workflow publishes.
+    # Windows, the one platform whose release builds update themselves; macOS release builds withhold `update`.
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:

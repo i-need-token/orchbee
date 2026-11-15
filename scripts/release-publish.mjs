@@ -11,9 +11,12 @@
 //   node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>
 //   node scripts/release-publish.mjs publish <artifacts> --tag v<version> --repository <owner/name>
 //
-// - plan: a pushed tag `v<version>` releases and publishes that version; a manual run names the
-//   version to rehearse and publishes nothing. Reads the platform rows from RELEASE_PLATFORMS and
-//   writes `version`, `tag`, `publish`, `prerelease`, `dist-tag` and `matrix` to GITHUB_OUTPUT.
+// - plan: a pushed tag `v<version>` releases and publishes that version from the rows with `build`
+//   and `publish`; a manual run names the version to rehearse, takes every row with `build`, and
+//   publishes nothing. Reads the platform rows from RELEASE_PLATFORMS, refuses a row of a platform
+//   family the workflow has no jobs for and a run without a Windows row, and writes `version`,
+//   `tag`, `publish`, `prerelease`, `dist-tag`, `matrix` (every row), `windows-matrix`,
+//   `macos-matrix` and `macos` (whether it has a macOS row) to GITHUB_OUTPUT.
 // - notes: prints the release notes, the message of the annotated tag read through the GitHub API
 //   (a checkout drops tag annotations) without a trailing signature block. A lightweight tag or an
 //   empty message fails with the command that tags correctly.
@@ -53,6 +56,9 @@ const signatureSource = 'apps/orchbee/src/cli/update/signature.rs';
 const registry = 'https://registry.npmjs.org';
 const releaseStem = 'orchbee';
 const platformPackage = /^@orchbee\/cli-[a-z\d]+-[a-z\d]+$/u;
+// The platform token prefixes the release workflow has build, package and smoke jobs for; each
+// family's jobs take its rows, and the signing, feed and join jobs take every row.
+const releaseFamilies = ['windows', 'macos'];
 const usage =
 	'Usage: node scripts/release-publish.mjs plan --event <name> --ref <git ref> [--version <version>]\n' +
 	'       node scripts/release-publish.mjs notes --tag v<version> --repository <owner/name>\n' +
@@ -92,23 +98,41 @@ export function planRelease({ event, ref, version: requested, platforms }) {
 		throw new StepFailure(`The release path starts from a tag or by hand, not from ${event}`);
 	}
 	if (!Array.isArray(platforms)) throw new StepFailure('RELEASE_PLATFORMS is not a list of rows');
-	const rows = platforms.filter((row) => row?.build === true && row?.publish === true);
+	const publish = event === 'push';
+	// A tag publishes the rows with build and publish; a rehearsal builds and proves every row with
+	// build, so a row is rehearsed before its publish flag is set.
+	const rows = platforms.filter(
+		(row) => row?.build === true && (!publish || row?.publish === true),
+	);
 	if (rows.length === 0)
-		throw new StepFailure('No row of RELEASE_PLATFORMS has both build and publish set');
-	// One main npm package must list every platform package of its version, and each row's collect
-	// writes its own; combining rows is not built yet.
-	if (rows.length > 1)
 		throw new StepFailure(
-			`The release path publishes one platform row today, and ${rows.length} rows have build and publish set`,
+			publish
+				? 'No row of RELEASE_PLATFORMS has both build and publish set'
+				: 'No row of RELEASE_PLATFORMS has build set',
 		);
+	const familyOf = (row) =>
+		releaseFamilies.find((family) => String(row.platform ?? '').startsWith(`${family}-`));
+	for (const row of rows) {
+		if (familyOf(row) === undefined)
+			throw new StepFailure(
+				`${row.platform} has build set, but the release workflow has no build jobs for it`,
+			);
+	}
+	const rowsOf = (family) => rows.filter((row) => familyOf(row) === family);
+	// The Windows jobs take their rows unconditionally, and a job with no row fails.
+	if (rowsOf('windows').length === 0)
+		throw new StepFailure('The release path needs a Windows row with build set');
 	const prerelease = version.includes('-');
 	return {
 		version,
 		tag: `v${version}`,
-		publish: event === 'push',
+		publish,
 		prerelease,
 		distTag: distTagFor(version),
 		matrix: { include: rows },
+		windowsMatrix: { include: rowsOf('windows') },
+		macosMatrix: { include: rowsOf('macos') },
+		macos: rowsOf('macos').length > 0,
 	};
 }
 
@@ -509,8 +533,16 @@ function releaseNotes({ version, tag, repositoryName, names, changes }) {
 		return `[${name}](${address})`;
 	};
 	const installer = link(/-windows-x86_64-setup\.exe$/u);
-	// The runtime archive; the window archive `orchbee-desktop-<version>-…` serves updates only.
-	const archive = link(/^orchbee-\d[^/]*-windows-x86_64\.zip$/u);
+	const diskImages = [
+		['macOS Apple silicon', link(/-macos-aarch64\.dmg$/u)],
+		['macOS Intel', link(/-macos-x86_64\.dmg$/u)],
+	].filter(([, address]) => address !== undefined);
+	// The runtime archives; the window archive `orchbee-desktop-<version>-…` serves updates only.
+	const archives = [
+		link(/^orchbee-\d[^/]*-windows-x86_64\.zip$/u),
+		link(/^orchbee-\d[^/]*-macos-aarch64\.tar\.gz$/u),
+		link(/^orchbee-\d[^/]*-macos-x86_64\.tar\.gz$/u),
+	].filter((address) => address !== undefined);
 	const npm = `\`npm install -g orchbee@${distTagFor(version)}\``;
 	return [
 		'## Install',
@@ -518,8 +550,15 @@ function releaseNotes({ version, tag, repositoryName, names, changes }) {
 		...(installer === undefined
 			? []
 			: [`- Windows x64 installer, with the window and the command line: ${installer}`]),
-		`- Command line only: ${archive === undefined ? npm : `${archive}, or ${npm}`}`,
-		'- Already installed: `orchbee update`',
+		...diskImages.map(
+			([label, address]) =>
+				`- ${label} disk image, with the window and the command line: ${address}`,
+		),
+		`- Command line only: ${archives.length === 0 ? npm : `${archives.join(', ')}, or ${npm}`}`,
+		// Only Windows release builds update themselves so far.
+		diskImages.length === 0
+			? '- Already installed: `orchbee update`'
+			: '- Already installed on Windows: `orchbee update`',
 		'',
 		'The `.feed.json`, `.sig`, `orchbee-desktop-*.zip` and `.tgz` files serve updates and npm; `SHA256SUMS` holds the checksums.',
 		'',
@@ -707,6 +746,9 @@ async function main(argv) {
 			prerelease: String(plan.prerelease),
 			'dist-tag': plan.distTag,
 			matrix: JSON.stringify(plan.matrix),
+			'windows-matrix': JSON.stringify(plan.windowsMatrix),
+			'macos-matrix': JSON.stringify(plan.macosMatrix),
+			macos: String(plan.macos),
 		});
 		return;
 	}

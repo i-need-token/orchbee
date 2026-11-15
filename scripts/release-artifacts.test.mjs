@@ -16,10 +16,10 @@ import test from 'node:test';
 import { crc32 } from 'node:zlib';
 
 import { desktopFilesDocument } from './desktop-files.mjs';
-import { checkArtifacts } from './release-artifacts.mjs';
+import { checkArtifacts, joinArtifacts } from './release-artifacts.mjs';
 import { feedDocument, gateFeed, sha256 } from './release-feed.mjs';
 import { FEED_DOMAIN, loadKey, signatureDocument } from './sign-release-manifest.mjs';
-import { tarGzip } from './tar-gzip.mjs';
+import { readTarGzip, tarGzip } from './tar-gzip.mjs';
 
 // The repository's public test key, which TEST_KEYS trusts; nothing here is a release key.
 const testKey = loadKey(
@@ -341,4 +341,75 @@ test('check refuses a feed signature that does not verify with the build table',
 	rmSync(path.join(orphan, feedFile));
 	writeSums(orphan);
 	assert.ok(checkArtifacts(orphan).includes(`${feedFile}.sig signs no feed document`));
+});
+
+/** Adds the main npm package of a row, listing `platformPackage`, and writes SHA256SUMS again. */
+function mainPackage(directory, platformPackage, description = 'Orchbee') {
+	const manifest = {
+		name: stem,
+		version,
+		description,
+		bin: { [stem]: 'bin/orchbee.mjs' },
+		optionalDependencies: { [platformPackage]: version },
+	};
+	const mtime = 499_162_500;
+	writeFileSync(
+		path.join(directory, `${stem}-${version}.tgz`),
+		tarGzip([
+			{ path: 'package/bin/orchbee.mjs', mode: 0o755, mtime, bytes: Buffer.from('launcher') },
+			{
+				path: 'package/package.json',
+				mode: 0o644,
+				mtime,
+				bytes: Buffer.from(JSON.stringify(manifest)),
+			},
+		]),
+	);
+	writeSums(directory);
+}
+
+/** The relative paths of every file below `root`, in order. */
+function filesBelow(root) {
+	return readdirSync(root, { recursive: true, withFileTypes: true })
+		.filter((entry) => entry.isFile())
+		.map((entry) => path.relative(root, path.join(entry.parentPath, entry.name)))
+		.toSorted();
+}
+
+test('join copies one row unchanged and gives several rows one main package and SHA256SUMS', (t) => {
+	const windows = artifacts(t);
+	mainPackage(windows, `@${stem}/cli-win32-x64`);
+	const { root: macos, archiveName } = macosArtifacts(t, 0o755);
+	mainPackage(macos, `@${stem}/cli-darwin-arm64`);
+	const output = scratch(t);
+	const single = path.join(output, 'single');
+	joinArtifacts({ output: single, rows: [windows] });
+	assert.deepEqual(filesBelow(single), filesBelow(windows));
+	for (const name of filesBelow(windows))
+		assert.ok(readFileSync(path.join(single, name)).equals(readFileSync(path.join(windows, name))));
+
+	const joined = path.join(output, 'joined');
+	joinArtifacts({ output: joined, rows: [windows, macos] });
+	assert.deepEqual(checkArtifacts(joined), []);
+	const sums = readFileSync(path.join(joined, 'SHA256SUMS'), 'utf8');
+	for (const name of [`${base}.zip`, archiveName, `${stem}-${version}.tgz`])
+		assert.ok(sums.includes(`  ${name}\n`), name);
+	const entries = readTarGzip(readFileSync(path.join(joined, `${stem}-${version}.tgz`)));
+	const manifest = JSON.parse(entries.find((entry) => entry.path === 'package/package.json').bytes);
+	assert.deepEqual(manifest.optionalDependencies, {
+		[`@${stem}/cli-darwin-arm64`]: version,
+		[`@${stem}/cli-win32-x64`]: version,
+	});
+	assert.equal(manifest.description, 'Orchbee');
+	assert.equal(entries.find((entry) => entry.path === 'package/bin/orchbee.mjs').mode, 0o755);
+
+	assert.throws(
+		() => joinArtifacts({ output: path.join(output, 'twice'), rows: [macos, macos] }),
+		/Two rows hold macos-aarch64/u,
+	);
+	mainPackage(macos, `@${stem}/cli-darwin-arm64`, 'Another');
+	assert.throws(
+		() => joinArtifacts({ output: path.join(output, 'other'), rows: [windows, macos] }),
+		/has another package\.json/u,
+	);
 });

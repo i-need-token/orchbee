@@ -27,15 +27,17 @@ import {
 const rows = [
 	{ platform: 'windows-x86_64', runner: 'windows-latest', build: true, publish: true },
 	{ platform: 'windows-aarch64', runner: 'windows-11-arm', build: false, publish: false },
-	{ platform: 'linux-x86_64', runner: 'ubuntu-24.04', build: true, publish: false },
+	{ platform: 'macos-aarch64', runner: 'macos-15', build: true, publish: false },
 ];
 
-test('a pushed tag publishes its version and a manual run only rehearses the one it names', () => {
+test('a pushed tag publishes its rows and a manual run rehearses every row that builds', () => {
 	const tag = planRelease({ event: 'push', ref: 'refs/tags/v0.1.0-beta.1', platforms: rows });
 	assert.equal(tag.version, '0.1.0-beta.1');
 	assert.equal(tag.tag, 'v0.1.0-beta.1');
 	assert.equal(tag.publish, true);
 	assert.deepEqual(tag.matrix.include, [rows[0]]);
+	assert.deepEqual(tag.macosMatrix.include, []);
+	assert.equal(tag.macos, false);
 	const rehearsal = planRelease({
 		event: 'workflow_dispatch',
 		ref: 'refs/heads/main',
@@ -44,6 +46,10 @@ test('a pushed tag publishes its version and a manual run only rehearses the one
 	});
 	assert.equal(rehearsal.publish, false);
 	assert.equal(rehearsal.version, '0.1.0-beta.1');
+	assert.deepEqual(rehearsal.matrix.include, [rows[0], rows[2]]);
+	assert.deepEqual(rehearsal.windowsMatrix.include, [rows[0]]);
+	assert.deepEqual(rehearsal.macosMatrix.include, [rows[2]]);
+	assert.equal(rehearsal.macos, true);
 });
 
 test('the release path refuses what it cannot release with a sentence naming it', () => {
@@ -61,7 +67,9 @@ test('the release path refuses what it cannot release with a sentence naming it'
 	const plan = (platforms) => () =>
 		planRelease({ event: 'push', ref: 'refs/tags/v0.1.0', platforms });
 	assert.throws(plan([rows[1], rows[2]]), /No row/u);
-	assert.throws(plan([rows[0], { ...rows[2], publish: true }]), /one platform row/u);
+	assert.throws(plan([{ ...rows[2], publish: true }]), /needs a Windows row/u);
+	const linux = { platform: 'linux-x86_64', runner: 'ubuntu-24.04', build: true, publish: true };
+	assert.throws(plan([rows[0], linux]), /no build jobs for it/u);
 });
 
 test('a pre-release goes to the dist-tag next and only a plain version to latest', () => {
