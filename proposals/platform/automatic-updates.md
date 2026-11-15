@@ -213,24 +213,333 @@ An update can stall but never interrupt.
 
 ### Falling back after a failed move
 
-- A new version that fails three times within ten minutes of its move, through a Server or Worker
-  that fails to start, crashes, or fails to adopt, or a Client that fails to start, sends the store
-  back: `active.json` returns to its `previous` version, which is still on disk, and the ordinary
-  start, with Host adoption from P1, brings the Session up on it.
-- A record that the failed version migrated to a higher format version is first restored from that
+- A new version that fails three times within ten minutes of taking over sends the store back:
+  `active.json` returns to its `previous` version, which is still on disk, and the ordinary start,
+  with Host adoption from P1, brings the Session up on it. A failure is a Server or Worker that
+  fails to start, crashes, or fails to adopt, or a Client that fails to start or to join;
+  [what counts](#what-counts-and-who-records-it) names who records each.
+- A record that the failed version migrated to a higher format version is restored from that
   version's upgrade backup, so the previous version opens the Session as it was before the move;
   changes made in those minutes are lost. A change kept in a record's `extensions` object needs no
-  restore.
+  restore; [restoring records](#restoring-records-after-a-fallback) says when and by whom.
 - Rule, the bound. This is no downgrade served by the feed, which stays forbidden: it installs
   nothing and returns only to the version that ran minutes before. It moves only to `previous`,
-  never below the `securityFloor` of any component in the newest verified manifest, never to a
-  release before slice 1, only within ten minutes of a move, and at most once per version: the
-  failed version is held, so no automatic run or Client offers it until a newer one appears. Each
-  fallback is logged. A peer that can crash the new version therefore gains at most the version that
-  ran before it, never one below a security fix, because the fix's release raises the floor.
-- Where the floor forbids the fallback, the Session behaves as after a Worker loss past the
+  never below the `securityFloor` of any component in the failed version's own verified manifest,
+  never to a release before slice 1, only within ten minutes of the failed version taking over, and
+  at most once per move: the failed version is held, so nothing in the store offers, installs, or
+  activates it again until a higher version has become active. Each fallback is logged. A peer
+  that can crash the new version therefore gains at most the version that ran before it, never one
+  below a security fix, because the fix's release raises the floor in its own manifest and every
+  later release states it again.
+- Where the bound forbids the fallback, the Session behaves as after a Worker loss past the
   [restart cap](versioning-and-upgrade.md#host-adoption): the programs keep running, and only a
   confirmed stop ends them. `orchbee update` still installs the next fix.
+- The mechanics below are Chosen, which the owner may veto; the bound stays a Rule.
+
+#### The fallback record
+
+The store keeps one record in the pointer's open slot, `extensions.fallback` in `active.json`. Here
+it is a few minutes into a move to 0.5.0, and then after that version's fallback to 0.4.0:
+
+```text
+{
+  "held": [],
+  "move": {
+    "entry": { "product": "0.5.0", "manifest": "<SHA-256 of its release.json>" },
+    "back": true,
+    "client": { "since": 1794000000000, "failures": 1 },
+    "session": { "since": 1794000000000, "starts": ["<32 hex>"], "failed": [] }
+  }
+}
+
+{
+  "held": ["0.5.0"],
+  "move": {
+    "entry": { "product": "0.4.0", "manifest": "<SHA-256 of its release.json>" },
+    "back": false,
+    "restore": true
+  }
+}
+```
+
+- `held` and `move` are always present; `restore`, `client`, and `session` appear only as below.
+- `held` lists the versions that nothing may make active, at most eight, in the order they were
+  held. Every write keeps only those above the active version, and a ninth drops the earliest.
+- `move` describes the move that made `entry` active, with `product` and `manifest` exactly as in
+  `active`. It counts only while `entry` equals `active`; otherwise the pointer has no counting
+  move.
+  - `back` says whether this move may fall back; it is settled when the move is written.
+  - `restore`, true, appears only on the `move` a fallback writes.
+  - `client` is the Client window, absent until opened: `since`, in Unix milliseconds UTC, and
+    `failures`, 0 to 3.
+  - `session` is the Session window, absent until opened: `since`; `starts`, the activation
+    identifiers of at most eight generations this version started, 32 lowercase hexadecimal digits
+    each; and `failed`, those of them that failed, at most three. A ninth start drops the oldest
+    identifier not in `failed`.
+- Every object is closed and every value bounded, so the record stays under 2 KiB, inside the
+  pointer's 16 KiB bound. A `fallback` member of any other shape counts as absent. The shape never
+  changes; a later need adds another member of `extensions`, which every writer keeps.
+- Each write takes `install.lock`, which every pointer write already takes, reads `active.json`,
+  applies one transition, and replaces the file through the store's flushed rename. No two writes
+  interleave, each starts from the file the last one left, and a crash at any point leaves the old
+  file or the new one. Readers still take no lock.
+- Everything in this section runs only where the local runtime's
+  [dark-launch switch](../../crates/local-runtime/README.md#automatic-update-switch) is on. A build
+  where it is off behaves as a release before slice 1: it records nothing and keeps `extensions`
+  verbatim, as every rewrite does, so a move it makes leaves a `move` that no longer counts.
+- A recorder tries the lock every 50 ms for at most 2 s, then drops the record and logs
+  `fallback-record-dropped`. A dropped failure or Session start can only delay a fallback, and a
+  dropped TUI start only lets the Client window open at the first failure instead. The Session
+  start notice is written before the Server starts, and the helper below writes as its only work;
+  every other record is written on a background thread that its process waits for before it exits.
+- Rejected: a file of its own under its own lock, because a fallback would then change two files
+  under two locks, and a crash between them could move the pointer without holding the version.
+
+#### What counts and who records it
+
+| Event                            | Recorder                                                                                                                                        | Effect                                                       |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Session start                    | The activator of the moved version, after `begin_activation` and before it starts the Server                                                    | Opens the Session window and adds the generation to `starts` |
+| TUI start                        | The first TUI of the moved version to start                                                                                                     | Opens the Client window                                      |
+| Server or Worker fails to start  | The activator that started the Server, when starting it fails or it ends before its endpoint appears, as it does when its Worker fails to start | A Session failure of that generation                         |
+| Server crash                     | Any activator whose crash recovery proves the generation dead                                                                                   | A Session failure of that generation                         |
+| Worker crash                     | The Server, when its Worker exits outside a stop                                                                                                | A Session failure of the Server's generation                 |
+| Client fails to start or to join | Either launcher, as it classifies the outcome, through the previous version's helper below                                                      | A Client failure of the version it started                   |
+
+- A recorder writes only the store its own executable runs from, so a process outside a store
+  version folder records nothing. It first reads the pointer without the lock and goes on only
+  when the `move` counts, `back` is true, and the role's window is open or not yet opened, and it
+  checks the same under the lock. A Session or TUI start also needs the recorder's own version to
+  be the moved one, and a TUI start a Client window not yet opened. A start long after a move
+  therefore never takes the lock.
+- A Session failure counts once, for a generation in `starts`: its identifier joins `failed`. A
+  generation another version started, or whose start notice was dropped, counts nothing, and so
+  do a Server still alive at the activator's deadline and a generation that never started its
+  Server.
+- A failed adoption counts from P1b, which adds the fallback after a restart.
+- `--record-client-failure-v1 <version>` is a hidden helper mode whose grammar never changes, left
+  out of help, completion, and the Agent guide like the other helper modes. It records one Client
+  failure of `<version>` in the store it runs from, counted only while `<version>` is the entry of
+  the counting `move`, and that write may commit the fallback.
+- A launcher tells a failed start or join from a normal exit after every start it makes, the first
+  one or a [relaunch](#tui). When its Client fails, it reads the pointer again; when the pointer
+  still names the entry it started, with a counting `move`, `back` true, and a `previous`, it runs
+  `<root>\versions\<previous>\<name>.exe --record-client-failure-v1 <version>`
+  outside the Client's Job with null standard streams and waits for it at most 5 s. Then it goes on
+  as it would without the record: after a relaunch it starts the version it replaced, and after a
+  first start it ends with the Client's status. The previous version runs the helper because
+  neither launcher links a store writer and the failed Client may be what broke; `back` true proves
+  that the previous version records.
+
+#### When the ten minutes start
+
+- Each role has its own window: 600 000 ms of UTC wall-clock time from its first record after the
+  move. The Session's opens with the first start notice, the Client's with the first TUI start or
+  Client failure. A version that an automatic run installs while nobody uses Orchbee thus gets its
+  ten minutes when it first runs.
+- The third failure of one role inside its window falls back; the two roles count separately.
+- A failure dated before `since`, as after a clock change, counts nothing. From `since` plus
+  600 000 ms the window is closed, and nothing more is recorded for that move.
+- Rejected: counting from the pointer move, which an automatic install may make hours before the
+  version first runs; and one count for both roles, whose windows open at different moments.
+
+#### The move
+
+Every completion from slice 1 on works under `install.lock` in this order:
+
+1. It refuses a held target with exit status 3, the status of the lower-version refusal, so a
+   caller before slice 1 takes it for that refusal; a slice 1 caller reads the pointer again and
+   reports `version-held` when the target is held.
+2. It moves the pointer as today, the replaced entry becoming `previous`, and drops held versions
+   at or below the target.
+3. On a real move it replaces `move` with a fresh one for the target, with `back` settled as
+   below; activating the active entry again keeps the record as it is.
+
+A build whose switch is off moves the pointer as today and keeps `extensions` verbatim. It never
+needs the refusal, because it only ever activates itself, and only a build with the switch on
+records, so only such a build can be held.
+
+`back` is true only when all of these hold:
+
+- the move is real: the target differs from the active entry;
+- the record's `move` counts for the replaced entry, which proves that the replaced version
+  records, since only a build with the switch on writes a `move`;
+- the replaced version's `release.json` still hashes to its entry's `manifest`;
+- for every component `securityFloor` in the target's own verified manifest, the replaced
+  manifest's component with the same `id` has a version at or above it; a component missing from
+  either manifest imposes nothing.
+
+The completion runs in the target's own binary, so the target's code settles `back`. The floor
+check relies on every release stating each floor still in force, as the
+[restart decision](versioning-and-upgrade.md#restart-decision) already does; a floor that a newer
+release publishes later applies once that release installs, which the next hourly run does.
+Rejected: the floors of the newest manifest the feed served, which only a network read knows and
+which can change after the move.
+
+#### The fallback
+
+The write that records a role's third failure also commits the fallback when `back` is true and
+the version folder that `previous` names exists:
+
+- `active` becomes `previous`, and `previous` is removed;
+- the failed version joins `held`, which keeps only versions above the new active one;
+- a fresh `move` for the new active entry has `back` false and `restore` true, so that version
+  keeps its proof for its next move and falls back no further;
+- the process that commits logs `fallback` with both versions.
+
+After a fallback `previous` stays absent until the next move, so cleanup may delete the failed
+version's folder once nothing runs from it. Rejected: swapping the two, which would make the failed
+version the next fallback target. The fallback restarts nothing: the next start of a Client or of
+the Session reads the pointer and runs the previous version. A Server of the failed version that
+still runs keeps its Session until it ends, because the [idle move](#how-the-session-moves) moves
+only older Servers.
+
+Without the folder that `previous` names, the third failure is recorded, nothing falls back, and
+that role records nothing more for the move.
+
+#### Held versions
+
+A held version never becomes active again until a higher version has, which drops it from `held`:
+
+- every completion refuses it, as above;
+- the update engine's `decide` treats it as up to date, from the lock-free pointer read it already
+  makes, so nothing downloads, and a completion's `version-held` refusal in a race reads as up to
+  date too;
+- `install` refuses it before copying, with exit status 3 like `downgrade-refused` and the error
+  code `version-held`, which its result schema and localized messages gain;
+- Setup treats `version-held` as it treats `downgrade-refused`: a log line, no message box, and the
+  window part still installs;
+- the npm launcher runs the active version when its carried version is held, and when its install
+  meets `version-held`.
+
+The active version and `previous` are never held, so the [Update control](#the-update-control)
+needs no check of its own. Cleanup may delete a held version's folder once nothing runs from it;
+the hold outlasts the folder. The hold covers the release store: a window that Setup installed
+above the store's active version still starts its own Session, as it does today. Rejected: letting
+an explicit install clear the hold. The npm launcher installs its carried version on every start,
+so it would need a signal of its own to keep from reinstalling the failed version in a loop, and a
+race between its pointer read and a fallback would remain.
+
+#### Restoring records after a fallback
+
+While the active version's `move` carries `restore`, a process that writes a record restores it
+from the held versions' upgrade folders when it finds the record in a newer format, as the
+[data root layout](data-root-layout.md#persisted-data-versions-and-migration) states. The next move
+writes a `move` without `restore`, which ends restoring, so a later downgrade the person chooses
+never brings back an old copy.
+
+#### Where the code lives
+
+- `crates/release-records`: the `fallback` record's format and its pure transitions, which the
+  Rust launcher also reads.
+- `crates/local-runtime`: the recorder behind `install.lock`, which the helper, the activator, the
+  TUI, and the Server share. It sits beside the store's read side, which thereby owns these writes
+  besides the Client's release store. The restore lives in the migration module.
+- `apps/orchbee`: the completion's refusal and verdict, the manifest reader keeping
+  `securityFloor` instead of dropping it after validation, `decide` and `install` for held
+  versions, the `version-held` code, and the helper mode.
+- The activator, crash recovery in the Session catalog, and the Server's watch of its Worker call
+  the recorder; both launchers and Setup change as above.
+
+#### Model
+
+Chosen: the record's transitions get a TLA+ model, registered with the code that first writes the
+record.
+
+- Claim: under any interleaving of the writers above, with lock-free decisions between them and a
+  crash at any point, no recorded start or failure is lost, no write undoes a move, a failure
+  counts only toward the move it belongs to, and no fallback goes below a floor, to a release
+  before slice 1, outside its window, twice in one move, or into a held version. Implementation
+  tests check each writer's own steps; they cannot enumerate these interleavings.
+- Files: `crates/local-runtime/formal/tla/ReleaseStoreFallback.tla` with one configuration,
+  `ReleaseStoreFallback.cfg`.
+- Constants: `Versions = {0, 1, 2, 3}`, ordered, where 0 stands for a release before slice 1 or a
+  build whose switch is off; `Floor`, 2 for version 3 and 0 otherwise; `Gens = {1, 2, 3}`;
+  `Writers = {w1, w2}`; `Threshold = 2`, standing for three; `Window = 1`; `MaxTime = 2`;
+  `MaxMoves = 3`; and seven flags, each TRUE in the configuration.
+- Flags, each a guard that its negative control below turns off:
+  - `LockedUpdate`: a commit computes its write from the pointer it reads under the lock, not from
+    `snap`;
+  - `BindRecord`: a record counts only toward a counting `move` whose entry is its source version;
+  - `HoldInSameWrite`: the fallback holds the failed version in its own write, not in a later
+    `HoldLater`;
+  - `SkipHeld`: `Offer` skips a held version, and every completion refuses one;
+  - `AttributeStarts`: a Session failure counts only for a generation in `starts`;
+  - `ProofRequired`: `back` needs the record's `move` to count for the replaced entry;
+  - `FloorChecked`: `back` needs the replaced version to be at or above the target's `Floor`.
+- Variables: `active`; `previous`, a version or none; `disk`, the version folders present; `rec`,
+  the record, with `held` and a `move` holding its entry, `back`, each role's `since`, the Client
+  `failures`, and the Session `starts` and `failed`; `lock`, a writer or none; per writer `pc`
+  (idle, waiting, or holding), `op` (a move to a version, a Client start or failure of a version,
+  or a Session start or failure of a generation), and `snap`, the pointer and record read before
+  the lock, used only when `LockedUpdate` is FALSE; `now`, in `0..MaxTime`; `gver`, the version
+  that started each generation, or none; and `moves`, the moves that `CommitMove` and
+  `LegacyInstall` made. `Offer`, `ExplicitInstall`, and `LegacyInstall` are enabled only while
+  `moves` is below `MaxMoves`.
+- Ghost variables: `inc`, raised by every fresh `move`; `hist`, each fallback's failed version
+  that lies above its target, from which every change of `active` drops only the versions below
+  the new active one, so that a move into a held version stays visible; the Session starts and the
+  failures committed under the current `inc`, with each failure's source version; and a log of
+  fallbacks with source, target, time, role, and `inc`.
+- Initial state: version 0 active with no `previous`, `disk = {0}`, no record, every writer idle,
+  `now = 0`, and no generation started.
+
+| Action                           | Stands for                                                                                                                                                                                      |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Offer(w, v)`                    | The update engine's `decide`: an idle writer reads the pointer without the lock and, when `v` is above `active` and not held, queues a move to `v`                                              |
+| `ExplicitInstall(w, v)`          | Setup, the npm launcher, or a channel switch: queues a move to any `v` from 1                                                                                                                   |
+| `LegacyInstall(w)`               | A completion of version 0, in one step while the lock is free: makes 0 active with the replaced entry as `previous`, and keeps the record verbatim                                              |
+| `StartClient(w)`                 | A TUI start: queues a Client start of the active version                                                                                                                                        |
+| `FailClient(w)`                  | A launcher's helper call: queues a Client failure of the active version                                                                                                                         |
+| `StartGeneration(w, g)`          | The activator: queues the start notice of a new generation `g` of the active version; `gver[g]` is set once the notice is committed or dropped, never after a crash, and only then can `g` fail |
+| `FailGeneration(w, g)`           | The activator, crash recovery, or the Server: queues a failure of a started generation; several observers may report the same one                                                               |
+| `Acquire(w)`, `Drop(w)`          | Taking the free lock; ending a wait at its bound, which loses the record                                                                                                                        |
+| `CommitMove(w)`, `RefuseHeld(w)` | The completion, as in [the move](#the-move); the replaced version's folder in `disk` stands for its intact `release.json`                                                                       |
+| `CommitRecord(w)`                | A recorder's write below the threshold, or its release of the lock without a write when the check under the lock fails                                                                          |
+| `CommitFallback(w)`              | The write with a role's third failure, as in [the fallback](#the-fallback)                                                                                                                      |
+| `HoldLater(w)`                   | Enabled only when `HoldInSameWrite` is FALSE: the writer that committed a fallback takes the lock again and holds the failed version in a write of its own                                      |
+| `Crash(w)`                       | A waiting or holding writer stops; the lock is released, and nothing it had not written survives                                                                                                |
+| `Cleanup`                        | The cleanup after an install: deletes a folder that is neither `active` nor `previous`                                                                                                          |
+| `Tick`                           | `now` advances while below `MaxTime`                                                                                                                                                            |
+
+Every commit and refusal releases the lock.
+
+| Property                                | Holds that                                                                                          | Negative control                              |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `NoLostRecord`                          | Every start and failure committed under the current `inc` is still counted in `rec`                 | `LockedUpdate = FALSE`                        |
+| `MoveNeverReverted`, an action property | Only `CommitMove`, `CommitFallback`, and `LegacyInstall` change `active` or `previous`              | `LockedUpdate = FALSE`                        |
+| `RecordBound`                           | Every counted failure's source version is the `move` entry                                          | `BindRecord = FALSE`                          |
+| `NoReturn`                              | `active` is not in `hist`                                                                           | `SkipHeld = FALSE`; `HoldInSameWrite = FALSE` |
+| `Attribution`                           | `failed` is a subset of `starts`                                                                    | `AttributeStarts = FALSE`                     |
+| `TargetProven`                          | No fallback goes to version 0                                                                       | `ProofRequired = FALSE`                       |
+| `FallbackAboveFloor`                    | Every fallback's target is at or above its source's `Floor`                                         | `FloorChecked = FALSE`                        |
+| `HeldNeverActive`                       | Neither `active` nor `previous` is held                                                             | None                                          |
+| `BackImpliesPreviousOnDisk`             | A counting `move` with `back` true has `previous` on disk                                           | None                                          |
+| `FallbackWithinWindow`                  | Every fallback happens before its role's `since` plus `Window`                                      | None                                          |
+| `AtMostOncePerMove`                     | No two fallbacks share an `inc`                                                                     | None                                          |
+| `EveryOpEnds`, progress                 | Every queued operation ends, under weak fairness of `Acquire`, `Drop`, and every commit and refusal | None                                          |
+
+- Assumptions: every component carries the product version, as packaging writes it today; the
+  model's clock never goes back, and the implementation ignores a failure dated before `since`; a
+  crash releases the lock and leaves no partial write, as the flushed rename ensures; cleanup keeps
+  `active` and `previous`; the completion runs in the target's binary; readers read whole files;
+  the dark-launch switch is fixed per build, so version 0 stands for every build where it is off.
+- Registration: id `release-store-fallback`, owner `orchbee-local-runtime`, workspace
+  `crates/local-runtime`, claims `crates/local-runtime/README.md`, whose
+  [release store reading](../../crates/local-runtime/README.md#release-store-reading) section then
+  states the protocol; triggers `crates/release-records/src/**`,
+  `crates/local-runtime/src/release_store*` and the recorder, `apps/orchbee/src/release_store/**`,
+  `apps/orchbee/src/cli/update/**`, `apps/orchbee-launcher/src/**`,
+  `apps/orchbee/npm/orchbee/lib/launcher.mjs`,
+  `apps/orchbee/crates/workbench-client/src/local_activation*`,
+  `apps/orchbee-server/src/local_worker_service/managed/stop_windows.rs`, and
+  `crates/local-runtime/src/session_catalog/**`; required coverage: every action but `HoldLater`,
+  which the configuration never enables.
+- The registration adds seven configuration mutation cases, one per flag, updates the model and
+  mutant counts in the [TLA tooling guide](../../scripts/tla/README.md) and in
+  [verification](../../docs/VERIFICATION.md#change-triggered-tla-verification), and measures three
+  complete fresh `pnpm test:tla` runs inside the 60-second budget. It may narrow the bounds above,
+  stating the narrowed limits.
 
 ### Notify only in the worst case
 
@@ -386,7 +695,7 @@ The TUI comes first, and the window follows it under the
 
 | State     | When                                                                                                               | TUI                                                                | Window                                                     |
 | --------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Absent    | No version newer than this Client's own is active, the active one is held after a fallback, or a development build | Nothing                                                            | Nothing                                                    |
+| Absent    | No version newer than this Client's own is active, or a development build (a held version is never the active one) | Nothing                                                            | Nothing                                                    |
 | Ready     | A newer version is active; for the window, a newer window version                                                  | `[ Update ]` on the Settings row, its label in `accent-action`     | An Update button in the sidebar footer, in the accent role |
 | Switching | After a click                                                                                                      | The TUI leaves at once and its new version opens; no pending state | The same                                                   |
 | Waiting   | The click cannot switch yet: the Session must move first, or a restart could not complete                          | One notice; the control stays                                      | The same, in the window's notice surface                   |

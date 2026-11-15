@@ -288,9 +288,25 @@ veto). Every other row applies from the first public release:
 - A record in a newer format is never rewritten, so rollback stays possible. The store works as it
   does without the record and keeps changes to it in memory only; each store's README states that
   consequence.
-- Proposed with [automatic updates](automatic-updates.md#falling-back-after-a-failed-move): after a
-  fallback from a failed version, each writer first restores, from that version's upgrade folder,
-  every record the version migrated, so the previous version opens them as before the move.
+- The one exception is the restore after a fallback, Proposed with
+  [automatic updates](automatic-updates.md#falling-back-after-a-failed-move):
+  - While the store's `fallback` record carries `restore` for the active version, a process that
+    runs from that version's store folder and writes a record restores it whenever it opens it, to
+    read or to write, and finds it in a newer format. Under the record's writer lock it copies back
+    the highest-numbered copy of the record from the upgrade folder of the version held last,
+    through the store's flushed atomic replacement, and opens the record again; while the record is
+    still in a newer format, it tries the upgrade folders of the earlier held versions, newest
+    first. With no copy left the record stays as above, and so does a record whose writer lock is
+    busy at that open. Copies stay in place, and each restore is logged as `record-restored`.
+  - Only the process that migrates a record restores it: the TUI restores `tui-position.json`, and
+    the Server that holds the Session store restores its checkpoint slots, restore notice, earlier
+    layouts, and kept terminal output. Records that two installed versions read at once change only
+    by message evolution and take no step, so none needs a restore: restoring `session.json` could
+    hide a running generation, and a newer one would keep the previous version from starting the
+    Session. Raising the version of any of them needs its own decision.
+  - A restore cannot bring back a record the held version created, which has no copy and stays in
+    a newer format, or one whose upgrade folder retention deleted. While a process of the held
+    version still writes, a record can change hands again until that process ends.
 - Each process that needs such a record shows its message once, logs it, and `config check` lists
   it. The English source texts, shipped with `zh-CN` through the localization system, are "Orchbee
   couldn't update {item} from an earlier version and left it unchanged. {consequence}" and "{item}
@@ -314,7 +330,8 @@ The first automatic-update release already has:
 1. `internal/version.json` with `layout` 1 and the refusal of a higher layout.
 2. A version in every persisted record at the place above, and none in any file name.
 3. A distinct newer-format outcome in every reader; no automatic repair replaces a newer-format
-   record, and a reset the person requests backs it up first.
+   record apart from the restore after a fallback, and a reset the person requests backs it up
+   first.
 4. The migration module with its backup folders, retention, and localized messages, exercised by
    tests through a synthetic step.
 5. The extension object in each record that two installed versions read at once.
