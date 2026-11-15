@@ -45,6 +45,7 @@ export function DesktopRendering(): ReactElement {
 							{ id: 'off', label: t(messages.ligaturesOff) },
 						]}
 						pressed='on'
+						placement='below'
 					/>
 				</div>
 			}

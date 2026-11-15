@@ -1,0 +1,9 @@
+/* While the visitor switches the appearance, the window's colors cross-fade. Component transitions
+   keep precedence, because this rule has no specificity. */
+:where(.stage[data-fading] [data-theme], .stage[data-fading] [data-theme] *) {
+	transition:
+		background-color var(--ob-sys-motion-duration-website-350)
+			var(--ob-sys-motion-easing-website-ease),
+		border-color var(--ob-sys-motion-duration-website-350) var(--ob-sys-motion-easing-website-ease),
+		color var(--ob-sys-motion-duration-website-350) var(--ob-sys-motion-easing-website-ease);
+}

@@ -15,6 +15,22 @@ export const websiteDesktopMessages = defineMessages({
 		'Search and link-preview description of the desktop application page.',
 	),
 	lead: message('website.desktop.lead', 'Paragraph beside the page headline.'),
+	appearance: message(
+		'website.desktop.appearance',
+		"Label before the switch between the drawn window's dark and light appearance.",
+	),
+	appearanceDark: message(
+		'website.desktop.appearance.dark',
+		'Button of the appearance switch that shows the drawn window dark.',
+	),
+	appearanceLight: message(
+		'website.desktop.appearance.light',
+		'Button of the appearance switch that shows the drawn window light.',
+	),
+	appearanceNote: message(
+		'website.desktop.appearance.note',
+		"Line beside the appearance switch: what the application's own appearance setting offers.",
+	),
 	stageCaption: message(
 		'website.desktop.stage.caption',
 		'Caption under the drawn desktop application; <b> marks the word that labels it a demo.',

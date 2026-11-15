@@ -1133,6 +1133,7 @@
 	--ob-ref-color-website-honey: #f2b51f;
 	--ob-ref-color-website-host-bar: #171717;
 	--ob-ref-color-website-host-caption: #9a9a9a;
+	--ob-ref-color-website-host-caption-light: #5e5e5e;
 	--ob-ref-color-website-host-edge: #2b2b2b;
 	--ob-ref-color-website-host-title: #7c7c7c;
 	--ob-ref-color-website-hover-current: rgba(248, 247, 244, 0.08);
@@ -1195,6 +1196,7 @@
 	--ob-sys-color-website-honey: var(--ob-ref-color-website-honey);
 	--ob-sys-color-website-host-bar: var(--ob-ref-color-website-host-bar);
 	--ob-sys-color-website-host-caption: var(--ob-ref-color-website-host-caption);
+	--ob-sys-color-website-host-caption-light: var(--ob-ref-color-website-host-caption-light);
 	--ob-sys-color-website-host-edge: var(--ob-ref-color-website-host-edge);
 	--ob-sys-color-website-host-title: var(--ob-ref-color-website-host-title);
 	--ob-sys-color-website-hover-current: var(--ob-ref-color-website-hover-current);
@@ -1363,6 +1365,7 @@
 	--ob-ref-motion-duration-website-280: 280ms;
 	--ob-ref-motion-duration-website-300: 300ms;
 	--ob-ref-motion-duration-website-340: 340ms;
+	--ob-ref-motion-duration-website-350: 350ms;
 	--ob-ref-motion-duration-website-400: 400ms;
 	--ob-ref-motion-duration-website-500: 500ms;
 	--ob-ref-motion-duration-website-800: 800ms;
@@ -1377,6 +1380,7 @@
 	--ob-sys-motion-duration-website-280: var(--ob-ref-motion-duration-website-280);
 	--ob-sys-motion-duration-website-300: var(--ob-ref-motion-duration-website-300);
 	--ob-sys-motion-duration-website-340: var(--ob-ref-motion-duration-website-340);
+	--ob-sys-motion-duration-website-350: var(--ob-ref-motion-duration-website-350);
 	--ob-sys-motion-duration-website-400: var(--ob-ref-motion-duration-website-400);
 	--ob-sys-motion-duration-website-500: var(--ob-ref-motion-duration-website-500);
 	--ob-sys-motion-duration-website-800: var(--ob-ref-motion-duration-website-800);

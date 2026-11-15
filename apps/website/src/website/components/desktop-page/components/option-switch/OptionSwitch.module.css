@@ -1,11 +1,17 @@
-.row {
+.above,
+.below {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--ob-ref-length-website-12) var(--ob-ref-length-website-16);
-	margin-top: var(--ob-ref-length-website-16);
 	color: var(--ob-sys-color-website-fg3);
 	font: var(--ob-sys-typography-website-label);
+}
+.above {
+	margin-bottom: var(--ob-ref-length-website-14);
+}
+.below {
+	margin-top: var(--ob-ref-length-website-16);
 }
 .switch {
 	display: inline-flex;
@@ -31,6 +37,14 @@
 .switch button[aria-pressed='true'] {
 	background: var(--ob-sys-color-website-pressed);
 	color: var(--ob-sys-color-website-fg);
+}
+.note {
+	margin-left: auto;
+}
+@media (max-width: 48rem) {
+	.note {
+		margin-left: 0;
+	}
 }
 @media (max-width: 40rem) {
 	.switch {

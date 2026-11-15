@@ -7,6 +7,10 @@
 	width: var(--ob-ref-length-website-46);
 	color: var(--ob-sys-color-website-host-caption);
 }
+/* Windows draws the caption glyphs darker over a window in the light appearance. */
+:global([data-theme='light']) .caption i {
+	color: var(--ob-sys-color-website-host-caption-light);
+}
 .narrow i {
 	width: var(--ob-ref-length-website-42);
 }

@@ -4,6 +4,10 @@ export const enUSWebsiteDesktopMessages = {
 		'Presents the same Session in its own window, with a Tab strip, a sidebar, and Panels you arrange with the mouse. The terminal renders with WebGPU.',
 	'website.desktop.lead':
 		'Presents the same Session in its own window, with a Tab strip, a sidebar, and Panels you arrange with the mouse. The terminal renders with WebGPU.',
+	'website.desktop.appearance': 'Appearance',
+	'website.desktop.appearance.dark': 'Dark',
+	'website.desktop.appearance.light': 'Light',
+	'website.desktop.appearance.note': 'Follows the system, or stays light or dark.',
 	'website.desktop.stage.caption': '<b>Demo</b>Drawn to the measurements of the real window.',
 	'website.desktop.panels.kicker': 'panels',
 	'website.desktop.panels.title': 'Arrange Panels by hand or by key',

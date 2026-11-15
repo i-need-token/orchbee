@@ -6,6 +6,10 @@ export const zhCNWebsiteDesktopMessages = {
 		'在独立窗口中呈现同一个会话：标签栏、侧边栏，以及可以用鼠标排布的面板。终端使用 WebGPU 渲染。',
 	'website.desktop.lead':
 		'在独立窗口中呈现同一个会话：标签栏、侧边栏，以及可以用鼠标排布的面板。终端使用 WebGPU 渲染。',
+	'website.desktop.appearance': '外观',
+	'website.desktop.appearance.dark': '深色',
+	'website.desktop.appearance.light': '浅色',
+	'website.desktop.appearance.note': '可跟随系统，也可固定为浅色或深色。',
 	'website.desktop.stage.caption': '<b>演示</b>按真实窗口的尺寸绘制。',
 	'website.desktop.panels.kicker': '面板',
 	'website.desktop.panels.title': '用鼠标或快捷键排布面板',
