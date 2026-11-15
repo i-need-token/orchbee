@@ -2188,6 +2188,15 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | HUP/INT/QUIT/TERM during `terminal wait-output`                                                                                           | `cancelled`                                                                | 130       | `{stage:"wait",cleanup}`                                                                                |
 | `terminal wait-output` match with unconfirmed `Detach`                                                                                    | typed viewer-stage failure                                                 | *         | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                                             |
 
+On Windows, a Session started as administrator labels its endpoints High (see
+[local IPC](../../../crates/local-ipc/README.md#windows-transport-refinement)), so a Client below
+High integrity meets OS error 5 at the pipe open or the peer check. Whatever kind its row gives,
+stderr then says that the Session runs as administrator and to run `orchbee server stop` in an
+administrator terminal; `server stop` adds the same line to its `unavailable` answer, and the TUI
+shows it as its startup failure. Kind, exit code, details and the JSON document stay those of the
+row. Every other `denied` from the local runtime says only that the local Session refused this
+connection.
+
 `resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
 `cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|agent-read|platform|wait`.
 The dedicated `orchbee.cli.failure.worktree` envelope admits `resource:"directory"` and the

@@ -64,6 +64,7 @@ const fn startup_failure(failure: &StartupFailure) -> &'static str {
         StartupFailure::SessionTooOld(_) => "session-too-old",
         StartupFailure::OtherEnvironment => "other-environment",
         StartupFailure::DevelopmentBuildMismatch => "development-build-mismatch",
+        StartupFailure::ElevatedSession => "admission",
         StartupFailure::Admission => "admission",
         StartupFailure::TimedOut => "timed-out",
         StartupFailure::TerminalUnavailable => "terminal-unavailable",

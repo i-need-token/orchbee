@@ -249,6 +249,9 @@ ConPTY. Windows Terminal is the interactive host; WSL is not required. New termi
 selects the first compatible PowerShell 7 on absolute PATH or system Windows PowerShell.
 See [Windows configuration](docs/windows-cli-configuration.md#automatic-windows-shell)
 for candidate selection. `server start --format json` also works without an interactive console.
+A Session started from an administrator terminal admits only administrator Clients. Orchbee in a
+standard terminal says so and names the way out, `orchbee server stop` in an administrator
+terminal; see the [failure matrix](docs/native-cli-query.md#failure-matrix).
 
 On a Session with no Workspace or terminal content, `cd <project>; orchbee` creates
 an ungrouped Workspace named after the current directory and its first terminal in that directory.

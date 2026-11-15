@@ -46,7 +46,7 @@ pub(in crate::cli) fn classify_query(error: ConnectClientError) -> Failure {
         ConnectClientError::ConnectFailed(ref io) | ConnectClientError::Io(ref io)
             if io.kind() == std::io::ErrorKind::PermissionDenied =>
         {
-            Failure::new(FailureKind::Denied)
+            Failure::new(FailureKind::Denied).elevated_session_from(&error)
         }
         other => super::query::classify_connect(
             crate::local_client::LocalClientConnectError::Admission(other),
@@ -64,8 +64,9 @@ fn failed(mut failure: Failure, format: OutputFormat, locale: Locale) -> Output 
         Some(format),
         locale,
     );
-    // A refusal keeps the shared copy that names the older side or the other environment.
-    if kind != FailureKind::Incompatible {
+    // A refusal keeps the shared copy that names the older side or the other environment, or a
+    // Session started as administrator.
+    if !matches!(kind, FailureKind::Incompatible | FailureKind::Denied) {
         result.stderr = CliText::new(locale).cli_runtime_status_failure(kind.as_str());
     }
     result

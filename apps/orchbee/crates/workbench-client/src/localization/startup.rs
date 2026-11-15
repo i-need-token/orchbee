@@ -224,6 +224,12 @@ impl Locale {
                 | StartupFailure::DevelopmentBuildMismatch
                 | StartupFailure::Refused(_),
             ) => "",
+            (Self::EnUs, StartupFailure::ElevatedSession) => {
+                "This Session runs as administrator. Run `orchbee server stop` in an administrator terminal, then open Orchbee again.\n"
+            }
+            (Self::ZhCn, StartupFailure::ElevatedSession) => {
+                "此会话以管理员身份运行。请在管理员终端中运行 `orchbee server stop`，然后重新打开 Orchbee。\n"
+            }
             (Self::EnUs, StartupFailure::Admission) => {
                 "The local session could not admit this window.\n"
             }

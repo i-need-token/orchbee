@@ -117,6 +117,10 @@ pub(crate) enum FailureDisplay {
     /// A macOS or Linux data folder the local runtime refused, with the item
     /// at fault; the machine document keeps its `runtime-base` stage.
     Refused(Box<orchbee_local_runtime::AdmissionRefusal>),
+    /// The person's own Session runs as administrator and refused this
+    /// standard Client at its endpoint; the machine document keeps the kind
+    /// and stage the refusal already had.
+    ElevatedSession,
 }
 
 /// An outcome a CLI wait observes through the local session.
@@ -284,6 +288,25 @@ impl Failure {
             Some(FailureDisplay::Refused(refusal)) => Some(refusal),
             _ => None,
         }
+    }
+
+    /// Mark a connection refusal by a Session started as administrator when
+    /// the refusal says so, for the localized diagnostic only.
+    pub(crate) fn elevated_session_from(
+        mut self,
+        error: &orchbee_local_client_protocol::ConnectClientError,
+    ) -> Self {
+        if error.refused_by_elevated_session() {
+            self.display = Some(Box::new(FailureDisplay::ElevatedSession));
+        }
+        self
+    }
+
+    pub(crate) fn elevated_session(&self) -> bool {
+        matches!(
+            self.display.as_deref(),
+            Some(FailureDisplay::ElevatedSession)
+        )
     }
 }
 

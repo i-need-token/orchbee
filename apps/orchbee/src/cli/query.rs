@@ -1945,12 +1945,13 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
     use orchbee_local_client_protocol::{ProtocolError, RejectionReason};
     match error {
         crate::local_client::LocalClientConnectError::Admission(connect) => match connect {
-            ConnectClientError::ConnectFailed(_) => {
-                Failure::new(FailureKind::ServiceUnavailable).details(stage_details("admission"))
-            }
-            ConnectClientError::Io(_) => {
-                Failure::new(FailureKind::TransportLoss).details(stage_details("admission"))
-            }
+            // A Session started as administrator keeps the kind; only the text names it.
+            ConnectClientError::ConnectFailed(_) => Failure::new(FailureKind::ServiceUnavailable)
+                .details(stage_details("admission"))
+                .elevated_session_from(&connect),
+            ConnectClientError::Io(_) => Failure::new(FailureKind::TransportLoss)
+                .details(stage_details("admission"))
+                .elevated_session_from(&connect),
             ConnectClientError::Rejected(reason) => match reason {
                 RejectionReason::CapacityExceeded => Failure::new(FailureKind::ConnectionCapacity)
                     .details(stage_details("admission")),

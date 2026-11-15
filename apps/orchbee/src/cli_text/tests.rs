@@ -19,6 +19,43 @@ fn agent_start_preserves_the_caller_context_usage_hint() {
     }
 }
 
+/// The wording choice for a refused local connection: a refusal marked as coming from a Session
+/// started as administrator names it whatever its kind, while its document stays the unmarked one;
+/// any other local `denied` says only that the Session refused, never that the installation is.
+#[test]
+fn only_a_session_started_as_administrator_is_named_in_a_local_refusal() {
+    use crate::cli_outcome::{
+        Failure, FailureDisplay, FailureKind, local_runtime_source, stage_details,
+    };
+    let refusal = |kind| {
+        Failure::new(kind)
+            .details(stage_details("admission"))
+            .source(local_runtime_source())
+    };
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let administrator =
+            locale.startup_failure(&crate::local_startup::StartupFailure::ElevatedSession);
+        for kind in [
+            FailureKind::Denied,
+            FailureKind::ServiceUnavailable,
+            FailureKind::TransportLoss,
+        ] {
+            let plain = refusal(kind);
+            let mut marked = refusal(kind);
+            marked.display = Some(Box::new(FailureDisplay::ElevatedSession));
+            assert_eq!(CliText::new(locale).cli_failure(&marked), administrator);
+            assert_ne!(CliText::new(locale).cli_failure(&plain), administrator);
+            assert_eq!(marked.document(), plain.document());
+        }
+        let generic = CliText::new(locale)
+            .cli_failure(&Failure::new(FailureKind::Denied).source(local_runtime_source()));
+        assert!(
+            !generic.contains("installation") && !generic.contains("安装"),
+            "{generic}"
+        );
+    }
+}
+
 #[test]
 fn missing_agent_panel_reports_the_target_and_discovery_command() {
     let failure = crate::cli_outcome::Failure::new(crate::cli_outcome::FailureKind::NotFound)

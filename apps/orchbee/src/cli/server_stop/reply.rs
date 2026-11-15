@@ -18,6 +18,9 @@ pub(super) struct Answer {
     pub(super) observation: Observation,
     pub(super) wait: Option<&'static str>,
     pub(super) query: bool,
+    /// The Session runs as administrator and refused this standard Client; text only, the
+    /// document keeps its `unavailable` reason.
+    pub(super) elevated_session: bool,
 }
 
 fn phase(phase: StopPhase) -> &'static str {
@@ -105,6 +108,7 @@ pub(super) fn render(answer: Answer, format: OutputFormat, locale: Locale) -> Ou
         answer.result(),
         answer.status(),
         answer.wait,
+        answer.elevated_session,
         format,
         locale,
     )

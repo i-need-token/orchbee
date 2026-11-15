@@ -228,6 +228,7 @@ fn stop(id: &WorkbenchRequestId, format: OutputFormat, locale: Locale) -> Probe 
                 r.get("reason").and_then(Value::as_str),
                 raw,
                 r.get("wait").and_then(Value::as_str),
+                false,
             ))
             .ok()
         })

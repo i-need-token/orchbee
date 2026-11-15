@@ -323,6 +323,18 @@ impl fmt::Display for ConnectClientError {
     }
 }
 
+impl ConnectClientError {
+    /// Whether this Client runs below High integrity and its own Session's endpoint refused it with
+    /// OS error 5 at the pipe open or the peer check: on Windows, a Session started as
+    /// administrator. Never true on other platforms.
+    pub fn refused_by_elevated_session(&self) -> bool {
+        #[cfg(windows)]
+        return windows_admission::refused_by_elevated_session(self);
+        #[cfg(not(windows))]
+        false
+    }
+}
+
 impl std::error::Error for ConnectClientError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {

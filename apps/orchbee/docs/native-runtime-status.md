@@ -160,7 +160,10 @@ Paths use the lossless platform path representation; human strings and paths are
 the common text renderer; JSON bytes do not depend on locale. The `status client` and
 `status server` failures keep their established usage, denied, incompatible, protocol/transport,
 timeout (exit 7) and cancellation (exit 130) codes and add the closed detail
-`{stage:"runtime-status"}` to timeout and cancellation.
+`{stage:"runtime-status"}` to timeout and cancellation. A `denied` query prints the shared refusal
+copy instead of the generic query failure: on Windows, a Client below High integrity refused with OS
+error 5 learns that the Session runs as administrator and to run `orchbee server stop` in an
+administrator terminal; any other refusal says the local Session refused this connection.
 
 Evidence: the reply's process order, versions and unknown role or state; Hosts after the Worker, at
 most 256 and without capabilities, and a late Worker read as no Host; the Windows named-pipe request

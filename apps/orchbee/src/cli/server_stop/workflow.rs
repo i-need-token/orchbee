@@ -28,6 +28,7 @@ pub(super) fn run(
         observation: Observation::Unavailable("runtime"),
         wait: None,
         query: matches!(command, ServerStopCommand::Status { .. }),
+        elevated_session: false,
     };
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
@@ -159,6 +160,7 @@ pub(super) fn observe_session(
     match result {
         Ok(result) => answer.observation = Observation::Server(result.status),
         Err(error) => {
+            answer.elevated_session = error.failure.refused_by_elevated_session();
             match &error.failure {
                 // No shim speaks to a Session from before the handshake; its own build stops it.
                 ConnectClientError::PredatesHandshake => {

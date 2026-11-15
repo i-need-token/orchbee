@@ -3,8 +3,8 @@
 
 /// The single local-startup verdict vocabulary shared below activation and its UI adapters.
 /// The activation core itself only ever emits `Cohort`, `Runtime`, `Refused`,
-/// `SocketPathTooLong`, `RecoveryRequired`, one of the handshake refusals, `Admission`, or
-/// `TimedOut`;
+/// `SocketPathTooLong`, `RecoveryRequired`, one of the handshake refusals, `ElevatedSession`,
+/// `Admission`, or `TimedOut`;
 /// `Terminal`, `TerminalUnavailable`, `OutcomeUnknown`, and `Interface` are
 /// produced exclusively by the TUI adapter's own terminal stages and live
 /// in this one enum so both callers classify the same verdict type.
@@ -27,6 +27,8 @@ pub enum StartupFailure {
     OtherEnvironment,
     /// The running Session is another development build.
     DevelopmentBuildMismatch,
+    /// The Session runs as administrator and refused this standard Client (Windows).
+    ElevatedSession,
     Admission,
     TimedOut,
     TerminalUnavailable,

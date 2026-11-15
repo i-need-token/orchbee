@@ -8,6 +8,14 @@ impl super::CliText {
     /// escaped before it reaches the terminal.
     pub(crate) fn cli_failure(self, failure: &Failure) -> String {
         use crate::cli_outcome::FailureKind;
+        // Whatever the command and its kind, a refusal by a Session started as administrator
+        // names the one way out, as the TUI does.
+        if failure.elevated_session() {
+            return self
+                .locale
+                .startup_failure(&crate::local_startup::StartupFailure::ElevatedSession)
+                .into_owned();
+        }
         if failure.failure_schema.is_none()
             && failure
                 .details
@@ -223,11 +231,8 @@ impl super::CliText {
                 }
             }
             FailureKind::Denied if local_runtime => match self.locale {
-                Locale::EnUs => {
-                    "The local session refused the start; this Orchbee installation is not permitted.\n"
-                        .to_owned()
-                }
-                Locale::ZhCn => "本地会话拒绝了启动：此 Orchbee 安装未获许可。\n".to_owned(),
+                Locale::EnUs => "The local Session refused this connection.\n".to_owned(),
+                Locale::ZhCn => "本地会话拒绝了此连接。\n".to_owned(),
             },
             FailureKind::ServiceUnavailable if local_runtime => {
                 self.cli_server_unavailable(failure)

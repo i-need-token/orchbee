@@ -51,6 +51,28 @@ pub(super) fn connect(
     })
 }
 
+/// `ERROR_ACCESS_DENIED`, which both the pipe open and the peer check keep as their raw code.
+const ACCESS_DENIED: i32 = 5;
+
+/// The endpoint name hashes this person's runtime path, so a listener that refuses the open or the
+/// peer check with OS error 5 is the same account's Session started as administrator, whose High
+/// label refuses every lower process, unless another account squats the name. An elevated Client
+/// is never told so, and an unknown level tells nobody.
+pub(super) fn refused_by_elevated_session(error: &ConnectClientError) -> bool {
+    elevated_refusal(error, orchbee_local_ipc::runs_at_high_integrity)
+}
+
+fn elevated_refusal(
+    error: &ConnectClientError,
+    runs_at_high_integrity: impl FnOnce() -> io::Result<bool>,
+) -> bool {
+    matches!(
+        error,
+        ConnectClientError::ConnectFailed(source) | ConnectClientError::Io(source)
+            if source.raw_os_error() == Some(ACCESS_DENIED)
+    ) && matches!(runs_at_high_integrity(), Ok(false))
+}
+
 /// A reply that arrived after a wake or past the deadline does not count.
 fn settle(wake: Option<LocalIo<'_>>, deadline: Instant) -> Result<(), ConnectClientError> {
     check_wake(wake)?;

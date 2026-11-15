@@ -103,6 +103,7 @@ pub(in crate::cli) fn stop_session(
         observation: Observation::Unavailable("runtime"),
         wait: None,
         query: false,
+        elevated_session: false,
     };
     workflow::observe_session(
         &session,
@@ -134,6 +135,7 @@ fn emit(
     result: Value,
     status: u8,
     wait: Option<&str>,
+    elevated_session: bool,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
@@ -146,6 +148,7 @@ fn emit(
             result["reason"].as_str(),
             &id_text(id),
             wait,
+            elevated_session,
         )),
     };
     match encoded {

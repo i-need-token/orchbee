@@ -160,3 +160,30 @@ fn late_or_cancelled_connected_candidate_drops_before_hello_without_redial() {
         assert_eq!(drops.get(), 1);
     }
 }
+
+// Which refusal earns the administrator-Session sentence: OS error 5 at the pipe open or the peer
+// check, seen by a Client below High integrity. An elevated Client, an unknown level, another code
+// and a peer of another user, which carries no code, keep the generic refusal.
+#[test]
+fn only_a_standard_client_refused_with_error_5_meets_an_elevated_session() {
+    let denied = || io::Error::from_raw_os_error(5);
+    for error in [
+        ConnectClientError::ConnectFailed(denied()),
+        ConnectClientError::Io(denied()),
+    ] {
+        assert!(elevated_refusal(&error, || Ok(false)));
+        assert!(!elevated_refusal(&error, || Ok(true)));
+        assert!(!elevated_refusal(&error, || Err(io::Error::other("no"))));
+    }
+    for error in [
+        ConnectClientError::ConnectFailed(io::Error::from_raw_os_error(2)),
+        ConnectClientError::Io(io::Error::from_raw_os_error(231)),
+        ConnectClientError::Io(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "local peer user differs",
+        )),
+        ConnectClientError::CancellationSourceFault(denied()),
+    ] {
+        assert!(!elevated_refusal(&error, || Ok(false)));
+    }
+}

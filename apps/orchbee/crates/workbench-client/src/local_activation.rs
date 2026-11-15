@@ -530,6 +530,9 @@ pub fn refusal(error: &ConnectClientError) -> Option<StartupFailure> {
 }
 
 fn admission_failure(error: &ConnectClientError) -> StartupFailure {
+    if error.refused_by_elevated_session() {
+        return StartupFailure::ElevatedSession;
+    }
     match error {
         ConnectClientError::ConnectFailed(source) | ConnectClientError::Io(source) => {
             failure(source.kind(), StartupFailure::Admission)

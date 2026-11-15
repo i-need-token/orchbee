@@ -90,13 +90,15 @@ impl super::CliText {
     }
 
     // ---- help topics ---------------------------------------------------------
-    /// Localizes a closed stop outcome and prints its identity for later status recovery.
+    /// Localizes a closed stop outcome and prints its identity for later status recovery. A Session
+    /// started as administrator that refused this standard Client is named with the one way out.
     pub(crate) fn cli_server_stop_result(
         self,
         outcome: &str,
         reason: Option<&str>,
         id: &str,
         wait: Option<&str>,
+        elevated_session: bool,
     ) -> String {
         let state = match (self.locale, outcome) {
             (Locale::EnUs, "stopped") => "stopped",
@@ -127,6 +129,15 @@ impl super::CliText {
             (Locale::ZhCn, Some("cancelled")) => "（已取消等待）",
             _ => "",
         };
+        if elevated_session && outcome == "unavailable" {
+            let action = self
+                .locale
+                .startup_failure(&crate::local_startup::StartupFailure::ElevatedSession);
+            return match self.locale {
+                Locale::EnUs => format!("Session stop: {state}{waiting}\n{action}"),
+                Locale::ZhCn => format!("会话停止：{state}{waiting}\n{action}"),
+            };
+        }
         // An outcome with no stop record names the next action instead of a status read.
         if let Some(action) = self.cli_server_stop_action(outcome, reason) {
             return match self.locale {
