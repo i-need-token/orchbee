@@ -9,9 +9,16 @@
 // written document is never reformatted. Node built-ins only: the release workflow's feed job
 // imports this module in the step that holds the signing key.
 //
+// `extensions.desktop`, which version 1 readers skip, names the window archive of the same version
+// (scripts/desktop-files.mjs): a closed object of `version`, `manifest: {sha256}` (the SHA-256 of
+// the archive's `desktop-files.json`), `archive: {format, url, size, sha256}` and an optional
+// `extensions`, each bounded as the feed's own member of that name; see
+// proposals/platform/automatic-updates.md#window-archive-and-file-list. Only a reader of the window
+// self-update release acts on it, and only for a store that already holds `desktop\`.
+//
 // The release gate installs from a gate copy, `<stem>-<version>-<platform>.gate.feed.json`: the
-// same document naming the archive by its bare file name, so a folder holding the archive and the
-// signed copy is a local feed. The feed job writes it before signing both:
+// same document naming each archive by its bare file name, so a folder holding the archives and
+// the signed copy is a local feed. The feed job writes it before signing both:
 //
 //   node scripts/release-feed.mjs gate <absolute <stem>-<version>-<platform>.feed.json>
 import { createHash } from 'node:crypto';
@@ -118,6 +125,42 @@ function validReleasePath(value) {
 	);
 }
 
+/** Every rule the archive member `archive`, named `name` in the problems, breaks. */
+function archiveProblems(archive, name) {
+	if (!closed(archive, ['format', 'url', 'size', 'sha256']))
+		return [`${name} must have exactly format, url, size and sha256`];
+	const problems = [];
+	if (archive.format !== 'zip') problems.push(`${name}.format is not zip`);
+	if (!validHttps(archive.url) && !validReleasePath(archive.url))
+		problems.push(
+			`${name}.url is neither an HTTPS address without a query nor a relative release path`,
+		);
+	if (!Number.isSafeInteger(archive.size) || archive.size < 1 || archive.size > ARCHIVE_LIMIT)
+		problems.push(`${name}.size is not an integer from 1 to 1 GiB`);
+	if (!sha256Hex.test(archive.sha256)) problems.push(`${name}.sha256 is not lowercase SHA-256`);
+	return problems;
+}
+
+/**
+ * Every rule the feed's `extensions.desktop` member `desktop` breaks. Version 1 readers skip it, so
+ * `readFeed` does not apply these rules; the release tooling never writes or admits an entry that
+ * breaks one.
+ */
+export function desktopProblems(desktop) {
+	const name = 'extensions.desktop';
+	if (!closed(desktop, ['version', 'manifest', 'archive'], ['extensions']))
+		return [`${name} must have exactly the members version, manifest, archive`];
+	const problems = [];
+	if (desktop.extensions !== undefined && !isObject(desktop.extensions))
+		problems.push(`${name}.extensions is not an object`);
+	if (!validVersion(desktop.version))
+		problems.push(`${name}.version is not a SemVer version of at most 64 bytes`);
+	if (!closed(desktop.manifest, ['sha256']) || !sha256Hex.test(desktop.manifest.sha256))
+		problems.push(`${name}.manifest must be exactly a lowercase sha256`);
+	problems.push(...archiveProblems(desktop.archive, `${name}.archive`));
+	return problems;
+}
+
 /**
  * The feed of `bytes` and every reader rule it breaks; none means `orchbee update` admits it.
  * `channel` and `platform`, when given, must match.
@@ -147,21 +190,7 @@ export function readFeed(bytes, { channel, platform } = {}) {
 		closed(feed.manifest, ['sha256']) && sha256Hex.test(feed.manifest.sha256),
 		'manifest must be exactly a lowercase sha256',
 	);
-	const { archive } = feed;
-	if (!closed(archive, ['format', 'url', 'size', 'sha256'])) {
-		problems.push('archive must have exactly format, url, size and sha256');
-	} else {
-		check(archive.format === 'zip', 'archive.format is not zip');
-		check(
-			validHttps(archive.url) || validReleasePath(archive.url),
-			'archive.url is neither an HTTPS address without a query nor a relative release path',
-		);
-		check(
-			Number.isSafeInteger(archive.size) && archive.size >= 1 && archive.size <= ARCHIVE_LIMIT,
-			'archive.size is not an integer from 1 to 1 GiB',
-		);
-		check(sha256Hex.test(archive.sha256), 'archive.sha256 is not lowercase SHA-256');
-	}
+	problems.push(...archiveProblems(feed.archive, 'archive'));
 	if (channel !== undefined && feed.channel !== channel)
 		problems.push(`The feed is for the channel ${feed.channel}, not ${channel}`);
 	if (platform !== undefined && feed.platform !== platform)
@@ -174,11 +203,25 @@ export function absoluteArchive(url) {
 	return validHttps(url);
 }
 
+/** The written archive member of an archive's address, size and SHA-256. */
+function zip({ url, size, sha256: digest }) {
+	return { format: 'zip', url, size, sha256: digest };
+}
+
 /**
- * The exact bytes of a feed document. Throws when the values break a reader rule, so the release
- * tooling never writes a document `orchbee update` refuses.
+ * The exact bytes of a feed document; `desktop`, when given, names the window archive in
+ * `extensions.desktop`. Throws when the values break a reader rule, so the release tooling never
+ * writes a document `orchbee update` refuses.
  */
-export function feedDocument({ channel, platform, version, buildId, manifestSha256, archive }) {
+export function feedDocument({
+	channel,
+	platform,
+	version,
+	buildId,
+	manifestSha256,
+	archive,
+	desktop,
+}) {
 	const bytes = Buffer.from(
 		JSON.stringify({
 			schemaVersion: 1,
@@ -188,13 +231,53 @@ export function feedDocument({ channel, platform, version, buildId, manifestSha2
 			version,
 			buildId,
 			manifest: { sha256: manifestSha256 },
-			archive: { format: 'zip', url: archive.url, size: archive.size, sha256: archive.sha256 },
+			archive: zip(archive),
+			...(desktop === undefined
+				? {}
+				: {
+						extensions: {
+							desktop: {
+								version: desktop.version,
+								manifest: { sha256: desktop.manifestSha256 },
+								archive: zip(desktop.archive),
+							},
+						},
+					}),
 		}) + '\n',
 		'utf8',
 	);
-	const { problems } = readFeed(bytes);
+	const { feed, problems } = readFeed(bytes);
+	if (desktop !== undefined && problems.length === 0)
+		problems.push(...desktopProblems(feed.extensions.desktop));
 	if (problems.length > 0) throw new Error(problems.join('\n'));
 	return bytes;
+}
+
+/** The values `feedDocument` writes `feed` from, each archive named by `address(url)`. */
+function feedValues(feed, address) {
+	const { archive } = feed;
+	const desktop = feed.extensions?.desktop;
+	return {
+		channel: feed.channel,
+		platform: feed.platform,
+		version: feed.version,
+		buildId: feed.buildId,
+		manifestSha256: feed.manifest.sha256,
+		archive: { url: address(archive.url), size: archive.size, sha256: archive.sha256 },
+		...(desktop === undefined
+			? {}
+			: {
+					desktop: {
+						version: desktop.version,
+						manifestSha256: desktop.manifest?.sha256,
+						archive: {
+							url: address(desktop.archive?.url ?? ''),
+							size: desktop.archive?.size,
+							sha256: desktop.archive?.sha256,
+						},
+					},
+				}),
+	};
 }
 
 /** True when `bytes` is the written form of its own members. */
@@ -203,22 +286,17 @@ export function writtenForm(bytes, feed) {
 }
 
 /**
- * The gate copy of the feed document `bytes`: every member the same, the archive named by the last
- * segment of its address. Throws for a document the updater refuses or one not in its written form.
+ * The gate copy of the feed document `bytes`: every member the same, the runtime and window
+ * archives each named by the last segment of its address. Throws for a document the updater
+ * refuses, one not in its written form, or one holding members the release tooling does not write.
  */
 export function gateFeed(bytes) {
 	const { feed, problems } = readFeed(bytes);
 	if (problems.length > 0) throw new Error(problems.join('\n'));
 	if (!writtenForm(bytes, feed)) throw new Error('The feed document is not in its written form');
-	const { archive } = feed;
-	return feedDocument({
-		channel: feed.channel,
-		platform: feed.platform,
-		version: feed.version,
-		buildId: feed.buildId,
-		manifestSha256: feed.manifest.sha256,
-		archive: { url: archive.url.split('/').at(-1), size: archive.size, sha256: archive.sha256 },
-	});
+	if (!feedDocument(feedValues(feed, (url) => url)).equals(bytes))
+		throw new Error('The feed document holds members the release tooling does not write');
+	return feedDocument(feedValues(feed, (url) => url.split('/').at(-1)));
 }
 
 /** Writes the gate copy beside the feed document at `feedPath`, never replacing a file. */

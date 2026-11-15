@@ -62,7 +62,7 @@ version; the [feed](#release-feed) names the archive by its address.
 | `Orchbee-<version>-<platform>-setup.exe`      | `windows-*`          | The per-user installer: window application, runtime, and the `orchbee` command                                  | Chosen                                                                                          |
 | `Orchbee-<version>-<platform>.dmg`            | `macos-*`            | `Orchbee.app`, ad-hoc signed, with its runtime inside                                                           | Chosen                                                                                          |
 | `orchbee-desktop-<version>-<platform>.tar.gz` | `linux-*`            | The window application's per-user tree; `.deb` and AppImage are not built                                       | Chosen; the product owner still decides between this and the earlier AppImage and `.deb` choice |
-| `orchbee-desktop-<version>-<platform>.zip`    | `windows-*`          | The packaged window application directory, which `update` installs beside a running window                      | Proposed in [automatic updates](automatic-updates.md#how-the-window-updates); not built         |
+| `orchbee-desktop-<version>-<platform>.zip`    | `windows-*`          | The packaged window application directory, which `update` installs beside a running window                      | Chosen in [automatic updates](automatic-updates.md#how-the-window-updates); built, not yet read |
 | `orchbee-<version>-<platform>.zip`            | `windows-*`          | The signed release directory, for the command line alone                                                        | Chosen                                                                                          |
 | `orchbee-<version>-<platform>.tar.gz`         | `macos-*`, `linux-*` | The same, with executable modes kept                                                                            | Chosen                                                                                          |
 | `orchbee-<version>-<platform>.feed.json`      | `windows-*`          | The [feed document](#feed-document-version-1) naming that `.zip`                                                | Chosen                                                                                          |
@@ -295,10 +295,12 @@ document is never reformatted.
 - The archive is the `.zip` releases already upload: the signed release directory as its one
   top-level folder. Release assets: `<stem>-<version>-<platform>.zip`,
   `<stem>-<version>-<platform>.feed.json`, and `<stem>-<version>-<platform>.feed.json.sig`.
-- Proposed in [automatic updates](automatic-updates.md#how-the-window-updates):
-  `extensions.desktop` names the window archive of the same version, a closed object of exactly
-  `format`, `url`, `size`, and `sha256` under the `archive` member rules. A reader without a window
-  ignores it, version 1 readers ignore `extensions` already, and its members freeze with the first
+- Chosen in [automatic updates](automatic-updates.md#window-archive-and-file-list):
+  `extensions.desktop` names the window archive `orchbee-desktop-<version>-<platform>.zip` of the
+  same version, a closed object of `version`, `manifest` (the SHA-256 of the archive's
+  `desktop-files.json`), `archive` under the `archive` member rules, and an optional `extensions`.
+  The release tooling writes it into every Windows feed; version 1 readers ignore `extensions`, no
+  reader acts on it before the window self-update release, and its members freeze with the first
   version that reads them.
 - A replayed older feed keeps a client on its version, reported as up to date; there is no expiry
   field, because it would make the owner re-sign on a schedule. A signed feed of another channel or
@@ -312,6 +314,12 @@ document is never reformatted.
   from the workflow run's repository or `--repository-url`; the test profile by the bare archive
   name, so a test feed works from a folder, and signs it with the test key. `SHA256SUMS` lists the
   feed document like any other file.
+- `collect` also zips the packaged window directory, with the `desktop-files.json` that
+  `apps/desktop/scripts/package.mjs` wrote into it, as the window archive and names it in the
+  feed's `extensions.desktop` by the same kind of address. `check` confirms that archive's one
+  top-level folder, that its list matches the entry's digest and names exactly the folder's other
+  files by size and SHA-256, and that the bundled `release.json` is the feed's own. The gate copy
+  names both archives by their file names.
 - The release workflow's `release-feed` job, after `release-package` and before the
   [release gate](automatic-updates.md#the-release-gate), signs the feed with
   `ORCHBEE_RELEASE_SIGNING_KEY` in one step, which alone receives the key, and in the same step a

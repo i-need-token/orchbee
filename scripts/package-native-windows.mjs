@@ -121,8 +121,11 @@ function digest(filename) {
 		closeSync(fd);
 	}
 }
-function validPath(value) {
+
+/** A `/`-separated path the release manifest's file rules admit. */
+export function validReleaseFilePath(value) {
 	return (
+		typeof value === 'string' &&
 		value.length <= 240 &&
 		value.split('/').length <= 12 &&
 		value
@@ -135,6 +138,49 @@ function validPath(value) {
 					!part.endsWith('.') &&
 					!/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/iu.test(part),
 			)
+	);
+}
+
+/**
+ * Every regular file below `root` as `{ path, sha256, size }` in path order, under the release
+ * manifest's file rules: the path grammar, no links or hard-linked files, no case aliases, at most
+ * 4096 files of 512 MiB each and 2 GiB in all. A root-level name in `exclude` is left out.
+ */
+export function releaseFiles(root, { exclude = [] } = {}) {
+	const files = [];
+	const seen = new Set();
+	let total = 0;
+	let entryCount = 0;
+	function visit(directory, prefix = '') {
+		const metadata = lstatSync(directory);
+		if (!metadata.isDirectory() || metadata.isSymbolicLink())
+			throw new Error('Unsafe release directory');
+		for (const entry of readdirSync(directory, { withFileTypes: true })) {
+			const relative = prefix + entry.name;
+			if (prefix === '' && exclude.includes(relative)) continue;
+			if (++entryCount > 8192 || !validReleaseFilePath(relative))
+				throw new Error('Invalid or oversized release tree');
+			const filename = path.join(directory, entry.name);
+			const stat = lstatSync(filename);
+			if (stat.isSymbolicLink()) throw new Error('Release links are not supported');
+			const folded = relative.toLowerCase();
+			if (seen.has(folded)) throw new Error('Case alias in release');
+			seen.add(folded);
+			if (stat.isDirectory()) {
+				visit(filename, relative + '/');
+				continue;
+			}
+			if (!stat.isFile() || stat.nlink !== 1) throw new Error('Unsafe release file');
+			const content = digest(filename);
+			total += content.size;
+			if (files.length >= 4096 || total > maximumTotal)
+				throw new Error('Release size bound exceeded');
+			files.push({ path: relative, ...content });
+		}
+	}
+	visit(root);
+	return files.toSorted((left, right) =>
+		left.path < right.path ? -1 : Number(left.path > right.path),
 	);
 }
 
@@ -161,38 +207,12 @@ export function packageWindows(cohort, channel, version, buildId) {
 			if (error.code !== 'ENOENT') throw error;
 		}
 	}
-	const files = [];
-	const seen = new Set();
-	let total = 0;
-	let entryCount = 0;
-	function visit(directory, prefix = '') {
-		const metadata = lstatSync(directory);
-		if (!metadata.isDirectory() || metadata.isSymbolicLink())
-			throw new Error('Unsafe release directory');
-		for (const entry of readdirSync(directory, { withFileTypes: true })) {
-			const relative = prefix + entry.name;
-			if (++entryCount > 8192 || !validPath(relative))
-				throw new Error('Invalid or oversized release tree');
-			const filename = path.join(directory, entry.name);
-			const stat = lstatSync(filename);
-			if (stat.isSymbolicLink()) throw new Error('Release links are not supported');
-			const folded = relative.toLowerCase();
-			if (seen.has(folded)) throw new Error('Case alias in release');
-			seen.add(folded);
-			if (stat.isDirectory()) {
-				visit(filename, relative + '/');
-				continue;
-			}
-			if (!stat.isFile() || stat.nlink !== 1) throw new Error('Unsafe release file');
-			const content = digest(filename);
-			total += content.size;
-			if (files.length >= 4096 || total > maximumTotal)
-				throw new Error('Release size bound exceeded');
-			files.push({ path: relative, url: relative, ...content });
-		}
-	}
-	visit(cohort);
-	files.sort((left, right) => (left.path < right.path ? -1 : Number(left.path > right.path)));
+	const files = releaseFiles(cohort).map(({ path: relative, sha256, size }) => ({
+		path: relative,
+		url: relative,
+		sha256,
+		size,
+	}));
 	const manifest = JSON.parse(readFileSync(path.join(cohort, 'cohort.json'), 'utf8'));
 	if (
 		manifest.schemaVersion !== 1 ||

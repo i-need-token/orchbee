@@ -230,6 +230,10 @@ try {
 							: distributionProfile.applicationName,
 					);
 		await access(executablePath);
+		// The window file list, from the final bytes and before Setup is compiled, so Setup and the
+		// release's window archive carry the same list; it refuses links and names outside the
+		// release path grammar.
+		if (signsReleaseDirectory) runNode('desktop-files.mjs', ['write', output, productVersion]);
 		console.info(`Packaged Orchbee Desktop (${distributionProfile.profileId}): ${output}`);
 		if (packaging.installer) await compileWindowsInstaller(output);
 	}

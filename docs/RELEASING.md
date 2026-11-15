@@ -62,8 +62,9 @@ repository>`. Print each public half with the command in
    page) before its job "Publish v0.1.0-beta.1" starts; until then nothing is public.
 5. After packaging, the job "Release feed windows-x86_64" signs the update feed document and the
    release gate's copy of it with the release key, in a rehearsal too; the gate copy names the
-   archive by its file name and is never published. Publication places the feed's signature beside
-   it, then creates a draft release `v0.1.0-beta.1` holding the setup file, the `.zip`, the feed
+   archives by their file names and is never published. Publication places the feed's signature
+   beside it, then creates a draft release `v0.1.0-beta.1` holding the setup file, the `.zip`, the
+   window archive `orchbee-desktop-0.1.0-beta.1-windows-x86_64.zip`, the feed
    document `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, the npm tarballs and
    `SHA256SUMS`, then publishes `@orchbee/cli-win32-x64` and `orchbee` under the dist-tag `next`
    and moves their `latest` to this version while `latest` is still an older beta, and then
@@ -117,13 +118,14 @@ repository>`. Print each public half with the command in
   registry's cache: wait five minutes and re-run the failed job.
 - A published version that must not be offered any more: run
   `pnpm website:release <last good version>`, commit, build and deploy the website, then delete
-  the withdrawn release's archive:
-  `gh release delete-asset v<version> orchbee-<version>-windows-x86_64.zip`. The update channel
+  the withdrawn release's archives:
+  `gh release delete-asset v<version> orchbee-<version>-windows-x86_64.zip`, and the same for
+  `orchbee-desktop-<version>-windows-x86_64.zip`. The update channel
   and the download button move back at once; installations already above that version see a lower
-  feed and stay as they are, so the fix is the next version. The archive must go because a signed
+  feed and stay as they are, so the fix is the next version. The archives must go because a signed
   feed never expires and stays a public asset: whoever can answer for the feed address to one
   client could replay it to a client below that version, and only a missing archive turns that
-  replay into `download` with nothing installed. Apart from that asset, a published release is
+  replay into `download` with nothing installed. Apart from those assets, a published release is
   never changed or signed again.
 - `pnpm website:release` refusing a published release whose signature or archive does not check
   out means the channel must not move to it: leave the website as it is and release the next

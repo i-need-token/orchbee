@@ -509,7 +509,8 @@ function releaseNotes({ version, tag, repositoryName, names, changes }) {
 		return `[${name}](${address})`;
 	};
 	const installer = link(/-windows-x86_64-setup\.exe$/u);
-	const archive = link(/-windows-x86_64\.zip$/u);
+	// The runtime archive; the window archive `orchbee-desktop-<version>-…` serves updates only.
+	const archive = link(/^orchbee-\d[^/]*-windows-x86_64\.zip$/u);
 	const npm = `\`npm install -g orchbee@${distTagFor(version)}\``;
 	return [
 		'## Install',
@@ -520,7 +521,7 @@ function releaseNotes({ version, tag, repositoryName, names, changes }) {
 		`- Command line only: ${archive === undefined ? npm : `${archive}, or ${npm}`}`,
 		'- Already installed: `orchbee update`',
 		'',
-		'The `.feed.json`, `.sig` and `.tgz` files serve `orchbee update` and npm; `SHA256SUMS` holds the checksums.',
+		'The `.feed.json`, `.sig`, `orchbee-desktop-*.zip` and `.tgz` files serve updates and npm; `SHA256SUMS` holds the checksums.',
 		'',
 		changes,
 	].join('\n');

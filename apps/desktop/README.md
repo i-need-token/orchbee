@@ -314,6 +314,14 @@ neither a build id nor keys. The release workflow uses it so that only a job of 
 release key. A development cohort is never signed, so the bundled Client of a dev package cannot
 install it.
 
+On Windows the test and release commands also write `desktop-files.json` at the root of the
+packaged directory once the packager returns, before Setup is compiled:
+`scripts/desktop-files.mjs write` lists every other file by path, size and SHA-256 under the release
+manifest's file rules and refuses links and names outside its path grammar. Setup installs that
+list with the window, and the release tooling's window archive carries the same directory, so the
+signed update feed binds every window file
+([window archive](../../proposals/platform/automatic-updates.md#window-archive-and-file-list)).
+
 All three package commands write beneath their profile-specific directory in `apps/desktop/out/`.
 They do not perform Electron code signing, notarization, publication, or update distribution; the
 Windows installer below is built from the test and release packages.

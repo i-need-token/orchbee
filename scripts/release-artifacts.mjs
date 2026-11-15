@@ -6,13 +6,17 @@
 //   node scripts/release-artifacts.mjs check <directory>
 //
 // `collect` reads what `pnpm desktop:installer:<profile>` left under apps/desktop/out/<profile>/: the
-// packaged application's bundled runtime, which that build made a signed release directory, and the
-// setup file. It writes, without signing the release directory again:
+// packaged application with its window file list, its bundled runtime, which that build made a
+// signed release directory, and the setup file. It writes, without signing the release directory
+// again:
 //
 //   <stem>-<version>-<platform>/   the signed release directory, every file checked against release.json
 //   <stem>-<version>-<platform>.zip  that directory as one top-level folder, for the command line alone
-//   <stem>-<version>-<platform>.feed.json  the update feed document naming that archive
-//                                  (scripts/release-feed.mjs)
+//   <stem>-desktop-<version>-<platform>.zip  the packaged application, `desktop-files.json` included,
+//                                  as one top-level folder of that name: the window archive
+//                                  (scripts/desktop-files.mjs)
+//   <stem>-<version>-<platform>.feed.json  the update feed document naming the runtime archive and,
+//                                  in `extensions.desktop`, the window archive (scripts/release-feed.mjs)
 //   <stem>-<version>-<platform>.feed.json.sig  test profile only: its signature with the test key;
 //                                  the release path's feed job signs with the release key
 //   <setup name>.exe               the installer
@@ -27,7 +31,11 @@
 //
 // `check` confirms SHA256SUMS names exactly the other top-level files and that each matches, that
 // every release directory still matches its manifest, and that each feed document follows the
-// reader's rules and matches its archive and release directory. A feed signature, which SHA256SUMS
+// reader's rules and matches its archive and release directory. A feed's `extensions.desktop`
+// must name the window archive of the feed's version beside it, by the same kind of address as the
+// runtime archive, and that archive must hold one top-level folder whose list matches the entry's
+// digest and names exactly the folder's other files, the bundled `release.json` being the feed's
+// own. A feed signature, which SHA256SUMS
 // does not list, must verify with a key of the build's table: RELEASE_KEYS for the release stem,
 // TEST_KEYS otherwise. The release gate's copy of the feed, `<...>.gate.feed.json` with its `.sig`,
 // placed beside the archive after the feed job, is not listed either: it must carry its signature
@@ -39,6 +47,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
 	copyFileSync,
+	cpSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
@@ -52,9 +61,16 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+	DESKTOP_FILES,
+	checkDesktopArchive,
+	desktopReleaseName,
+	readDesktopFiles,
+} from './desktop-files.mjs';
 import { copyRelease, packageNpm, readRelease } from './package-npm.mjs';
 import {
 	GATE_FEED_SUFFIX,
+	desktopProblems,
 	feedDocument,
 	feedName,
 	readFeed,
@@ -112,6 +128,22 @@ function manifestVersion(directory) {
 	return manifest.version;
 }
 
+/**
+ * The bytes of the window list apps/desktop/scripts/package.mjs wrote into the packaged
+ * application, after checking it names `version`; the archive check confirms it against the files.
+ */
+function readWindowList(application, version) {
+	const filename = path.join(application, DESKTOP_FILES);
+	if (!existsSync(filename))
+		throw new Error(`${application} holds no ${DESKTOP_FILES}; package it again on this commit`);
+	const bytes = readFileSync(filename);
+	const { list, problems } = readDesktopFiles(bytes);
+	if (problems.length > 0) throw new Error(problems.join('\n'));
+	if (list.version !== version)
+		throw new Error(`${DESKTOP_FILES} names version ${list.version}, not ${version}`);
+	return bytes;
+}
+
 /** Runs `npm pack` for one package folder into `destination`. */
 function npmPack(folder, destination) {
 	const windows = process.platform === 'win32';
@@ -127,11 +159,10 @@ function npmPack(folder, destination) {
 }
 
 /**
- * Writes `<directory>.zip` beside a Windows release directory, holding it as its one top-level
- * folder, with the system's bsdtar.
+ * Writes the zip `archive`, by default `<directory>.zip` beside a Windows release directory,
+ * holding the directory as its one top-level folder, with the system's bsdtar.
  */
-function archiveRelease(directory) {
-	const archive = `${directory}.zip`;
+function archiveRelease(directory, archive = `${directory}.zip`) {
 	const tar = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
 	const result = spawnSync(
 		tar,
@@ -149,6 +180,24 @@ function archiveRelease(directory) {
 	);
 	if (result.error !== undefined) throw result.error;
 	if (result.status !== 0) throw new Error(`tar ${archive} exited ${result.status}`);
+}
+
+/**
+ * Writes the window archive `<output>/<name>.zip`: the packaged application as one top-level folder
+ * `name`. Windows' bsdtar cannot rename stored paths, so a scratch copy carries the folder's name;
+ * `check` then confirms every file against the list.
+ */
+function archiveWindow(application, output, name) {
+	const archive = path.join(output, `${name}.zip`);
+	const scratch = mkdtempSync(path.join(tmpdir(), 'orchbee-release-window-'));
+	try {
+		const folder = path.join(scratch, name);
+		cpSync(application, folder, { recursive: true, errorOnExist: true, verbatimSymlinks: true });
+		archiveRelease(folder, archive);
+	} finally {
+		rmSync(scratch, { force: true, recursive: true });
+	}
+	return archive;
 }
 
 /** The repository of the GitHub Actions run, or undefined outside one. */
@@ -185,9 +234,9 @@ function buildTable(stem) {
 
 /**
  * The problems of the feed document `name` in `directory`: the reader's rules and written form, and
- * its members against the archive and the signed release directory beside it. The release stem
- * names its archive by the GitHub release address, a test stem and every gate copy by the bare
- * archive name; a gate copy must also carry its signature.
+ * its members against the archive, the window archive and the signed release directory beside it.
+ * The release stem names its archives by the GitHub release address, a test stem and every gate
+ * copy by the bare archive name; a gate copy must also carry its signature.
  */
 function checkFeed(directory, name) {
 	const bytes = readFileSync(path.join(directory, name));
@@ -201,32 +250,11 @@ function checkFeed(directory, name) {
 	const stem = base.endsWith(suffix) ? base.slice(0, -suffix.length) : '';
 	if (stem !== releaseStem && !testStem.test(stem))
 		own.push(`does not name its stem, version ${feed.version} and platform ${feed.platform}`);
-	const archiveName = `${base}.zip`;
-	const archive = path.join(directory, archiveName);
-	const archiveMetadata = lstatSync(archive, { throwIfNoEntry: false });
-	if (archiveMetadata === undefined || !archiveMetadata.isFile()) {
-		own.push(`names ${archiveName}, which is missing`);
-	} else {
-		if (archiveMetadata.size !== feed.archive.size)
-			own.push(
-				`archive.size is ${feed.archive.size}, but ${archiveName} has ${archiveMetadata.size} bytes`,
-			);
-		if (fileDigest(archive) !== feed.archive.sha256)
-			own.push(`archive.sha256 does not match ${archiveName}`);
-	}
-	const expectedUrl =
-		stem === releaseStem && !gate
-			? new RegExp(
-					`^https://[^/]+/[^/]+/[^/]+/releases/download/v${escapeRegExp(feed.version)}/${escapeRegExp(archiveName)}$`,
-					'u',
-				)
-			: new RegExp(`^${escapeRegExp(archiveName)}$`, 'u');
-	if (!expectedUrl.test(feed.archive.url))
-		own.push(
-			stem === releaseStem && !gate
-				? `archive.url is not the GitHub release address of ${archiveName}`
-				: `archive.url is not the bare name ${archiveName}`,
-		);
+	// The release feed names its archives by GitHub release address, every other by bare name.
+	const releaseTag = stem === releaseStem && !gate ? `v${feed.version}` : undefined;
+	own.push(...checkArchive(directory, feed.archive, `${base}.zip`, 'archive', releaseTag).problems);
+	if (feed.extensions?.desktop !== undefined)
+		own.push(...checkWindow(directory, feed, stem, releaseTag));
 	const manifestPath = path.join(directory, base, 'release.json');
 	if (!existsSync(manifestPath)) {
 		own.push(`has no release directory ${base}`);
@@ -260,6 +288,78 @@ function checkFeed(directory, name) {
 
 function escapeRegExp(text) {
 	return text.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+/**
+ * The problems of the archive `archiveName` in `directory` against the feed's member `member`,
+ * named `label`, and its bytes when present. With `releaseTag` the member names it by the GitHub
+ * release address of that tag, otherwise by its bare name.
+ */
+function checkArchive(directory, member, archiveName, label, releaseTag) {
+	const problems = [];
+	const archive = path.join(directory, archiveName);
+	const metadata = lstatSync(archive, { throwIfNoEntry: false });
+	let bytes;
+	if (metadata === undefined || !metadata.isFile()) {
+		problems.push(`names ${archiveName}, which is missing`);
+	} else {
+		bytes = readFileSync(archive);
+		if (bytes.length !== member.size)
+			problems.push(
+				`${label}.size is ${member.size}, but ${archiveName} has ${bytes.length} bytes`,
+			);
+		if (sha256(bytes) !== member.sha256)
+			problems.push(`${label}.sha256 does not match ${archiveName}`);
+	}
+	const expectedUrl =
+		releaseTag === undefined
+			? new RegExp(`^${escapeRegExp(archiveName)}$`, 'u')
+			: new RegExp(
+					`^https://[^/]+/[^/]+/[^/]+/releases/download/${escapeRegExp(releaseTag)}/${escapeRegExp(archiveName)}$`,
+					'u',
+				);
+	if (!expectedUrl.test(member.url))
+		problems.push(
+			releaseTag === undefined
+				? `${label}.url is not the bare name ${archiveName}`
+				: `${label}.url is not the GitHub release address of ${archiveName}`,
+		);
+	return { bytes, problems };
+}
+
+/**
+ * The problems of the feed's `extensions.desktop` against the window archive beside it: the entry's
+ * rules, the archive's address, size and digest, and its contents against the list it carries, whose
+ * digest the entry binds and whose bundled `release.json` is the feed's own.
+ */
+function checkWindow(directory, feed, stem, releaseTag) {
+	const { desktop } = feed.extensions;
+	const entryProblems = desktopProblems(desktop);
+	if (entryProblems.length > 0) return entryProblems;
+	// The tooling writes the window of the feed's own version; an earlier one is not beside it.
+	if (desktop.version !== feed.version)
+		return [`extensions.desktop.version is ${desktop.version}, not ${feed.version}`];
+	const folder = desktopReleaseName(stem, desktop.version, feed.platform);
+	const archiveName = `${folder}.zip`;
+	const { bytes, problems } = checkArchive(
+		directory,
+		desktop.archive,
+		archiveName,
+		'extensions.desktop.archive',
+		releaseTag,
+	);
+	if (bytes === undefined) return problems;
+	const window = checkDesktopArchive(bytes, folder);
+	problems.push(...window.problems.map((problem) => `${archiveName} ${problem}`));
+	if (window.problems.length > 0) return problems;
+	if (sha256(window.listBytes) !== desktop.manifest.sha256)
+		problems.push(`extensions.desktop.manifest.sha256 does not match ${archiveName}'s list`);
+	if (window.list.version !== desktop.version)
+		problems.push(`${archiveName}'s list names version ${window.list.version}`);
+	const bundled = window.list.files.find((file) => file.path === 'resources/cohort/release.json');
+	if (bundled?.sha256 !== feed.manifest.sha256)
+		problems.push(`${archiveName} does not bundle the feed's release.json`);
+	return problems;
 }
 
 /** Every problem `check` finds in `directory`; none means intact. */
@@ -336,10 +436,14 @@ function archiveAddress({ profile, repositoryUrl, version, archiveName }) {
 	return `${repositoryUrl}/releases/download/v${version}/${archiveName}`;
 }
 
-/** Writes the feed document beside the archive of `releaseDirectory`, and signs it for a test build. */
-function writeFeed({ profile, archiveUrl, release, releaseDirectory }) {
+/**
+ * Writes the feed document beside the archive of `releaseDirectory`, naming the window archive
+ * `desktop.archive` with the window list `desktop.list`, and signs it for a test build.
+ */
+function writeFeed({ profile, archiveUrl, release, releaseDirectory, desktop }) {
 	const archive = `${releaseDirectory}.zip`;
 	const archiveBytes = readFileSync(archive);
+	const desktopBytes = readFileSync(desktop.archive);
 	const { manifest } = release;
 	const document = feedDocument({
 		channel: manifest.channel,
@@ -351,6 +455,11 @@ function writeFeed({ profile, archiveUrl, release, releaseDirectory }) {
 			url: archiveUrl,
 			size: archiveBytes.length,
 			sha256: sha256(archiveBytes),
+		},
+		desktop: {
+			version: manifest.version,
+			manifestSha256: sha256(desktop.list),
+			archive: { url: desktop.url, size: desktopBytes.length, sha256: sha256(desktopBytes) },
 		},
 	});
 	const feed = path.join(
@@ -383,19 +492,36 @@ function collect({ profile, output, repositoryUrl = runRepository() }) {
 		'setup file',
 	);
 	const releaseName = `${release.stem}-${version}-${release.manifest.platform}`;
-	// Settled before anything is written, so a missing repository leaves no partial output.
+	const desktopName = desktopReleaseName(release.stem, version, release.manifest.platform);
+	// Settled before anything is written, so a missing repository or window list leaves no partial
+	// output.
 	const archiveUrl = archiveAddress({
 		profile,
 		repositoryUrl,
 		version,
 		archiveName: `${releaseName}.zip`,
 	});
+	const desktopUrl = archiveAddress({
+		profile,
+		repositoryUrl,
+		version,
+		archiveName: `${desktopName}.zip`,
+	});
+	const windows = release.platform.os === 'win32';
+	const desktopList = windows ? readWindowList(application, version) : undefined;
 	mkdirSync(output, { recursive: true });
 	const releaseDirectory = path.join(output, releaseName);
 	copyRelease(bundled, release, releaseDirectory);
-	if (release.platform.os === 'win32') {
+	if (windows) {
 		archiveRelease(releaseDirectory);
-		writeFeed({ profile, archiveUrl, release, releaseDirectory });
+		const desktopArchive = archiveWindow(application, output, desktopName);
+		writeFeed({
+			profile,
+			archiveUrl,
+			release,
+			releaseDirectory,
+			desktop: { archive: desktopArchive, url: desktopUrl, list: desktopList },
+		});
 	}
 	copyFileSync(setup, path.join(output, path.basename(setup)));
 	// package-npm writes into a new directory; its folders are packed and then dropped.
