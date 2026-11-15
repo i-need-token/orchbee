@@ -52,7 +52,8 @@ repository>`. Print each public half with the command in
    `v0.1.0-beta.1` holding the setup file, the `.zip`, the feed document
    `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, the npm tarballs and
    `SHA256SUMS`, and then publishes `@orchbee/cli-win32-x64` and
-   `orchbee` under the dist-tag `next`. The draft's notes open with an Install section that links
+   `orchbee` under the dist-tag `next`, then moves their `latest` to this version while `latest`
+   is still an older beta. The draft's notes open with an Install section that links
    the setup file and the `.zip` and gives the npm command. Open the draft, replace the Changes
    placeholder with the notes, make sure Set as the latest release is ticked, and press Publish
    release. The draft is not a pre-release even for a beta: GitHub shows a Latest release on the

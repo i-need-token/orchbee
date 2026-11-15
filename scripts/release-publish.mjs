@@ -23,7 +23,9 @@
 //   Runs `gh` with the token in GH_TOKEN.
 // - npm: publishes every tarball of <artifacts>, platform packages first and the main package last,
 //   with provenance and the dist-tag `next` for a pre-release or `latest` otherwise. A version the
-//   registry already holds with the same tarball is skipped; one with another tarball fails.
+//   registry already holds with the same tarball is skipped; one with another tarball fails. A
+//   pre-release then also takes `latest` while `latest` is missing or an older pre-release, so a
+//   plain `npm install` gets the newest beta until a stable version exists.
 //
 // <artifacts> is a directory `node scripts/release-artifacts.mjs collect --profile release` wrote.
 // Exit codes: 0 done; 1 a step failed or a check found a problem; 2 malformed arguments.
@@ -350,15 +352,65 @@ export function npmDecision({ name, version, local, published }) {
 	};
 }
 
-/** The integrity the registry records for `name@version`, or undefined when it has none. */
-export async function registryIntegrity(name, version, fetchImpl = fetch) {
+/** The registry's document for the package `name`, or undefined when the registry has none. */
+async function registryDocument(name, fetchImpl) {
 	const response = await fetchImpl(`${registry}/${name.replace('/', '%2f')}`, {
 		headers: { accept: 'application/json', 'cache-control': 'no-cache' },
 	});
 	if (response.status === 404) return undefined;
 	if (!response.ok)
 		throw new StepFailure(`The npm registry answered ${response.status} for ${name}`);
-	const document = await response.json();
+	return response.json();
+}
+
+/** Numeric identifiers compare as numbers and rank below alphanumeric ones, which compare as text. */
+function compareIdentifiers(left, right) {
+	const leftNumeric = /^\d+$/u.test(left);
+	const rightNumeric = /^\d+$/u.test(right);
+	if (leftNumeric && rightNumeric) return Number(left) - Number(right);
+	if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+	if (left === right) return 0;
+	return left < right ? -1 : 1;
+}
+
+/** A version's three numbers and its pre-release identifiers, empty for a stable version. */
+function versionParts(version) {
+	const dash = version.indexOf('-');
+	return {
+		core: (dash === -1 ? version : version.slice(0, dash)).split('.').map(Number),
+		pre: dash === -1 ? [] : version.slice(dash + 1).split('.'),
+	};
+}
+
+/** Semantic Versioning precedence of two versions without build metadata: below, at or above zero. */
+function compareVersions(left, right) {
+	const a = versionParts(left);
+	const b = versionParts(right);
+	for (let index = 0; index < 3; index += 1)
+		if (a.core[index] !== b.core[index]) return a.core[index] - b.core[index];
+	// A version without a pre-release part ranks above every pre-release of the same core.
+	if (a.pre.length === 0 || b.pre.length === 0) return b.pre.length - a.pre.length;
+	for (let index = 0; index < Math.min(a.pre.length, b.pre.length); index += 1) {
+		const order = compareIdentifiers(a.pre[index], b.pre[index]);
+		if (order !== 0) return order;
+	}
+	return a.pre.length - b.pre.length;
+}
+
+/**
+ * Whether the pre-release `version` also takes the dist-tag `latest`, which names `current` now: while
+ * `latest` is missing or an older pre-release. Until a stable version exists a plain `npm install`
+ * then gets the newest beta, and a job run again for an older beta never moves `latest` back.
+ */
+function takesLatest(version, current) {
+	if (!version.includes('-')) return false;
+	if (current === undefined) return true;
+	return current.includes('-') && compareVersions(current, version) < 0;
+}
+
+/** The integrity the registry records for `name@version`, or undefined when it has none. */
+export async function registryIntegrity(name, version, fetchImpl = fetch) {
+	const document = await registryDocument(name, fetchImpl);
 	const entry = document?.versions?.[version];
 	if (entry === undefined) return undefined;
 	const integrity = entry?.dist?.integrity;
@@ -502,6 +554,29 @@ async function publishNpm({ artifacts, version, repositoryUrl }) {
 		if (result.status !== 0)
 			throw new StepFailure(`npm publish ${entry.file} exited ${result.status}`);
 		log(`Published ${name}@${version} under ${tag}.`);
+	}
+	// `latest` moves in the publication order, platform packages first and the main package last.
+	const currents = await Promise.all(
+		ordered.map(async ({ manifest }) => {
+			const value = (await registryDocument(manifest.name, fetch))?.['dist-tags']?.latest;
+			return typeof value === 'string' ? value : undefined;
+		}),
+	);
+	for (const [index, { manifest }] of ordered.entries()) {
+		const { name } = manifest;
+		const current = currents[index];
+		if (!takesLatest(version, current)) {
+			if (version.includes('-')) log(`${name} keeps latest at ${current}.`);
+			continue;
+		}
+		log(`> npm dist-tag add ${name}@${version} latest`);
+		const result = spawnSync('npm', ['dist-tag', 'add', `${name}@${version}`, 'latest'], {
+			stdio: ['ignore', 'inherit', 'inherit'],
+		});
+		if (result.error !== undefined) throw new StepFailure(`npm: ${result.error.message}`);
+		if (result.status !== 0)
+			throw new StepFailure(`npm dist-tag add ${name}@${version} latest exited ${result.status}`);
+		log(`Moved latest of ${name} to ${version}.`);
 	}
 }
 
