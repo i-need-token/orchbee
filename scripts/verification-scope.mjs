@@ -96,7 +96,6 @@ const rootToolInputs = new Set([
 		'README.md',
 		'run-models.mjs',
 		'run-models.test.mjs',
-		'select-changed-models.mjs',
 	].map((name) => `scripts/tla/${name}`),
 ]);
 function capture(root, command, args, stdio) {

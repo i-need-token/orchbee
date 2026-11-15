@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 
-import { documentScopeChanged, workflowTlaScope } from './document-scopes.mjs';
+import { documentScopeChanged } from './document-scopes.mjs';
 
 export const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -121,12 +121,12 @@ async function verifiedBase(reference) {
 	return revision;
 }
 
-async function pathsFromBase(revision, { includeUntracked = true } = {}) {
+async function pathsFromBase(revision) {
 	const results = await Promise.allSettled([
 		runGitText(['diff', '--no-renames', '--name-only', '-z', revision, 'HEAD', '--']),
 		runGitText(['diff', '--cached', '--no-renames', '--name-only', '-z', 'HEAD', '--']),
 		runGitText(['diff', '--no-renames', '--name-only', '-z', '--']),
-		includeUntracked ? runGitText(['ls-files', '--others', '--exclude-standard', '-z']) : '',
+		runGitText(['ls-files', '--others', '--exclude-standard', '-z']),
 	]);
 	for (const result of results) if (result.status === 'rejected') throw result.reason;
 	const [committed, staged, unstaged, untracked] = results.map((result) =>
@@ -151,10 +151,10 @@ async function pathVersions(revision, changedPath) {
 	return { before, intermediate: [head, staged], after };
 }
 
-/** Both local execution and CI selection compare the same requested inventory base. */
-export async function selectModelsSince(inventory, reference, options) {
+/** Changed-path selection compares the requested inventory base with every local snapshot. */
+export async function selectModelsSince(inventory, reference) {
 	const revision = await verifiedBase(reference);
-	const { paths: changedPaths, staged, unstaged } = await pathsFromBase(revision, options);
+	const { paths: changedPaths, staged, unstaged } = await pathsFromBase(revision);
 	const inventoryRelativePath = 'scripts/tla/models.json';
 	let previousInventory;
 	if (changedPaths.includes(inventoryRelativePath)) {
@@ -172,14 +172,13 @@ export async function selectModelsSince(inventory, reference, options) {
 		)
 			return [...inventory.models];
 	}
-	const scopedPaths = new Set([
-		'.github/workflows/verify.yml',
-		...[inventory, previousInventory]
+	const scopedPaths = new Set(
+		[inventory, previousInventory]
 			.filter(Boolean)
 			.flatMap((entry) =>
 				entry.models.flatMap((model) => (model.documentScopes ?? []).map((scope) => scope.path)),
 			),
-	]);
+	);
 	const contents = new Map();
 	const scopedResults = await Promise.allSettled(
 		changedPaths
@@ -501,14 +500,9 @@ export const inventoryTestPaths = new Set([
 
 export const toolingCommand =
 	'node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs';
-const workflowPath = '.github/workflows/verify.yml';
 const toolingStandards = new Set(['docs/VERIFICATION.md', 'docs/MODELING-AND-CORRECTNESS.md']);
 function toolingPath(changedPath) {
-	return (
-		changedPath.startsWith('scripts/tla/') ||
-		toolingStandards.has(changedPath) ||
-		changedPath === workflowPath
-	);
+	return changedPath.startsWith('scripts/tla/') || toolingStandards.has(changedPath);
 }
 
 function modelObligations(model) {
@@ -558,16 +552,6 @@ export function selectModelsForChangedPaths(
 	contents = new Map(),
 ) {
 	const normalizedPaths = changedPaths.map((changedPath) => changedPath.replaceAll('\\', '/'));
-	const workflow = contents.get(workflowPath);
-	let workflowScope = 'none';
-	if (normalizedPaths.includes(workflowPath)) {
-		const scopes = workflow
-			? versionTransitions(workflow).map(([before, after]) => workflowTlaScope(before, after))
-			: ['all'];
-		if (scopes.includes('all')) workflowScope = 'all';
-		else if (scopes.includes('tooling')) workflowScope = 'tooling';
-	}
-	if (workflowScope === 'all') return [...inventory.models];
 	if (previousInventory !== undefined) {
 		const { models: _previousModels, ...previousShared } = previousInventory;
 		const { models: _currentModels, ...currentShared } = inventory;
@@ -578,7 +562,6 @@ export function selectModelsForChangedPaths(
 	const toolPaths = normalizedPaths.filter(
 		(changedPath) =>
 			!inventoryTestPaths.has(changedPath) &&
-			!(changedPath === workflowPath && workflowScope === 'none') &&
 			!(changedPath === 'scripts/tla/models.json' && previousInventory !== undefined),
 	);
 	if (toolPaths.includes('scripts/tla/models.json')) return [...inventory.models];

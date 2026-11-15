@@ -179,7 +179,6 @@ syncBuiltinESMExports();
 			'model-records.mjs',
 			'model-cache.mjs',
 			'model-cache-identity.mjs',
-			'select-changed-models.mjs',
 		]) {
 			copyFileSync(new URL(name, import.meta.url), path.join(scripts, name));
 		}
@@ -220,10 +219,6 @@ syncBuiltinESMExports();
 		const env = { ...process.env };
 		delete env.ORCHBEE_TLA2TOOLS_JAR;
 		delete env.ORCHBEE_TLA_TIMEOUT_MILLISECONDS;
-		// These fixtures assert local worktree selection. A CI runner's own variables would drop
-		// untracked files from the selection and append fixture results to the real step output.
-		delete env.CI;
-		delete env.GITHUB_OUTPUT;
 		const invoke = (entry, args, extra = {}) =>
 			runChild(process.execPath, [path.join(scripts, entry), ...args], {
 				cwd: root,
@@ -231,8 +226,49 @@ syncBuiltinESMExports();
 				encoding: 'utf8',
 				timeout: 20_000,
 			});
-		return { root, scripts, tools, inventory, inventoryFile, invoke };
+		// The stub stays outside the fixture checkout so it never becomes a changed path.
+		const stub = mkdtempSync(path.join(tmpdir(), 'orchbee TLC selection '));
+		t.after(() => rmSync(stub, { recursive: true, force: true }));
+		writeFileSync(path.join(stub, 'selection-java.mjs'), selectionJava);
+		const preload = path.join(stub, 'selection-preload.mjs');
+		writeFileSync(preload, selectionPreload);
+		// Runs the changed-path selector end to end and reports the checked models in inventory order.
+		const select = async (base) => {
+			const result = await invoke('run-models.mjs', ['--changed-since', base, '--jobs', '1'], {
+				ORCHBEE_TLA_JAVA: 'test-java',
+				NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`,
+			});
+			const logs = /^Logs: (.+)$/mu.exec(result.stdout)?.[1].trim();
+			if (logs) rmSync(logs, { recursive: true, force: true });
+			assert.equal(result.status, 0, result.stdout + result.stderr);
+			const checked = new Set(
+				result.stdout
+					.split('\n')
+					.filter((line) => line.startsWith('TLA_RESULT '))
+					.map((line) => JSON.parse(line.slice('TLA_RESULT '.length)).model),
+			);
+			const order = JSON.parse(readFileSync(inventoryFile, 'utf8')).models.map(({ id }) => id);
+			return { ...result, stdout: `${order.filter((id) => checked.has(id)).join(',')}\n` };
+		};
+		return { root, scripts, tools, inventory, inventoryFile, invoke, select };
 	}
+
+	const selectionJava = `
+import { writeSync } from 'node:fs';
+writeSync(1, 'Model checking completed. No error has been found.\\n2 states generated, 1 distinct states found, 0 states left on queue.\\nThe depth of the complete state graph search is 1.\\nFinished in 1s\\n<Advance line 1, col 1 of module Example>: 1:2\\n');
+`;
+
+	const selectionPreload = `
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
+import { fileURLToPath } from 'node:url';
+const spawn = childProcess.spawn;
+childProcess.spawn = (command, args, options) =>
+ command === 'test-java'
+  ? spawn(process.execPath, [fileURLToPath(new URL('selection-java.mjs', import.meta.url))], options)
+  : spawn(command, args, options);
+syncBuiltinESMExports();
+`;
 
 	test('CLI rejects invalid heap ceilings before provisioning or publishing a run', async (t) => {
 		const f = createRunnerFixture(t);
@@ -289,13 +325,13 @@ syncBuiltinESMExports();
 		const base = git('rev-parse', 'HEAD');
 		fixture.inventory.models[0].workers = 2;
 		writeFileSync(fixture.inventoryFile, JSON.stringify(fixture.inventory));
-		const scoped = await fixture.invoke('select-changed-models.mjs', [base]);
+		const scoped = await fixture.select(base);
 		assert.equal(scoped.status, 0, scoped.stderr);
 		assert.equal(scoped.stdout, 'alpha\n');
-		const unknown = await fixture.invoke('select-changed-models.mjs', ['missing-reference']);
+		const unknown = await fixture.select('missing-reference');
 		assert.equal(unknown.status, 0);
 		assert.equal(unknown.stdout, 'alpha,beta\n');
-		assert.match(unknown.stderr, /selecting all/u);
+		assert.match(unknown.stderr, /running every model/u);
 		const source = path.join(fixture.root, 'apps/beta/src');
 		mkdirSync(source);
 		for (const name of process.platform === 'win32'
@@ -303,7 +339,7 @@ syncBuiltinESMExports();
 			: ['未跟踪.rs', 'line\nbreak.rs']) {
 			const file = path.join(source, name);
 			writeFileSync(file, 'changed\n');
-			const unicode = await fixture.invoke('select-changed-models.mjs', [base]);
+			const unicode = await fixture.select(base);
 			assert.equal(unicode.status, 0, unicode.stderr);
 			assert.equal(unicode.stdout, 'alpha,beta\n');
 			rmSync(file);
@@ -319,16 +355,16 @@ syncBuiltinESMExports();
 			'unrelated root',
 		);
 		for (const invalid of [unrelatedCommit, 'HEAD:apps/alpha/README.md', '-M']) {
-			const invalidBase = await fixture.invoke('select-changed-models.mjs', [invalid]);
+			const invalidBase = await fixture.select(invalid);
 			assert.equal(invalidBase.status, 0, invalidBase.stderr);
 			assert.equal(invalidBase.stdout, 'alpha,beta\n');
-			assert.match(invalidBase.stderr, /selecting all/u);
+			assert.match(invalidBase.stderr, /running every model/u);
 		}
 		for (const flag of ['assume-unchanged', 'skip-worktree']) {
 			git('update-index', '--' + flag, 'apps/alpha/README.md');
-			const hidden = await fixture.invoke('select-changed-models.mjs', [base]);
+			const hidden = await fixture.select(base);
 			assert.equal(hidden.stdout, 'alpha,beta\n');
-			assert.match(hidden.stderr, /selecting all/u);
+			assert.match(hidden.stderr, /running every model/u);
 			git('update-index', '--no-' + flag, 'apps/alpha/README.md');
 		}
 		writeFileSync(fixture.inventoryFile, 'not valid JSON');
@@ -345,13 +381,13 @@ syncBuiltinESMExports();
 		);
 		const malformed = git('rev-parse', 'HEAD');
 		writeFileSync(fixture.inventoryFile, JSON.stringify(fixture.inventory));
-		const fallback = await fixture.invoke('select-changed-models.mjs', [malformed]);
+		const fallback = await fixture.select(malformed);
 		assert.equal(fallback.status, 0);
 		assert.equal(fallback.stdout, 'alpha,beta\n');
-		assert.match(fallback.stderr, /selecting all/u);
+		assert.match(fallback.stderr, /running every model/u);
 	});
 
-	test('Git selection preserves staged source, document, workflow and inventory changes hidden by the worktree', async (t) => {
+	test('Git selection preserves staged source, document and inventory changes hidden by the worktree', async (t) => {
 		const f = createRunnerFixture(t);
 		const git = (...args) => {
 			const result = spawnSync('git', ['-c', 'core.autocrlf=false', ...args], {
@@ -370,11 +406,6 @@ syncBuiltinESMExports();
 		f.inventory.models[0].documentScopes = [
 			{ path: claim, relevantHeadings: ['Owned'], unrelatedHeadings: ['Other'] },
 		];
-		const workflow = '.github/workflows/verify.yml';
-		const workflowText =
-			'name: Verify\njobs:\n  verify:\n    timeout-minutes: 1\n  tla:\n    runs-on: ubuntu-latest\n';
-		mkdirSync(path.dirname(path.join(f.root, workflow)), { recursive: true });
-		writeFileSync(path.join(f.root, workflow), workflowText);
 		mkdirSync(path.join(f.root, 'formal/tla'), { recursive: true });
 		writeFileSync(path.join(f.root, 'formal/tla/Tool.tla'), '---- MODULE Tool ----\n====\n');
 		writeFileSync(path.join(f.root, 'formal/tla/Tool.cfg'), 'CONSTANT Bound = 1\n');
@@ -407,18 +438,6 @@ syncBuiltinESMExports();
 			[claim, claimText, claimText.replace('Relevant.', 'Changed.'), 'alpha\n'],
 			[claim, claimText, claimText.replace('Other.', 'Changed.'), '\n'],
 			[
-				workflow,
-				workflowText,
-				workflowText.replace('ubuntu-latest', 'windows-latest'),
-				'tla-verification-execution,alpha,beta\n',
-			],
-			[
-				workflow,
-				workflowText,
-				workflowText.replace('timeout-minutes: 1', 'timeout-minutes: 2'),
-				'\n',
-			],
-			[
 				'scripts/tla/models.json',
 				inventoryText,
 				JSON.stringify({
@@ -432,7 +451,7 @@ syncBuiltinESMExports();
 			writeFileSync(path.join(f.root, file), staged);
 			git('add', '--', file);
 			writeFileSync(path.join(f.root, file), original);
-			const selected = await f.invoke('select-changed-models.mjs', [base]);
+			const selected = await f.select(base);
 			assert.equal(selected.status, 0, selected.stderr);
 			assert.equal(selected.stdout, expected, file);
 			git('restore', '--staged', '--', file);
@@ -451,7 +470,7 @@ syncBuiltinESMExports();
 		);
 		writeFileSync(path.join(f.root, claim), claimText);
 		git('add', '--', claim);
-		const committedThenReverted = await f.invoke('select-changed-models.mjs', [base]);
+		const committedThenReverted = await f.select(base);
 		assert.equal(committedThenReverted.status, 0, committedThenReverted.stderr);
 		assert.equal(committedThenReverted.stdout, 'alpha\n');
 	});
@@ -504,15 +523,15 @@ syncBuiltinESMExports();
 		const base = commit();
 		f.inventory.models[1].triggerExclusions = [excluded];
 		writeFileSync(f.inventoryFile, JSON.stringify(f.inventory));
-		let selected = await f.invoke('select-changed-models.mjs', [base]);
+		let selected = await f.select(base);
 		assert.equal(selected.status, 0, selected.stderr);
 		assert.equal(selected.stdout, 'tla-verification-execution,alpha,beta\n');
 		writeFileSync(path.join(f.root, excluded), 'changed presentation\n');
-		selected = await f.invoke('select-changed-models.mjs', [base]);
+		selected = await f.select(base);
 		assert.equal(selected.stdout, 'tla-verification-execution,alpha,beta\n');
 		const narrowed = commit();
 		writeFileSync(path.join(f.root, excluded), 'another presentation change\n');
-		selected = await f.invoke('select-changed-models.mjs', [narrowed]);
+		selected = await f.select(narrowed);
 		assert.equal(selected.stdout, '\n');
 		assert.equal((await f.invoke('exclusions-witness.mjs', [excluded])).status, 0);
 		const untracked = 'apps/alpha/src/untracked.rs';

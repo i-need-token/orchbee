@@ -15,7 +15,7 @@ import {
 	trackedFiles,
 	validateInventory,
 } from './model-inventory.mjs';
-import { validateDocumentScope, validateToolingWorkflow } from './document-scopes.mjs';
+import { validateDocumentScope } from './document-scopes.mjs';
 
 const inventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
 await assertInputAdmission(inventoryInputPaths(inventory));
@@ -166,7 +166,6 @@ for (const workspace of workspaces) {
 }
 
 const rootPackageJson = JSON.parse(await requireFile('package.json'));
-validateToolingWorkflow(await requireFile('.github/workflows/verify.yml'));
 if (rootPackageJson.scripts?.['test:tla:tooling'] !== toolingCommand)
 	throw new Error('root test:tla:tooling must run real TLC cache and model mutation witnesses');
 const inventorySteps = checkSteps('test:tla:inventory');

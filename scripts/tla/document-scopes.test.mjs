@@ -6,13 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 
-import {
-	documentScopeChanged,
-	validateDocumentScope,
-	workflowTlaChanged,
-	workflowTlaScope,
-	validateToolingWorkflow,
-} from './document-scopes.mjs';
+import { documentScopeChanged, validateDocumentScope } from './document-scopes.mjs';
 import {
 	inventoryPath,
 	repositoryRoot,
@@ -97,114 +91,6 @@ test('shared preambles, reference definitions and unsupported headings conservat
 	const fenced = before.replace('Stable.', '~~~md\n## Fake\n~~~\nStable.');
 	validateDocumentScope(scope, fenced);
 	assert.equal(documentScopeChanged(scope, fenced, fenced), false);
-});
-
-test('workflow narrowing admits only isolated non-TLC job edits', async () => {
-	const before = await readFile(path.join(repositoryRoot, '.github/workflows/verify.yml'), 'utf8');
-	validateToolingWorkflow(before);
-	for (const invalid of [
-		before.replace(
-			'node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs',
-			'echo skipped',
-		),
-		before.replace('node scripts/tla/select-changed-models.mjs "$TLA_BASE"', 'echo skipped'),
-		before.replace(
-			'node scripts/tla/run-models.mjs --models "${{ steps.select.outputs.model_ids }}"',
-			'echo skipped',
-		),
-		before.replaceAll("if: steps.select.outputs.count != '0'", 'if: false'),
-		before.replace('  tla:', '  tla:\n    if: false'),
-		before.replace('  tla:', '  tla:\n    continue-on-error: true'),
-		before.replace(
-			'        run: node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs',
-			'        continue-on-error: true\n        run: node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs',
-		),
-	])
-		assert.throws(() => validateToolingWorkflow(invalid), /real TLC cache witnesses/u);
-	for (const [after, expected] of [
-		[before.replace('timeout-minutes: 45', 'timeout-minutes: 46'), 'none'],
-		[before.replace('timeout-minutes: 5', 'timeout-minutes: 6'), 'tooling'],
-		[before.replace('contents: read', 'contents: write'), 'all'],
-		[before.replace('  tla:', '  tla: &shared'), 'all'],
-	]) {
-		assert.equal(workflowTlaScope(before, after), expected);
-		const selected = selectModelsForChangedPaths(
-			inventory,
-			['.github/workflows/verify.yml'],
-			undefined,
-			new Map([['.github/workflows/verify.yml', { before, after }]]),
-		);
-		if (expected === 'tooling')
-			assert.deepEqual(
-				selected.map(({ id }) => id),
-				inventory.models.map(({ id }) => id),
-			);
-		else assert.equal(selected.length, expected === 'all' ? inventory.models.length : 0);
-	}
-	assert.equal(
-		workflowTlaChanged(before, before.replace('timeout-minutes: 45', 'timeout-minutes: 46')),
-		false,
-	);
-	for (const after of [
-		before.replace('timeout-minutes: 5', 'timeout-minutes: 6'),
-		before.replace('contents: read', 'contents: write'),
-		before.replace('  tla:', '  tla: &shared'),
-		before.replace('    name: Change-triggered', '    needs: verify\n    name: Change-triggered'),
-		before.replace('  verify:', '  verify: !tag'),
-		before.replace('  verify:', '   verify:'),
-		`${before}unknown-key: value\n`,
-	]) {
-		assert.equal(workflowTlaChanged(before, after), true);
-	}
-	const workflowPath = '.github/workflows/verify.yml';
-	assert.deepEqual(
-		selectModelsForChangedPaths(
-			inventory,
-			[workflowPath],
-			undefined,
-			new Map([
-				[
-					workflowPath,
-					{ before, after: before.replace('timeout-minutes: 45', 'timeout-minutes: 46') },
-				],
-			]),
-		),
-		[],
-	);
-	assert.equal(
-		selectModelsForChangedPaths(inventory, [workflowPath]).length,
-		inventory.models.length,
-	);
-});
-
-test('workflow cross-job bindings select conservatively for numeric and quoted YAML forms', async () => {
-	const before = await readFile(path.join(repositoryRoot, '.github/workflows/verify.yml'), 'utf8');
-	for (const anchor of ['1', '_shared', '共享']) {
-		const bound = before
-			.replace('  verify:', `  verify:\n    env: &${anchor}\n      VALUE: one`)
-			.replace('    name: Change-triggered', `    env: *${anchor}\n    name: Change-triggered`);
-		assert.equal(
-			workflowTlaChanged(bound, bound.replace('VALUE: one', 'VALUE: two')),
-			true,
-			anchor,
-		);
-	}
-	for (const dependency of [
-		'"needs": verify',
-		"'needs': verify",
-		'env: { VALUE: ${{ needs["verify"].outputs.value }} }',
-		"env: { VALUE: ${{ jobs['verify'].outputs.value }} }",
-	]) {
-		const bound = before.replace(
-			'    name: Change-triggered',
-			`    ${dependency}\n    name: Change-triggered`,
-		);
-		assert.equal(
-			workflowTlaChanged(bound, bound.replace('timeout-minutes: 45', 'timeout-minutes: 46')),
-			true,
-			dependency,
-		);
-	}
 });
 
 test('scope metadata rejects unknown fields, unregistered dependencies and overlapping headings', () => {

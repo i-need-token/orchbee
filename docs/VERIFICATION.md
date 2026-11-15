@@ -233,11 +233,11 @@ results remain unchanged.
 
 `scripts/tla/models.json` registers 13 protocol models, one configuration each, with semantic owners, claims, implementation triggers, required action coverage and a 20-second configuration deadline. This is the whole maintained portfolio, not a fast subset in front of a hidden required full suite. New models must fit the complete budget and the admission criteria in [Modeling and Correctness](MODELING-AND-CORRECTNESS.md). A timeout is a failure, not a way to skip work.
 
-The ordinary `pnpm verify` gate runs `test:tla:inventory`; it does not implicitly run Java. Product protocol state, transitions, assumptions or refinement changes require the affected registered model and its implementation tests. Workspace commands delegate to the shared runner; workspaces with only local implementation evidence expose no empty TLA command. `node scripts/tla/run-models.mjs --all` is the model-only baseline; it is not the complete TLA gate.
+The ordinary `pnpm verify` gate runs `test:tla:inventory`; it does not implicitly run Java. CI runs no TLA+ model checking or TLC. Product protocol state, transitions, assumptions or refinement changes require the affected registered model, run locally with `pnpm test:tla:changed -- <base>` or `pnpm test:tla`, and its implementation tests. Workspace commands delegate to the shared runner; workspaces with only local implementation evidence expose no empty TLA command. `node scripts/tla/run-models.mjs --all` is the model-only baseline; it is not the complete TLA gate.
 
-`pnpm test:tla:changed -- <base>` selects affected protocols and optionally reuses exact unchanged mathematical results under the [tooling cache contract](../scripts/tla/README.md#local-success-cache). Reuse does not prove changed product code. Full `pnpm test:tla` never reuses those results. Runner/helper, verification-standard, supported TLC-job or trigger-policy changes select the compact full model baseline and require the real tooling witnesses. Known inventory test entrypoints stay in the mandatory inventory gate. There is no workflow metamodel.
+`pnpm test:tla:changed -- <base>` selects affected protocols and optionally reuses exact unchanged mathematical results under the [tooling cache contract](../scripts/tla/README.md#local-success-cache). Reuse does not prove changed product code. Full `pnpm test:tla` never reuses those results. Runner/helper, verification-standard or trigger-policy changes select the compact full model baseline and require the real tooling witnesses. Known inventory test entrypoints stay in the mandatory inventory gate. There is no workflow metamodel.
 
-Selection unions current and baseline dependencies, both rename paths and committed/staged/unstaged/untracked changes. Removed registrations do not select unrelated survivors. Changed shared metadata, invalid or non-ancestor bases, hidden Git inputs and ambiguous workflows select all models. Current and baseline exclusions are evaluated independently so a same-diff exclusion cannot hide an owner change. Optional document scopes must classify all supported H2 headings; ambiguity falls back to whole-file selection. Product dependencies on tooling paths are still honored. The CI TLA job executes its selected models and real cache/mutation witnesses; setup/download and CI job overhead are distinct from local verification timing.
+Selection unions current and baseline dependencies, both rename paths and committed/staged/unstaged/untracked changes. Removed registrations do not select unrelated survivors. Changed shared metadata, invalid or non-ancestor bases and hidden Git inputs select all models. Current and baseline exclusions are evaluated independently so a same-diff exclusion cannot hide an owner change. Optional document scopes must classify all supported H2 headings; ambiguity falls back to whole-file selection. Product dependencies on tooling paths are still honored. CI workflows are not a selection input, so a workflow edit selects no model.
 
 Every configuration uses pinned TLC 1.7.4 and SHA-256, fingerprint polynomial 0, explicit finite bounds, required action coverage, declared workers and isolated state/Java temporary directories. `-lncheck final` checks all configured temporal properties after the reachable graph is complete. Success requires normal child/stdio closure, a complete successful report, zero queued states and every required action witness. Output retains machine-readable counts, duration, worker/heap budgets, input digest and log path. Partial exploration is not progress evidence.
 
@@ -278,13 +278,13 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   resumes by setting its matrix to `os: [macos-14, windows-latest]`. Until then macOS has no CI
   evidence.
   No job runs `test:cross`; cross-compilation stays explicit.
-- The required `verify` job does not run TLC. The required `tla` job selects and runs
-  change-triggered checks from the tracked inventory; an unrelated change completes that job
-  without provisioning Java or TLC.
+- No job runs TLA+ model checking or TLC, and no job provisions Java. Of the TLA tooling, the
+  `verify` job runs only the Java-free `test:tla:inventory` stage of `pnpm verify`. Affected registered models run
+  locally, as Change-triggered TLA+ verification above requires.
 - The workflow installs every exact compiler version required by a tracked native workspace through
   its pinned official toolchain mechanism. Directly downloaded archives require a checked digest
   before they are added to `PATH`.
-- Require the workflow's `verify` and `tla` jobs in the repository ruleset.
+- Require the workflow's `verify` job in the repository ruleset.
 - CI runs `git diff --exit-code` after verification; tracked generated changes fail until committed.
 - The workflow uses read-only repository permissions.
 - Credentials, write permissions, release actions, external checkouts, and other side effects require separate human review and must not enter the required job implicitly.

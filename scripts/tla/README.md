@@ -2,7 +2,8 @@
 
 The private root workspace orchbee owns model selection, bounded execution and optional task-local
 continuation and local success reuse. Product models remain with their workspaces. The repository merge gate runs cheap
-inventory and implementation tests; actual model checking follows [Verification](../../docs/VERIFICATION.md).
+inventory and implementation tests. CI runs no TLA+ model checking; affected models run locally as
+[Verification](../../docs/VERIFICATION.md) requires.
 
 ## Commands
 
@@ -32,7 +33,7 @@ lease protects reads, invalidation and publication; retired model envelopes and 
 files are pruned under that lease. The root must be the checkout's ignored `.tools/tla-cache` or a
 canonical external directory, initially empty or bearing the matching ownership marker. Symlinks,
 repository ancestors, unknown files and ambiguous writers are rejected. No upload or remote trust
-is introduced; CI continues to execute its checks without this local cache.
+is introduced.
 
 Each configuration identity binds exact primary/supporting module and rendered configuration
 bytes/paths, canonical variant names, required coverage, workers, heap, deadline, semantic TLC argv,
@@ -72,7 +73,7 @@ Filesystem and CLI witnesses cover mutable cache admission/publication and immut
 
 | Field           | Contract                                                                                                                                                                                                                                                                                                                       |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Problem         | Unrelated documentation and CI edits can select costly models; unweighted concurrency oversubscribes TLC workers; interruption repeats completed configurations. Preserve canonical properties, variants, workers and budgets while reducing unnecessary work.                                                                 |
+| Problem         | Unrelated documentation edits can select costly models; unweighted concurrency oversubscribes TLC workers; interruption repeats completed configurations. Preserve canonical properties, variants, workers and budgets while reducing unnecessary work.                                                                        |
 | Inputs          | Validated canonical inventory, Git base and changed paths/documents across base, HEAD, index and worktree snapshots, declared resource limits, selected model IDs, frozen tracked inputs and explicit run directory. Invalid current inventory fails; unavailable history or unsupported scope parsing selects conservatively. |
 | Data            | Configuration key is model ID plus variant name and execution-input digest. Model aggregate key binds model ID, complete canonical variant set and required coverage. Inventory owner is descriptive metadata. Immutable run manifest, unique log, committed outcome record and requested scope have separate authority.       |
 | Outputs         | Fresh/reused configuration passes, configuration failures, model verification/coverage failures, skipped pending work and cumulative requested-model summary. No selected models is a successful no-op. Cancellation or incomplete selected evidence is a failure.                                                             |
@@ -122,7 +123,7 @@ before concurrent cancellation; the contract does not cancel an in-flight filesy
 
 ## Selection and scheduling
 
-Tool runtime/helpers, supported TLC-job changes and verification/modeling standards select the compact full portfolio. Known test entrypoints stay in the mandatory inventory gate, which checks invocation, configuration overrides, the root tooling command and CI real-TLC witnesses. Product dependencies are matched independently and unioned with that selection. New product obligations must update their registrations and configurations.
+Tool runtime/helpers and verification/modeling standards select the compact full portfolio. CI workflows are not a selection input. Known test entrypoints stay in the mandatory inventory gate, which checks invocation, configuration overrides and the root tooling command. Product dependencies are matched independently and unioned with that selection. New product obligations must update their registrations and configurations.
 
 Owner-path selection tests open the actual implementation and correctness-test files before asserting their model IDs. When an owner moves, update its source triggers and selection cases together; the maintained test owner and its shared fixture remain dependencies alongside production code. Every shared and model trigger must match at least one tracked file; the inventory check names each model and pattern that matches none, so a moved or deleted owner fails in the change that moves it. To anticipate child-module files beside an existing module, anchor one pattern on that module, such as `src/owner**`, instead of registering an empty `src/owner/**`.
 
@@ -140,8 +141,7 @@ The inventory gate rejects stale, untracked, wildcard or direct-dependency exclu
 Registered document scopes classify every supported top-level section. Preamble and reference-link
 definitions are shared. Unknown, missing, duplicate or unsupported headings cannot silently narrow
 selection. Scope changes select their model IDs. Only reviewed unrelated sections may be excluded;
-proposals remain broad dependencies and never current claim authority. Workflow narrowing recognizes
-the self-contained TLC job and complete workflow globals; ambiguous YAML/cross-job dependencies select all.
+proposals remain broad dependencies and never current claim authority.
 
 Process slots retain the existing 60% memory budget and 512 MiB per-process reserve. The heap ceiling
 defaults to 4096 MiB; `--max-heap-mib N` selects a decimal integer ceiling from 256 through 8192 MiB,
@@ -169,13 +169,13 @@ cover normalization and aggregate limits; CLI tests witness the JVM argument and
 
 The verification runner is tested through its implementation. It has no separate workflow TLA model.
 
-| Claim                                                           | Maintained evidence                                      | Limit                                                             |
-| --------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
-| FIFO resource admission, failure drain and model-local coverage | `model-checks.test.mjs`, `execution-properties.test.mjs` | Declared CPU/heap budgets and finite generated schedules          |
-| Complete immutable records and honest continuation              | `model-records.test.mjs`, `run-models.test.mjs`          | Exclusive writer, checked inputs and actual child/stdio closure   |
-| Exact cache identity, invalidation and publication              | `model-cache.test.mjs`, `model-cache-cli.test.mjs`       | Local trusted filesystem; no power-loss durability claim          |
-| Conservative selection                                          | `model-inventory.test.mjs`, `document-scopes.test.mjs`   | Registered dependencies and supported Git/document/workflow forms |
-| Protocol properties detect their motivating faults              | `model-mutations.test.mjs`                               | Eight guard/ownership mutants of the retained protocol cores      |
+| Claim                                                           | Maintained evidence                                      | Limit                                                           |
+| --------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------- |
+| FIFO resource admission, failure drain and model-local coverage | `model-checks.test.mjs`, `execution-properties.test.mjs` | Declared CPU/heap budgets and finite generated schedules        |
+| Complete immutable records and honest continuation              | `model-records.test.mjs`, `run-models.test.mjs`          | Exclusive writer, checked inputs and actual child/stdio closure |
+| Exact cache identity, invalidation and publication              | `model-cache.test.mjs`, `model-cache-cli.test.mjs`       | Local trusted filesystem; no power-loss durability claim        |
+| Conservative selection                                          | `model-inventory.test.mjs`, `document-scopes.test.mjs`   | Registered dependencies and supported Git/document forms        |
+| Protocol properties detect their motivating faults              | `model-mutations.test.mjs`                               | Eight guard/ownership mutants of the retained protocol cores    |
 
 The scheduling corpus uses seeds 1 through 64, at most 128 commands, an independent oracle, replay and shrinking. The CLI suites retain cancellation, dirty/ignored/hidden inputs, historical failures, delayed stdio closure, partial results, mixed fresh/reused coverage and real pinned-TLC checks. Isolated fixtures run asynchronously with bounded concurrency; no case is dropped to meet the budget.
 
