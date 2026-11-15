@@ -162,3 +162,16 @@ test "Windows endpoint admits a runtime directory only when the account, SYSTEM 
         try expectPrivateRule("O:" ++ owner ++ rule_private_dacl, false);
     }
 }
+
+// No elevated token exists in a test, so the levels a Host can have stand in for one: High and
+// System label the pipe and mutex High, which the system parses as a descriptor; Medium Plus,
+// Medium, Low and Untrusted keep the plain user DACL they had before the label existed.
+test "Windows endpoint labels its pipe and mutex High only for a High or System Host" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    for ([_]u32{ 0x3000, 0x4000 }) |level| {
+        try std.testing.expectEqual(@as(c_int, 1), windows_c.ob_windows_local_test_endpoint_label(level));
+    }
+    for ([_]u32{ 0x2100, 0x2000, 0x1000, 0 }) |level| {
+        try std.testing.expectEqual(@as(c_int, 0), windows_c.ob_windows_local_test_endpoint_label(level));
+    }
+}

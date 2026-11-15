@@ -15,7 +15,7 @@ mod windows_native;
 #[cfg(windows)]
 pub use windows::{
     ChildInputWriter, ChildOutputReader, ConnectAttemptError, LocalListener, LocalStream,
-    Readiness, current_user_sid, endpoint_exists, endpoint_exists_before,
+    Readiness, current_user_sid, endpoint_exists, endpoint_exists_before, runs_at_high_integrity,
 };
 
 #[cfg(unix)]

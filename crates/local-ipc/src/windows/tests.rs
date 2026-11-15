@@ -23,6 +23,28 @@ fn pair() -> (LocalStream, LocalStream) {
     (client, server)
 }
 
+// No elevated token exists in a test, so the levels a creator can have stand in for one: High and
+// System label the listener High, which the system parses as a descriptor; Medium Plus, Medium,
+// Low and Untrusted keep the plain user DACL they had before the label existed.
+#[test]
+fn only_a_high_or_system_creator_labels_its_listener_high() {
+    let user = current_user_sid().unwrap();
+    let plain = format!("D:P(A;;GA;;;{user})");
+    for level in [0x3000, 0x4000] {
+        let descriptor = listener_descriptor(&user, level);
+        assert_eq!(descriptor, format!("{plain}S:(ML;;NWNR;;;HI)"));
+        let text = U16CString::from_str(&descriptor).unwrap();
+        SecurityDescriptor::deserialize(&text).unwrap();
+    }
+    for level in [0x2100, 0x2000, 0x1000, 0] {
+        assert_eq!(listener_descriptor(&user, level), plain);
+    }
+    assert_eq!(
+        runs_at_high_integrity().unwrap(),
+        integrity_level().unwrap() >= 0x3000
+    );
+}
+
 #[test]
 fn short_kernel_wait_limit_retains_a_real_same_user_connection() {
     let path = endpoint();

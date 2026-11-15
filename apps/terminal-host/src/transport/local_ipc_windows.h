@@ -100,5 +100,8 @@ int ob_windows_local_test_private_descriptor(
     const wchar_t *descriptor_sddl,
     const wchar_t *user_sid
 );
+/* 1 when the descriptor a Host at integrity `level` gives its pipe and mutex carries the High
+ * no-read-up, no-write-up label, 0 when it carries no label, -1 when it cannot be built. */
+int ob_windows_local_test_endpoint_label(uint32_t level);
 
 #endif

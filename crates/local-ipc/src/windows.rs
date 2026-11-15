@@ -58,6 +58,50 @@ fn process_user(process: &HPROCESS) -> io::Result<String> {
     winsafe::ConvertSidToStringSid(sid).map_err(system)
 }
 
+/// The Mandatory Integrity Control level of an elevated administrator's token; System is higher.
+const HIGH_INTEGRITY: u32 = 0x3000;
+
+/// Whether this process runs at High integrity or above, as an elevated administrator or a
+/// service does. A listener it binds refuses every process below High, the same user's included.
+pub fn runs_at_high_integrity() -> io::Result<bool> {
+    Ok(integrity_level()? >= HIGH_INTEGRITY)
+}
+
+/// The relative identifier of the current token's mandatory label, such as `0x2000` for Medium.
+fn integrity_level() -> io::Result<u32> {
+    let token = HPROCESS::GetCurrentProcess()
+        .OpenProcessToken(co::TOKEN::QUERY)
+        .map_err(system)?;
+    let info = token
+        .GetTokenInformation(co::TOKEN_INFORMATION_CLASS::IntegrityLevel)
+        .map_err(system)?;
+    let TokenInfo::IntegrityLevel(label) = info else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "token integrity level missing",
+        ));
+    };
+    label
+        .Label
+        .Sid()
+        .and_then(|sid| sid.SubAuthority().last().copied())
+        .map(|level| level.raw())
+        .ok_or_else(|| io::Error::other("token integrity label missing"))
+}
+
+/// The token user alone may open the pipe. A creator at High or above also labels it High with
+/// no-read-up and no-write-up, so no lower process can open it: an elevated Server would otherwise
+/// admit a standard process of the same user, because the elevated side may open that peer. A
+/// lower creator keeps the system's default label for its own level.
+fn listener_descriptor(user: &str, integrity_level: u32) -> String {
+    let label = if integrity_level >= HIGH_INTEGRITY {
+        "S:(ML;;NWNR;;;HI)"
+    } else {
+        ""
+    };
+    format!("D:P(A;;GA;;;{user}){label}")
+}
+
 /// A failed system call as the I/O error of its code, so a refusal keeps its kind and code.
 fn system(error: co::ERROR) -> io::Error {
     io::Error::from_raw_os_error(error.raw() as i32)
@@ -532,7 +576,8 @@ impl Write for LocalStream {
     }
 }
 
-/// A first-instance, local-only listener protected by the current token user's DACL.
+/// A first-instance, local-only listener protected by the current token user's DACL and, for a
+/// creator at High integrity or above, a High mandatory label.
 pub struct LocalListener {
     pipe: PipeListener<Bytes, Bytes>,
     nonblocking: AtomicBool,
@@ -542,8 +587,11 @@ pub struct LocalListener {
 impl LocalListener {
     /// Reserves a fresh named pipe; an existing listener is never adopted or replaced.
     pub fn bind(path: impl AsRef<Path>) -> io::Result<Self> {
-        let descriptor = U16CString::from_str(format!("D:P(A;;GA;;;{})", current_user_sid()?))
-            .map_err(io::Error::other)?;
+        let descriptor = U16CString::from_str(listener_descriptor(
+            &current_user_sid()?,
+            integrity_level()?,
+        ))
+        .map_err(io::Error::other)?;
         let pipe = PipeListenerOptions::new()
             .path(pipe_name(path.as_ref())?)
             .nonblocking(true)

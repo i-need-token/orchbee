@@ -228,16 +228,57 @@ static BOOL ob_private_runtime_directory(const wchar_t *path, PSID user) {
     return private_directory;
 }
 
-static PSECURITY_DESCRIPTOR ob_current_user_descriptor(PSID user) {
+/* The relative identifier of the token's mandatory label, such as SECURITY_MANDATORY_MEDIUM_RID. */
+static BOOL ob_token_integrity_level(HANDLE token, DWORD *level) {
+    DWORD length = 0;
+    GetTokenInformation(token, TokenIntegrityLevel, NULL, 0, &length);
+    if (length == 0 || GetLastError() != ERROR_INSUFFICIENT_BUFFER) return FALSE;
+    BYTE *buffer = HeapAlloc(GetProcessHeap(), 0, length);
+    if (buffer == NULL) return FALSE;
+    BOOL known = FALSE;
+    if (GetTokenInformation(token, TokenIntegrityLevel, buffer, length, &length)) {
+        PSID label = ((TOKEN_MANDATORY_LABEL *)buffer)->Label.Sid;
+        UCHAR count = *GetSidSubAuthorityCount(label);
+        if (count > 0) {
+            *level = *GetSidSubAuthority(label, count - 1);
+            known = TRUE;
+        }
+    }
+    HeapFree(GetProcessHeap(), 0, buffer);
+    return known;
+}
+
+/* The process token's user, freed by the caller, and its integrity level; NULL when either is
+ * unknown, so an endpoint is never created without knowing whether it needs the High label. */
+static BYTE *ob_process_identity(DWORD *level) {
+    HANDLE process_token = NULL;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &process_token)) return NULL;
+    BYTE *token_user = ob_token_user(process_token);
+    if (token_user != NULL && !ob_token_integrity_level(process_token, level)) {
+        HeapFree(GetProcessHeap(), 0, token_user);
+        token_user = NULL;
+    }
+    CloseHandle(process_token);
+    return token_user;
+}
+
+/* The token user alone may open the pipe and the mutex. A Host at High integrity or above, as in a
+ * Session started as administrator, also labels them High with no-read-up and no-write-up, so no
+ * lower process can open them: the peer check would otherwise admit a standard process of the same
+ * user. A lower Host keeps the system's default label for its own level. The Rust listeners follow
+ * the same rule (crates/local-ipc/README.md). */
+static PSECURITY_DESCRIPTOR ob_current_user_descriptor(PSID user, DWORD integrity_level) {
     LPWSTR sid_text = NULL;
     if (!ConvertSidToStringSidW(user, &sid_text)) return NULL;
-    size_t characters = wcslen(sid_text) + 32;
+    const wchar_t *label =
+        integrity_level >= SECURITY_MANDATORY_HIGH_RID ? L"S:(ML;;NWNR;;;HI)" : L"";
+    size_t characters = wcslen(sid_text) + wcslen(label) + 32;
     wchar_t *sddl = HeapAlloc(GetProcessHeap(), 0, characters * sizeof(wchar_t));
     if (sddl == NULL) {
         LocalFree(sid_text);
         return NULL;
     }
-    _snwprintf_s(sddl, characters, _TRUNCATE, L"D:P(A;;GA;;;%ls)", sid_text);
+    _snwprintf_s(sddl, characters, _TRUNCATE, L"D:P(A;;GA;;;%ls)%ls", sid_text, label);
     LocalFree(sid_text);
 
     PSECURITY_DESCRIPTOR descriptor = NULL;
@@ -302,10 +343,8 @@ ObWindowsLocalServer *ob_windows_local_server_create(
     int *status
 ) {
     *status = OB_WINDOWS_IPC_SYSTEM_ERROR;
-    HANDLE process_token = NULL;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &process_token)) return NULL;
-    BYTE *token_user = ob_token_user(process_token);
-    CloseHandle(process_token);
+    DWORD integrity_level = 0;
+    BYTE *token_user = ob_process_identity(&integrity_level);
     if (token_user == NULL) return NULL;
     PSID user = ((TOKEN_USER *)token_user)->User.Sid;
 
@@ -315,7 +354,7 @@ ObWindowsLocalServer *ob_windows_local_server_create(
         return NULL;
     }
 
-    PSECURITY_DESCRIPTOR descriptor = ob_current_user_descriptor(user);
+    PSECURITY_DESCRIPTOR descriptor = ob_current_user_descriptor(user, integrity_level);
     if (descriptor == NULL) {
         HeapFree(GetProcessHeap(), 0, token_user);
         return NULL;
@@ -382,13 +421,11 @@ ObWindowsLocalServer *ob_windows_local_server_create_instance(
     int *status
 ) {
     *status = OB_WINDOWS_IPC_SYSTEM_ERROR;
-    HANDLE process_token = NULL;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &process_token)) return NULL;
-    BYTE *token_user = ob_token_user(process_token);
-    CloseHandle(process_token);
+    DWORD integrity_level = 0;
+    BYTE *token_user = ob_process_identity(&integrity_level);
     if (token_user == NULL) return NULL;
     PSECURITY_DESCRIPTOR descriptor =
-        ob_current_user_descriptor(((TOKEN_USER *)token_user)->User.Sid);
+        ob_current_user_descriptor(((TOKEN_USER *)token_user)->User.Sid, integrity_level);
     if (descriptor == NULL) {
         HeapFree(GetProcessHeap(), 0, token_user);
         return NULL;
@@ -918,8 +955,10 @@ int ob_windows_local_test_make_directory_private(const wchar_t *path) {
     CloseHandle(process_token);
     if (token_user == NULL) return OB_WINDOWS_IPC_SYSTEM_ERROR;
 
+    /* A directory takes only the DACL, so no label is asked for. */
     PSECURITY_DESCRIPTOR descriptor = ob_current_user_descriptor(
-        ((TOKEN_USER *)token_user)->User.Sid
+        ((TOKEN_USER *)token_user)->User.Sid,
+        SECURITY_MANDATORY_UNTRUSTED_RID
     );
     HeapFree(GetProcessHeap(), 0, token_user);
     if (descriptor == NULL) return OB_WINDOWS_IPC_SYSTEM_ERROR;
@@ -978,6 +1017,42 @@ int ob_windows_local_test_private_descriptor(
         result = ob_private_security(owner, dacl_present ? dacl : NULL, user) ? 1 : 0;
     }
     LocalFree(user);
+    LocalFree(descriptor);
+    return result;
+}
+
+static BOOL ob_high_label_ace(PACL sacl) {
+    ACE_HEADER *header = NULL;
+    if (sacl == NULL || sacl->AceCount != 1 || !GetAce(sacl, 0, (void **)&header) ||
+        header->AceType != SYSTEM_MANDATORY_LABEL_ACE_TYPE) {
+        return FALSE;
+    }
+    SYSTEM_MANDATORY_LABEL_ACE *ace = (SYSTEM_MANDATORY_LABEL_ACE *)header;
+    PSID label = (PSID)&ace->SidStart;
+    UCHAR count = *GetSidSubAuthorityCount(label);
+    return count > 0 && *GetSidSubAuthority(label, count - 1) == SECURITY_MANDATORY_HIGH_RID &&
+           ace->Mask == (SYSTEM_MANDATORY_LABEL_NO_WRITE_UP | SYSTEM_MANDATORY_LABEL_NO_READ_UP);
+}
+
+int ob_windows_local_test_endpoint_label(uint32_t level) {
+    DWORD own_level = 0;
+    BYTE *token_user = ob_process_identity(&own_level);
+    if (token_user == NULL) return -1;
+    PSECURITY_DESCRIPTOR descriptor =
+        ob_current_user_descriptor(((TOKEN_USER *)token_user)->User.Sid, level);
+    HeapFree(GetProcessHeap(), 0, token_user);
+    if (descriptor == NULL) return -1;
+    BOOL sacl_present = FALSE;
+    BOOL sacl_defaulted = FALSE;
+    PACL sacl = NULL;
+    int result = -1;
+    if (GetSecurityDescriptorSacl(descriptor, &sacl_present, &sacl, &sacl_defaulted)) {
+        if (!sacl_present) {
+            result = 0;
+        } else if (ob_high_label_ace(sacl)) {
+            result = 1;
+        }
+    }
     LocalFree(descriptor);
     return result;
 }

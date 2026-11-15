@@ -11,11 +11,21 @@ The user-authorized Windows native delivery retains the existing process and pro
 owners. Both ends prove the peer process's token user before exchanging protocol bytes.
 Listeners reject remote connections, use a protected current-user DACL, and exclude
 handle inheritance. A name alone is never authorization. The existing Terminal Host
-keeps its independently owned endpoint naming and peer validation.
+keeps its independently owned endpoint naming and peer validation, and labels its pipe
+and mutex by the rule below.
+
+A listener whose creator runs at High integrity or above, as an elevated administrator or
+a service does, also carries the mandatory label `S:(ML;;NWNR;;;HI)`: no process below High
+can open it for reading or writing, the same user's standard processes included. Without
+it, a standard process could open an elevated Session's pipe and pass that Server's peer
+check, because the elevated side may open a lower peer. A creator below High keeps the
+system's default label for its own level. `runs_at_high_integrity` reads the token's
+level through `winsafe`, so a Client can tell that the refusal it met came from a Session
+started as administrator.
 
 | Field        | Contract                                                                                                                                                                                                                                            |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs       | Validated local pipe name, current token user, nonblocking pipe results, optional monotonic deadline, explicit shutdown                                                                                                                             |
+| Inputs       | Validated local pipe name, current token user and integrity level, nonblocking pipe results, optional monotonic deadline, explicit shutdown                                                                                                         |
 | State        | One shared connection owner, at most one zero-byte read watch, closed flag, caller-selected read/write timeout                                                                                                                                      |
 | Output       | Exact ordered bytes, would-block, EOF, timeout, or typed OS error; no protocol retry                                                                                                                                                                |
 | Ownership    | Clones share one connection; shutdown closes every clone's transport and signals its read watch, which wakes any poller; final drop closes the handle                                                                                               |
