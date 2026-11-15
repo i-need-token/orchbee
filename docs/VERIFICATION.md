@@ -221,6 +221,15 @@ results remain unchanged.
   the test binaries still running and the process tree that run started, terminates only that tree,
   and fails with exit 124. Either timeout fails the stage, never passes or skips it. Remeasure
   before changing either bound.
+- The Terminal Host's program-output fuzz pass joins `zig build test` as a bounded Debug pass:
+  three fixed seeds of two reader batches each took 5.6 to 7.8 s, inside the 120 s per-test bound,
+  because Ghostty's Debug integrity checks make one batch cost seconds. Its volume runs only on
+  explicit request in the release build mode, `zig build test-output-fuzz -Doptimize=ReleaseSafe`,
+  with `-Doutput-fuzz-seed` and `-Doutput-fuzz-batches` for a longer pass; 900 batches (18.7 MB)
+  and the hyperlinked-listing resize that Debug skips took 1.5 s after a 65 s compile, and one seed
+  of 50,000 batches (1.1 GB) took 133 s. Measurements: Windows 11 x64, Zig 0.16.0, 2026-11-15. Run
+  the release pass when a change touches the Host's handling of program output, resize, or
+  projection encoding, and record a failing seed and batch count with the first failure.
 - Native cross-compilation checks prove source and dependency compilation for the declared target;
   platform behavior still requires a native runner.
 - `verify:rust-native` reuses the same Rust runner tasks and native test preparation as `lint` and

@@ -88,6 +88,7 @@ The accepted contract requires these externally visible properties:
   owns the codes and the current pre-release generation 1 contract.
 - Terminal output becomes a normal exit only after child completion, normal PTY drain, and complete quiescence of the PTY writer.
 - Unrecoverable PTY read, PTY write, terminal-reply, resize, or worker-integrity failures become an explicit typed failed outcome. The Host fences unsafe I/O, contains the owned process tree, and continues bounded cleanup retries even while no broker is connected.
+- No program output, and no failure after a committed terminal change, ends the Host. An Engine observation that Core refuses keeps Core's last accepted one and fails a still-running terminal alone as `synchronize_worker`; a settled terminal keeps its final revision even when its program left an animation or a synchronized update running. Before a resize that reflows more hyperlinked cells than one Ghostty page can hold, the Host drops the hyperlinks of the oldest rows and keeps their text, because Ghostty's reflow would otherwise panic.
 - Graceful termination, force termination, and disposal are distinct. The broker owns escalation timing; disposal is explicit.
 - Bounds and scheduler backpressure reject or defer the current operation without corrupting retained state. A full outgoing batch returns its committed prefix and is not a connection failure.
 - Large projection and history records cross engine-to-egress ownership once: producers write into reserved response storage or transfer an owned envelope-ready allocation instead of copying a complete payload into a second buffer.
@@ -216,7 +217,8 @@ is the one closed record a panic, a routed exception, or a failed serve loop lea
 reason class, error name, thread kind, module offset, process ID, and time, never program output,
 titles, paths, or peer bytes.
 `host-diagnostics.jsonl` records the faults the Host survives: accept failures with their system
-codes, dispatch turns over 250 ms, and dropped terminal replies, bounded at 256 KiB. The
+codes, dispatch turns over 250 ms, dropped terminal replies, terminals failed alone with their
+failure class, and refused Engine observations, bounded at 256 KiB. The
 [runtime model](docs/runtime-model.md#fatal-record-and-diagnostic-log) owns both formats.
 
 `--scrollback-bytes` sets the startup default for newly created terminals. The current default is 10,000,000 decimal bytes; accepted values range from `0` through `1,000,000,000`. A broker may replace the process default for later terminals or supply an explicit configuration when creating one. Zero disables retained scrollback.
@@ -472,6 +474,27 @@ must suppress another motion, and child exit must restore the original native co
 primary screen and cursor. This is evidence for the pinned Windows x64 harness. It does not prove
 the full UI input dispatcher, physical mouse records, another terminal emulator's query behavior,
 palette or font quality, or interactive latency.
+
+A seeded program-output fuzz pass feeds random bytes, invalid UTF-8, CSI, OSC, DCS, and APC
+sequences with extreme or missing parameters, Kitty graphics and animation commands, and sequences
+up to 70,000 bytes through one terminal's reader commit with a real PTY, with attachment resizes and
+strictly validated projection frames in between. Each batch must commit or fail only that terminal.
+`zig build test` runs it in Debug for two reader batches on each of three fixed seeds, under
+Ghostty's slow integrity checks. Volume belongs to the release build mode: the first command runs
+300 batches per fixed seed, and the second runs one seed for as long as asked. A failing pass prints
+the seed and batch count that reproduce it. The release commands also resize a terminal after a
+1,000-line hyperlinked listing, which Debug skips because Ghostty's integrity checks make it outlast
+the per-test bound. A long run can still stop at an open Ghostty check that
+the [runtime model](docs/runtime-model.md#pinned-ghostty-checks-that-program-output-reaches) lists
+with its input and proposed upstream fix.
+
+```sh
+(cd apps/terminal-host && zig build test-output-fuzz -Doptimize=ReleaseSafe)
+(cd apps/terminal-host && zig build test-output-fuzz -Doptimize=ReleaseSafe -Doutput-fuzz-seed=<decimal u64> -Doutput-fuzz-batches=100000)
+```
+
+The real PTY reader drains the PTY and discards what it reads, so only the pass commits output and
+it stays seeded; committing real PTY reads, Worker IPC, and history requests are outside it.
 
 `format:check` also enforces the package boundary rule that every hand-written production Zig file
 under `src/` stays at or below 500 physical lines. Scenario catalogs under `__tests__/` and
