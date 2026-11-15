@@ -212,18 +212,22 @@ fn prefix_mode_status_hints_drop_only_the_lowest_priority_whole_items_by_width()
         "q detach",
     ];
 
-    let width_cases: &[(u16, usize)] = &[(160, 6), (115, 6), (100, 6), (85, 4), (60, 3)];
+    let prefix = crate::client_view::format_binding_with_glyphs(
+        &ClientView::new(160).bindings().prefix,
+        LabelStyle::for_host(),
+        KeyLabelGlyphs::Unicode,
+    );
+    let marker = format!("PREFIX {prefix} · ");
+    let indicator_width = u16::try_from(crate::terminal_text::display_width(&marker)).unwrap();
+    // Each case is the room the row leaves beside the indicator, whose width follows the host's
+    // spelling of the prefix key (`Ctrl+B`, `⌃B`).
+    let room_cases: &[(u16, usize)] = &[(144, 6), (99, 6), (84, 6), (69, 4), (44, 3)];
 
-    for &(width, visible_count) in width_cases {
+    for &(room, visible_count) in room_cases {
+        let width = indicator_width + room;
         let mut view = ClientView::new(width);
         arm_prefix(&mut view);
         let (terminal, _) = paint(&view, width, facts("Ready"), &theme);
-        let prefix = crate::client_view::format_binding_with_glyphs(
-            &view.bindings().prefix,
-            LabelStyle::for_host(),
-            KeyLabelGlyphs::Unicode,
-        );
-        let marker = format!("PREFIX {prefix} · ");
         let text = row(&terminal, width);
         let hints = text
             .split_once(&marker)

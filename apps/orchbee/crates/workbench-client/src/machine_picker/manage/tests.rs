@@ -242,8 +242,13 @@ fn an_adds_login_names_the_machine_as_typed_never_by_its_draft_id() {
     bench.send(DOWN);
     bench.send(b"\r");
     bench.send(b"user@devbox2\tlabbox\r");
-    // The store is only read, so its folder is never made.
-    let root = std::env::temp_dir().join(format!(
+    // The store is only read, so its folder is never made. Private storage refuses a link on the
+    // way, and the macOS temporary folder lies behind the `/var` link.
+    #[cfg(unix)]
+    let temp = std::env::temp_dir().canonicalize().unwrap();
+    #[cfg(windows)]
+    let temp = std::env::temp_dir();
+    let root = temp.join(format!(
         "orchbee-machine-test-{}",
         ProfileId::generate().unwrap().as_str()
     ));

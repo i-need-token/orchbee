@@ -116,10 +116,14 @@ fn cancelled(log: &[(Step, Instant)]) -> bool {
 
 #[test]
 fn a_job_pending_at_the_settlement_is_cancelled_in_time_and_polled_to_its_end() -> TestResult {
+    // The settlement is the last half of this budget, one second as in production, so it holds
+    // several polls even when a slow host delays the cancellation; a shorter budget leaves room
+    // for at most one poll and measures scheduling instead.
+    let budget = Duration::from_secs(2);
     // Whether the Worker registers the cancellation or had already settled the job, and whether
     // the job then reports before the deadline.
     for (registered, reports) in [(true, true), (false, true), (true, false)] {
-        let Run { end, log, deadline } = run_job(Duration::from_millis(600), move |step, log| {
+        let Run { end, log, deadline } = run_job(budget, move |step, log| {
             let outcome = match step {
                 Step::Start => Outcome::Accepted { job: job() },
                 Step::Cancel if registered => Outcome::CancelRegistered { job: job() },
@@ -138,10 +142,9 @@ fn a_job_pending_at_the_settlement_is_cancelled_in_time_and_polled_to_its_end() 
             .iter()
             .filter(|(step, _)| *step == Step::Cancel)
             .collect();
-        // The settlement is the last half of this short budget.
         assert_eq!(cancels.len(), 1, "{case}");
         assert!(
-            cancels[0].1 >= deadline - Duration::from_millis(300) && cancels[0].1 < deadline,
+            cancels[0].1 >= deadline - budget / 2 && cancels[0].1 < deadline,
             "{case}"
         );
         assert_eq!(

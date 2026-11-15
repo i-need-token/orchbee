@@ -69,7 +69,13 @@ fn is_empty(workbench_client: &WorkbenchClient) -> bool {
     }
 }
 
-fn require_manual_gap(stream: &mut UnixStream) -> io::Result<()> {
+/// Waits until the Client has ticked through its manual gap, then requires that nothing arrived
+/// meanwhile or just after. The guard on the next request starts only once the ticks are done, so
+/// a host whose short sleeps run long cannot spend it.
+fn require_manual_gap(stream: &mut UnixStream, ticked: &mpsc::Receiver<()>) -> io::Result<()> {
+    ticked
+        .recv_timeout(Duration::from_secs(10))
+        .map_err(io::Error::other)?;
     stream.set_read_timeout(Some(Duration::from_millis(180)))?;
     let mut byte = [0; 1];
     let error = stream.read(&mut byte).expect_err(
@@ -95,6 +101,7 @@ fn status_only_closed_requires_a_new_drawn_manual_membership_transition_before_e
 {
     let geometry = fixture_geometry()?;
     let (gap_tx, gap_rx) = mpsc::sync_channel(1);
+    let (ticked_tx, ticked_rx) = mpsc::sync_channel(1);
     let mut operation = None;
     let server = FakeServer::start_connections(2, move |index, stream| {
         let mut stream = UnixStream::new(stream);
@@ -106,7 +113,7 @@ fn status_only_closed_requires_a_new_drawn_manual_membership_transition_before_e
         }
         admit(&mut stream)?;
         let first_read = serve_closed(&mut stream, operation.clone().unwrap())?;
-        require_manual_gap(&mut stream)?;
+        require_manual_gap(&mut stream, &ticked_rx)?;
         gap_tx.send(()).map_err(io::Error::other)?;
         let snapshot = respond_with_read(&mut stream, empty_snapshot())?;
         assert_ne!(snapshot, first_read);
@@ -135,6 +142,7 @@ fn status_only_closed_requires_a_new_drawn_manual_membership_transition_before_e
         recovered_status(workbench_client, CloseStatusKind::Closed)
     }));
     tick_manual_gap(&mut workbench_client);
+    ticked_tx.send(())?;
     gap_rx.recv_timeout(Duration::from_secs(1))?;
     assert!(!is_empty(&workbench_client));
     draw_recovery(&mut workbench_client)?;
@@ -149,6 +157,7 @@ fn status_only_closed_requires_a_new_drawn_manual_membership_transition_before_e
 fn failed_close_snapshot_retains_closed_and_manual_retry_uses_a_fresh_snapshot_id() -> TestResult {
     let geometry = fixture_geometry()?;
     let (gap_tx, gap_rx) = mpsc::sync_channel(1);
+    let (ticked_tx, ticked_rx) = mpsc::sync_channel(1);
     let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
@@ -171,7 +180,7 @@ fn failed_close_snapshot_retains_closed_and_manual_retry_uses_a_fresh_snapshot_i
         .map_err(io::Error::other)?;
         let closed_read = serve_closed(&mut stream, operation)?;
         let failed = respond_with_read(&mut stream, WorkbenchSnapshotOutcome::Denied {})?;
-        require_manual_gap(&mut stream)?;
+        require_manual_gap(&mut stream, &ticked_rx)?;
         gap_tx.send(()).map_err(io::Error::other)?;
         let retry = respond_with_read(&mut stream, empty_snapshot())?;
         assert_ne!(retry, failed);
@@ -196,6 +205,7 @@ fn failed_close_snapshot_retains_closed_and_manual_retry_uses_a_fresh_snapshot_i
         })
     }));
     tick_manual_gap(&mut workbench_client);
+    ticked_tx.send(())?;
     gap_rx.recv_timeout(Duration::from_secs(1))?;
     assert!(!is_empty(&workbench_client));
     workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
