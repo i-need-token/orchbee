@@ -4,6 +4,7 @@
 	gap: var(--ob-ref-length-website-10);
 	color: var(--ob-sys-color-website-fg);
 	font: var(--ob-sys-typography-website-brand);
+	letter-spacing: var(--ob-sys-typography-website-brand-tracking);
 	text-transform: none;
 }
 /* The ring follows the tile's own corner radius. */

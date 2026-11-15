@@ -977,6 +977,7 @@ export const designTokenNames = [
 	'--ob-sys-typography-website-away-title',
 	'--ob-sys-typography-website-body',
 	'--ob-sys-typography-website-brand',
+	'--ob-sys-typography-website-brand-tracking',
 	'--ob-sys-typography-website-button',
 	'--ob-sys-typography-website-button-small',
 	'--ob-sys-typography-website-caption',
@@ -987,13 +988,16 @@ export const designTokenNames = [
 	'--ob-sys-typography-website-console-tab',
 	'--ob-sys-typography-website-detail-lead',
 	'--ob-sys-typography-website-display',
+	'--ob-sys-typography-website-display-tracking',
 	'--ob-sys-typography-website-fine-print',
 	'--ob-sys-typography-website-footer',
 	'--ob-sys-typography-website-footer-body',
 	'--ob-sys-typography-website-footer-strong',
 	'--ob-sys-typography-website-heading',
+	'--ob-sys-typography-website-heading-tracking',
 	'--ob-sys-typography-website-index-body',
 	'--ob-sys-typography-website-index-title',
+	'--ob-sys-typography-website-index-title-tracking',
 	'--ob-sys-typography-website-install-body',
 	'--ob-sys-typography-website-install-note',
 	'--ob-sys-typography-website-install-title',
@@ -1007,6 +1011,7 @@ export const designTokenNames = [
 	'--ob-sys-typography-website-terminal-strong',
 	'--ob-sys-typography-website-terminal-title',
 	'--ob-sys-typography-website-title',
+	'--ob-sys-typography-website-title-tracking',
 ] as const;
 
 export const responsiveBreakpoints = {

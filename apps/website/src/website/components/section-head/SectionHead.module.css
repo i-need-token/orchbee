@@ -8,6 +8,7 @@
 .title {
 	margin-top: var(--ob-ref-length-website-16);
 	font: var(--ob-sys-typography-website-heading);
+	letter-spacing: var(--ob-sys-typography-website-heading-tracking);
 	text-wrap: balance;
 }
 .lead {

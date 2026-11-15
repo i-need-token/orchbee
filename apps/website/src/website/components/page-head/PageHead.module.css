@@ -16,6 +16,7 @@
 }
 .title {
 	font: var(--ob-sys-typography-website-display);
+	letter-spacing: var(--ob-sys-typography-website-display-tracking);
 }
 .lead {
 	max-width: var(--ob-ref-length-website-measure-30);

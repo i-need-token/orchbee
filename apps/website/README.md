@@ -80,7 +80,7 @@ The scripted Session (`session-scene/`) is the one scene so far: `session.ts` ho
 
 ### Tokens
 
-The website's colors, type, shadows, motion, layers, and lengths live in the one website block of `packages/design-tokens/src/tokens.css`, dark only. Component styles use only these tokens; `pnpm lint:styles` enforces the style contract. A section adds the tokens it needs to the block, keeping each group sorted, then runs `pnpm generate:design-token-inventory`. When two branches both add tokens, keep both insertions and regenerate the inventory. Media queries use the shared breakpoints of `@orchbee/design-tokens`: `64rem` where the prototype narrows at 1000 px, `48rem` for 760–780 px, and `40rem` for 560–620 px. Container queries on a window's `window-fit` slot use the same values.
+The website's colors, type, shadows, motion, layers, and lengths live in the one website block of `packages/design-tokens/src/tokens.css`, dark only. Component styles use only these tokens; `pnpm lint:styles` enforces the style contract. A section adds the tokens it needs to the block, keeping each group sorted, then runs `pnpm generate:design-token-inventory`. When two branches both add tokens, keep both insertions and regenerate the inventory. A tracked type role registers `--ob-sys-typography-website-<role>-tracking` right after its role, in `em`, and the component sets it on `letter-spacing` beside the `font` shorthand. Media queries use the shared breakpoints of `@orchbee/design-tokens` (`64rem`, `48rem`, `40rem`); container queries on a window's `window-fit` slot use the same values.
 
 ## Release state
 

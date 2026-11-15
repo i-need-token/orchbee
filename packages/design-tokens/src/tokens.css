@@ -1213,6 +1213,7 @@
 	--ob-sys-typography-website-away-title: 500 22px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-body: 400 16px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-brand: 600 16px / 1 var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-brand-tracking: -0.01em;
 	--ob-sys-typography-website-button: 600 14px / 1 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-button-small: 600 13px / 1 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-caption: 400 12px / 1.5 var(--ob-ref-font-family-website-mono);
@@ -1224,15 +1225,18 @@
 	--ob-sys-typography-website-detail-lead: 400 17px / 1.6 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-display: 500 clamp(40px, 5.7vw, 86px) / 0.98
 		var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-display-tracking: -0.05em;
 	--ob-sys-typography-website-fine-print: 400 11.5px / 1.5 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-footer: 400 12px / 1.6 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-footer-body: 400 14px / 1.6 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-footer-strong: 500 14px / 1.6 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-heading: 500 clamp(26px, 2.7vw, 38px) / 1.1
 		var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-heading-tracking: -0.035em;
 	--ob-sys-typography-website-index-body: 400 15px / 1.55 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-index-title: 500 clamp(28px, 3.7vw, 54px) / 1
 		var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-index-title-tracking: -0.045em;
 	--ob-sys-typography-website-install-body: 400 14px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-install-note: 400 13px / 1.55 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-install-title: 500 16px / 1.5 var(--ob-ref-font-family-website-sans);
@@ -1250,6 +1254,7 @@
 		var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-title: 500 clamp(29px, 3.3vw, 47px) / 1.08
 		var(--ob-ref-font-family-website-sans);
+	--ob-sys-typography-website-title-tracking: -0.04em;
 	--ob-sys-shadow-website-logo-ring: 0 0 0 1px rgba(248, 247, 244, 0.2);
 	--ob-sys-shadow-website-menu-bar: 0 5px 0 var(--ob-sys-color-website-fg);
 	--ob-sys-shadow-website-window: 0 0 0 1px rgba(248, 247, 244, 0.17), 0 60px 120px -60px #000000;

@@ -22,6 +22,7 @@
 }
 .name {
 	font: var(--ob-sys-typography-website-index-title);
+	letter-spacing: var(--ob-sys-typography-website-index-title-tracking);
 }
 .summary {
 	max-width: var(--ob-ref-length-website-measure-30);

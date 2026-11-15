@@ -18,6 +18,7 @@
 }
 .title {
 	font: var(--ob-sys-typography-website-title);
+	letter-spacing: var(--ob-sys-typography-website-title-tracking);
 	text-wrap: balance;
 }
 .lead {
