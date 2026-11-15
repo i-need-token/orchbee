@@ -9,7 +9,12 @@ const terminal_host_handshake = @import("terminal-host-handshake");
 const black_box_transport = @import("black_box_transport.zig");
 
 const endpoint_startup_timeout_ns = 5 * std.time.ns_per_s;
+/// Bounds each Host record the trace waits on while the Host alone owes it.
 const record_timeout_ns = 5 * std.time.ns_per_s;
+/// The control witness is ready only after Windows PowerShell starts and compiles its C# handler:
+/// fixture work the Host cannot speed up, which took over 5 s on a loaded CI runner. The wait ends
+/// on the ready title or the witness's exit; this bound only stops a hung run.
+const control_ready_timeout_ns = 60 * std.time.ns_per_s;
 const host_exit_timeout_ns = 10 * std.time.ns_per_s;
 const creation_id_text = "31313131313131313131313131313131";
 const attachment_id_text = "44444444444444444444444444444444";
@@ -80,11 +85,15 @@ const OwnedEnvelope = struct {
     summary: protocol.EnvelopeSummary,
 
     fn read(allocator: std.mem.Allocator, client: *black_box_transport.Client) !OwnedEnvelope {
-        const bytes = try black_box_transport.readRecordBefore(
-            allocator,
-            client,
-            record_timeout_ns,
-        );
+        return readBefore(allocator, client, record_timeout_ns);
+    }
+
+    fn readBefore(
+        allocator: std.mem.Allocator,
+        client: *black_box_transport.Client,
+        timeout_ns: u64,
+    ) !OwnedEnvelope {
+        const bytes = try black_box_transport.readRecordBefore(allocator, client, timeout_ns);
         errdefer allocator.free(bytes);
         return .{
             .allocator = allocator,
@@ -216,9 +225,13 @@ const Session = struct {
         }
     }
 
+    /// A witness that exits before it is ready fails `observeEvent`'s successful-exit oracle.
     fn awaitControlReady(self: *Session) !void {
+        var timer = try monotonic.Timer.start();
         while (!self.control_ready) {
-            var incoming = try OwnedEnvelope.read(self.allocator, self.client);
+            const remaining_ns = control_ready_timeout_ns -| timer.read();
+            if (remaining_ns == 0) return error.ControlReadyTimeout;
+            var incoming = try OwnedEnvelope.readBefore(self.allocator, self.client, remaining_ns);
             defer incoming.deinit();
             if (!incoming.summary.event) return error.UnexpectedResponseEnvelope;
             try self.observeEvent(incoming.summary);
@@ -311,7 +324,8 @@ const Session = struct {
                 try self.trace.observe(.terminal_exited);
             },
             else => {
-                std.debug.print("unexpected black-box Host event kind={d} encoding={d} payload={s}\n", .{ envelope.kind, envelope.payload_encoding, envelope.payload });
+                // The oracle tests feed rejected kinds on purpose; only the trace reports one.
+                if (!builtin.is_test) std.debug.print("unexpected black-box Host event kind={d} encoding={d} payload={s}\n", .{ envelope.kind, envelope.payload_encoding, envelope.payload });
                 return error.UnexpectedHostEvent;
             },
         }
