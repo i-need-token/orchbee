@@ -95,7 +95,8 @@ impl Engine<'_> {
         if snapshot.session_id != self.snapshot.session_id {
             return Err(error(FailureKind::Denied, "ownership-unverified"));
         }
-        ownership::unchanged(&snapshot, &self.destination.context, expected)?;
+        // A launch that failed after the last owned read leaves its failure on the binding.
+        ownership::unchanged_owned(&snapshot, &self.destination.context, expected)?;
         let result = mutation::submit_action(
             &mut client,
             &snapshot,

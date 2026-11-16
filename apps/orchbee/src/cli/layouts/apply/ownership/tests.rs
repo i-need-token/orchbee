@@ -149,7 +149,29 @@ fn binding_adopts_only_one_exact_members_binding_and_no_other_tree_change() {
             "{pointer}"
         );
     }
+    // The Server's failure fact on the launched binding is that launch's own outcome; the same fact
+    // on any other Presentation is not.
+    let failure = json!({"executable":null,"reason":"terminal-create-failed"});
+    let mut failed = value.clone();
+    failed["root"]["childPresentations"][0]["launchFailure"] = failure.clone();
+    let failed: Tab = serde_json::from_value(failed).unwrap();
+    assert_eq!(
+        bind(&before, &failed, &panel, &presentation).unwrap(),
+        failed
+    );
+    assert_eq!(with_launch_failures(&after, &failed), failed);
+    assert_ne!(with_launch_failures(&before, &failed), failed);
     let mut elsewhere = value;
+    elsewhere["root"]["primaryPresentation"]["launchFailure"] = failure;
+    assert!(
+        bind(
+            &before,
+            &serde_json::from_value(elsewhere.clone()).unwrap(),
+            &panel,
+            &presentation
+        )
+        .is_err()
+    );
     elsewhere["root"]["primaryPresentation"]["launchProgram"] = json!("cmd.exe");
     assert!(
         bind(

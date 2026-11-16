@@ -17,9 +17,10 @@ use orchbee_client_server_protocol::{
     TerminalId, TerminalLaunchReadOutcome, TerminalLaunchReadRequest, TerminalLaunchState,
 };
 use orchbee_workbench_protocol::{
-    ClientSplitIdentity, ClientViewRecord, Snapshot, Tab, WorkbenchAction, WorkbenchCommandOutcome,
-    WorkbenchDirectoryPath, WorkbenchPanelId, WorkbenchPanelTerminalTarget, WorkbenchRevision,
-    WorkbenchTabId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+    ClientSplitIdentity, ClientViewRecord, Snapshot, Tab, TerminalPresentationId, WorkbenchAction,
+    WorkbenchCommandOutcome, WorkbenchDirectoryPath, WorkbenchPanelId,
+    WorkbenchPanelTerminalTarget, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalGeometry,
+    WorkbenchTerminalOutcome,
 };
 use serde_json::json;
 use std::time::{Duration, Instant};
@@ -90,12 +91,16 @@ impl<'a> Engine<'a> {
         )?;
         self.fence()
     }
-    fn fence(&self) -> Result<(), Failure> {
+    fn fence(&mut self) -> Result<(), Failure> {
         if let Some(old) = &self.destination.old {
             ownership::unchanged(&self.snapshot, &self.destination.context, old)?;
         }
         if let Some(expected) = &self.expected {
-            ownership::unchanged(&self.snapshot, &self.destination.context, expected)?;
+            self.expected = Some(ownership::unchanged_owned(
+                &self.snapshot,
+                &self.destination.context,
+                expected,
+            )?);
         }
         Ok(())
     }
@@ -276,6 +281,42 @@ impl Engine<'_> {
         self.receipt.record(phase, document);
         result
     }
+    /// Observes the launch acknowledged at `revision` and binds its member in the owned copy. The
+    /// Server settles a failed launch at once with one more revision that records the failure on
+    /// that binding, so only a snapshot that holds that failure may be past `revision`.
+    fn launched(
+        &mut self,
+        revision: WorkbenchRevision,
+        panel: &WorkbenchPanelId,
+        member: usize,
+        presentation: &TerminalPresentationId,
+    ) -> Result<(), Failure> {
+        let fresh = query::refresh_snapshot(
+            &mut self.client,
+            &self.snapshot.session_id,
+            revision,
+            self.deadline,
+            self.signals,
+        )?;
+        let tab = ownership::tab(&fresh, &self.destination.context, &self.new_tab()?)?;
+        let bound = ownership::bind(
+            self.expected.as_ref().ok_or_else(internal)?,
+            tab,
+            panel,
+            presentation,
+        )?;
+        let failed = ownership::member(&bound.root, panel, member)
+            .is_some_and(|launched| launched.launch_failure.is_some());
+        if fresh.revision != revision && !failed {
+            return Err(ownership::changed());
+        }
+        if let Some(old) = &self.destination.old {
+            ownership::unchanged(&fresh, &self.destination.context, old)?;
+        }
+        self.snapshot = fresh;
+        self.expected = Some(bound);
+        Ok(())
+    }
 }
 impl workflow::Port for Engine<'_> {
     fn create(&mut self) -> Result<(), Failure> {
@@ -371,26 +412,16 @@ impl workflow::Port for Engine<'_> {
             // This step consumes its specific mutation receipt; other command results cannot confirm the requested postcondition.
             _ => return Err(internal()),
         };
-        let observation = (|| {
-            self.committed(revision)?;
-            let fresh =
-                ownership::tab(&self.snapshot, &self.destination.context, &self.new_tab()?)?;
-            self.expected = Some(ownership::bind(
-                self.expected.as_ref().ok_or_else(internal)?,
-                fresh,
-                &id,
-                &presentation,
-            )?);
-            Ok(())
-        })();
+        let observation = self.launched(revision, &id, member, &presentation);
         if failure == Some(FailureKind::OutcomeUnknown) {
             return Err(error(FailureKind::OutcomeUnknown, "launch-unavailable"));
         }
         observation?;
-        if let Some(kind) = failure {
-            return Err(error(kind, "launch-unavailable"));
+        match failure {
+            Some(FailureKind::Rejected) => Err(error(FailureKind::Rejected, "launch-failed")),
+            Some(kind) => Err(error(kind, "launch-unavailable")),
+            None => self.check(),
         }
-        self.check()
     }
     fn settle(&mut self, leaf: usize, member: usize) -> Result<(), Failure> {
         self.receipt.stage = "launch";

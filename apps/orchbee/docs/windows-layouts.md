@@ -72,8 +72,10 @@ primary or the same inherited directory. An unbound primary never borrows a chil
 Explicit cwd wins. Every intended member must reach Started before readiness and old-Tab Close.
 
 One workflow retains every request and known effect within one total deadline. A binding receipt
-permits only that exact unbound-to-bound change in the owned tree; no concurrent topology or label
-edit is adopted. The original replacement target is also fenced. Apply exact split identities and
+permits only that exact unbound-to-bound change in the owned tree, plus the launch failure the
+Server records on that binding in its next revision when the launch fails; that member reports
+`launch-failed`, and recovery still closes the owned Tab. No concurrent topology or label edit is
+adopted. The original replacement target is also fenced. Apply exact split identities and
 ratios, then verify readiness. Required focus is acknowledged before old-Tab Close. Close acceptance
 is not completion: observe retained Closed status and, when a Client is selected, its publication before success. Final
 observation rechecks topology, labels, member order/start intent and ratios.

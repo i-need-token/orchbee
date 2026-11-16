@@ -30,6 +30,71 @@ pub(super) fn unchanged(
         Err(changed())
     }
 }
+
+/// [`unchanged`] for the workflow-owned Tab, which also takes the launch failure the Server records
+/// on a binding this workflow launched: the Server settles a failed launch with that one fact in
+/// its own revision, and the Tab with it is returned as the owned copy.
+pub(super) fn unchanged_owned(
+    snapshot: &Snapshot,
+    context: &WorkbenchTerminalContextId,
+    expected: &Tab,
+) -> Result<Tab, Failure> {
+    let fresh = tab(snapshot, context, &expected.tab_id)?;
+    let candidate = with_launch_failures(expected, fresh);
+    if &candidate == fresh {
+        Ok(candidate)
+    } else {
+        Err(changed())
+    }
+}
+
+/// `expected` with each launch failure `fresh` holds on a still-bound Presentation that `expected`
+/// holds bound and without one; nothing else is taken.
+fn with_launch_failures(expected: &Tab, fresh: &Tab) -> Tab {
+    fn fold(node: &mut PanelNode, fresh: &PanelNode) {
+        match node {
+            PanelNode::Panel {
+                panel_id,
+                primary_presentation,
+                child_presentations,
+                ..
+            } => {
+                let Some(PanelNode::Panel {
+                    primary_presentation: fresh_primary,
+                    child_presentations: fresh_children,
+                    ..
+                }) = leaf(fresh, panel_id)
+                else {
+                    return;
+                };
+                for presentation in std::iter::once(primary_presentation).chain(child_presentations)
+                {
+                    if presentation.binding.is_none() || presentation.launch_failure.is_some() {
+                        continue;
+                    }
+                    if let Some(after) =
+                        std::iter::once(fresh_primary)
+                            .chain(fresh_children)
+                            .find(|after| {
+                                after.presentation_id == presentation.presentation_id
+                                    && after.binding == presentation.binding
+                            })
+                    {
+                        presentation.launch_failure = after.launch_failure.clone();
+                    }
+                }
+            }
+            PanelNode::Split { children, .. } => {
+                for slot in children.iter_mut() {
+                    fold(&mut slot.node, fresh);
+                }
+            }
+        }
+    }
+    let mut candidate = expected.clone();
+    fold(&mut candidate.root, &fresh.root);
+    candidate
+}
 pub(super) fn changed() -> Failure {
     error(FailureKind::Denied, "layout-changed")
 }
@@ -195,7 +260,8 @@ pub(super) fn materialized(
 }
 
 /// A launch may change only the acknowledged member's None binding into its first real binding,
-/// together with the launched program that the Server commits beside that binding.
+/// together with the launched program that the Server commits beside that binding, and the launch
+/// failure the Server may record on that binding next.
 pub(super) fn bind(
     expected: &Tab,
     fresh: &Tab,
@@ -233,12 +299,14 @@ pub(super) fn bind(
                     .ok_or_else(changed)?;
                 if before.binding.is_some()
                     || before.launch_program.is_some()
+                    || before.launch_failure.is_some()
                     || after.binding.is_none()
                 {
                     return Err(changed());
                 }
                 before.binding = after.binding.clone();
                 before.launch_program = after.launch_program.clone();
+                before.launch_failure = after.launch_failure.clone();
                 Ok(())
             }
             PanelNode::Split { children, .. } => {
