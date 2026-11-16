@@ -188,8 +188,11 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
    them in order. More than 64 KiB of input, such as a large paste, aborts the move.
 2. **Quiesce.** The old Host stops reading output, on Windows by cancelling its blocked read as
    `abortRead` does today. It applies every byte it has read, writes the input it has accepted, marks
-   the terminal in the Keeper as quiesced for the new Host, and exports its record. Output now waits
-   in the pipe or PTY buffer, and the program waits only if that buffer fills.
+   the terminal in the Keeper as quiesced for the new Host, and exports its record. It does not wait
+   for the parser to finish a sequence: the record carries the unfinished bytes. If those bytes
+   outgrew the continuation bound, Ghostty has dropped them and cannot export them, and the move
+   aborts. Output now waits in the pipe or PTY buffer, and the program waits only if that buffer
+   fills.
 3. **Restore.** The Worker relays the record, which it never parses, to the new Host, which validates
    it and restores a terminal that reads nothing yet.
 4. **Claim, the commit.** The new Host claims the terminal in the Keeper and receives its handles or
@@ -226,7 +229,9 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
   time, each after 2 seconds without input or after 10 minutes at the latest. The first failure stops
   moves for that version, so a defect costs one paused and resumed terminal; the Worker tries again
   when a newer version becomes active.
-- Pause: the target is well under a second from quiesce to claim; H0 measures it.
+- Pause: the target is well under a second from quiesce to claim. At the default scrollback, encoding
+  and decoding the snapshot take at most 10 and 20 milliseconds, as
+  [prototype 2](#prototype-2-result) measured; prototype 3 and H1 measure the rest.
 
 | Ends during a move | Before the claim                                                                               | After the claim                                                                        |
 | ------------------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -253,9 +258,11 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
 ## The terminal record
 
 - An Orchbee envelope — magic, the Host handover format version, the exporting Host's product
-  version, and checksummed sections — carries the pinned Ghostty binary snapshot, version 1. The
-  snapshot holds the screens, history, styles, hyperlinks, and modes, and keeps the parser's
-  unfinished bytes as a continuation record, so a sequence that the quiesce splits resumes exactly.
+  version, its Ghostty pin's package hash, and checksummed sections — carries the pinned Ghostty
+  binary snapshot, version 1. The snapshot holds the screens, history, styles, hyperlinks, modes,
+  cursors, title, and working directory, and keeps the parser's unfinished bytes as a continuation
+  record, so a sequence that the quiesce splits resumes exactly. The Host's stream must turn on
+  Ghostty's continuation tracking, which it does not use today.
 - The other sections carry every per-terminal field of the Host's
   [core data model](../../apps/terminal-host/docs/runtime-model.md#core-data-model) that is not a
   broker-session attachment, such as the title, the reported directory, sizes, the content revision,
@@ -269,10 +276,14 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
 - Rule: a new Host imports every format that a Host inside the
   [compatibility window](versioning-and-upgrade.md#compatibility-window) exports. A format change adds
   a reader, no reader is removed while a Host that writes its format can run, and each released
-  format keeps a stored sample that every later Host must import.
-- Rule: Ghostty's version 1 reader accepts only version 1 and rejects unknown record tags, so a
-  Ghostty pin that changes the snapshot version is admitted only with a reader for each version that
-  a Host inside the window writes.
+  format keeps a stored sample that every later Host must import. An import is checked by the
+  restored state, not by bytes, because a re-encoded snapshot may number its styles differently.
+- Rule: a Host imports a snapshot only from its own Ghostty pin, or from a pin that the
+  [pin check](#prototype-2-result) admitted. Ghostty calls version 1 a work-in-progress format that
+  it may still break without changing the version number, so the version alone does not identify a
+  format. Its version 1 reader accepts only version 1 and rejects unknown record tags. A pin change
+  that fails the check needs a reader for each pin a Host inside the window runs; until then,
+  terminals on those Hosts keep the P1c behavior.
 - Rule: a record that fails validation is refused and its terminal stays; an unknown optional section
   is skipped; nothing in a record can end a terminal. Inside the snapshot, Ghostty's own decoder
   degrades an invalid value instead of failing.
@@ -370,8 +381,10 @@ Docker it keeps a small holder apart, and unlike Docker it replaces that holder 
 - Prototype 1 was the riskiest, because it rests on behavior ConPTY does not document. It has run:
   OpenConsole does not end with its creator, so on Windows the Keeper holds duplicates and does not
   create the pseudoconsole or the program.
-- If prototype 2 finds a difference between pins, moves run only between Hosts with the same Ghostty
-  pin until the difference has a reader.
+- Prototype 2 has run: the snapshot restores exactly within one pin, the previous pin has no
+  snapshot at all, and Ghostty may still change version 1 without a new version number. Moves
+  therefore run only between Hosts with the same Ghostty pin, or with pins that the pin check
+  admitted.
 
 ### Prototype 1 result
 
@@ -399,6 +412,53 @@ inferred.
   [crash table](#what-a-crash-or-hang-costs) now says.
 - The unread-output resize block becomes the rule in [how a terminal moves](#how-a-terminal-moves)
   and an H1 check of the fuzz hang.
+
+### Prototype 2 result
+
+Run on 2026-11-15 on Windows 11 build 26300 in a ReleaseSafe probe on the pinned Ghostty
+`9c3ec931`, and on the source of the previous pin `91f66da2`, whose package matched the hash in the
+older pin record. The probe fed a 120×40 terminal through Ghostty's standard stream with
+continuation tracking. On the primary screen it wrote history lines with styles, palette and RGB
+colors, CJK, emoji, a grapheme cluster, explicit and implicit OSC 8 links, and soft wraps. It then
+set a title, a working directory, cursor keys, bracketed paste, button-event mouse with SGR reports,
+focus reports, modify-other-keys, a blinking bar cursor, a saved cursor, and a scroll region. On
+the alternate screen it drew a full screen with its own scroll region, Kitty keyboard flags, cursor
+style, saved cursor, and an active link. The fed bytes ended in an OSC 8 link cut midway through its
+URI. Every result is measured unless it says inferred.
+
+| Question         | Result                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Same pin         | After decode, both screens matched in every row, cell, grapheme, width, resolved style, link URI and ID, and row flag, and in the modes, cursors, saved cursors, charsets, Kitty keyboard stack, palette, title, and directory, for all five terminals below. Only the dirty flags differed, which a restore resets by design                                                 |
+| Bytes            | Re-encoding the restored terminal gave the same bytes in three of the five terminals. In the other two, one page numbered the same styles in a different order                                                                                                                                                                                                                |
+| Resume parsing   | The continuation held the 33 unfinished bytes. Feeding the rest after the restore completed the link as on the source, and both terminals stayed identical through later output and the return to the primary screen. Cuts inside CSI, UTF-8, OSC, and DCS, after a lone ESC, and in a CSI holding a BEL resumed the same way; the BEL is left out, so it does not ring twice |
+| Previous pin     | It has no snapshot code: no snapshot module, no continuation tracking, and no `ghostty_snapshot_*` exports, and it needs Zig 0.15. A Host on it can neither export nor import, so a terminal on that pin cannot move                                                                                                                                                          |
+| Format stability | Ghostty's source calls version 1 a work-in-progress format that it intends to keep breaking until it promises binary compatibility, and counts mode bit positions and enum indices as part of the format. A later pin can therefore change version 1 without a new version number (from the source; no newer pin was tested)                                                  |
+| Compression      | `compress(.full)` reports unsupported on Windows, so a Windows Host never compresses history. On macOS the encoder clones compressed pages, at a cost not measured                                                                                                                                                                                                            |
+
+| Terminal                                 | History rows | Snapshot | Encode       | Decode       | Ready      |
+| ---------------------------------------- | -----------: | -------: | ------------ | ------------ | ---------- |
+| 120×40, screens only                     |            0 |   41 KiB | 0.06–0.07 ms | 1.8–1.9 ms   | 1.8–1.9 ms |
+| 120×40, default 10 MB, styled lines      |        4,678 |  3.0 MiB | 4.5–5.4 ms   | 9.6–9.9 ms   | 1.8–2.0 ms |
+| 120×40, default 10 MB, plain build lines |        8,892 | 0.75 MiB | 1.7–2.2 ms   | 8.5–10.6 ms  | 2.8–3.5 ms |
+| 240×70, default 10 MB, styled lines      |        3,089 |  2.5 MiB | 6.3–9.2 ms   | 14.8–19.6 ms | 3.6–4.4 ms |
+| 120×40, 100 MB, styled lines             |       50,609 |   32 MiB | 135 ms       | 207 ms       | 4.5 ms     |
+
+Times are medians of seven repetitions, three at 100 MB, and the ranges span three probe runs. Decode
+includes moving the result into an owned terminal. Ready is the time to Ghostty's READY marker, after
+which the terminal can render while its history arrives.
+
+- The pin check: a Ghostty pin change decodes the stored samples of every pin inside the window
+  with the new pin and must restore identical state, compared as this probe compares it. A pin
+  that passes is admitted for moves. A reader for a pin that fails would need that pin's version 1
+  decoder built against the new pin's terminal and the old pin's Unicode width policy, since
+  restored cells keep their old widths while new output takes the new ones (inferred).
+- The Host's stream turns on continuation tracking with a bound such as 64 KiB. The Host wraps
+  Ghostty's standard handler, for which Ghostty guarantees that replaying a continuation does no
+  work; H1 checks that the wrapper keeps that guarantee (inferred).
+- At the default scrollback the record stays near 3 MiB and fits one 44 MiB transport record. The
+  Host allows up to 1 GB. Above about 130 MB a snapshot would outgrow one transport record, and near
+  1 GB it would take seconds (inferred from the 100 MB row). H1 decides how such a record travels,
+  and whether the new Host claims at READY and takes history afterwards.
 
 ## Phases
 
@@ -463,7 +523,7 @@ inferred.
 | 5   | The Keeper's protocol changes only by addition, so every Host and Keeper inside the window work together                                                                                                                                                                                                              | Hosts of several versions share one Keeper                                                                                                                  | Rule               |
 | 6   | The commit is the new Host's claim in the Keeper, and a claim and a resume exclude each other                                                                                                                                                                                                                         | Exactly one Host reads a terminal, whatever crashes                                                                                                         | Rule               |
 | 7   | The Worker holds a moving terminal's input, resizes, and viewer changes and delivers them once and in order; more than 64 KiB of input aborts the move and goes to the old Host                                                                                                                                       | No input is lost or replayed                                                                                                                                | Chosen             |
-| 8   | The record carries Ghostty's snapshot version 1 in an Orchbee envelope; new Hosts read every format exported inside the window, and a Ghostty pin that changes the snapshot version needs those readers                                                                                                               | A move must never depend on two Hosts sharing one build                                                                                                     | Rule               |
+| 8   | The record carries Ghostty's snapshot version 1 in an Orchbee envelope that names the Ghostty pin; a Host imports a snapshot from its own pin or from a pin the pin check admitted, and a pin change that fails the check needs a reader for each pin inside the window                                               | A move must never depend on two Hosts sharing one build; prototype 2 found that Ghostty may change version 1 without a new version number                   | Rule               |
 | 9   | Terminals move one at a time after 2 seconds without input or after 10 minutes; a move aborts 5 seconds after its quiesce; the first failure stops moves for that version                                                                                                                                             | A defect costs one paused terminal, and typing is rarely interrupted                                                                                        | Chosen             |
 | 10  | A Host that crashes, or makes no progress for 30 seconds while the Keeper holds its terminals, is replaced; its terminals come back under a cap of 3 recoveries in 10 minutes, a terminal that breaks its Host again is recovered alone, and keys typed during recovery are refused                                   | Contain a parsing defect to the terminal that caused it                                                                                                     | Chosen             |
 | 11  | Recovery turns on as soon as it passes, before moves                                                                                                                                                                                                                                                                  | It removes the worst open incident and needs no P1c                                                                                                         | Chosen             |
