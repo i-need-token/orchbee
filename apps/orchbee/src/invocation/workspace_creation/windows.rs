@@ -1,4 +1,4 @@
-//! Resolve the explicit Windows Workspace path policy after execution admission.
+//! Resolve the explicit Workspace path in the host's grammar after execution admission.
 use super::{
     CreationDirectory, OutputFormat, ParseFailure, ParsedWorkspaceCreationCommand,
     ParsedWorkspaceCreationDirectory, UsageContext, WorkspaceCreationCommand, path_failure,
@@ -26,8 +26,9 @@ impl ParsedWorkspaceCreationCommand {
             ParsedWorkspaceCreationDirectory::Workspace => CreationDirectory::Workspace,
             ParsedWorkspaceCreationDirectory::Explicit(path) => {
                 options.cwd = Some(
-                    crate::invocation::user_path_windows::normalize(
+                    crate::invocation::user_path::resolve(
                         path.as_str(),
+                        crate::invocation::user_path::HOST_GRAMMAR,
                         environment,
                         cwd,
                     )

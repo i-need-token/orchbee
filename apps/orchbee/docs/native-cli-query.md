@@ -187,7 +187,7 @@ written. Where the Session cannot be asked for its processes, `result.server` is
 
 ## Workbench topology queries
 
-Windows `workspace list/get` return `number`, `tabCount`, and `panelCount`;
+Windows and macOS `workspace list/get` return `number`, `tabCount`, and `panelCount`;
 `tab list/get` return `number` and `panelCount`. Workspace numbers are one-based
 positions in the complete canonical navigation order, before `--project` filtering.
 Tab numbers are one-based positions within their terminal context, independent of
@@ -333,7 +333,7 @@ or Client-view changes.
 
 ## Panel terminal observations
 
-Windows `panel list/get/current` also returns nullable `cwd`, `cwdSource`, `foregroundCwd`,
+Windows and macOS `panel list/get/current` also return nullable `cwd`, `cwdSource`, `foregroundCwd`,
 `terminalTitle` and `terminalTitleStripped`, plus a required `terminalObservation`.
 The observation is `unbound`, `unavailable` with `reason: terminal-unavailable`, or
 `observed` with a validated frame and an observed/unavailable process sample. A stopped
@@ -753,7 +753,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   performs no directory-membership precheck — membership is the running Session's authority, and
   a well-formed but absent directory answers `not-found` with `{resource:"directory"}` under
   the worktree failure envelope.
-- `--label <label>`: single-use value flag, required on `project create`, `project rename`, non-Windows `workspace create`, `workspace rename` and `tab rename`. Windows `tab create` and `panel split` allow omission, using the preflight Tab/Panel count plus one. An explicit `panel split` label also becomes the new Panel's custom label in the same creation commit, trimmed as `panel rename` trims it, so it is the visible name; omission keeps automatic naming. Explicit values are nonempty protocol-bounded Workbench labels; empty or oversized values are `invalid-usage`.
+- `--label <label>`: single-use value flag, required on `project create`, `project rename`, Linux `workspace create`, `workspace rename` and `tab rename`. Windows and macOS `tab create` and `panel split` allow omission, using the preflight Tab/Panel count plus one. An explicit `panel split` label also becomes the new Panel's custom label in the same creation commit, trimmed as `panel rename` trims it, so it is the visible name; omission keeps automatic naming. Explicit values are nonempty protocol-bounded Workbench labels; empty or oversized values are `invalid-usage`.
 - `--path <path>`: single-use value flag. On `workspace set-directory` it is required and accepts a `WorkbenchDirectoryPath`: a literal absolute local-platform path
   (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL, without `~` or variable expansion. A missing, relative, NUL-bearing or overlong value is `invalid-usage`.
   Windows and macOS Worktree Create/Open instead admit literal absolute, relative and leading-`~` operands under the [Worktree path policy](windows-worktrees.md#commands-and-defaults); the final executing CLI resolves them after complete grammar and machine routing, before configuration or runtime access. Neither form creates, repairs or probes the directory; filesystem facts remain the Server's authority after submission.
@@ -1661,7 +1661,7 @@ binding:{terminalId,workerId}|null,unavailableDirectory|null}`. `panel get` text
   the Panel's ID, name, Workspace (name and ID), Tab and primary terminal;
   its Terminal row shows "Directory unavailable" / "目录不可用" for a held Panel. The context, slot
   path, presentation IDs, Workers and child presentations stay in JSON; `terminal list --panel`
-  lists every terminal of the Panel. Windows `panel list` text output is the compact Agent table,
+  lists every terminal of the Panel. Windows and macOS `panel list` text output is the compact Agent table,
   which has no terminal column; a held Panel shows `-` in its directory column there, and
   `--format json` carries `primaryUnavailableDirectory`. Other platforms print `ID`, `NAME`,
   `WORKSPACE`, `TAB` and `TERMINAL`. `project get` text lists each directory's ID and path; its
@@ -2033,7 +2033,7 @@ action carries just the label, the Server allocates the new `projectId` and retu
 labels are legal — the label never uniquely identifies the new Project; the receipt's
 `projectId` does.
 
-`workspace set-directory` submits `WorkspacePrimaryDirectoryAccept` for the globally resolved Workspace ID, without Project identity; its receipt keeps the action `workspace.accept-directory`. `--path` keeps its literal absolute-path, 4096 UTF-8 byte and no-NUL admission; CLI never creates, repairs or probes directories. Server probes authoritatively and refuses a Workspace that already has a primary Directory. Windows `workspace create` admits the new Workspace's directory within one launch and needs no separate set-directory command.
+`workspace set-directory` submits `WorkspacePrimaryDirectoryAccept` for the globally resolved Workspace ID, without Project identity; its receipt keeps the action `workspace.accept-directory`. `--path` keeps its literal absolute-path, 4096 UTF-8 byte and no-NUL admission; CLI never creates, repairs or probes directories. Server probes authoritatively and refuses a Workspace that already has a primary Directory. Windows and macOS `workspace create` admits the new Workspace's directory within one launch and needs no separate set-directory command.
 
 Geometry is always explicit in the request: a non-TTY invocation cannot inherit terminal
 dimensions, so `tab create` and `panel split` accept the four flags as an all-or-none
@@ -2480,7 +2480,7 @@ publishes removal, after which the old binding is not found.
 
 ## Directory Workspace creation
 
-The Windows `workspace create` [contract](windows-workspace-creation.md) owns optional Project, label, source, directory and focus. Its default creates an ungrouped Workspace and default shell, with no Project/label form or automatic AI launch. Explicit advanced options remain available. `orchbee.workspace.creation` v1 records Workspace, directory provenance and optional focus, with no Project setup phase. IDs and terminal facts live in `workspace.result`, including required-nullable `projectId`.
+The Windows and macOS `workspace create` [contract](windows-workspace-creation.md) owns optional Project, label, source, directory and focus. Its default creates an ungrouped Workspace and default shell, with no Project/label form or automatic AI launch. Explicit advanced options remain available. `orchbee.workspace.creation` v1 records Workspace, directory provenance and optional focus, with no Project setup phase. IDs and terminal facts live in `workspace.result`, including required-nullable `projectId`.
 
 The Worker probes the requested directory before the Server atomically registers the Workspace, directory, Terminal Context and first Tab/Panel/Presentation at one revision. Failed admission creates none of them. A successful commit retains the nested mutation v1 envelope with action `workspace.create`, `projectId`, `workspaceId`, `directoryId`, `terminalContextId`, `tabId`, `panelId`, `presentationId`, literal `path`, `label`, and `terminal`. Project metadata is required-nullable; catalog v1 publishes this changed contract. Terminal launch can remain pending or fail after commit: keep the returned IDs, inspect the Workspace and explicitly close it if unwanted. An unknown response is never automatically replayed or rolled back.
 
@@ -2694,7 +2694,7 @@ Maintained Windows process checks cover Unicode/space and relative paths, full a
 
 Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. The Windows CLI separately acknowledges source focus through the original Client; known canonical commits survive later failure or unknown focus. [Native Panel swap](native-panel-swap.md) owns the workflow, receipt and evidence.
 
-Windows `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their v1 receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a Client-local `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v1 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
+Windows and macOS `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their v1 receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a Client-local `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v1 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
 
 ## Tab insertion boundary
 

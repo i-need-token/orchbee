@@ -9,8 +9,9 @@
 //! and source queries, `project close-all`, the unified Agent projection with per-Client
 //! attention, Client control, configured commands, Panel graphics, the runtime status reads
 //! with the processes its managed Session reports, the diagnostic bundle, schema export, the
-//! Agent detection rule commands, the outdated integration filter, and the Panel, Workspace,
-//! notification, title and configuration reports.
+//! Agent detection rule commands, the outdated integration filter, the Panel, Workspace,
+//! notification, title and configuration reports, the extended creation and move options, and
+//! the enriched Workbench inspection.
 //! Admission itself does not inspect environment or native state.
 use super::{Capability, Unsupported};
 
@@ -32,6 +33,9 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::AgentManifests
         | Capability::IntegrationOutdated
         | Capability::Reports
+        | Capability::ExtendedCreation
+        | Capability::ExtendedWorkbenchMutation
+        | Capability::WorkbenchInspection
             if cfg!(target_os = "macos") =>
         {
             Ok(())

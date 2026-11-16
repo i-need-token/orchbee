@@ -1,5 +1,7 @@
 # Windows CLI Workspace creation
 
+macOS runs `workspace create` as Windows does, in the POSIX path grammar: an explicit `--cwd` is absolute, relative to the executing CLI's current directory, or `~` and `~/...` under `HOME`, and `home` is `HOME`. Linux keeps the canonical form, which requires a Project and a label.
+
 ## Scope and ownership
 
 `orchbee workspace create` creates one usable, ungrouped Workspace with a default-shell terminal. No Project or label form is required and no AI program starts automatically. A Project is optional organization for Workspaces, including Workspaces from different repositories. Ordinary and worktree Workspaces have the same navigation identity.

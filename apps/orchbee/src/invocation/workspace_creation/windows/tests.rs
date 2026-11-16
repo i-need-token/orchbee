@@ -14,13 +14,29 @@ fn parsed_directory(value: &str) -> ParsedWorkspaceCreationCommand {
     command
 }
 
+/// The executing host's home variable: the path grammar the CLI resolves an operand in.
+const HOME: &str = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+
 #[test]
 fn explicit_operands_retain_raw_spelling_until_the_executing_context_is_supplied() {
-    for (operand, home, cwd, expected) in [
+    #[cfg(windows)]
+    let cases = [
         (r"C:\literal\..\remote", None, None, r"C:\literal\..\remote"),
         ("remote", None, Some(r"D:\executor"), r"D:\executor\remote"),
         (r"~\remote", Some(r"E:\home"), None, r"E:\home\remote"),
-    ] {
+    ];
+    #[cfg(not(windows))]
+    let cases = [
+        ("/literal/../remote", None, None, "/literal/../remote"),
+        ("remote", None, Some("/executor"), "/executor/remote"),
+        (
+            "~/remote",
+            Some("/home/person"),
+            None,
+            "/home/person/remote",
+        ),
+    ];
+    for (operand, home, cwd, expected) in cases {
         let command = parsed_directory(operand);
         assert!(command.options.cwd.is_none());
         assert!(
@@ -30,7 +46,7 @@ fn explicit_operands_retain_raw_spelling_until_the_executing_context_is_supplied
             .into_resolved(
                 OutputFormat::Json,
                 |key| {
-                    assert_eq!(key, "USERPROFILE");
+                    assert_eq!(key, HOME);
                     Some(OsString::from(home.expect("this path must not read home")))
                 },
                 || {
@@ -89,7 +105,7 @@ fn deferred_path_failures_preserve_the_usage_envelope_and_context_redaction() {
             )
             .unwrap_err();
         assert!(
-            matches!(context_failure.usage, Some(UsageReason::InvalidValue { context: UsageContext::Path("workspace create"), option: "USERPROFILE", value, expected: ExpectedValue::DirectoryPath }) if value.is_empty())
+            matches!(context_failure.usage, Some(UsageReason::InvalidValue { context: UsageContext::Path("workspace create"), option: HOME, value, expected: ExpectedValue::DirectoryPath }) if value.is_empty())
         );
         assert_eq!(
             context_failure.kind,
@@ -101,7 +117,13 @@ fn deferred_path_failures_preserve_the_usage_envelope_and_context_redaction() {
             .into_resolved(
                 format,
                 |_| panic!("relative path"),
-                || Ok(std::path::PathBuf::from(r"C:\executor")),
+                || {
+                    Ok(std::path::PathBuf::from(if cfg!(windows) {
+                        r"C:\executor"
+                    } else {
+                        "/executor"
+                    }))
+                },
             )
             .unwrap_err();
         assert!(

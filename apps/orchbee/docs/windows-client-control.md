@@ -123,7 +123,7 @@ Windows `agent focus <target> [--client <id>]` resolves a canonical Session or t
 
 ## Client-relative Workbench queries
 
-Windows `workspace list/get`, `tab list/get` and `panel list/get` accept optional
+Windows and macOS `workspace list/get`, `tab list/get` and `panel list/get` accept optional
 `--client <id>`. Without it, queries keep their canonical headless projection.
 With it, one exact current Ready Client supplies global `focused` flags; Panel reads also
 admit Busy for the read-only viewport contract above. Workspace

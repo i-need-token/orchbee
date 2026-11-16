@@ -93,7 +93,7 @@ pub(in crate::cli) fn resolve_options(
         }
         CreationDirectory::Home | CreationDirectory::Current => {
             let path = if directory == CreationDirectory::Home {
-                std::env::var_os("USERPROFILE")
+                std::env::var_os(HOME_VARIABLE)
                     .filter(|value| !value.is_empty())
                     .map(std::path::PathBuf::from)
                     .ok_or_else(unavailable)?
@@ -142,6 +142,9 @@ pub(in crate::cli) fn resolve_options(
 fn unavailable() -> Failure {
     Failure::new(FailureKind::ServiceUnavailable)
 }
+
+/// The variable naming the user's home folder: `USERPROFILE` on Windows, `HOME` on macOS and Linux.
+const HOME_VARIABLE: &str = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
 
 fn absolute(value: &str) -> Option<WorkbenchDirectoryPath> {
     Path::new(value)

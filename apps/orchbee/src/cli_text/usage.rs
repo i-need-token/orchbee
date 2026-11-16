@@ -223,10 +223,10 @@ impl super::CliText {
             }
             (Locale::ZhCn, ExpectedValue::DirectoryPath) => "不超过 4,096 UTF-8 字节的字面绝对路径",
             (Locale::EnUs, ExpectedValue::WorktreePath) => {
-                "an absolute path of at most 4,096 UTF-8 bytes; Windows also accepts relative paths and ~"
+                "an absolute, relative or ~ path of at most 4,096 UTF-8 bytes"
             }
             (Locale::ZhCn, ExpectedValue::WorktreePath) => {
-                "不超过 4,096 UTF-8 字节的绝对路径；Windows 也接受相对路径及 ~"
+                "不超过 4,096 UTF-8 字节的绝对路径、相对路径或 ~ 路径"
             }
             (Locale::EnUs, ExpectedValue::MatchText) => {
                 "nonempty literal text of at most 4096 bytes"

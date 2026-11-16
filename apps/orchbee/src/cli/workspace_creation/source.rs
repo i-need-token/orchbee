@@ -4,10 +4,11 @@ use crate::{
         Failure, FailureKind,
         caller_context::PanelTarget,
         client_control::{exchange as control, selection},
-        console_interrupt::{ArmedSignals, SignalWatch},
+        command_interrupt::ArmedSignals,
+        console_interrupt::SignalWatch,
         query, results, source_context,
     },
-    invocation::{CreationDirectory, WorkspaceCreationCommand, user_path_windows},
+    invocation::{CreationDirectory, WorkspaceCreationCommand, user_path},
     local_client::LocalClient,
     localization::Locale,
 };
@@ -216,8 +217,13 @@ fn unavailable() -> Failure {
     Failure::new(FailureKind::ServiceUnavailable)
 }
 fn local_directory(value: &str) -> Result<WorkbenchDirectoryPath, Failure> {
-    user_path_windows::normalize(value, |name| std::env::var_os(name), std::env::current_dir)
-        .map_err(|_| unavailable())
+    user_path::resolve(
+        value,
+        user_path::HOST_GRAMMAR,
+        |name| std::env::var_os(name),
+        std::env::current_dir,
+    )
+    .map_err(|_| unavailable())
 }
 fn root_directory(
     info: &orchbee_terminal_protocol::TerminalProcessInfo,

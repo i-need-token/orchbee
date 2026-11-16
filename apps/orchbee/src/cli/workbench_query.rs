@@ -3,7 +3,8 @@ use super::client_control::{exchange as control, view_fence::ViewFence};
 use super::workbench_worktrees::ListJoin;
 use super::{
     Failure, FailureKind, Output,
-    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    command_interrupt::{ArmedSignals, Finish},
+    console_interrupt::SignalWatch,
     failure_output,
     output::{Bounded, TooLarge},
     query,

@@ -1078,9 +1078,9 @@ line in any terminal, and Desktop offers it as an Action.
 
 Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. Explicit Panels without `--client` use the canonical workflow without focus changes. A Client-routed swap separately acknowledges source focus; known canonical commits survive later failure or unknown focus. [Native Panel swap](docs/native-panel-swap.md) owns the workflow, receipt and evidence.
 
-Windows `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a shared `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](docs/native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
+On Windows and macOS, `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a shared `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](docs/native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
 
-Windows `tab move <target> --insert-index N` moves a complete Tab to a zero-based boundary in the
+On Windows and macOS, `tab move <target> --insert-index N` moves a complete Tab to a zero-based boundary in the
 original order: 0 is first, the Tab count is last, source/source+1 are unchanged, and out-of-range
 values are refused. It excludes `--order` and preserves focus and terminals. Success uses
 `orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1.
@@ -1135,7 +1135,7 @@ Windows `agent integration enable --provider devin` manages six session identity
 
 Windows `agent integration enable --provider hermes` publishes two owned Python plugin entries and enables them through the provider CLI; disable retains the plugin and its cache.
 
-Windows `workspace create` accepts omitted Project, label and cwd, resolves source terminal/Workspace/home defaults, creates an ungrouped Workspace by default, and optionally focuses an existing TUI with `--focus`. Every Windows form launches its first terminal; explicit operands and no-focus use the same workflow and receipt. Workspace and focus retain separate outcomes; optional Project placement commits atomically with Workspace creation, without a separate Project preparation step. See the [Workspace creation contract](docs/windows-workspace-creation.md); `orchbee api schema` supplies the current command and schema catalog.
+On Windows and macOS, `workspace create` accepts omitted Project, label and cwd, resolves source terminal/Workspace/home defaults, creates an ungrouped Workspace by default, and optionally focuses an existing TUI with `--focus`. Every Windows form launches its first terminal; explicit operands and no-focus use the same workflow and receipt. Workspace and focus retain separate outcomes; optional Project placement commits atomically with Workspace creation, without a separate Project preparation step. See the [Workspace creation contract](docs/windows-workspace-creation.md); `orchbee api schema` supplies the current command and schema catalog.
 
 ## Windows CLI configuration
 

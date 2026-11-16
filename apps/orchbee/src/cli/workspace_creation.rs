@@ -4,7 +4,8 @@ mod receipt;
 mod source;
 use super::{
     Failure, FailureKind, Output,
-    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    command_interrupt::{ArmedSignals, Finish},
+    console_interrupt::SignalWatch,
     failure_output, mutation, query, workspace_focus,
 };
 use crate::{

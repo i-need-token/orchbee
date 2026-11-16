@@ -120,7 +120,7 @@ The following enrichment uses this same member identity; [Report writes](windows
 
 ## Current member enrichment
 
-Windows `panel current` v1 resolves one canonical Presentation before joining observations.
+Windows and macOS `panel current` v1 resolves one canonical Presentation before joining observations.
 Explicit Panel targets choose their primary (including an unbound primary), caller metadata
 chooses that exact bound terminal, and Client targets use the passive exact-member read.
 `currentPresentation` identifies this member, its canonical label/override/binding and origin

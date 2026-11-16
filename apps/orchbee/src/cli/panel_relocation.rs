@@ -7,12 +7,13 @@ use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
     client_control::{exchange as control, selection},
-    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    command_interrupt::{ArmedSignals, Finish},
+    console_interrupt::SignalWatch,
     failure_output, mutation, query, results,
 };
 use crate::{
     invocation::{
-        OutputFormat, PanelRelocationCommand, PanelRelocationDestination, Target, user_path_windows,
+        OutputFormat, PanelRelocationCommand, PanelRelocationDestination, Target, user_path,
     },
     local_client::LocalClient,
     localization::Locale,
@@ -535,8 +536,13 @@ fn source_directory(
         ))
     } else {
         Ok((
-            user_path_windows::normalize(".", |name| std::env::var_os(name), std::env::current_dir)
-                .map_err(|_| Failure::new(FailureKind::ServiceUnavailable))?,
+            user_path::resolve(
+                ".",
+                user_path::HOST_GRAMMAR,
+                |name| std::env::var_os(name),
+                std::env::current_dir,
+            )
+            .map_err(|_| Failure::new(FailureKind::ServiceUnavailable))?,
             "current",
         ))
     }

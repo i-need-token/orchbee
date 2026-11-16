@@ -5,7 +5,8 @@
 //! verified against the snapshot whose rows are returned, and every other row is not sampled.
 use super::{
     Failure, FailureKind, Output,
-    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    command_interrupt::{ArmedSignals, Finish},
+    console_interrupt::SignalWatch,
     failure_output, query,
     query::{metadata_failure, panel_agent_failure},
     results::{self, Projection, TerminalListDetails, TerminalListObservation},

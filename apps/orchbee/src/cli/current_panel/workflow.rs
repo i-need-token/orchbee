@@ -6,7 +6,8 @@ use crate::cli::{
     Failure, FailureKind,
     caller_context::PanelTarget,
     client_control::{exchange::exchange, selection, view_fence::ViewFence},
-    console_interrupt::{ArmedSignals, Finish},
+    command_interrupt::{ArmedSignals, Finish},
+    console_interrupt::SignalWatch,
     query, results, stage_details, workbench_query,
 };
 use orchbee_workbench_protocol::{ClientViewAction, ClientViewOutcome};
