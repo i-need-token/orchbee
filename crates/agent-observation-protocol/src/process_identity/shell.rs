@@ -40,7 +40,7 @@ pub fn classify_shell_root(
     let shell = native_agent_basename(image);
     let initialization = match shells {
         InteractiveShells::Posix if POSIX_SHELLS.contains(&shell.as_str()) => {
-            return posix_shell_root(argv);
+            return posix_shell_root(&shell, argv);
         }
         InteractiveShells::Windows { initialization }
             if matches!(shell.as_str(), "cmd" | "powershell" | "pwsh") =>
@@ -96,20 +96,23 @@ pub fn classify_shell_root(
 const POSIX_INTERACTIVE_OPTIONS: [&str; 7] =
     ["-i", "-l", "-il", "-li", "--login", "--noprofile", "--norc"];
 
-/// A POSIX shell root is interactive when it carries only those options. Its argv[0] may name any
-/// POSIX shell: macOS's `sh` re-executes as `bash` or `zsh` with its arguments unchanged, and a
-/// login shell's argv[0] starts with `-`.
-fn posix_shell_root(argv: Option<&[String]>) -> ShellRoot {
+/// A POSIX shell root is interactive when it carries only those options, and a `bash` image also
+/// a startup file named by `--rcfile`, which is how the Host gives bash its managed startup. Its
+/// argv[0] may name any POSIX shell: macOS's `sh` re-executes as `bash` or `zsh` with its arguments
+/// unchanged, and a login shell's argv[0] starts with `-`.
+fn posix_shell_root(image: &str, argv: Option<&[String]>) -> ShellRoot {
     let Some(args) = argv else {
         return ShellRoot::Unreadable;
     };
     let Some((first, options)) = args.split_first() else {
         return ShellRoot::Other;
     };
-    let interactive = names_posix_shell(&native_agent_basename(first))
-        && options
-            .iter()
-            .all(|option| POSIX_INTERACTIVE_OPTIONS.contains(&option.as_str()));
+    let mut interactive = names_posix_shell(&native_agent_basename(first));
+    let mut options = options.iter();
+    while interactive && let Some(option) = options.next() {
+        interactive = POSIX_INTERACTIVE_OPTIONS.contains(&option.as_str())
+            || (image == "bash" && option == "--rcfile" && options.next().is_some());
+    }
     if interactive {
         ShellRoot::Interactive
     } else {

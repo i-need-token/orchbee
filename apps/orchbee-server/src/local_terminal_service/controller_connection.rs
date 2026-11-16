@@ -332,9 +332,9 @@ pub(super) fn execute<'service>(
         controller.sequence = sequence.get();
         // Typed input and pastes refute a pending resume or start line; focus, mouse and resizes
         // do not.
-        #[cfg(windows)]
         if acknowledges_input(request.action()) || matches!(request.action(), Action::Paste { .. })
         {
+            #[cfg(windows)]
             service.note_client_input(controller.target);
             service.note_agent_start_input(controller.target);
         }

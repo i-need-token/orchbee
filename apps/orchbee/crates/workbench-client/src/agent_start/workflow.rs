@@ -208,9 +208,9 @@ impl Workflow<'_> {
         let powershell = sample.info.launch_kind == Some(TerminalLaunchKind::ManagedPowershell);
         if self.request.start_command {
             // The Server delivers and watches the start of a creation that carried one: managed
-            // PowerShell runs it as its first command, a marked cmd gets the line once at its first
-            // confirmed prompt, and any other shell gets nothing. This Client never types it and
-            // reserves nothing.
+            // PowerShell, zsh or bash runs it as its first command, a marked cmd gets the line once
+            // at its first confirmed prompt, and any other shell gets nothing. This Client never
+            // types it and reserves nothing.
             if powershell {
                 return Ok(Confirmed::Sent);
             }
@@ -809,9 +809,12 @@ fn same_reservation(a: &AgentLaunchReservation, b: &AgentLaunchReservation) -> b
 /// confirmed; a sample without a launch kind comes from a Host that predates the prompt gate.
 fn root_shell(sample: &TerminalProcessInfo) -> Result<ShellRoot, Failure> {
     match sample.launch_kind {
-        Some(TerminalLaunchKind::ManagedPowershell | TerminalLaunchKind::Cmd) => {
-            Ok(ShellRoot::Interactive)
-        }
+        Some(
+            TerminalLaunchKind::ManagedPowershell
+            | TerminalLaunchKind::Cmd
+            | TerminalLaunchKind::ManagedZsh
+            | TerminalLaunchKind::ManagedBash,
+        ) => Ok(ShellRoot::Interactive),
         Some(TerminalLaunchKind::Other) => Ok(ShellRoot::Other),
         None => Err(Failure::Start(StartFailure::TerminalTooOld)),
     }
@@ -820,8 +823,14 @@ fn root_shell(sample: &TerminalProcessInfo) -> Result<ShellRoot, Failure> {
 fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure> {
     let refuse = || Failure::Start(StartFailure::TerminalNotIdle);
     let interpreted = agent_start_runtime::interpret(sample);
+    // Managed zsh and bash run a start their launch carried, but this Client has no typed line
+    // for them yet: the launch text is PowerShell's, and their run prefix differs.
+    let root = match sample.launch_kind {
+        Some(TerminalLaunchKind::ManagedZsh | TerminalLaunchKind::ManagedBash) => ShellRoot::Other,
+        _ => root_shell(sample)?,
+    };
     if !idle_shell_only(
-        root_shell(sample)?,
+        root,
         sample.processes.len() < orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS,
         interpreted
             .iter()

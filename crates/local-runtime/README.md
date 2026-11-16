@@ -1021,11 +1021,12 @@ read-phase markers. While it waits for a line, it swaps in a PSReadLine `AddToHi
 that rejects a run-prefixed line and passes every other line to the handler it replaced, then
 restores that handler. Orchbee-submitted lines therefore never reach PSReadLine history, its
 saved file or Up-arrow recall. `directory/windows/start.ps1` comes last: when the launch sets
-`WINDOWS_AGENT_START_VARIABLE`, it clears the variable, mints a run token, writes the run's start
+`AGENT_START_VARIABLE`, it clears the variable, mints a run token, writes the run's start
 marker and runs the line `windows_agent_start_command` composed, so an Agent starts as the shell's
 first command with the same resolution a typed start uses (`windows_powershell_application`).
 A command that is not found ends only the startup script; the interactive shell and its first
-prompt follow. Without the variable it does nothing. The Worker prepares this exact startup for
+prompt follow. Without the variable it does nothing. `AGENT_START_VARIABLE` is not Windows-only:
+the Terminal Host's managed zsh and bash startup on macOS and Linux reads the same variable. The Worker prepares this exact startup for
 admitted plain PowerShell argv; the Host build reads the same three assets, in the same order, for
 injection and exact recognition. The noninteractive `windows_encoded_command` helper sets only
 UTF-8 console and pipeline encoding; it carries no prompt or reader asset, so its typed text stays

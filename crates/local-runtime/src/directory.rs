@@ -1,13 +1,17 @@
-//! Terminal-reported directory observations and Windows shell bootstrap text. Decoding is pure;
-//! only [`reported_directory`] on Linux reads this machine's host name from procfs.
+//! Terminal-reported directory observations, the Agent start variable and Windows shell bootstrap
+//! text. Decoding is pure; only [`reported_directory`] on Linux reads this machine's host name from
+//! procfs.
 mod posix;
 mod windows;
 pub use posix::posix_reported_directory;
 pub use windows::{
-    WINDOWS_AGENT_START_VARIABLE, windows_agent_start_command,
-    windows_interactive_powershell_initialization, windows_powershell_application,
-    windows_reported_directory,
+    windows_agent_start_command, windows_interactive_powershell_initialization,
+    windows_powershell_application, windows_reported_directory,
 };
+
+/// The environment variable through which a launch asks a managed shell, PowerShell on Windows
+/// and zsh or bash on POSIX, to run an Agent as its first command.
+pub const AGENT_START_VARIABLE: &str = "ORCHBEE_AGENT_START";
 
 /// The longest observation either decoder admits, before callers apply narrower path bounds.
 const OBSERVATION_LIMIT: usize = 16 * 1024;

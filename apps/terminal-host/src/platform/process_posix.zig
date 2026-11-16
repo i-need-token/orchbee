@@ -31,7 +31,6 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     child_id: posix.pid_t,
     interactive_shell: bool = false,
-    /// POSIX shells receive no Host integration yet.
     launch_kind: process_types.LaunchKind = .other,
     exit_reaped: bool = false,
     exit_result: ?ExitResult = null,
@@ -52,10 +51,16 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         defer arena_state.deinit();
         const arena = arena_state.allocator();
 
-        const argument_count = launch.arguments.len + 1;
+        const integration = try @import("posix_shell_integration.zig").prepare(
+            arena,
+            &environment,
+            launch.executable,
+            launch.arguments,
+        );
+        const argument_count = integration.arguments.len + 1;
         const argv = try arena.allocSentinel(?[*:0]const u8, argument_count, null);
         argv[0] = (try arena.dupeZ(u8, launch.executable)).ptr;
-        for (launch.arguments, 1..) |argument, index| {
+        for (integration.arguments, 1..) |argument, index| {
             argv[index] = (try arena.dupeZ(u8, argument)).ptr;
         }
         const environment_pointer = (try environment.createPosixBlock(arena, .{})).slice.ptr;
@@ -141,7 +146,13 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             _ = posix_compat.waitpid(child_id, 0);
             return error.SpawnFailed;
         }
-        return .{ .child_id = child_id, .pty = pty, .identity = .{}, .interactive_shell = @import("interactive_shell.zig").isInteractive(launch.executable, launch.arguments) };
+        return .{
+            .child_id = child_id,
+            .pty = pty,
+            .identity = .{},
+            .interactive_shell = @import("interactive_shell.zig").isInteractive(launch.executable, launch.arguments),
+            .launch_kind = integration.launch_kind,
+        };
     }
 
     pub fn deinit(self: *Process) void {

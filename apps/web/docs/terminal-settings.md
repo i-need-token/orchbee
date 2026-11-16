@@ -458,10 +458,12 @@ designed for both Clients together.
 ## Notifications and completion reminders
 
 The Notifications category holds Agent notifications, completion reminders, and sound.
-Reminders need standard OSC 133 command boundaries from the shell. On Windows, Terminal Host loads
-Orchbee's PowerShell integration itself; Orchbee ships no Zsh, Bash, or Fish integration for Desktop
-terminals, so those shells emit boundaries only through the user's own configuration. The surface
-never reads, creates, edits, or backs up a shell startup file.
+Reminders need standard OSC 133 command boundaries from the shell. Terminal Host loads Orchbee's
+own integration for PowerShell on Windows, and for zsh and bash launched with no arguments other
+than interactive or login flags on macOS and Linux, without writing any startup file of the
+person's. Orchbee ships no Fish integration, so Fish and any other launch emit boundaries only
+through the user's own configuration. The surface never reads, creates, edits, or backs up a shell
+startup file.
 
 Feedback reads the `notifications.*` keys: Agent mode (never/hidden), completion mode
 (never/unfocused/always), minimum integer seconds (1–3600), and sound boolean. Defaults are never,

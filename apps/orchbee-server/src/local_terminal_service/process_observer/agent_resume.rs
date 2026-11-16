@@ -1,7 +1,8 @@
-//! A restored terminal's resume evidence read on demand through the sampler thread, which keeps
-//! every temporary viewer serialized with the periodic samples and the one retained cleanup.
+//! A terminal's prompt evidence read on demand through the sampler thread, for a restored shell's
+//! resume or a new shell's Agent start, which keeps every temporary viewer serialized with the
+//! periodic samples and the one retained cleanup.
 use super::{LocalTerminalService, ProcessObservationTarget, Wake, on_demand};
-use crate::local_terminal_service::agent_resume::ResumeFacts;
+use crate::local_terminal_service::prompt_readiness::ResumeFacts;
 use std::time::Duration;
 /// One read attaches, reads a frame and a sample, and detaches; a read still waiting after this
 /// gets nothing.

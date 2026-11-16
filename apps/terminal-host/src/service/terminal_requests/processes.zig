@@ -52,6 +52,8 @@ pub fn handleReadProcessInfo(
 fn launchKindName(value: @import("terminal-host-engine").runtime.LaunchKind) []const u8 {
     return switch (value) {
         .managed_powershell => "managed-powershell",
+        .managed_zsh => "managed-zsh",
+        .managed_bash => "managed-bash",
         .cmd => "cmd",
         .other => "other",
     };

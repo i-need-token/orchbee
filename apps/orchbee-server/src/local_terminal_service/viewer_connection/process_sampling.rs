@@ -89,14 +89,13 @@ impl LocalTerminalService {
         })
     }
 
-    /// One restored terminal's resume evidence on a temporary viewer.
-    #[cfg(windows)]
+    /// One terminal's prompt evidence on a temporary viewer, for a resume or an Agent start.
     pub(in crate::local_terminal_service) fn sample_resume_facts(
         &self,
         target: &ProcessObservationTarget,
         stop: &AtomicBool,
     ) -> (
-        Option<crate::local_terminal_service::agent_resume::ResumeFacts>,
+        Option<crate::local_terminal_service::prompt_readiness::ResumeFacts>,
         Option<PendingCleanup>,
     ) {
         let mut facts = None;

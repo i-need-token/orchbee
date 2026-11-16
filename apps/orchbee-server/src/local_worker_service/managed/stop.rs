@@ -248,6 +248,7 @@ fn start(
     owners.terminals.start_close_maintenance()?;
     owners.terminals.start_title_reads()?;
     owners.terminals.start_agent_catalog()?;
+    owners.terminals.start_agent_start_delivery()?;
     owners.terminals.start_process_observer(
         || {
             orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name))

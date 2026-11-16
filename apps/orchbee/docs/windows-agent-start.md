@@ -205,11 +205,18 @@ recognition and resume evidence match a typed start's, and the person is left at
 the Agent exits. A command that is not found ends only the startup script: the shell's own error
 stays visible above its first prompt and the shell keeps working.
 
+On macOS and Linux, managed zsh and bash take the same variable. The Worker passes the start's
+tokens as plain words, single-quoting a token that starts with `=`, which zsh would expand to a
+command's path, and the managed startup runs that line once before the first prompt, after the
+person's startup files, with its own start marker and run token. The line runs as a typed line
+would, so the person's own alias or function of the program's name runs, where PowerShell resolves
+only an application or script.
+
 Every other shell starts without the command; the Worker also removes the variable so a value
 inherited from its environment never runs. The Server
 [delivers the start](../../orchbee-server/docs/agent-start-delivery.md) of every creation that
-carried one, and no Client types it. Per the Host's `launchKind`, managed PowerShell gets nothing
-typed, only an early check counted from the start's acceptance over 10000 ms that also covers the
+carried one, and no Client types it. Per the Host's `launchKind`, managed PowerShell, zsh and bash
+get nothing typed, only an early check counted from the start's acceptance over 10000 ms that also covers the
 shell's own startup. A cmd the Host marks gets the bare line typed once at its first confirmed
 prompt within a 30000 ms deadline, then a 3000 ms early check. A command still running at the end
 of its check with no Agent process seen is watched on until the Agent appears or the shell is back
@@ -219,12 +226,13 @@ launch profile, gets nothing typed. A start that did not happen publishes a one-
 `prompt-unconfirmed` or `terminal-too-old`. Such a start reserves nothing and offers no name.
 
 When the Tab's creation or the split commits, the CLI reads the new Panel's shell. Managed
-PowerShell and a marked cmd count as launched; any other shell answers the not-idle refusal without
+PowerShell, managed zsh or bash and a marked cmd count as launched; any other shell answers the not-idle refusal without
 the settling retry, since nothing will be typed into it. The TUI reads nothing and runs no early
 check for a new Panel: its start notices come from that `agentStartFailure` fact, shown once as the
-[Start Agent picker](start-agent-picker.md) describes. POSIX shells have no managed startup that takes a first
-command, and the TUI starts no Agent there; the CLI parses the same grammar on POSIX and reports its
-existing unsupported outcome.
+[Start Agent picker](start-agent-picker.md) describes. Managed zsh and bash run a start their launch
+carried, but no Client offers one on POSIX yet: the Session's Agent catalog reports nothing
+startable there, a start typed into an existing zsh or bash is refused as not idle, and the CLI
+parses the same grammar on POSIX and reports its existing unsupported outcome.
 
 ## Workflow and invariants
 

@@ -96,6 +96,8 @@ export async function prepareDesktopDevelopmentCohort(input: {
 		hostRoot,
 	);
 	const key = createHash('sha256').update(environmentStem).update('\0');
+	// The POSIX Host's zsh and bash startup scripts travel beside it in the cohort.
+	const shellIntegration = path.join(hostPrefix, 'bin', 'shell-integration');
 	for (const file of [
 		path.join(sourceRoot, 'target', 'release', `orchbee${suffix}`),
 		path.join(sourceRoot, 'target', 'release', `orchbee-server${suffix}`),
@@ -109,6 +111,13 @@ export async function prepareDesktopDevelopmentCohort(input: {
 			'agent-observation-adapters',
 			'capsule.json',
 		),
+		...(process.platform === 'win32'
+			? []
+			: [
+					path.join(shellIntegration, 'zsh', '.zshenv'),
+					path.join(shellIntegration, 'zsh', 'orchbee.zsh'),
+					path.join(shellIntegration, 'bash', 'orchbee.bash'),
+				]),
 	]) {
 		key.update(await readFile(file)).update('\0');
 	}

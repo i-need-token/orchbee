@@ -35,7 +35,7 @@ pub enum TerminalProcessConsole {
 }
 
 /// How the Host launched the Terminal root, from its own launch record rather than a command
-/// line. Every launch off Windows is `Other`.
+/// line. Older peers reject the POSIX kinds.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TerminalLaunchKind {
@@ -43,6 +43,11 @@ pub enum TerminalLaunchKind {
     ManagedPowershell,
     /// An interactive cmd given prompt marks.
     Cmd,
+    /// zsh given the managed startup, which marks its own prompt and commands and runs an Agent
+    /// start as its first command.
+    ManagedZsh,
+    /// bash given the managed startup, with the same marks and first command as managed zsh.
+    ManagedBash,
     Other,
 }
 

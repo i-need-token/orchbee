@@ -5,11 +5,13 @@
 //! `cli_windows_agent_resume`.
 use super::{
     Admitted, Candidate, Reason,
-    admission::{Readiness, ResumeFacts, readiness, same_directory},
-    plan::ResumeShell,
+    admission::{Readiness, readiness},
     signals::{Offer, Signals},
 };
-use crate::local_terminal_service::tab_close::evidence::ShellReport;
+use crate::local_terminal_service::{
+    prompt_readiness::{MarkedShell, ResumeFacts},
+    tab_close::evidence::ShellReport,
+};
 use orchbee_terminal_protocol::{
     AttachmentId, MAXIMUM_PROCESS_SAMPLE_ROWS, TerminalId, TerminalLaunchKind, TerminalProcess,
     TerminalProcessConsole, TerminalProcessInfo,
@@ -119,17 +121,14 @@ fn facts(
 }
 
 fn decide(facts: &ResumeFacts) -> Readiness {
-    readiness(
-        facts,
-        Some(&WorkbenchDirectoryPath::parse(RETAINED).unwrap()),
-    )
+    readiness(facts, &WorkbenchDirectoryPath::parse(RETAINED).unwrap())
 }
 
 #[test]
 fn a_shell_at_its_prompt_in_the_retained_directory_receives_the_resume_for_its_kind() {
     for (root, shell) in [
-        (managed_powershell(), ResumeShell::ManagedPowerShell),
-        (cmd(), ResumeShell::Cmd),
+        (managed_powershell(), MarkedShell::ManagedPowerShell),
+        (cmd(), MarkedShell::Cmd),
     ] {
         let idle = sample(root, vec![conhost(2)]);
         assert_eq!(
@@ -250,21 +249,6 @@ fn evidence_that_cannot_decide_waits() {
             );
         }
     }
-}
-
-#[test]
-fn directories_compare_case_insensitively_with_one_trailing_separator() {
-    assert!(same_directory("C:\\Work\\Project", "c:\\work\\project\\"));
-    assert!(same_directory("C:\\work\\project/", "C:\\work\\project"));
-    assert!(same_directory("C:\\", "c:\\"));
-    // A drive root keeps its separator: `C:` alone is the drive's current directory.
-    assert!(!same_directory("C:\\", "C:"));
-    assert!(!same_directory(
-        "C:\\work\\project\\\\",
-        "C:\\work\\project"
-    ));
-    assert!(!same_directory("C:\\work\\project", "C:\\work\\projects"));
-    assert!(same_directory("\\\\server\\share\\", "\\\\SERVER\\share"));
 }
 
 fn retried(seed: u8) -> Admitted {

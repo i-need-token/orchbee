@@ -2260,9 +2260,36 @@ session, prompts carry no marks, so every later line is refused. A nested shell 
 wrapped value but runs as a child the process sample sees. On current Windows `cmd /Q` still draws
 its prompt and admits lines.
 
+On macOS and Linux, a `zsh` or `bash` launch whose arguments are only `-i`, `-l`, `-il`, `-li` or
+`--login` receives the managed startup from the `shell-integration` directory installed beside the
+Host executable (`src/platform/posix_shell_integration.zig`). zsh gets `ZDOTDIR` pointed at
+`shell-integration/zsh`, with the person's own `ZDOTDIR`, if any, kept in `ORCHBEE_ZSH_ZDOTDIR`;
+its `.zshenv` restores that value, reads the person's own `.zshenv`, and loads `orchbee.zsh` into an
+interactive shell, after which zsh reads the person's `.zprofile`, `.zshrc` and `.zlogin` itself.
+bash gets `--rcfile shell-integration/bash/orchbee.bash` ahead of its arguments. bash ignores
+`--rcfile` in a login shell, so a login flag is dropped (`-il` and `-li` become `-i`) and
+`ORCHBEE_BASH_LOGIN` asks the script to read `/etc/profile` and the first of `~/.bash_profile`,
+`~/.bash_login` and `~/.profile` instead of `~/.bashrc`; that bash is then not itself a login
+shell, so `shopt login_shell` is off, `logout` refuses and `~/.bash_logout` does not run. No file
+of the person's is written. The scripts emit the managed PowerShell's grammar: at each prompt
+`OSC 133;P`, `OSC 133;B` and APC `ready` (zsh from its `zle-line-init` hook, after the line editor
+drew `PROMPT` and `RPROMPT`, so `B` is the input position; bash at the end of `PS1`, with `ready`
+from its last `PROMPT_COMMAND`), at each executed line `OSC 133;C` and APC `start;<token>` with the
+token exported as `ORCHBEE_RUN_TOKEN`, and at the next prompt `OSC 133;D;<status>` and APC
+`finish;<token>;<status>`. Unlike managed PowerShell, every executed line, typed or submitted, gets
+`D`. A submitted line starts with `: orchbee-run:<32 hex digits>; `: zsh strips it in its
+`zle-line-finish` hook and keeps the line out of its history; bash runs it as a no-op and deletes
+the history entry. An `ORCHBEE_AGENT_START` value runs once before the first prompt, after the
+person's startup files, with APC `start` and `finish` and no `C` or `D`, as managed PowerShell runs
+it. zsh before 5.3 has no line editor hooks to chain, so its prompts carry no marks while its
+commands still do; bash 3.2, as macOS ships it, is fully served. Any other launch, and a launch
+whose scripts are missing, runs as given; `ORCHBEE_ZSH_ZDOTDIR`, `ORCHBEE_BASH_LOGIN` and, for an
+unmanaged launch, `ORCHBEE_AGENT_START` are removed from its environment.
+
 The adapter records the launch kind beside the interactive-shell classification:
 `managed-powershell` for PowerShell receiving the managed startup, `cmd` for an interactive cmd
-receiving prompt marks, and `other` otherwise and on every POSIX launch. `ReadProcessInfo` reports
+receiving prompt marks, `managed-zsh` and `managed-bash` for zsh and bash receiving the managed
+startup, and `other` otherwise. `ReadProcessInfo` reports
 it only when the request asks with `includeLaunchKind`. The cmd switches `/D`, `/Q`, `/A`, `/U`,
 `/V:ON`, `/V:OFF`, `/E:ON`, and `/E:OFF` keep cmd interactive, matching the Client's shell-root
 classification; any other argument makes it a program.

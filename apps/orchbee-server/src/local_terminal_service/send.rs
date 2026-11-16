@@ -35,10 +35,7 @@ impl LocalTerminalService {
             // A Client's send refutes a pending resume or start line of the terminal it reaches.
             #[cfg(windows)]
             self.note_client_input(*target);
-            #[cfg(windows)]
             self.note_agent_start_input(*target);
-            #[cfg(not(windows))]
-            let _ = target;
             true
         })
     }

@@ -312,7 +312,7 @@ fn actual_powershell_startup_runs_the_agent_once_and_keeps_the_shell() {
                     &script,
                 ])
                 .env(
-                    orchbee_local_runtime::WINDOWS_AGENT_START_VARIABLE,
+                    orchbee_local_runtime::AGENT_START_VARIABLE,
                     windows_agent_start_command(program, &arguments).unwrap(),
                 )
                 .env_remove("ORCHBEE_RUN_TOKEN")

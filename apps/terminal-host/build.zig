@@ -668,6 +668,12 @@ pub fn build(builder: *std.Build) void {
     });
     executable.root_module.link_libc = true;
     builder.installArtifact(executable);
+    // A POSIX Host gives zsh and bash their managed startup from these scripts beside it.
+    if (target.result.os.tag != .windows) builder.installDirectory(.{
+        .source_dir = builder.path("shell-integration"),
+        .install_dir = .bin,
+        .install_subdir = "shell-integration",
+    });
 
     const black_box_test = builder.addExecutable(.{
         .name = "terminal-host-black-box-test",

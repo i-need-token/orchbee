@@ -21,7 +21,6 @@ pub(super) struct Schedule {
     agents: Option<Cursor>,
     discovery: Option<Cursor>,
 }
-#[cfg(windows)]
 mod agent_resume;
 mod close;
 mod directory;
@@ -37,25 +36,22 @@ struct Wake {
     closes: close::Requests,
     directories: directory::Requests,
     explanations: explanation::Requests,
-    #[cfg(windows)]
     resumes: agent_resume::Requests,
     manifests: manifests::Registry,
 }
 impl Wake {
     /// A read queued while the sampler was busy, whose wake-up therefore found no waiter.
     fn reads_waiting(&self) -> bool {
-        #[cfg(windows)]
-        if self.resumes.waiting() {
-            return true;
-        }
-        self.closes.waiting() || self.directories.waiting() || self.explanations.waiting()
+        self.resumes.waiting()
+            || self.closes.waiting()
+            || self.directories.waiting()
+            || self.explanations.waiting()
     }
     /// A stopping observer serves no read, so none may keep its wait from sleeping.
     fn cancel_reads(&self) {
         self.closes.cancel();
         self.directories.cancel();
         self.explanations.cancel();
-        #[cfg(windows)]
         self.resumes.cancel();
     }
 }
@@ -225,6 +221,10 @@ impl LocalTerminalService {
     }
     /// Stops new sampling and joins admitted work; unresolved viewer cleanup transfers to Session shutdown.
     pub(crate) fn stop_process_observer_before(&self, deadline: Instant) -> io::Result<()> {
+        // A start line reads through this observer and types through the Worker, so its delivery
+        // stops first, while both still answer. A Windows Session already stopped it beside resume,
+        // and stopping it again returns at once.
+        self.stop_agent_start_delivery_before(deadline)?;
         self.process_observer.stop_before(deadline)
     }
     /// Only the managed Session owner calls this after matching Worker/Host stop plus actual Worker exit.
@@ -384,7 +384,6 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
             // A person waits on a close, so its read goes first.
             close::serve(service, &wake);
             directory::serve(service, &wake);
-            #[cfg(windows)]
             agent_resume::serve(service, &wake);
             explanation::serve(service, &wake, &detector);
             service.sample_configuration(&mut configuration, Instant::now());

@@ -17,7 +17,13 @@ const text = z
 	);
 
 /** How the Host launched the Terminal root, from its own launch record. */
-const TerminalLaunchKindSchema = z.enum(['managed-powershell', 'cmd', 'other']);
+const TerminalLaunchKindSchema = z.enum([
+	'managed-powershell',
+	'cmd',
+	'managed-zsh',
+	'managed-bash',
+	'other',
+]);
 
 /** Only `includeLaunchKind: true` adds `launchKind` to the response. */
 export const ReadProcessInfoSchema = z.strictObject({

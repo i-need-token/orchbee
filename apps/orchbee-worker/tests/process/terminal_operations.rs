@@ -201,12 +201,14 @@ fn worker_resolves_only_admitted_launches_and_replays_without_another_command() 
                 .map(|entry| (entry.name.as_str(), entry.value.as_deref()))
                 .collect();
             assert_eq!(
-                environment,
-                [
-                    ("TERM", Some("xterm-256color")),
-                    ("COLORTERM", Some("truecolor")),
-                    ("TERM_PROGRAM", Some("ghostty"))
-                ]
+                environment.get(..3),
+                Some(
+                    &[
+                        ("TERM", Some("xterm-256color")),
+                        ("COLORTERM", Some("truecolor")),
+                        ("TERM_PROGRAM", Some("ghostty"))
+                    ][..]
+                )
             );
             assert_eq!(request.launch.terminal_profile.palette.len(), 256);
             assert_eq!(request.launch.terminal_profile.palette.get(16), Some(&0));

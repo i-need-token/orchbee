@@ -316,7 +316,6 @@ impl AgentCatalog {
     /// A start of `agent` found its command missing in a new shell: its row loses a found mark
     /// and reads `NotFound` until the next completed lookup. A row the catalog cannot check stays
     /// as it is, and one no completed lookup has answered only loses its found mark.
-    #[cfg(windows)]
     pub(crate) fn mark_not_found(&self, agent: StartableAgent) {
         self.change(|state| {
             let Some(index) = state.probe(agent) else {

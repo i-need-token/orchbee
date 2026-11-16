@@ -67,7 +67,9 @@ const components = [
 	{
 		id: 'terminal-host',
 		files: (file, stem, executable) =>
-			file === `${stem}-terminal-host${executable}` || file.startsWith('conpty/'),
+			file === `${stem}-terminal-host${executable}` ||
+			file.startsWith('conpty/') ||
+			file.startsWith('shell-integration/'),
 		contracts: ['worker-host', ...frames],
 	},
 	{
@@ -284,8 +286,15 @@ export function packageRelease(
 		for (const launcher of [`${stem}-launcher.exe`, `${stem}-desktop-launcher.exe`])
 			if (!files.some((entry) => entry.path === launcher)) throw new Error(`Missing ${launcher}`);
 		verifyConptyBundle(path.join(cohort, 'conpty'));
-	} else if (files.some((entry) => entry.path.startsWith('conpty/'))) {
-		throw new Error('A ConPTY bundle belongs only in a Windows cohort');
+		if (files.some((entry) => entry.path.startsWith('shell-integration/')))
+			throw new Error('The shell integration belongs only in a macOS or Linux cohort');
+	} else {
+		if (files.some((entry) => entry.path.startsWith('conpty/')))
+			throw new Error('A ConPTY bundle belongs only in a Windows cohort');
+		// The Host gives zsh and bash their managed startup from these scripts.
+		for (const script of ['zsh/.zshenv', 'zsh/orchbee.zsh', 'bash/orchbee.bash'])
+			if (!files.some((entry) => entry.path === `shell-integration/${script}`))
+				throw new Error(`Missing shell-integration/${script}`);
 	}
 	const bytes =
 		JSON.stringify({

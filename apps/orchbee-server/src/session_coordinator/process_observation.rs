@@ -91,7 +91,6 @@ fn rows(sample: &TerminalProcessInfo) -> Vec<AgentProcessRow> {
 
 /// Whether a row of one complete Host sample names `provider` on its own, as a Client's Agent start
 /// reads a new terminal.
-#[cfg(windows)]
 pub(crate) fn names_provider(sample: &TerminalProcessInfo, provider: &str) -> bool {
     rows(sample).iter().any(|row| {
         row.anchor_provider()

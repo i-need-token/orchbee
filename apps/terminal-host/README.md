@@ -196,6 +196,14 @@ orchbee-terminal-host serve \
 
 The broker derives the runtime directory and endpoint identifier from its own runtime scope; the Host treats both as infrastructure values and does not infer product topology from them.
 
+A POSIX Host reads its managed zsh and bash startup from `shell-integration/` beside the binary:
+`zsh/.zshenv`, `zsh/orchbee.zsh` and `bash/orchbee.bash`, the sources in this package's
+`shell-integration/` directory. `zig build` installs them there for every non-Windows target, the
+staging scripts copy them into the cohort, and the release manifest assigns them to the
+`terminal-host` component, so every disk image, archive and npm package carries them. A Host
+without them launches zsh and bash unmanaged. The
+[runtime model](docs/runtime-model.md#prompt-gated-input) owns the launch and the marks.
+
 The binary exposes no client connection or runtime-preparation command. The broker owns those
 operations, while Terminal Host remains a separately retained server process.
 

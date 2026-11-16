@@ -191,15 +191,14 @@ pub(super) fn directory(
     })
 }
 
-/// A restored terminal's shell report and reported directory from one fresh frame, then one
-/// process sample, whose root directory stands in when the shell reports none. The frame comes
-/// first so that the sample cannot predate the report it is weighed with.
-#[cfg(windows)]
+/// A terminal's shell report and reported directory from one fresh frame, then one process sample,
+/// whose root directory stands in when the shell reports none. The frame comes first so that the
+/// sample cannot predate the report it is weighed with.
 pub(super) fn resume_facts(
     viewer: &mut ViewerAttachment<'_>,
     template: WorkerRequest,
     stop: &AtomicBool,
-) -> crate::local_terminal_service::agent_resume::ResumeFacts {
+) -> crate::local_terminal_service::prompt_readiness::ResumeFacts {
     let frame = fresh_frame(viewer, template, stop);
     let reported = frame
         .as_ref()
@@ -207,7 +206,7 @@ pub(super) fn resume_facts(
         .and_then(orchbee_local_runtime::reported_directory)
         .and_then(|p| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&p).ok());
     let sample = process(viewer, template, stop);
-    crate::local_terminal_service::agent_resume::ResumeFacts {
+    crate::local_terminal_service::prompt_readiness::ResumeFacts {
         report: frame.as_ref().map(ShellReport::of),
         directory: match &sample {
             Some(sample) => checkpoint_directory(reported, sample),

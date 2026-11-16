@@ -6,7 +6,8 @@ pub fn processInfo(allocator: std.mem.Allocator, attachment_id: anytype, termina
     return processInfoWithLaunchKind(allocator, attachment_id, terminal_id, sample, null);
 }
 
-/// A present launch kind wire name (`managed-powershell`, `cmd` or `other`) is
+/// A present launch kind wire name (`managed-powershell`, `cmd`, `managed-zsh`,
+/// `managed-bash` or `other`) is
 /// written after `kind`; a reader asks for it with `includeLaunchKind`, so
 /// earlier readers keep receiving their exact shape.
 pub fn processInfoWithLaunchKind(

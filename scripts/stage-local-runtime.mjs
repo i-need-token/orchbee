@@ -25,6 +25,8 @@ import {
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifacts = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
 const CAPSULE_DIRECTORY = 'agent-observation-adapters';
+// The Host gives zsh and bash their managed startup from these scripts beside its executable.
+const SHELL_INTEGRATION_DIRECTORY = 'shell-integration';
 const CAPSULE_CONTRACT_VERSION = 1;
 const MAX_CAPSULE_ENTRIES = 128;
 const MAX_CAPSULE_DEPTH = 8;
@@ -298,6 +300,12 @@ function main() {
 			runCommand('chmod', ['700', path.posix.join(output, stagedName)]);
 			hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
 		}
+		cpSync(
+			path.join(hostPrefix, 'bin', SHELL_INTEGRATION_DIRECTORY),
+			path.join(destination, SHELL_INTEGRATION_DIRECTORY),
+			{ errorOnExist: true, recursive: true },
+		);
+		runCommand('chmod', ['700', path.posix.join(output, SHELL_INTEGRATION_DIRECTORY)]);
 		const capsuleDestination = path.join(destination, CAPSULE_DIRECTORY);
 		cpSync(
 			path.join(root, 'crates', 'agent-integration-writer', CAPSULE_DIRECTORY),

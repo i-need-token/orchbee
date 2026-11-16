@@ -7,6 +7,8 @@ use std::{error::Error, io};
 #[cfg(all(test, windows))]
 mod tests;
 
+#[cfg(unix)]
+mod posix;
 #[cfg(windows)]
 mod powershell;
 
@@ -74,10 +76,8 @@ pub(super) fn resolve(
     let arguments = powershell::interactive_arguments(&executable, arguments);
     #[cfg(windows)]
     let agent_start = powershell::agent_start(&executable, &arguments, launch.agent_start());
-    // POSIX shells have no managed startup that takes a first command yet; the launch starts
-    // without it and the Client types the Agent instead.
-    #[cfg(not(windows))]
-    let agent_start: Option<String> = None;
+    #[cfg(unix)]
+    let agent_start = posix::agent_start(&executable, &arguments, launch.agent_start());
     // An explicit authorized path requires no home-directory lookup or translation.
     let themes = launch_themes(preferences);
     let cwd = match launch.cwd() {
@@ -133,9 +133,9 @@ pub(super) fn launch_themes(
     )
 }
 
-/// `agent_start` is the first-command line for a shell that runs the managed startup. Windows
-/// always sets or removes the variable, so a value inherited from the Worker's environment never
-/// starts anything.
+/// `agent_start` is the first-command line for a shell that runs the managed startup. Every launch
+/// sets or removes the variable, so a value inherited from the Worker's environment never starts
+/// anything.
 fn launch_environment(
     environment: &orchbee_capability_node_protocol::LaunchEnvironment,
     plugin: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
@@ -180,11 +180,11 @@ fn launch_environment(
                 value: None,
             });
         }
-        entries.push(LaunchEnvironmentEntry {
-            name: orchbee_local_runtime::WINDOWS_AGENT_START_VARIABLE.into(),
-            value: agent_start,
-        });
     }
+    entries.push(LaunchEnvironmentEntry {
+        name: orchbee_local_runtime::AGENT_START_VARIABLE.into(),
+        value: agent_start,
+    });
     entries
 }
 

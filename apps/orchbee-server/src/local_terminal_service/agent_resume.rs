@@ -14,6 +14,7 @@
 use super::{
     LocalTerminalService, placement,
     prompt_line::{self, Answer},
+    prompt_readiness::MarkedShell,
 };
 use crate::{
     session_coordinator::{ProcessObservationTarget, ResumeTarget, SessionCoordinator},
@@ -38,8 +39,7 @@ mod signals;
 #[cfg(test)]
 mod tests;
 
-pub(super) use admission::{Readiness, ResumeFacts, readiness};
-use plan::ResumeShell;
+use admission::{Readiness, readiness};
 
 /// Clients size what they show before the first delivery, and a retried shell's Client sizes it.
 const SETTLE: Duration = Duration::from_secs(1);
@@ -455,7 +455,7 @@ impl LocalTerminalService {
                 .request_resume_facts(target.clone())
                 .unwrap_or_default();
             let mut pause = POLL;
-            match readiness(&facts, Some(&candidate.directory)) {
+            match readiness(&facts, &candidate.directory) {
                 Readiness::Try(shell) => match self.deliver(candidate, committed, &target, shell) {
                     Delivery::Done(outcome) => return outcome,
                     Delivery::Refused(state) => {
@@ -491,7 +491,7 @@ impl LocalTerminalService {
         candidate: &Candidate,
         committed: Option<&PresentationBinding>,
         target: &ProcessObservationTarget,
-        shell: ResumeShell,
+        shell: MarkedShell,
     ) -> Delivery {
         let Some(session) = self
             .coordinator
@@ -501,7 +501,8 @@ impl LocalTerminalService {
         else {
             return Delivery::Done(Outcome::Skipped(Reason::Gone));
         };
-        let token = if shell == ResumeShell::ManagedPowerShell {
+        let powershell = shell == MarkedShell::ManagedPowerShell;
+        let token = if powershell {
             match plan::run_token() {
                 Some(token) => Some(token),
                 None => return Delivery::Done(self.consume(candidate, Reason::TokenUnavailable)),
@@ -510,7 +511,7 @@ impl LocalTerminalService {
             None
         };
         let text = plan::text(&session, shell, token.as_deref());
-        let Some(request) = prompt_line::request(target, &text, shell.powershell()) else {
+        let Some(request) = prompt_line::request(target, &text, powershell) else {
             return Delivery::Done(self.consume(candidate, Reason::SendFailed));
         };
         let mut admission = None;

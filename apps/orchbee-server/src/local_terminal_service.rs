@@ -59,8 +59,8 @@ mod panel_metadata;
 mod panel_restore;
 mod process_observer;
 mod projection;
-#[cfg(windows)]
 mod prompt_line;
+mod prompt_readiness;
 mod send;
 mod tab_close;
 mod tab_create;
@@ -104,7 +104,6 @@ pub(crate) struct LocalTerminalService {
     close_maintenance: close_maintenance::CloseMaintenance,
     #[cfg(windows)]
     agent_resume: agent_resume::AgentResume,
-    #[cfg(windows)]
     agent_start_delivery: agent_start_delivery::AgentStartDelivery,
     #[cfg(windows)]
     plugin_hooks: plugins::PluginHooks,
@@ -160,7 +159,6 @@ impl LocalTerminalService {
             process_observer: process_observer::ProcessObserver::default(),
             #[cfg(windows)]
             agent_resume: agent_resume::AgentResume::default(),
-            #[cfg(windows)]
             agent_start_delivery: agent_start_delivery::AgentStartDelivery::default(),
             #[cfg(windows)]
             plugin_hooks: plugins::PluginHooks::default(),

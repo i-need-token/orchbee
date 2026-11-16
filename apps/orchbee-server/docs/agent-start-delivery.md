@@ -1,8 +1,9 @@
 # Agent start delivery
 
-Status: implemented for the Windows Session: one candidate per creation that carried an Agent
-start, the typed line for a marked cmd, the early check, and the one-shot `agentStartFailure` fact.
-A POSIX Session ends each start `unsupported-shell` at once.
+Status: implemented for every Session: one candidate per creation that carried an Agent start, the
+typed line for a marked cmd, the early check, and the one-shot `agentStartFailure` fact. A Windows
+Session runs managed PowerShell and marked cmd; a POSIX Session runs zsh and bash with the Host's
+managed startup, which takes the start as its first command like managed PowerShell.
 
 ## Outcome and scope
 
@@ -27,12 +28,12 @@ it. The Terminal generation the binding names at that moment is the launch's gen
 What the candidate does depends on the Host's launch kind of the new terminal, read from its first
 process sample:
 
-| Launch kind        | Delivery                                                                                       | Watch, then fact                                                                                                  |
-| ------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Managed PowerShell | Nothing typed: the shell runs the first command itself.                                        | 10 seconds from the launch's acceptance, then [overtime](#overtime) while the command runs with no Agent seen.    |
-| Marked cmd         | One gated send of the bare line, retried after a refusal that typed nothing, up to 30 seconds. | 3 seconds from the accepted send, then overtime likewise; no accepted send by the deadline: `prompt-unconfirmed`. |
-| Any other program  | Nothing typed.                                                                                 | `unsupported-shell` at once.                                                                                      |
-| None (older Host)  | Nothing typed.                                                                                 | `terminal-too-old` at once.                                                                                       |
+| Launch kind                     | Delivery                                                                                       | Watch, then fact                                                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Managed PowerShell, zsh or bash | Nothing typed: the shell runs the first command itself.                                        | 10 seconds from the launch's acceptance, then [overtime](#overtime) while the command runs with no Agent seen.    |
+| Marked cmd                      | One gated send of the bare line, retried after a refusal that typed nothing, up to 30 seconds. | 3 seconds from the accepted send, then overtime likewise; no accepted send by the deadline: `prompt-unconfirmed`. |
+| Any other program               | Nothing typed.                                                                                 | `unsupported-shell` at once.                                                                                      |
+| None (older Host)               | Nothing typed.                                                                                 | `terminal-too-old` at once.                                                                                       |
 
 The module comment of `local_terminal_service::agent_start_delivery` holds the states and
 transitions; its decision is a pure function of the launch kind, the reads and the send's answers,
@@ -51,10 +52,10 @@ acceptance before its first sample, and from the last read that had one in overt
 
 ### Typed line
 
-A marked cmd's line is the command and its arguments joined by single spaces, the same tokens
-managed PowerShell runs; every token is plain ASCII without spaces, quotes or shell syntax, so cmd
-reads none as code. The line is sent only when the readiness rule
-[resume uses](agent-session-resume.md#guards), without its directory check, admits a shell at its
+A marked cmd's line is the command and its arguments joined by single spaces, the same tokens a
+managed shell runs; every token is plain ASCII without spaces, quotes or shell syntax, so cmd reads
+none as code. The line is sent only when the prompt readiness rule it shares with
+[resume](agent-session-resume.md#guards), without resume's directory check, admits a shell at its
 prompt with nothing else in its console, and only through the Host's prompt gate, as one idle-prompt
 submission of a paste and Enter. A refusal that typed nothing waits 250 milliseconds, or the
 prompt's quiet period when the Host found it settling, and reads again. A Host without the gate ends
@@ -65,8 +66,8 @@ Client input before the send ends the candidate silently: typed bytes, key and t
 pastes on a controller, and every Client send, as for resume; focus, mouse reports and resizes do
 not. So does a shell command the Host observed before the send. Both are checked at every read and
 again under the send's own locks, so an input either precedes the send's admission or follows its
-send. After the line was typed, and in managed PowerShell, input and commands are the person using
-the Agent and end nothing.
+send. After the line was typed, and in a managed shell, input and commands are the person using the
+Agent and end nothing.
 
 ### Early check
 
@@ -119,7 +120,7 @@ only while the Presentation is still bound as the creation committed it:
 | -------------------- | --------------------------------------------------------------------------- |
 | `not-found`          | The shell came back to its prompt and no process of the provider was seen.  |
 | `exited`             | A process of the provider was seen, then the shell came back to its prompt. |
-| `unsupported-shell`  | The shell is neither managed PowerShell nor a cmd Orchbee marks.            |
+| `unsupported-shell`  | The shell is not managed PowerShell, zsh or bash, nor a cmd Orchbee marks.  |
 | `prompt-unconfirmed` | No gated send was accepted within 30 seconds; nothing was typed.            |
 | `terminal-too-old`   | The terminal's Host records no launch kind or has no prompt gate.           |
 
@@ -139,7 +140,7 @@ Client that connects later says nothing. The notices themselves belong to the Cl
 - At most one typed line per launch, only into the launch's Terminal generation of its own
   Presentation, only through the Host's prompt gate, and never after Client input or a shell
   command reached that terminal.
-- Managed PowerShell and every unsupported shell receive nothing from the Server.
+- Managed PowerShell, zsh and bash and every unsupported shell receive nothing from the Server.
 - Each candidate ends exactly once, with at most one fact; a quiet end costs no revision.
 - Each candidate end writes one diagnostic line, `component=agent-start outcome=<kind>`, with no
   id.
@@ -155,5 +156,6 @@ command failing after its watch, through idle moments without its prompt and rea
 sample; starting the Agent after its watch; an Agent that then exits at once; a command busy until
 the cap; and cmd's typed command failing after its watch. A guard test shows that Client input seen
 by a read or by the send's admission types nothing, while input after the line, into PowerShell's
-Agent, or into a first command in overtime ends nothing. The gate's own refusal, settling and
+Agent, or into a first command in overtime ends nothing. Managed zsh and bash take PowerShell's
+transition, so the tables drive PowerShell for all three. The gate's own refusal, settling and
 acceptance rules are resume's, and so is their evidence.

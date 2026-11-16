@@ -5,8 +5,9 @@ use orchbee_terminal_protocol::TerminalLaunchKind;
 use orchbee_workbench_protocol::AgentStartFailureReason;
 use std::time::{Duration, Instant};
 
-/// How long managed PowerShell's first command is watched from the launch's acceptance. It also
-/// covers the shell's own startup, while the root shell has no child and looks idle.
+/// How long a managed shell's first command, in PowerShell, zsh or bash, is watched from the
+/// launch's acceptance. It also covers the shell's own startup, while the root shell has no child
+/// and looks idle.
 pub(super) const FIRST_COMMAND_WATCH: Duration = Duration::from_secs(10);
 /// How long a typed line is watched from its accepted send.
 pub(super) const TYPED_WATCH: Duration = Duration::from_secs(3);
@@ -35,8 +36,8 @@ pub(super) struct Observation {
     pub(super) idle: bool,
     /// A process of the started provider runs.
     pub(super) provider: bool,
-    /// The shell is worth one gated send now, by the readiness rule resume uses: idle, and its own
-    /// prompt marks say it waits for input.
+    /// The shell is worth one gated send now, by the prompt readiness rule resume also uses: idle,
+    /// and its own prompt marks say it waits for input.
     pub(super) prompt: bool,
 }
 
@@ -128,7 +129,11 @@ impl Delivery {
                 Some(TerminalLaunchKind::Other) => {
                     Command::End(Some(AgentStartFailureReason::UnsupportedShell))
                 }
-                Some(TerminalLaunchKind::ManagedPowershell) => {
+                Some(
+                    TerminalLaunchKind::ManagedPowershell
+                    | TerminalLaunchKind::ManagedZsh
+                    | TerminalLaunchKind::ManagedBash,
+                ) => {
                     self.state = State::Watching {
                         until: self.accepted + FIRST_COMMAND_WATCH,
                         seen: false,

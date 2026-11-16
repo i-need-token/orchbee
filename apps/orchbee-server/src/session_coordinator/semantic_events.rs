@@ -149,7 +149,6 @@ impl SessionCoordinator {
             .filter(|command| !command.completed)
     }
     /// The latest shell-echoed command of this exact Terminal generation, open or completed.
-    #[cfg(windows)]
     pub(super) fn latest_command(
         &self,
         physical: &orchbee_server::TerminalAgentBinding,

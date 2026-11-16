@@ -29,10 +29,6 @@ pub fn windows_interactive_powershell_initialization() -> String {
     .to_owned()
 }
 
-/// The environment variable through which a launch asks managed PowerShell to run an Agent as
-/// its first command.
-pub const WINDOWS_AGENT_START_VARIABLE: &str = "ORCHBEE_AGENT_START";
-
 /// How PowerShell resolves an Agent's command name: an application or script on the search path,
 /// never an alias, function or cmdlet of the same name, and the first match only.
 #[must_use]

@@ -24,6 +24,10 @@ pub const LaunchKind = enum {
     managed_powershell,
     /// Interactive cmd with the Host's prompt marks.
     cmd,
+    /// zsh with the Host's managed startup.
+    managed_zsh,
+    /// bash with the Host's managed startup.
+    managed_bash,
     other,
 };
 

@@ -1,24 +1,9 @@
 //! Each provider's program and the exact text one resume types into a restored shell. It builds
 //! input only; deciding whether to type it belongs to admission and the driver, and the argument
 //! tokens come from the Session's closed conversation id table.
+use crate::local_terminal_service::prompt_readiness::MarkedShell;
 use crate::session_coordinator::resume_arguments;
 use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
-
-/// The restored shell a resume line is written for: one the Host launched with prompt marks.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(in crate::local_terminal_service) enum ResumeShell {
-    /// `powershell` or `pwsh` running the Worker's fixed initialization, which strips the run
-    /// prefix and echoes its token in the command's start and finish markers.
-    ManagedPowerShell,
-    /// An interactive `cmd` whose prompt the Host marks.
-    Cmd,
-}
-
-impl ResumeShell {
-    pub(super) const fn powershell(self) -> bool {
-        matches!(self, Self::ManagedPowerShell)
-    }
-}
 
 /// The provider's own program. Each resolves both in cmd and as a PowerShell application or
 /// external script, and none is a cmd internal command or a generic name such as `agent`.
@@ -56,12 +41,12 @@ const fn resume_program(provider: AgentResumeProvider) -> &'static str {
 /// is inert there. `token` is the run prefix's token and is given only for managed PowerShell.
 pub(super) fn text(
     session: &RetainedAgentSession,
-    shell: ResumeShell,
+    shell: MarkedShell,
     token: Option<&str>,
 ) -> String {
     let program = resume_program(session.provider());
     let arguments = resume_arguments(session);
-    let line = if shell.powershell() {
+    let line = if shell == MarkedShell::ManagedPowerShell {
         let quoted: Vec<String> = arguments.iter().map(|a| format!("'{a}'")).collect();
         format!(
             "& (Get-Command '{program}' -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1) {}",

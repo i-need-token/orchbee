@@ -52,7 +52,9 @@ mod agent_registration;
 #[cfg(any(windows, test))]
 mod agent_resume;
 #[cfg(windows)]
-pub(crate) use agent_resume::{ResumeTarget, RunTableEntry, read_run_table, resume_arguments};
+pub(crate) use agent_resume::{RunTableEntry, read_run_table, resume_arguments};
+mod delivery_target;
+pub(crate) use delivery_target::ResumeTarget;
 mod directory_label;
 mod pane_graphics;
 mod presentation_titles;
@@ -62,10 +64,9 @@ mod semantic_events;
 pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
 #[cfg(windows)]
 pub(crate) use process_observation::decoded_argv;
-#[cfg(windows)]
-pub(crate) use process_observation::names_provider;
 pub(crate) use process_observation::{
-    ProcessObservationTarget, host_time_as_creation, identify as identify_host_agent, root_shell,
+    ProcessObservationTarget, host_time_as_creation, identify as identify_host_agent,
+    names_provider, root_shell,
 };
 
 pub(crate) struct SessionCoordinator {

@@ -1,4 +1,4 @@
-//! The one thread that carries every Agent start candidate of a Windows Session: it reads each new
+//! The one thread that carries every Agent start candidate of a Session: it reads each new
 //! terminal through the process observer's on-demand lane, types a marked cmd's line through the
 //! Host's prompt gate, and publishes the failure fact the decision names. Candidates are offered
 //! under the registry and coordinator locks the creation settled under, and Client input is noted
@@ -8,10 +8,10 @@
 use super::model::{Command, Delivery, Event, Observation};
 use crate::local_terminal_service::{
     LocalTerminalService,
-    agent_resume::{Readiness, ResumeFacts, readiness},
     controller_connection::ControlTarget,
     placement,
     prompt_line::{self, Answer},
+    prompt_readiness::{Readiness, ResumeFacts, readiness},
 };
 use crate::{
     session_coordinator::{
@@ -173,9 +173,9 @@ enum Guard {
 }
 
 impl LocalTerminalService {
-    /// Starts the start delivery thread. Only Windows Session composition starts it, before any
-    /// Client can create a terminal; until then, and once it stops, a creation's start is dropped
-    /// with nothing typed.
+    /// Starts the start delivery thread. Session composition starts it before any Client can
+    /// create a terminal; until then, and once it stops, a creation's start is dropped with nothing
+    /// typed.
     pub(crate) fn start_agent_start_delivery(self: &Arc<Self>) -> io::Result<()> {
         let delivery = &self.agent_start_delivery;
         let mut slot = delivery
@@ -208,7 +208,8 @@ impl LocalTerminalService {
     }
 
     /// Stops the thread and joins it within the Session owner's deadline. A candidate it carried
-    /// ends with nothing typed and no fact. Idempotent.
+    /// ends with nothing typed and no fact. Idempotent, and the process observer's stop calls it
+    /// first.
     pub(crate) fn stop_agent_start_delivery_before(&self, deadline: Instant) -> io::Result<()> {
         self.agent_start_delivery.signals.stop();
         loop {
