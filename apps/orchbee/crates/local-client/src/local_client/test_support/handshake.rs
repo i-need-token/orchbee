@@ -1,11 +1,15 @@
 //! The Server side of the `OBHS` exchange for fake Servers, which then script the Client phase.
 use orchbee_connection_handshake::{
-    AcceptorMessage, Answer, Build, CapabilitySet, ConnectionKind, EnvironmentName, Extensions,
-    InitiatorMessage, Offer, ProductVersion, Rejection, RejectionReason, encode_acceptor_frame,
+    AcceptorMessage, Answer, Build, CapabilitySet, ConnectionKind, ControlRequest, EnvironmentName,
+    Extensions, InitiatorMessage, Offer, ProcessEntry, ProcessRole, ProcessState, ProductVersion,
+    QueryResult, Rejection, RejectionReason, RequestKind, encode_acceptor_frame,
     read_initiator_message,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message};
-use std::io::{self, Read, Write};
+use std::{
+    io::{self, Read, Write},
+    num::NonZeroU32,
+};
 
 /// The test environment fake Servers share with the Clients they admit.
 const TEST_ENVIRONMENT: &str = "ob-test-0000000000000000";
@@ -52,6 +56,38 @@ fn answer(
         extensions: Extensions::new(),
     });
     stream.write_all(&encode_acceptor_frame(&answer).map_err(io::Error::other)?)?;
+    stream.flush()
+}
+
+/// Answers the candidate's `query` as a ready Server with no Worker reports itself: its product
+/// version, the requester's environment, `terminals` terminals and no connections.
+pub fn answer_query(
+    stream: &mut (impl Read + Write),
+    product_version: &str,
+    terminals: u32,
+) -> io::Result<()> {
+    let environment = match read_initiator_message(stream).map_err(io::Error::other)? {
+        InitiatorMessage::Request(ControlRequest {
+            kind: RequestKind::Query,
+            environment,
+            ..
+        }) => environment,
+        other => return Err(io::Error::other(format!("expected a query: {other:?}"))),
+    };
+    let server = ProcessEntry {
+        role: ProcessRole::Server,
+        product_version: ProductVersion::new(product_version).map_err(io::Error::other)?,
+        build: Build::default(),
+        environment,
+        pid: NonZeroU32::new(std::process::id()).ok_or_else(|| io::Error::other("pid 0"))?,
+        state: ProcessState::Ready,
+        terminals,
+        connections: Vec::new(),
+    };
+    let result =
+        QueryResult::new(vec![server], Some(false), Extensions::new()).map_err(io::Error::other)?;
+    let reply = AcceptorMessage::QueryResult(result);
+    stream.write_all(&encode_acceptor_frame(&reply).map_err(io::Error::other)?)?;
     stream.flush()
 }
 

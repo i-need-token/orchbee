@@ -7,7 +7,8 @@
 //! macOS and Linux admit release installation and uninstallation; only macOS admits the update
 //! download, `update` and the automatic helper. macOS admits `server stop`, Worktree operations
 //! and source queries, `project close-all`, the unified Agent projection with per-Client
-//! attention, Client control and configured commands, which its managed Session serves.
+//! attention, Client control, configured commands, and the runtime status reads with the processes
+//! its managed Session reports.
 //! Admission itself does not inspect environment or native state.
 use super::{Capability, Unsupported};
 
@@ -22,6 +23,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::ClientControl
         | Capability::ReleaseUpdate
         | Capability::ConfiguredCommands
+        | Capability::RuntimeStatus
             if cfg!(target_os = "macos") =>
         {
             Ok(())

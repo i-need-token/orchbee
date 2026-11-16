@@ -627,7 +627,19 @@ fn fixture_document() -> &'static [u8] {
 fn available_snapshot_projects_every_resource() -> TestResult {
     let base = base_dir("available");
     let scope = stage_scope(&base);
-    let peer = spawn_peer_n(&scope, 2, |stream| {
+    // macOS `status` also asks the Session for its processes, on the second connection.
+    let asks_processes = cfg!(target_os = "macos");
+    let connection = std::sync::atomic::AtomicUsize::new(0);
+    let peer = spawn_peer_n(&scope, 2 + usize::from(asks_processes), move |stream| {
+        if asks_processes && connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 1 {
+            orchbee_workbench_client::test_support::local_client::handshake::answer_query(
+                &mut &stream,
+                "0.1.0",
+                2,
+            )
+            .expect("peer answers the query");
+            return;
+        }
         admit(&stream);
         let request_id = read_snapshot_request(&stream);
         snapshot_response(
