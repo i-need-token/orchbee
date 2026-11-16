@@ -112,12 +112,10 @@ pub use diagnostic_bundle::{
 mod diagnostic_log;
 pub use diagnostic_log::{
     DAILY_LOG_LIMIT_BYTES, LogField, LogLevel, LogRole, LogValue, RETAINED_LOG_DAYS,
-    RecentDiagnosticLogs, install_diagnostic_log, log_event, recent_diagnostic_logs,
+    RecentDiagnosticLogs, install_diagnostic_log, log_event, recent_diagnostic_logs, utc_timestamp,
 };
-#[cfg(windows)]
 mod destructive_log;
 pub use data_root::{create_private_directory, prepare_default_runtime_base};
-#[cfg(windows)]
 pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_request};
 #[cfg(target_os = "macos")]
 #[allow(

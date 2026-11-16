@@ -18,7 +18,7 @@ pub(crate) struct Route {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RemoteStop {
     pub(crate) selector: String,
-    /// Whether `--confirm` was given; a release Windows build refuses it at admission.
+    /// Whether `--confirm` was given; a release Windows or macOS build refuses it at admission.
     pub(crate) confirm: bool,
     pub(crate) format: OutputFormat,
 }

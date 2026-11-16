@@ -241,6 +241,12 @@ pub(crate) fn civil_from_days(days: i64) -> (i64, i64, i64) {
     (year_of_era + era * 400 + i64::from(month <= 2), month, day)
 }
 
+/// The instant `unix_milliseconds` after the Unix epoch as RFC 3339 UTC with milliseconds,
+/// `YYYY-MM-DDTHH:MM:SS.mmmZ`, as every log record spells its time.
+pub fn utc_timestamp(unix_milliseconds: u64) -> String {
+    timestamp(unix_milliseconds)
+}
+
 /// `YYYY-MM-DDTHH:MM:SS.mmmZ` in UTC.
 fn timestamp(unix_milliseconds: u64) -> String {
     let seconds = unix_milliseconds / 1000;

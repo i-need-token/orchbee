@@ -163,12 +163,12 @@ pub mod application {
         pub use crate::local_activation::{
             ActivationCause, ActivationFailure, StartedSession, StartupFailure,
             activate_local_session, check_deadline, pause, refusal, runtime_base_unstarted,
-            runtime_location, selected_session_name,
+            runtime_location, selected_session_name, target_session_name,
         };
         #[cfg(windows)]
         pub use crate::local_activation::{
             activate_named_session, inside_selected_session, select_session,
-            session_client_endpoint, target_session_name,
+            session_client_endpoint,
         };
         pub use crate::startup_status::RefusedVersions;
     }

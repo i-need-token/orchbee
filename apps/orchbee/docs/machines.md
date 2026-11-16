@@ -452,7 +452,7 @@ routed command line. The grammar is the local `server stop`'s: development and t
 Machine by the [routing rules](#command-routing-contract); a selection or catalog failure is a
 not-submitted `orchbee.cli.failure.machine-route` document, and no hub is asked.
 
-The near side next applies the [release confirmation](../README.md#windows-release-destructive-confirmation)
+The near side next applies the [release confirmation](../README.md#release-destructive-confirmation)
 exactly as a local `server stop` does, before the hub is asked anything: the release build refuses
 `--confirm` and every invocation without two consoles, and otherwise prompts on standard error with
 the Machine's label, the remote Session's name and that every terminal in it stops, and runs only

@@ -34,10 +34,10 @@ pub(super) fn stop_id(
 }
 
 /// Whether `server stop`, `session stop` and `session delete` require `--confirm`. A release
-/// Windows build parses them without it: destructive admission then asks a person in a console to
-/// type the Session name and refuses the option, after logging the request (ORC-382).
+/// Windows or macOS build parses them without it: destructive admission then asks a person in a
+/// console to type the Session name and refuses the option, after logging the request (ORC-382).
 pub(super) fn confirm_option_required() -> bool {
-    !(cfg!(windows) && orchbee_local_runtime::is_release())
+    !(cfg!(any(windows, target_os = "macos")) && orchbee_local_runtime::is_release())
 }
 
 pub(super) fn stop_command(

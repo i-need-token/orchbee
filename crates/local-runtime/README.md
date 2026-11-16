@@ -703,10 +703,10 @@ becomes `?<query>`. `diagnostic_archive` writes the entries as one stored ZIP ar
 [CLI command](../../apps/orchbee/README.md#windows-diagnostic-bundle) chooses what a bundle
 holds.
 
-## Windows destructive request log
+## Destructive request log
 
 `append_destructive_request` appends one caller-supplied JSON record as one line to
-`logs\destructive-commands.jsonl` in the data root. It creates the root, the private `logs`
+`logs/destructive-commands.jsonl` in the data root. It creates the root, the private `logs`
 directory and the file on first use under the state root rules above, and admits existing ones only
 when they are private regular files and directories. Concurrent appends serialize on the file's own
 lock and give up after 500 ms. The current file never exceeds `DESTRUCTIVE_LOG_ROTATION_BYTES`,
@@ -715,8 +715,8 @@ lock and give up after 500 ms. The current file never exceeds `DESTRUCTIVE_LOG_R
 replacing the generation kept there, and empties the current file in place, so at most two
 generations remain. Nothing reads the log back. Callers treat every error as a non-event, so a
 failed append never blocks or changes their command. The
-[CLI release confirmation](../../apps/orchbee/README.md#windows-release-destructive-confirmation)
-owns the record fields.
+[CLI release confirmation](../../apps/orchbee/README.md#release-destructive-confirmation)
+owns the record fields and which platforms write them.
 
 ## Local startup model
 

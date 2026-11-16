@@ -1,7 +1,8 @@
-//! The Windows destructive request log (ORC-382): one JSON line per `server stop`, `session stop`
-//! or `session delete` invocation, appended to `logs\destructive-commands.jsonl` in the data root.
-//! The CLI owns each record's fields; this owner keeps the file private and bounded. Writing is
-//! best effort: a caller reports nothing and changes nothing when an append fails.
+//! The destructive request log (ORC-382): one JSON line per `server stop`, `session stop` or
+//! `session delete` invocation, appended to `logs/destructive-commands.jsonl` in the data root.
+//! The CLI owns each record's fields and which platforms write them; this owner keeps the file
+//! private and bounded. Writing is best effort: a caller reports nothing and changes nothing when
+//! an append fails.
 use crate::private_filesystem as permissions;
 use std::{
     fs::{File, TryLockError},

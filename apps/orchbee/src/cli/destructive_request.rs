@@ -1,14 +1,13 @@
 //! Destructive admission for `server stop`, `session stop`, `session delete` (ORC-382),
 //! `--machine <selector> server stop` and `uninstall`.
 //!
-//! A release Windows build runs them only when standard input and standard output are both
-//! interactive consoles and the person types the exact Session name, or `orchbee` for `uninstall`,
-//! at the prompt; it refuses
-//! `--confirm` and every non-interactive invocation, including Agents, scripts and pipes.
-//! Development and test builds keep `--confirm`, which the grammar already requires there.
-//! Every invocation on Windows, accepted or refused, appends one record to the environment's
-//! destructive request log before the command runs; a failed append changes nothing. This is a
-//! speed bump for unintended Agent actions, not a security boundary.
+//! A release Windows or macOS build runs them only when standard input and standard output are
+//! both interactive consoles and the person types the exact Session name, or `orchbee` for
+//! `uninstall`, at the prompt; it refuses `--confirm` and every non-interactive invocation,
+//! including Agents, scripts and pipes. Development and test builds keep `--confirm`, which the grammar
+//! already requires there. Every invocation on Windows and macOS, accepted or refused, appends one
+//! record to the environment's destructive request log before the command runs; a failed append
+//! changes nothing. This is a speed bump for unintended Agent actions, not a security boundary.
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::{cli_text::CliText, invocation::OutputFormat, localization::Locale};
 use serde_json::{Map, json};
@@ -36,9 +35,11 @@ impl DestructiveCommand {
         }
     }
 
-    /// The command a person runs by hand in a console, without `--confirm`.
+    /// The command a person runs by hand in a console, without `--confirm`. macOS takes no
+    /// `--session` yet, so its `server stop` names none.
     fn by_hand(self, target: Option<&str>) -> String {
         match (self, target) {
+            (Self::ServerStop, _) if !cfg!(windows) => "orchbee server stop".to_owned(),
             (Self::ServerStop, Some(name)) => format!("orchbee --session {name} server stop"),
             (Self::ServerStop, None) => "orchbee --session <name> server stop".to_owned(),
             (_, name) => format!("orchbee {} {}", self.words(), name.unwrap_or("<name>")),
@@ -228,6 +229,11 @@ pub(super) fn admit(
         format,
         locale,
     )
+}
+
+/// Whether this build asks a person to type the target's name in place of `--confirm`.
+pub(super) fn release_confirmation() -> bool {
+    platform::release()
 }
 
 /// The name a person types to admit `uninstall`.

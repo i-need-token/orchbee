@@ -757,3 +757,13 @@ fn unix_location() -> io::Result<UnixLocation> {
         default_base: true,
     })
 }
+
+/// The name of the Session a macOS or Linux invocation targets, as [`runtime_location`] names it:
+/// the inherited `ORCHBEE_RUNTIME_SCOPE` or the default Session. Absent when the location is
+/// invalid.
+#[cfg(unix)]
+pub fn target_session_name() -> Option<orchbee_local_runtime::SessionName> {
+    unix_location()
+        .ok()
+        .and_then(|location| orchbee_local_runtime::SessionName::parse(&location.scope).ok())
+}

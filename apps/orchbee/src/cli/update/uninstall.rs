@@ -142,7 +142,7 @@ fn execute(delete_data: bool, caller: Caller, locale: Locale) -> Output {
     }
     if let Caller::Person { confirm, format } = caller {
         let listing = report.listing(locale);
-        let takes_confirm = !(cfg!(windows) && orchbee_local_runtime::is_release());
+        let takes_confirm = !destructive_request::release_confirmation();
         if takes_confirm && format == OutputFormat::Text {
             // A build that takes --confirm asks nothing; the listing still comes first.
             eprint!("{listing}");
