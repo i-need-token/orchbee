@@ -221,9 +221,6 @@ export function Workbench({
 				onShortcuts={view.shortcuts}
 				reorderModifier={shortcutPlatform === 'apple' ? 'meta' : 'ctrl'}
 				returnToTerminal={view.returnToTerminal}
-				shortcutsLabel={view.shortcutsLabel}
-				shortcutsShortcutId={view.shortcutsShortcutId}
-				shortcutsShortcutLabel={view.shortcutsShortcutLabel}
 				projectLabel={view.projectLabel}
 				newWorkspaceLabel={view.newWorkspaceLabel}
 				newWorkspaceShortcutId={view.newWorkspaceShortcutId}

@@ -42,7 +42,7 @@ interface WorkbenchSidebarProps {
 	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	/**
-	 * A development or test build's marker beside Settings: its word, the checkout name when the
+	 * A development or test build's marker at the footer's end: its word, the checkout name when the
 	 * build came from one, and the tooltip that names both in full.
 	 */
 	readonly environmentMarker?:
@@ -86,14 +86,11 @@ interface WorkbenchSidebarProps {
 	readonly settingsLabel: string;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string | undefined;
-	readonly shortcutsLabel: string;
-	readonly shortcutsShortcutId: string;
-	readonly shortcutsShortcutLabel: string | undefined;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
 	/**
-	 * The footer's Update control between Settings and Help, present only while a newer version is
+	 * The footer's Update control right after Settings, present only while a newer version is
 	 * offered: its label, the tooltip that names the version, and what a press invokes.
 	 */
 	readonly update?:
@@ -140,9 +137,6 @@ export function WorkbenchSidebar({
 	settingsLabel,
 	settingsShortcutId,
 	settingsShortcutLabel,
-	shortcutsLabel,
-	shortcutsShortcutId,
-	shortcutsShortcutLabel,
 	toggleProjectExpansion,
 	toggleRecentsExpansion,
 	toggleWorkspaceAgents,
@@ -354,24 +348,29 @@ export function WorkbenchSidebar({
 				</div>
 				{/* Holds the raised copy of a dragged row, so it outlives the row's move between lists. */}
 				<div aria-hidden='true' className={styles['dragLayer']} data-sidebar-drag-layer='true' />
-				<div className={styles['footer']} data-update={update === undefined ? undefined : ''}>
-					<Button
-						aria-disabled={onSettings === undefined}
-						className={styles['primaryItem']}
-						data-shortcut-action={settingsShortcutId}
-						data-slot='workbench-sidebar-settings'
-						size='sm'
-						variant='ghost'
-						onClick={onSettings}
-					>
-						<span className={styles['icon']}>
+				<div className={styles['footer']}>
+					{/* Settings: the gear alone at the footer's start, as in Cursor; its tooltip names it. */}
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<button
+									aria-disabled={onSettings === undefined}
+									aria-label={settingsLabel}
+									className={styles['settings']}
+									data-shortcut-action={settingsShortcutId}
+									data-slot='workbench-sidebar-settings'
+									type='button'
+									onClick={onSettings}
+								/>
+							}
+						>
 							<ProductIcon name='settings' />
-						</span>
-						<span className={styles['label']}>{settingsLabel}</span>
-						{settingsShortcutLabel === undefined ? null : (
-							<Kbd className={styles['shortcut']}>{settingsShortcutLabel}</Kbd>
-						)}
-					</Button>
+						</TooltipTrigger>
+						<TooltipContent side='top'>
+							{settingsLabel}
+							{settingsShortcutLabel === undefined ? null : <Kbd>{settingsShortcutLabel}</Kbd>}
+						</TooltipContent>
+					</Tooltip>
 					{update === undefined ? null : (
 						<Tooltip>
 							<TooltipTrigger
@@ -416,28 +415,6 @@ export function WorkbenchSidebar({
 							<TooltipContent side='top'>{environmentMarker.description}</TooltipContent>
 						</Tooltip>
 					)}
-					{/* The shortcut reference: the Settings section that lists every key. */}
-					<Tooltip>
-						<TooltipTrigger
-							render={
-								<button
-									aria-disabled={onShortcuts === undefined}
-									aria-label={shortcutsLabel}
-									className={styles['help']}
-									data-shortcut-action={shortcutsShortcutId}
-									data-slot='workbench-sidebar-shortcuts'
-									type='button'
-									onClick={onShortcuts}
-								/>
-							}
-						>
-							<ProductIcon name='question' />
-						</TooltipTrigger>
-						<TooltipContent side='top'>
-							{shortcutsLabel}
-							{shortcutsShortcutLabel === undefined ? null : <Kbd>{shortcutsShortcutLabel}</Kbd>}
-						</TooltipContent>
-					</Tooltip>
 				</div>
 			</aside>
 			{projectRename === null ? null : (

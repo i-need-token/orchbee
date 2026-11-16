@@ -166,27 +166,39 @@
 	padding: var(--ob-ref-space-2);
 }
 
-/* Settings starts from its content's width and never shrinks below it while the environment marker
-   beside it has width to give; it gives up width, ellipsizing its label, only past the row minus
-   Shortcuts and the marker's spacing. Any shrink, even a fraction of a pixel, would ellipsize it. */
-.footer .primaryItem {
-	flex: 1 0 auto;
-	width: auto;
-	min-width: var(--ob-ref-space-0);
-	max-width: calc(
-		100% - var(--ob-ref-size-control-sm) - var(--ob-ref-space-0-5) - var(--ob-ref-space-0-5) -
-			var(--ob-ref-space-2) - var(--ob-ref-space-1)
-	);
+/* Settings: the gear alone, a 28 px square at the footer's start, its glyph on the rows' icon
+   column above. */
+.settings {
+	display: inline-flex;
+	width: var(--ob-ref-size-control-sm);
+	height: var(--ob-ref-size-control-sm);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	margin: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-0);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: none;
+	color: var(--ob-sys-color-icon-secondary);
 }
 
-/* While Update shows, Settings is the one to give up width, ellipsizing its label, so Update and
-   Shortcuts keep theirs. */
-.footer[data-update] .primaryItem {
-	flex-shrink: 1;
-	max-width: none;
+.settings:hover,
+.settings:focus-visible {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
 }
 
-/* Update, between Settings and Shortcuts while a newer version is offered: its label in the primary
+.settings:active {
+	background: var(--ob-sys-color-surface-pressed);
+}
+
+.settings:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+/* Update, right after Settings while a newer version is offered: its label in the primary
    action role, a 28 px tall target that keeps its label whole. */
 .update {
 	display: inline-flex;
@@ -224,9 +236,9 @@
 	translate: 0 var(--ob-ref-text-icon-center-shift);
 }
 
-/* A development or test build's marker between Settings and Shortcuts: its word, then the checkout
-   name. It alone shrinks, and whatever no longer fits wraps onto a second line it clips, so the name
-   drops whole, then the word, before Settings gives up width. It is no target and carries no fill. */
+/* A development or test build's marker at the footer's end: its word, then the checkout name. It
+   alone shrinks, and whatever no longer fits wraps onto a second line it clips, so the name drops
+   whole, then the word. It is no target and carries no fill. */
 .environment {
 	display: flex;
 	box-sizing: border-box;
@@ -236,7 +248,8 @@
 	justify-content: flex-end;
 	height: var(--ob-ref-size-control-navigation);
 	min-width: var(--ob-ref-space-0);
-	margin-inline: var(--ob-ref-space-2) var(--ob-ref-space-1);
+	margin-inline: auto var(--ob-ref-space-1);
+	padding-inline-start: var(--ob-ref-space-2);
 	overflow: hidden;
 	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-body-sm);
@@ -266,37 +279,6 @@
 .environmentText {
 	text-box: trim-both cap alphabetic;
 	translate: 0 var(--ob-ref-text-icon-center-shift);
-}
-
-/* Shortcuts: a 28 px square beside Settings. */
-.help {
-	display: inline-flex;
-	width: var(--ob-ref-size-control-sm);
-	height: var(--ob-ref-size-control-sm);
-	flex: none;
-	align-items: center;
-	justify-content: center;
-	margin: var(--ob-ref-space-0);
-	padding: var(--ob-ref-space-0);
-	border: none;
-	border-radius: var(--ob-ref-radius-ui-md);
-	background: none;
-	color: var(--ob-sys-color-icon-secondary);
-}
-
-.help:hover,
-.help:focus-visible {
-	background: var(--ob-sys-color-surface-hovered);
-	color: var(--ob-sys-color-icon-primary);
-}
-
-.help:active {
-	background: var(--ob-sys-color-surface-pressed);
-}
-
-.help:focus-visible {
-	outline: none;
-	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
 .projectList {
@@ -338,7 +320,7 @@
 }
 
 /* Touch sizes (D18, D19), which the mobile layout takes from 408 px high: the band that holds the
-   sidebar button and every one-line row are 44 px, and Shortcuts owns a 44 px square. Fonts and
+   sidebar button and every one-line row are 44 px, and Settings owns a 44 px square. Fonts and
    icons keep their sizes. */
 :global([data-workbench-touch]) .root {
 	padding-block-start: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
@@ -348,18 +330,11 @@
 	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }
 
-:global([data-workbench-touch]) .footer .primaryItem {
-	max-width: calc(
-		100% - var(--ob-ref-size-control-lg) - var(--ob-ref-space-2) - var(--ob-ref-space-0-5) -
-			var(--ob-ref-space-0-5) - var(--ob-ref-space-2) - var(--ob-ref-space-1)
-	);
-}
-
 :global([data-workbench-touch]) .environment {
 	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }
 
-:global([data-workbench-touch]) .help {
+:global([data-workbench-touch]) .settings {
 	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }

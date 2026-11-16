@@ -136,8 +136,7 @@ describe('Workbench', () => {
 		expect(markup).toContain('data-slot="workbench-sidebar-settings"');
 		expect(markup).toContain('data-icon="settings"');
 		expect(markup).toContain('data-shortcut-action="workbench.settings.open"');
-		expect(markup).toContain('Settings');
-		expect(markup).toContain('⌘,');
+		expect(markup).toContain('aria-label="Settings"');
 		expect(markup).toContain('role="tablist"');
 		expect(markup).toContain('aria-label="Terminal tabs"');
 		expect(markup).toContain(`data-tab-id="${fixtureTabId(1)}"`);

@@ -293,9 +293,6 @@ interface WorkbenchView {
 	readonly settingsLabel: string;
 	readonly settings: (() => void) | undefined;
 	readonly shortcuts: (() => void) | undefined;
-	readonly shortcutsLabel: string;
-	readonly shortcutsShortcutId: string;
-	readonly shortcutsShortcutLabel: string | undefined;
 	/** The footer's Update control, present only while a newer version is offered. */
 	readonly update: WorkbenchClientUpdateView | undefined;
 	readonly settingsShortcutId: string;
@@ -1200,11 +1197,6 @@ export function useWorkbench({
 						closeSidebarOverlay();
 						actions.invoke(WORKBENCH_ACTION_IDS.openShortcuts, undefined, 'button');
 					},
-		shortcutsLabel: intl.formatMessage(workbenchMessages.shortcuts),
-		shortcutsShortcutId: WORKBENCH_SHORTCUTS.shortcuts.id,
-		shortcutsShortcutLabel: visibleShortcutLabel(
-			formatWorkbenchShortcut('shortcuts', shortcutPlatform, shortcutBindings),
-		),
 		update,
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: visibleShortcutLabel(
