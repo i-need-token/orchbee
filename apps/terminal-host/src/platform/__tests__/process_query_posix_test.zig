@@ -235,6 +235,20 @@ fn awaitRows(process: *subject.Process, minimum: usize) !subject.ProcessSample {
     return error.TestUnexpectedResult;
 }
 
+/// Waits for rows with these exact command lines. A row count is not enough: a forked shell child
+/// keeps its parent's command line until it executes its program.
+fn awaitCommands(process: *subject.Process, commands: []const []const u8) !subject.ProcessSample {
+    for (0..400) |_| {
+        var sample = try subject.sampleProcesses(process, allocator);
+        for (commands) |command| {
+            if (row(&sample, command) == null) break;
+        } else return sample;
+        sample.deinit();
+        monotonic.sleep(5 * std.time.ns_per_ms);
+    }
+    return error.TestUnexpectedResult;
+}
+
 fn contains(sample: *const subject.ProcessSample, pid: u32) bool {
     for (sample.processes) |process| if (process.pid == pid) return true;
     return false;
@@ -251,7 +265,7 @@ test "POSIX process samples list the live session, exclude other sessions, and e
     defer other_shell.stop();
     const outsider = &other_shell.process;
 
-    var sample = try awaitRows(process, 4);
+    var sample = try awaitCommands(process, &.{ "/bin/sh -c 'sleep 32; :'", "sleep 31", "sleep 32" });
     defer sample.deinit();
     const root_pid: u32 = @intCast(process.child_id);
     try std.testing.expectEqual(root_pid, sample.root_pid);
