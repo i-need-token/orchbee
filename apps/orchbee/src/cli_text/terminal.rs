@@ -5,13 +5,13 @@ use super::Locale;
 pub(super) const HELP_TERMINAL_OBSERVE_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>] [--format text|json]",
-        "Windows: observe one existing terminal as NDJSON (orchbee.terminal.stream v1).\nTarget: complete terminal ID or @terminal:0x<hex>. Default viewport: 120x40;\ndimensions: 1..4096, at most 262144 cells. Crops/pads without resizing the source.\nFrames contain full safe ANSI screens encoded as base64, not raw PTY output.\nThe stream does not read stdin or acquire control. Both formats emit NDJSON.\nNo total timeout by default; --timeout: 1..3600000 ms. Ctrl+C exits 130; timeout\nexits 7. Each transport/output stall is bounded to five seconds; cleanup may\ntake two seconds. A disconnected source is a failure, not a successful exit.",
+        "Windows and macOS: observe one existing terminal as NDJSON (orchbee.terminal.stream v1).\nTarget: complete terminal ID or @terminal:0x<hex>. Default viewport: 120x40;\ndimensions: 1..4096, at most 262144 cells. Crops/pads without resizing the source.\nFrames contain full safe ANSI screens encoded as base64, not raw PTY output.\nThe stream does not read stdin or acquire control. Both formats emit NDJSON.\nNo total timeout by default; --timeout: 1..3600000 ms. Ctrl+C exits 130; timeout\nexits 7. Each transport/output stall is bounded to five seconds; cleanup may\ntake two seconds. A disconnected source is a failure, not a successful exit.",
     );
 
 pub(super) const HELP_TERMINAL_OBSERVE_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>] [--format text|json]",
-        "Windows：以 NDJSON 持续观察一个已有终端（orchbee.terminal.stream v1）。目标：完整终端 ID 或 @terminal:0x<hex>。默认视口为 120x40；单边尺寸为\n1..4096，总计最多 262144 个单元格。仅裁剪或填充，不改变源终端大小。帧包含以 base64 编码的完整安全 ANSI 屏幕，不是原始 PTY 输出。不读取 stdin，也不获取控制权。两种格式均输出 NDJSON。默认没有总超时；--timeout 范围为 1..3600000 毫秒。Ctrl+C 退出码为 130，超时为 7。每次传输或输出停滞最多五秒；清理可能需要两秒。源连接断开视为失败，不会报告成功退出。",
+        "Windows 和 macOS：以 NDJSON 持续观察一个已有终端（orchbee.terminal.stream v1）。目标：完整终端 ID 或 @terminal:0x<hex>。默认视口为 120x40；单边尺寸为\n1..4096，总计最多 262144 个单元格。仅裁剪或填充，不改变源终端大小。帧包含以 base64 编码的完整安全 ANSI 屏幕，不是原始 PTY 输出。不读取 stdin，也不获取控制权。两种格式均输出 NDJSON。默认没有总超时；--timeout 范围为 1..3600000 毫秒。Ctrl+C 退出码为 130，超时为 7。每次传输或输出停滞最多五秒；清理可能需要两秒。源连接断开视为失败，不会报告成功退出。",
     );
 
 pub(super) const HELP_TERMINAL_LIST_EN: crate::cli_text::HelpDetails =
@@ -65,25 +65,25 @@ pub(super) const HELP_TERMINAL_SEND_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_TERMINAL_CONTROL_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal session control <terminal> [--takeover] [--cols N] [--rows N] [--timeout ms] [--format text|json]",
-        "Windows: acquire exclusive input/resize control of an existing terminal and\nstream validated ANSI/base64 NDJSON frames. Default geometry 120x40.\n--takeover explicitly revokes the old controller; failed takeover may still\nrevoke it. Read stdin as UTF-8 NDJSON: terminal.input (text XOR base64 bytes),\nterminal.resize (cols,rows), terminal.scroll (direction,lines), terminal.release.\nInput records are bounded to 2 MiB; decoded input to 256 KiB. Invalid commands\nproduce rejection records without effects; input is admitted in ordered 4 KiB\nchunks. Receipts do not mean shell execution. EOF/release detaches; it never\nstops the terminal. Cancellation 130, timeout 7; no reconnect or effect replay.\nOutput stalls/exchanges are bounded to 5s, cleanup 2s. Normal-screen scroll\nuses retained history; application mouse modes and alternate screens use\nthe corresponding input. See schema orchbee.terminal.control.input.",
+        "Windows and macOS: acquire exclusive input/resize control of an existing terminal and\nstream validated ANSI/base64 NDJSON frames. Default geometry 120x40.\n--takeover explicitly revokes the old controller; failed takeover may still\nrevoke it. Read stdin as UTF-8 NDJSON: terminal.input (text XOR base64 bytes),\nterminal.resize (cols,rows), terminal.scroll (direction,lines), terminal.release.\nInput records are bounded to 2 MiB; decoded input to 256 KiB. Invalid commands\nproduce rejection records without effects; input is admitted in ordered 4 KiB\nchunks. Receipts do not mean shell execution. EOF/release detaches; it never\nstops the terminal. Cancellation 130, timeout 7; no reconnect or effect replay.\nOutput stalls/exchanges are bounded to 5s, cleanup 2s. Normal-screen scroll\nuses retained history; application mouse modes and alternate screens use\nthe corresponding input. See schema orchbee.terminal.control.input.",
     );
 
 pub(super) const HELP_TERMINAL_CONTROL_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal session control <terminal> [--takeover] [--cols N] [--rows N] [--timeout ms] [--format text|json]",
-        "Windows：获取既有终端的排他输入/尺寸控制权，持续输出经过验证的\nANSI/base64 NDJSON 帧。默认尺寸120x40。--takeover 显式撤销旧控制者；接管失败也可能撤销旧权限。stdin 为 UTF-8 NDJSON：terminal.input\n（text 或 base64 bytes 二选一）、terminal.resize（cols、rows）、\nterminal.scroll（direction、lines）、terminal.release。每条记录最多2MiB，解码输入最多256KiB。无效命令返回无副作用的拒绝记录；输入按顺序分成4KiB 提交，接收回执不代表 shell 已执行。EOF/release 仅解除附着，不停止终端。取消130、超时7；不重连或重放效果。传输/输出停滞最多5秒，清理2秒。普通屏幕滚动使用历史，应用鼠标模式和备用屏幕使用对应输入。详见 schema orchbee.terminal.control.input。",
+        "Windows 和 macOS：获取既有终端的排他输入/尺寸控制权，持续输出经过验证的\nANSI/base64 NDJSON 帧。默认尺寸120x40。--takeover 显式撤销旧控制者；接管失败也可能撤销旧权限。stdin 为 UTF-8 NDJSON：terminal.input\n（text 或 base64 bytes 二选一）、terminal.resize（cols、rows）、\nterminal.scroll（direction、lines）、terminal.release。每条记录最多2MiB，解码输入最多256KiB。无效命令返回无副作用的拒绝记录；输入按顺序分成4KiB 提交，接收回执不代表 shell 已执行。EOF/release 仅解除附着，不停止终端。取消130、超时7；不重连或重放效果。传输/输出停滞最多5秒，清理2秒。普通屏幕滚动使用历史，应用鼠标模式和备用屏幕使用对应输入。详见 schema orchbee.terminal.control.input。",
     );
 
 pub(super) const HELP_TERMINAL_ATTACH_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal attach <terminal> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Windows interactive terminal attachment. Requires terminal stdin/stdout.\nUses an existing terminal ID or @terminal:0x<hex>; never starts a session or focuses\na Workbench Panel. Uses the console size and exclusive input/resize control.\n--takeover revokes the old controller and may revoke it even on failure.\nCtrl+b q detaches; Ctrl+b twice sends a literal Ctrl+b. Ctrl+C reaches\nthe application. Paste is semantic; plain page keys and wheel use history\nor the application's mouse/cursor modes. Mouse is on by default.\n--timeout is 1..3600000 ms; default unlimited, exchanges bounded to 5s, cleanup\nto 2s. No reconnect or input replay. Modes restore before diagnostics.\nOutput is an interactive screen with either --format; use terminal session\nobserve/control for NDJSON.",
+        "Windows and macOS interactive terminal attachment. Requires terminal stdin/stdout.\nUses an existing terminal ID or @terminal:0x<hex>; never starts a session or focuses\na Workbench Panel. Uses the console size and exclusive input/resize control.\n--takeover revokes the old controller and may revoke it even on failure.\nCtrl+b q detaches; Ctrl+b twice sends a literal Ctrl+b. Ctrl+C reaches\nthe application. Paste is semantic; plain page keys and wheel use history\nor the application's mouse/cursor modes. Mouse is on by default.\n--timeout is 1..3600000 ms; default unlimited, exchanges bounded to 5s, cleanup\nto 2s. No reconnect or input replay. Modes restore before diagnostics.\nOutput is an interactive screen with either --format; use terminal session\nobserve/control for NDJSON.",
     );
 
 pub(super) const HELP_TERMINAL_ATTACH_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal attach <terminal> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Windows 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:0x<hex>，不启动会话，也不聚焦 Workbench 面板。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+b q 脱离；连续两次 Ctrl+b 发送字面 Ctrl+b。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
+        "Windows 和 macOS 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:0x<hex>，不启动会话，也不聚焦 Workbench 面板。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+b q 脱离；连续两次 Ctrl+b 发送字面 Ctrl+b。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
     );
 
 pub(super) const HELP_TERMINAL_READ_EN: crate::cli_text::HelpDetails =

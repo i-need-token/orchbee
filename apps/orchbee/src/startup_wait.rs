@@ -310,7 +310,8 @@ impl WaitViewport for InheritedWaitViewport<'_> {
 }
 
 /// The production input source: Unix polls a duplicate of the admitted input;
-/// Windows keeps the admitted terminal's one stateful record reader.
+/// Windows keeps the admitted terminal's one stateful record reader. Direct
+/// attach reads through the same source.
 pub(crate) struct InheritedWaitInput {
     #[cfg(unix)]
     input: File,

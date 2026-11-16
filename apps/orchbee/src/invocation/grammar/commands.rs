@@ -56,10 +56,10 @@ commands! {
     AgentIntegrationExplain => ["agent", "integration", "explain"], 0, Operand, Portable, true, false, false;
     AgentIntegrationEnable => ["agent", "integration", "enable"], 0, Operand, Portable, true, false, false;
     AgentIntegrationDisable => ["agent", "integration", "disable"], 0, Operand, Portable, true, false, false;
-    TerminalAttach => ["terminal", "attach"], 1, Operand, Windows, true, false, false;
-    AgentAttach => ["agent", "attach"], 1, Operand, Windows, true, false, false;
-    TerminalObserve => ["terminal", "session", "observe"], 1, Operand, Windows, true, false, false;
-    TerminalControl => ["terminal", "session", "control"], 1, Operand, Windows, true, false, false;
+    TerminalAttach => ["terminal", "attach"], 1, Operand, Portable, true, false, false;
+    AgentAttach => ["agent", "attach"], 1, Operand, Portable, true, false, false;
+    TerminalObserve => ["terminal", "session", "observe"], 1, Operand, Portable, true, false, false;
+    TerminalControl => ["terminal", "session", "control"], 1, Operand, Portable, true, false, false;
     MachineList => ["machine", "list"], 0, Operand, WindowsAndMacos, true, false, false;
     MachineAdd => ["machine", "add"], 1, Operand, WindowsAndMacos, true, false, false;
     MachineRename => ["machine", "rename"], 1, Operand, WindowsAndMacos, true, false, false;

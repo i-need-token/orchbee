@@ -2,7 +2,7 @@
 use super::{Failure, FailureKind, Output, output, query};
 use crate::cli_text::CliText;
 use crate::{
-    cli::console_interrupt::ArmedSignals as Interrupt, invocation::TerminalObserveCommand,
+    cli::command_interrupt::ArmedSignals as Interrupt, invocation::TerminalObserveCommand,
     local_client::LocalClient, localization::Locale, terminal_projection::TerminalProjection,
 };
 use orchbee_client_server_protocol::{

@@ -2,7 +2,8 @@
 
 ## Scope and ownership
 
-`terminal session observe <terminal>` emits NDJSON from one existing Windows terminal binding.
+`terminal session observe <terminal>` emits NDJSON from one existing terminal binding. The streams
+and interactive attach run on Windows and macOS; Linux answers unsupported-platform.
 It never activates a Session, starts a terminal, reads stdin, acquires control, or changes Host geometry.
 `terminal session control <terminal>` adds exclusive input, resize and history commands.
 Interactive attach remains a dependent surface. Both commands select existing terminal IDs/selectors.
@@ -40,6 +41,11 @@ after writing and flushing it. The parent polls nonblocking pipes with cancellat
 No payload is interpolated into a command. Child stdin uses a synchronous pipe handle; merely
 switching an overlapped IPC handle to blocking mode is insufficient for standard child readers. On stalled output or any exit, the owner stops and joins
 the child. This cannot retract bytes already delivered to the downstream reader.
+
+macOS writes each record to the inherited stdout in place, behind a zero-timeout `POLLOUT` and in
+writes of at most `PIPE_BUF` bytes, and reads control commands from the inherited stdin the same
+way; no helper process runs. Ctrl+C or `SIGTERM` reaches the stream through the CLI interrupt-pair
+port.
 
 ## Control model
 
@@ -101,7 +107,9 @@ the observation exit classes and bounded cleanup reserve.
 
 ## Interactive attach
 
-`terminal attach <terminal>` and `agent attach <target>` are Windows terminal interfaces.
+`terminal attach <terminal>` and `agent attach <target>` are Windows and macOS terminal
+interfaces. macOS polls a duplicate of the inherited terminal input, the reader the startup wait
+uses, and `TerminalModeGuard` owns its termios raw mode.
 They accept `--takeover`, `--timeout <ms>` and `--mouse on|off` (default on); Agent selectors also
 accept `--agent-session`, `--name` or `--panel`. Grammar validation precedes admission of inherited
 interactive stdin/stdout. Neither interface starts a Session, changes Workbench focus or falls back

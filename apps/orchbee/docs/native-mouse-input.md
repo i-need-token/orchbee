@@ -225,7 +225,7 @@ presses before that draw and admission after it, without changing Picker focus.
   `鼠标已释放 · Ctrl+b m 恢复`) never disagrees with the host's actual reporting state. While
   released every decoded pointer event is ignored before probing or hit resolution, and all
   in-flight gestures and the wheel stream are cancelled; re-arming does not resurrect them.
-- `--mouse` is admitted on `tui` (`off` and `on` values). Windows `terminal attach` and
+- `--mouse` is admitted on `tui` (`off` and `on` values). `terminal attach` and
   `agent attach` also admit it under the separate [stream contract](windows-terminal-streams.md).
   Bare `orchbee` rejects the option and still defaults to capture on; other routes reject it;
   `tui` continues to reject `--format`. Both declared spellings are admitted — `--mouse on|off` and
