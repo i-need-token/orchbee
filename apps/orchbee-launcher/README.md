@@ -36,7 +36,7 @@ Where the local runtime's
 [automatic-update switch](../../crates/local-runtime/README.md#automatic-update-switch) is on, the
 launcher follows the protocol of
 [What a click does](../../proposals/platform/automatic-updates.md#tui); where it is off, it behaves
-as above and sets no variable. The npm launcher follows the same rule on Windows.
+as above and sets no variable. The npm launcher follows the same rule on Windows and macOS.
 
 - Every Client it starts receives `ORCHBEE_RELAUNCH_V1`, the launcher's own process id in decimal.
   A Client uses the statuses below only when that process is its parent, so a value it inherited

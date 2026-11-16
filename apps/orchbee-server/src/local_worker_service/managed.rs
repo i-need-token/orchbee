@@ -204,7 +204,7 @@ pub(super) fn run(
             terminals,
             agents,
             checkpoint: kept,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             automatic_updates: None,
             session_record,
         },

@@ -70,7 +70,7 @@ impl ManagedClients {
     /// The idle move's view of Client connections: `None` while any is open, admitted or still in
     /// its handshake, otherwise the identity of the last one opened. Two equal marks prove that no
     /// connection opened between the two reads.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn idle_mark(&self) -> Option<u64> {
         let streams = self
             .control

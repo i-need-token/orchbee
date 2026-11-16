@@ -219,7 +219,7 @@ impl SessionShutdown {
     /// stop, `drain` or `exit` recorded, no record lease held, and `idle` holds. `idle` runs under
     /// this owner's lock, which every Client admission passes through first, so a Client is either
     /// seen by `idle` or refused afterwards. It must not call back into this owner.
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     pub(crate) fn begin_idle(&self, id: StopId, idle: impl FnOnce() -> bool) -> bool {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if state.entry.is_some() || state.course != Course::Serving || state.records > 0 || !idle()

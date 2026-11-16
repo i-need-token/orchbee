@@ -334,7 +334,7 @@ impl TerminalCoordinator {
 
     /// Whether a launch has not settled: one still creating or starting, one created and waiting
     /// for its start, or one whose outcome is unknown. Each may leave a program running.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn launch_unsettled(&self) -> bool {
         self.bindings.values().any(|binding| {
             matches!(

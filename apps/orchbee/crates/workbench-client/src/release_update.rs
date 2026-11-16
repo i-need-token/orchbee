@@ -1,8 +1,9 @@
 //! The TUI's Update control under the automatic-update proposal: whether the release store names a
 //! version newer than this Client active, whether that version can join the running Session, and
 //! how the TUI leaves for it. The store is read on a background thread; the switch itself is the
-//! TUI's exit: a launcher that announced the relaunch protocol starts the active version, and
-//! without one, as on macOS, the TUI names the command that opens it.
+//! TUI's exit: a launcher that announced the relaunch protocol starts the active version; without
+//! one a macOS TUI replaces itself with that version, and elsewhere the TUI names the command that
+//! opens it.
 
 use crate::background_thread::BackgroundThread;
 use crate::localization::Locale;
@@ -261,7 +262,8 @@ pub struct Departure {
 }
 
 /// Under an announcing launcher the TUI asks it, by status 75, to start the active version;
-/// without one it exits normally and names the command that opens that version.
+/// without one it exits normally and names the command that opens that version, which a macOS TUI
+/// needs only when it could not replace itself.
 pub fn depart(version: &str, launcher: Launcher, locale: Locale) -> Departure {
     match launcher {
         Launcher::Announcing => Departure {

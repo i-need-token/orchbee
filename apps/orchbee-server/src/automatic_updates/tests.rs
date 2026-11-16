@@ -265,10 +265,22 @@ fn helper_output_that_is_no_update_document_never_reaches_the_record() {
 
 #[test]
 fn only_a_store_server_of_a_build_that_runs_automatic_updates_schedules() {
-    let store = Some(Path::new(
-        r"C:\Users\person\AppData\Local\Programs\Orchbee\versions\0.1.0",
-    ));
-    let bundled = Some(Path::new(r"C:\Programs\Orchbee\desktop\resources\cohort"));
+    #[cfg(windows)]
+    let (store, bundled) = (
+        Some(Path::new(
+            r"C:\Users\person\AppData\Local\Programs\Orchbee\versions\0.1.0",
+        )),
+        Some(Path::new(r"C:\Programs\Orchbee\desktop\resources\cohort")),
+    );
+    #[cfg(unix)]
+    let (store, bundled) = (
+        Some(Path::new(
+            "/Users/person/.local/share/orchbee/versions/0.1.0",
+        )),
+        Some(Path::new(
+            "/Applications/Orchbee.app/Contents/Resources/cohort",
+        )),
+    );
     use Decision::{Scheduled, Unscheduled as No};
     use EnvironmentKind::{Development, Release, Test};
     use Unscheduled::{NoFeed, OutsideStore, SwitchedOff};

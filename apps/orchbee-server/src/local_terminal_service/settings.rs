@@ -35,7 +35,7 @@ impl LocalTerminalService {
     /// Whether this Session runs automatic updates (`update.automatic`), read before each scheduled
     /// run so a change applies to the next one. Before startup installs configuration it reads as
     /// off.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn automatic_updates_enabled(&self) -> bool {
         self.configuration
             .with_preferences(|values| values.automatic_updates)

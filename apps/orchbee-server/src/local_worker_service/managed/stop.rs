@@ -28,7 +28,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod idle;
 mod worker_loss;
 
@@ -53,7 +53,7 @@ pub(super) struct Owners {
     pub(super) agents: Arc<AgentService>,
     /// The checkpoint this Session keeps; none where the platform keeps none.
     pub(super) checkpoint: Option<super::checkpoint::Kept>,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) automatic_updates: Option<crate::automatic_updates::AutomaticUpdates>,
     pub(super) session_record: RetainedSessionRecord,
 }
@@ -98,12 +98,12 @@ pub(super) fn run(
         Ok(clients) => clients,
         Err(error) => return Err(abort_startup(owners, error)),
     };
+    // Plugin startup commands may call back into the Session, so they run once it admits Clients.
     #[cfg(windows)]
+    owners.terminals.start_plugin_hooks();
+    // The schedule counts from the moment the Session admits Clients.
+    #[cfg(any(windows, target_os = "macos"))]
     {
-        // Plugin startup commands may call back into the Session, so they run once it admits
-        // Clients.
-        owners.terminals.start_plugin_hooks();
-        // The schedule counts from the moment the Session admits Clients.
         owners.automatic_updates =
             crate::automatic_updates::AutomaticUpdates::start(Arc::clone(&owners.terminals));
     }
@@ -111,10 +111,15 @@ pub(super) fn run(
     #[cfg(windows)]
     let mut idle = idle::IdleMove::default();
     let mut loss = worker_loss::WorkerLoss::default();
+    // Every stop a POSIX Server begins uses its one identity, the idle move's too.
+    #[cfg(target_os = "macos")]
+    let mut idle = idle::IdleMove::under(own);
     loop {
         #[cfg(windows)]
         let work = next_work(&mut owners, &shutdown, &clients, &mut idle, &mut loss);
-        #[cfg(unix)]
+        #[cfg(target_os = "macos")]
+        let work = next_work(&mut owners, &shutdown, own, &clients, &mut idle, &mut loss);
+        #[cfg(all(unix, not(target_os = "macos")))]
         let work = next_work(&mut owners, &shutdown, own, &mut loss);
         let attempt = match work {
             Work::Stop(attempt) => attempt,
@@ -424,12 +429,15 @@ fn next_work(
 /// [`next_work`] as on Windows, except that a failed stop this Server began, on a signal or after
 /// losing its Worker and Host, is tried again once that Worker and Host are gone. A logout or
 /// shutdown signals the Worker and Host too, so a first attempt can find the Host still exiting.
-/// Every stop this Server begins uses `own`, the identity its signal handler uses too.
+/// Every stop this Server begins uses `own`, the identity its signal handler uses too. On macOS each
+/// tick also feeds the idle move.
 #[cfg(unix)]
 fn next_work(
     owners: &mut Owners,
     shutdown: &SessionShutdown,
     own: StopId,
+    #[cfg(target_os = "macos")] clients: &local_client_service::ManagedClients,
+    #[cfg(target_os = "macos")] idle: &mut idle::IdleMove,
     loss: &mut worker_loss::WorkerLoss,
 ) -> Work {
     loop {
@@ -443,6 +451,8 @@ fn next_work(
         if exited && host_absent(owners) {
             begin_own(shutdown, own);
         }
+        #[cfg(target_os = "macos")]
+        idle.tick(owners, shutdown, clients);
     }
 }
 
@@ -495,15 +505,13 @@ fn settle_without_worker(owners: &Owners, deadline: Instant) -> Result<(), Failu
 /// Stops every Server background job that could start new work through the Worker. Hooks submit
 /// Worker jobs, so dispatch stops before any Worker owner; admitted hook jobs end with the Worker.
 fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
-    #[cfg(windows)]
-    {
-        // An automatic update holds no Session resource, so its stop waits for nothing and never
-        // fails.
-        if let Some(updates) = owners.automatic_updates.take() {
-            updates.stop();
-        }
-        owners.terminals.stop_plugin_hooks_before(deadline)?;
+    // An automatic update holds no Session resource, so its stop never fails.
+    #[cfg(any(windows, target_os = "macos"))]
+    if let Some(updates) = owners.automatic_updates.take() {
+        updates.stop();
     }
+    #[cfg(windows)]
+    owners.terminals.stop_plugin_hooks_before(deadline)?;
     #[cfg(any(windows, target_os = "macos"))]
     {
         // A resume types through the Worker and reads through the observer, so it stops first; one

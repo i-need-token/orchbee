@@ -1,7 +1,7 @@
-//! The managed Windows Session's idle move: each tick of the stop loop looks at the Session, and a
-//! completed countdown begins the ordinary stop under an identity of the Server's own. A failed idle
-//! stop is tried again, as a recorded stop refuses every Client until it ends.
-use super::{Owners, own_stop_id};
+//! The managed Windows and macOS Session's idle move: each tick of the stop loop looks at the
+//! Session, and a completed countdown begins the ordinary stop under an identity of the Server's
+//! own. A failed idle stop is tried again, as a recorded stop refuses every Client until it ends.
+use super::Owners;
 use crate::{
     automatic_updates::AutomaticUpdates,
     idle_move::{Activity, Closing, Countdown},
@@ -19,6 +19,19 @@ pub(super) struct IdleMove {
     mark: Option<u64>,
     /// The stop this owner began.
     began: Option<StopId>,
+    /// The identity every stop of a POSIX Server uses; a Windows idle stop draws a fresh one.
+    identity: Option<StopId>,
+}
+
+impl IdleMove {
+    /// An idle move whose stop uses `identity`, the one the Server's signals and own stops use.
+    #[cfg(unix)]
+    pub(super) fn under(identity: StopId) -> Self {
+        Self {
+            identity: Some(identity),
+            ..Self::default()
+        }
+    }
 }
 
 impl IdleMove {
@@ -59,6 +72,7 @@ impl IdleMove {
             shutdown,
             clients,
             mark,
+            identity: self.identity,
             began: None,
         };
         if self
@@ -76,6 +90,7 @@ struct Close<'a> {
     shutdown: &'a SessionShutdown,
     clients: &'a ManagedClients,
     mark: Option<u64>,
+    identity: Option<StopId>,
     began: Option<StopId>,
 }
 
@@ -100,7 +115,7 @@ impl Closing for Close<'_> {
         {
             return false;
         }
-        let Some(id) = own_stop_id() else {
+        let Some(id) = self.identity.or_else(stop_id) else {
             return false;
         };
         let (clients, mark) = (self.clients, self.mark);
@@ -110,4 +125,16 @@ impl Closing for Close<'_> {
         self.began = Some(id);
         true
     }
+}
+
+/// A fresh stop identity for a Windows idle stop.
+#[cfg(windows)]
+fn stop_id() -> Option<StopId> {
+    super::own_stop_id()
+}
+
+/// A POSIX idle move always carries its Server's identity.
+#[cfg(unix)]
+fn stop_id() -> Option<StopId> {
+    None
 }

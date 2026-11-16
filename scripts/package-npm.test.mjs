@@ -292,10 +292,18 @@ test('the launcher records a failed Client through the previous version only whi
 			extensions: { fallback: { held: [], move: { entry: moved, back } } },
 		});
 	const started = `C:\\Store\\versions\\0.2.0\\${stem}.exe`;
-	assert.deepEqual(clientFailureHelper(started, pointer({})), {
+	assert.deepEqual(clientFailureHelper(started, pointer({}), 'win32'), {
 		program: `C:\\Store\\versions\\0.1.0\\${stem}.exe`,
 		version: '0.2.0',
 	});
+	assert.deepEqual(
+		clientFailureHelper(
+			`/Users/a/.local/share/${stem}/versions/0.2.0/${stem}`,
+			pointer({}),
+			'darwin',
+		),
+		{ program: `/Users/a/.local/share/${stem}/versions/0.1.0/${stem}`, version: '0.2.0' },
+	);
 	for (const [name, text] of [
 		['may not fall back', pointer({ back: false })],
 		['no previous', pointer({ previous: null })],
@@ -308,7 +316,7 @@ test('the launcher records a failed Client through the previous version only whi
 		['no pointer', null],
 		['invalid', '{}'],
 	])
-		assert.equal(clientFailureHelper(started, text), null, name);
+		assert.equal(clientFailureHelper(started, text, 'win32'), null, name);
 });
 
 test('the launcher reads the store root the install command writes', () => {

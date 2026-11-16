@@ -123,13 +123,13 @@ impl SessionCoordinator {
 
     /// Whether a terminal runs or may run: one counted by [`Self::terminal_count`], or a launch
     /// that has not settled.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn terminal_activity(&self) -> bool {
         self.terminal_count() > 0 || self.terminals.launch_unsettled()
     }
 
     /// Whether a Workbench operation is pending.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn operation_pending(&self) -> bool {
         self.workbench
             .as_ref()

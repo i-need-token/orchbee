@@ -10,8 +10,8 @@ mod agent_catalog;
 mod agent_screen;
 #[cfg(any(unix, windows))]
 mod agent_service;
-// Only Windows keeps a release store yet, so only a Windows Server schedules automatic updates.
-#[cfg(windows)]
+// Windows and macOS keep a release store, so only their Servers schedule automatic updates.
+#[cfg(any(windows, target_os = "macos"))]
 mod automatic_updates;
 #[cfg(any(unix, windows))]
 mod client_connection_registry;
@@ -21,8 +21,8 @@ mod client_view_registry;
 mod fault_records;
 #[cfg(any(unix, windows))]
 mod frame_directory;
-// The rule names no platform type; only the Windows Session wires it yet.
-#[cfg(any(windows, test))]
+// The rule names no platform type; only the Windows and macOS Sessions wire it yet.
+#[cfg(any(windows, target_os = "macos", test))]
 mod idle_move;
 #[cfg(any(unix, windows))]
 mod local_client_service;

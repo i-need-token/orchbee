@@ -1,6 +1,7 @@
 //! The launcher's relaunch protocol from the TUI's side: whether the launcher that started this
 //! process announced it, and the status the TUI ends with under it. Statuses 75 and 76 exist only
-//! there; the launcher returns neither to its caller.
+//! there; the launcher returns neither to its caller. A macOS TUI that no launcher started replaces
+//! itself with the active version instead, in the same process and terminal.
 
 use crate::cli;
 use crate::local_activation::StartupFailure;
@@ -24,7 +25,12 @@ pub(crate) fn tui_output(outcome: &TuiOutcome, locale: Locale) -> cli::Output {
             finalization: None,
         },
         Ok(Some(version)) => {
-            let departure = depart(version, launcher(), locale);
+            let launcher = launcher();
+            #[cfg(target_os = "macos")]
+            if launcher == Launcher::Absent {
+                replace_in_place();
+            }
+            let departure = depart(version, launcher, locale);
             cli::Output {
                 status: departure.status,
                 stdout: Vec::new(),
@@ -55,17 +61,47 @@ const fn counts_against_version(failure: &StartupFailure) -> bool {
 /// Announcing when `ORCHBEE_RELAUNCH_V1` holds the process id of this process's parent, so a value
 /// a later process inherited does nothing.
 fn launcher() -> Launcher {
-    #[cfg(windows)]
-    {
-        let announced = std::env::var_os(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
-            .and_then(|value| value.into_string().ok())
-            .filter(|value| !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
-            .and_then(|value| value.parse::<u32>().ok());
-        if announced.is_some() && announced == parent_process_id() {
-            return Launcher::Announcing;
-        }
+    let announced = std::env::var_os(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
+        .and_then(|value| value.into_string().ok())
+        .filter(|value| !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+        .and_then(|value| value.parse::<u32>().ok());
+    if announced.is_some() && announced == parent_process_id() {
+        Launcher::Announcing
+    } else {
+        Launcher::Absent
     }
-    Launcher::Absent
+}
+
+/// The parent process id.
+#[cfg(unix)]
+fn parent_process_id() -> Option<u32> {
+    Some(std::os::unix::process::parent_id())
+}
+
+/// Replaces this process with the store's active Client, read again as a launcher reads it, with
+/// the same arguments and environment, so the shell or carrier that started this TUI waits on the
+/// same process and the new version opens in the same terminal. The replacement starts with no
+/// blocked signal, as a start from a shell does. It returns only when the replacement could not
+/// start, and the TUI then leaves as it would without one.
+#[cfg(target_os = "macos")]
+fn replace_in_place() {
+    use std::os::unix::process::CommandExt;
+
+    let Ok(root) = orchbee_local_runtime::release_store_root(|name| std::env::var_os(name)) else {
+        return;
+    };
+    let Ok(Some(active)) = orchbee_local_runtime::active_release(&root) else {
+        return;
+    };
+    let program = active
+        .directory
+        .join(orchbee_local_runtime::CohortArtifact::Client.file_name());
+    if nix::sys::signal::SigSet::empty().thread_set_mask().is_err() {
+        return;
+    }
+    let _not_started = std::process::Command::new(program)
+        .args(std::env::args_os().skip(1))
+        .exec();
 }
 
 /// The parent process id from a process snapshot.

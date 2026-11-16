@@ -1,10 +1,10 @@
 //! The Session Server's automatic-update schedule: a Server that runs from a store version folder
 //! runs the store's active `orchbee --automatic-update-v1` one minute after the Session is ready and
-//! then every hour, reading `update.automatic` before each run. The helper runs in a Job this
-//! process holds, at below-normal priority, with bounded output, on the schedule's own thread; no
-//! Session work waits on it, its failure only writes the outcome record, and it ends with the
-//! Server. Installing, verifying and cleaning up stay with the helper; this owner never touches the
-//! store. It also answers the [idle move](crate::idle_move) whether the helper runs and whether the
+//! then every hour, reading `update.automatic` before each run. The helper runs at low priority, in
+//! a Job this process holds on Windows and in a process group of its own on macOS, with bounded
+//! output, on the schedule's own thread; no Session work waits on it, its failure only writes the
+//! outcome record, and it ends with the Server. Installing, verifying and cleaning up stay with the
+//! helper; this owner never touches the store. It also answers the [idle move](crate::idle_move) whether the helper runs and whether the
 //! store's active version has passed this Server.
 use crate::local_terminal_service::LocalTerminalService;
 use orchbee_local_runtime::{EnvironmentKind, LogLevel, LogValue, log_event};
@@ -28,6 +28,10 @@ const FIRST_RUN: Duration = Duration::from_secs(60);
 const PERIOD: Duration = Duration::from_secs(60 * 60);
 /// The variable that names another update feed; a test build schedules only while it is set.
 const FEED_VARIABLE: &str = "ORCHBEE_UPDATE_FEED";
+/// The longest a macOS stop waits for a running helper's process group to settle: the settlement's
+/// own budget, which ends the group with `SIGKILL`, with room to spare.
+#[cfg(target_os = "macos")]
+const HELPER_SETTLEMENT: Duration = Duration::from_secs(6);
 
 /// The running schedule. Dropping it stops the schedule without waiting.
 pub(crate) struct AutomaticUpdates {
@@ -108,12 +112,21 @@ impl AutomaticUpdates {
         }
     }
 
-    /// Stops the schedule and returns at once: no run starts after this, and a running helper is
-    /// ended through its Job at the helper's next check, within its settlement budget. The helper
-    /// holds nothing a Session stop needs, so the stop never waits on it; a helper still settling
-    /// when this process ends is ended by the Job closing with it.
+    /// Stops the schedule: no run starts after this, and a running helper is ended at the
+    /// schedule's next check, within its settlement budget. The helper holds nothing a Session
+    /// stop needs, so the stop never fails because of it. On Windows it returns at once, as a
+    /// helper still settling when this process ends is ended by the Job closing with it. macOS has
+    /// no such Job, so there it waits up to [`HELPER_SETTLEMENT`] for the helper's group to settle
+    /// before the Server goes on.
     pub(crate) fn stop(mut self) {
         self.stop.request();
+        #[cfg(target_os = "macos")]
+        if let Some(thread) = &self.thread {
+            let settled_by = Instant::now() + HELPER_SETTLEMENT;
+            while !thread.is_finished() && Instant::now() < settled_by {
+                thread::sleep(Duration::from_millis(10));
+            }
+        }
         if let Some(thread) = self.thread.take_if(|thread| thread.is_finished()) {
             // A panic already reached the log through the panic hook; nothing is left to settle.
             let _ = thread.join();

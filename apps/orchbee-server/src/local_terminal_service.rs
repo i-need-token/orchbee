@@ -199,7 +199,7 @@ impl LocalTerminalService {
     }
 
     /// Whether a terminal runs, or a launch has not settled. A poisoned coordinator reads as one.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn terminal_activity(&self) -> bool {
         self.coordinator
             .lock()
@@ -207,7 +207,7 @@ impl LocalTerminalService {
     }
 
     /// Whether a Workbench operation is pending. A poisoned coordinator reads as one.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn operation_pending(&self) -> bool {
         self.coordinator
             .lock()

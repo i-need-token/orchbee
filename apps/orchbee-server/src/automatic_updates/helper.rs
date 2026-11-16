@@ -1,10 +1,12 @@
 //! One helper run: the store's active Client with `--automatic-update-v1`, named by `active.json`,
-//! in a below-normal Job that ends with this process, its standard output bounded and its end
-//! bounded by the run limit and the schedule's stop. It reads the store only to find that Client.
+//! at low priority, its standard output bounded and its end bounded by the run limit and the
+//! schedule's stop. On Windows it runs in a below-normal Job that ends with this process; on macOS
+//! in a process group of its own under `nice`, with an empty signal mask. It reads the store only to
+//! find that Client.
 use super::{Stop, outcome::Outcome};
 use orchbee_local_runtime::{
-    AUTOMATIC_UPDATE_HELPER, CohortArtifact, active_release, private_filesystem,
-    release_store_root, run_background_command_exchange,
+    AUTOMATIC_UPDATE_HELPER, CohortArtifact, CommandOutput, active_release, private_filesystem,
+    release_store_root,
 };
 use std::{
     fs::File,
@@ -36,17 +38,9 @@ pub(super) fn run(stop: &Stop) -> Outcome {
     let Ok(pins) = admit(&client) else {
         return Outcome::NotStarted("client-missing");
     };
-    let Ok(system) = winsafe::GetSystemDirectory() else {
+    let Some(output) = exchange(&client, stop) else {
         return Outcome::NotStarted("spawn-failed");
     };
-    let mut command = Command::new(&client);
-    command.arg(AUTOMATIC_UPDATE_HELPER).current_dir(system);
-    let output = run_background_command_exchange(
-        command,
-        OUTPUT_LIMIT,
-        Some(Instant::now() + RUN_LIMIT),
-        || Ok(stop.requested()),
-    );
     // The exchange starts and settles the helper in one call, so the pins stay for the whole run
     // rather than ending once the process exists as Session start's do. They hold no more than the
     // running helper's own image already does: the folders down to the version it runs from, which
@@ -55,9 +49,53 @@ pub(super) fn run(stop: &Stop) -> Outcome {
     Outcome::from_output(&output)
 }
 
+/// Runs the helper in a below-normal Job, with the system folder as working folder so that no run
+/// holds a folder the store may remove. `None` when that folder is unknown.
+#[cfg(windows)]
+fn exchange(client: &Path, stop: &Stop) -> Option<CommandOutput> {
+    let system = winsafe::GetSystemDirectory().ok()?;
+    let mut command = Command::new(client);
+    command.arg(AUTOMATIC_UPDATE_HELPER).current_dir(system);
+    Some(orchbee_local_runtime::run_background_command_exchange(
+        command,
+        OUTPUT_LIMIT,
+        Some(Instant::now() + RUN_LIMIT),
+        || Ok(stop.requested()),
+    ))
+}
+
+/// The system's `nice`, which lowers its own priority and then becomes the helper, so the helper
+/// and everything it starts run at that priority from their first instruction.
+#[cfg(target_os = "macos")]
+const NICE: &str = "/usr/bin/nice";
+/// The priority increment, `nice`'s own default: the helper yields to every ordinary process.
+#[cfg(target_os = "macos")]
+const NICENESS: &str = "10";
+
+/// Runs the helper under `nice` in a process group of its own, with an empty signal mask and the
+/// Server's environment; its working folder is the Server's, as a POSIX folder can always be
+/// removed. Settling the group sends `SIGTERM`, which the helper answers by settling its own
+/// downloads, and `SIGKILL` two seconds later.
+#[cfg(target_os = "macos")]
+fn exchange(client: &Path, stop: &Stop) -> Option<CommandOutput> {
+    let mut command = Command::new(NICE);
+    command
+        .arg("-n")
+        .arg(NICENESS)
+        .arg(client)
+        .arg(AUTOMATIC_UPDATE_HELPER);
+    Some(orchbee_local_runtime::run_unmasked_unix_command(
+        command,
+        orchbee_local_runtime::SpawnEnvironment::Inherited,
+        OUTPUT_LIMIT,
+        Some(Instant::now() + RUN_LIMIT),
+        || Ok(stop.requested()),
+    ))
+}
+
 /// Pins every folder down to the Client's version folder, which must be private, and the Client,
 /// which must be a private regular file with one link, so the program started is the admitted file
-/// inside `<store root>\versions\<version>\`.
+/// inside the store's `versions/<version>/`.
 fn admit(client: &Path) -> io::Result<Vec<File>> {
     let directory = client.parent().ok_or(io::ErrorKind::InvalidInput)?;
     let mut pins = private_filesystem::open_tree(directory)?;
