@@ -125,16 +125,18 @@ The start line is an idle-prompt send: the terminal's Host types it only while t
 waits at a fresh, empty, marked prompt, and otherwise refuses with `prompt-unconfirmed`, having
 typed nothing. A named start then releases its name, so starting again is safe. A prompt younger
 than the Host's 100 ms quiet period refuses as `settling`; the workflow waits that period on its
-own thread, which holds no shared channel and wakes on cancellation, and asks once more. A second
-`settling` is final. The Client sends the line only when the Session's handshake listed
-`prompt-gated-input`, checked before any sample or reservation, and never falls back to an ungated
-send; `orchbee terminal send` and `orchbee terminal run` stay ungated.
+own thread, which holds no shared channel and wakes on cancellation, and asks again, after each
+`settling`, until no quiet period fits before the step's deadline. A slow console host can deliver
+a prompt's marks late, so one retry is not enough. The Client sends the line only when the
+Session's handshake listed `prompt-gated-input`, checked before any sample or reservation, and
+never falls back to an ungated send; `orchbee terminal send` and `orchbee terminal run` stay
+ungated.
 
 | Refusal                                                           | TUI short form                                    | CLI document and exit code                                                 |
 | ----------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
 | Preflight idle-shell refusal, or the Host's `busy` or `not-shell` | Nothing was typed: shell not at an empty prompt   | `rejected`, `reason: "terminal-not-idle"`, `3`                             |
 | The Host's `unmarked`                                             | Nothing was typed: no marked prompt yet           | `rejected`, `reason: "prompt-unconfirmed"`, `promptState: "unmarked"`, `3` |
-| Any other Host prompt state, including a second `settling`        | Nothing was typed: shell not at an empty prompt   | `rejected`, `reason: "prompt-unconfirmed"`, `promptState`, `3`             |
+| Any other Host prompt state, including `settling` at the deadline | Nothing was typed: shell not at an empty prompt   | `rejected`, `reason: "prompt-unconfirmed"`, `promptState`, `3`             |
 | The Session's handshake lacks `prompt-gated-input`                | Nothing was typed: Session too old                | `incompatible`, cause `stage: "capability"`, `session-too-old`, `6`        |
 | The Host lacks the gate or reports no launch kind                 | Nothing was typed: terminal from an older Orchbee | `incompatible`, cause `stage: "capability"`, `terminal-too-old`, `6`       |
 
@@ -413,8 +415,8 @@ session lifecycle: detaching a still-live session keeps its name until end/remov
 process attach/read/detach, the Server identity and published-state reads, and single prompt
 submission. These operations preserve the admitted
 Client, original absolute deadline and wake; process-read failures still reach one best-effort
-detach, and the Paste/optional Codex Right/Enter line is typed at most once; it is submitted a
-second time only after a `settling` refusal that typed nothing.
+detach, and the Paste/optional Codex Right/Enter line is typed at most once; it is submitted
+again only after a `settling` refusal that typed nothing.
 
 `src/cli/agent_start.rs` retains CLI selection, the reference and own-Panel check, the new-Panel
 attempt loop and signal finalization; `src/cli/agent_start/place.rs` creates the new Tab or split;

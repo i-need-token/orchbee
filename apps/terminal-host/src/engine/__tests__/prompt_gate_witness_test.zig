@@ -203,14 +203,19 @@ const Session = struct {
         platform.monotonic.sleep(500 * std.time.ns_per_ms);
     }
 
-    /// Submits one gated line as its caller does: a prompt still settling is
-    /// waited out once, off the Host, and the line is submitted again.
+    /// Submits one gated line as its callers do: a prompt still settling is
+    /// waited out off the Host and the line is submitted again, until no quiet
+    /// period fits before the step's deadline.
     fn submit(self: *Session, content: []const u8) !void {
-        self.submitOnce(content) catch |err| {
-            if (err != error.PromptSettling) return err;
+        var timer = try platform.monotonic.Timer.start();
+        while (true) {
+            if (self.submitOnce(content)) {
+                return;
+            } else |err| {
+                if (err != error.PromptSettling or timer.read() + quiet_ns >= step_timeout_ns) return err;
+            }
             platform.monotonic.sleep(quiet_ns);
-            return self.submitOnce(content);
-        };
+        }
     }
 
     fn submitOnce(self: *Session, content: []const u8) !void {
@@ -244,7 +249,7 @@ const Session = struct {
             error.PromptInputPending,
             error.PromptChanged,
             => {},
-            // Settling twice, or any other failure, is not a refusal by the gate's rules.
+            // Settling until the deadline, or any other failure, is not a refusal by the gate's rules.
             else => return err,
         }
     }

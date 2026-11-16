@@ -275,40 +275,38 @@ fn refused(reason: SendRejectedReason) -> TerminalSendOutcome {
 }
 
 /// Every prompt refusal types nothing and releases the name, so retrying is safe. A `settling`
-/// prompt is asked exactly once more; a peer without the gate is incompatible, never sent
-/// ungated.
+/// prompt is asked again, more than once, and the first other refusal is final; a peer without
+/// the gate is incompatible, never sent ungated.
 #[test]
 fn startup_types_nothing_where_the_prompt_or_a_peer_cannot_confirm_it() {
-    for (first, second, code, reason, state) in [
+    for (answers, code, reason, state) in [
         (
-            SendPromptState::Settling,
-            Some(SendPromptState::Settling),
-            3,
-            "prompt-unconfirmed",
-            Some("settling"),
-        ),
-        (
-            SendPromptState::Unmarked,
-            None,
+            vec![
+                SendPromptState::Settling,
+                SendPromptState::Settling,
+                SendPromptState::Unmarked,
+            ],
             3,
             "prompt-unconfirmed",
             Some("unmarked"),
         ),
-        (SendPromptState::Busy, None, 3, "terminal-not-idle", None),
+        (
+            vec![SendPromptState::Unmarked],
+            3,
+            "prompt-unconfirmed",
+            Some("unmarked"),
+        ),
+        (vec![SendPromptState::Busy], 3, "terminal-not-idle", None),
     ] {
         let (output, document) = run(move |mut stream| {
             bound_snapshot_reply(&mut stream);
             shell(&mut stream);
             let reservation = reserve(&mut stream);
             shell(&mut stream);
-            input(
-                &mut stream,
-                refused(SendRejectedReason::PromptUnconfirmed(first)),
-            );
-            if let Some(second) = second {
+            for answer in answers {
                 input(
                     &mut stream,
-                    refused(SendRejectedReason::PromptUnconfirmed(second)),
+                    refused(SendRejectedReason::PromptUnconfirmed(answer)),
                 );
             }
             release(&mut stream, &reservation);

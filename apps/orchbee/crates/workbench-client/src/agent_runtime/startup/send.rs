@@ -133,9 +133,11 @@ pub fn prompt_records(text: &str, codex_boundary: bool) -> Result<SendRecords, E
 /// Return delivery evidence even if a later startup observation or wait will fail.
 ///
 /// The Host refuses a prompt younger than its quiet period as `settling`, a refusal that typed
-/// nothing. Only that refusal is asked once more, as a new request, after the quiet period has
-/// passed on this caller's thread; the wait holds no shared channel and ends early on the wake.
-/// A second `settling` is final. The returned receipt is the last exchange's.
+/// nothing. Only that refusal is asked again, each time as a new request after the quiet period
+/// has passed on this caller's thread, until no quiet period fits before the deadline: a slow
+/// console host can deliver the prompt's marks late, and a wait can end a timer tick early, so one
+/// retry can still find the prompt settling. The wait holds no shared channel and ends early on
+/// the wake. The returned receipt is the last exchange's.
 ///
 /// # Errors
 /// `Preparation` proves this operation did not submit. `Exchange` retains the exact context and
@@ -149,31 +151,24 @@ pub(crate) fn submit_prompt(
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
 ) -> Result<Receipt, Error> {
-    let receipt = submit_prompt_once(
-        client,
-        binding,
-        revision,
-        text,
-        codex_boundary,
-        deadline,
-        wake,
-    )?;
     let quiet = Duration::from_millis(orchbee_terminal_protocol::PROMPT_LINE_QUIET_MILLISECONDS);
-    if !receipt.settling()
-        || Instant::now() + quiet >= deadline
-        || crate::agent_runtime::wait_backoff(wake, quiet)
-    {
-        return Ok(receipt);
+    loop {
+        let receipt = submit_prompt_once(
+            client,
+            binding,
+            revision,
+            text,
+            codex_boundary,
+            deadline,
+            wake,
+        )?;
+        if !receipt.settling()
+            || Instant::now() + quiet >= deadline
+            || crate::agent_runtime::wait_backoff(wake, quiet)
+        {
+            return Ok(receipt);
+        }
     }
-    submit_prompt_once(
-        client,
-        binding,
-        revision,
-        text,
-        codex_boundary,
-        deadline,
-        wake,
-    )
 }
 
 fn submit_prompt_once(
