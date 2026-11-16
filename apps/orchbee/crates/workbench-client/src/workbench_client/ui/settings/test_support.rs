@@ -171,9 +171,11 @@ pub fn a_candidate_previews_on_the_whole_page_without_runtime_effects(
                     assert_eq!(preview.terminal_display_theme, appearance);
                     let expected = shell.preview_theme(preview);
                     let buffer = paint(&mut ui, &mut shell, size, locale, paint_frame);
+                    // The dialog's fill beside its status line.
+                    let status = crate::tui_render::settings_status_area(area);
                     assert_eq!(
-                        buffer[(0, size.1 - 1)].bg,
-                        expected.color(Role::SurfaceCanvas),
+                        buffer[(status.x - 1, status.y)].bg,
+                        expected.color(Role::SurfaceOverlay),
                         "the candidate reaches the page's status row at {size:?}, {level:?}"
                     );
                     assert!(text(&buffer).contains(locale.settings_title()) || size.0 < 56);

@@ -339,19 +339,19 @@ effective background with the selected alpha. Explicit backgrounds, inverse cell
 search highlights remain opaque. The implementation must not use whole-root CSS `opacity`, because
 terminal text must remain opaque.
 
-## Full-page shell and focus model
+## Dialog shell and focus model
 
-Settings is an application-owned full page, not a route and not a modal. It covers the Workbench
-content and takes the application sidebar's place, while the Workbench subtree stays mounted and
-inert, preserving terminal surface and attachment identity and preventing Workbench shortcuts from
+Settings is an application-owned modal dialog, not a route. It centers over the Workbench on a scrim,
+below the `36px` top chrome where a Desktop window's own controls sit, and grows to at most
+`container-5xl` by `container-3xl` (1024 by 768 px). The Workbench subtree stays mounted and inert, preserving terminal surface and attachment identity and preventing Workbench shortcuts from
 consuming Settings input. On first open, the application captures a still-connected active element
 and focuses Settings search. Repeated open does not replace that return target.
 
-The navigation column holds Back, search, and the categories. Back, and Escape when no control
-consumes it, return exactly where the user was; Escape first clears a non-empty search. Closing
-restores a connected invoker or safe fallback. In a Desktop window the navigation column and the
-content start below the `36px` top chrome, where the window's own controls sit. Below `48rem` the
-navigation stacks above the content.
+The navigation column holds search and the categories; the close button sits in the dialog's
+top-end corner. The close button, a press on the scrim, and Escape when no control consumes it return
+exactly where the user was; Escape first clears a non-empty search. Closing restores a connected
+invoker or safe fallback. The scrim's top band still drags a Desktop window. Below `48rem` the
+navigation stacks above the content and the dialog keeps a narrower margin from the window's edges.
 
 The content pane centers one column of at most the `container-2xl` width. It holds dismissible
 page notices, the category title, and groups: a small muted heading and one card whose rows are

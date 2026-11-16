@@ -6,7 +6,6 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.shared.conflict': '设置已在别处更改 · 草稿已保留 · 请核对当前启动配置后再保存',
 	'terminal.settings.shared.unknown': '不确定是否完成，请先看一下再重试。',
 	'terminal.settings.shared.system': '跟随系统',
-	'terminal.settings.actions.back': '返回',
 	'terminal.settings.actions.close': '关闭设置',
 	'terminal.settings.actions.reset': '重置',
 	'terminal.settings.applicationTheme.dark': '深色',

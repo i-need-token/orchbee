@@ -81,11 +81,12 @@ renderer must not erase domain-specific controls, explanations, validation, or m
 
 ## Surface and information architecture
 
-Settings is a persistent navigation surface: a full page or a dedicated window. Desktop and wide
-browser hosts present it as a full page that takes the place of the application's own sidebar and
-content; its Back path returns exactly where the person was. It is not a modal panel, so it never
-uses `aria-modal` or a scrim. A compact Dialog is only for a bounded editing or setup task admitted
-by the Dialog and Forms standard; it is not a container for the Settings catalog.
+Settings is a large dialog over the workspace or a dedicated window. Desktop and wide browser hosts
+present it as a dialog that centers over the application below the window's own controls, grows to
+a large fixed maximum, and leaves the workspace mounted, inert and dimmed by a scrim behind it. It is
+named and modal (`role="dialog"`, `aria-modal="true"`); its close button, Escape, and a press on the
+scrim return exactly where the person was. A compact Dialog stays only for a bounded editing or setup
+task admitted by the Dialog and Forms standard; it is not a container for the Settings catalog.
 
 - Organize categories by a person's goal and vocabulary, not source folders, packages, storage
   keys, or implementation teams.
@@ -109,9 +110,10 @@ by the Dialog and Forms standard; it is not a container for the Settings catalog
 Desktop and wide browser Settings surfaces use the page, density, hierarchy and row treatment below,
 implemented with Orchbee's semantic tokens and shared primitives.
 
-- Divide the page into one navigation column in the application sidebar's place and one content
-  pane. The navigation column owns Back, search, and category navigation; the content pane owns one
-  category heading and its groups. One subtle boundary between them is enough.
+- Divide the dialog into one navigation column at its start and one content pane. The navigation
+  column owns search and category navigation; the content pane owns one category heading and its
+  groups; the close button sits in the dialog's top-end corner over the content. One subtle boundary
+  between the columns is enough.
 - Give the navigation column a one-step semantic surface contrast from the content pane. Show the
   selected category with one restrained neutral fill; give each category a monochrome line icon
   subordinate to its label.
@@ -297,10 +299,10 @@ not an oversized setting row.
   navigation plus the native arrow-key behavior of its chosen semantic pattern. Changing category
   never changes a setting.
 - Resolve Escape from the innermost owned state outward: dismiss a picker or editor, clear a nonempty
-  search, return from a management subpage, then take the page's Back path. A dedicated window
-  follows its host navigation contract.
-- The full page has a visible Back path and returns focus to its invoker when it closes. A page or
-  dedicated window must not use `aria-modal`.
+  search, return from a management subpage, then close the dialog. A dedicated window follows its
+  host navigation contract.
+- The dialog has a visible close button and returns focus to its invoker when it closes; the
+  workspace behind it is inert. A dedicated window must not use `aria-modal`.
 - Associate labels, descriptions, dependencies, errors, pending status, and source explanations with
   their controls. Announce exceptional async results politely and preserve a visible focus indicator.
 - At narrow widths, stack or replace the navigation column with an explicit category control and

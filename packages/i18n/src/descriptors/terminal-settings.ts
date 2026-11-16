@@ -32,7 +32,6 @@ export const terminalSettingsMessages = defineMessages({
 	colorThemeNameTomorrowNight: message('terminal.settings.colorTheme.names.tomorrowNight'),
 	languageEnglish: message('terminal.settings.language.english'),
 	languageSimplifiedChinese: message('terminal.settings.language.simplifiedChinese'),
-	back: message('terminal.settings.actions.back'),
 	close: message('terminal.settings.actions.close'),
 	backgroundInvalid: message('terminal.settings.colors.background.invalid'),
 

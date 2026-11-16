@@ -225,7 +225,7 @@ fn the_text_field_cursor_lands_on_whole_projected_graphemes() {
     }
 }
 
-/// Every always-visible description fits its row at the reference width of 100 columns in both
+/// Every always-visible description fits its row in a dialog 100 columns wide inside, in both
 /// locales, so the page shortens none of them there.
 #[test]
 fn every_description_fits_its_row_at_the_reference_width_in_both_locales() {
@@ -288,6 +288,10 @@ fn every_key_set() -> SettingsSnapshot {
     snapshot
 }
 
+/// A window whose Settings dialog is the reference width of 100 columns inside: the overlay
+/// margins and the frame take 6 of its columns.
+const REFERENCE_WINDOW: (u16, u16) = (106, 40);
+
 /// Every focused changed row offers its restore action without taking cells from its
 /// description: at the reference width both are painted whole, in both locales. Theme lines
 /// restore their list from its heading instead.
@@ -304,9 +308,9 @@ fn the_restore_action_leaves_a_changed_rows_description_whole() {
                 editor.show_unlisted();
                 let token = editor.open().unwrap();
                 assert!(editor.loaded(token, &snapshot));
-                present(&mut editor, (100, 40), locale);
+                present(&mut editor, REFERENCE_WINDOW, locale);
                 editor.edit(Edit::Select(row));
-                let page = paint(&mut editor, (100, 40), locale);
+                let page = paint(&mut editor, REFERENCE_WINDOW, locale);
                 let View::Page(view) = editor.view().unwrap() else {
                     panic!("the page is open");
                 };

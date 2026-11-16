@@ -1,6 +1,6 @@
-//! The full Settings page: a category column and the framed groups of the chosen category, one
-//! column at a time on a narrow viewport. Only controls from the last successful frame authorize
-//! input.
+//! The Settings dialog: a large framed overlay over the workspace holding a category column and the
+//! framed groups of the chosen category, one column at a time in a narrow dialog. Only controls
+//! from the last successful frame authorize input.
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
     localization::{IntegrationFactLabel, IntegrationFinding, Locale},
@@ -25,7 +25,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Style},
     text::{Line, Text},
-    widgets::{Clear, Paragraph},
+    widgets::{Padding, Paragraph},
 };
 
 use super::controls::{KeyHint, QueryField, render_overlay_hints, render_query_field};
@@ -33,9 +33,15 @@ use super::controls::{KeyHint, QueryField, render_overlay_hints, render_query_fi
 #[cfg(test)]
 mod tests;
 
-/// Below this width the page shows one column at a time.
+/// The dialog's preferred outer size: two columns with the full reading measure, and room for the
+/// longest category. A smaller viewport shrinks it by the overlay margins.
+const PREFERRED_WIDTH: u16 = 112;
+const PREFERRED_HEIGHT: u16 = 36;
+/// The dialog's base surface, as every overlay's.
+const BASE: Role = Role::SurfaceOverlay;
+/// Below this inner width the dialog shows one column at a time.
 pub(crate) const NARROW_WIDTH: u16 = 56;
-/// The smallest viewport the page draws in; a smaller one shows the recovery notice instead.
+/// The smallest inner area the dialog draws in; a smaller one shows the recovery notice instead.
 const MINIMUM_WIDTH: u16 = 24;
 const MINIMUM_HEIGHT: u16 = 8;
 /// The right column's widest reading measure.
@@ -46,6 +52,29 @@ const PADDED_HEIGHT: u16 = 16;
 /// A row's text starts this many cells into its group frame and ends this many before its edge.
 const NAME_INSET: u16 = 4;
 const END_INSET: u16 = 2;
+
+/// The dialog's frame centered in the full viewport `area`, inside the overlay margins.
+fn dialog_area(area: Rect) -> Rect {
+    let width = PREFERRED_WIDTH.min(area.width.saturating_sub(4));
+    let height = PREFERRED_HEIGHT.min(area.height.saturating_sub(2));
+    Rect::new(
+        area.x + (area.width - width) / 2,
+        area.y + (area.height - height) / 2,
+        width,
+        height,
+    )
+}
+
+/// The dialog's status line in the full viewport `area`: the last row inside its frame.
+pub(super) fn status_area(area: Rect) -> Rect {
+    let dialog = dialog_area(area);
+    Rect::new(
+        dialog.x + 2,
+        dialog.bottom().saturating_sub(2),
+        dialog.width.saturating_sub(4),
+        u16::from(dialog.height > 2),
+    )
+}
 
 /// The category column's width beside the rows of a page `width` cells wide.
 fn nav_width(width: u16) -> u16 {
@@ -80,54 +109,103 @@ pub(super) fn render(
     hits: &mut HitMapBuilder,
 ) -> ModalPresentation<SettingsDraw> {
     let theme = &theme.paired_pointer_surfaces();
-    if area.width < MINIMUM_WIDTH
-        || area.height < MINIMUM_HEIGHT
+    let dialog = dialog_area(area);
+    let inner = Rect::new(
+        dialog.x + 1,
+        dialog.y + 1,
+        dialog.width.saturating_sub(2),
+        dialog.height.saturating_sub(2),
+    );
+    if inner.width < MINIMUM_WIDTH
+        || inner.height < MINIMUM_HEIGHT
         || frame.area().intersection(area) != area
     {
         return ModalPresentation::NotPresented;
     }
     hits.start_settings();
-    frame.render_widget(Clear, area);
-    frame
-        .buffer_mut()
-        .set_style(area, theme.style(Role::SurfaceCanvas));
-    let body = Rect::new(area.x, area.y, area.width, area.height - 1);
+    frame.render_widget(
+        super::modal::OverlayFrame::new(super::modal::overlay_surface(theme, Padding::ZERO))
+            .heading(super::modal::overlay_title(
+                locale.settings_title(),
+                dialog.width,
+                theme,
+            )),
+        dialog,
+    );
+    let body = Rect::new(inner.x, inner.y, inner.width, inner.height - 1);
     let status = Rect::new(
-        area.x + 1,
-        area.bottom() - 1,
-        area.width.saturating_sub(2),
+        inner.x + 1,
+        inner.bottom() - 1,
+        inner.width.saturating_sub(2),
         1,
     );
-    let draw = match view {
+    let (draw, token) = match view {
         View::Loading { token } => {
-            let top = body.y + u16::from(body.height >= PADDED_HEIGHT);
-            put(
-                frame,
-                body.x + 2,
-                top,
-                body.width.saturating_sub(4),
-                locale.settings_title(),
-                theme.style(Role::TextPrimary),
-            );
             if pending {
+                let top = body.y + u16::from(body.height >= PADDED_HEIGHT);
                 frame.render_widget(
                     Paragraph::new(super::modal::status_line(
                         locale.settings_pending(),
                         Role::StatusPending,
                         theme,
                     )),
-                    Rect::new(body.x + 2, top + 2, body.width.saturating_sub(4), 1),
+                    Rect::new(body.x + 2, top, body.width.saturating_sub(4), 1),
                 );
             }
-            SettingsDraw::surface(token)
+            (SettingsDraw::surface(token), token)
         }
-        View::Page(page) => render_page(frame, body, page, locale, theme, hits),
+        View::Page(page) => (
+            render_page(frame, body, page, locale, theme, hits),
+            page.token(),
+        ),
     };
     if !notice {
         render_hints(frame, status, view, locale, theme);
     }
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+    hits.record(HitLayer::OverlaySurface, dialog, HitTarget::OverlaySurface);
+    render_close(frame, dialog, token, theme, hits);
     ModalPresentation::Presented(draw)
+}
+
+/// The `[x]` on the frame's top edge; a press outside the dialog closes it the same way.
+fn render_close(
+    frame: &mut Frame<'_>,
+    dialog: Rect,
+    token: crate::native_settings::Token,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    use super::controls::{
+        Availability, ControlSurface, IconActionGlyph, IconActionSpec, PointerPresentation,
+    };
+    let Some(rect) = super::controls::frame_close_rect(frame.area(), dialog) else {
+        return;
+    };
+    let target = InteractionTarget::SettingsControl {
+        token,
+        control: Control::Close,
+    };
+    let spec = interaction_spec(true);
+    let pointer = match hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec) {
+        ProjectedPointer::Rest => PointerPresentation::Rest,
+        ProjectedPointer::Hovered => PointerPresentation::Hovered,
+        ProjectedPointer::Pressed => PointerPresentation::Pressed,
+    };
+    let painted = super::controls::render_frame_icon_action(
+        frame,
+        rect,
+        IconActionSpec::new(
+            IconActionGlyph::Close,
+            ControlSurface::Overlay,
+            Availability::Enabled,
+            pointer,
+        ),
+        theme,
+    );
+    if painted == Some(rect) {
+        hits.record_interaction(HitLayer::Overlay, rect, rect, target.clone(), spec);
+        hits.record_overlay_dismissal(&target);
+    }
 }
 
 fn render_page(
@@ -179,7 +257,7 @@ fn render_page(
     page.presentation(visible, narrow)
 }
 
-/// The left column: the way back to the app, search, and the seven categories.
+/// The left column: search and the seven categories.
 #[expect(
     clippy::too_many_arguments,
     reason = "one page column's drawing inputs"
@@ -194,44 +272,12 @@ fn render_nav(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
-    let base = if narrow {
-        Role::SurfaceCanvas
-    } else {
-        Role::SurfaceChrome
-    };
+    let base = if narrow { BASE } else { Role::SurfaceChrome };
     frame.buffer_mut().set_style(nav, theme.style(base));
     let token = page.token();
     let x = nav.x + 1;
     let width = nav.width.saturating_sub(2);
     let mut y = nav.y + top;
-    put(
-        frame,
-        x,
-        y,
-        width,
-        locale.settings_title(),
-        on(theme, base, None, Role::TextPrimary).add_modifier(ratatui::style::Modifier::BOLD),
-    );
-    y += 1;
-    // Back to the app.
-    let back = Rect::new(x, y, width, 1);
-    let label = format!("{} {}", arrow(theme), locale.settings_back_button());
-    paint_line_target(
-        frame,
-        back,
-        &label,
-        Role::TextSecondary,
-        base,
-        false,
-        InteractionTarget::SettingsControl {
-            token,
-            control: Control::Close,
-        },
-        true,
-        theme,
-        hits,
-    );
-    y += 2;
     // Search.
     if y < nav.bottom() {
         let field = Rect::new(x, y, width, 1);
@@ -359,7 +405,7 @@ fn render_content(
             title_rect,
             &format!("{} {title}", arrow(theme)),
             Role::TextPrimary,
-            Role::SurfaceCanvas,
+            BASE,
             false,
             InteractionTarget::SettingsControl {
                 token,
@@ -782,7 +828,7 @@ fn render_row(
     );
     let pointer = hits.projected_pointer(HitLayer::Overlay, inner, inner, &target, spec);
     let interaction = pointer_surface(pointer).or(is_focused.then_some(Role::SurfaceSelection));
-    let base = Role::SurfaceCanvas;
+    let base = BASE;
     for y in rect.y..rect.bottom() {
         paint_sides(frame, rect, y, theme);
     }
@@ -1056,7 +1102,7 @@ fn render_restore(
         button.y,
         width,
         label,
-        on(theme, Role::SurfaceCanvas, surface, Role::AccentAction),
+        on(theme, BASE, surface, Role::AccentAction),
     );
     (button, target, spec)
 }
@@ -1144,7 +1190,7 @@ fn render_option(
     let Some(picker) = page.picker() else {
         return;
     };
-    let base = Role::SurfaceCanvas;
+    let base = BASE;
     let inner = Rect::new(area.x + 1, y, area.width.saturating_sub(2), 1);
     let target = InteractionTarget::SettingsControl {
         token: page.token(),
@@ -1204,7 +1250,7 @@ fn render_child_row(
     let target = InteractionTarget::SettingsRow { token, row };
     let spec = interaction_spec(enabled);
     let pointer = hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec);
-    let base = Role::SurfaceCanvas;
+    let base = BASE;
     let interaction = pointer_surface(pointer).or(is_focused.then_some(Role::SurfaceSelection));
     fill(frame, rect, base, interaction, theme);
     let style = |role| on(theme, base, interaction, role);

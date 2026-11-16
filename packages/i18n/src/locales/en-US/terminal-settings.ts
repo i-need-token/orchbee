@@ -7,7 +7,6 @@ export const enUSTerminalSettingsMessages = {
 		'Settings changed elsewhere · your draft is kept · check the current profiles, then save again',
 	'terminal.settings.shared.unknown': 'Not sure it finished. Check, then try again.',
 	'terminal.settings.shared.system': 'Follow system',
-	'terminal.settings.actions.back': 'Back',
 	'terminal.settings.actions.close': 'Close settings',
 	'terminal.settings.actions.reset': 'Reset',
 	'terminal.settings.applicationTheme.dark': 'Dark',

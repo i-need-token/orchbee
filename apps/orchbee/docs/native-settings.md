@@ -3,7 +3,7 @@
 ## Interaction and scope
 
 `Ctrl+b ,`, the sidebar Settings row and the global action menu open Settings on supported native
-TUI hosts. Settings is a full page that captures the client area while pane output continues. It
+TUI hosts. Settings is a large dialog over the workspace that captures input while pane output continues. It
 covers every common setting both Clients present in the
 [settings registry](../../../crates/local-runtime/README.md#user-settings), including launch profiles
 and new-terminal scrollback defaults, plus the TUI-only
@@ -27,10 +27,12 @@ for the page, which the
 its slice 1 switch. The last line names More options in `config.toml` and
 its path; a path too long for the line drops its leading folders first, so the file name stays.
 Text that does not fit its cells ends in the ellipsis at a grapheme boundary, counted in display
-cells, and every TUI description fits its row from 100 columns up in both locales, shortened from
-the Desktop wording where needed while keeping its meaning. Below 56 columns the page shows one
-column at a time; Esc or the title's Back steps from rows to categories before it leaves. The page
-requires 24 columns by 8 rows. A frame below that is not presented: before the first successful
+cells, and every TUI description fits its row in a dialog 100 columns wide inside, which a window
+of 106 columns gives, in both locales, shortened from the Desktop wording where needed while keeping
+its meaning. The dialog is at most 112 columns by 36 rows, centered in the window inside the overlay
+margins; its frame carries the title and `[x]`, and a press outside it closes it. Below 56 inner
+columns it shows one column at a time; Esc or the title's Back steps from rows to categories before
+it leaves. The dialog requires 24 by 8 cells inside its frame. A frame below that is not presented: before the first successful
 frame the page is refused with the enlarge-and-reopen notice, and later it suspends drawn interaction while staying the selected capture.
 
 The page's last line is its status line. It names the keys for the focused row, or shows a Settings
@@ -306,7 +308,7 @@ change in flight, one restore per changed row (including both launch-profile key
 column steps, one edit for a theme line's slot and appearance, and the unusable-file line. The
 [page render cases](../crates/workbench-client/src/tui_render/settings/tests.rs) cover one column
 below 56 columns and two above, always-visible descriptions in both locales, every description
-fitting its row at 100 columns, every changed row showing its restore action and its whole
+fitting its row in a dialog 100 columns wide, every changed row showing its restore action and its whole
 description there, and refusal below the page minimum. The
 [dispatcher Settings cases](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs)
 apply every key of one input packet in order. The

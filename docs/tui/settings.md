@@ -82,12 +82,14 @@ without moving the keyboard cursor or provisional choice.
 
 ## Surface composition and discovery
 
-Settings is a full page that captures the whole client area while open. A wide page shows a
-navigation column (a route back, search, and categories) beside a content column (category title,
-headed groups, and rows); below the page's narrow width it shows one column at a time, and Back steps
-from rows to categories before it leaves the page. The page's last row is its status line: it names
-the keys for the focused row and is replaced by a Settings notice while one is shown. Refuse the page
-at a size below its minimum instead of hiding its route back.
+Settings is a large reference-surface dialog that centers over the workspace and captures input
+while open; the workspace stays painted around it. Its frame carries the Settings title and the
+close control `[x]` on the top edge, and a press outside the frame closes it like `[x]`. A wide
+dialog shows a navigation column (search and categories) beside a content column (category title,
+headed groups, and rows); below its narrow width it shows one column at a time, and Back steps from
+rows to categories before Esc leaves the dialog. The dialog's last inner row is its status line: it
+names the keys for the focused row and is replaced by a Settings notice while one is shown. Refuse
+the dialog at a size below its minimum instead of hiding its close control.
 
 - Organize categories by user goal and product vocabulary, not source modules or storage files.
   Category headers are landmarks, not value-changing controls.

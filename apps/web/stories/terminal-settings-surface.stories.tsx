@@ -153,7 +153,7 @@ export const EnglishGeneral: Story = {
 		docs: {
 			description: {
 				story:
-					'Settings is a full page: Back and Escape return to the workbench, search filters every category, and the seven categories open centered cards of rows with one control each. Change a setting to see its dot and Restore default action; type in search to see matches grouped under category names.',
+					'Settings is a large dialog over the workspace: the close button, Escape, and a press outside it return to the workbench, search filters every category, and the seven categories open centered cards of rows with one control each. Change a setting to see its dot and Restore default action; type in search to see matches grouped under category names.',
 			},
 		},
 	},

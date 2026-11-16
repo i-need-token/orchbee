@@ -611,3 +611,19 @@ fn raw_keys_open_the_folder_list_and_apply_a_typed_custom_folder() {
     assert!(shown.waits(Row::NewTerminalFolder));
     assert!(forwarded_bytes(&port.calls).is_empty());
 }
+
+/// Raw pointer bytes through the real dispatcher: Settings is a dialog over the workspace, and a
+/// press outside its frame closes it like its close control, with no edit and nothing reaching a
+/// pane.
+#[test]
+fn a_press_outside_the_settings_dialog_closes_it() {
+    let mut port = Port::ready();
+    let (mut dispatcher, mut view) = capturing(&mut port);
+    let map = render_settings_map(&dispatcher, &mut port, 140, 40);
+    dispatcher.publish_hit_map(map);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;1;1M");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;1;1m");
+    assert!(!port.editor.visible());
+    assert_eq!(port.edits, 0);
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}

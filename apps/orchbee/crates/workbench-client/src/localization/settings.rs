@@ -56,9 +56,6 @@ impl Locale {
     pub(crate) fn settings_title(self) -> &'static str {
         self.setting("Settings", "设置")
     }
-    pub(crate) fn settings_back_button(self) -> &'static str {
-        self.setting("Back", "返回")
-    }
     pub(crate) fn settings_row(self, row: impl Into<SettingsRow>) -> &'static str {
         let (en, zh) = match row.into() {
             Row::Language => ("Language", "语言"),

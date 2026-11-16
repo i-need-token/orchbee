@@ -35,8 +35,9 @@ import styles from './TerminalSettingsSurface.module.css';
 export type { TerminalSettingsSurfaceProps } from './types/terminal-settings-surface';
 
 /**
- * Settings as a full page over the workbench content: the settings navigation takes the app
- * sidebar's place, Back and Escape return to where the user was, and every change applies at once.
+ * Settings as a large dialog over the workspace: a navigation column and the chosen category's
+ * cards. The close button, Escape, and a press outside it return to where the user was, and every
+ * change applies at once.
  */
 export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
@@ -53,135 +54,146 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		visible: !page.searching && !page.isBannerDismissed(id),
 	});
 
+	const title = intl.formatMessage(terminalSettingsMessages.title);
+	const closeLabel = intl.formatMessage(terminalSettingsMessages.close);
+
 	return (
 		<div
-			className={styles['root']}
-			data-slot='terminal-settings-surface'
+			className={styles['backdrop']}
 			onKeyDown={page.onSurfaceKeyDown}
+			onPointerDown={(event) => {
+				// A press on the backdrop itself, not one that started inside the dialog, closes it.
+				if (event.target === event.currentTarget && event.button === 0) props.onRequestClose();
+			}}
 		>
 			<div aria-hidden='true' className={styles['windowDragRegion']} />
-			<nav
-				aria-label={intl.formatMessage(terminalSettingsMessages.title)}
-				className={styles['sidebar']}
+			<div
+				aria-label={title}
+				aria-modal='true'
+				className={styles['root']}
+				data-slot='terminal-settings-surface'
+				role='dialog'
 			>
+				<nav aria-label={title} className={styles['sidebar']}>
+					<label className={styles['search']}>
+						<ProductIcon name='search' />
+						<Input
+							ref={page.searchReference}
+							aria-label={searchLabel}
+							autoComplete='off'
+							className={styles['searchInput']}
+							placeholder={searchLabel}
+							spellCheck={false}
+							type='search'
+							value={page.query}
+							onChange={(event) => page.onQueryChange(event.currentTarget.value)}
+						/>
+					</label>
+					<ul className={styles['categories']}>
+						{page.categories.map((definition) => {
+							const selected = !page.searching && definition.id === page.category;
+							return (
+								<li key={definition.id}>
+									<button
+										aria-current={selected ? 'page' : undefined}
+										className={styles['category']}
+										data-selected={selected}
+										data-settings-category={definition.id}
+										type='button'
+										onClick={() => page.onCategorySelect(definition.id)}
+									>
+										<ProductIcon name={definition.icon} />
+										<span className={styles['navLabel']}>
+											{intl.formatMessage(definition.label)}
+										</span>
+									</button>
+								</li>
+							);
+						})}
+					</ul>
+				</nav>
+				<main
+					ref={page.contentReference}
+					className={styles['content']}
+					data-settings-content={page.searching ? 'search' : page.category}
+				>
+					<div className={styles['column']}>
+						{page.searching ? null : (
+							<div className={styles['banners']}>
+								<SettingsFileStatus
+									control={userSettings}
+									dismissed={page.isBannerDismissed('settings-file')}
+									onDismiss={banner('settings-file').onDismiss}
+								/>
+								{page.category === 'terminal' &&
+								props.terminalDefaultSettingsControl !== undefined ? (
+									<TerminalDefaultsBanner
+										control={props.terminalDefaultSettingsControl}
+										visibility={banner('terminal-defaults')}
+									/>
+								) : null}
+								{page.category === 'keyboard' ? (
+									<KeyboardPersistenceBanner
+										controller={props.keyboardShortcutController}
+										visibility={banner('keyboard-persistence')}
+									/>
+								) : null}
+								{page.category === 'notifications' &&
+								props.terminalFeedbackSettingsController !== undefined &&
+								banner('notification-permission').visible ? (
+									<NotificationPermissionBanner
+										controller={props.terminalFeedbackSettingsController}
+										onDismiss={banner('notification-permission').onDismiss}
+									/>
+								) : null}
+							</div>
+						)}
+						<h1 className={styles['title']} id='terminal-settings-title' tabIndex={-1}>
+							{page.searching || currentCategory === undefined
+								? intl.formatMessage(terminalSettingsMessages.pageSearchResults)
+								: intl.formatMessage(currentCategory.label)}
+						</h1>
+						{page.searching ? (
+							<div className={styles['searchPage']} data-slot='settings-search-results'>
+								{page.categories.map((definition) => (
+									<section
+										aria-label={intl.formatMessage(definition.label)}
+										className={styles['searchCategory']}
+										key={definition.id}
+									>
+										<h2 className={styles['searchCategoryTitle']}>
+											{intl.formatMessage(definition.label)}
+										</h2>
+										<CategoryContent category={definition.id} props={props} query={page.query} />
+									</section>
+								))}
+								<section className={styles['searchCategory']}>
+									<ConfigFileRow filePath={filePath} query={page.query} />
+								</section>
+								<p className={styles['noMatches']} role='status'>
+									{intl.formatMessage(terminalSettingsMessages.pageNoMatches)}
+								</p>
+							</div>
+						) : (
+							<div className={styles['page']}>
+								<CategoryContent category={page.category} props={props} query='' />
+								{currentCategory?.configFile === true ? (
+									<ConfigFileRow filePath={filePath} query='' />
+								) : null}
+							</div>
+						)}
+					</div>
+				</main>
 				<button
-					className={styles['back']}
+					aria-label={closeLabel}
+					className={styles['close']}
 					data-settings-close
 					type='button'
 					onClick={props.onRequestClose}
 				>
-					<ProductIcon name='arrow-left' />
-					<span className={styles['navLabel']}>
-						{intl.formatMessage(terminalSettingsMessages.back)}
-					</span>
+					<ProductIcon name='close' />
 				</button>
-				<label className={styles['search']}>
-					<ProductIcon name='search' />
-					<Input
-						ref={page.searchReference}
-						aria-label={searchLabel}
-						autoComplete='off'
-						className={styles['searchInput']}
-						placeholder={searchLabel}
-						spellCheck={false}
-						type='search'
-						value={page.query}
-						onChange={(event) => page.onQueryChange(event.currentTarget.value)}
-					/>
-				</label>
-				<ul className={styles['categories']}>
-					{page.categories.map((definition) => {
-						const selected = !page.searching && definition.id === page.category;
-						return (
-							<li key={definition.id}>
-								<button
-									aria-current={selected ? 'page' : undefined}
-									className={styles['category']}
-									data-selected={selected}
-									data-settings-category={definition.id}
-									type='button'
-									onClick={() => page.onCategorySelect(definition.id)}
-								>
-									<ProductIcon name={definition.icon} />
-									<span className={styles['navLabel']}>{intl.formatMessage(definition.label)}</span>
-								</button>
-							</li>
-						);
-					})}
-				</ul>
-			</nav>
-			<main
-				ref={page.contentReference}
-				className={styles['content']}
-				data-settings-content={page.searching ? 'search' : page.category}
-			>
-				<div className={styles['column']}>
-					{page.searching ? null : (
-						<div className={styles['banners']}>
-							<SettingsFileStatus
-								control={userSettings}
-								dismissed={page.isBannerDismissed('settings-file')}
-								onDismiss={banner('settings-file').onDismiss}
-							/>
-							{page.category === 'terminal' &&
-							props.terminalDefaultSettingsControl !== undefined ? (
-								<TerminalDefaultsBanner
-									control={props.terminalDefaultSettingsControl}
-									visibility={banner('terminal-defaults')}
-								/>
-							) : null}
-							{page.category === 'keyboard' ? (
-								<KeyboardPersistenceBanner
-									controller={props.keyboardShortcutController}
-									visibility={banner('keyboard-persistence')}
-								/>
-							) : null}
-							{page.category === 'notifications' &&
-							props.terminalFeedbackSettingsController !== undefined &&
-							banner('notification-permission').visible ? (
-								<NotificationPermissionBanner
-									controller={props.terminalFeedbackSettingsController}
-									onDismiss={banner('notification-permission').onDismiss}
-								/>
-							) : null}
-						</div>
-					)}
-					<h1 className={styles['title']} id='terminal-settings-title' tabIndex={-1}>
-						{page.searching || currentCategory === undefined
-							? intl.formatMessage(terminalSettingsMessages.pageSearchResults)
-							: intl.formatMessage(currentCategory.label)}
-					</h1>
-					{page.searching ? (
-						<div className={styles['searchPage']} data-slot='settings-search-results'>
-							{page.categories.map((definition) => (
-								<section
-									aria-label={intl.formatMessage(definition.label)}
-									className={styles['searchCategory']}
-									key={definition.id}
-								>
-									<h2 className={styles['searchCategoryTitle']}>
-										{intl.formatMessage(definition.label)}
-									</h2>
-									<CategoryContent category={definition.id} props={props} query={page.query} />
-								</section>
-							))}
-							<section className={styles['searchCategory']}>
-								<ConfigFileRow filePath={filePath} query={page.query} />
-							</section>
-							<p className={styles['noMatches']} role='status'>
-								{intl.formatMessage(terminalSettingsMessages.pageNoMatches)}
-							</p>
-						</div>
-					) : (
-						<div className={styles['page']}>
-							<CategoryContent category={page.category} props={props} query='' />
-							{currentCategory?.configFile === true ? (
-								<ConfigFileRow filePath={filePath} query='' />
-							) : null}
-						</div>
-					)}
-				</div>
-			</main>
+			</div>
 		</div>
 	);
 }

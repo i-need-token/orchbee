@@ -170,11 +170,11 @@ instead of presenting an incomplete task.
 Dialogs, defined in [`overlays-and-status.md`](overlays-and-status.md#dialogs), size from their
 content within the range of their class:
 
-| Class  | Dialogs                                 | Content width                                 |
-| ------ | --------------------------------------- | --------------------------------------------- |
-| Narrow | Confirmation, notice, single-field form | 40–56 cells                                   |
-| Medium | Multi-field form, picker                | 48–72 cells                                   |
-| Wide   | Reference surface                       | The owner's preferred width, at most 88 cells |
+| Class  | Dialogs                                 | Content width                                                                                 |
+| ------ | --------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Narrow | Confirmation, notice, single-field form | 40–56 cells                                                                                   |
+| Medium | Multi-field form, picker                | 48–72 cells                                                                                   |
+| Wide   | Reference surface                       | The owner's preferred width, at most 88 cells; Settings, whose two columns need it, 106 cells |
 
 - Content width excludes the frame and the two padding cells on each side, so the outer width is
   the content width plus 6.

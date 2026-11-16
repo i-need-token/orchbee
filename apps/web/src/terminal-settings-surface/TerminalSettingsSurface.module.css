@@ -1,16 +1,73 @@
-.root {
+/*
+ * Settings is a large dialog over the workspace: the scrim covers the window, the dialog centers
+ * below the window controls' band, and it grows to 1024 x 768 px where the window has room.
+ */
+.backdrop {
 	position: absolute;
 	z-index: var(--ob-ref-layer-overlay);
 	inset: var(--ob-ref-space-0);
 	display: grid;
-	grid-template-columns: var(--ob-ref-container-3xs) minmax(var(--ob-ref-space-0), 1fr);
-	min-height: var(--ob-ref-space-0);
-	min-width: var(--ob-ref-space-0);
-	background: var(--ob-sys-color-surface-canvas);
-	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-body-sm);
+	place-items: center;
+	padding: var(--ob-comp-workbench-horizontal-chrome-height) var(--ob-ref-space-6)
+		var(--ob-ref-space-6);
+	background: var(--ob-sys-color-surface-scrim);
 	-webkit-app-region: no-drag;
 	app-region: no-drag;
+}
+
+.root {
+	position: relative;
+	display: grid;
+	grid-template-columns: var(--ob-ref-container-3xs) minmax(var(--ob-ref-space-0), 1fr);
+	width: min(100%, var(--ob-ref-container-5xl));
+	height: min(100%, var(--ob-ref-container-3xl));
+	min-height: var(--ob-ref-space-0);
+	min-width: var(--ob-ref-space-0);
+	overflow: hidden;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-xl);
+	background: var(--ob-sys-color-surface-canvas);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+/*
+ * The dialog's close button, a 28 px square in its top-end corner over the content, centered on the
+ * search field's line: the navigation column's top padding plus half the height difference.
+ */
+.close {
+	position: absolute;
+	z-index: var(--ob-ref-layer-raised);
+	inset-block-start: calc(
+		var(--ob-ref-space-4) + var(--ob-ref-space-0-5) +
+			(var(--ob-ref-size-control-navigation) - var(--ob-ref-size-control-sm)) / 2
+	);
+	inset-inline-end: var(--ob-ref-space-3);
+	display: inline-flex;
+	width: var(--ob-ref-size-control-sm);
+	height: var(--ob-ref-size-control-sm);
+	align-items: center;
+	justify-content: center;
+	padding: var(--ob-ref-space-0);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-md);
+	outline: none;
+	background: none;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.close:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.close:active {
+	background: var(--ob-sys-color-surface-pressed);
+}
+
+.close:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
 .root :global([data-slot='button']),
@@ -42,7 +99,6 @@
 	background: var(--ob-sys-color-surface-raised);
 }
 
-.back,
 .category {
 	display: flex;
 	width: 100%;
@@ -59,17 +115,11 @@
 	text-align: start;
 }
 
-.back {
-	margin-block-end: var(--ob-ref-space-3);
-}
-
-.back:hover,
 .category:hover {
 	background: var(--ob-sys-color-surface-hovered);
 	color: var(--ob-sys-color-text-primary);
 }
 
-.back:focus-visible,
 .category:focus-visible {
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
@@ -79,7 +129,6 @@
 	color: var(--ob-sys-color-text-primary);
 }
 
-.back :global([data-icon]),
 .category :global([data-icon]) {
 	flex: none;
 	color: var(--ob-sys-color-icon-secondary);
@@ -202,6 +251,11 @@
 }
 
 @media (width <= 48rem) {
+	.backdrop {
+		padding: var(--ob-comp-workbench-horizontal-chrome-height) var(--ob-ref-space-2)
+			var(--ob-ref-space-2);
+	}
+
 	.root {
 		grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
 		grid-template-rows: auto minmax(var(--ob-ref-space-0), 1fr);
@@ -221,6 +275,14 @@
 
 	.categories::-webkit-scrollbar {
 		display: none;
+	}
+
+	/* The stacked search field leaves the close button its corner, with a 4 px gap. */
+	.search {
+		margin-inline-end: calc(
+			var(--ob-ref-size-control-sm) + var(--ob-ref-space-3) + var(--ob-ref-space-1) -
+				var(--ob-ref-space-2-5)
+		);
 	}
 
 	.category {

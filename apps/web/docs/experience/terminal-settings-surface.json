@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns full-page Settings: a navigation column with Back, search and seven categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents) in the app sidebar's place, and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme lists with in-place preview, copy-on-select, the new terminal folder, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices and local Agent integrations, with per-setting restore default, a per-row reason when the settings file refuses a change, a read-only page while the file cannot be parsed or read, dismissible page notices, global search and the settings file's real path for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the Settings dialog over the Workbench, closed by its close button, Escape or a press on its scrim: a navigation column with search and seven categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents) and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme lists with in-place preview, copy-on-select, the new terminal folder, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices and local Agent integrations, with per-setting restore default, a per-row reason when the settings file refuses a change, a read-only page while the file cannot be parsed or read, dismissible page notices, global search and the settings file's real path for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -68,7 +68,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-general",
 			"states": [
-				"Inspect the light English full page: Back, search and the seven categories with line icons in the navigation column, the filled selected category, and the centered column with the category title, an unnamed card for the language row, the After a restart group and the config.toml row with its copy action.",
+				"Inspect the light English dialog: its close button, search and the seven categories with line icons in the navigation column, the filled selected category, and the centered column with the category title, an unnamed card for the language row, the After a restart group and the config.toml row with its copy action.",
 				"Change Language to Simplified Chinese and back to verify immediate mounted-copy replacement, the changed dot and the Restore default action. Type in search to see matches grouped under category names and the plain empty state, and press Escape to clear the search before Escape returns to the workbench."
 			]
 		},
@@ -196,7 +196,7 @@
 		"An option is rare or advanced; it stays in config.toml and the page only points there."
 	],
 	"invariants": [
-		"Opening Settings shows one full page over the Workbench content: the settings navigation takes the app sidebar's place, the Workbench and projected terminal attachments stay mounted, and Back returns exactly where the user was. Escape clears a non-empty search first and otherwise returns, unless a control consumes it. Below the medium breakpoint the navigation stacks above the content.",
+		"Opening Settings shows one large dialog over the Workbench on a scrim: the Workbench and projected terminal attachments stay mounted and inert, and the close button or a press on the scrim returns exactly where the user was. Escape clears a non-empty search first and otherwise returns, unless a control consumes it. Below the medium breakpoint the navigation stacks above the content.",
 		"Each category shows its title, then groups of a small muted heading and one card; a category with three or fewer settings may use one unnamed card. Each row carries a name, an always-visible description of at most two lines, and exactly one control aligned to the row's end; only the new terminal folder row adds its folder field under its select, while that select shows Custom folder….",
 		"Every change is one edit of the settings file and shows once the file answers; the page has no Save, Discard, or footer. A setting the file sets shows a dot after its name and a Restore default action that removes only that key. A refused change leaves the control at the file's value with one short reason under the row.",
 		"While the settings file has a syntax error or cannot be read, the page shows the last valid values with read-only controls and one notice naming the file path, with line and column for a syntax error.",

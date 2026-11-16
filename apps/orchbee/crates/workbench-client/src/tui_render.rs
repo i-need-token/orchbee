@@ -37,6 +37,12 @@ pub(crate) fn render_settings_for_test(
     settings::render(frame, content, view, pending, false, locale, theme, hits)
 }
 
+/// The Settings dialog's status line in the full viewport `area`.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn settings_status_area(area: Rect) -> Rect {
+    settings::status_area(area)
+}
+
 use crate::agent_board::AgentBoardDraw;
 use crate::client_view::{ClientView, Overlay};
 use crate::localization::{
@@ -1063,8 +1069,8 @@ pub fn render_terminal_shell_with_resize<'a>(
         let draw = if tier == ViewportTier::TooSmall {
             ModalPresentation::NotPresented
         } else {
-            // The page owns the whole viewport; its last row is the Settings status line, where a
-            // notice replaces the key hints.
+            // The dialog centers in the whole viewport; its last row is the Settings status line,
+            // where a notice replaces the key hints.
             settings::render(
                 frame,
                 area,
@@ -1128,13 +1134,8 @@ pub fn render_terminal_shell_with_resize<'a>(
                 theme,
             )
         } else {
-            // The page's own status line is its last row.
-            let page_status = Rect::new(
-                area.x + 1,
-                area.bottom().saturating_sub(1),
-                area.width.saturating_sub(2),
-                area.height.min(1),
-            );
+            // The dialog's own status line is its last row.
+            let page_status = settings::status_area(area);
             line.and_then(|(text, shorter, role)| {
                 status_line::render_notice_chip(
                     frame,
