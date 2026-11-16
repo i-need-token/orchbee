@@ -97,7 +97,28 @@ const Member = struct {
             .resource_failure => return error.OutOfMemory,
         }
     }
+
+    pub fn isLive(self: *@This()) !bool {
+        const state = self.state;
+        state.attempts += 1;
+        switch (state.scenario) {
+            .owned_replacement, .foreign_replacement => {
+                if (self.generation == 1) return error.StableMemberIdentityInvalidated;
+                return true;
+            },
+            .persistent_invalidation => return error.StableMemberIdentityInvalidated,
+            .resource_failure => return error.OutOfMemory,
+            .invalid_then_denied,
+            .denied_then_invalid,
+            .invalid_then_iterator_failure,
+            => unreachable,
+        }
+    }
 };
+
+fn countMembers(state: *State) !u32 {
+    return signaling.countWithRetry(4242, Source{ .state = state });
+}
 
 fn signal(state: *State) !void {
     try signaling.signalWithRetry(4242, Source{ .state = state }, std.posix.SIG.HUP);
@@ -159,6 +180,41 @@ test "POSIX signal retry returns resource failure without another scan" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
     var state: State = .{ .scenario = .resource_failure };
     try std.testing.expectError(error.OutOfMemory, signal(&state));
+    try std.testing.expectEqual(@as(usize, 1), state.opens);
+    try expectReleased(&state);
+}
+
+// A member exiting or execing mid-scan is ordinary while a session drains. Its
+// invalidated reference proves nothing (TH-009); a fresh scan answers instead.
+test "POSIX containment count answers from a fresh scan after an invalidated member" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+    var state: State = .{ .scenario = .owned_replacement };
+    try std.testing.expectEqual(@as(u32, 1), try countMembers(&state));
+    try std.testing.expectEqual(@as(usize, 2), state.opens);
+    try expectReleased(&state);
+}
+
+test "POSIX containment count is empty when the fresh scan no longer finds the member" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+    var state: State = .{ .scenario = .foreign_replacement };
+    try std.testing.expectEqual(@as(u32, 0), try countMembers(&state));
+    try std.testing.expectEqual(@as(usize, 2), state.opens);
+    try std.testing.expectEqual(@as(usize, 1), state.foreign_membership_checks);
+    try expectReleased(&state);
+}
+
+test "POSIX containment count never proves containment from persistent invalidation" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+    var state: State = .{ .scenario = .persistent_invalidation };
+    try std.testing.expectError(error.StableMemberIdentityInvalidated, countMembers(&state));
+    try std.testing.expect(state.opens > 1);
+    try expectReleased(&state);
+}
+
+test "POSIX containment count returns a permanent failure without another scan" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+    var state: State = .{ .scenario = .resource_failure };
+    try std.testing.expectError(error.OutOfMemory, countMembers(&state));
     try std.testing.expectEqual(@as(usize, 1), state.opens);
     try expectReleased(&state);
 }

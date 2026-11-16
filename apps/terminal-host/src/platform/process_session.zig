@@ -5,6 +5,7 @@ const thread_sync = @import("thread_sync.zig");
 
 pub const testing = if (builtin.is_test) struct {
     pub const signalWithRetry = signalStableSessionMembersWithRetry;
+    pub const countWithRetry = countStableSessionMembersWithRetry;
 } else struct {};
 
 extern "c" fn orchbee_prepare_process_tracking() c_int;
@@ -156,17 +157,17 @@ fn retainSignalScanError(first_error: *?anyerror, err: anyerror) void {
     first_error.* = err;
 }
 
-const stable_session_signal_maximum_attempts = 8;
+const stable_session_scan_maximum_attempts = 8;
 
 fn signalStableSessionMembersWithRetry(
     session_id: std.posix.pid_t,
     source: anytype,
     signal_number: std.posix.SIG,
 ) !void {
-    for (0..stable_session_signal_maximum_attempts) |attempt| {
+    for (0..stable_session_scan_maximum_attempts) |attempt| {
         signalStableSessionMembers(session_id, source, signal_number) catch |err| switch (err) {
             error.StableMemberIdentityInvalidated => {
-                if (attempt + 1 == stable_session_signal_maximum_attempts) return err;
+                if (attempt + 1 == stable_session_scan_maximum_attempts) return err;
                 // The prior call released all references and its iterator.
                 // Bind and validate the next scan under the retained identity.
                 continue;
@@ -174,6 +175,28 @@ fn signalStableSessionMembersWithRetry(
             else => return err,
         };
         return;
+    }
+    unreachable;
+}
+
+/// A member that exits, is reaped or execs during a scan invalidates its
+/// stable reference, which is ordinary while a session drains. That reference
+/// cannot prove containment, so a fresh scan answers instead, within the same
+/// bound as signaling; persistent invalidation still fails the query.
+fn countStableSessionMembersWithRetry(
+    session_id: std.posix.pid_t,
+    source: anytype,
+) !u32 {
+    for (0..stable_session_scan_maximum_attempts) |attempt| {
+        const count = countStableSessionMembers(session_id, source) catch |err| switch (err) {
+            error.StableMemberIdentityInvalidated => {
+                if (attempt + 1 == stable_session_scan_maximum_attempts) return err;
+                // The prior call released all references and its iterator.
+                continue;
+            },
+            else => return err,
+        };
+        return count;
     }
     unreachable;
 }
@@ -216,7 +239,12 @@ const NativeSessionMemberIterator = struct {
     fn next(self: *@This()) !?NativeSessionMemberRef {
         var raw: ?*anyopaque = null;
         const result = orchbee_session_member_iterator_next(self.raw, &raw);
-        if (result < 0) return error.ProcessSessionObservationFailed;
+        if (result < 0) {
+            // macOS loses a matched candidate before or while binding its
+            // stable reference when it exits or execs: the scan must restart.
+            if (std.posix.errno(result) == .AGAIN) return error.StableMemberIdentityInvalidated;
+            return error.ProcessSessionObservationFailed;
+        }
         if (result == 0) return null;
         return .{ .raw = raw orelse return error.ProcessSessionObservationFailed };
     }
@@ -244,7 +272,10 @@ const NativeSessionMemberRef = struct {
 
     fn isLive(self: *@This()) !bool {
         var live: c_int = 0;
-        if (orchbee_session_member_ref_is_live(self.raw, &live) != 0) {
+        const result = orchbee_session_member_ref_is_live(self.raw, &live);
+        if (result != 0) {
+            // The reference no longer names the process it bound.
+            if (std.posix.errno(result) == .AGAIN) return error.StableMemberIdentityInvalidated;
             return error.ProcessContainmentQueryFailed;
         }
         return live != 0;
@@ -341,7 +372,7 @@ pub fn sessionLiveMembers(session_id: std.posix.pid_t) !u32 {
                 NativeFreebsdReaperQuery{},
             );
         },
-        .linux, .macos => return try countStableSessionMembers(
+        .linux, .macos => return try countStableSessionMembersWithRetry(
             session_id,
             NativeSessionMemberSource{},
         ),
