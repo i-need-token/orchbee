@@ -387,7 +387,10 @@ An install changes exactly this:
    gives Settings › Apps the name, version, publisher `Orchbee`, icon, size and the uninstaller
    `<store root>\unins000.exe`, which Setup writes with `unins000.dat`.
 4. Setup runs `<store root>\desktop\resources\cohort\<client>.exe install --format json` with
-   `ORCHBEE_INSTALL_DIR` set to the store root. That bundled Client verifies its signed release
+   `ORCHBEE_INSTALL_DIR` set to the store root. The store root inherits the access list of
+   `%LOCALAPPDATA%\Programs`, which on some profiles lets another account in; that bundled Client
+   first replaces the root's list with its private rule when the root holds only what Setup wrote
+   there, and leaves `Programs` as it is. It then verifies its signed release
    directory, copies it to `versions\<version>`, activates it unless a higher version is active,
    puts the launcher at `bin\<client>.exe` and adds `bin` to the user `Path`. Setup copies nothing
    into the store itself and edits no `Path`; it only broadcasts the environment change at the end,

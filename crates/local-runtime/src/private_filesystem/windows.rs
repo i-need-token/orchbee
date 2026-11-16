@@ -3,7 +3,7 @@
 use crate::{AdmissionRefusal, RefusalReason};
 use std::{
     fmt,
-    fs::{File, OpenOptions},
+    fs::{self, File, OpenOptions},
     io,
     os::windows::fs::{MetadataExt, OpenOptionsExt},
     path::{Component, Path, PathBuf},
@@ -70,6 +70,8 @@ enum Entry<'a, T: ?Sized> {
 /// to Administrators by Windows' default where an ordinary session's belong to the user. Every
 /// allow entry must name one of the three, so no other account may own the object or reach it; a
 /// missing access list, which grants everyone everything, and an entry of another kind are refused.
+/// Judging never changes an object: only [`protect_new`] and [`create_private_root`] replace an
+/// access list, and only where this rule refuses nothing but the list.
 fn admit<T: PartialEq + ?Sized>(
     owner: Option<&T>,
     access: Option<&[Entry<'_, T>]>,
@@ -91,8 +93,14 @@ fn admit<T: PartialEq + ?Sized>(
 }
 
 /// Requires the private rule of [`admit`]: an owner and allow entries naming only the token user,
-/// SYSTEM and Administrators. A refusal names no object until a caller passes it to [`naming`].
+/// SYSTEM and Administrators. It never changes the object. A refusal names no object until a caller
+/// passes it to [`naming`].
 pub fn require_private(file: &File) -> io::Result<()> {
+    verdict(file)?.map_err(unnamed)
+}
+
+/// The private rule's verdict on an open object, as [`admit`] reads its owner and access list.
+fn verdict(file: &File) -> io::Result<Result<(), RefusalReason>> {
     let descriptor = wrappers::GetSecurityInfo(
         file,
         SeObjectType::SE_FILE_OBJECT,
@@ -112,17 +120,32 @@ pub fn require_private(file: &File) -> io::Result<()> {
             })
             .collect()
     });
-    admit(
+    Ok(admit(
         descriptor.owner(),
         access.as_deref(),
         &[&*user, &*system, &*admins],
-    )
-    .map_err(unnamed)
+    ))
 }
 
-/// Protects an already private, newly created object without repairing an unsafe existing ACL.
+/// Makes an object this process has just created private and admits it. A new object holds nothing
+/// yet, so the access list it inherited, which may let in another account its parent shares, is
+/// replaced by the protected private rule rather than judged, and the parent stays unchanged. A
+/// reparse point, or an owner other than the token user, SYSTEM or Administrators, is not what this
+/// process created, and is refused.
 pub fn protect_new(file: &mut File) -> io::Result<()> {
-    require_private(file)?;
+    if file.metadata()?.file_attributes() & REPARSE_POINT != 0 {
+        return Err(unnamed(RefusalReason::SymbolicLink));
+    }
+    if let Err(RefusalReason::OtherOwner) = verdict(file)? {
+        return Err(unnamed(RefusalReason::OtherOwner));
+    }
+    protect(file)?;
+    require_private(file)
+}
+
+/// Writes the protected private rule: full access for the token user, SYSTEM and Administrators,
+/// inherited by everything created below, and nothing inherited from the parent.
+fn protect(file: &mut File) -> io::Result<()> {
     let descriptor: LocalBox<SecurityDescriptor> = format!(
         "D:P(A;OICI;FA;;;{})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
         orchbee_local_ipc::current_user_sid()?
@@ -136,8 +159,77 @@ pub fn protect_new(file: &mut File) -> io::Result<()> {
         None,
         descriptor.dacl(),
         None,
-    )?;
-    require_private(file)
+    )
+}
+
+/// Creates the directory `path` below its existing parent and makes it private as [`protect_new`]
+/// does, or opens an existing one and admits it, and pins it with every ancestor. The ancestors are
+/// pinned without being admitted, so a parent other accounts may share, such as a home folder or
+/// `%LOCALAPPDATA%\Programs`, is never judged or changed. An existing directory is made private the
+/// same way when admission refuses it only for its access list, the token user, SYSTEM or
+/// Administrators owns it, and every entry it holds is a real one, no link or junction, whose name
+/// `expected` lists without regard to case: it then holds nothing of its own, only what another
+/// writer the caller names put there. Any other refusal stands, naming `path`; a missing parent is
+/// `NotFound`.
+pub fn create_private_root(path: &Path, expected: &[&str]) -> io::Result<Vec<File>> {
+    require_exact_absolute(path)?;
+    let parent = path.parent().ok_or(io::ErrorKind::InvalidInput)?;
+    let mut pins = open_ancestors(parent)?;
+    let directory = match fs::create_dir(path) {
+        Ok(()) => {
+            let mut directory = open_directory(path, true)?;
+            protect_new(&mut directory).map_err(|error| naming(error, path))?;
+            directory
+        }
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => adopt(path, expected)?,
+        Err(error) => return Err(error),
+    };
+    pins.push(directory);
+    Ok(pins)
+}
+
+/// Opens the existing directory `path` and admits it, making it private first under the conditions
+/// of [`create_private_root`].
+fn adopt(path: &Path, expected: &[&str]) -> io::Result<File> {
+    let directory = open_directory(path, false)?;
+    let reason = match verdict(&directory)? {
+        Ok(()) => return Ok(directory),
+        Err(reason) => reason,
+    };
+    let refused = || AdmissionRefusal::io(reason, path);
+    if reason == RefusalReason::OtherOwner || !holds_only(path, expected)? {
+        return Err(refused());
+    }
+    let mut writable = match open_directory(path, true) {
+        Ok(writable) => writable,
+        // The account may not change the access list; the refusal says what is wrong with it.
+        Err(error) if error.raw_os_error() == Some(5) => return Err(refused()),
+        Err(error) => return Err(error),
+    };
+    protect(&mut writable)?;
+    // Another account could add an entry until the private rule took effect.
+    if !holds_only(path, expected)? {
+        return Err(refused());
+    }
+    require_private(&directory).map_err(|error| naming(error, path))?;
+    Ok(directory)
+}
+
+/// Whether every entry of the directory `path` is a real one, no link or junction, whose name
+/// `expected` lists without regard to case.
+fn holds_only(path: &Path, expected: &[&str]) -> io::Result<bool> {
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let listed = name
+            .to_str()
+            .is_some_and(|name| expected.iter().any(|each| each.eq_ignore_ascii_case(name)));
+        // The listing's own attributes, so a link is never followed to read them.
+        if !listed || entry.metadata()?.file_attributes() & REPARSE_POINT != 0 {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// Pins a non-reparse directory; callers separately admit its ACL or protect their new leaf.

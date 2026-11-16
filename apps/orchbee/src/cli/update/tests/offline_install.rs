@@ -306,10 +306,11 @@ fn install_refuses_and_names_a_store_others_can_change_but_reads_an_open_source(
     publish_manifest(&source, &bytes, Some(&sign(&bytes)));
     open_to_users(&source);
 
-    // A store root another account can change is refused before anything is written, and the
-    // cause names that folder.
+    // A store root another account can change, holding something no installer wrote, is refused
+    // before anything is written, and the cause names that folder.
     let shared = fixture.0.join("shared");
     fs::create_dir(&shared).unwrap();
+    fs::write(shared.join("notes.txt"), b"another program's").unwrap();
     open_to_users(&shared);
     let refused = install(&shared, &source, false);
     assert_eq!((code(&refused), refused.report.phase), ("storage", "copy"));

@@ -1,6 +1,7 @@
 //! The private rule over owner and access-list inputs as data. A real elevated token cannot be
 //! made in a test, so these cases stand in for the owners an ordinary session, an elevated session
-//! and an installer give a folder, and for the accounts that must never be let in.
+//! and an installer give a folder, and for the accounts that must never be let in. One case on a
+//! real folder shows a new object below a shared parent made private.
 use super::{Entry, admit};
 use crate::RefusalReason;
 
@@ -81,6 +82,20 @@ fn a_missing_access_list_or_an_entry_of_another_kind_is_refused() {
             "{owner}"
         );
     }
+}
+
+/// A folder created below a parent that lets another account in inherits that entry; `protect_new`
+/// replaces it with the private rule and leaves the parent's own list as it was.
+#[test]
+fn a_new_folder_below_a_shared_parent_is_made_private() {
+    let parent = crate::tests::SharedFolder::new();
+    let path = parent.0.join("new");
+    std::fs::create_dir(&path).unwrap();
+    let mut directory = super::open_directory(&path, true).unwrap();
+    assert!(super::require_private(&directory).is_err());
+    super::protect_new(&mut directory).unwrap();
+    super::require_private(&directory).unwrap();
+    assert!(super::require_private(&super::open_directory(&parent.0, false).unwrap()).is_err());
 }
 
 #[test]

@@ -28,8 +28,9 @@ pub fn create_private_directory(path: &Path) -> io::Result<Vec<File>> {
 
 /// Creates `path` and every missing directory above it as private directories and pins them all.
 /// The data root, whose parent may be a home directory that other ACL entries share, is created
-/// below that parent without admitting it; any other existing ancestor must already be private. A
-/// state root whose parent is missing is created like any other directory.
+/// below that parent without admitting it, and an existing empty one is made private as
+/// [`create_state_root`] says; any other existing ancestor must already be private. A state root
+/// whose parent is missing is created like any other directory.
 pub(super) fn create_below_roots(path: &Path, roots: &[PathBuf]) -> io::Result<Vec<File>> {
     if roots.iter().any(|root| root == path)
         && path
@@ -88,11 +89,13 @@ pub(crate) fn open_state_root(root: &Path) -> io::Result<Option<Vec<File>>> {
     Ok(Some(pins))
 }
 
-/// Creates a missing state root as private, or admits an existing one, below an existing parent.
+/// Creates a missing state root as private below an existing parent, replacing the access list it
+/// inherited from that parent, or admits an existing one. An existing root that holds nothing, as a
+/// failed first start can leave one, is made private first when admission refuses it only for its
+/// access list, the user, SYSTEM or Administrators owns it and it is no link; any other refusal
+/// stands.
 fn create_state_root(root: &Path) -> io::Result<Vec<File>> {
-    let mut pins = permissions::open_ancestors(parent(root)?)?;
-    pins.push(private_directory(root)?);
-    Ok(pins)
+    permissions::create_private_root(root, &[])
 }
 
 fn parent(root: &Path) -> io::Result<&Path> {

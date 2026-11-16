@@ -8,10 +8,29 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-/// Nothing to prepare: the publisher lock creates a missing root with a protected private access
-/// rule, which every folder Windows creates below it inherits.
-pub(super) fn prepare_root(_root: &Path) -> io::Result<()> {
-    Ok(())
+/// What the Desktop installer writes into the store root before it runs the bundled `install`: the
+/// window application, the folder the previous one waits in, and its uninstaller with that log.
+const INSTALLER_ENTRIES: [&str; 4] = [
+    "desktop",
+    "desktop.previous",
+    "unins000.exe",
+    "unins000.dat",
+];
+
+/// Makes the store root private before the publisher lock admits it, pinning the folders above it
+/// without judging them. A missing root below an existing parent is created with the protected
+/// private access rule in place of the one it inherits. An existing root that admission refuses
+/// only for its access list, as one Setup created below a `%LOCALAPPDATA%\Programs` that lets
+/// another account in, is made private when the user, SYSTEM or Administrators owns it, it is no
+/// link and it holds nothing but the installer's own entries; Windows carries the new rule down to
+/// them, and the store never reads them anyway. Any other refusal stands. A root whose parent is
+/// missing is left to the publisher lock, which creates it with its missing ancestors.
+pub(super) fn prepare_root(root: &Path) -> io::Result<()> {
+    match permissions::create_private_root(root, &INSTALLER_ENTRIES) {
+        Ok(_pins) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 pub(super) fn create_stage(root: &Path) -> io::Result<(PathBuf, Vec<File>)> {

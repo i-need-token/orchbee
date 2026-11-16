@@ -9,13 +9,21 @@
 //!
 //! Creation order: whichever writer comes first creates the root. A missing root is created with a
 //! protected private access rule, so a `desktop` folder written afterwards inherits it; an existing
-//! root, such as one an installer created for `desktop`, is admitted only when it is already
-//! private and is never repaired, so a foreign owner or access rule refuses before anything is
-//! written. Private is the shared rule of `private_filesystem`: on Windows the user, SYSTEM or
-//! Administrators owns it, as an elevated session's objects belong to Administrators, and no other
-//! account is let in; on macOS and Linux the user owns it with mode 0700 and, on macOS, no access
-//! list. There a missing root's missing ancestors are created first, private as well, since the
-//! folders above the root need not be private.
+//! root is admitted when it is already private, and any other refuses before anything is written,
+//! with the one Windows exception below. Private is the shared rule of `private_filesystem`: on
+//! Windows the user, SYSTEM or Administrators owns it, as an elevated session's objects belong to
+//! Administrators, and no other account is let in; on macOS and Linux the user owns it with mode
+//! 0700 and, on macOS, no access list.
+//!
+//! On Windows a missing root is created below its existing parent without judging that parent, and
+//! a missing parent is created as a private folder below the nearest existing one, which must
+//! already be private. The root an installer created for `desktop` inherits the access list of the
+//! folder above it, which on some profiles lets another account in: a root that admission refuses
+//! only for its access list is made private first when the user, SYSTEM or Administrators owns it,
+//! it is no link, and it holds nothing but the installer's own `desktop`, `desktop.previous`,
+//! `unins000.exe` and `unins000.dat`. On macOS and Linux an existing root is never repaired, and a
+//! missing root's missing ancestors are created first, private as well, since the folders above the
+//! root need not be private.
 use super::platform;
 // The shared store reader owns the folder and pointer names and the pointer bound, so Session start
 // and this writer spell them once.
@@ -36,8 +44,9 @@ pub(crate) struct ReleaseStore {
     pub(super) lock: PrivateCache,
 }
 impl ReleaseStore {
-    /// Creates a missing root and `versions/` as private directories and refuses unsafe existing
-    /// ones; a crashed writer's `active.pending` is removed before the lock is returned.
+    /// Creates a missing root and `versions/` as private directories, makes an installer's root
+    /// private as the module says, and refuses other unsafe existing ones; a crashed writer's
+    /// `active.pending` is removed before the lock is returned.
     pub(crate) fn acquire(root: &Path) -> io::Result<Self> {
         platform::prepare_root(root)?;
         let lock = PrivateCache::acquire_with_lock(root, "install", "active")?;

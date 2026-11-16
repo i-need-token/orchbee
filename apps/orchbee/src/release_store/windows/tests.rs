@@ -1,5 +1,5 @@
-//! Immutable publication, writer exclusion, disposal of unpublished files and the pointer's
-//! atomic replacement.
+//! Immutable publication, writer exclusion, disposal of unpublished files, the pointer's atomic
+//! replacement and the admission of a root an installer created.
 use super::super::{ReleaseStore, read_pointer};
 use super::*;
 use std::io::Write;
@@ -35,6 +35,47 @@ fn remove(root: &Path) {
             .starts_with("orchbee-release-test-")
     );
     fs::remove_dir_all(actual).unwrap();
+}
+
+/// Lets the built-in Users group read `folder` and everything created below it, as a
+/// `%LOCALAPPDATA%\Programs` another account shares does.
+fn share_with_users(folder: &Path) {
+    let output = std::process::Command::new("icacls.exe")
+        .arg(folder)
+        .args(["/grant", "*S-1-5-32-545:(OI)(CI)RX", "/q"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+}
+
+/// Setup creates the store root below such a folder and writes its own files there before it runs
+/// the bundled `install`: that root is made private, and one holding anything else is refused as
+/// it is, before anything is written.
+#[test]
+fn an_installer_root_below_a_shared_folder_is_made_private_and_one_holding_more_refused() {
+    use orchbee_local_runtime::{AdmissionRefusal, RefusalReason};
+    let programs = temporary_root();
+    fs::create_dir(&programs).unwrap();
+    share_with_users(&programs);
+    let root = programs.join("Orchbee");
+    fs::create_dir_all(root.join("desktop")).unwrap();
+    fs::write(root.join(r"desktop\x.txt"), b"window").unwrap();
+    {
+        let _store = ReleaseStore::acquire(&root).unwrap();
+        permissions::require_private(&permissions::open_directory(&root, false).unwrap()).unwrap();
+    }
+    let other = programs.join("Other");
+    fs::create_dir_all(other.join("desktop")).unwrap();
+    fs::write(other.join("notes.txt"), b"another program's").unwrap();
+    let Err(refused) = ReleaseStore::acquire(&other) else {
+        panic!("a root holding another program's file was admitted");
+    };
+    assert_eq!(
+        AdmissionRefusal::of(&refused),
+        Some(&AdmissionRefusal::new(RefusalReason::OthersCanRead, &other))
+    );
+    assert!(!other.join("install.lock").exists());
+    remove(&programs);
 }
 
 #[test]

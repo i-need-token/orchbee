@@ -154,15 +154,17 @@ new name, as with [`--machine-link-v1`](../../apps/orchbee/docs/machines.md#link
 - The installer writes only `desktop\`, the shortcut, and the registration, then runs the bundled
   `orchbee install`; a higher active version stays active. Settled by the install slice: the store
   opens only its own names and never reads `desktop\`. Whichever writer comes first creates the
-  root: a root `orchbee install` creates carries a protected private access rule that `desktop\`
-  then inherits, and an existing root, such as the one the installer creates for `desktop\`, is
-  admitted only when it is already private, and is never repaired: the person, SYSTEM or
-  Administrators owns it, and its access list lets no one else in. An elevated installer or session
-  makes Administrators the owner, which the rule admits. So this order works when
-  `%LOCALAPPDATA%\Programs` carries only the person, SYSTEM, and Administrators, as in a standard
-  profile; another allow entry there makes the install refuse with `storage` in either order.
-  Verified 2026-11-12 with a scratch root whose `desktop\` existed first. Unverified: an elevated
-  installer on a fresh machine, which the next release dry run exercises.
+  root: a root `orchbee install` creates carries a protected private access rule in place of the
+  one it would inherit, which `desktop\` then inherits, and an existing root is admitted when it is
+  already private: the person, SYSTEM or Administrators owns it, and its access list lets no one
+  else in. An elevated installer or session makes Administrators the owner, which the rule admits.
+  The root the installer creates for `desktop\` inherits `%LOCALAPPDATA%\Programs`, which on some
+  profiles carries another allow entry; `orchbee install` makes such a root private when that list
+  is all the rule refuses and the root holds only the installer's own entries, so either order
+  works there too, and a root holding anything else still refuses with `storage`. Verified
+  2026-11-12 with a scratch root whose `desktop\` existed first, and 2026-11-15 below a scratch
+  parent granting Users inheritable read. Unverified: an elevated installer on a fresh machine,
+  which the next release dry run exercises.
 - Proposed in [automatic updates](automatic-updates.md#how-the-window-updates): `update` also
   writes window versions, the window pointer, and the window launcher in `desktop\` under
   `install.lock`, and the installer writes the same names; the rest of the store still never reads

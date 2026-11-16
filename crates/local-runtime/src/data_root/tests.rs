@@ -52,6 +52,34 @@ fn only_the_supplied_environment_selects_the_root() {
     );
 }
 
+// Below a home folder that lets another account in, a new data root and the empty one an earlier
+// start left there are made private, while one holding anything is refused unchanged.
+#[cfg(windows)]
+#[test]
+fn a_data_root_below_a_shared_home_is_made_private_unless_it_holds_anything() {
+    use crate::{AdmissionRefusal, RefusalReason, private_filesystem as permissions};
+    let home = crate::tests::SharedFolder::new();
+    let create = |root: &Path| platform::create_below_roots(root, &[root.to_owned()]);
+    let fresh = home.0.join(".fresh");
+    permissions::require_private(create(&fresh).unwrap().last().unwrap()).unwrap();
+
+    let empty = home.0.join(".empty");
+    std::fs::create_dir(&empty).unwrap();
+    permissions::require_private(create(&empty).unwrap().last().unwrap()).unwrap();
+
+    let used = home.0.join(".used");
+    std::fs::create_dir(&used).unwrap();
+    std::fs::write(used.join("config.toml"), b"").unwrap();
+    let refused = create(&used).unwrap_err();
+    assert_eq!(
+        AdmissionRefusal::of(&refused),
+        Some(&AdmissionRefusal::new(RefusalReason::OthersCanRead, &used))
+    );
+    assert!(
+        permissions::require_private(&permissions::open_directory(&used, false).unwrap()).is_err()
+    );
+}
+
 // `newestVersion` only rises, so its comparison decides whether a newer build ever rewrites the
 // record; an unreadable version must never win.
 #[test]

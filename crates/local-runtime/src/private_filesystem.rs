@@ -26,6 +26,8 @@ pub(crate) use unix::{
     move_aside, open_ancestors, replace, require_data_root, require_exact_absolute,
 };
 #[cfg(windows)]
+pub use windows::create_private_root;
+#[cfg(windows)]
 use windows::held;
 #[cfg(windows)]
 pub use windows::{
