@@ -27,12 +27,12 @@
 //   the script on the standard input of /bin/sh, against a copy of the row's feed that names its
 //   archives by file name, in a folder beside the `.tar.gz` and the window archive, reached
 //   through the script's test variables: ORCHBEE_INSTALL_SH_FEED, a file: address, and
-//   ORCHBEE_INSTALL_SH_APPLICATIONS, a folder in the work folder. It must activate the version, link
-//   the command, print the line that puts ~/.local/bin on PATH, copy the application with a valid
-//   signature and the row's release.json, store the window version with the application in the
-//   store's `desktop` folder (a release build only once window updates are switched on in it), and
-//   leave its temporary folder empty; `uninstall --confirm` through the link then removes the store
-//   root and the link.
+//   ORCHBEE_INSTALL_SH_APPLICATIONS, a folder in the work folder, under a shell's soft open-file
+//   limit of 256. It must activate the version, link the command, print the line that puts
+//   ~/.local/bin on PATH, copy the application with a valid signature and the row's release.json,
+//   store the window version with the application in the store's `desktop` folder, and leave its
+//   temporary folder empty; `uninstall --confirm` through the link then removes the store root and
+//   the link.
 // - npm: `npm install --global --offline` of the tarballs into a prefix; the first start installs
 //   the carried version, `--version` answers it again, the program's `uninstall --confirm` removes
 //   the store root, and `npm rm --global` removes the carrier.
@@ -67,6 +67,8 @@ const commandDeadline = 120_000;
 const setupDeadline = 600_000;
 // A process the uninstall ends gets this long to leave the process list.
 const settleDeadline = 15_000;
+// The soft open-file limit a Terminal or SSH shell starts with on macOS.
+const shellOpenFileLimit = 256;
 const hostPlatforms = { arm64: 'macos-aarch64', x64: 'macos-x86_64' };
 
 class UsageError extends Error {}
@@ -186,17 +188,12 @@ function expectActive(identity, root) {
 
 /**
  * Requires the store's window pointer to name `version` with its copy of `application` beside its
- * list. A release build installs window versions only once window updates are switched on in it,
- * so the store may lack `desktop` there; a test build always installs one.
+ * list; test and release builds both install window versions.
  */
-function expectWindowVersion(identity, root, version, application) {
+function expectWindowVersion(root, version, application) {
 	const desktop = path.join(root, 'desktop');
-	if (!existsSync(desktop)) {
-		if (identity.stem !== 'orchbee')
-			throw new StepFailure(`install.sh left no window version in ${desktop}`);
-		log(`This release build keeps window updates off; ${desktop} is absent.`);
-		return;
-	}
+	if (!existsSync(desktop))
+		throw new StepFailure(`install.sh left no window version in ${desktop}`);
 	const pointer = path.join(desktop, 'active.json');
 	const active = existsSync(pointer)
 		? JSON.parse(readFileSync(pointer, 'utf8'))?.active?.product
@@ -390,14 +387,21 @@ function installScriptStep(identity, work) {
 		ORCHBEE_INSTALL_SH_FEED: `file://${path.join(served, 'feed.json')}`,
 		ORCHBEE_INSTALL_SH_APPLICATIONS: applications,
 	};
-	log(`> /bin/sh -s -- --desktop < ${installScript}`);
-	const result = spawnSync('/bin/sh', ['-s', '--', '--desktop'], {
-		encoding: 'utf8',
-		env,
-		input: readFileSync(installScript),
-		timeout: setupDeadline,
-		maxBuffer: 64 * 1024 * 1024,
-	});
+	// Under the soft open-file limit of a Terminal or SSH shell, which Node raises for its children:
+	// a window install that holds the bundle's folders open must raise it itself. Only the soft
+	// limit, as in those shells; a plain `ulimit -n` would lower the hard limit too.
+	log(`> ulimit -S -n ${shellOpenFileLimit}; /bin/sh -s -- --desktop < ${installScript}`);
+	const result = spawnSync(
+		'/bin/sh',
+		['-c', `ulimit -S -n ${shellOpenFileLimit} && exec /bin/sh -s -- --desktop`],
+		{
+			encoding: 'utf8',
+			env,
+			input: readFileSync(installScript),
+			timeout: setupDeadline,
+			maxBuffer: 64 * 1024 * 1024,
+		},
+	);
 	if (result.error !== undefined) throw new StepFailure(`/bin/sh: ${result.error.message}`);
 	process.stdout.write(`${result.stdout ?? ''}${result.stderr ?? ''}`);
 	expectStatus(result, 0, 'install.sh --desktop');
@@ -416,7 +420,7 @@ function installScriptStep(identity, work) {
 	if (copied.length !== 1 || !copied[0].endsWith('.app'))
 		throw new StepFailure(`${applications} must hold one application, not ${copied.join(', ')}`);
 	expectApplication(identity, path.join(applications, copied[0]));
-	expectWindowVersion(identity, root, window.version, copied[0]);
+	expectWindowVersion(root, window.version, copied[0]);
 	log(`install.sh installed ${identity.version} and ${copied[0]}.`);
 	expectStatus(
 		run(link, ['uninstall', '--confirm'], { env, deadline: setupDeadline }),
