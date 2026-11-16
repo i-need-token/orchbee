@@ -18,9 +18,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// macOS captures the interrupt pair as the release commands do, so an interruption ends the
+/// `query` and answers as cancelled; Windows arms its console interrupts.
 pub(super) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Locale) -> Output {
     let deadline = Instant::now() + Duration::from_secs(5);
-    let signals = match ArmedSignals::arm_interrupts() {
+    let signals = match ArmedSignals::arm_interrupts_except_linux() {
         Ok(signals) => signals,
         Err(_) => return failed(Failure::new(FailureKind::InternalFailure), format, locale),
     };
