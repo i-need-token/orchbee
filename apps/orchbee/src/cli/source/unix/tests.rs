@@ -161,6 +161,19 @@ fn first_eligible() -> Option<Signal> {
     native::eligible_now(&GUARDED).into_iter().next()
 }
 
+/// A raised signal stays pending only when the test process did not inherit it as ignored, as a
+/// background job of a shell without job control inherits `SIGINT` and `SIGQUIT`: report that
+/// environment rather than a swallowed signal.
+fn require_not_ignored(signal: Signal) {
+    let blocked = SigSet::thread_get_mask()
+        .expect("thread mask")
+        .contains(signal);
+    assert!(
+        blocked || !native::eligible_now(&[signal]).is_empty(),
+        "test environment inherited {signal:?} as ignored — the pending precondition is unmet"
+    );
+}
+
 /// Proof that a signal stayed pending: the native probe reports the
 /// preserved pending signal (and drains it, so the test leaves nothing
 /// behind that could fire later).
@@ -394,6 +407,7 @@ fn armed_capture_and_finalization_restore_exact_mask() {
 #[test]
 fn inherited_blocked_signal_excluded_and_pending_preserved() {
     let _signals = real_signals();
+    require_not_ignored(Signal::SIGINT);
     // SIGINT blocked before arm: excluded from the captured set, and its
     // blocked+pending state must survive arm/finish untouched.
     let mut blocked = SigSet::empty();
@@ -484,6 +498,7 @@ fn interrupts_never_mask_or_capture_hup_or_quit() {
 #[test]
 fn interrupts_inherited_blocked_int_excluded_and_pending_preserved() {
     let _signals = real_signals();
+    require_not_ignored(Signal::SIGINT);
     let mut blocked = SigSet::empty();
     blocked.add(Signal::SIGINT);
     blocked.thread_block().expect("block SIGINT");
@@ -515,6 +530,7 @@ fn interrupts_inherited_blocked_int_excluded_and_pending_preserved() {
 #[test]
 fn interrupts_inherited_blocked_quit_pending_preserved() {
     let _signals = real_signals();
+    require_not_ignored(Signal::SIGQUIT);
     let mut blocked = SigSet::empty();
     blocked.add(Signal::SIGQUIT);
     blocked.thread_block().expect("block SIGQUIT");
