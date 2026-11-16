@@ -607,8 +607,10 @@ Citations name today's code; `orchbee.iss` is `apps/desktop/installer/windows/or
   `--replace-application-v1=<its bundle>`, which replaces that bundle in place once the window has
   ended, as Squirrel.Mac does, or installs into `~/Applications` when its folder cannot be written,
   and leaves the Session running ([the launcher](../../apps/orchbee-desktop-launcher/README.md#macos)).
-  What writes a macOS window version into the store, the counterpart of Setup and the window step,
-  is not designed yet. Linux follows when it ships; this page settles Windows.
+  The window's bundled Client hands its Session start to the store as on Windows, so the swap
+  changes no program the Session starts later. The macOS window archive, its file list, the window
+  part and install.sh follow in [macOS window versions](#macos-window-versions). Linux follows when
+  it ships.
 
 ### Window archive and file list
 
@@ -816,6 +818,41 @@ programs exist:
   nothing refers to it. Each goes by a rename to `desktop\.remove-<nonce>` first, so `versions\`
   only ever holds whole versions, and then a deletion; whatever cannot be deleted stays for the next
   run. A crashed run's `.stage-*` and `.new-*` leftovers go the same way.
+
+### macOS window versions
+
+Proposed (vetoable), after Squirrel.Mac and Sparkle: an archive of the signed bundle, checked after
+unpacking, and a bundle the launcher swaps at the click.
+
+- A window version folder, `desktop/versions/<version>/`, holds `desktop-files.json` and the signed
+  `<name>.app`. The list sits beside the bundle, because a file at a bundle's root lies outside its
+  signature's seal, which `codesign --verify --strict` refuses.
+- The window archive is `<stem>-desktop-<version>-macos-<arch>.zip`, a zip as on Windows and as
+  Squirrel.Mac's update archive, under one top-level folder holding exactly those two entries. The
+  system bsdtar writes it with `--no-mac-metadata`, so it carries no AppleDouble entries.
+  `extensions.desktop` names it as on Windows.
+- The macOS list adds three things that Windows lists never carry:
+  - paths start with `<name>.app/`, and a part also admits spaces and parentheses, since Electron
+    names its helper applications and frameworks so (`<name> Helper (GPU).app`,
+    `Electron Framework.framework`);
+  - a file its owner may run carries `"executable": true`, since the bundle holds many programs and
+    the list is the installer's only record of modes;
+  - the bundle's symbolic links, which its frameworks need for their signature, form the optional
+    `links: [{"path", "target"}]` in path order. Each target is relative, stays inside the bundle,
+    and names a listed file, a listed link or a folder holding listed entries.
+
+  Paths stay unique ignoring case across files and links, at most 4096 entries in all.
+
+- The window part installs it under `<store root>/desktop/` with the Windows part's locks, stage,
+  checks and pointer. It makes each listed link, gives an executable file mode 0700 and every other
+  file 0600, and never touches the application the person runs; the launcher swaps that at the click.
+- install.sh `--desktop` takes the window archive the feed names in place of the disk image, checks
+  its size and SHA-256 as it checks the runtime archive, has the unpacked Client install it with
+  `--installer-window-v1`, and copies the stored bundle into the Applications folder as today.
+- Rejected: a tar.gz like the runtime archive, because the release check, the feed rule and the
+  archive reader would split by platform; the code signature in place of the list, because a stored
+  version must stay checkable against the signed feed without Apple's certificate chain, which an ad
+  hoc signature lacks.
 
 ### Taskbar and Jump List
 
