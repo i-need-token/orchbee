@@ -3,7 +3,16 @@ import path from 'node:path';
 import { desktopTrayMessages, type IntlShape } from '@orchbee/i18n';
 import { Menu, Tray, type MenuItemConstructorOptions } from 'electron';
 
-import type { DesktopTrayStatus, DesktopTrayView } from './desktop-background-lifecycle';
+import {
+	projectDesktopTray,
+	type DesktopBackgroundState,
+	type DesktopTrayStatus,
+	type DesktopTrayView,
+} from './desktop-background-lifecycle';
+import type {
+	DesktopBackgroundSurface,
+	DesktopBackgroundSurfaceActions,
+} from './desktop-background-surface';
 
 /**
  * Lets Windows remember the person's "show in the taskbar" choice for the release icon across runs.
@@ -27,17 +36,13 @@ const STATUS_FILE_SUFFIXES: Readonly<Record<DesktopTrayStatus, string>> = {
 	none: '',
 };
 
-export interface DesktopBackgroundTrayOptions {
+export interface DesktopBackgroundTrayOptions extends DesktopBackgroundSurfaceActions {
 	/** The application name, such as `Orchbee Test`, which begins the tooltip and the notice. */
 	readonly applicationName: string;
 	readonly distribution: 'development' | 'release' | 'test';
 	/** The folder holding the generated `resources/brand/ico/tray/` icons. */
 	readonly iconDirectory: string;
 	readonly intl: IntlShape;
-	readonly onNoticeShown: () => void;
-	readonly onQuit: () => void;
-	readonly onQuitAll: () => void;
-	readonly onReopen: () => void;
 }
 
 /**
@@ -46,7 +51,7 @@ export interface DesktopBackgroundTrayOptions {
  * its menu's first line say how many terminals run, or that Quit All is stopping them. Left click
  * and double-click reopen the window.
  */
-export class DesktopBackgroundTray {
+export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 	readonly #options: DesktopBackgroundTrayOptions;
 	#tray: Tray | undefined;
 
@@ -54,8 +59,12 @@ export class DesktopBackgroundTray {
 		this.#options = options;
 	}
 
-	/** Creates, updates, or removes the icon to match `view`. */
-	update(view: DesktopTrayView | null): void {
+	/** Creates, updates, or removes the icon to match the lifecycle's view of `state`. */
+	update(state: DesktopBackgroundState): void {
+		this.#render(projectDesktopTray(state));
+	}
+
+	#render(view: DesktopTrayView | null): void {
 		if (view === null) {
 			this.dispose();
 			return;

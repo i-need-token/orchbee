@@ -19,8 +19,11 @@ with it: Main records the window's place and the Session's terminals keep runnin
 closing the window while terminals run hides it, and Desktop keeps running in the notification area
 until the window is reopened, Orchbee is quit from the icon, or the last terminal ends, as
 [Window lifecycle](docs/window-lifecycle.md#running-in-the-notification-area) describes; with no
-terminal running, closing it quits as before. Quit All, also in the icon's menu, is the one quit that
-stops the Session, and it asks first.
+terminal running, closing it quits as before. On macOS the same close hides the window, and Desktop
+stays in the Dock whatever runs, with a Dock menu that counts the running terminals, as
+[Running in the Dock](docs/window-lifecycle.md#running-in-the-dock) describes. Quit All, in the
+icon's menu, the Dock menu, and the macOS application menu, is the one quit that stops the Session,
+and it asks first.
 
 ## Server connection
 
@@ -30,8 +33,9 @@ process and the first port without reading any; the second is the document's
 [Project Folder acquisition](docs/project-folder-acquisition.md) port, served by a broker that lives
 as long as the connection; the third is its background-status port, over which the page reports how
 many terminals run and which Agent states need the person, and asks for the window when a
-notification is clicked. Main parses each report and counts nothing itself; where no
-notification-area icon is kept, it closes that port. Over the same port Main asks the page for Quit
+notification is clicked. Main parses each report and counts nothing itself; where Desktop keeps
+neither the notification-area icon nor the Dock menu, on Linux and for a window started hidden, it
+closes that port. Over the same port Main asks the page for Quit
 All's Session stop, which the page sends through its Server connection because Main never speaks
 the Client protocol. The fourth is its window-update port, described under
 [Window Update](#window-update). The process owns activation, peer validation and admission, and the page
@@ -124,6 +128,10 @@ installed release's. A Session already running keeps the configuration it starte
   Quit Orchbee, Keep Terminals Running, and Quit All…, which asks in a native dialog before it stops
   every terminal and quits. The icons are generated into
   `resources/brand/ico/tray/`, which a Windows package carries as `resources/tray`.
+- On macOS, the Dock menu instead of an icon: the same status line while a window's page reports,
+  Reopen Orchbee while no window shows, Quit Orchbee, Keep Terminals Running, and Quit All…. The
+  application menu names `Command+Q` Quit Orchbee, Keep Terminals Running and adds Quit All… after
+  it, and the Window menu holds Reopen Orchbee while no window shows.
 - On Windows, Save Diagnostic Bundle… in the Help menu and in the taskbar's Jump List of a packaged
   build, since the title bar overlay hides the menu bar. It asks where to save, starting in the
   Desktop folder, or in the home folder when the system cannot name the Desktop, runs

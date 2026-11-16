@@ -6,9 +6,13 @@ import type { DesktopSecureKeyboardEntryActionSource } from '../secure-keyboard-
 import type { DesktopWindowActionSource } from '../window-actions';
 
 const DESKTOP_APPLICATION_MENU_ITEM_IDS = {
+	backgroundSeparator: 'desktop-app-background-separator',
 	closeWindow: 'desktop-window-close',
 	forceReload: 'desktop-view-force-reload',
+	quitAll: 'desktop-app-quit-all',
+	quitKeepRunning: 'desktop-app-quit-keep-running',
 	reload: 'desktop-view-reload',
+	reopen: 'desktop-window-reopen',
 	saveDiagnosticBundle: 'desktop-help-save-diagnostic-bundle',
 	secureKeyboardEntry: 'desktop-secure-keyboard-entry',
 	toggleFullScreen: 'desktop-window-toggle-full-screen',
@@ -31,7 +35,22 @@ interface DesktopApplicationMenuDiagnostics {
 	invoke(source: DesktopDiagnosticsActionSource): boolean;
 }
 
+/**
+ * The macOS background items: Command-Q named for what it does, Quit All… after it in the
+ * application menu, and Reopen in the Window menu while no window shows.
+ */
+interface DesktopApplicationMenuBackground {
+	readonly quitAllLabel: string;
+	readonly quitKeepRunningLabel: string;
+	readonly reopenLabel: string;
+	getQuitAllAvailability(): ActionAvailability;
+	getReopenAvailability(): ActionAvailability;
+	invokeQuitAll(): void;
+	invokeReopen(): void;
+}
+
 export interface DesktopApplicationMenuTarget {
+	readonly background?: DesktopApplicationMenuBackground | undefined;
 	getSecureKeyboardEntryAvailability(): ActionAvailability;
 	getToggleFullScreenAvailability(): ActionAvailability;
 	getToggleMaximizedAvailability(): ActionAvailability;
@@ -172,6 +191,43 @@ export function installDesktopApplicationMenu(
 		}
 	}
 
+	const background = platform === 'darwin' ? actions.background : undefined;
+	if (background !== undefined) {
+		const appRoot = findRole(baseMenu, 'appMenu');
+		const nativeQuitItem =
+			appRoot?.submenu === undefined ? undefined : findRole(appRoot.submenu, 'quit');
+		if (appRoot !== undefined) {
+			planRoot(rootPlans, appRoot, {
+				id: DESKTOP_APPLICATION_MENU_ITEM_IDS.backgroundSeparator,
+				type: 'separator',
+			});
+			// Command-Q stays the native quit, which leaves the Session running; only its name says so.
+			planRoot(
+				rootPlans,
+				appRoot,
+				{
+					accelerator: nativeQuitItem?.accelerator ?? 'Command+Q',
+					id: DESKTOP_APPLICATION_MENU_ITEM_IDS.quitKeepRunning,
+					label: background.quitKeepRunningLabel,
+					role: 'quit',
+				},
+				'quit',
+			);
+			planRoot(rootPlans, appRoot, {
+				click: () => background.invokeQuitAll(),
+				id: DESKTOP_APPLICATION_MENU_ITEM_IDS.quitAll,
+				label: background.quitAllLabel,
+			});
+		}
+		if (windowRoot !== undefined) {
+			planRoot(rootPlans, windowRoot, {
+				click: () => background.invokeReopen(),
+				id: DESKTOP_APPLICATION_MENU_ITEM_IDS.reopen,
+				label: background.reopenLabel,
+			});
+		}
+	}
+
 	const diagnostics = platform === 'win32' ? actions.saveDiagnosticBundle : undefined;
 	if (diagnostics !== undefined) {
 		const saveDiagnosticBundleItem: MenuItemConstructorOptions & { readonly id: string } = {
@@ -239,6 +295,16 @@ export function installDesktopApplicationMenu(
 			projectAvailability(
 				menu.getMenuItemById(DESKTOP_APPLICATION_MENU_ITEM_IDS.secureKeyboardEntry),
 				actions.getSecureKeyboardEntryAvailability(),
+			);
+		}
+		if (background !== undefined) {
+			projectAvailability(
+				menu.getMenuItemById(DESKTOP_APPLICATION_MENU_ITEM_IDS.quitAll),
+				background.getQuitAllAvailability(),
+			);
+			projectAvailability(
+				menu.getMenuItemById(DESKTOP_APPLICATION_MENU_ITEM_IDS.reopen),
+				background.getReopenAvailability(),
 			);
 		}
 		if (diagnostics !== undefined) {

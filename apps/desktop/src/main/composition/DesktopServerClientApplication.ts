@@ -41,8 +41,9 @@ import type { DesktopWindowUpdatePort } from '../window-update';
 /** What the window's Client processes run under, and where its page comes from. */
 export interface DesktopServerClientApplicationOptions {
 	/**
-	 * Keeps Desktop running in the notification area when the window closes while terminals run;
-	 * absent where closing the window keeps its current behavior, and for a window started hidden.
+	 * Keeps Desktop running, in the notification area or the Dock, when the window closes while
+	 * terminals run; absent where closing the window keeps its current behavior, and for a window
+	 * started hidden.
 	 */
 	readonly background: DesktopWindowBackground | undefined;
 	readonly checkoutName: DesktopServerConnectionBootstrap['checkoutName'];
@@ -102,6 +103,21 @@ function followPageCaptionColor(window: BrowserWindow): void {
 }
 
 /**
+ * Hides the window whose close became a hide. A macOS window hidden in full screen would leave its
+ * empty Space behind, so it leaves full screen first and hides once it has.
+ */
+function hideWindow(window: BrowserWindow, platform: NodeJS.Platform): void {
+	if (platform !== 'darwin' || !window.isFullScreen()) {
+		window.hide();
+		return;
+	}
+	window.once('leave-full-screen', () => {
+		if (!window.isDestroyed()) window.hide();
+	});
+	window.setFullScreen(false);
+}
+
+/**
  * What Main holds for one document: its Client connection, the folder picker it may open, its
  * background-status port, and its window-update port.
  */
@@ -121,8 +137,8 @@ function isSupersededLoad(error: unknown): boolean {
  * Desktop as a Server Client: one window, whose every document holds one Client connection through
  * an `orchbee server connect` relay. Main keeps what belongs to this computer: the window, its place
  * on screen, and the native folder picker a new Project starts from. Closing the window ends only
- * this Client, and the Session's terminals keep running; on Windows, a close while they run hides
- * the window instead, as the background lifecycle decides.
+ * this Client, and the Session's terminals keep running; on Windows and macOS, a close while they
+ * run hides the window instead, as the background lifecycle decides.
  */
 export class DesktopServerClientApplication {
 	/** The current document's connection, which Quit All's Session stop goes through. */
@@ -260,7 +276,7 @@ export class DesktopServerClientApplication {
 				if (window.isVisible()) background.windowShown();
 				if (!background.closeRequested()) return;
 				event.preventDefault();
-				window.hide();
+				hideWindow(window, options.platform);
 			});
 			// Logoff and shutdown are never delayed: the close that follows always proceeds.
 			window.on('query-session-end', () => background.sessionEnding());

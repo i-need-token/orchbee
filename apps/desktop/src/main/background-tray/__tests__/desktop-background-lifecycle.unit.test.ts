@@ -27,9 +27,9 @@ function run(
 	);
 }
 
-/** A shown window whose page reports `terminals` running terminals. */
+/** A shown window whose page reports `terminals` running terminals, under the Windows release. */
 function shown(terminals: number): DesktopBackgroundState {
-	return run(createDesktopBackgroundState(true), [
+	return run(createDesktopBackgroundState(true, 'quit'), [
 		{ kind: 'window-shown' },
 		{ kind: 'summary-changed', summary: summary(terminals) },
 	]);
@@ -131,7 +131,7 @@ describe('Desktop background lifecycle', () => {
 		);
 	});
 
-	it('shows the icon exactly while the window is hidden with terminals running or a Quit All under way', () => {
+	it('shows the icon exactly while the window is hidden with terminals running or a Quit All under way, and macOS quits only through Quit All', () => {
 		const events: readonly DesktopBackgroundEvent[] = [
 			close,
 			{ kind: 'notice-shown' },
@@ -151,7 +151,11 @@ describe('Desktop background lifecycle', () => {
 		];
 		const seen = new Set<string>();
 		const violations: DesktopBackgroundState[] = [];
-		const pending = [createDesktopBackgroundState(false), createDesktopBackgroundState(true)];
+		const pending = [false, true].flatMap((noticeShown) =>
+			(['quit', 'close-window'] as const).map((release) =>
+				createDesktopBackgroundState(noticeShown, release),
+			),
+		);
 		for (let state = pending.pop(); state !== undefined; state = pending.pop()) {
 			const key = JSON.stringify(state);
 			if (seen.has(key)) continue;
@@ -170,6 +174,14 @@ describe('Desktop background lifecycle', () => {
 				if (
 					next.commands.some(({ kind }) => kind === 'stop-session') &&
 					(event.kind !== 'quit-all-confirmed' || state.quitAll.kind !== 'confirming')
+				) {
+					violations.push(state);
+				}
+				// macOS stays in the Dock: only a Quit All whose stop completed quits it.
+				if (
+					state.release === 'close-window' &&
+					next.commands.some(({ kind }) => kind === 'quit') &&
+					event.kind !== 'quit-all-stopped'
 				) {
 					violations.push(state);
 				}

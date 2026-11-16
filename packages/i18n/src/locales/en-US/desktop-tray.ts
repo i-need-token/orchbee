@@ -1,6 +1,8 @@
 export const enUSDesktopTrayMessages = {
 	'desktop.tray.notice.body':
 		'{terminals, plural, one {# terminal keeps working.} other {# terminals keep working.}} Click the Orchbee icon at the lower right to reopen it, or right-click it for Quit All.',
+	'desktop.tray.notice.dockBody':
+		'{terminals, plural, one {# terminal keeps working.} other {# terminals keep working.}} Click Orchbee in the Dock to reopen it, or Control-click it for Quit All.',
 	'desktop.tray.notice.title': '{application} is still running in the background',
 	'desktop.tray.quitAll': 'Quit All…',
 	'desktop.tray.quitAll.cancel': 'Cancel',

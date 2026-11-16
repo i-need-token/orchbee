@@ -3,6 +3,8 @@ import type { DesktopTrayMessageId } from '../en-US';
 export const zhCNDesktopTrayMessages = {
 	'desktop.tray.notice.body':
 		'{terminals, plural, other {# 个终端继续工作。}}点击右下角的 Orchbee 图标重新打开，右键可全部退出。',
+	'desktop.tray.notice.dockBody':
+		'{terminals, plural, other {# 个终端继续工作。}}点按程序坞中的 Orchbee 重新打开，按住 Control 键点按可全部退出。',
 	'desktop.tray.notice.title': '{application} 仍在后台运行',
 	'desktop.tray.quitAll': '全部退出…',
 	'desktop.tray.quitAll.cancel': '取消',

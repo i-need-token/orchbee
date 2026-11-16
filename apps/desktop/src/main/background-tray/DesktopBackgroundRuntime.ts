@@ -2,18 +2,24 @@ import type {
 	DesktopBackgroundStatusSummary,
 	DesktopSessionStopAnswer,
 } from '@orchbee/desktop-client-protocol';
+import type { IntlShape } from '@orchbee/i18n';
 import type { BrowserWindow } from 'electron';
 
 import type { DesktopDiagnosticRecorder } from '../diagnostics';
 import type { ServerStopStatus } from '../server-connection';
 import {
 	createDesktopBackgroundState,
-	projectDesktopTray,
+	projectDesktopDock,
 	transitionDesktopBackground,
 	type DesktopBackgroundEvent,
+	type DesktopBackgroundRelease,
 	type DesktopBackgroundState,
+	type DesktopDockView,
 } from './desktop-background-lifecycle';
-import { DesktopBackgroundTray, type DesktopBackgroundTrayOptions } from './DesktopBackgroundTray';
+import type {
+	DesktopBackgroundSurface,
+	DesktopBackgroundSurfaceActions,
+} from './desktop-background-surface';
 import { DesktopSessionStop } from './DesktopSessionStop';
 import type { FileDesktopTrayRecord } from './FileDesktopTrayRecord';
 import { confirmDesktopQuitAll, reportDesktopQuitAllFailure } from './quit-all-dialogs';
@@ -36,16 +42,22 @@ export interface DesktopWindowBackground extends DesktopBackgroundStatusSink {
 	windowShown(): void;
 }
 
-export interface DesktopBackgroundRuntimeOptions extends Omit<
-	DesktopBackgroundTrayOptions,
-	'onNoticeShown' | 'onQuit' | 'onQuitAll' | 'onReopen'
-> {
+export interface DesktopBackgroundRuntimeOptions {
+	/** The application name, such as `Orchbee Test`, which titles Quit All's dialogs. */
+	readonly applicationName: string;
+	/** Closes the hidden window, where the platform's release keeps Desktop running without one. */
+	readonly closeWindow: () => void;
+	/** Creates the platform's surface, which reports the person's requests through `actions`. */
+	readonly createSurface: (actions: DesktopBackgroundSurfaceActions) => DesktopBackgroundSurface;
+	readonly intl: IntlShape;
 	readonly noticeShown: boolean;
 	readonly quit: () => void;
 	/** Reads a Session stop's progress with `operation status`. */
 	readonly readStopStatus: (stopId: string) => Promise<ServerStopStatus>;
 	readonly recordEvent: DesktopDiagnosticRecorder;
 	readonly record: Pick<FileDesktopTrayRecord, 'recordNoticeShown'>;
+	/** What ends a hidden window that nothing is left to reopen for. */
+	readonly release: DesktopBackgroundRelease;
 	/** Opens the window, or shows and focuses the hidden one. */
 	readonly reopen: () => void;
 	/** Asks the window's page to stop the Session under `stopId`; false when there is none. */
@@ -55,14 +67,15 @@ export interface DesktopBackgroundRuntimeOptions extends Omit<
 }
 
 /**
- * Runs the background lifecycle for the Windows window: applies each event, keeps the
- * notification-area icon equal to the lifecycle's view, and performs the commands it returns.
+ * Runs the background lifecycle for the window: applies each event, keeps the platform's surface,
+ * the Windows notification-area icon or the macOS Dock menu, equal to the lifecycle's state, and
+ * performs the commands it returns.
  */
 export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 	readonly #options: DesktopBackgroundRuntimeOptions;
 	readonly #sessionStop: DesktopSessionStop;
 	#state: DesktopBackgroundState;
-	readonly #tray: DesktopBackgroundTray;
+	readonly #surface: DesktopBackgroundSurface;
 
 	constructor(options: DesktopBackgroundRuntimeOptions) {
 		this.#options = options;
@@ -70,18 +83,27 @@ export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 			readStatus: options.readStopStatus,
 			request: options.requestSessionStop,
 		});
-		this.#state = createDesktopBackgroundState(options.noticeShown);
-		this.#tray = new DesktopBackgroundTray({
-			...options,
+		this.#state = createDesktopBackgroundState(options.noticeShown, options.release);
+		this.#surface = options.createSurface({
 			onNoticeShown: () => this.#dispatch({ kind: 'notice-shown' }),
 			onQuit: options.quit,
-			onQuitAll: () => this.#dispatch({ kind: 'quit-all-requested' }),
+			onQuitAll: () => this.quitAllRequested(),
 			onReopen: options.reopen,
 		});
+		this.#surface.update(this.#state);
+	}
+
+	/** What the Dock menu offers, which the macOS application menu's Reopen and Quit All follow. */
+	get dockView(): DesktopDockView {
+		return projectDesktopDock(this.#state);
 	}
 
 	closeRequested(): boolean {
 		return this.#dispatch({ kind: 'close-requested' });
+	}
+
+	quitAllRequested(): void {
+		this.#dispatch({ kind: 'quit-all-requested' });
 	}
 
 	/** Every quit passes here first, the development runtime's restart included. */
@@ -114,14 +136,14 @@ export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 	}
 
 	dispose(): void {
-		this.#tray.dispose();
+		this.#surface.dispose();
 	}
 
 	/** Returns whether the event hid the window. */
 	#dispatch(event: DesktopBackgroundEvent): boolean {
 		const { commands, state } = transitionDesktopBackground(this.#state, event);
 		this.#state = state;
-		this.#tray.update(projectDesktopTray(state));
+		this.#surface.update(state);
 		let hidden = false;
 		const { applicationName, intl } = this.#options;
 		for (const command of commands) {
@@ -130,6 +152,9 @@ export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 					void confirmDesktopQuitAll(intl, applicationName, state.summary).then((confirmed) =>
 						this.#dispatch({ kind: confirmed ? 'quit-all-confirmed' : 'quit-all-cancelled' }),
 					);
+					break;
+				case 'close-window':
+					this.#options.closeWindow();
 					break;
 				case 'hide-window':
 					hidden = true;
@@ -151,7 +176,7 @@ export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 					break;
 				}
 				case 'show-notice':
-					this.#tray.showNotice(state.summary.runningTerminals);
+					this.#surface.showNotice(state.summary.runningTerminals);
 					break;
 				case 'stop-session':
 					void this.#sessionStop

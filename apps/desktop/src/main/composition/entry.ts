@@ -9,6 +9,7 @@ import {
 	createOrchbeeIntl,
 	desktopDiagnosticsMessages,
 	desktopSecureKeyboardEntryMessages,
+	desktopTrayMessages,
 	desktopWindowMessages,
 	resolveOrchbeeLocale,
 } from '@orchbee/i18n';
@@ -17,7 +18,12 @@ import { app, dialog, net, protocol } from 'electron';
 import { DesktopDevelopmentRestartRequestSchema } from '../../development';
 import { resolveDesktopCheckoutName, resolveDesktopSessionName } from '../../distribution';
 import { installDesktopApplicationMenu } from '../application-menu';
-import { DesktopBackgroundRuntime, FileDesktopTrayRecord } from '../background-tray';
+import {
+	DesktopBackgroundDock,
+	DesktopBackgroundRuntime,
+	DesktopBackgroundTray,
+	FileDesktopTrayRecord,
+} from '../background-tray';
 import {
 	DesktopDiagnosticLog,
 	DesktopDiagnosticsActions,
@@ -287,29 +293,43 @@ function resolveTrayIconDirectory(): string {
 }
 
 /**
- * On Windows, closing the window while terminals run keeps Desktop in the notification area; a
- * window started hidden for automation keeps none. macOS and Linux keep their close behavior.
+ * Closing the window while terminals run keeps Desktop running: in the notification area on Windows,
+ * and in the Dock, with its Dock menu, on macOS. A window started hidden for automation keeps
+ * neither, and Linux keeps its close behavior.
  */
 async function createBackground(
 	sessionArguments: readonly string[],
 ): Promise<DesktopBackgroundRuntime | undefined> {
-	if (process.platform !== 'win32' || windowHidden) {
+	const dock = process.platform === 'darwin' ? app.dock : undefined;
+	if (windowHidden || (process.platform !== 'win32' && dock === undefined)) {
 		return undefined;
 	}
 	const record = new FileDesktopTrayRecord(dataRoot.trayStateFile);
 	const clientExecutable = resolveClientExecutable();
 	const clientEnvironment = resolveClientEnvironment();
+	const applicationName = distribution.applicationName;
+	const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
 	return new DesktopBackgroundRuntime({
-		applicationName: distribution.applicationName,
-		distribution: distribution.dataScope.kind,
-		iconDirectory: resolveTrayIconDirectory(),
-		intl: createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages())),
+		applicationName,
+		closeWindow: () => application?.window?.close(),
+		createSurface: (actions) =>
+			dock === undefined
+				? new DesktopBackgroundTray({
+						...actions,
+						applicationName,
+						distribution: distribution.dataScope.kind,
+						iconDirectory: resolveTrayIconDirectory(),
+						intl,
+					})
+				: new DesktopBackgroundDock({ ...actions, applicationName, dock, intl }),
+		intl,
 		noticeShown: await record.readNoticeShown(),
 		quit: () => app.quit(),
 		readStopStatus: (stopId) =>
 			readServerStopStatus(clientExecutable, sessionArguments, clientEnvironment, stopId),
 		record,
 		recordEvent,
+		release: dock === undefined ? 'quit' : 'close-window',
 		reopen: () => void application?.openWindow().catch(() => undefined),
 		requestSessionStop: (stopId) => application?.requestSessionStop(stopId) ?? false,
 		showWindow: async () => {
@@ -377,8 +397,25 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 	const deactivateSecureKeyboardEntry = (): void => secureKeyboardEntry.deactivate();
 	app.on('browser-window-focus', activateSecureKeyboardEntry);
 	app.on('browser-window-blur', deactivateSecureKeyboardEntry);
+	const menuBackground = background;
 	const menu = installDesktopApplicationMenu(
 		{
+			background:
+				menuBackground === undefined
+					? undefined
+					: {
+							getQuitAllAvailability: () => ({
+								kind: menuBackground.dockView.quitAll ? 'enabled' : 'disabled',
+							}),
+							getReopenAvailability: () => ({
+								kind: menuBackground.dockView.reopen ? 'enabled' : 'hidden',
+							}),
+							invokeQuitAll: () => menuBackground.quitAllRequested(),
+							invokeReopen: () => void application.openWindow().catch(() => undefined),
+							quitAllLabel: intl.formatMessage(desktopTrayMessages.quitAll),
+							quitKeepRunningLabel: intl.formatMessage(desktopTrayMessages.quitKeepRunning),
+							reopenLabel: intl.formatMessage(desktopTrayMessages.reopen),
+						},
 			getSecureKeyboardEntryAvailability: () => secureKeyboardEntryActions.getToggleAvailability(),
 			getToggleFullScreenAvailability: () => windowActions.getToggleFullScreenAvailability(),
 			getToggleMaximizedAvailability: () => windowActions.getToggleMaximizedAvailability(),
