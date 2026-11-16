@@ -33,7 +33,7 @@ fn the_control_is_ready_only_for_a_newer_active_version() {
     }
 }
 
-/// Behind the dark-launch switch, in a development build and where no update writes the store the
+/// With the automatic-update switch off, in a development build and where no update writes the store the
 /// control never shows, whatever the store says; a test build shows it as a release build does.
 #[test]
 fn the_control_is_absent_where_the_build_offers_no_update() {

@@ -25,9 +25,10 @@ and do not advance with these five contracts automatically.
 
 ## Before the first automatic-update release
 
-Follow the repository [pre-release version rule](../../../docs/ARCHITECTURE.md#data-boundaries).
-Update `v1/constants.json` and the Rust, TypeScript, and Zig constants, encoders, decoders, fixtures, exports, tests, and
-current protocol reference together whenever the current contract changes.
+Releases before 0.1.0-beta.14 followed the repository
+[pre-release version rule](../../../docs/ARCHITECTURE.md#data-boundaries): `v1/constants.json` and
+the Rust, TypeScript, and Zig constants, encoders, decoders, fixtures, exports, tests, and current
+protocol reference changed together whenever the current contract changed.
 
 ## From the first automatic-update release
 
@@ -63,5 +64,5 @@ fixtures, not a compatibility artifact.
 
 ## Released versions
 
-None. Release-history entries begin with the generations frozen at the first automatic-update
-release.
+- 0.1.0-beta.14, the first automatic-update release: generation 1 of all five contracts, encoded
+  `1.0.0`, is frozen with the fixtures the registry seals.

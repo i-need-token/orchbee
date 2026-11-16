@@ -54,8 +54,8 @@ subject to the unchanged encoded bounds.
 
 Unknown, duplicate or missing fields, nested historical navigation, unsupported versions, invalid
 references and insufficient identity high-water reject the entire document. No migration or
-historical normalization occurs yet: until the first automatic-update release the repository
-[data-boundary version rule](../../../docs/ARCHITECTURE.md#data-boundaries) applies, and from that
+historical normalization occurs yet: before the first automatic-update release the repository
+[data-boundary version rule](../../../docs/ARCHITECTURE.md#data-boundaries) applied, and since that
 release a format change adds a migration step that is never removed, as the local runtime's
 [persisted data versions](../../../crates/local-runtime/README.md#persisted-data-versions) describe.
 Existing files labeled versions 2–7, including the preceding writer's version 7, become unreadable;

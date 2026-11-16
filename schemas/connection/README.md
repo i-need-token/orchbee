@@ -161,9 +161,9 @@ name, and the [frozen fixtures](#frozen-fixtures).
 
 ### Compatibility window
 
-Until the first automatic-update release, every contract stays at generation 1 under
-[Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries), and every `superseded` list is empty.
-From that release a superseded generation stays supported for at least 90 days after its
+Before the first automatic-update release, 0.1.0-beta.14, every contract stayed at generation 1
+under [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries), so every `superseded` list
+starts empty. From that release a superseded generation stays supported for at least 90 days after its
 `supersededOn`; a later release may then drop it by raising `lowest`. The Rust binding's registry
 test, judged on the day it runs, refuses a registry that drops a generation without a `superseded`
 entry or within those 90 days, and refuses any dropped `worker-host` generation, which stays
@@ -178,7 +178,7 @@ listed file it ships by recording `sha256`, the lowercase hexadecimal SHA-256 of
 and from then on the Rust binding's registry test fails when those bytes change: tests never change
 a released generation's expected bytes to admit a new change. A new case goes into a new file, which
 joins the list. A file leaves the list only with the generation it serves, after that generation is
-dropped. The first automatic-update release seals the first list; until then no file is sealed.
+dropped. The first automatic-update release, 0.1.0-beta.14, sealed the first list.
 
 - The list holds the valid, boundary, invalid, admission, and sequence fixtures of this directory
   and of [`schemas/machine`](../machine/README.md#authority), the codec fixtures of

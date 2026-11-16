@@ -635,7 +635,7 @@ export const SETTING_KEY_TABLE = {
 			effect: 'immediate',
 			category: 'general',
 			group: 'updates',
-			page: false,
+			page: true,
 		},
 	],
 } as const;

@@ -14,9 +14,9 @@ The bounded Workbench payload, durable catalog and private frame each use their 
 shape. Checkpoint payloads retain shared ratios and optional Project organization with global
 Workspace/Directory identities. Catalog records require the exact PID/creation-FILETIME registry;
 there is no older-activator fence or version-dependent recovery. The
-[persisted data versions](../README.md#persisted-data-versions) rules govern versions: a format
-changes in place until the first automatic-update release, and from then a change adds a migration
-step that is never removed, while the stored samples of each released format keep opening.
+[persisted data versions](../README.md#persisted-data-versions) rules govern versions: since the
+first automatic-update release a format change adds a migration step that is never removed, while
+the stored samples of each released format keep opening.
 
 A stopped Session may use any fixed slot or exactly named owned corrupt archive as storage evidence.
 Every fresh default or named activation publishes its current Active record before marker commitment,

@@ -3,7 +3,9 @@
 //! their reason before invocation; every other action and the connection stay. The action's own
 //! owner still checks the answer again at its effect boundary.
 
-use orchbee_connection_handshake::{AGENT_INPUT_AREA, CapabilitySet, PROMPT_GATED_INPUT};
+use orchbee_connection_handshake::{
+    AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CapabilitySet, PROMPT_GATED_INPUT,
+};
 
 /// A TUI action that only a Session listing a certain capability can serve.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -17,6 +19,8 @@ pub(crate) enum SessionAction {
 const NEEDED_BY: &[(&str, &[SessionAction])] = &[
     // Only the CLI's recent Agent read asks for the input area, and it reads without one.
     (AGENT_INPUT_AREA, &[]),
+    // Update reads it itself: without it, a press waits instead of leaving for the new version.
+    (COMPATIBILITY_WINDOW, &[]),
     (PROMPT_GATED_INPUT, &[SessionAction::StartInThisPanel]),
 ];
 

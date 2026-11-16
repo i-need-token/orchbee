@@ -777,8 +777,6 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Release channel for explicit update operations.",
     )
     .unreferenced(),
-    // Off the page and out of the reference until release builds run automatic updates: the
-    // automatic-updates proposal's slice 1 switch marks it for both.
     key(
         "update.automatic",
         V::Boolean,
@@ -787,7 +785,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         SERVER,
         "Download and install new versions in the background; development builds ignore it.",
     )
-    .unreferenced(),
+    .page(),
 ];
 
 fn segment_matches(pattern: &str, segment: &str) -> bool {

@@ -325,12 +325,12 @@ record without an integer version, which the store treats as its ordinary invali
 takes no lock, and `acquire` returns the `VersionedWriter` with the opening.
 
 Earlier versions are converted by pure N to N+1 steps in `VersionedRecord::steps`, and the result
-must pass the store's parser. No step has shipped: until the first automatic-update release,
-[Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) applies and a format changes in place.
-From that release a format change adds a step instead, and steps are never removed, so a record
-that sat unopened for many releases still reads. Since no other path hands a store a record, a step
-added there reaches every store, backup and persistence included, with no store change; the
-module's tests drive every store through an injected step.
+must pass the store's parser. No step has shipped yet. Before the first automatic-update release,
+0.1.0-beta.14, [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) applied and a format
+changed in place; from that release a format change adds a step instead, and steps are never
+removed, so a record that sat unopened for many releases still reads. Since no other path hands a
+store a record, a step added there reaches every store, backup and persistence included, with no
+store change; the module's tests drive every store through an injected step.
 
 A stored sample of every released format keeps opening through today's opener. Each sample is a
 test file named `<record>-v<version>` beside the tests of the store that opens it:
@@ -338,8 +338,8 @@ test file named `<record>-v<version>` beside the tests of the store that opens i
 plugin registry, Workbench Client keeps the machine and TUI position records, and the Server's
 checkpoint load tests keep a checkpoint slot with the kept terminal output it names, since the
 Server parses both payloads. A format change adds its sample beside the earlier ones and removes
-none; until the first automatic-update release seals them, a format changed in place replaces its
-sample. The `layouts` folder has no sample, since nothing reads it.
+none, and no sample changes: the first automatic-update release sealed the formats it ships. The
+`layouts` folder has no sample, since nothing reads it.
 
 A writer's opening copies the original into `internal/backups/<YYYY-MM-DD>-upgrade-<product
 version>/` at its path relative to the root and flushes it before the replacement runs; every record
@@ -1192,11 +1192,11 @@ every key's purpose, allowed values and default.
 | `[[keys.command]]` `command`, `type`, `key`, `description`, `width`, `height`               | no commands                      | file only                            |
 | `agents.resume_on_restore`                                                                  | `true`                           | Agents / Restore                     |
 | `update.channel`                                                                            | `"stable"`                       | file only, not in the reference      |
-| `update.automatic`                                                                          | `true`                           | General / Updates, once switched on  |
+| `update.automatic`                                                                          | `true`                           | General / Updates                    |
 
-`update.automatic` stays off the settings page and out of the reference until the
-[automatic updates](../../proposals/platform/automatic-updates.md#phases) slice 1 switch marks it
-for both.
+`update.automatic` appears on the settings page and in the reference from
+[automatic updates](../../proposals/platform/automatic-updates.md#phases) slice 1, the release
+whose builds run automatic updates.
 
 The old `[ui]` names are gone without migration or aliases: `[ui]` is one unknown key. The keys
 that carry a `UserSettingsField` and the launch profiles parse into `UserSettings::values`, the
@@ -1472,7 +1472,7 @@ still queued at depth 23, when they were stopped after 90 minutes.
 would show or run consults, so release builds turn them all on in one change. It is a constant
 expression of the [environment kind](#windows-named-runtime-identity): every test build answers
 true, so tests and rehearsals drive the behaviors; a release build answers the private
-`IN_RELEASE_BUILDS` constant, false while the behaviors land dark; and a development build answers
+`IN_RELEASE_BUILDS` constant, true from slice 1 on; and a development build answers
 true because the switch does not gate development builds, where each behavior keeps its own rule,
 such as never scheduling an update and never showing Update. It decides nothing else: platforms,
 settings and each behavior's own conditions stay with their owners. The

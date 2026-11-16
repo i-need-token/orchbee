@@ -15,9 +15,9 @@ pub const PROMPT_GATED_INPUT: &str = "prompt-gated-input";
 pub const AGENT_INPUT_AREA: &str = "agent-input-area";
 
 /// The `client-server` capability that marks a Session of the first automatic-update release or
-/// later, which keeps the compatibility window, so a newer Client may join it. No build lists it
-/// yet: that release adds it to [`ConnectionKind::capabilities`] and to the registry with its
-/// `addedIn`, and until then no answer carries it.
+/// later, which keeps the compatibility window, so a newer Client may join it. Every build from
+/// that release lists it in [`ConnectionKind::capabilities`], and the registry records that
+/// release as its `addedIn`.
 pub const COMPATIBILITY_WINDOW: &str = "compatibility-window";
 
 /// A connection that starts with an `OBHS` offer.
@@ -80,7 +80,7 @@ impl ConnectionKind {
     #[must_use]
     pub fn capabilities(self) -> CapabilitySet {
         let names: &[&str] = match self {
-            Self::ClientServer => &[AGENT_INPUT_AREA, PROMPT_GATED_INPUT],
+            Self::ClientServer => &[AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, PROMPT_GATED_INPUT],
             Self::WorkerHost => &[PROMPT_GATED_INPUT],
             Self::MachineHub | Self::MachineLink => &[],
         };

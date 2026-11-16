@@ -141,8 +141,6 @@ test('the gate window holds only published releases from the first one on, withi
 	];
 	assert.deepEqual(gatePaths(releases, '0.2.0-beta.99', '0.2.0-beta.2'), ['v0.2.0-beta.2']);
 	assert.deepEqual(gatePaths([published(1, 1)], '0.2.0-beta.1'), []);
-	const noFirst = { releases: [published(1, 1)], version: '0.2.0-beta.2', now: gateNow };
-	assert.deepEqual(selectGatePaths({ ...noFirst, firstVersion: undefined }), []);
 });
 
 // Answers the two API reads of tagNotes the way `gh api --jq` prints them.

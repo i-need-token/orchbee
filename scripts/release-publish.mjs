@@ -144,10 +144,10 @@ export function planRelease({ event, ref, version: requested, platforms }) {
 
 /**
  * The first release whose own automatic helper can install a newer one: slice 1 of
- * proposals/platform/automatic-updates.md#phases, set by the commit that switches slice 1 on. No
- * release below it enters the release gate's window; while it is undefined, none does.
+ * proposals/platform/automatic-updates.md#phases. No release below it enters the release gate's
+ * window.
  */
-const gateFirstVersion = undefined;
+const gateFirstVersion = '0.1.0-beta.14';
 // The release gate's window: the releases published in the last 90 days.
 const gateWindowDays = 90;
 
@@ -161,7 +161,6 @@ const gateWindowDays = 90;
  * `{ tag, draft, publishedAt }` rows as the GitHub API lists them, in any order.
  */
 export function selectGatePaths({ releases, version, now, firstVersion = gateFirstVersion }) {
-	if (firstVersion === undefined) return [];
 	const since = now.getTime() - gateWindowDays * 24 * 60 * 60 * 1000;
 	const window = new Set();
 	for (const release of releases) {
@@ -834,11 +833,7 @@ async function main(argv) {
 		log(
 			paths.length > 0
 				? `The release gate of ${options.version} updates from ${paths.join(', ')}.`
-				: `The release gate of ${options.version} runs no path: ${
-						gateFirstVersion === undefined
-							? 'no release updates itself yet'
-							: `no release from ${gateFirstVersion} on was published in the last ${gateWindowDays} days`
-					}.`,
+				: `The release gate of ${options.version} runs no path: no release from ${gateFirstVersion} on was published in the last ${gateWindowDays} days.`,
 		);
 		writeOutputs({
 			gate: String(paths.length > 0),

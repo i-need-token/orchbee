@@ -20,10 +20,10 @@ pub const CLIENT_FAILURE_HELPER: &str = "--record-client-failure-v1";
 /// changes.
 pub const RELAUNCH_PROTOCOL_VARIABLE: &str = "ORCHBEE_RELAUNCH_V1";
 
-/// Whether release builds run automatic updates. While it is false, a release build neither shows
-/// nor runs any automatic-update behavior. The npm launcher keeps the same value as
-/// `automaticUpdatesInReleaseBuilds`, and a change sets both.
-const IN_RELEASE_BUILDS: bool = false;
+/// Whether release builds run automatic updates, true from the automatic-updates proposal's slice 1
+/// on. While it is false, a release build neither shows nor runs any automatic-update behavior. The
+/// npm launcher keeps the same value as `automaticUpdatesInReleaseBuilds`, and a change sets both.
+const IN_RELEASE_BUILDS: bool = true;
 
 /// Whether this build runs automatic-update behaviors. Test builds always do, so tests and
 /// rehearsals drive them; release builds do only once `IN_RELEASE_BUILDS` is set. Development

@@ -5,6 +5,7 @@
 			"superseded": [],
 			"capabilities": [
 				{ "name": "agent-input-area", "addedIn": "0.1.0" },
+				{ "name": "compatibility-window", "addedIn": "0.1.0-beta.14" },
 				{ "name": "prompt-gated-input", "addedIn": "0.1.0" }
 			],
 			"fingerprintInputs": [
@@ -69,59 +70,221 @@
 		"machine-route": { "generations": { "lowest": 1, "highest": 1 }, "superseded": [] }
 	},
 	"frozenFixtures": [
-		{ "path": "schemas/client-server/v1/client-server-conformance-v1.json" },
-		{ "path": "schemas/connection/v1/fixtures/admission.json" },
-		{ "path": "schemas/connection/v1/fixtures/boundary.json" },
-		{ "path": "schemas/connection/v1/fixtures/invalid.json" },
-		{ "path": "schemas/connection/v1/fixtures/valid.json" },
-		{ "path": "schemas/machine/v1/fixtures/boundary.json" },
-		{ "path": "schemas/machine/v1/fixtures/invalid.json" },
-		{ "path": "schemas/machine/v1/fixtures/sequences.json" },
-		{ "path": "schemas/machine/v1/fixtures/valid.json" },
-		{ "path": "schemas/terminal/v1/fixtures/control-conformance.json" },
-		{ "path": "schemas/terminal/v1/fixtures/focus-input.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/key-input.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/malformed-frame.json" },
-		{ "path": "schemas/terminal/v1/fixtures/malformed-row-window.json" },
-		{ "path": "schemas/terminal/v1/fixtures/mouse-input.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/packed-projection-conformance.json" },
-		{ "path": "schemas/terminal/v1/fixtures/paste-auto-input.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/paste-input.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/prompt-line-input.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/selection-export-chunk.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/terminal-failed.json" },
-		{ "path": "schemas/terminal/v1/fixtures/terminal-frame.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/terminal-projection-buffer.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/terminal-row-window.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/text-input.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/transport-envelope.bin" },
-		{ "path": "schemas/terminal/v1/fixtures/utf8-bom-conformance.json" },
-		{ "path": "schemas/terminal/v1/fixtures/write-input.bin" },
-		{ "path": "schemas/workbench/v1/workbench-agent-catalog-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-agent-integration-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-agent-manifests-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-client-view-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-command-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-configuration-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-configured-command-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-current-directory-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-events-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-multiplex-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-notification-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-panel-agent-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-panel-graphics-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-panel-metadata-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-plugin-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-session-stop-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-settings-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-tab-duplicate-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-tab-set-close-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-window-title-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-workspace-git-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-workspace-metadata-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-worktree-conformance-v1.json" },
-		{ "path": "schemas/workbench/v1/workbench-worktree-query-conformance-v1.json" }
+		{
+			"path": "schemas/client-server/v1/client-server-conformance-v1.json",
+			"sha256": "aef9bfbe3b375efe0f3791510740aa8867183bd2274bd542ab203268ebd337c9"
+		},
+		{
+			"path": "schemas/connection/v1/fixtures/admission.json",
+			"sha256": "a3613eb76939c5534ed69e15d42564a3978514e1b687bb66d5403c5da155feab"
+		},
+		{
+			"path": "schemas/connection/v1/fixtures/boundary.json",
+			"sha256": "14036c4e76533894f3fd7dd98e39cbdcdd2644e5d1b0ed0dda84d51dad31564e"
+		},
+		{
+			"path": "schemas/connection/v1/fixtures/invalid.json",
+			"sha256": "3d6d9a0fb8864e6fa35c6e3cbab8de4e4469ab9644743512030e95a2f83fe12d"
+		},
+		{
+			"path": "schemas/connection/v1/fixtures/valid.json",
+			"sha256": "ae53f043efb489ed56914789ae78df933dba81734b7e472cfe70236e271d1f9a"
+		},
+		{
+			"path": "schemas/machine/v1/fixtures/boundary.json",
+			"sha256": "6ee3acd59171e403ef5f53a2276caa9cbacf9f107aa1bc7de8025a95292565d0"
+		},
+		{
+			"path": "schemas/machine/v1/fixtures/invalid.json",
+			"sha256": "25ea0af6b03202995b9c24564a8b8c4c56c7cc053cd9fcc3b90a430d4ca3ae7b"
+		},
+		{
+			"path": "schemas/machine/v1/fixtures/sequences.json",
+			"sha256": "35fdb21aba49c9ebe723a97e90da0b041a0ca190a498c20712b5aa320d3d7759"
+		},
+		{
+			"path": "schemas/machine/v1/fixtures/valid.json",
+			"sha256": "3fba23ce2359058178da31cac8c01f9777dd7421c64ebf913dce6c84296a91ac"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/control-conformance.json",
+			"sha256": "73432abc46770bf104d2ef12dbb14e23fb2fae15445743b1dda62651ac92e1a7"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/focus-input.bin",
+			"sha256": "880f2a292ba94d08b37ad1a1927ce03b3a7429868cb14e04b8fa78c0d5e705eb"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/key-input.bin",
+			"sha256": "a37e178fb95808566d9602f1f48f3477d4f14d63ef5f9df83e0eb9d70ab5cce4"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/malformed-frame.json",
+			"sha256": "ebe7c8760a4dc0a3fddfb730cab7404133f691d104befd1332874a567a366308"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/malformed-row-window.json",
+			"sha256": "206921306fee975f758e297bfab8b8b76b9174c0318219a909f8947e45a31bb2"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/mouse-input.bin",
+			"sha256": "a97e45782607a62596085bd9d729669d07ce2883472ad2813883640c16baba97"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/packed-projection-conformance.json",
+			"sha256": "575ee8ee3ed2b77719f438f31eab79ac2690c4366e735b81455baa67075e40d1"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/paste-auto-input.bin",
+			"sha256": "a07629dd6528bc0c284310d2e6d11f83e28a4aac4f404fb52e33106a40853f13"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/paste-input.bin",
+			"sha256": "ef5fe2f791d428d59701eb9e53386fdc5b060b28b8bb4d7948a846f00ab46970"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/prompt-line-input.bin",
+			"sha256": "a8d8ef64fda941a663ad7ec7905c0b5912c4159d640a48d321d6cc2e4c567cda"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/selection-export-chunk.bin",
+			"sha256": "dbaf664131472cec11c71e19b5b5a0d5f1fad18c9c16f602a6b9b11067cb9339"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/terminal-failed.json",
+			"sha256": "2f817561a61078c168b3a03b63268b613a15f2c5645e22266e0d3c7c1fe53d9a"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/terminal-frame.bin",
+			"sha256": "2d6bde0a8d44d676c2cee4eaaf1a973ebc30cfeb571f89c9e58e238807820195"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/terminal-projection-buffer.bin",
+			"sha256": "f88a66cbf52afc2da5c3ffddb0e56a4772b237423e824173a67937ae2e03f484"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/terminal-row-window.bin",
+			"sha256": "ae1f83f9829feb1318f6853c42666dab3810c333366aec153e73ce1ca54b23f9"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/text-input.bin",
+			"sha256": "d4c79cc67b4ca5cd064b52d091f62effc1dbd47c33b68a158f4ed9d0f090df05"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/transport-envelope.bin",
+			"sha256": "90165693cb4e7b92fb229699d826b6a6fe9ee3483e7b6345e82804042528ba44"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/utf8-bom-conformance.json",
+			"sha256": "38a5d97b5b196bfd3b19b5cbd7331bceef9f10a6ad27b13974ae740e36cfccd7"
+		},
+		{
+			"path": "schemas/terminal/v1/fixtures/write-input.bin",
+			"sha256": "1e5743e6d8255ddb4c2f02cbeb0ca2441a2248eaf691f020284402db8dea5a93"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-agent-catalog-conformance-v1.json",
+			"sha256": "4c4b736e820ae0da1a860bd7becc4ca76d0ca391fd732ba04a7f23c3af39c8d1"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-agent-integration-conformance-v1.json",
+			"sha256": "e4df8b5a46a6e0891e213550c688d84733ce980e7a41e16f5ece05693f865085"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-agent-manifests-conformance-v1.json",
+			"sha256": "7dc6d26991b2b81032097af74cdd14a7dad647c0988d39de3c810fd2a08c85cc"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-client-view-conformance-v1.json",
+			"sha256": "69d31d923b077ab66f285610266a01869fa122c46b2a02e4fa4e3d264c103a93"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-command-conformance-v1.json",
+			"sha256": "8954393d430427f97bd8a4299a135d89c5fdba8cd4db288daad5b2e8163b48a1"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-configuration-conformance-v1.json",
+			"sha256": "ff671c45cddb42dc1f8bb18e640d05b97ee4204b46c1a8011e3d4f138ed7af76"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-configured-command-conformance-v1.json",
+			"sha256": "5490f75ba1fec2043fa74db452360b77e96a544b070d11b9c46ee32f1b65f987"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-conformance-v1.json",
+			"sha256": "4fd1fee345e028e25c044d2801ec66186e9acb7daaa1c8d0cbea2777eedb09c5"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-current-directory-conformance-v1.json",
+			"sha256": "40b2cc6e5e2a70b947d6bc0a99f3b4c9696d6906119ce3fcb02dc6c6e80ba3bd"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-events-conformance-v1.json",
+			"sha256": "b114f51c03bf92ac74e1f432d4e9a31dc416f4455df6a161ee4ec452ca82bb94"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-multiplex-conformance-v1.json",
+			"sha256": "959f732691bd98bd366976652f5665d62902f72e43a22ca17c8609f3ba083ba1"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-notification-conformance-v1.json",
+			"sha256": "77ad864db5814ab38df414b3ae644656fc6aad28c41bb335020e94c3aa075d0b"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-panel-agent-conformance-v1.json",
+			"sha256": "05922fe8c01ed8297e85a00ad7c3483855860fb3a0bf2561ec4d6e4b548443cf"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-panel-graphics-conformance-v1.json",
+			"sha256": "518c24b8846c47fcd0278b7aa42dc8c7cfce1c6d568df58c66ce43130707b02f"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-panel-metadata-conformance-v1.json",
+			"sha256": "ba0f481da066249b5c2c0f23c7a203fdbba24864fddf2edc638915a4a9919e65"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-plugin-conformance-v1.json",
+			"sha256": "57db6b7d16b53fa12030edf9108803cb1b0f64be7b7a77ff615873a62310e375"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-session-stop-conformance-v1.json",
+			"sha256": "344c8f5a857e0ca78e58d8ad1d30109eb2d14a92b98b1c4bc546329cdbe48c9b"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-settings-conformance-v1.json",
+			"sha256": "7b8c26bd83e163a810156682701de840e3c7b1b31fe9b17abedfe50de7a2e2eb"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-tab-duplicate-conformance-v1.json",
+			"sha256": "142c9a561340eb996231b14ee8d7bc82c353a1f3ca91ff70d720a24920a7de9c"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-tab-set-close-conformance-v1.json",
+			"sha256": "175b5c401db50aefec8daa44befdd9c9fbe8e0077a5d878144c749df717d2ab8"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-window-title-conformance-v1.json",
+			"sha256": "cf86012e47f031025416e0bd3ecd1dc643291364dc115ad54d91938724c22de7"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-workspace-git-conformance-v1.json",
+			"sha256": "d488ef957e85cd694f67422efa14468601cb7f7a6aebbf89148726c21c33ea28"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json",
+			"sha256": "87f26b58d832a1e02578fd735ffc849fe459d2720b5ba68b98aada30e7a4cc24"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-workspace-metadata-conformance-v1.json",
+			"sha256": "9adbb8d9d671d8ea477060c1099e0e2e7e6b51a9aaac6efb767ebe1625956e6c"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-worktree-conformance-v1.json",
+			"sha256": "005986d34820dc6c7bf796416e846b2230ff84cf96b4df572b50051400442a88"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-worktree-query-conformance-v1.json",
+			"sha256": "43618229a7ca31136d1deccd801cc1c9e00405db41b0602cf4a9ae6affa472c0"
+		}
 	]
 }

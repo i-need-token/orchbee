@@ -53,7 +53,7 @@ const clientFailureWaitMilliseconds = 5_000;
 const relaunchPlatforms = new Set(['win32', 'darwin']);
 // The release-build half of the local runtime's automatic-update switch, `IN_RELEASE_BUILDS` in
 // `crates/local-runtime/src/automatic_updates.rs`: the change that turns one on turns on both.
-const automaticUpdatesInReleaseBuilds = false;
+const automaticUpdatesInReleaseBuilds = true;
 
 const platformNames = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 const architectureNames = { x64: 'x64', arm64: 'ARM64' };

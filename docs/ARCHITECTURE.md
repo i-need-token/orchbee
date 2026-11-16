@@ -73,8 +73,10 @@ only with an equal protocol fingerprint, so an unchanged protocol lets a rebuilt
 running development Session while a changed one is refused.
 
 The accepted [versioning and upgrade direction](../proposals/platform/versioning-and-upgrade.md)
-replaces these connection rules from the first automatic-update release with its
-[compatibility window](../proposals/platform/versioning-and-upgrade.md#compatibility-window). The
+replaces these connection rules with its
+[compatibility window](../proposals/platform/versioning-and-upgrade.md#compatibility-window) from
+the first automatic-update release, 0.1.0-beta.14, which this tree builds; the rules above describe
+the releases before it. The
 [data root layout](../proposals/platform/data-root-layout.md) places every file Orchbee writes on a
 person's machine and sets the persisted-data migration rules and the release from which each
 applies.

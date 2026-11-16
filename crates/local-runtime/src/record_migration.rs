@@ -90,7 +90,7 @@ impl VersionedRecord {
         }
     }
 
-    /// The steps that bring an earlier version to the current one; none has shipped yet. From the
+    /// The steps that bring an earlier version to the current one; none has shipped yet. Since the
     /// first automatic-update release a format change adds its step here and nowhere else, instead
     /// of changing the record in place, and no step is ever removed: the stored record samples of
     /// every released format must keep opening.

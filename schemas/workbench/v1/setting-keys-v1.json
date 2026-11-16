@@ -628,7 +628,7 @@
 			"effect": "immediate",
 			"category": "general",
 			"group": "updates",
-			"page": false
+			"page": true
 		}
 	]
 }
