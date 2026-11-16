@@ -191,12 +191,27 @@ impl Locale {
             (Self::ZhCn, StartupFailure::Terminal) => {
                 "Orchbee 的标准输入和输出需要连接同一交互终端，并提供有效尺寸。\n"
             }
-            (Self::EnUs, StartupFailure::Cohort) => {
-                "This Orchbee installation is missing, changed, or invalid. Stage all four binaries together before running orchbee.\n"
-            }
-            (Self::ZhCn, StartupFailure::Cohort) => {
-                "此 Orchbee 安装缺失、已修改或无效。请将四个二进制一起暂存后再运行 orchbee。\n"
-            }
+            // A release user can only reinstall; staging advice is for the people who build it.
+            (Self::EnUs, StartupFailure::Cohort) => match orchbee_local_runtime::environment_kind()
+            {
+                orchbee_local_runtime::EnvironmentKind::Release => {
+                    "This Orchbee installation is damaged or incomplete. Reinstall Orchbee, then try again.\n"
+                }
+                orchbee_local_runtime::EnvironmentKind::Development
+                | orchbee_local_runtime::EnvironmentKind::Test => {
+                    "This Orchbee installation is missing, changed, or invalid. Stage all four binaries together before running orchbee.\n"
+                }
+            },
+            (Self::ZhCn, StartupFailure::Cohort) => match orchbee_local_runtime::environment_kind()
+            {
+                orchbee_local_runtime::EnvironmentKind::Release => {
+                    "此 Orchbee 安装已损坏或不完整。请重新安装 Orchbee，然后重试。\n"
+                }
+                orchbee_local_runtime::EnvironmentKind::Development
+                | orchbee_local_runtime::EnvironmentKind::Test => {
+                    "此 Orchbee 安装缺失、已修改或无效。请将四个二进制一起暂存后再运行 orchbee。\n"
+                }
+            },
             (Self::EnUs, StartupFailure::Runtime) => {
                 "The local session runtime failed its ownership or permission checks.\n"
             }
