@@ -218,6 +218,15 @@ impl Fixture {
         assert!(orchbee_local_runtime::edit_settings(&changes, self.state_environment()).unwrap());
     }
 
+    /// Applies `change` as [`Self::set_values`] does and has the running default Session reload
+    /// `config.toml` before returning. The Session otherwise sees an external edit only at its
+    /// next sample, about a second later, and a creation before then takes the old values.
+    pub fn set_values_live(&self, change: impl FnOnce(&mut UserSettingsValues)) {
+        self.set_values(change);
+        let reloaded = self.run(&["config", "reload", "--session", "default"]);
+        assert_eq!(reloaded.code, Some(0), "{reloaded}");
+    }
+
     /// The CLI under test in this fixture's isolated environment.
     pub fn command(&self, words: &[&str]) -> Command {
         let mut command = inherited_environment::orchbee_command(self.staged_client());

@@ -159,7 +159,7 @@ impl Witness {
         let witness = Self {
             fixture: Fixture::new("orchbee-output-replay-", &[]),
         };
-        witness.set_values(|values| {
+        witness.fixture.set_values_live(|values| {
             values.launch_profiles = serde_json::from_value(json!({
                 "version": 1,
                 "defaultProfileId": CMD_PROFILE,
@@ -173,8 +173,8 @@ impl Witness {
                 ],
             }))
             .unwrap();
+            values.restore_terminal_output = true;
         });
-        witness.set_values(|values| values.restore_terminal_output = true);
         witness
     }
 
