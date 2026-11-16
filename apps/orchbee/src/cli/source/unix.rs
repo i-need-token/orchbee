@@ -104,11 +104,14 @@ pub(crate) enum Finish {
 /// The private source signal owner: the native capture over the eligible
 /// set plus the inherited thread mask captured at arm. The capture interval
 /// begins at the mask swap, before any source I/O; a setup fault owes
-/// nothing, because the native arm restores whatever it changed before
+/// nothing more, because the native arm restores what it may before
 /// reporting.
 pub(crate) struct ArmedSignals {
     capture: native::Capture,
     old_mask: SigSet,
+    /// In-process tests arm one at a time on macOS; see [`serial`].
+    #[cfg(all(test, target_os = "macos"))]
+    _serial: serial::Serial,
 }
 
 impl ArmedSignals {
@@ -128,7 +131,14 @@ impl ArmedSignals {
     }
 
     fn arm_set(watched: &[Signal]) -> Result<Self, ArmError> {
-        native::Capture::arm(watched).map(|(capture, old_mask)| Self { capture, old_mask })
+        #[cfg(all(test, target_os = "macos"))]
+        let serial = serial::hold();
+        native::Capture::arm(watched).map(|(capture, old_mask)| Self {
+            capture,
+            old_mask,
+            #[cfg(all(test, target_os = "macos"))]
+            _serial: serial,
+        })
     }
 
     /// Linearization point: the last nonblocking signal read decides
@@ -543,6 +553,43 @@ impl SignalWatch for super::ArmedSignals {
 impl super::ArmedSignals {
     pub(crate) fn arm_interrupts() -> Result<Self, ArmError> {
         ArmedSignals::arm_interrupts().map(Self)
+    }
+}
+
+/// macOS's `sigwait` takes a pending signal from any thread of the process, so in-process tests
+/// that arm the owner at once could dequeue each other's probes and pending signals. A test that
+/// holds a pending signal or raises one holds this lock for its whole body, and on macOS every arm in
+/// a test build holds it until the capture ends; a thread that already holds it passes through.
+#[cfg(test)]
+pub(crate) mod serial {
+    use std::{
+        cell::Cell,
+        sync::{Mutex, MutexGuard, PoisonError},
+    };
+
+    static OWNER: Mutex<()> = Mutex::new(());
+
+    thread_local! {
+        static HELD: Cell<bool> = const { Cell::new(false) };
+    }
+
+    pub(crate) struct Serial(Option<MutexGuard<'static, ()>>);
+
+    pub(crate) fn hold() -> Serial {
+        if HELD.get() {
+            return Serial(None);
+        }
+        let guard = OWNER.lock().unwrap_or_else(PoisonError::into_inner);
+        HELD.set(true);
+        Serial(Some(guard))
+    }
+
+    impl Drop for Serial {
+        fn drop(&mut self) {
+            if self.0.take().is_some() {
+                HELD.set(false);
+            }
+        }
     }
 }
 

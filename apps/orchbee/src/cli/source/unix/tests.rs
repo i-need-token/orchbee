@@ -3,10 +3,7 @@ use std::{
     os::{fd::BorrowedFd, unix::process::ExitStatusExt},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::{
-        Mutex, MutexGuard, PoisonError,
-        atomic::{AtomicU32, Ordering},
-    },
+    sync::atomic::{AtomicU32, Ordering},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -152,12 +149,10 @@ fn materialized_bytes(input: &TerminalSendInput, signals: &mut dyn SignalWatch) 
     }
 }
 
-/// macOS's `sigwait` takes a pending signal from any thread of the process, so two tests arming
-/// at once could dequeue each other's probes or inherited pending signals. Every test that arms
-/// the real owner or raises a signal holds this lock for its whole body.
-fn real_signals() -> MutexGuard<'static, ()> {
-    static OWNER: Mutex<()> = Mutex::new(());
-    OWNER.lock().unwrap_or_else(PoisonError::into_inner)
+/// Every test that arms the real owner or raises a signal holds the owner's test lock for its
+/// whole body.
+fn real_signals() -> serial::Serial {
+    serial::hold()
 }
 
 /// The first guarded signal neither inherited-blocked nor inherited-
