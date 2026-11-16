@@ -1,6 +1,6 @@
 //! The macOS window launcher's effects: its own path, arguments and parent, the wait for the asking
-//! window, the pointer read, the replacement of the application with `ditto`, `codesign` and two
-//! renames, each window start and its watch, and undoing the replacement when the new window fails
+//! window, the pointer read, the replacement of the application with `ditto`, the replaced
+//! application's access, `codesign` and two renames, each window start and its watch, and undoing the replacement when the new window fails
 //! inside the watch. Every window it starts leads a process group of its own and outlives it; the
 //! launcher keeps a window only while it watches it.
 use crate::decision::{self, Next, Start, Watched};
@@ -122,11 +122,13 @@ struct Placed {
 }
 
 impl Placed {
-    /// Copies `source` beside `application` and renames it into place, or, when that folder cannot
-    /// be written, into `~/Applications` under the same name. `None` leaves every folder as it was.
-    fn install(source: &Path, application: &Path) -> Option<Self> {
-        let name = application.file_name()?;
-        let folder = application.parent()?;
+    /// Copies `source` beside `original`, the application the window ran from, and renames it into
+    /// place, or, when that folder cannot be written, into `~/Applications` under the same name.
+    /// The copy takes the access of the application it replaces, as Sparkle does, so only the
+    /// store's own copy stays private. `None` leaves every folder as it was.
+    fn install(source: &Path, original: &Path) -> Option<Self> {
+        let name = original.file_name()?;
+        let folder = original.parent()?;
         let (folder, staging) = match staging_folder(folder, name) {
             Ok(staging) => (folder.to_path_buf(), staging),
             Err(error) if writing_refused(&error) => {
@@ -141,7 +143,15 @@ impl Placed {
             }
             Err(_) => return None,
         };
+        let application = folder.join(name);
+        // What the copy takes its access from: the application it replaces, or the one the window
+        // ran from when it goes to `~/Applications` where none stands.
+        let replaced = fs::symlink_metadata(&application)
+            .or_else(|_| fs::symlink_metadata(original))
+            .ok()
+            .filter(fs::Metadata::is_dir);
         let copied = run(Command::new(DITTO).arg(source).arg(&staging))
+            && match_access(&staging, replaced.as_ref()).is_ok()
             && run(Command::new(CODESIGN)
                 .args(["--verify", "--deep", "--strict"])
                 .arg(&staging));
@@ -149,7 +159,6 @@ impl Placed {
             let _ = fs::remove_dir_all(&staging);
             return None;
         }
-        let application = folder.join(name);
         let previous = match fs::symlink_metadata(&application) {
             Ok(_) => {
                 let previous = hidden(&folder, name, "previous");
@@ -201,6 +210,45 @@ impl Placed {
             let _ = fs::remove_dir_all(failed);
         }
     }
+}
+
+/// Gives the copy at `staging`, which `ditto` made from the store's private copy (folders and
+/// programs 0700, other files 0600), the access of `replaced`, the application bundle it replaces:
+/// its group, and its owner where the system allows that, then its folder's mode on every folder and
+/// program and that mode without execute bits on every other file, always keeping the owner's read
+/// and write. Without a replaced bundle the mode is 0755, an application folder's usual mode. Links
+/// are left alone. A refused owner or group change keeps the copy's own; a refused mode fails.
+fn match_access(staging: &Path, replaced: Option<&fs::Metadata>) -> io::Result<()> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt, lchown};
+    const OWNER: u32 = 0o700;
+    const EXECUTE: u32 = 0o111;
+    let base = replaced.map_or(0o755, |replaced| replaced.mode() & 0o777);
+    let mut pending = vec![staging.to_path_buf()];
+    while let Some(path) = pending.pop() {
+        let metadata = fs::symlink_metadata(&path)?;
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if let Some(replaced) = replaced {
+            let user = (replaced.uid() != metadata.uid()).then_some(replaced.uid());
+            let group = (replaced.gid() != metadata.gid()).then_some(replaced.gid());
+            if (user.is_some() || group.is_some()) && lchown(&path, user, group).is_err() {
+                let _ = lchown(&path, None, group);
+            }
+        }
+        let mode = if metadata.is_dir() {
+            for entry in fs::read_dir(&path)? {
+                pending.push(entry?.path());
+            }
+            base | OWNER
+        } else if metadata.mode() & 0o100 != 0 {
+            base | OWNER
+        } else {
+            (base & !EXECUTE) | 0o600
+        };
+        fs::set_permissions(&path, fs::Permissions::from_mode(mode))?;
+    }
+    Ok(())
 }
 
 /// Creates the empty hidden folder the copy goes to, in `folder` beside the application `name`.

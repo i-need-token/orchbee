@@ -858,9 +858,17 @@ unpacking, and a bundle the launcher swaps at the click.
 - The window part installs it under `<store root>/desktop/` with the Windows part's locks, stage,
   checks and pointer. It makes each listed link, gives an executable file mode 0700 and every other
   file 0600, and never touches the application the person runs; the launcher swaps that at the click.
+  The launcher's copy takes the access of the application it replaces, its group, owner where the
+  system allows it, and folder mode, as Sparkle does, so only the store's copy stays private.
+- The arrangement after each window step places and moves nothing on macOS. Since no window runs
+  from a stored version and Orchbee starts every program it runs from one by absolute path, a
+  window version or leftover goes once a complete process listing shows no process whose start path
+  lies inside it; runtime versions keep the Windows rule, which macOS cannot tell, and stay.
 - install.sh `--desktop` takes the window archive the feed names in place of the disk image, checks
   its size and SHA-256 as it checks the runtime archive, has the unpacked Client install it with
-  `--installer-window-v1`, and copies the stored bundle into the Applications folder as today.
+  `--installer-window-v1`, and copies the unpacked bundle into the Applications folder as it copied
+  the disk image's, so the person's copy has the archive's modes. A release build whose window
+  updates are not switched on answers the helper word as a usage error; its bundle is copied alone.
 - Rejected: a tar.gz like the runtime archive, because the release check, the feed rule and the
   archive reader would split by platform; the code signature in place of the list, because a stored
   version must stay checkable against the signed feed without Apple's certificate chain, which an ad

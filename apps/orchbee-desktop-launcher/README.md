@@ -69,18 +69,24 @@ are in `src/macos.rs`. The steps run in this order.
 3. It waits up to 30 seconds for its parent to end, which it sees when `launchd` adopts it. A window
    that still runs keeps its application: the launcher changes nothing and exits `0`.
 4. It copies the source with `ditto` to `.<application name>.update-<its process id>` beside the
-   application and checks it with `codesign --verify --deep --strict`. When that folder cannot be
-   written, it copies into `~/Applications` instead, under the same name, creating the folder. It
-   then renames what stands at that path to `.<application name>.previous-<its process id>` and
-   renames the copy into place. The Session keeps running: the launcher stops no process.
+   application. When that folder cannot be written, it copies into `~/Applications` instead, under
+   the same name, creating the folder. The copy then takes the access of the application it
+   replaces, as Sparkle does, since the store's copy is private (folders and programs `0700`, other
+   files `0600`): that bundle's group, and its owner where the system allows the change, then the
+   bundle folder's mode on every folder and program and the same mode without execute bits on every
+   other file, always with the owner's read and write. Where no bundle stands at that path, the
+   application the window ran from gives the access, and without one the mode is `0755`. It checks
+   the copy with `codesign --verify --deep --strict`, then renames what stands at that path to
+   `.<application name>.previous-<its process id>` and renames the copy into place. The Session
+   keeps running: the launcher stops no process.
 5. It starts `Contents/MacOS/<name>` of the new application, in a process group of its own, with the
    remaining arguments, the environment, and `ORCHBEE_RELAUNCH_V1` naming the launcher, and watches
    it for 120 seconds. When it cannot start, or ends within them with a non-zero status or by a
    signal, the launcher puts back what stood at the path before, or removes the copy where nothing
    stood, and starts the application the window ran from with `--fallback-from-v1=<active>` first and
    without the variable. Otherwise it removes the application it replaced.
-6. When the pointer names no active version whose program exists, or the copy, the check or a rename
-   fails, it removes its copy, leaves every application as it was, and starts the application the
+6. When the pointer names no active version whose program exists, or the copy, a mode change, the
+   check or a rename fails, it removes its copy, leaves every application as it was, and starts the application the
    window ran from the same way, naming the active version when it read one. It exits `1` only when
    that start fails too; it shows no message.
 

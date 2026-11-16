@@ -25,12 +25,14 @@
 //   removes the store root and the link.
 // - install-script: runs apps/website/public/install.sh with `--desktop` as `curl … | sh -s --` does,
 //   the script on the standard input of /bin/sh, against a copy of the row's feed that names its
-//   archive by file name, in a folder beside the `.tar.gz`, the disk image and SHA256SUMS, reached
+//   archives by file name, in a folder beside the `.tar.gz` and the window archive, reached
 //   through the script's test variables: ORCHBEE_INSTALL_SH_FEED, a file: address, and
 //   ORCHBEE_INSTALL_SH_APPLICATIONS, a folder in the work folder. It must activate the version, link
 //   the command, print the line that puts ~/.local/bin on PATH, copy the application with a valid
-//   signature and the row's release.json, and leave its temporary folder empty; `uninstall
-//   --confirm` through the link then removes the store root and the link.
+//   signature and the row's release.json, store the window version with the application in the
+//   store's `desktop` folder (a release build only once window updates are switched on in it), and
+//   leave its temporary folder empty; `uninstall --confirm` through the link then removes the store
+//   root and the link.
 // - npm: `npm install --global --offline` of the tarballs into a prefix; the first start installs
 //   the carried version, `--version` answers it again, the program's `uninstall --confirm` removes
 //   the store root, and `npm rm --global` removes the carrier.
@@ -180,6 +182,32 @@ function expectActive(identity, root) {
 	if (active !== identity.version)
 		throw new StepFailure(`active.json in ${root} names ${active}, not ${identity.version}`);
 	log(`${root} runs ${identity.version}.`);
+}
+
+/**
+ * Requires the store's window pointer to name `version` with its copy of `application` beside its
+ * list. A release build installs window versions only once window updates are switched on in it,
+ * so the store may lack `desktop` there; a test build always installs one.
+ */
+function expectWindowVersion(identity, root, version, application) {
+	const desktop = path.join(root, 'desktop');
+	if (!existsSync(desktop)) {
+		if (identity.stem !== 'orchbee')
+			throw new StepFailure(`install.sh left no window version in ${desktop}`);
+		log(`This release build keeps window updates off; ${desktop} is absent.`);
+		return;
+	}
+	const pointer = path.join(desktop, 'active.json');
+	const active = existsSync(pointer)
+		? JSON.parse(readFileSync(pointer, 'utf8'))?.active?.product
+		: undefined;
+	if (active !== version)
+		throw new StepFailure(`${pointer} names ${active}, not the window version ${version}`);
+	const stored = path.join(desktop, 'versions', version);
+	for (const entry of ['desktop-files.json', application])
+		if (!existsSync(path.join(stored, entry)))
+			throw new StepFailure(`The window version ${stored} holds no ${entry}`);
+	log(`${desktop} names the window version ${version}.`);
 }
 
 function expectGone(filename, what) {
@@ -348,9 +376,13 @@ function installScriptStep(identity, work) {
 	const feed = readFileSync(
 		path.join(identity.artifacts, feedName(identity.stem, identity.version, identity.platform)),
 	);
-	writeFileSync(path.join(served, 'feed.json'), gateFeed(feed));
-	const sums = path.join(identity.artifacts, 'SHA256SUMS');
-	for (const file of [identity.archive, identity.diskImage, sums])
+	const servedFeed = gateFeed(feed);
+	writeFileSync(path.join(served, 'feed.json'), servedFeed);
+	// The gate feed names both archives by their bare names.
+	const window = JSON.parse(servedFeed.toString('utf8'))?.extensions?.desktop;
+	if (typeof window?.archive?.url !== 'string' || typeof window.version !== 'string')
+		throw new StepFailure('The feed names no window archive in extensions.desktop');
+	for (const file of [identity.archive, path.join(identity.artifacts, window.archive.url)])
 		symlinkSync(file, path.join(served, path.basename(file)));
 	const env = {
 		...scratchEnvironment(home),
@@ -384,6 +416,7 @@ function installScriptStep(identity, work) {
 	if (copied.length !== 1 || !copied[0].endsWith('.app'))
 		throw new StepFailure(`${applications} must hold one application, not ${copied.join(', ')}`);
 	expectApplication(identity, path.join(applications, copied[0]));
+	expectWindowVersion(identity, root, window.version, copied[0]);
 	log(`install.sh installed ${identity.version} and ${copied[0]}.`);
 	expectStatus(
 		run(link, ['uninstall', '--confirm'], { env, deadline: setupDeadline }),

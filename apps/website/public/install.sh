@@ -16,13 +16,16 @@
 #    release.json, activates the version under ~/.local/share/orchbee, links ~/.local/bin/orchbee,
 #    and prints the line that puts ~/.local/bin on PATH when the shell lacks it. --no-path is
 #    passed on.
-# 4. With --desktop on macOS, it first downloads the release's disk image and checks it against the
-#    release's SHA256SUMS; after the install it attaches the image read-only and hidden from
-#    Finder, copies the application into /Applications when that folder is writable and otherwise
-#    into ~/Applications, replacing an older copy there, verifies its signature, and detaches the
-#    image. A download through curl carries no quarantine attribute, so the application opens
-#    without the Gatekeeper prompt a browser download meets.
-# 5. Removes the temporary folder and detaches the image on every exit, interrupted or not.
+# 4. With --desktop on macOS, it first downloads the window archive the feed names in
+#    extensions.desktop and checks its size and SHA-256 against the feed; after the install it
+#    unpacks it, has the application's bundled Client add that window version to the store with
+#    --installer-window-v1, so the application can update itself, then copies the application
+#    into /Applications when that folder is writable and otherwise into ~/Applications, replacing an
+#    older copy there, and verifies its signature. A release whose window updates are not switched
+#    on yet does not know that word; its application is copied alone. A download through curl
+#    carries no quarantine attribute, so the application opens without the Gatekeeper prompt a
+#    browser download meets.
+# 5. Removes the temporary folder on every exit, interrupted or not.
 #
 # The feed signature is not checked here: `orchbee install` verifies the release directory's
 # signed release.json against the keys compiled into it, so a tampered archive installs nothing.
@@ -44,11 +47,9 @@ ob_feed_root='https://orchbee.com/update/stable'
 ob_release_root='https://github.com/i-need-token/orchbee/releases/download'
 ob_feed_limit=65536
 ob_archive_limit=1073741824
-ob_image_limit=2147483648
 
 ob_zh=0
 ob_tmp=''
-ob_mount=''
 ob_staged=''
 ob_previous=''
 ob_target=''
@@ -81,15 +82,6 @@ ob_fail() {
 }
 
 ob_cleanup() {
-	if [ -n "$ob_mount" ]; then
-		if hdiutil detach "$ob_mount" -quiet >/dev/null 2>&1 ||
-			hdiutil detach "$ob_mount" -quiet -force >/dev/null 2>&1; then
-			ob_mount=''
-		else
-			ob_say "The disk image stays attached at $ob_mount; detach it in Finder." \
-				"磁盘映像仍挂载在 ${ob_mount}，请在访达中推出它。" >&2
-		fi
-	fi
 	# Interrupted between the two moves: put the older application back.
 	if [ -n "$ob_previous" ] && [ -d "$ob_previous" ] && [ ! -e "$ob_target" ]; then
 		mv "$ob_previous" "$ob_target" 2>/dev/null
@@ -97,7 +89,7 @@ ob_cleanup() {
 	if [ -n "$ob_staged" ] && [ -d "$ob_staged" ]; then
 		rm -rf "$ob_staged"
 	fi
-	if [ -n "$ob_tmp" ] && [ -z "$ob_mount" ]; then
+	if [ -n "$ob_tmp" ]; then
 		rm -rf "$ob_tmp"
 	fi
 }
@@ -239,6 +231,18 @@ EOF
 		ob_fail "The feed names version $ob_version, not $ob_wanted. Nothing was installed." \
 			"发布源给出的版本是 ${ob_version}，不是 ${ob_wanted}。未安装任何内容。"
 	fi
+	if [ "$ob_desktop" = 1 ]; then
+		# The window archive in extensions.desktop; a release whose window did not change may name
+		# an earlier window version.
+		ob_window_fields=$(printf '%s\n' "$ob_feed" | sed -n 's/^.*,"extensions":{"desktop":{"version":"\([0-9A-Za-z.-]*\)","manifest":{"sha256":"[0-9a-f]\{64\}"},"archive":{"format":"zip","url":"\([^"]*\)","size":\([0-9]\{1,10\}\),"sha256":"\([0-9a-f]\{64\}\)"}.*$/\1 \2 \3 \4/p')
+		if [ -z "$ob_window_fields" ]; then
+			ob_fail "Release $ob_version offers no desktop app for $ob_platform. Nothing was installed." \
+				"$ob_version 版本没有提供适用于 $ob_platform 的桌面应用。未安装任何内容。"
+		fi
+		read -r ob_window_version ob_window_url ob_window_size ob_window_sha256 <<EOF
+$ob_window_fields
+EOF
+	fi
 }
 
 ob_fetch_archive() {
@@ -273,34 +277,24 @@ ob_fetch_archive() {
 	fi
 }
 
-# The disk image SHA256SUMS lists beside the archive, downloaded and checked before anything is
-# installed.
-ob_fetch_image() {
-	ob_base=${ob_archive_url%/*}
-	ob_fetch "$ob_base/SHA256SUMS" "$ob_tmp/SHA256SUMS" "$ob_feed_limit" ||
-		ob_fail "Could not download SHA256SUMS from $ob_base. Check the connection and run this again. Nothing was installed." \
-			"无法从 $ob_base 下载 SHA256SUMS。请检查网络后重新运行。未安装任何内容。"
-	case $ob_status in
-	200 | 000) ;;
-	*)
-		ob_fail "Release $ob_version offers no desktop app for $ob_platform. Nothing was installed." \
-			"$ob_version 版本没有提供适用于 $ob_platform 的桌面应用。未安装任何内容。"
-		;;
-	esac
-	ob_entry=$(awk -v suffix="-$ob_version-$ob_platform.dmg" '
-		length($1) == 64 && $1 !~ /[^0-9a-f]/ && NF == 2 && $2 !~ /[^A-Za-z0-9._-]/ &&
-		length($2) > length(suffix) && substr($2, length($2) - length(suffix) + 1) == suffix { print; found++ }
-		END { if (found != 1) exit 1 }' "$ob_tmp/SHA256SUMS") ||
-		ob_fail "Release $ob_version offers no desktop app for $ob_platform. Nothing was installed." \
-			"$ob_version 版本没有提供适用于 $ob_platform 的桌面应用。未安装任何内容。"
-	read -r ob_image_sha256 ob_image_name <<EOF
-$ob_entry
-EOF
-	ob_say "Downloading $ob_image_name..." "正在下载 $ob_image_name..."
-	ob_download "$ob_base/$ob_image_name" "$ob_tmp/$ob_image_name" "$ob_image_limit" "$ob_image_name"
-	if [ "$(ob_sha256 "$ob_tmp/$ob_image_name")" != "$ob_image_sha256" ]; then
-		ob_fail "$ob_image_name does not match the SHA-256 in SHA256SUMS. Nothing was installed." \
-			"$ob_image_name 与 SHA256SUMS 中的 SHA-256 不符。未安装任何内容。"
+# The window archive the feed names, downloaded and checked before anything is installed: one
+# folder `<stem>-desktop-<window version>-<platform>` holding the signed application and its file
+# list.
+ob_fetch_window() {
+	ob_resolve "$ob_window_url"
+	ob_window_url=$ob_resolved
+	ob_window_name=${ob_window_url##*/}
+	ob_window_folder="$ob_stem-desktop-$ob_window_version-$ob_platform"
+	if [ "$ob_window_name" != "$ob_window_folder.zip" ]; then
+		ob_fail "The feed names $ob_window_name, which is not the desktop app of $ob_window_version for $ob_platform. Nothing was installed." \
+			"发布源给出的 $ob_window_name 不是 $ob_platform 的 $ob_window_version 桌面应用。未安装任何内容。"
+	fi
+	ob_say "Downloading $ob_window_name..." "正在下载 $ob_window_name..."
+	ob_download "$ob_window_url" "$ob_tmp/$ob_window_name" "$ob_window_size" "$ob_window_name"
+	if [ "$(ob_size "$ob_tmp/$ob_window_name")" != "$ob_window_size" ] ||
+		[ "$(ob_sha256 "$ob_tmp/$ob_window_name")" != "$ob_window_sha256" ]; then
+		ob_fail "$ob_window_name does not match the size and SHA-256 the feed names. Nothing was installed." \
+			"$ob_window_name 与发布源给出的大小和 SHA-256 不符。未安装任何内容。"
 	fi
 }
 
@@ -329,24 +323,47 @@ ob_applications() {
 ob_install_desktop() {
 	ob_partial='the command line is installed, the desktop app is not'
 	ob_partial_zh='命令行已安装，桌面应用未安装'
-	mkdir "$ob_tmp/volume" || exit 1
-	ob_mount="$ob_tmp/volume"
-	if ! hdiutil attach "$ob_tmp/$ob_image_name" -readonly -nobrowse -noautoopen \
-		-mountpoint "$ob_mount" </dev/null >/dev/null; then
-		[ -n "$(ls -A "$ob_mount" 2>/dev/null)" ] || ob_mount=''
-		ob_fail "Could not attach $ob_image_name; $ob_partial." "无法挂载 ${ob_image_name}；${ob_partial_zh}。"
+	mkdir "$ob_tmp/window" || exit 1
+	# The system tar reads a zip as well.
+	if ! tar -x -f "$ob_tmp/$ob_window_name" -C "$ob_tmp/window" </dev/null; then
+		ob_fail "Could not unpack $ob_window_name; $ob_partial." "无法解压 ${ob_window_name}；${ob_partial_zh}。"
 	fi
 	ob_application=''
-	for ob_entry in "$ob_mount"/*.app; do
+	for ob_entry in "$ob_tmp/window/$ob_window_folder"/*.app; do
 		if [ -d "$ob_entry" ]; then
 			[ -z "$ob_application" ] ||
-				ob_fail "$ob_image_name holds more than one application; $ob_partial." "$ob_image_name 中有多个应用；${ob_partial_zh}。"
+				ob_fail "$ob_window_name holds more than one application; $ob_partial." "$ob_window_name 中有多个应用；${ob_partial_zh}。"
 			ob_application=$ob_entry
 		fi
 	done
 	[ -n "$ob_application" ] ||
-		ob_fail "$ob_image_name holds no application; $ob_partial." "$ob_image_name 中没有应用；${ob_partial_zh}。"
+		ob_fail "$ob_window_name holds no application; $ob_partial." "$ob_window_name 中没有应用；${ob_partial_zh}。"
 	ob_name=${ob_application##*/}
+	ob_helper="$ob_application/Contents/Resources/cohort/$ob_stem"
+	if [ ! -f "$ob_helper" ] || [ ! -x "$ob_helper" ]; then
+		ob_fail "$ob_name holds no runnable $ob_stem; $ob_partial." "$ob_name 中没有可运行的 ${ob_stem}；${ob_partial_zh}。"
+	fi
+	# The store's copy of this window version, which the application switches to at Update. One
+	# orchbee.install document answers; a build without window updates refuses the word as a usage
+	# error (exit 2) and answers none.
+	ob_answer=$("$ob_helper" --installer-window-v1 </dev/null 2>"$ob_tmp/window.err")
+	ob_code=$?
+	case $ob_answer in
+	*'"schema": "orchbee.install"'*)
+		if [ "$ob_code" != 0 ]; then
+			ob_error=$(printf '%s\n' "$ob_answer" | sed -n 's/^[[:space:]]*"error": "\([a-z0-9-]*\)".*$/\1/p')
+			ob_fail "Could not add $ob_name to the Orchbee store (${ob_error:-exit $ob_code}); $ob_partial." \
+				"无法把 $ob_name 加入 Orchbee 存储（${ob_error:-退出码 $ob_code}）；${ob_partial_zh}。"
+		fi
+		;;
+	*)
+		if [ "$ob_code" != 2 ]; then
+			cat "$ob_tmp/window.err" >&2
+			ob_fail "$ob_name's $ob_stem exited $ob_code; $ob_partial." \
+				"$ob_name 中的 $ob_stem 以 $ob_code 退出；${ob_partial_zh}。"
+		fi
+		;;
+	esac
 	ob_applications "$ob_name"
 	ob_target="$ob_destination/$ob_name"
 	if [ -e "$ob_target" ] && pgrep -f "$ob_target/Contents/" >/dev/null 2>&1; then
@@ -374,7 +391,6 @@ ob_install_desktop() {
 				"无法删除旧副本 ${ob_previous}，请手动删除。" >&2
 		ob_previous=''
 	fi
-	hdiutil detach "$ob_mount" -quiet </dev/null >/dev/null 2>&1 && ob_mount=''
 	ob_say "Installed $ob_name in $ob_destination." "已将 $ob_name 安装到 ${ob_destination}。"
 }
 
@@ -413,7 +429,7 @@ ob_main() {
 		;;
 	esac
 
-	for ob_program in curl tar uname sed awk cut wc mktemp; do
+	for ob_program in curl tar uname sed cut wc mktemp; do
 		command -v "$ob_program" >/dev/null 2>&1 ||
 			ob_fail "This script needs $ob_program. Nothing was installed." "本脚本需要 ${ob_program}。未安装任何内容。"
 	done
@@ -466,7 +482,7 @@ ob_main() {
 	ob_read_feed
 	ob_fetch_archive
 	if [ "$ob_desktop" = 1 ]; then
-		ob_fetch_image
+		ob_fetch_window
 	fi
 
 	"$ob_client" install ${ob_no_path:+"$ob_no_path"} </dev/null

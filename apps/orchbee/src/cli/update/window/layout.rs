@@ -8,9 +8,12 @@
 //! there, and it removes a `desktop.previous` that an earlier Setup left. Everywhere it then removes
 //! window versions as runtime versions go: neither active nor previous, and no process runs from
 //! them. Each step is best effort: whatever runs, cannot be told, or is refused stays for the next
-//! run, and a lock another update holds skips the whole step. On macOS the application bundle is the
-//! entry, which the window launcher swaps, so only the cleanup runs, and it removes nothing there
-//! because no process check can be made.
+//! run, and a lock another update holds skips the whole step. On macOS the application bundle the
+//! person opens is the entry, which the window launcher replaces with a copy of the active window
+//! version, so only the cleanup runs. No window runs from a stored version there: only Orchbee
+//! starts programs from one, each by absolute path (the launcher during a switch, the join check's
+//! Client, and a Session that Client started from its own cohort because the store's runtime could
+//! not take the start), so the process scan alone tells whether one is in use.
 use super::super::retention;
 use crate::release_store::ReleaseStore;
 use orchbee_release_records::Pointer;
@@ -44,6 +47,13 @@ pub(in crate::cli::update) fn tend(root: &Path) {
     windows::arrange(&root_store, &store, &pointer.active.product);
     #[cfg(not(windows))]
     let _ = &root_store;
+    #[cfg(target_os = "macos")]
+    retention::remove_unused_by(
+        &store,
+        &pointer,
+        super::super::running_programs::no_process_started_from,
+    );
+    #[cfg(not(target_os = "macos"))]
     retention::remove_unused(&store, &pointer);
 }
 
