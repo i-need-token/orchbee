@@ -1,11 +1,11 @@
 # Host Handover
 
-| Field             | Value                                                                                                                                                                                                                                            |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Status            | Proposed on 2026-11-15 from the product owner's request of that day. Decided restates a product-owner decision. Chosen marks this page's own pick, which the owner may veto, and Rule marks a safety rule that follows from an accepted outcome. |
-| Owner             | Maintainers of `apps/terminal-host`, `apps/orchbee-worker`, `apps/orchbee-server`, `crates/local-runtime`, and the release workflow                                                                                                              |
-| Current authority | The Terminal Host [runtime model](../../apps/terminal-host/docs/runtime-model.md), [versioning and upgrade](versioning-and-upgrade.md), and [automatic updates](automatic-updates.md)                                                            |
-| Exit condition    | Delete this proposal once H4 and H5 ship and each rule lives in the Terminal Host runtime model, the Worker reference, or the owning standard.                                                                                                   |
+| Field             | Value                                                                                                                                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Proposed on 2026-11-15 from the product owner's request of that day; H1's decision run decided [its design](#h1-design) the same day. Decided restates a product-owner decision. Chosen marks this page's own pick, which the owner may veto, and Rule marks a safety rule that follows from an accepted outcome. |
+| Owner             | Maintainers of `apps/terminal-host`, `apps/orchbee-worker`, `apps/orchbee-server`, `crates/local-runtime`, and the release workflow                                                                                                                                                                               |
+| Current authority | The Terminal Host [runtime model](../../apps/terminal-host/docs/runtime-model.md), [versioning and upgrade](versioning-and-upgrade.md), and [automatic updates](automatic-updates.md)                                                                                                                             |
+| Exit condition    | Delete this proposal once H4 and H5 ship and each rule lives in the Terminal Host runtime model, the Worker reference, or the owning standard.                                                                                                                                                                    |
 
 Host handover moves a running terminal from an older Terminal Host to a newer one: the program keeps
 running as the same process, and its screen, history, and pending input arrive whole. The old Host
@@ -103,8 +103,9 @@ Chosen: each Session gets one small process, the Keeper, that holds what keeps p
 on macOS and Linux, is their parent. It never reads, writes, or parses terminal data; each Host still
 reads and writes its terminals directly.
 
-- **Windows.** When a Host creates a terminal, it duplicates into the Keeper the Job, the program and
-  OpenConsole process handles, the signal and reference handles, and both pipe ends.
+- **Windows.** When a Host creates a terminal, the Keeper duplicates from it the Job, the program
+  and OpenConsole process handles, the signal and reference handles, and both pipe ends, as
+  [the Keeper protocol](#the-keeper-protocol) describes.
 - **macOS and Linux.** The Keeper starts each program: the Host prepares the PTY and the launch; the
   Keeper forks, runs the child steps the Host runs today, and keeps a duplicate of the master. It
   reports the leader's exit status without reaping it, read with `waitid` and `WNOWAIT` as
@@ -118,9 +119,10 @@ reads and writes its terminals directly.
   handle closes, and OpenConsole exits when the last reference handle closes.
 - **Life.** The Worker starts the Keeper from its own installation, outside its Job as it starts
   Hosts, records it in the Session record beside the Hosts, and adopts it as it adopts them. The
-  Keeper admits only that Worker and the Hosts it registers, each verified by process id and
-  creation time, and exits once it holds nothing and no Host is registered. A confirmed stop sends it
-  `exit` after the Hosts.
+  Keeper admits one Worker connection at a time, as a Host admits one broker session, and only the
+  Hosts the Worker registers, each verified by process id and creation time. It exits once it has
+  held nothing, with no Host registered and no Worker connected, for 30 seconds. A confirmed stop
+  sends it `exit` after the Hosts. [The Keeper's life](#the-keepers-life) gives the details.
 - **Form.** It is a mode of the Terminal Host executable, which shares the platform layer and adds no
   executable name.
 - **Additive.** Rule: its protocol, about a dozen messages, changes only by addition, as
@@ -192,39 +194,40 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
 
 1. **Hold.** The Worker stops sending the terminal's input, resizes, and viewer changes, and holds
    them in order. More than 64 KiB of input, such as a large paste, aborts the move.
-2. **Quiesce.** The old Host stops reading output, on Windows by cancelling its blocked read as
-   `abortRead` does today. The quiesce ends when the reader thread has stopped with its last batch
-   applied, not when `abortRead` returns, because a read can complete with data despite the cancel,
-   as [prototype 3](#prototype-3-result) measured; and the stop must be undoable, because an
-   aborted move resumes reading in the same Host, while today's abort is final and ends the reader
-   thread. It applies every byte it has read, writes the input it has accepted, marks
-   the terminal in the Keeper as quiesced for the new Host, and exports its record. It does not wait
-   for the parser to finish a sequence: the record carries the unfinished bytes. If those bytes
-   outgrew the continuation bound, Ghostty has dropped them and cannot export them, and the move
-   aborts. Output now waits in the pipe or PTY buffer, and the program waits only if that buffer
-   fills.
+2. **Quiesce.** The old Host finishes writing the input it has accepted, then stops reading output,
+   on Windows by cancelling its blocked read as `abortRead` does today. The quiesce ends when the
+   reader thread has stopped with its last batch applied, not when `abortRead` returns, because a
+   read can complete with data despite the cancel, as [prototype 3](#prototype-3-result) measured;
+   and the stop must be undoable, because an aborted move resumes reading in the same Host, while
+   today's abort is final and ends the reader thread. It then exports its record and marks the
+   terminal in the Keeper as quiesced for the new Host. It does not wait for the parser to finish a
+   sequence: the record carries the unfinished bytes. If those bytes outgrew the continuation bound,
+   Ghostty has dropped them and cannot export them, and the move aborts. Output now waits in the
+   pipe or PTY buffer, and the program waits only if that buffer fills.
 3. **Restore.** The Worker relays the record, which it never parses, to the new Host, which validates
    it and restores a terminal that reads nothing yet.
-4. **Claim, the commit.** The new Host claims the terminal in the Keeper and receives its handles or
-   master. It checks them against the record by program identity, Job membership, OpenConsole image
-   and signal format, and pipe types, or by the master's session; rebuilds the pseudoconsole with
-   `ConptyPackPseudoConsole`; and starts reading. It must not read before the old reader has
-   stopped: a duplicated read handle shares the pipe's file object, so a second read waits behind a
-   blocked one, and the blocked read takes the next output.
+4. **Claim, the commit.** The new Host takes the terminal's handles or master from the Keeper,
+   checks them against the record by program identity, Job membership, OpenConsole build and signal
+   format, and pipe types, or by the master's session, and rebuilds the pseudoconsole with
+   `ConptyPackPseudoConsole`. Only then does it claim the terminal in the Keeper, and it starts
+   reading once the Keeper confirms the claim. It must not read before the old reader has stopped:
+   a duplicated read handle shares the pipe's file object, so a second read waits behind a blocked
+   one, and the blocked read takes the next output.
 5. **Release.** The Worker sends the held input, resizes, and viewer changes to the new Host, gives
    each viewer a full frame, and reports the new Host terminal identity to the Server's binding
    record. The old Host then drops the terminal: it closes its own handles without
    `ClosePseudoConsole` and without ending the Job, and it exits after its last terminal, as a
    draining Host does.
 
-- Rule: a claim succeeds only while the old Host holds the terminal quiesced for the claiming Host,
-  or after the old Host has ended, and the old Host's resume succeeds only while no claim has. The
-  Keeper applies one request at a time, so exactly one Host reads a terminal at any moment, whatever
-  crashes.
+- Rule: a claim succeeds only while the terminal is quiesced for the claiming Host, which stays true
+  if the old Host ends after its mark, and the old Host's resume succeeds only while no claim has.
+  The Keeper applies one request at a time, so exactly one Host reads a terminal at any moment,
+  whatever crashes.
 - Abort: a failure before the claim, or 5 seconds after the quiesce, resumes the terminal on the old
   Host through the Keeper, at the Worker's request or, once the deadline passes, on the old Host's
   own. The Worker sends the held input there, and the new Host discards its import. Without the
-  Keeper, the old Host resumes only once the Worker confirms that the new Host has not claimed.
+  Keeper's answer, the old Host resumes only once the Worker has ended the Keeper and confirms that
+  the new Host discarded its import without seeing its claim confirmed.
 - Held input is delivered: the Worker that accepted each key stays, so every key reaches exactly one
   Host once. A Server and Worker restart instead refuses input during its gap, because its Worker
   changes.
@@ -280,8 +283,9 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
 - The other sections carry every per-terminal field of the Host's
   [core data model](../../apps/terminal-host/docs/runtime-model.md#core-data-model) that is not a
   broker-session attachment, such as the title, the reported directory, sizes, the content revision,
-  the ConPTY clear coordination, and a settled terminal's exit; H1's decision run lists them. On
-  Windows a section names the terminal's OpenConsole build and its signal format.
+  the ConPTY clear coordination, and a settled terminal's exit;
+  [the record's sections](#the-records-sections) list them. On Windows a section names the
+  terminal's OpenConsole build and its signal format.
   Attachments and viewer leases do not move; the Worker makes them again.
 - Kitty images are not in Ghostty's snapshot. An image section, bounded by the Host's image storage
   limit, carries the images and placements of the
@@ -475,13 +479,15 @@ which the terminal can render while its history arrives.
   that passes is admitted for moves. A reader for a pin that fails would need that pin's version 1
   decoder built against the new pin's terminal and the old pin's Unicode width policy, since
   restored cells keep their old widths while new output takes the new ones (inferred).
-- The Host's stream turns on continuation tracking with a bound such as 64 KiB. The Host wraps
-  Ghostty's standard handler, for which Ghostty guarantees that replaying a continuation does no
-  work; H1 checks that the wrapper keeps that guarantee (inferred).
+- The Host's stream turns on continuation tracking in every build with a bound of 64 KiB, as
+  [the Host's side](#the-hosts-side) decides. The Host wraps Ghostty's standard handler, for which
+  Ghostty guarantees that replaying a continuation does no work; H1's slice S5 proves that the
+  wrapper keeps that guarantee, which stays inferred until then.
 - At the default scrollback the record stays near 3 MiB and fits one 44 MiB transport record. The
   Host allows up to 1 GB. Above about 130 MB a snapshot would outgrow one transport record, and near
-  1 GB it would take seconds (inferred from the 100 MB row). H1 decides how such a record travels,
-  and whether the new Host claims at READY and takes history afterwards.
+  1 GB it would take seconds (inferred from the 100 MB row). Chosen in H1: the whole record crosses
+  before the claim in chunks of up to 4 MiB, up to 128 MiB; a larger one keeps its terminal on its
+  Host, and claiming at READY with history afterwards is left to H3's decision run.
 
 ### Prototype 3 result
 
@@ -511,10 +517,10 @@ unless it says inferred.
 
 - The quiesce waits for the reader thread to stop, as [step 2](#how-a-terminal-moves) now says. In
   the probe a reset flag and a parked reader thread resumed reading 159,984 times, and no cancel
-  ever reached a later read; H1 decides whether the Host parks its reader thread or starts a new
-  one.
-- The Host already maps an aborted read to 0 bytes, which the counts show is exact; H1 may assert
-  that an aborted read reports no bytes.
+  ever reached a later read; H1 parks the Host's reader thread, as
+  [the Host's side](#the-hosts-side) says.
+- The Host already maps an aborted read to 0 bytes, which the counts show is exact; H1 asserts that
+  an aborted read reports no bytes.
 - Recovery on Windows: a hung Host with a blocked read keeps taking output until it ends, so the
   Worker ends it before the new Host reads, and bytes it read but never applied are lost, as
   recovery already accepts (inferred).
@@ -572,15 +578,15 @@ is measured unless it says inferred.
 
 ## Phases
 
-| Phase | Content                                                                                                                                                                                                                                                                                                                                                                 | Size                                                 | When                                                                                                                                        |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| H0    | The four prototypes                                                                                                                                                                                                                                                                                                                                                     | About 1 week, about 6.5 agent-days in parallel       | Now, beside slice 1 and P1a                                                                                                                 |
-| H1    | The Keeper on Windows; the record, quiesce, export, import, and claim in the Host; the dispatch thread's progress in `query`; a model of the move under [modeling and correctness](../../docs/MODELING-AND-CORRECTNESS.md), whose invariants are one reader per terminal and a reader for every running terminal; a same-build move between two Host processes in tests | About 3 weeks after its decision run, in two streams | After H0; ships dark in the first release it is ready for: its Hosts can deposit, export, import, and claim, but no Keeper starts before H2 |
-| H2    | Recovery: the Worker replaces a Host that crashed or hung, and the new Host takes its terminals from the Keeper; a Keeper that crashed or stopped answering is replaced, and the Hosts deposit again                                                                                                                                                                    | 1.5–2 weeks                                          | After H1; on as soon as it passes                                                                                                           |
-| H3    | Moves across versions by the Worker: timing, the hold, rebinding, the Server's binding record, P1a's import for a terminal seen in two Hosts, the image section, and diagnostics                                                                                                                                                                                        | 2.5–3 weeks after its decision run                   | After H1 and P1c                                                                                                                            |
-| H4    | Moves in updates: the [Keeper update](#updating-the-keeper) on Windows, the release gate's checks of both, the confirmation reduced to terminals that cannot move, status, and the switch turned on                                                                                                                                                                     | About 1.5 weeks                                      | After H2, H3, and P2                                                                                                                        |
-| H5    | macOS: the Keeper as parent and its re-execution in place, claims by `SCM_RIGHTS` 64 descriptors per message with a short count failing the claim, the quiesce, recovery, and the gate on macOS                                                                                                                                                                         | 3–4 weeks                                            | After the first macOS package, before macOS automatic updates                                                                               |
-| B1    | [Background programs in the Host](#background-programs-the-worker-runs)                                                                                                                                                                                                                                                                                                 | 1.5–2 weeks                                          | Right after P1b                                                                                                                             |
+| Phase | Content                                                                                                                                                                                                                                                                                                                                                                                                                         | Size                                                 | When                                                                                                                                        |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| H0    | The four prototypes                                                                                                                                                                                                                                                                                                                                                                                                             | About 1 week, about 6.5 agent-days in parallel       | Now, beside slice 1 and P1a                                                                                                                 |
+| H1    | The Keeper on Windows; the record, quiesce, export, import, and claim in the Host; the dispatch thread's progress in `query`; a model of the move under [modeling and correctness](../../docs/MODELING-AND-CORRECTNESS.md), whose invariants are one reader per terminal and a reader for every running terminal; a same-build move between two Host processes in tests; [H1 design](#h1-design) gives the decisions and slices | About 3 weeks after its decision run, in two streams | After H0; ships dark in the first release it is ready for: its Hosts can deposit, export, import, and claim, but no Keeper starts before H2 |
+| H2    | Recovery: the Worker replaces a Host that crashed or hung, and the new Host takes its terminals from the Keeper; a Keeper that crashed or stopped answering is replaced, and the Hosts deposit again                                                                                                                                                                                                                            | 1.5–2 weeks                                          | After H1; on as soon as it passes                                                                                                           |
+| H3    | Moves across versions by the Worker: timing, the hold, rebinding, the Server's binding record, P1a's import for a terminal seen in two Hosts, the image section, and diagnostics                                                                                                                                                                                                                                                | 2.5–3 weeks after its decision run                   | After H1 and P1c                                                                                                                            |
+| H4    | Moves in updates: the [Keeper update](#updating-the-keeper) on Windows, the release gate's checks of both, the confirmation reduced to terminals that cannot move, status, and the switch turned on                                                                                                                                                                                                                             | About 1.5 weeks                                      | After H2, H3, and P2                                                                                                                        |
+| H5    | macOS: the Keeper as parent and its re-execution in place, claims by `SCM_RIGHTS` 64 descriptors per message with a short count failing the claim, the quiesce, recovery, and the gate on macOS                                                                                                                                                                                                                                 | 3–4 weeks                                            | After the first macOS package, before macOS automatic updates                                                                               |
+| B1    | [Background programs in the Host](#background-programs-the-worker-runs)                                                                                                                                                                                                                                                                                                                                                         | 1.5–2 weeks                                          | Right after P1b                                                                                                                             |
 
 - H1 ships as early as possible, because a Host released before it can never hand over its
   terminals: they keep the P1c behavior and wait for their programs to end, and a security floor
@@ -603,13 +609,475 @@ is measured unless it says inferred.
   a restart. P1c does not change and comes before H3. P3 becomes H0 and starts now instead of after
   P1. P4 becomes H1 to H5, neither optional nor opt-in.
 
+## H1 design
+
+H1's decision run decided this design on 2026-11-15. It covers the Windows Keeper and the Host's
+side of a move, which H1 builds and ships dark, and what H2, H3, and H4 inherit from them. It adds
+no user-facing behavior or setting. Each pick is marked Chosen, which the owner may veto, or Rule,
+and rows 18 to 33 of the [decision record](#decision-record) list them with their reasons. A slice
+that finds a decision here wrong reports it and pauses only the work that depends on it, as
+[development](../../docs/DEVELOPMENT.md) asks.
+
+### The Keeper protocol
+
+**Endpoint and handshake**
+
+- The Keeper runs as `orchbee-terminal-host keep`, with the `--runtime-directory` and
+  `--endpoint-id` arguments of `serve`, naming a runtime directory and endpoint of its own that the
+  Worker derives as it derives a Host's. It serves them through the Host's Local IPC with every
+  protection it has, the same-user check at the first byte included.
+- Rule: a peer that fails a check loses only its connection, and nothing a peer sends or does ends
+  the Keeper or a holding, because the Keeper may be the only holder of a program.
+- Every connection opens with OBHS. Chosen: one new negotiated connection kind, `keeper`, at
+  generation 1 with no capabilities. Like `worker-host`, it drops no generation within 1.x, because
+  a Host released with H1 may hold a terminal for as long as its program runs.
+- The Keeper answers the control requests. `query` reports the new role `keeper`, which older
+  readers read as `unknown`, with its holdings as `terminals`. After `drain` it admits no
+  registration or hold and exits once it holds nothing. After `exit` it closes every duplicate and
+  ends. It terminates no Job and no process, so `exit` ends a program only where the Keeper held the
+  last handle, as at a confirmed stop.
+
+**Frames**
+
+- Chosen: after the answer, each message is one frame: the ASCII bytes `OBKP`, a big-endian `u32`
+  length from 1 to 1,048,576, and one JSON object under the connection contract's
+  [payload rules](../../schemas/connection/README.md#payload). JSON suits a few small messages per
+  terminal and reuses the strict decoders that both bindings already have.
+- A request carries `type` and an `id`, an integer from 1 to 4,294,967,295 that its connection has
+  not used. Its reply carries the same `id` and is `<type>-result`, `refused` with a `reason`, or
+  `unsupported`. One request is outstanding per connection. A reply is due within 2 seconds, or the
+  requester closes the connection and counts the Keeper as unresponsive.
+- Process ids are integers. Creation times and handle values are 16 lowercase hexadecimal digits,
+  because a `FILETIME` exceeds the exact range of a JSON number; a holding id is 32.
+- Additions only: a new request, member, or event comes under a capability name; an unknown request
+  gets `unsupported`, and an unknown event is ignored.
+- A new `schemas/keeper` is the language-neutral authority: the messages, a JSON Schema, valid,
+  boundary, and invalid fixtures, and a sequence fixture for each row of the state table below. Its
+  Zig binding serves the Keeper and the Host; the Rust binding comes with its first consumer, the
+  Worker, in H2. The fingerprint inputs of `keeper` are the connection contract, `schemas/keeper`,
+  and each binding.
+
+**Roles and admission**
+
+- After the answer, the initiator's first frame is `hello` with `role`, `worker` or `host`. The
+  Keeper takes the
+  peer's process id from the pipe with `GetNamedPipeClientProcessId` before it decodes any frame,
+  and admits:
+  - `worker` from a process that is not a registered Host, while no other Worker connection is
+    open, as a Host admits one broker session (Chosen). P1a's replacement and P1b's new Worker
+    connect once the old Worker's connection has closed.
+  - `host` only from a process the Worker registered. Any other peer gets `refused` with
+    `not-registered`, and its connection closes.
+- The Keeper opens each registered Host with `SYNCHRONIZE`, `PROCESS_QUERY_LIMITED_INFORMATION`,
+  and `PROCESS_DUP_HANDLE`, checks its creation time, and keeps the handle while the Host is
+  registered, so the process id stays that Host's. That handle tells it when the Host ends, through
+  thread-pool waits, since one wait covers at most 64 handles. A Host that ends orphans the holdings
+  it owns, and the Keeper unregisters it once no holding names it.
+- A Host checks the Keeper the same way, by the pipe's server process id and the creation time that
+  `AttachKeeper` names.
+
+**Messages**
+
+After `hello`, a connection sends only the requests its role allows; another gets `refused` with
+`wrong-role`.
+
+| Request           | From        | Members                          | Effect                                                                                                                                                       |
+| ----------------- | ----------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `register-host`   | Worker      | `process`                        | Registers a running Host                                                                                                                                     |
+| `unregister-host` | Worker      | `process`                        | Removes a Host that no holding names                                                                                                                         |
+| `status`          | Worker      | `after`, optional                | Up to 256 holdings in holding id order, each with its owner, state, mark target, and facts; the registered Hosts on the first page; `next` while more remain |
+| `hold`            | Host        | `holding`, `handles`, `facts`    | The Keeper duplicates the seven handles from the Host, checks them against `facts`, and records the Host as owner, all or nothing                            |
+| `mark`            | Owner       | `holding`, `for`                 | Marks the holding quiesced for another registered Host                                                                                                       |
+| `resume`          | Owner       | `holding`                        | Clears the mark: `resumed`, or `claimed` once the target has claimed                                                                                         |
+| `inspect`         | Mark target | `holding`                        | Returns the Keeper's handle values and the facts                                                                                                             |
+| `claim`           | Mark target | `holding`, `program`, `terminal` | The commit: the target becomes owner                                                                                                                         |
+| `decline`         | Mark target | `holding`                        | Clears a mark for the requester: `declined`, or `claimed` when the requester owns the holding                                                                |
+| `release`         | Owner       | `holding`                        | Closes the Keeper's duplicates and forgets the holding                                                                                                       |
+
+- `process` and `for` are a process id and creation time. `handles` gives the values, in the
+  requesting Host, of the Job, the program and OpenConsole process handles, the signal and reference
+  handles, the input write end, and the output read end. `facts` gives the owner's terminal
+  identity, the program's and OpenConsole's process ids and creation times, the OpenConsole build by
+  SHA-256, its signal format, and the launch kind.
+- At `hold` the Keeper checks its own duplicates: each object's type, both process identities, and
+  the program's membership in the Job. At `claim`, `program` must equal the holding's program, and
+  `terminal`, the claimant's terminal identity, replaces the owner's in `facts`.
+- A repeated request whose effect already holds gets the same answer: a `hold` of the same holding
+  by its owner, a `mark` for the same target, a `resume` or `claim` by the current owner, a
+  `decline` by a Host the holding is not marked for, and a `release` of an absent holding.
+- Reasons are names that grow, read as `unknown` when not known: `not-registered`, `wrong-role`,
+  `not-owner`, `not-target`, `unknown-holding`, `holding-exists`, `marked`, `identity-mismatch`,
+  `capacity`, `draining`, and `handle-failed`.
+- Chosen: a Keeper holds at most 1,024 holdings and registers at most 256 Hosts; a request beyond
+  either gets `capacity`.
+
+**Handle transfer**
+
+- Chosen: handles move by pull. The process that will hold a duplicate makes it with
+  `DuplicateHandle` from the other process, by the value a message names: the Keeper from the Host
+  at `hold`, and the claiming Host from the Keeper after `inspect`. A lost message therefore never
+  leaves a handle in a process that does not know it holds one, and no process writes handles into
+  another.
+- Rule: before the commit, neither the Keeper nor a claiming Host does I/O on a pipe handle or asks
+  for its name: no `ReadFile`, `WriteFile`, `PeekNamedPipe`, `GetNamedPipeInfo`, `GetFileType`, or
+  `NtQueryObject` with `ObjectNameInformation`. Each can wait behind a blocked synchronous read of
+  the shared file object, as [prototype 3](#prototype-3-result) measured for `PeekNamedPipe` and
+  `ReadFile`. Checks use `NtQueryObject` with `ObjectTypeInformation` and `ObjectBasicInformation`,
+  process and Job queries, and `IsProcessInJob`.
+- Chosen: a Host mints a random 128-bit holding id at a terminal's first `hold`. The id stays the
+  same across moves and Keeper replacements, and the record carries it.
+
+**States**, per holding:
+
+| Event                             | From                          | To                                         |
+| --------------------------------- | ----------------------------- | ------------------------------------------ |
+| `hold` by registered Host H       | Absent                        | Held by H                                  |
+| `mark` by H for registered Host N | Held by H                     | Quiesced, H for N                          |
+| `resume` by H, or `decline` by N  | Quiesced, H for N             | Held by H                                  |
+| `inspect` by N                    | Quiesced or orphaned, H for N | Unchanged                                  |
+| `claim` by N naming H's program   | Quiesced or orphaned, H for N | Held by N, claimed from H: the commit      |
+| `resume` by H                     | Held by N, claimed from H     | Unchanged, answered `claimed`              |
+| H ends                            | Held by H                     | Orphaned                                   |
+| H ends                            | Quiesced, H for N             | Orphaned, H for N                          |
+| `decline` by N                    | Orphaned, H for N             | Orphaned                                   |
+| `release` by H                    | Held by H                     | Absent                                     |
+| `exit`                            | Any                           | The Keeper closes every duplicate and ends |
+
+- The Keeper applies one request at a time across all its connections, so a claim and a resume
+  never both succeed.
+- N's end changes nothing; the old Host's resume then ends the mark. `release` of a quiesced
+  holding gets `marked`. A holding remembers the Host it was claimed from until that Host ends or is
+  unregistered.
+- In H1 only a mark's target claims an orphaned holding. H2 adds claims of an unmarked orphan by
+  addition, and until then such a holding keeps its program running until `exit`.
+
+**Commit and failures**
+
+- Rule: the claim is the only commit. Before it the new Host takes every fallible step: receiving
+  and validating the record, restoring the terminal, `inspect`, pulling the duplicates, the claim
+  checks, packing the pseudoconsole, and creating its reader and signal sender parked. After
+  `claimed` it only releases those two threads, which cannot fail.
+- Abort: the Worker's `ResumeTerminal`, or the old Host's own deadline 5 seconds after its mark,
+  makes the old Host send `resume`. `resumed` lets it read again, and `claimed` makes it report the
+  terminal as moved and wait for `DropTerminal`. The new Host discards its import at the Worker's
+  request, sending `decline` first, or when its claim is refused.
+- Rule: a Host reads a terminal only while the Keeper names it owner and after it has seen that
+  answer, and a request left unanswered counts as possibly applied: the old Host stays stopped and
+  the new Host does not read. Without the Keeper's answer, the old Host reads again only on a
+  `ResumeTerminal` made without the Keeper, which the Worker sends only after the Keeper process has
+  ended, ending it if it stopped answering, and after the new Host has discarded its import without
+  having seen `claimed`. A deadline never resumes a terminal without the Keeper's answer.
+- Chosen: the Worker aborts a move before it closes the moving terminal.
+
+### The Keeper's life
+
+- Chosen: from H2, the Worker starts one Keeper per Session right after its first Host is ready,
+  and on adoption when none runs. It starts it from its own installation and outside its Job, as it
+  starts Hosts, through a Keeper slot in the Session record with the Worker as registered parent. A
+  failed start fails no launch and is logged; terminals then run unheld, as before H2.
+- The Worker owns it. It registers each Host and then sends that Host `AttachKeeper`, and a Host
+  holds each terminal it creates once its creation completes as running. On a confirmed stop the
+  Worker sends `exit` to the Hosts and then to the Keeper; the Server's stop without a Worker, from
+  P1a, does the same, checking the Keeper by its recorded process id and creation time.
+- The Keeper outlives the Server and the Worker. P1a's replacement Worker and P1b's new Worker adopt
+  it as they adopt a Host: by its recorded identity, its endpoint's server process, a `keeper`
+  offer, and `status`, whose owners they reconcile with the Hosts they adopted. H2 adds the Keeper's
+  identity to `AdoptHost`, whose exact OBCN contract changes in place.
+- It exits after it has held nothing, with no Host registered and no Worker connected, for 30
+  seconds, or at `exit`. A machine restart ends it with every program.
+- It writes `keeper-fatal.json` and `keeper-diagnostics.jsonl` in its runtime directory, in the
+  Host's formats with the role `keeper`; H2 adds them to what deleting a Session removes.
+- Chosen, for H4 on Windows: the Worker starts the new Keeper in a second Keeper slot, registers
+  every Host with it, and sends each Host `AttachKeeper` for it, and each Host holds every terminal
+  there under the same holding id. The Worker compares both Keepers' `status` holding by holding,
+  then sends the old Keeper `exit`, which closes only its duplicates, and each Host `DetachKeeper`
+  for it. It starts only while every holding has a live owner, and a failure at any step sends the
+  new Keeper `exit` instead, which ends nothing, so the old Keeper stays.
+- Chosen: a Host holds at most two Keeper attachments and refuses a quiesce while it has two, so
+  one Keeper arbitrates each move and H4 needs no Host change.
+
+### The Host's side
+
+**Undoable stop.** Chosen: the Host parks its reader thread instead of ending it, as
+[prototype 3](#prototype-3-result) did 159,984 times without a stray cancel.
+
+- A pause cancels a blocked read as `abortRead` does, but the platform read then reports a pause,
+  apart from end of output and from abort. The reader applies whatever the read returned, publishes
+  that it is parked under the terminal's lock, and waits for resume or abort. Resume reads on;
+  abort ends the thread as today.
+- The platform read asserts that a read ending in `ERROR_OPERATION_ABORTED` returned no bytes.
+- POSIX gets the same pause: resume drains the abort pipe and clears `read_aborted`. Its pause test
+  runs wherever the POSIX suite runs, and H5 adds the move evidence on macOS.
+
+**Quiesce**, in the old Host, with no step blocking the dispatch thread:
+
+1. The terminal must be running on the bundled OpenConsole, held in the Host's one Keeper, without
+   a termination intent or an image, and not moving; otherwise the request is refused as
+   ineligible. One whose screen and history memory exceeds 128 MiB is refused as `too-large`.
+2. From then on it refuses input, resizes, terminal control, and termination with
+   `terminal-quiesced`; the Worker holds them.
+3. The Host waits up to 1 second for its writer to finish the accepted input and its signal sender
+   to go idle, because OpenConsole stops taking signals while its output goes unread, as prototype
+   1 measured, and input may wait the same way.
+4. It pauses the reader and waits up to 1 second for it to park with its last batch applied.
+5. It exports the record, off the dispatch thread, and refuses a record over 128 MiB as
+   `too-large`.
+6. It marks the holding for the new Host and starts the 5-second deadline.
+7. It answers with the record's size.
+
+Chosen: the export comes before the mark, so a failure in steps 3 to 5, or a refused mark, discards
+the export and resumes reading without the Keeper. After a mark only the Keeper's `resumed`
+restarts the reader, and a mark left unanswered counts as made.
+
+**Continuation tracking.** Chosen: on in every build, bounded at 64 KiB.
+
+- The export refuses, as a passing condition, while an unfinished sequence has outgrown the bound.
+- The Host's own scanners that span reads, for OSC 7501, the private APC, and shell observation,
+  export their partial state.
+- Rule: replaying a continuation through the Host's wrapper repeats no effect: no reply, bell,
+  clipboard intent, or application signal happens twice.
+
+**Restore and claim**, in the new Host:
+
+- The import joins the Host's creation pipeline; H1 does not assume that a creation runs on the
+  request thread. `RestoreTerminal` admits a creation whose slow work runs where a start's slow
+  work runs: it validates and decodes the record, builds the engine in the state `restored`, which
+  reads nothing and refuses input, resizes, terminal control, and attachment, then `inspect`s the
+  holding, pulls the seven duplicates, checks them, packs the pseudoconsole, and creates its reader
+  and signal sender, parked. The creation ends at `restored`, not at `running`.
+- The claim checks, on the Host's own duplicates:
+  - the program's process id and creation time equal the record's and the holding's;
+  - `IsProcessInJob` places the program in the Job, and the Job has kill-on-close;
+  - OpenConsole's process id and creation time equal the record's;
+  - Rule: the record's OpenConsole SHA-256 is in the Host's table of known conpty builds, whose
+    entry gives a known HPCON layout and a signal format equal to that of the Host's own pin. The
+    Host signals a moved console through its own conpty, so a pin with a new format must add a
+    writer for the old one before terminals in the old format can move to it. Chosen: the Host does
+    not read the running console's image again, since its build was fixed when it started;
+  - each object has its expected type and access.
+- Packing with `ConptyPackPseudoConsole` must send nothing to OpenConsole, which S7 confirms from
+  the pinned source.
+- `ClaimTerminal` sends `claim` and, after `claimed`, releases both threads; the terminal is then
+  `running`. `DiscardImport` sends `decline` and then discards, and is refused once the Host has
+  seen `claimed`.
+- H1 takes the rule for requests that name a terminal still in creation from the asynchronous
+  start, the change that moves a start's slow work off the request thread, and needs three things
+  of it: such a request waits for the creation's result or is refused with a reason, and never acts
+  on a partly built terminal; a creation can be cancelled, releasing only what it acquired, which
+  for an import closes only the new Host's duplicates; and anything held for a terminal in creation
+  is applied by the state the creation ends in, so a `restored` terminal refuses input, resizes,
+  terminal control, and attachment until its claim.
+
+**Drop.** Rule: an old Host drops a moved terminal, and a new Host discards an import, by stopping
+its signal sender and closing only its own handles: the four it holds directly and the three inside
+its pseudoconsole, read through the pinned layout. It keeps the pseudoconsole's small block until it
+exits. It never calls `ClosePseudoConsole`, never terminates the Job or changes its limits, sends no
+signal, and writes no input, detach repair included.
+
+**Eligibility and lifecycle**
+
+- Rule: only terminals on the bundled OpenConsole are held and move. System-ConHost terminals, on
+  ARM64 or without the bundle, keep the P1c behavior.
+- Chosen: a running terminal moves with a claim. A settled terminal moves as a record, without a
+  Keeper or a claim, so a draining Host can exit while a finished terminal stays on screen.
+  Awaiting-start, finishing, containing-failure, and terminating terminals do not move, and neither
+  does a terminal holding an image until H3's image section.
+- New terminal states, reported additively in inventory: `quiesced` in the old Host; `moved` once
+  the Keeper has answered `claimed`, until `DropTerminal`; and `restored` in the new Host until its
+  claim or discard. A dropped terminal leaves without settlement, with no outcome and no
+  `TerminalExited`, and `DropTerminal` needs every attachment gone.
+- Rule: while a terminal is quiesced or moved, the old Host takes no lifecycle step for it. An
+  observed program exit waits for the move's result, and after a claim the new Host observes the
+  exit through its own process handle. A Host's `exit` first resumes a quiesced terminal through the
+  Keeper, or drops a moved one, and then ends as usual.
+
+**Release first.** Rule, in every Host from H1: before a held terminal's pseudoconsole, signal
+handle, reference handle, or Job handle closes, or its Job is terminated, each Keeper holding it has
+released it, or 2 seconds have passed and the Host has reported `KeeperUnresponsive`. After one
+missed deadline the link fails later requests at once until the Keeper is replaced, and the
+terminal's end completes once the Keeper's handles close. Chosen: Keeper I/O runs on a link thread
+per attachment, never on the dispatch thread or a reader thread.
+
+**Requests on `worker-host`**, under two new capabilities:
+
+| Capability | Message                                              | Content                                                                                                             |
+| ---------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `keeper`   | `AttachKeeper`                                       | The Keeper's process id, creation time, and endpoint id; the Host connects and holds every running terminal it owns |
+| `keeper`   | `DetachKeeper`                                       | Releases the Host's holdings in that Keeper and closes the link                                                     |
+| `keeper`   | `KeeperLost`, `KeeperUnresponsive`, `TerminalUnheld` | Events                                                                                                              |
+| `handover` | `QuiesceTerminal`                                    | The terminal, and the new Host's process id and creation time; answers the record's size                            |
+| `handover` | `ReadHandoverRecord`                                 | An offset; answers up to 4 MiB                                                                                      |
+| `handover` | `ResumeTerminal`                                     | Answers `resumed` or `claimed-elsewhere`; may be made without the Keeper                                            |
+| `handover` | `DropTerminal`                                       | Removes a moved terminal                                                                                            |
+| `handover` | `ImportTerminal`                                     | A creation id and the record's size                                                                                 |
+| `handover` | `WriteHandoverRecord`                                | An offset and up to 4 MiB                                                                                           |
+| `handover` | `RestoreTerminal`                                    | Restores, inspects, pulls, checks, packs, and parks; answers the new terminal identity                              |
+| `handover` | `ClaimTerminal`                                      | Claims and starts reading                                                                                           |
+| `handover` | `DiscardImport`                                      | Discards an import or a restored terminal                                                                           |
+
+- A refusal names its class, so H3 can act on it: ineligible (`not-running`, `unheld`,
+  `system-console`, `unknown-console-build`, `holds-image`, `too-large`, `two-keepers`), passing
+  (`input-pending`, `signal-pending`, `continuation-overflow`, `moving`), or failed.
+- The dispatch thread never waits on the Keeper, a parking reader, or an export: each such request
+  completes when its result is published, with its reply reserved up front.
+- A Host advertises `handover` only when its bundled conpty exports `ConptyPackPseudoConsole` and
+  its own build is in its table.
+- Chosen: `query` gains `dispatch-progress` in `extensions`, the number of completed dispatch-loop
+  turns, which control lanes answer from published facts, for H2's hang check.
+
+**Record size.** Chosen: the whole record crosses before the claim, in chunks of up to 4 MiB, up to
+128 MiB: about 1.5 seconds at the rates [prototype 2](#prototype-2-result) measured, and about
+400 MB of styled history. A larger terminal stays on its Host; claiming at READY with history
+afterwards is left to H3's decision run, as an addition.
+
+**Commit seams.** The runtime model's
+[commit-seam set](../../apps/terminal-host/docs/runtime-model.md#commit-seam-fault-matrix) gains
+these seams from `CS-030`, each with a named failure test:
+
+| Seam               | Disposition                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| `KeeperHold`       | Commit and drop: the terminal runs unheld, counted and reported                       |
+| `KeeperRelease`    | Contain and retain: the end waits for the release or its deadline                     |
+| `ReaderPause`      | Rollback: the reader reads on                                                         |
+| `HandoverExport`   | Rollback: the export is discarded and the reader reads on                             |
+| `KeeperMark`       | Rollback when refused; contain and retain when unanswered                             |
+| `HandoverRestore`  | Reject without commit: the import is discarded                                        |
+| `ClaimPreparation` | Reject without commit: the duplicates close and the import is discarded               |
+| `KeeperClaim`      | Reject without commit when refused; contain and retain when unanswered                |
+| `KeeperResume`     | Contain and retain: the terminal stays stopped until the Keeper or the Worker answers |
+
+**Shipping dark.** Chosen: H1 adds no switch. Hosts advertise `keeper` and `handover`, but a
+capability works only when both sides list it, and no release Worker lists either before H2, so
+continuation tracking is the only H1 change that every terminal runs. From H2 the Worker offers
+`keeper` while a new local-runtime switch, `keeper_live`, holds, and from H3 it offers `handover`
+while `host_moves_live` holds. Like
+[`automatic_updates_live`](../../crates/local-runtime/README.md#automatic-update-switch), each
+answers true in test builds and false in release builds until H2 and H4, respectively, turn it on.
+
+### The record's sections
+
+- Chosen: the envelope is `OBHR`, the format's generation, the exporting Host's product version,
+  its Ghostty pin's package hash, and a section count. The format is registered as frame format
+  `obhr` at generation 1 and, like `keeper`, drops no generation within 1.x, so the registry
+  enforces the import rule of [the terminal record](#the-terminal-record). Each section has a tag, a
+  required flag, a length, and a CRC-32C, which catches corruption, the only threat inside the
+  same-user boundary. Deadlines travel as remaining durations.
+- The format's authority is a reference of the Terminal Host package, written with its encoder, and
+  the stored sample of generation 1 joins the registry's frozen fixtures.
+
+| Section            | Content                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `terminal`         | The holding id; the exporting Host's terminal identity; the lifecycle, running or settled with its outcome and final revision; the content revision and generation; the geometry and start geometry; the viewport restore target; the launch kind and interactive-shell flag; the launch fingerprint and environment-overlay digest, which the new Host binds to the creation id of `ImportTerminal`                                                                                 |
+| `configuration`    | The committed configuration and its revision; the complete theme with its operation id and revision                                                                                                                                                                                                                                                                                                                                                                                  |
+| `screen`           | Ghostty's snapshot version 1 with its continuation record                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `engine`           | Dynamic and default colors; the color scheme; the bell sequence; progress; the OSC 7501 record; the command-completion record; the pending clipboard intent; the application-signal FIFO; the mouse-input epoch; what the program was last told of focus, keys, and buttons, which the new Host repairs as it repairs a detached attachment's; prompt-gate and shell-observation state; the scanners' partial state; the remaining mode-2026 deadline; the ConPTY clear coordination |
+| `console`, Windows | The conpty pin version, OpenConsole SHA-256, and signal format; the program's and OpenConsole's process ids and creation times                                                                                                                                                                                                                                                                                                                                                       |
+| `images`           | From H3; until then a terminal holding an image refuses export                                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+- Not carried: attachments, viewer leases, delivery sequences, held-input and focus-claim ledgers,
+  the creation binding, and the compression cursor. The Worker makes attachments again, and a
+  quiesced or moved terminal materializes no detach repair.
+
+### The move's model
+
+- Chosen: a TLA+ model, `terminal-host-handover`, because four independently ordered actors share
+  one small protocol. It sits beside the Terminal Host's models in
+  `apps/terminal-host/formal/tla/`, is registered in `scripts/tla/models.json` with the runtime
+  model as its claims and triggers on the Host's sources and `schemas/keeper`, and meets the
+  20-second deadline.
+- Actors: the Worker, the old and new Host, and the Keeper. Each Host and the Keeper may crash once,
+  the Worker may crash once and be replaced, and a broken connection loses the message in flight.
+  The bounds are one terminal, a program that produces at most 3 bytes, and at most 2 held keys.
+- Invariants, each a Rule:
+  - one reader: at most one Host reads the terminal, and it is the Keeper's owner, or the Keeper has
+    ended and the Worker confirmed the resume;
+  - no loss or repeat: the reading Host's applied bytes, the record's included, followed by the
+    pipe's, equal the produced bytes;
+  - each held key reaches exactly one Host, once and in order;
+  - an aborted move leaves the old Host's state plus what it read since;
+  - only a claim commits: the new Host reads only after it has seen `claimed`, and the old Host
+    never reads after a claim.
+- Progress: if neither Host crashes and a Worker eventually runs, the terminal eventually has a
+  reader.
+- Mutants, each caught by a named property in the mutation suite: a claim accepted without a mark
+  for the claimant; a `resume` that succeeds after a claim; a mark sent before the reader parks; a
+  new Host that reads before it has seen `claimed`; an old Host that resumes at its deadline without
+  the Keeper's answer.
+- Claims `TH-028` to `TH-034` join the runtime model: one reader across Hosts, the undoable stop,
+  exact export and import with each continuation effect once, release first, the claim as the only
+  commit, a drop that ends nothing, and the Keeper's arbitration, which no peer can end.
+- Other registered models: `terminal-host-delivery` and `terminal-host-process-identity` rerun
+  through their triggers and do not change in H1. `session-crash-recovery` and
+  `local-session-startup` change in H2 for the Keeper slot and its start,
+  `local-terminal-coordinator` and `worker-send-transaction` change in H3 for the hold and
+  rebinding, and `terminal-host-process-identity` changes in H5, when the Keeper parents programs.
+
+### H1 slices
+
+Two streams follow the challenge and the contracts: stream A, the engine, is S3 to S5, and stream
+B, the Keeper, is S6 and S7. Each slice merges on its own after the affected host gate in
+[verification](../../docs/VERIFICATION.md) and maps its evidence into the runtime model's native
+evidence index.
+
+| Slice | Content                                                                                                                                                                                                                                                                                                                                                                                           | Acceptance and witnesses                                                                                                                                                                                                                                                                                                                                                                                                                         | Rung       | After                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | -------------------------------------- |
+| R1    | Design challenge of this section: the protocol, the commit, the claims, and the evidence plan, given the scope and authorities without this run's reasoning                                                                                                                                                                                                                                       | Each finding is resolved here or recorded as an accepted risk before S1 merges                                                                                                                                                                                                                                                                                                                                                                   | fable/high | —                                      |
+| S1    | Contracts: `schemas/keeper` with its fixtures and Zig binding; `keeper` among the registry's negotiated connections with the 1.x rule, and `obhr` among its frame formats with the same rule; the role `keeper` and `dispatch-progress` in `schemas/connection`; the `keeper` and `handover` capabilities and their messages in `schemas/terminal` and every codec its conformance check requires | Every binding consumes every fixture; the Rust registry test accepts the new entries and refuses a dropped `keeper` or `obhr` generation                                                                                                                                                                                                                                                                                                         | opus/xhigh | R1                                     |
+| S2    | The model, its claims in the runtime model, and its mutants                                                                                                                                                                                                                                                                                                                                       | The configuration passes inside its deadline with full required coverage, and `scripts/tla/model-mutations.test.mjs` catches each of the five mutants                                                                                                                                                                                                                                                                                            | opus/xhigh | R1                                     |
+| S3    | Stream A: the undoable stop and the aborted-read assertion; seam `ReaderPause`                                                                                                                                                                                                                                                                                                                    | Through the pinned conpty and the system ConHost, a numbered-line probe survives 1,000 pause-and-resume cycles in one Host with nothing lost or repeated, and a pause during a flood parks within 1 second, in `src/platform/__tests__/pty_test.zig` and an engine test                                                                                                                                                                          | opus/xhigh | R1                                     |
+| S4    | Stream A: `dispatch-progress`                                                                                                                                                                                                                                                                                                                                                                     | A control lane's `query` reports a count that grows with dispatch turns and stops while a test holds the dispatch thread, in `src/transport/__tests__/candidate_test.zig`                                                                                                                                                                                                                                                                        | opus/high  | S1                                     |
+| S5    | Stream A: continuation tracking; the record's encoder, decoder, and reference; export and import in one Host; the stored sample; seams `HandoverExport` and `HandoverRestore`                                                                                                                                                                                                                     | For prototype 2's corpus and a busy shell, export then import restores identical state, compared as prototype 2 compared it, every section included; the corpus split at every byte resumes with each effect once; a corrupt, truncated, foreign-pin, or unknown-required-section record is refused with nothing changed; the stored sample imports; output throughput with tracking on against off is measured and reported to R2               | opus/xhigh | S1                                     |
+| S6    | Stream B: the Keeper, as its protocol and life state, without H2's start and adoption                                                                                                                                                                                                                                                                                                             | With a stand-in Host holding a real program in a kill-on-close Job on the pinned conpty: every sequence fixture passes; mismatched identities are refused; a type check completes while another process's synchronous read blocks the pipe; an unregistered or other-user peer loses only its connection; a Host's end orphans its holdings; `exit` ends no program while the stand-in keeps its handles; an empty Keeper exits after 30 seconds | opus/xhigh | S1                                     |
+| S7    | Stream B: `AttachKeeper` and `DetachKeeper`, holds, release first, the link thread and its events, the layout read, and the table of known conpty builds; seams `KeeperHold` and `KeeperRelease`                                                                                                                                                                                                  | With a real Host and Keeper: every running terminal is held; natural exit, close, forced termination, containment, and Host `exit` each release first and complete; a Keeper that stops answering yields one `KeeperUnresponsive`, and the ends complete once it is ended; ending the Keeper leaves every program running and yields `KeeperLost`; the pinned conpty source shows that packing sends nothing                                     | opus/xhigh | S6                                     |
+| S8    | The `handover` requests: quiesce, export, import through the creation pipeline, the claim checks, packing, claim, drop, discard, settled-terminal moves, and the lifecycle rules while quiesced; seams `KeeperMark`, `ClaimPreparation`, `KeeperClaim`, and `KeeperResume`                                                                                                                        | With two Host processes and a Keeper: a failure forced at every seam leaves the terminal reading on its old Host with nothing lost; a refused or unanswered claim never lets the new Host read; the deadline resumes the terminal; a resume without the Keeper is refused while the Keeper answers; drop and discard end nothing                                                                                                                 | opus/xhigh | S3, S5, S7, and the asynchronous start |
+| S9    | Real Windows black-box run beside `src/__tests__/host_black_box_test.zig`: two Host processes and a Keeper in a test-owned runtime root, the test acting as the Worker                                                                                                                                                                                                                            | The [H1 acceptance](#acceptance), plus the pause from the reader's pause to the claim at the default scrollback and at 100 MB of history, reported                                                                                                                                                                                                                                                                                               | opus/high  | S8                                     |
+| R2    | Review of the whole H1 candidate against this section, its claims, and its evidence                                                                                                                                                                                                                                                                                                               | Findings are fixed before the first release that carries H1                                                                                                                                                                                                                                                                                                                                                                                      | fable/high | S9                                     |
+
+### What H2 needs from H1
+
+- Holdings carry what recovery needs: the owner's terminal identity, both process identities, the
+  OpenConsole build and signal format, the launch kind, and all seven handles.
+- Hosts attach to a Keeper started after them, hold every running terminal there, and after
+  `KeeperLost` hold again in the next Keeper the Worker attaches.
+- Every Host from H1's release releases first, so a Keeper that H2 starts never keeps a terminal
+  from ending.
+- `dispatch-progress` in `query`, and the Keeper's `status`.
+- The claim path in separate steps, inspect, pull, check, pack, park, claim, and release the
+  threads, so that H2's recovery reuses them with a screen it rebuilds in place of a record.
+- No pipe I/O before the commit, so a hung Host's blocked read cannot hold up a claim.
+- A model with crashes, which H2 extends with orphan claims and a new Keeper.
+- Left to H2: the Keeper slot in the Session record, the Worker's start and adoption after P1a,
+  claims of unmarked orphaned holdings as a Keeper request under a new capability, `keeper_live`,
+  and the Keeper's files in Session deletion.
+
+### Risks H1 leaves open
+
+- The private HPCON layout and `ConptyPackPseudoConsole`: each conpty pin repeats prototype 1, and a
+  pin with a new layout or signal format needs a table entry, and for a new format a writer for the
+  old one.
+- That a type query never waits behind a blocked synchronous read: the Keeper's `hold` runs while
+  the Host's reader is blocked, so S6 tests it first, and if it can wait, this design reopens.
+- Ghostty calls version 1 a work-in-progress format, and continuation tracking adds a parser path to
+  every terminal; S5 measures its cost, and the output fuzz run covers it.
+- A program that reads no input can keep the writer from finishing, so its terminal refuses to
+  quiesce until the program reads again.
+- A record over 128 MiB keeps its terminal on its Host until claiming at READY exists.
+- A Keeper that stops answering delays the ends of the terminals it holds until the Worker ends it.
+- The host side of the Keeper protocol freezes at H1's release, because every later Keeper must
+  serve H1's Hosts; R1 reviews it before S1 merges.
+- H1's evidence is same-build; moves across versions are H3's.
+- ARM64 and system-ConHost terminals never move.
+- P1a, which H2 needs, is not on main yet.
+
 ## Acceptance
 
 - **H1**, on real Windows in a test-owned Session: a same-build move of a terminal running a
   numbered-line probe, and of one running a full-screen program, keeps each process id, loses and
   repeats no number, and leaves the screen and history unchanged. A failure forced at every step
   leaves the terminal on its old Host, and ending the old Host after the quiesce, or the Keeper at
-  any step, leaves the program running. The model catches a mutant that drops the claim's guard.
+  any step, leaves the program running. The model catches each mutant that
+  [the move's model](#the-moves-model) names, including one that drops the claim's guard, and every
+  slice in [H1 slices](#h1-slices) passes its own check.
 - **H2**: ending a Host by process id, or stopping its dispatch thread, brings every terminal back
   within seconds with its program still running; a fourth failure inside 10 minutes leaves the
   terminal running and shown as Can't reconnect.
@@ -624,24 +1092,40 @@ is measured unless it says inferred.
 
 ## Decision record
 
-| #   | Decision                                                                                                                                                                                                                                                                                                              | Reason                                                                                                                                                      | Status             |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| 1   | Host handover is the normal way a Host change reaches running terminals: automatic, on by default, with no click or confirmation, and never waiting for programs to end; the plan reaches a point where every update, including one that changes the process holding the programs, applies with every program running | Agents may never end; updates must roll                                                                                                                     | Decided 2026-11-15 |
-| 2   | A failed move leaves the terminal on its old Host, which keeps serving, and the Worker tries again when a newer version becomes active                                                                                                                                                                                | Non-stop outranks every other goal                                                                                                                          | Rule               |
-| 3   | A per-Session Keeper holds what keeps programs alive and parents them on macOS and Linux; it never reads or writes terminal data                                                                                                                                                                                      | Parenthood cannot move, and a parsing defect must not end programs                                                                                          | Chosen             |
-| 4   | The Keeper is a mode of the Terminal Host executable, started, recorded, and adopted by the Worker                                                                                                                                                                                                                    | It reuses the platform layer and the Host's start and adoption                                                                                              | Chosen             |
-| 5   | The Keeper's protocol changes only by addition, so every Host and Keeper inside the window work together                                                                                                                                                                                                              | Hosts of several versions share one Keeper                                                                                                                  | Rule               |
-| 6   | The commit is the new Host's claim in the Keeper, and a claim and a resume exclude each other                                                                                                                                                                                                                         | Exactly one Host reads a terminal, whatever crashes                                                                                                         | Rule               |
-| 7   | The Worker holds a moving terminal's input, resizes, and viewer changes and delivers them once and in order; more than 64 KiB of input aborts the move and goes to the old Host                                                                                                                                       | No input is lost or replayed                                                                                                                                | Chosen             |
-| 8   | The record carries Ghostty's snapshot version 1 in an Orchbee envelope that names the Ghostty pin; a Host imports a snapshot from its own pin or from a pin the pin check admitted, and a pin change that fails the check needs a reader for each pin inside the window                                               | A move must never depend on two Hosts sharing one build; prototype 2 found that Ghostty may change version 1 without a new version number                   | Rule               |
-| 9   | Terminals move one at a time after 2 seconds without input or after 10 minutes; a move aborts 5 seconds after its quiesce; the first failure stops moves for that version                                                                                                                                             | A defect costs one paused terminal, and typing is rarely interrupted                                                                                        | Chosen             |
-| 10  | A Host that crashes, or makes no progress for 30 seconds while the Keeper holds its terminals, is replaced; its terminals come back under a cap of 3 recoveries in 10 minutes, a terminal that breaks its Host again is recovered alone, and keys typed during recovery are refused                                   | Contain a parsing defect to the terminal that caused it                                                                                                     | Chosen             |
-| 11  | Recovery turns on as soon as it passes, before moves                                                                                                                                                                                                                                                                  | It removes the worst open incident and needs no P1c                                                                                                         | Chosen             |
-| 12  | Windows turns moves on at H4 without waiting for macOS                                                                                                                                                                                                                                                                | Release often                                                                                                                                               | Chosen             |
-| 13  | Until B1, a Server and Worker restart waits while the Worker runs a background program; B1 runs them in the Host                                                                                                                                                                                                      | Non-stop covers every program                                                                                                                               | Rule; B1 Chosen    |
-| 14  | A terminal that cannot move keeps the P1c behavior and, at a security floor, the confirmation                                                                                                                                                                                                                         | The last resort stays explicit                                                                                                                              | Rule               |
-| 15  | From H4, and H5 on macOS, the Worker replaces the Keeper at every update that changes the Terminal Host executable, before any move: on Windows by deposit into a new Keeper, on macOS and Linux by re-execution in place after a check run, with the old binary as the way back                                      | Every update must reach a terminal that never ends; Docker's shims never change and its live restore spans only patch releases                              | Chosen             |
-| 16  | A Host sends each OpenConsole only signals in that OpenConsole's format, named in the record, and refuses to claim a terminal whose format it does not know                                                                                                                                                           | OpenConsole closes every program on a signal it does not know, and the clear signal changed in 2025; prototype 1 measured both pins, which share one format | Rule               |
-| 17  | A terminal keeps the console it started with; if a security floor names OpenConsole, the confirmation lists the terminals still using the old one                                                                                                                                                                     | No product can move a console after its program attaches                                                                                                    | Rule               |
+| #   | Decision                                                                                                                                                                                                                                                                                                                    | Reason                                                                                                                                                      | Status                                     |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 1   | Host handover is the normal way a Host change reaches running terminals: automatic, on by default, with no click or confirmation, and never waiting for programs to end; the plan reaches a point where every update, including one that changes the process holding the programs, applies with every program running       | Agents may never end; updates must roll                                                                                                                     | Decided 2026-11-15                         |
+| 2   | A failed move leaves the terminal on its old Host, which keeps serving, and the Worker tries again when a newer version becomes active                                                                                                                                                                                      | Non-stop outranks every other goal                                                                                                                          | Rule                                       |
+| 3   | A per-Session Keeper holds what keeps programs alive and parents them on macOS and Linux; it never reads or writes terminal data                                                                                                                                                                                            | Parenthood cannot move, and a parsing defect must not end programs                                                                                          | Chosen                                     |
+| 4   | The Keeper is a mode of the Terminal Host executable, started, recorded, and adopted by the Worker                                                                                                                                                                                                                          | It reuses the platform layer and the Host's start and adoption                                                                                              | Chosen                                     |
+| 5   | The Keeper's protocol changes only by addition, so every Host and Keeper inside the window work together                                                                                                                                                                                                                    | Hosts of several versions share one Keeper                                                                                                                  | Rule                                       |
+| 6   | The commit is the new Host's claim in the Keeper, and a claim and a resume exclude each other                                                                                                                                                                                                                               | Exactly one Host reads a terminal, whatever crashes                                                                                                         | Rule                                       |
+| 7   | The Worker holds a moving terminal's input, resizes, and viewer changes and delivers them once and in order; more than 64 KiB of input aborts the move and goes to the old Host                                                                                                                                             | No input is lost or replayed                                                                                                                                | Chosen                                     |
+| 8   | The record carries Ghostty's snapshot version 1 in an Orchbee envelope that names the Ghostty pin; a Host imports a snapshot from its own pin or from a pin the pin check admitted, and a pin change that fails the check needs a reader for each pin inside the window                                                     | A move must never depend on two Hosts sharing one build; prototype 2 found that Ghostty may change version 1 without a new version number                   | Rule                                       |
+| 9   | Terminals move one at a time after 2 seconds without input or after 10 minutes; a move aborts 5 seconds after its quiesce; the first failure stops moves for that version                                                                                                                                                   | A defect costs one paused terminal, and typing is rarely interrupted                                                                                        | Chosen                                     |
+| 10  | A Host that crashes, or makes no progress for 30 seconds while the Keeper holds its terminals, is replaced; its terminals come back under a cap of 3 recoveries in 10 minutes, a terminal that breaks its Host again is recovered alone, and keys typed during recovery are refused                                         | Contain a parsing defect to the terminal that caused it                                                                                                     | Chosen                                     |
+| 11  | Recovery turns on as soon as it passes, before moves                                                                                                                                                                                                                                                                        | It removes the worst open incident and needs no P1c                                                                                                         | Chosen                                     |
+| 12  | Windows turns moves on at H4 without waiting for macOS                                                                                                                                                                                                                                                                      | Release often                                                                                                                                               | Chosen                                     |
+| 13  | Until B1, a Server and Worker restart waits while the Worker runs a background program; B1 runs them in the Host                                                                                                                                                                                                            | Non-stop covers every program                                                                                                                               | Rule; B1 Chosen                            |
+| 14  | A terminal that cannot move keeps the P1c behavior and, at a security floor, the confirmation                                                                                                                                                                                                                               | The last resort stays explicit                                                                                                                              | Rule                                       |
+| 15  | From H4, and H5 on macOS, the Worker replaces the Keeper at every update that changes the Terminal Host executable, before any move: on Windows by deposit into a new Keeper, on macOS and Linux by re-execution in place after a check run, with the old binary as the way back                                            | Every update must reach a terminal that never ends; Docker's shims never change and its live restore spans only patch releases                              | Chosen                                     |
+| 16  | A Host sends each OpenConsole only signals in that OpenConsole's format, named in the record, and refuses to claim a terminal whose format it does not know                                                                                                                                                                 | OpenConsole closes every program on a signal it does not know, and the clear signal changed in 2025; prototype 1 measured both pins, which share one format | Rule                                       |
+| 17  | A terminal keeps the console it started with; if a security floor names OpenConsole, the confirmation lists the terminals still using the old one                                                                                                                                                                           | No product can move a console after its program attaches                                                                                                    | Rule                                       |
+| 18  | The Keeper speaks one negotiated connection kind, `keeper`, at generation 1: OBHS, then `OBKP` frames of strict JSON, a `hello` naming the role, one request at a time per connection answered within 2 seconds, and additions only under capabilities; it drops no generation within 1.x                                   | It reuses the handshake, decoders, and evolution rules every connection has; a Host released with H1 may hold a terminal for as long as its program runs    | Chosen                                     |
+| 19  | The Keeper admits one Worker connection at a time and only Hosts the Worker registered, each checked by process id and creation time through the pipe; a failed check closes only that connection, and nothing a peer does ends the Keeper or a holding                                                                     | The Host's same-user boundary and single broker session; the Keeper may be a program's only holder                                                          | Rule; one Worker connection Chosen         |
+| 20  | Handles move by pull, made by the process that will hold the duplicate; before the commit no process does I/O on a pipe handle or asks for its name                                                                                                                                                                         | A lost message never strands a handle; a second synchronous operation waits behind a blocked read, as prototype 3 measured                                  | Chosen; no I/O Rule                        |
+| 21  | The claim is the only commit: every fallible step comes before it, and a Host reads only as the Keeper's owner after seeing that answer; without the Keeper's answer, the old Host reads again only after the Worker has ended the Keeper and the new Host has discarded its import without seeing `claimed`                | Exactly one Host reads, whatever crashes or whichever reply is lost                                                                                         | Rule                                       |
+| 22  | The old Host exports before it marks; a mark expires 5 seconds after it is made, when the old Host asks the Keeper to resume; the new Host declines the mark before it discards                                                                                                                                             | A local failure never depends on the Keeper, and either Host can end a mark                                                                                 | Chosen                                     |
+| 23  | The Host parks its reader thread for a quiesce; the platform read reports a pause apart from end of output, and an aborted read reports no bytes                                                                                                                                                                            | Prototype 3 resumed a parked reader 159,984 times without a stray cancel                                                                                    | Chosen                                     |
+| 24  | Continuation tracking is on in every build with a 64 KiB bound; the export refuses while an unfinished sequence has outgrown it                                                                                                                                                                                             | A sequence in progress at a quiesce began before it                                                                                                         | Chosen                                     |
+| 25  | The record is an `OBHR` envelope of checksummed sections, registered as frame format `obhr`, which drops no generation within 1.x; it crosses whole before the claim, in chunks of up to 4 MiB and up to 128 MiB; claiming at READY waits for H3's decision run                                                             | The registry then enforces the import rule; 128 MiB keeps a move near 1.5 seconds and covers about 400 MB of styled history                                 | Chosen                                     |
+| 26  | Only terminals on the bundled OpenConsole are held and move; a running terminal moves with a claim and a settled one as a record; awaiting-start, finishing, containing-failure, terminating, and image-holding terminals stay                                                                                              | Only the bundled conpty packs a pseudoconsole; a draining Host must exit while a finished terminal stays on screen                                          | Rule for the bundle; the rest Chosen       |
+| 27  | A Host signals a moved console through its own conpty, so it claims only a console whose build, named by the record's SHA-256, is in its table with its own pin's signal format; it does not read the running image again                                                                                                   | Decision 16; a console's build is fixed when it starts                                                                                                      | Rule; no second read Chosen                |
+| 28  | Every Host from H1 has each Keeper release a held terminal before it closes the terminal's pseudoconsole, signal, reference, or Job handle or terminates its Job, waiting at most 2 seconds; Keeper I/O runs on a link thread                                                                                               | A remaining duplicate keeps OpenConsole and the close event from ending, as prototype 1 measured                                                            | Rule; 2 seconds and the link thread Chosen |
+| 29  | An old Host drops a moved terminal, and a new Host discards an import, by closing only its own handles, the pseudoconsole's three through the pinned layout, without `ClosePseudoConsole`, a signal, input, or ending the Job; a quiesced or moved terminal takes no lifecycle step in the old Host                         | Ending the Job or closing the console would end the program that the other Host serves                                                                      | Rule                                       |
+| 30  | H1 adds no switch: no release Worker lists `keeper` or `handover` before H2; `keeper_live` turns the Keeper on in H2 and `host_moves_live` turns moves on in H4, each true in test builds and false in release builds until then                                                                                            | A capability works only when both sides list it; `automatic_updates_live` set the precedent                                                                 | Chosen                                     |
+| 31  | From H2 the Worker starts one Keeper per Session after its first Host is ready, outside its Job, in a Keeper slot of the Session record, and P1a and P1b adopt it as they adopt a Host; it exits after 30 seconds without holdings, registered Hosts, or a Worker connection; it holds at most 1,024 holdings and 256 Hosts | Decision 4; the Keeper must outlive the Worker                                                                                                              | Chosen                                     |
+| 32  | On Windows, H4 replaces the Keeper by holding every terminal in a second Keeper before the first exits; a Host holds at most two Keeper attachments and refuses a quiesce while it has two                                                                                                                                  | Every holder keeps the same objects alive, so either Keeper suffices, and one Keeper arbitrates each move                                                   | Chosen                                     |
+| 33  | The move's model is a TLA+ model of the Worker, both Hosts, and the Keeper, with crashes and lost replies; its invariants are one reader, no loss or repeat, each key once, an abort that restores the old Host, and only a claim committing; five mutants test it                                                          | Four independently ordered actors share one small protocol                                                                                                  | Chosen; invariants Rule                    |
 
 Nothing waits on the owner; each Chosen row stays open to a veto.
