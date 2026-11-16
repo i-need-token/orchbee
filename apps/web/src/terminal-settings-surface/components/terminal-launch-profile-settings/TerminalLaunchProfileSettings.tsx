@@ -1,12 +1,5 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import {
-	Button,
-	Checkbox,
-	Input,
-	NativeSelect,
-	NativeSelectOption,
-	ProductIcon,
-} from '@orchbee/ui/components';
+import { Button, Checkbox, Input, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { TerminalLaunchProfileControl } from '../../../terminal-launch-profile-control';
@@ -16,6 +9,7 @@ import { SETTINGS_LIST_FILTER_THRESHOLD } from '../../constants/settings-list-fi
 import { SettingsListFilter } from '../settings-list-filter/SettingsListFilter';
 import { SettingsListFilterEmpty } from '../settings-list-filter-empty/SettingsListFilterEmpty';
 import { SettingsRow } from '../settings-row/SettingsRow';
+import { SettingsSelect } from '../settings-select/SettingsSelect';
 import { useTerminalLaunchProfileSettings } from './hooks/useTerminalLaunchProfileSettings';
 import styles from './TerminalLaunchProfileSettings.module.css';
 
@@ -262,18 +256,13 @@ function ProfileEditor({
 			</label>
 			<label className={styles['field']} htmlFor='terminal-profile-command'>
 				<span className={styles['fieldLabel']}>{commandEditor.label}</span>
-				<NativeSelect
+				<SettingsSelect
 					disabled={commandEditor.disabled}
 					id='terminal-profile-command'
+					options={commandEditor.options}
 					value={commandEditor.kind}
-					onChange={commandEditor.onKindChange}
-				>
-					{commandEditor.options.map((option) => (
-						<NativeSelectOption key={option.value} value={option.value}>
-							{option.label}
-						</NativeSelectOption>
-					))}
-				</NativeSelect>
+					onValueChange={commandEditor.onKindChange}
+				/>
 			</label>
 			{commandEditor.kind === 'system-shell' ? (
 				<div className={styles['toggleField']}>

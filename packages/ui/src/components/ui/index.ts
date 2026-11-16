@@ -59,8 +59,6 @@ export { Input } from './input';
 
 export { Kbd } from './kbd';
 
-export { NativeSelect, NativeSelectOption } from './native-select';
-
 export {
 	ResizableHandle,
 	ResizablePanel,
@@ -68,6 +66,8 @@ export {
 	type ResizablePanelGroupHandle,
 	type ResizablePanelHandle,
 } from './resizable';
+
+export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 
 export { Switch } from './switch';
 

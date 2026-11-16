@@ -88,13 +88,14 @@ would be too large, its location cannot be used, or the write failed. A syntax e
 `orchbee config check` for the position. A snapshot that finds the file unparsable or unreadable
 drops every waiting change and names that reason once. No request is replayed automatically.
 
-A row whose key the file sets carries a changed marker. Del on a changed row, or its painted Restore
+A row whose key the file sets carries a changed marker after its title, effect included. Del on a
+changed row, or its painted Restore
 default action, sends one `restore` for that key; the launch-profile row restores both platform keys.
 The focused changed row paints the action on its first line, before the row's control as on the
 Desktop, and it never takes cells from the name or the description: when the first line has no room
 it moves to the end of the description line while the whole description fits beside it, and
 otherwise only Del offers it.
-A theme list whose slot the file sets carries the marker on its heading, and Del on any of its lines
+A theme list whose slot the file sets carries the marker after its heading, and Del on any of its lines
 restores that slot alone; the appearance keeps its own row. There is no page-wide reset.
 
 Snapshots from the settings subscription show on the open page at once, whoever wrote them, while

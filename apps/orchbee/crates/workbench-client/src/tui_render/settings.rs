@@ -659,18 +659,6 @@ fn render_heading(
             Group::DarkThemes => Some(Row::DarkTheme),
             _ => None,
         };
-        if slot.is_some_and(|slot| page.changed(slot)) && width > 8 {
-            put(frame, area.x + 1, y, 1, " ", frame_style);
-            put(
-                frame,
-                area.x + 2,
-                y,
-                1,
-                theme.glyphs.status_bullet,
-                theme.style(Role::AccentAction),
-            );
-            used = 3;
-        }
         if let Some(name) = &name {
             let text = format!(" {name} ");
             put(
@@ -683,6 +671,25 @@ fn render_heading(
                 theme.style(Role::TextPrimary),
             );
             used += display_width(&text);
+        }
+        if slot.is_some_and(|slot| page.changed(slot)) && used + MARKER_WIDTH + 1 < width {
+            put(
+                frame,
+                area.x + u16::try_from(used).unwrap_or(0),
+                y,
+                1,
+                theme.glyphs.status_bullet,
+                theme.style(Role::AccentAction),
+            );
+            put(
+                frame,
+                area.x + u16::try_from(used + 1).unwrap_or(0),
+                y,
+                1,
+                " ",
+                frame_style,
+            );
+            used += MARKER_WIDTH;
         }
         let tag_width = tag.map_or(0, |tag| display_width(tag) + 2);
         let rule = width.saturating_sub(used + tag_width + 1);
@@ -856,16 +863,6 @@ fn render_row(
                 style(Role::AccentFocus),
             );
         }
-        if page.changed(row) {
-            put(
-                frame,
-                rect.x + 2,
-                y,
-                1,
-                theme.glyphs.status_bullet,
-                style(Role::AccentAction),
-            );
-        }
         let available = usize::from(end.saturating_sub(name_x));
         let control = control_text(row, page, locale, theme);
         let control_width = control
@@ -882,20 +879,45 @@ fn render_row(
         if let Some(effect) = locale.settings_effect(row) {
             name = format!("{name} {} {effect}", theme.glyphs.middle_dot);
         }
+        // A changed row's marker follows its title, effect included, one cell apart; the title
+        // gives up cells before the marker does.
+        let marker = page.changed(row);
+        let name_budget = available
+            .saturating_sub(control_width + 1)
+            .saturating_sub(if marker { MARKER_WIDTH } else { 0 });
+        let name = truncate_display(&name, name_budget, theme.glyphs.ellipsis);
         put(
             frame,
             name_x,
             y,
-            u16::try_from(available.saturating_sub(control_width + 1)).unwrap_or(0),
+            u16::try_from(name_budget).unwrap_or(0),
             &name,
             style(content_role),
         );
+        if marker && name_budget > 0 {
+            put(
+                frame,
+                name_x + u16::try_from(display_width(&name) + 1).unwrap_or(u16::MAX),
+                y,
+                1,
+                theme.glyphs.status_bullet,
+                style(Role::AccentAction),
+            );
+        }
+        // Only a changed row offers restore, so the marker always precedes it; one blank cell after
+        // the marker separates them.
+        let gap = if marker {
+            MARKER_WIDTH + 1
+        } else {
+            RESTORE_GAP
+        };
+        let lead = display_width(&name) + gap;
         let control_span = if control_width == 0 {
             0
         } else {
             control_width + RESTORE_GAP
         };
-        if display_width(&name) + RESTORE_GAP + restore_width + control_span <= available
+        if lead + restore_width + control_span <= available
             && let Some(label) = restore.take()
         {
             let x = end.saturating_sub(u16::try_from(control_span + restore_width).unwrap_or(0));
@@ -1010,6 +1032,8 @@ fn render_row(
 
 /// Blank cells between a row's restore action and the text or control beside it.
 const RESTORE_GAP: usize = 2;
+/// The cells a changed marker takes after a title: one blank cell and the marker.
+const MARKER_WIDTH: usize = 2;
 
 /// Paints a changed row's restore action from `origin` and returns its pointer target.
 fn render_restore(

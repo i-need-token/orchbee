@@ -46,6 +46,12 @@ export function SettingsGroup({
 		>
 			{label === undefined ? null : (
 				<div className={styles['heading']}>
+					<h2 className={styles['label']} id={headingId}>
+						{label}
+						{effect === undefined
+							? null
+							: ` · ${intl.formatMessage(terminalSettingsMessages.pageEffectNewTerminals)}`}
+					</h2>
 					{modified ? (
 						<span
 							aria-hidden='true'
@@ -53,12 +59,6 @@ export function SettingsGroup({
 							title={intl.formatMessage(terminalSettingsMessages.pageChangedFromDefault)}
 						/>
 					) : null}
-					<h2 className={styles['label']} id={headingId}>
-						{label}
-						{effect === undefined
-							? null
-							: ` · ${intl.formatMessage(terminalSettingsMessages.pageEffectNewTerminals)}`}
-					</h2>
 					{tag === null || tag === undefined ? null : <span className={styles['tag']}>{tag}</span>}
 					<span className={styles['actions']}>
 						{modified && onRestore !== undefined ? (

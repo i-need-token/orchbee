@@ -1,5 +1,4 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { NativeSelect, NativeSelectOption } from '@orchbee/ui/components';
 import type * as React from 'react';
 
 import {
@@ -10,6 +9,7 @@ import type { UserSettingsControl } from '../../../user-settings';
 import { useSetting } from '../../hooks/useSetting';
 import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsRow } from '../settings-row/SettingsRow';
+import { SettingsSelect } from '../settings-select/SettingsSelect';
 
 interface ApplicationLanguageSettingsProps {
 	readonly controller: ApplicationLocaleController;
@@ -38,25 +38,22 @@ export function ApplicationLanguageSettings({
 			status={<SettingFailure message={locale.failureMessage} />}
 			onRestore={locale.readOnly ? undefined : locale.restore}
 		>
-			<NativeSelect
-				aria-label={label}
+			<SettingsSelect
 				disabled={locale.readOnly}
-				size='sm'
+				label={label}
+				options={[
+					{ label: intl.formatMessage(terminalSettingsMessages.sharedSystem), value: 'system' },
+					{ label: intl.formatMessage(terminalSettingsMessages.languageEnglish), value: 'en-US' },
+					{
+						label: intl.formatMessage(terminalSettingsMessages.languageSimplifiedChinese),
+						value: 'zh-CN',
+					},
+				]}
 				value={snapshot.preference ?? 'system'}
-				onChange={(event): void => {
-					controller.select(event.currentTarget.value);
+				onValueChange={(value): void => {
+					controller.select(value);
 				}}
-			>
-				<NativeSelectOption value='system'>
-					{intl.formatMessage(terminalSettingsMessages.sharedSystem)}
-				</NativeSelectOption>
-				<NativeSelectOption value='en-US'>
-					{intl.formatMessage(terminalSettingsMessages.languageEnglish)}
-				</NativeSelectOption>
-				<NativeSelectOption value='zh-CN'>
-					{intl.formatMessage(terminalSettingsMessages.languageSimplifiedChinese)}
-				</NativeSelectOption>
-			</NativeSelect>
+			/>
 		</SettingsRow>
 	);
 }

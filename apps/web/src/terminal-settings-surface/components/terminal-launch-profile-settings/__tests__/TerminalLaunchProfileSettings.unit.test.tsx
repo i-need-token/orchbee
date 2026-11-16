@@ -13,6 +13,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { chooseSelectOption } from '../../../../__tests__/select-choice';
 import type {
 	TerminalLaunchProfileClientOperationResult,
 	TerminalLaunchProfileClientSnapshot,
@@ -42,13 +43,10 @@ describe('TerminalLaunchProfileSettings', () => {
 			requiredElement<HTMLInputElement>(harness.container.querySelector('#terminal-profile-name'))
 				.required,
 		).toBe(false);
-		const command = requiredElement<HTMLSelectElement>(
+		const command = requiredElement<HTMLElement>(
 			harness.container.querySelector('#terminal-profile-command'),
 		);
-		await act(async () => {
-			command.value = 'custom-executable';
-			command.dispatchEvent(new Event('change', { bubbles: true }));
-		});
+		await chooseSelectOption(command, 'Custom executable');
 		const executable = requiredElement<HTMLInputElement>(
 			harness.container.querySelector('#terminal-profile-executable'),
 		);
@@ -95,13 +93,10 @@ describe('TerminalLaunchProfileSettings', () => {
 	it('preserves the edited draft when Main cannot commit it', async () => {
 		const harness = await createHarness();
 		await act(async () => buttonWithText(harness.container, 'Edit').click());
-		const command = requiredElement<HTMLSelectElement>(
+		const command = requiredElement<HTMLElement>(
 			harness.container.querySelector('#terminal-profile-command'),
 		);
-		await act(async () => {
-			command.value = 'custom-executable';
-			command.dispatchEvent(new Event('change', { bubbles: true }));
-		});
+		await chooseSelectOption(command, 'Custom executable');
 		const executable = requiredElement<HTMLInputElement>(
 			harness.container.querySelector('#terminal-profile-executable'),
 		);

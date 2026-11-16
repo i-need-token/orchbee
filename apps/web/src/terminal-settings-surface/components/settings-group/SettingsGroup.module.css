@@ -26,12 +26,11 @@
 	padding-inline: var(--ob-ref-space-2);
 }
 
+/* The changed dot follows the heading, centered on its line. */
 .modified {
-	position: absolute;
-	inset-block-start: calc(50% - var(--ob-ref-space-0-5));
-	inset-inline-start: var(--ob-ref-space-0);
-	width: var(--ob-ref-space-1);
-	height: var(--ob-ref-space-1);
+	width: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-space-1-5);
+	flex: none;
 	border-radius: var(--ob-ref-radius-full);
 	background: var(--ob-sys-color-brand-accent);
 }

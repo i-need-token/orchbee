@@ -1,6 +1,4 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { isTerminalOptionAsAltMode } from '@orchbee/terminal';
-import { NativeSelect, NativeSelectOption } from '@orchbee/ui/components';
 import type * as React from 'react';
 
 import {
@@ -11,6 +9,7 @@ import type { UserSettingsControl } from '../../../user-settings';
 import { useSetting } from '../../hooks/useSetting';
 import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsRow } from '../settings-row/SettingsRow';
+import { SettingsSelect } from '../settings-select/SettingsSelect';
 
 interface MacosTerminalInputSettingsProps {
 	readonly controller: MacosTerminalInputSettingsController;
@@ -38,29 +37,29 @@ export function MacosTerminalInputSettings({
 			status={<SettingFailure message={setting.failureMessage} />}
 			onRestore={setting.readOnly ? undefined : () => controller.reset()}
 		>
-			<NativeSelect
-				aria-label={label}
+			<SettingsSelect
 				disabled={setting.readOnly}
-				size='sm'
+				label={label}
+				options={[
+					{ label: intl.formatMessage(terminalSettingsMessages.pageOptionAsAltOff), value: 'off' },
+					{
+						label: intl.formatMessage(terminalSettingsMessages.pageOptionAsAltLeft),
+						value: 'left',
+					},
+					{
+						label: intl.formatMessage(terminalSettingsMessages.pageOptionAsAltRight),
+						value: 'right',
+					},
+					{
+						label: intl.formatMessage(terminalSettingsMessages.pageOptionAsAltBoth),
+						value: 'both',
+					},
+				]}
 				value={snapshot.preferences.optionAsAlt}
-				onChange={(event): void => {
-					const mode = event.currentTarget.value;
-					if (isTerminalOptionAsAltMode(mode)) controller.update({ optionAsAlt: mode });
+				onValueChange={(value): void => {
+					controller.update({ optionAsAlt: value });
 				}}
-			>
-				<NativeSelectOption value='off'>
-					{intl.formatMessage(terminalSettingsMessages.pageOptionAsAltOff)}
-				</NativeSelectOption>
-				<NativeSelectOption value='left'>
-					{intl.formatMessage(terminalSettingsMessages.pageOptionAsAltLeft)}
-				</NativeSelectOption>
-				<NativeSelectOption value='right'>
-					{intl.formatMessage(terminalSettingsMessages.pageOptionAsAltRight)}
-				</NativeSelectOption>
-				<NativeSelectOption value='both'>
-					{intl.formatMessage(terminalSettingsMessages.pageOptionAsAltBoth)}
-				</NativeSelectOption>
-			</NativeSelect>
+			/>
 		</SettingsRow>
 	);
 }

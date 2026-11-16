@@ -15,7 +15,7 @@
 
 .root :global([data-slot='button']),
 .root :global([data-slot='input']),
-.root :global([data-slot='native-select']) {
+.root :global([data-slot='select-trigger']) {
 	font: var(--ob-sys-typography-control-sm);
 }
 

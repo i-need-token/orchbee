@@ -300,7 +300,8 @@ The Themes category holds a Light theme group and a Dark theme group. Each group
 lists the themes of its polarity, one per line, each with its localized name (the id for a theme
 without a name, such as a test fixture), a swatch strip of canvas, foreground, and ANSI 1–5, and a
 check on the slot's effective theme, so an unknown stored id shows the Orchbee theme it resolves
-to. The group whose slot is in use carries a muted In use now tag; when Appearance is fixed, the
+to. Hover and the keyboard highlight fill a rounded band inset from the card's edges, the hairlines
+beside it hide, and keyboard focus rings only the highlighted theme, never the whole list. The group whose slot is in use carries a muted In use now tag; when Appearance is fixed, the
 other group carries a one-line note saying when it would apply. A list of more than eight themes
 starts with a filter box.
 
@@ -356,8 +357,11 @@ The content pane centers one column of at most the `container-2xl` width. It hol
 page notices, the category title, and groups: a small muted heading and one card whose rows are
 separated by hairlines. A category with three or fewer settings may use one unnamed card. Each row
 has a name, an always-visible description of at most two lines, and exactly one control at the
-row's end. A changed setting shows a small accent dot at the row's start and a Restore default
-action beside its control while the row is hovered or focused. Every change applies at once; the
+row's end. A changed setting shows a small accent dot after the row's name and its effect note,
+centered on that line, and a Restore default action beside its control while the row is hovered or
+focused; a theme list that is one setting carries the dot after its heading. Every finite choice is
+the shared Select from `@orchbee/ui`: a filled trigger whose list opens below it, end-aligned, with a
+check on the chosen entry. Every change applies at once; the
 page has no Save, Discard, or footer. Shell-profile edits save on the editor's Done, because the
 Session's catalog mutation is a separate transaction.
 

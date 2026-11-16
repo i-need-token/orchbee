@@ -1,5 +1,5 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { NativeSelect, NativeSelectOption, Switch } from '@orchbee/ui/components';
+import { Switch } from '@orchbee/ui/components';
 import type * as React from 'react';
 
 import {
@@ -11,7 +11,7 @@ import { useSetting } from '../../hooks/useSetting';
 import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
-import styles from './NotificationSettings.module.css';
+import { SettingsSelect } from '../settings-select/SettingsSelect';
 
 interface NotificationSettingsProps {
 	readonly controller: TerminalFeedbackSettingsController;
@@ -44,26 +44,24 @@ export function NotificationSettings({
 					status={<SettingFailure message={agentMode.failureMessage} />}
 					onRestore={agentMode.readOnly ? undefined : agentMode.restore}
 				>
-					<NativeSelect
-						aria-label={agentLabel}
-						className={styles['select']}
+					<SettingsSelect
 						disabled={agentMode.readOnly}
-						size='sm'
+						label={agentLabel}
+						options={[
+							{
+								label: intl.formatMessage(terminalSettingsMessages.pageAgentNotificationsNever),
+								value: AgentNotificationMode.never,
+							},
+							{
+								label: intl.formatMessage(terminalSettingsMessages.pageAgentNotificationsHidden),
+								value: AgentNotificationMode.hidden,
+							},
+						]}
 						value={agentMode.value}
-						onChange={(event): void => {
-							const value = event.currentTarget.value;
-							if (value === AgentNotificationMode.hidden || value === AgentNotificationMode.never) {
-								agentMode.set(value);
-							}
+						onValueChange={(value): void => {
+							agentMode.set(value);
 						}}
-					>
-						<NativeSelectOption value={AgentNotificationMode.never}>
-							{intl.formatMessage(terminalSettingsMessages.pageAgentNotificationsNever)}
-						</NativeSelectOption>
-						<NativeSelectOption value={AgentNotificationMode.hidden}>
-							{intl.formatMessage(terminalSettingsMessages.pageAgentNotificationsHidden)}
-						</NativeSelectOption>
-					</NativeSelect>
+					/>
 				</SettingsRow>
 				<SettingsRow
 					description={intl.formatMessage(
@@ -76,32 +74,30 @@ export function NotificationSettings({
 					status={<SettingFailure message={reminderMode.failureMessage} />}
 					onRestore={reminderMode.readOnly ? undefined : reminderMode.restore}
 				>
-					<NativeSelect
-						aria-label={reminderLabel}
-						className={styles['select']}
+					<SettingsSelect
 						disabled={reminderMode.readOnly}
-						size='sm'
+						label={reminderLabel}
+						options={[
+							{
+								label: intl.formatMessage(terminalSettingsMessages.pageCompletionRemindersNever),
+								value: TerminalCompletionReminderMode.never,
+							},
+							{
+								label: intl.formatMessage(
+									terminalSettingsMessages.pageCompletionRemindersUnfocused,
+								),
+								value: TerminalCompletionReminderMode.unfocused,
+							},
+							{
+								label: intl.formatMessage(terminalSettingsMessages.pageCompletionRemindersAlways),
+								value: TerminalCompletionReminderMode.always,
+							},
+						]}
 						value={reminderMode.value}
-						onChange={(event): void => {
-							const value = event.currentTarget.value;
-							switch (value) {
-								case TerminalCompletionReminderMode.always:
-								case TerminalCompletionReminderMode.never:
-								case TerminalCompletionReminderMode.unfocused:
-									reminderMode.set(value);
-							}
+						onValueChange={(value): void => {
+							reminderMode.set(value);
 						}}
-					>
-						<NativeSelectOption value={TerminalCompletionReminderMode.never}>
-							{intl.formatMessage(terminalSettingsMessages.pageCompletionRemindersNever)}
-						</NativeSelectOption>
-						<NativeSelectOption value={TerminalCompletionReminderMode.unfocused}>
-							{intl.formatMessage(terminalSettingsMessages.pageCompletionRemindersUnfocused)}
-						</NativeSelectOption>
-						<NativeSelectOption value={TerminalCompletionReminderMode.always}>
-							{intl.formatMessage(terminalSettingsMessages.pageCompletionRemindersAlways)}
-						</NativeSelectOption>
-					</NativeSelect>
+					/>
 				</SettingsRow>
 			</SettingsGroup>
 			<SettingsGroup label={intl.formatMessage(terminalSettingsMessages.pageGroupSoundAndDelivery)}>

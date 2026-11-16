@@ -199,7 +199,7 @@ Choose controls by value semantics:
 | Independent reversible boolean     | Switch with a positive label describing the on state; commit at activation                        |
 | Several independent selections     | Checkbox group; never use one checkbox as a generic substitute for a standalone switch            |
 | Two to five comparable choices     | Radio group; use a segmented control only for short, familiar, equal-weight choices               |
-| Longer or space-constrained choice | Select or searchable combobox with stable option identifiers                                      |
+| Longer or space-constrained choice | The shared Select or a searchable combobox with stable option identifiers; never a native select  |
 | Exact text or bounded number       | Semantic input with units, limits, format, and validation; do not use an untyped generic field    |
 | Approximate continuous value       | Slider, with an exact input or displayed value when precision matters                             |
 | Color, theme, font, or path        | Domain picker with preview and an explicit canonical value when expert entry is useful            |
@@ -254,7 +254,8 @@ footer.
 ## Reset, recovery, and destructive actions
 
 - Offer per-setting reset when an explicit value differs from its fallback: the row shows a small
-  changed dot and a Restore default action that affects only that setting. Name whether reset
+  changed dot after its name, centered on the name's line, and a Restore default action that
+  affects only that setting. Name whether reset
   reveals an inherited value or restores the canonical product default.
 - A section or page reset is allowed only for one coherent owner and scope. Preview the affected
   values, exclude unrelated resources and data, and use an Alert Dialog when the breadth or effect

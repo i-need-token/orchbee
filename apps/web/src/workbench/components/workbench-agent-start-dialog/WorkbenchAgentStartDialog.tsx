@@ -7,8 +7,11 @@ import {
 	DialogTitle,
 	Input,
 	Kbd,
-	NativeSelect,
-	NativeSelectOption,
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
 } from '@orchbee/ui/components';
 import type * as React from 'react';
 
@@ -153,19 +156,23 @@ export function WorkbenchAgentStartDialog({
 						<label className={styles['placeLabel']} htmlFor={view.placeId}>
 							{view.opensInLabel}
 						</label>
-						<NativeSelect
+						<Select
 							disabled={view.places.length === 0}
-							id={view.placeId}
-							size='sm'
-							value={view.place}
-							onChange={view.onPlaceChange}
+							items={view.places}
+							value={view.place === '' ? null : view.place}
+							onValueChange={view.onPlaceChange}
 						>
-							{view.places.map((place) => (
-								<NativeSelectOption key={place.value} value={place.value}>
-									{place.label}
-								</NativeSelectOption>
-							))}
-						</NativeSelect>
+							<SelectTrigger id={view.placeId} size='sm'>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{view.places.map((place) => (
+									<SelectItem key={place.value} value={place.value}>
+										{place.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</span>
 					<Button className={styles['action']} type='button' variant='outline' onClick={onClose}>
 						{view.cancelLabel}

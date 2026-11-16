@@ -66,7 +66,7 @@ interface WorkbenchAgentStartDialogView {
 	readonly gradientPrefix: string;
 	readonly listId: string;
 	readonly listLabel: string;
-	readonly onPlaceChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
+	readonly onPlaceChange: (place: WorkbenchAgentStartPlace | null) => void;
 	readonly onQueryChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 	readonly onSearchKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
 	readonly opensInLabel: string;
@@ -282,9 +282,8 @@ export function useWorkbenchAgentStartDialog({
 		gradientPrefix: idPrefix,
 		listId: `${idPrefix}-list`,
 		listLabel: intl.formatMessage(agentStartMessages.list),
-		onPlaceChange: (event) => {
-			const next = places.find((candidate) => candidate === event.target.value);
-			if (next !== undefined) setChosenPlace(next);
+		onPlaceChange: (next) => {
+			if (next !== null) setChosenPlace(next);
 		},
 		onQueryChange: (event) => setQuery(event.target.value),
 		onSearchKeyDown,

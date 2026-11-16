@@ -57,13 +57,6 @@ export function SettingsRow({
 			id={settingId}
 			tabIndex={settingId === undefined ? undefined : -1}
 		>
-			{modified ? (
-				<span
-					aria-hidden='true'
-					className={styles['modified']}
-					title={intl.formatMessage(terminalSettingsMessages.pageChangedFromDefault)}
-				/>
-			) : null}
 			<div className={styles['copy']}>
 				<div className={styles['nameLine']}>
 					<span className={styles['name']}>{label}</span>
@@ -79,6 +72,13 @@ export function SettingsRow({
 							)}
 						</span>
 					)}
+					{modified ? (
+						<span
+							aria-hidden='true'
+							className={styles['modified']}
+							title={intl.formatMessage(terminalSettingsMessages.pageChangedFromDefault)}
+						/>
+					) : null}
 				</div>
 				{description === null || description === undefined ? null : (
 					<div className={styles['description']} data-tone={descriptionTone}>

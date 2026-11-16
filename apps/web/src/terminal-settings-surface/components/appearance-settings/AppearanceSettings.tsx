@@ -1,5 +1,5 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { Input, NativeSelect, NativeSelectOption } from '@orchbee/ui/components';
+import { Input } from '@orchbee/ui/components';
 import type * as React from 'react';
 
 import type { TerminalSettingsController } from '../../../terminal-settings';
@@ -8,6 +8,7 @@ import { useSetting } from '../../hooks/useSetting';
 import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
+import { SettingsSelect } from '../settings-select/SettingsSelect';
 import { useAppearanceSettings } from './hooks/useAppearanceSettings';
 import styles from './AppearanceSettings.module.css';
 
@@ -45,28 +46,25 @@ export function AppearanceSettings({
 					status={<SettingFailure message={applicationTheme.failureMessage} />}
 					onRestore={applicationTheme.readOnly ? undefined : applicationTheme.restore}
 				>
-					<NativeSelect
-						aria-label={applicationThemeLabel}
+					<SettingsSelect
 						disabled={applicationTheme.readOnly}
-						size='sm'
+						label={applicationThemeLabel}
+						options={[
+							{ label: intl.formatMessage(terminalSettingsMessages.sharedSystem), value: 'system' },
+							{
+								label: intl.formatMessage(terminalSettingsMessages.applicationThemeLight),
+								value: 'light',
+							},
+							{
+								label: intl.formatMessage(terminalSettingsMessages.applicationThemeDark),
+								value: 'dark',
+							},
+						]}
 						value={preferences.applicationTheme}
-						onChange={(event): void => {
-							const value = event.currentTarget.value;
-							if (value === 'system' || value === 'light' || value === 'dark') {
-								controller.update({ applicationTheme: value });
-							}
+						onValueChange={(value): void => {
+							controller.update({ applicationTheme: value });
 						}}
-					>
-						<NativeSelectOption value='system'>
-							{intl.formatMessage(terminalSettingsMessages.sharedSystem)}
-						</NativeSelectOption>
-						<NativeSelectOption value='light'>
-							{intl.formatMessage(terminalSettingsMessages.applicationThemeLight)}
-						</NativeSelectOption>
-						<NativeSelectOption value='dark'>
-							{intl.formatMessage(terminalSettingsMessages.applicationThemeDark)}
-						</NativeSelectOption>
-					</NativeSelect>
+					/>
 				</SettingsRow>
 			</SettingsGroup>
 			<SettingsGroup label={intl.formatMessage(terminalSettingsMessages.pageGroupTerminalColors)}>
@@ -79,28 +77,28 @@ export function AppearanceSettings({
 					status={<SettingFailure message={displayTheme.failureMessage} />}
 					onRestore={displayTheme.readOnly ? undefined : displayTheme.restore}
 				>
-					<NativeSelect
-						aria-label={terminalColorsLabel}
+					<SettingsSelect
 						disabled={displayTheme.readOnly}
-						size='sm'
+						label={terminalColorsLabel}
+						options={[
+							{
+								label: intl.formatMessage(terminalSettingsMessages.pageTerminalColorsTheme),
+								value: 'theme',
+							},
+							{
+								label: intl.formatMessage(terminalSettingsMessages.pageTerminalColorsHost),
+								value: 'host',
+							},
+							{
+								label: intl.formatMessage(terminalSettingsMessages.pageTerminalColorsCustom),
+								value: 'custom',
+							},
+						]}
 						value={preferences.terminalDisplayTheme}
-						onChange={(event): void => {
-							const value = event.currentTarget.value;
-							if (value === 'theme' || value === 'host' || value === 'custom') {
-								controller.update({ terminalDisplayTheme: value });
-							}
+						onValueChange={(value): void => {
+							controller.update({ terminalDisplayTheme: value });
 						}}
-					>
-						<NativeSelectOption value='theme'>
-							{intl.formatMessage(terminalSettingsMessages.pageTerminalColorsTheme)}
-						</NativeSelectOption>
-						<NativeSelectOption value='host'>
-							{intl.formatMessage(terminalSettingsMessages.pageTerminalColorsHost)}
-						</NativeSelectOption>
-						<NativeSelectOption value='custom'>
-							{intl.formatMessage(terminalSettingsMessages.pageTerminalColorsCustom)}
-						</NativeSelectOption>
-					</NativeSelect>
+					/>
 				</SettingsRow>
 				{custom ? (
 					<ColorRow

@@ -4,10 +4,6 @@
 	outline: none;
 }
 
-.list:focus-visible {
-	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
-}
-
 .option {
 	position: relative;
 	display: flex;
@@ -19,7 +15,33 @@
 	cursor: default;
 }
 
-.option + .option::before {
+/*
+ * Hover and the keyboard highlight fill an inset rounded band, 4 px from the card's edges, so the
+ * card's outline stays whole; the hairlines beside a filled line hide. Keyboard focus rings only
+ * the highlighted line, not the whole list. The band comes first in paint order, so the line's
+ * positioned content paints over it.
+ */
+.option::before {
+	position: absolute;
+	inset: var(--ob-ref-space-0-5) var(--ob-ref-space-1);
+	border-radius: var(--ob-ref-radius-ui-md);
+	content: '';
+}
+
+.option > * {
+	position: relative;
+}
+
+.option:hover::before,
+.list:focus-visible .option[data-highlighted='true']::before {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+.list:focus-visible .option[data-highlighted='true']::before {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.option + .option::after {
 	position: absolute;
 	inset-block-start: var(--ob-ref-space-0);
 	inset-inline: var(--ob-ref-space-3);
@@ -27,9 +49,11 @@
 	content: '';
 }
 
-.option:hover,
-.list:focus-visible .option[data-highlighted='true'] {
-	background: var(--ob-sys-color-surface-hovered);
+.option:hover::after,
+.option:hover + .option::after,
+.list:focus-visible .option[data-highlighted='true']::after,
+.list:focus-visible .option[data-highlighted='true'] + .option::after {
+	opacity: 0;
 }
 
 .swatch {

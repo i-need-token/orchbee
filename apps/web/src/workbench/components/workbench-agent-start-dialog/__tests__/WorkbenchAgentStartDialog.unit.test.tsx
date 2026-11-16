@@ -14,6 +14,7 @@ import type {
 	WorkbenchAgentCatalogSnapshot,
 	WorkbenchAgentStartInput,
 } from '../../../types/workbench-agent-start';
+import { chooseSelectOption } from '../../../../__tests__/select-choice';
 import { WorkbenchAgentStartDialog } from '../WorkbenchAgentStartDialog';
 
 const CATALOG: WorkbenchAgentCatalogSnapshot = {
@@ -83,7 +84,7 @@ describe('WorkbenchAgentStartDialog', () => {
 		expect(screen.getByRole('option', { name: /Claude Code/u }).getAttribute('aria-selected')).toBe(
 			'true',
 		);
-		fireEvent.change(screen.getByLabelText('Opens in'), { target: { value: 'split-right' } });
+		await chooseSelectOption(screen.getByLabelText('Opens in'), 'Split right');
 		fireEvent.click(screen.getByRole('button', { name: /Start/u }));
 		await waitFor(() =>
 			expect(started).toHaveBeenCalledWith({ place: 'split-right', providerId: 'claude-code' }),

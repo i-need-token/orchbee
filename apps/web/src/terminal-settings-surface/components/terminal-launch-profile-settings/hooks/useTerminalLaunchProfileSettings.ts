@@ -59,7 +59,7 @@ interface CommandOptionView {
 interface CommandEditorCommonView {
 	readonly disabled: boolean;
 	readonly label: string;
-	readonly onKindChange: React.ChangeEventHandler<HTMLSelectElement>;
+	readonly onKindChange: (kind: CommandOptionView['value']) => void;
 	readonly options: readonly CommandOptionView[];
 }
 
@@ -376,11 +376,8 @@ export function useTerminalLaunchProfileSettings(
 	const commandCommon: CommandEditorCommonView = {
 		disabled,
 		label: messages.commandLabel,
-		onKindChange: (event): void => {
-			const kind = event.currentTarget.value;
-			if (kind === 'system-shell' || kind === 'custom-executable') {
-				setDraft((current) => ({ ...current, kind }));
-			}
+		onKindChange: (kind): void => {
+			setDraft((current) => ({ ...current, kind }));
 		},
 		options: [
 			{ label: messages.commandSystem, value: 'system-shell' },

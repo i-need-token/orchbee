@@ -108,7 +108,8 @@ at a size below its minimum instead of hiding its route back.
 ## Rows and typed controls
 
 One setting row contains a persistent localized label, a one-line description, the effective or
-pending state, a changed marker when the file sets the value, source or lock explanation when
+pending state, a changed marker after its title when the file sets the value, source or lock
+explanation when
 exceptional, and the smallest typed control at the row's end. Descriptions explain consequence,
 scope, dependency, security, effect horizon, or recovery; they do not repeat the label or narrate
 ordinary key use. Settings rows show their descriptions at all times, matching the Desktop page; this

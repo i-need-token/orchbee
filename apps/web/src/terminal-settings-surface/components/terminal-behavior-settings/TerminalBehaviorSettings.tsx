@@ -1,5 +1,5 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { Input, NativeSelect, NativeSelectOption, Switch } from '@orchbee/ui/components';
+import { Input, Switch } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { MacosTerminalInputSettingsController } from '../../../macos-terminal-input-settings';
@@ -22,6 +22,7 @@ import { MacosTerminalInputSettings } from '../macos-terminal-input-settings/Mac
 import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
+import { SettingsSelect } from '../settings-select/SettingsSelect';
 import { TerminalLaunchProfileSettings } from '../terminal-launch-profile-settings/TerminalLaunchProfileSettings';
 import styles from './TerminalBehaviorSettings.module.css';
 
@@ -193,24 +194,16 @@ function NewTerminalFolderRow({
 			}
 		>
 			<span className={styles['folderChoice']}>
-				<NativeSelect
-					aria-label={label}
+				<SettingsSelect
 					disabled={setting.readOnly}
-					size='sm'
+					label={label}
+					options={START_FOLDER_ENTRIES.map((entry) => ({
+						label: intl.formatMessage(startFolderMessage(entry)),
+						value: entry,
+					}))}
 					value={custom === null ? stored : 'custom'}
-					onChange={(event): void => {
-						const entry = START_FOLDER_ENTRIES.find(
-							(candidate) => candidate === event.currentTarget.value,
-						);
-						if (entry !== undefined) choose(entry);
-					}}
-				>
-					{START_FOLDER_ENTRIES.map((entry) => (
-						<NativeSelectOption key={entry} value={entry}>
-							{intl.formatMessage(startFolderMessage(entry))}
-						</NativeSelectOption>
-					))}
-				</NativeSelect>
+					onValueChange={choose}
+				/>
 				{stored === 'custom' || custom === 'field' ? (
 					<Input
 						aria-label={intl.formatMessage(terminalSettingsMessages.pageNewTerminalFolderPath)}

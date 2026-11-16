@@ -25,6 +25,7 @@ import type {
 } from '../../terminal-default-settings-control';
 import { colorThemesWithFixtures, fixtureDarkTheme } from '../../__tests__/color-theme-fixtures';
 import { memoryUserSettings, type MemoryUserSettings } from '../../__tests__/memoryUserSettings';
+import { chooseSelectOption, selectedText, selectTrigger } from '../../__tests__/select-choice';
 
 /** The registry's page mark for `update.automatic` as a test sets it; null keeps the real mark. */
 const automaticUpdatesPage = vi.hoisted((): { listed: boolean | null } => ({ listed: null }));
@@ -280,19 +281,14 @@ describe('TerminalSettingsSurface', () => {
 			);
 		});
 
-		const chineseSelect = requiredElement<HTMLSelectElement>(
-			container.querySelector("select[aria-label='语言']"),
-		);
-		expect(chineseSelect.value).toBe('system');
+		const chineseSelect = selectTrigger(container, '语言');
+		expect(selectedText(chineseSelect)).toBe('跟随系统');
 		expect(edit).not.toHaveBeenCalled();
 
-		await act(async () => {
-			setSelectValue(chineseSelect, 'en-US');
-			chineseSelect.dispatchEvent(new Event('change', { bubbles: true }));
-		});
+		await chooseSelectOption(chineseSelect, 'English');
 
 		expect(document.documentElement.lang).toBe('en-US');
-		expect(container.querySelector("select[aria-label='Language']")).not.toBeNull();
+		expect(selectTrigger(container, 'Language')).not.toBeNull();
 		expect(userSettings.getSnapshot().snapshot?.values['general.language']).toBe('en-US');
 	});
 
@@ -394,16 +390,11 @@ describe('TerminalSettingsSurface', () => {
 				settings,
 			});
 			await openCategory('terminal');
-			const choice = requiredElement<HTMLSelectElement>(
-				container.querySelector("select[aria-label='New terminal folder']"),
-			);
+			const choice = selectTrigger(container, 'New terminal folder');
 			const field = (): HTMLInputElement | null =>
 				container.querySelector("input[aria-label='Custom folder path']");
-			const choose = async (entry: string): Promise<void> => {
-				await act(async () => {
-					setSelectValue(choice, entry);
-					choice.dispatchEvent(new Event('change', { bubbles: true }));
-				});
+			const choose = async (entry: keyof typeof FOLDER_ENTRY_LABELS): Promise<void> => {
+				await chooseSelectOption(choice, FOLDER_ENTRY_LABELS[entry]);
 			};
 			const file = (): { set: boolean; value: unknown } => {
 				const snapshot = settings.getSnapshot().snapshot;
@@ -425,14 +416,14 @@ describe('TerminalSettingsSurface', () => {
 			['~/项目', 'custom', '~/项目'],
 		] as const) {
 			const row = await folderRow(stored);
-			expect([stored, row.choice.value, row.field()?.value ?? null]).toEqual([
+			expect([stored, selectedText(row.choice), row.field()?.value ?? null]).toEqual([
 				stored,
-				entry,
+				FOLDER_ENTRY_LABELS[entry],
 				folder,
 			]);
 		}
 
-		for (const entry of ['workspace', 'home', 'follow']) {
+		for (const entry of ['workspace', 'home', 'follow'] as const) {
 			const row = await folderRow('C:\\old');
 			await row.choose(entry);
 			expect(row.file()).toEqual({ set: true, value: entry });
@@ -464,14 +455,9 @@ describe('TerminalSettingsSurface', () => {
 			settings,
 		});
 		await openCategory('terminal');
-		const optionAsAlt = requiredElement<HTMLSelectElement>(
-			container.querySelector("select[aria-label='Use Option as Alt']"),
-		);
-		expect(optionAsAlt.value).toBe('off');
-		await act(async () => {
-			setSelectValue(optionAsAlt, 'right');
-			optionAsAlt.dispatchEvent(new Event('change', { bubbles: true }));
-		});
+		const optionAsAlt = selectTrigger(container, 'Use Option as Alt');
+		expect(selectedText(optionAsAlt)).toBe('Off');
+		await chooseSelectOption(optionAsAlt, 'Right Option');
 		expect(macosController.current()).toEqual({ optionAsAlt: 'right' });
 		expect(listener).toHaveBeenCalledWith({ optionAsAlt: 'right' });
 	});
@@ -543,9 +529,7 @@ describe('TerminalSettingsSurface', () => {
 		expect(fontSize.value).toBe('17');
 		expect(fontSize.readOnly).toBe(true);
 		expect(container.querySelector("button[aria-label='Restore default: Font size']")).toBeNull();
-		const theme = requiredElement<HTMLSelectElement>(
-			container.querySelector("select[aria-label='Application theme']"),
-		);
+		const theme = selectTrigger(container, 'Application theme');
 		expect(theme.disabled).toBe(true);
 	});
 
@@ -638,8 +622,10 @@ function setInputValue(input: HTMLInputElement, value: string): void {
 	setter.call(input, value);
 }
 
-function setSelectValue(input: HTMLSelectElement, value: string): void {
-	const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
-	if (setter === undefined) throw new Error('The select value setter is unavailable.');
-	setter.call(input, value);
-}
+/** The New terminal folder entries' English names. */
+const FOLDER_ENTRY_LABELS = {
+	custom: 'Custom folder…',
+	follow: 'Same as the current terminal',
+	home: 'Home folder',
+	workspace: 'Workspace folder',
+} as const;
