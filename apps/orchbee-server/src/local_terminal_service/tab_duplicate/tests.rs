@@ -150,13 +150,14 @@ fn serve(
             let epoch = HostEpoch::from_bytes([2; 16]).unwrap();
             let outcome = answer(index, epoch, launch.mode());
             let result = TerminalLaunchResult::new(launch.authorization(), outcome).unwrap();
+            // Counted before the reply, so the count is in when the service has read the reply.
+            index += 1;
+            launches.send(index).unwrap();
             write_message(
                 &mut peer,
                 &CapabilityNodeMessage::TerminalLaunchResult(result),
             )
             .unwrap();
-            index += 1;
-            launches.send(index).unwrap();
         }
     });
     seen
