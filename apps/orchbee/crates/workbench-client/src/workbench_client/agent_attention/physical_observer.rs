@@ -162,10 +162,12 @@ impl PhysicalObserver {
                 host_epoch: binding.host_epoch.as_str().to_owned(),
                 host_terminal_id: binding.host_terminal_id.as_str().to_owned(),
             };
-            changed |= if focused == Some(false) {
-                self.scheduler.suppress_painted(&identity, sequence.value())
-            } else {
+            // The scheduler mirrors the attention owner's seen fact; any other paint, such as an
+            // unfocused visible sibling, only cancels the notification for that exact version.
+            changed |= if self.state.seen(&binding, sequence) {
                 self.scheduler.acknowledge(&identity, sequence.value())
+            } else {
+                self.scheduler.suppress_painted(&identity, sequence.value())
             };
         }
         changed

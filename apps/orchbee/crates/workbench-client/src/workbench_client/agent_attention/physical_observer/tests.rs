@@ -24,6 +24,41 @@ fn round(sequence: u64, state: &str) -> PhysicalRound {
 }
 
 #[test]
+fn an_unfocused_visible_paint_cancels_the_notification_and_the_version_stays_readable_unseen() {
+    let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
+    let mut observer = PhysicalObserver::new(clock.clone());
+    observer.scheduler.configure(
+        1,
+        AgentNotificationPolicy {
+            popup_enabled: true,
+            delay_millis: 0,
+            ..AgentNotificationPolicy::default()
+        },
+    );
+    observer.settle(clock.now(), Ok(round(1, "working")));
+    observer.settle(clock.now(), Ok(round(2, "done")));
+    let binding = round(2, "done").states[0].binding.clone();
+    let paint = observer.state.paint(|_| true).unwrap();
+    // Painted in a visible split sibling while another Panel holds focus.
+    observer.acknowledge(&paint, Some(true), |_| true, |_| false);
+    observer.after_draw();
+    assert!(observer.take_notification(true).is_none());
+    // The next round repeats that version; the Client keeps answering it as unseen.
+    observer.settle(clock.now(), Ok(round(2, "done")));
+    let snapshot = observer.state.snapshot(&[binding], Some(true));
+    assert_eq!(
+        snapshot.map(|snapshot| {
+            snapshot
+                .entries
+                .first()
+                .and_then(|entry| entry.state.as_ref())
+                .map(|state| state.seen)
+        }),
+        Some(Some(false))
+    );
+}
+
+#[test]
 fn a_failed_round_keeps_the_notification_baseline_until_it_ages_out() {
     let elapsed = Arc::new(AtomicU64::new(0));
     let clock = adjustable_operation_clock(Arc::clone(&elapsed));

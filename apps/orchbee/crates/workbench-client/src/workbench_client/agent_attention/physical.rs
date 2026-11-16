@@ -48,6 +48,14 @@ impl PhysicalAttentionState {
                 })
     }
 
+    pub(super) fn seen(&self, binding: &AgentLaunchBinding, sequence: WorkbenchRevision) -> bool {
+        self.current(binding, sequence)
+            && self
+                .entries
+                .get(binding.presentation_id.as_str())
+                .is_some_and(|entry| entry.seen)
+    }
+
     pub(super) fn agent_in_terminal(
         &self,
         presentation: &str,
