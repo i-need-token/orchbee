@@ -338,10 +338,11 @@ URL credentials, query strings, fragments, controls and unsafe catalog-relative 
 Each fresh-output attempt is limited to 15 seconds, with at most three fetch attempts and a ten-minute
 overall update budget. Confirmed Job exit and pipe-reader join precede returning fetch results.
 On macOS the downloader runs `/usr/bin/curl` with the same arguments, attempts and limits and an
-empty environment, as one process group that the local runtime's Unix command owner settles: a
-stop or an expired attempt sends the group `SIGTERM`, then `SIGKILL` after two seconds, and no
-result returns before the root is reaped and the group is empty. Output beyond the limit fails the
-attempt as too large. Builds without either adapter fail a download as a process failure.
+empty environment, as one process group that the local runtime's Unix command child settles: a
+stop, an expired attempt or the first output byte beyond the limit sends the group `SIGTERM`, then
+`SIGKILL` after two seconds, and no result returns before the root is reaped and the group is
+empty. Output beyond the limit fails the attempt as too large, as on Windows. Builds without either
+adapter fail a download as a process failure.
 Network work belongs to a
 separate retained worker; the observer remains the sole rule installation point. Download/cache
 completion and activation are distinct facts, including cancellation and partial success.
