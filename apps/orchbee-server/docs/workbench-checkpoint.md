@@ -3,10 +3,10 @@
 ## Scope and ownership
 
 `workbench_authority/checkpoint.rs` owns the private versioned projection of retained Workbench
-configuration and its reconstruction into a fresh authority. The managed Windows Session is the
-storage/startup consumer. The domain codec remains separate from Windows filesystem admission,
-checkpoint publication and terminal relaunch. Named-Session routing and the additional recovery owners
-remain separate obligations. No other platform adapter is introduced.
+configuration and its reconstruction into a fresh authority. The managed Windows and macOS
+Sessions are its storage/startup consumers; a Linux Session keeps no checkpoint yet. The domain
+codec remains separate from filesystem admission, checkpoint publication and terminal relaunch.
+Named-Session routing and the additional recovery owners remain separate obligations.
 
 The checkpoint retains optional Project membership, Project labels, global local-directory paths,
 Workspaces and their display order, terminal contexts, ordered
@@ -89,7 +89,7 @@ During normal operation the existing process sampler caches only its already obs
 [terminal output replay](#terminal-output-replay), when it is on, reads recent output before a
 save.
 
-Capture maps admitted observations to current Presentation identities. If observation is unavailable, retained restart intent remains; otherwise ordinary workspace/home defaults apply. Removed members disappear. Fresh launch prefers the retained directory, then workspace default; if that selected path no longer names a directory, Windows restore holds the Presentation instead of launching (see [Held restore](#held-restore)). This restoration policy does not alter explicit user launch validation. The shared PowerShell prompt synchronization also runs in restored encoded-command shells, so directory changes after a provider exits can be observed.
+Capture maps admitted observations to current Presentation identities. If observation is unavailable, retained restart intent remains; otherwise ordinary workspace/home defaults apply. Removed members disappear. Fresh launch prefers the retained directory, then workspace default; if that selected path no longer names a directory, restore holds the Presentation instead of launching (see [Held restore](#held-restore)). This restoration policy does not alter explicit user launch validation. The shared PowerShell prompt synchronization also runs in restored encoded-command shells, so directory changes after a provider exits can be observed.
 
 Evidence must cover exact identity/revision fences, primary/child separation, incompatible-format rejection, malformed rows, capture/reconstruct without live authority, unresolved viewer cleanup, actual Windows directory changes and a deleted saved directory. A process launch witness alone does not prove this directory lifecycle.
 
@@ -141,7 +141,7 @@ by the Snapshot owner. A forged bound Presentation, foreign Worker during captur
 missing membership, malformed launch definition or high-water counter below a retained ID rejects the whole
 operation. JSON encoding alone does not establish graph validity.
 
-The domain performs no filesystem access or process launch. Storage must admit private Windows
+The domain performs no filesystem access or process launch. Storage must admit private
 paths, publish complete records, distinguish absence from corruption, and retain failure evidence.
 Startup restoration must establish new physical bindings and account for interrupted operations;
 returning an unbound authority from this codec is not proof that a usable session has resumed.
@@ -152,7 +152,7 @@ there is no permissive fallback.
 ## Held restore
 
 When the directory a target would start in (its retained directory, else the Workspace default)
-does not name an accessible directory, Windows restore does not launch it. `hold_restored_terminal`
+does not name an accessible directory, restore does not launch it. `hold_restored_terminal`
 commits the Presentation unbound in its place with a `directory-unavailable` launch failure that
 names that directory and whether a retained Agent reference still waits (only while resume is
 enabled; otherwise the reference is consumed as before). The restart directory and Agent reference
@@ -187,7 +187,7 @@ unchanged. Already-bound targets and duplicate physical terminal bindings are re
 
 Preparation creates no process and replays no command. The managed coordinator prepares a fresh terminal reservation with the canonical binding, commits both under one lock, then dispatches and settles that exact physical request before exposing Clients. Restored snapshot bindings are the only attachment selection source; there is no reconstructed Open reference. Planning tests alone do not establish runtime integration.
 
-## Managed Windows startup and clean stop
+## Managed startup and clean stop
 
 Managed startup opens the exclusive `SessionStore` in the Session folder,
 `<data root>/sessions/<session>`, and parses its
@@ -227,12 +227,22 @@ cached directory, fenced to its exact physical generation as a background save f
 restart directory, and it publishes only once that Worker's Host is observed absent.
 Fresh physical creation establishes terminal bindings. Client and history recovery remain separate. Activation markers retain their existing recovery semantics on failed boot.
 
+macOS runs this startup, clean stop and the running save model in the same Session folder under
+its POSIX data root, with the same storage owner, record format and restore notice. Agent session
+references and kept terminal output ride on a checkpoint only on Windows
+(`local_terminal_service/checkpoint/riders.rs`): a macOS save records neither and its restore
+resumes and replays nothing. A macOS stop, an `exit` included, disposes every terminal and stops the
+Host, so its next start relaunches them from the final capture. A Session that ended without its stop
+has no final capture: once activation has recovered it, which waits until every recorded process is
+gone and refuses while its Host holds its lock, startup restores the newest background save. No
+restore therefore starts beside a running terminal.
+
 ## Running save model
 
-The managed Windows Server owns one background saver after terminal restoration has settled. It watches committed Workbench revision; each change restarts a 500ms debounce.
+The managed Server owns one background saver after terminal restoration has settled. It watches committed Workbench revision; each change restarts a 500ms debounce.
 Every 30 seconds it also captures cached directories. Agent session rows come from the same
-capture. No terminal screen, history, Agent conversation or live controller state enters the payload;
-kept terminal output lives in its own files, which the payload names only by number.
+capture on Windows. No terminal screen, history, Agent conversation or live controller state enters
+the payload; kept terminal output lives in its own files, which the payload names only by number.
 The pending work is one latest snapshot, not an unbounded queue.
 When every retained copy was invalid, the saver retains the exact initial empty checkpoint in
 memory and does not publish that baseline. A later layout or cached directory
@@ -316,7 +326,9 @@ recording off. Native storage and Server-load witnesses verify fallback/empty no
 preservation for invalid copies, including a preceding version 7 document. Direct Server admission
 also preserves pending files when the durable catalog is unsupported. A stored checkpoint slot and
 the kept output it names, one pair per released format in the Server-load witness's
-`record-samples/`, restore without a notice and replay that output.
+`record-samples/`, restore without a notice and replay that output. The Server-load witnesses run
+in a POSIX folder on macOS too, and the restore witness checks that a restored terminal launches in
+its saved directory.
 
 Terminal output tests cover the line and byte caps and that only the named Presentation replays,
 with a foreign file removed. The Windows restart witness `cli_windows_output_replay` drives real

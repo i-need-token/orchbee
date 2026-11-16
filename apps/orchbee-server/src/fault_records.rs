@@ -493,7 +493,6 @@ impl<T> RecordedLock<T> {
         guard
     }
 
-    #[cfg(windows)]
     pub(crate) fn get_mut(&mut self) -> LockResult<&mut T> {
         let value = self.inner.get_mut();
         if value.is_err() {

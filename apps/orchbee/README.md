@@ -272,7 +272,8 @@ running the executable again automatically starts a fresh generation and restore
 checkpoint. Live or uncertain old owners block startup; current recovery does not adopt a live Host.
 `session list` v2 reports guarded cold eligibility as `recoverable`. Continuous Workbench checkpoints
 retain layout changes and sampled terminal directories without screen
-contents; see the [Windows Workbench checkpoint contract](../orchbee-server/docs/workbench-checkpoint.md).
+contents on Windows and macOS; Linux keeps none yet. See the
+[Workbench checkpoint contract](../orchbee-server/docs/workbench-checkpoint.md).
 `config check --format json` checks local cohort/runtime inputs without starting one.
 
 After attachment, the TooSmall recovery surface withholds Panel geometry observations instead of
@@ -953,7 +954,7 @@ The Client attaches only the snapshot's exact Session/Worker/Terminal binding th
 
 ## Windows explicit Session stop
 
-`server stop --confirm` ends the existing managed Session and its terminal processes. Use `--detach` for admission only and retain the returned ID for `operation status <id>`. Explicit retry requires `--retry --request-id <id> --confirm`. Cancellation or timeout does not cancel an accepted stop. A matching stopped record and free lifetime lock prove completion; the next `server start` consumes that record and creates a fresh Session. See the [CLI stop contract](docs/native-cli-query.md#windows-session-stop). macOS stops the same way without a final checkpoint, so the next start restores nothing; Linux has no `server stop` yet. The release build replaces `--confirm` with the [release confirmation](#windows-release-destructive-confirmation).
+`server stop --confirm` ends the existing managed Session and its terminal processes. Use `--detach` for admission only and retain the returned ID for `operation status <id>`. Explicit retry requires `--retry --request-id <id> --confirm`. Cancellation or timeout does not cancel an accepted stop. A matching stopped record and free lifetime lock prove completion; the next `server start` consumes that record and creates a fresh Session. See the [CLI stop contract](docs/native-cli-query.md#windows-session-stop). macOS stops the same way and publishes a final checkpoint, so the next start relaunches its terminals in their saved directories; Linux has no `server stop` yet. The release build replaces `--confirm` with the [release confirmation](#windows-release-destructive-confirmation).
 
 ## Windows release destructive confirmation
 

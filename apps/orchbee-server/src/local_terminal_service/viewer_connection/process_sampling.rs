@@ -105,7 +105,6 @@ impl LocalTerminalService {
         (facts, pending)
     }
 
-    #[cfg(windows)]
     pub(in crate::local_terminal_service) fn sample_checkpoint_directory(
         &self,
         target: &ProcessObservationTarget,

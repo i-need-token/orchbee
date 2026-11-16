@@ -840,14 +840,15 @@ fn no_endpoints(runtime: &Path) -> io::Result<()> {
 }
 
 /// The evidence a clean stop leaves beside its matching receipt. A Windows Server publishes its
-/// final checkpoint before the receipt, so a missing one means lost layout data. A POSIX Server
-/// publishes no checkpoint yet, so there the matching receipt is the whole evidence.
+/// final checkpoint before the receipt, so a missing one means lost layout data. On macOS and Linux
+/// the matching receipt is the whole evidence: a Linux Server keeps no checkpoint, and macOS
+/// Sessions stopped before their Server kept one have none.
 fn stopped_evidence(checkpoint: &Path) -> io::Result<()> {
     #[cfg(windows)]
     return stopped_checkpoint_evidence(checkpoint);
     #[cfg(unix)]
     {
-        let _published_by_no_posix_server = checkpoint;
+        let _not_required_by_a_posix_receipt = checkpoint;
         Ok(())
     }
 }

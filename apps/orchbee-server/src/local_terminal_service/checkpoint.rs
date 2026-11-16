@@ -12,26 +12,29 @@ use orchbee_workbench_protocol::WorkerId;
 use std::{
     io,
     sync::{Arc, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
+
+#[cfg(windows)]
+mod riders;
+#[cfg(not(windows))]
+#[path = "checkpoint/without_riders.rs"]
+mod riders;
+pub(super) use riders::{Riders, attach_held_seed};
 
 pub(crate) struct CheckpointRestore {
     /// Each restored launch and, when replay is on, the kept output its Presentation replays.
-    pending: Vec<(PendingOperation, Option<RestoredOutput>)>,
-    agent_resume: super::agent_resume::AgentResumeCandidates,
+    pending: Vec<(PendingOperation, riders::Output)>,
+    #[cfg(windows)]
+    resumes: riders::Resumes,
 }
 
-/// The kept output one restored Presentation replays before its program starts.
-struct RestoredOutput {
-    presentation_id: orchbee_workbench_protocol::TerminalPresentationId,
-    token: u64,
-}
-
+#[cfg(windows)]
 impl CheckpointRestore {
     /// The Presentations whose retained Agent session reference survived startup, in restoration
     /// order. Taking them leaves none behind.
     pub(crate) fn take_agent_resume(&mut self) -> super::agent_resume::AgentResumeCandidates {
-        std::mem::take(&mut self.agent_resume)
+        std::mem::take(&mut self.resumes)
     }
 }
 
@@ -39,7 +42,6 @@ impl CheckpointRestore {
 mod tests;
 
 impl LocalTerminalService {
-    #[cfg(windows)]
     pub(crate) fn checkpoint_revision(
         &self,
     ) -> io::Result<orchbee_workbench_protocol::WorkbenchRevision> {
@@ -49,31 +51,14 @@ impl LocalTerminalService {
             .checkpoint_revision()
     }
 
-    /// What Claude Code's run table names for each published Claude Code run, read while no lock
-    /// is held. Capture admits an entry only for a run still published as that exact process, so
-    /// any change in between gains nothing. Resuming off, or an unreadable coordinator, reads
-    /// nothing.
-    fn run_table_entries(&self, resume: bool) -> Vec<crate::session_coordinator::RunTableEntry> {
-        if !resume {
-            return Vec::new();
-        }
-        let anchors = match self.coordinator.lock() {
-            Ok(coordinator) => coordinator.run_table_anchors(),
-            Err(_) => return Vec::new(),
-        };
-        crate::session_coordinator::read_run_table(&anchors)
-    }
-
     /// Build a bounded configuration from committed state and cached observations. The caller
     /// performs disk publication only after every Session/Worker gate below has been released.
-    #[cfg(windows)]
     pub(crate) fn cached_checkpoint(
         &self,
         worker: &WorkerId,
     ) -> io::Result<(orchbee_workbench_protocol::WorkbenchRevision, Vec<u8>)> {
-        let resume = self.agent_resume_enabled();
-        let replay = self.output_replay_enabled();
-        let entries = self.run_table_entries(resume);
+        let riders = Riders::current(self);
+        let entries = riders.entries(self);
         let workers = self
             .workers
             .lock()
@@ -91,15 +76,26 @@ impl LocalTerminalService {
             return Err(io::Error::other("checkpoint Worker changed"));
         }
         let directories = coordinator.cached_checkpoint_directories(&targets);
-        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets, &entries));
-        let outputs = self.checkpoint_outputs(replay, &targets);
-        let bytes = coordinator.checkpoint_with_observations(
+        let bytes = riders.checkpoint(
+            self,
+            &mut coordinator,
             worker,
             &directories,
-            agents.as_deref(),
-            outputs.as_deref(),
+            &targets,
+            &entries,
         )?;
         Ok((revision, bytes))
+    }
+
+    /// Captures kept terminal output for the next background save within `budget`, where output
+    /// replay is on.
+    pub(crate) fn capture_kept_output_within(&self, budget: Duration) {
+        riders::capture_background(self, budget);
+    }
+
+    /// Settles what a committed save no longer names, such as kept output it dropped.
+    pub(crate) fn after_checkpoint_save(&self, bytes: &[u8]) {
+        riders::after_save(self, bytes);
     }
 
     /// Reconstructs and reserves every terminal before any request can launch a Host. Restored
@@ -145,10 +141,9 @@ impl LocalTerminalService {
                 .restore_recent(recent);
         }
         let values = &configuration.settings.values;
-        // The setting decides resuming once, from the startup read.
-        let resume = values.resume_agents_on_restore;
-        // Output replays only while the setting is on; otherwise the first save removes it.
-        let replay = values.restore_terminal_output;
+        // The settings decide resuming and replay once, from the startup read; with replay off the
+        // first save removes the kept output.
+        let riders = Riders::startup(values);
         // One read serves every restored launch.
         let capture = super::settings::launch_capture(values);
         let coordinator = service
@@ -157,7 +152,7 @@ impl LocalTerminalService {
             .map_err(|_| io::Error::other("coordinator failed"))?;
         let expiry = lease_expiry().ok_or_else(|| io::Error::other("restore lease unavailable"))?;
         let mut pending = Vec::with_capacity(targets.len());
-        let mut agent_resume = super::agent_resume::AgentResumeCandidates::default();
+        let mut resumes = riders::resumes();
         for target in targets {
             // A Presentation whose directory is unavailable stays unbound in its place, keeping
             // its retained directory and, when resuming is on, its Agent reference until the
@@ -167,28 +162,11 @@ impl LocalTerminalService {
                 .filter(|p| !std::path::Path::new(p.as_str()).is_dir())
                 .cloned()
             {
-                let agent_resume =
-                    resume && coordinator.has_pending_agent_session(target.presentation_id());
-                if !agent_resume {
-                    coordinator.take_pending_agent_session(target.presentation_id());
-                }
+                let agent_resume = riders.hold_agent(coordinator, &target);
                 coordinator.hold_checkpoint_terminal(&target, directory, agent_resume)?;
                 continue;
             }
-            if coordinator.has_pending_agent_session(target.presentation_id()) {
-                // A reference resumes only where it was recorded.
-                match target
-                    .restored_directory()
-                    .filter(|p| std::path::Path::new(p.as_str()).is_dir())
-                {
-                    Some(directory) if resume => {
-                        agent_resume.push(target.presentation_id().clone(), directory.clone());
-                    }
-                    _ => {
-                        coordinator.take_pending_agent_session(target.presentation_id());
-                    }
-                }
-            }
+            riders.restore_agent(coordinator, &target, &mut resumes);
             let reference = create_reference()
                 .ok_or_else(|| io::Error::other("restore request identity unavailable"))?;
             let cwd = target
@@ -202,13 +180,7 @@ impl LocalTerminalService {
                 Some(&handle),
                 capture.clone(),
             );
-            let output = target
-                .restored_output()
-                .filter(|_| replay)
-                .map(|token| RestoredOutput {
-                    presentation_id: target.presentation_id().clone(),
-                    token,
-                });
+            let output = riders.restored_output(&target);
             pending.push((
                 *coordinator.prepare_checkpoint_terminal(&target, inputs, cwd)?,
                 output,
@@ -218,7 +190,8 @@ impl LocalTerminalService {
             service,
             CheckpointRestore {
                 pending,
-                agent_resume,
+                #[cfg(windows)]
+                resumes,
             },
         ))
     }
@@ -236,14 +209,7 @@ impl LocalTerminalService {
         for (mut terminal, output) in restore.pending {
             // The kept output reaches the Host with the launch, before the program's first byte;
             // a file that cannot replay here is never attached elsewhere.
-            if let Some(output) = output
-                && let Some(seed) = self.restored_output_seed(&output.presentation_id, output.token)
-                && terminal.set_output_seed(seed).is_err()
-            {
-                eprintln!(
-                    "orchbee-server diagnostic component=checkpoint operation=terminal-output stage=seed cause=refused"
-                );
-            }
+            riders::attach_seed(self, &mut terminal, output);
             let completion = if Instant::now() >= deadline {
                 Completion::Unavailable
             } else {
@@ -271,26 +237,16 @@ impl LocalTerminalService {
     }
 
     pub(crate) fn checkpoint(&self, worker: &WorkerId, deadline: Instant) -> io::Result<Vec<u8>> {
-        let resume = self.agent_resume_enabled();
-        let replay = self.output_replay_enabled();
+        let riders = Riders::current(self);
         let (revision, targets) = self
             .coordinator
             .lock()
             .map_err(|_| io::Error::other("coordinator failed"))?
             .checkpoint_observation_targets()?;
-        let presentations = if replay {
-            self.coordinator
-                .lock()
-                .map_err(|_| io::Error::other("coordinator failed"))?
-                .checkpoint_presentations()
-        } else {
-            Vec::new()
-        };
+        let presentations = riders.presentations(self)?;
         self.settle_checkpoint_viewer(None)?;
         let mut directories = Vec::new();
-        let mut output_deadline_noted = false;
-        let output_deadline =
-            Instant::now() + deadline.saturating_duration_since(Instant::now()) / 2;
+        let mut output = riders.final_output(presentations, deadline);
         for target in &targets {
             if Instant::now() >= deadline {
                 return Err(io::ErrorKind::TimedOut.into());
@@ -300,27 +256,9 @@ impl LocalTerminalService {
             if let Some(directory) = directory {
                 directories.push((target.binding.clone(), directory));
             }
-            // Output capture spends at most half the save's budget; past it each terminal keeps
-            // its previous file and the save goes on.
-            if replay {
-                if Instant::now() >= output_deadline {
-                    if !output_deadline_noted {
-                        output_deadline_noted = true;
-                        eprintln!(
-                            "orchbee-server diagnostic component=checkpoint operation=terminal-output stage=final-capture cause=deadline"
-                        );
-                    }
-                    continue;
-                }
-                let presentation = presentations
-                    .iter()
-                    .find(|(binding, _)| binding == &target.binding)
-                    .map(|(_, presentation)| presentation);
-                let pending = self.capture_final_output(target, presentation);
-                self.settle_checkpoint_viewer(pending)?;
-            }
+            output.capture(self, target)?;
         }
-        let entries = self.run_table_entries(resume);
+        let entries = riders.entries(self);
         let workers = self
             .workers
             .lock()
@@ -337,13 +275,13 @@ impl LocalTerminalService {
         if coordinator.checkpoint_observation_targets()? != (revision, targets.clone()) {
             return Err(io::Error::other("checkpoint physical membership changed"));
         }
-        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets, &entries));
-        let outputs = self.checkpoint_outputs(replay, &targets);
-        coordinator.checkpoint_with_observations(
+        riders.checkpoint(
+            self,
+            &mut coordinator,
             worker,
             &directories,
-            agents.as_deref(),
-            outputs.as_deref(),
+            &targets,
+            &entries,
         )
     }
 
@@ -353,9 +291,8 @@ impl LocalTerminalService {
     /// samples name is the one that exited. Unreadable membership keeps only restart directories
     /// rather than leaving the Session unable to stop.
     pub(crate) fn checkpoint_without_worker(&self, worker: &WorkerId) -> io::Result<Vec<u8>> {
-        let resume = self.agent_resume_enabled();
-        let replay = self.output_replay_enabled();
-        let entries = self.run_table_entries(resume);
+        let riders = Riders::current(self);
+        let entries = riders.entries(self);
         let mut coordinator = self
             .coordinator
             .lock()
@@ -365,14 +302,14 @@ impl LocalTerminalService {
             .map(|(_, targets)| targets)
             .unwrap_or_default();
         let directories = coordinator.cached_checkpoint_directories(&targets);
-        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets, &entries));
         // Output kept from earlier saves still names the exited terminals' files.
-        let outputs = self.checkpoint_outputs(replay, &targets);
-        coordinator.checkpoint_with_observations(
+        riders.checkpoint(
+            self,
+            &mut coordinator,
             worker,
             &directories,
-            agents.as_deref(),
-            outputs.as_deref(),
+            &targets,
+            &entries,
         )
     }
 }

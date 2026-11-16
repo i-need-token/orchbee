@@ -19,12 +19,11 @@ use orchbee_workbench_protocol::{
 
 mod agent_start;
 pub(crate) use agent_start::AgentStartLaunch;
-#[cfg(any(windows, test))]
 mod checkpoint_restore;
 mod configured_command;
 mod exit_close;
-#[cfg(windows)]
 mod held_restore;
+pub(crate) use held_restore::PendingHeldRestore;
 mod independent_popup;
 mod plugin_popup;
 mod tab_close;

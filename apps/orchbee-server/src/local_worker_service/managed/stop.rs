@@ -1,6 +1,7 @@
 //! Managed Session shutdown settles creation-owned resources before publishing restart authority;
-//! an `exit` settles the same work but ends only this Server and its Worker. Only Windows publishes
-//! a final checkpoint and runs the jobs that restore or save one.
+//! an `exit` settles the same work but ends only this Server and its Worker. A Session that keeps a
+//! checkpoint restores it before the Client listener opens, saves it while it runs and publishes a
+//! final one before its Worker disposes any terminal.
 use super::super::agent_observation_endpoint::AgentObservationEndpoint;
 use crate::{
     agent_service::AgentService,
@@ -16,14 +17,10 @@ use orchbee_capability_node_protocol::{
     WorkerGeneration, WorkerId, WorkerShutdownOutcome, WorkerShutdownRequest,
 };
 use orchbee_local_client_protocol::{StopFailure, StopId, StopPhase};
-#[cfg(windows)]
-use orchbee_local_runtime::SessionStore;
 use orchbee_local_runtime::{
     LockAttempt, ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock,
     RetainedActivationRecord, RetainedChild, RetainedSessionRecord,
 };
-#[cfg(windows)]
-use std::sync::Mutex;
 use std::{
     io,
     sync::Arc,
@@ -53,14 +50,10 @@ pub(super) struct Owners {
     pub(super) ingress: AgentObservationEndpoint,
     pub(super) terminals: Arc<LocalTerminalService>,
     pub(super) agents: Arc<AgentService>,
-    #[cfg(windows)]
-    pub(super) checkpoint_store: Arc<Mutex<SessionStore>>,
-    #[cfg(windows)]
-    pub(super) checkpoint_saver: Option<super::checkpoint_windows::autosave::Saver>,
+    /// The checkpoint this Session keeps; none where the platform keeps none.
+    pub(super) checkpoint: Option<super::checkpoint::Kept>,
     #[cfg(windows)]
     pub(super) automatic_updates: Option<crate::automatic_updates::AutomaticUpdates>,
-    #[cfg(windows)]
-    pub(super) suppress_initial_empty: bool,
     pub(super) session_record: RetainedSessionRecord,
 }
 
@@ -88,11 +81,10 @@ pub(super) fn run(
     shutdown: Arc<SessionShutdown>,
     #[cfg(unix)] own: StopId,
     cohort: &str,
-    #[cfg(windows)] restored: crate::local_terminal_service::CheckpointRestore,
-    #[cfg(windows)] startup_deadline: Instant,
-    #[cfg(windows)] configuration: orchbee_local_runtime::UserSettingsLoad,
+    restored: crate::local_terminal_service::CheckpointRestore,
+    startup_deadline: Instant,
+    configuration: orchbee_local_runtime::UserSettingsLoad,
 ) -> io::Result<()> {
-    #[cfg(windows)]
     let started = start(
         &mut owners,
         &shutdown,
@@ -101,8 +93,6 @@ pub(super) fn run(
         startup_deadline,
         configuration,
     );
-    #[cfg(unix)]
-    let started = start(&mut owners, &shutdown, cohort);
     let mut clients: local_client_service::ManagedClients = match started {
         Ok(clients) => clients,
         Err(error) => return Err(abort_startup(owners, error)),
@@ -191,28 +181,33 @@ pub(super) fn run(
     }
 }
 
-/// Restores the checkpoint's terminals and starts every job before the Client listener opens.
-#[cfg(windows)]
+/// Restores the checkpoint's terminals and starts every job before the Client listener opens. A
+/// file that cannot be read starts the Session with the defaults, published as unreadable.
 fn start(
     owners: &mut Owners,
     shutdown: &Arc<SessionShutdown>,
     cohort: &str,
-    mut restored: crate::local_terminal_service::CheckpointRestore,
+    restored: crate::local_terminal_service::CheckpointRestore,
     startup_deadline: Instant,
     configuration: orchbee_local_runtime::UserSettingsLoad,
 ) -> io::Result<local_client_service::ManagedClients> {
+    #[cfg(windows)]
     owners.terminals.bind_agent_names(&owners.agents)?;
     owners.terminals.start_close_maintenance()?;
     owners.terminals.start_title_reads()?;
     owners.terminals.start_agent_catalog()?;
     owners.terminals.start_agent_start_delivery()?;
+    #[cfg(windows)]
+    let mut restored = restored;
+    #[cfg(windows)]
     let resumes = restored.take_agent_resume();
     // Restored launches read their kept output through the same store.
-    let output_store: Arc<dyn crate::terminal_output::TerminalOutputStore> =
-        Arc::clone(&owners.checkpoint_store) as _;
-    owners.terminals.install_terminal_output(Arc::new(
-        crate::terminal_output::TerminalOutput::new(output_store),
-    ));
+    #[cfg(windows)]
+    if let Some(kept) = &owners.checkpoint {
+        owners.terminals.install_terminal_output(Arc::new(
+            crate::terminal_output::TerminalOutput::new(kept.output_store()),
+        ));
+    }
     owners
         .terminals
         .launch_checkpoint_terminals(restored, startup_deadline)?;
@@ -220,43 +215,15 @@ fn start(
         .terminals
         .start_process_observer(move || Ok(configuration), true)?;
     // Resumes read through the observer and wait for a Client, so no listener may open first.
+    #[cfg(windows)]
     owners.terminals.start_agent_resume(resumes)?;
-    let worker = checkpoint_worker(&owners.handle)?;
-    owners.checkpoint_saver = Some(super::checkpoint_windows::autosave::Saver::start(
-        Arc::clone(&owners.checkpoint_store),
-        Arc::clone(&owners.terminals),
-        worker,
-        owners.suppress_initial_empty,
-    )?);
+    if let Some(kept) = &mut owners.checkpoint {
+        kept.start_saver(&owners.terminals, checkpoint_worker(&owners.handle)?)?;
+    }
     local_client_service::start_managed(
+        #[cfg(windows)]
         owners.session.client_socket_path(),
-        local_client_service::ServerIdentity::local(Some(cohort), owners.worker.id()),
-        Arc::clone(&owners.terminals),
-        Arc::clone(&owners.agents),
-        Arc::clone(shutdown),
-    )
-}
-
-/// Starts the jobs a POSIX Session runs, then its Client listener. A file that cannot be read
-/// starts the Session with the defaults, published as unreadable.
-#[cfg(unix)]
-fn start(
-    owners: &mut Owners,
-    shutdown: &Arc<SessionShutdown>,
-    cohort: &str,
-) -> io::Result<local_client_service::ManagedClients> {
-    owners.terminals.start_close_maintenance()?;
-    owners.terminals.start_title_reads()?;
-    owners.terminals.start_agent_catalog()?;
-    owners.terminals.start_agent_start_delivery()?;
-    owners.terminals.start_process_observer(
-        || {
-            orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name))
-                .map_err(io::Error::other)
-        },
-        true,
-    )?;
-    local_client_service::start_managed(
+        #[cfg(unix)]
         (
             owners.session.client_socket_path(),
             &ModeCheckedLocalSessionRendezvous::client_pending_socket_path(
@@ -300,15 +267,14 @@ fn settle(
         *worker_completed = true;
     }
     if !*worker_completed {
-        #[cfg(windows)]
-        {
+        if let Some(kept) = &owners.checkpoint {
             let worker = checkpoint_worker(&owners.handle)
                 .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
             let bytes = owners
                 .terminals
                 .checkpoint(&worker, deadline)
                 .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-            publish_final_checkpoint(owners, &bytes)
+            kept.publish_final(&owners.terminals, &bytes)
                 .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         }
         shutdown.phase(attempt, StopPhase::Worker);
@@ -480,7 +446,6 @@ pub(super) fn begin_own(shutdown: &SessionShutdown, own: StopId) {
 /// finishes only when that Host is gone too, keeping each terminal's last sampled directory; a live
 /// Host is refused, because nothing here may end it.
 fn settle_without_worker(owners: &Owners, deadline: Instant) -> Result<(), Failure> {
-    #[cfg(windows)]
     let worker = checkpoint_worker(&owners.handle)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     if !host_absent(owners) {
@@ -494,8 +459,7 @@ fn settle_without_worker(owners: &Owners, deadline: Instant) -> Result<(), Failu
         .terminals
         .finish_process_observer_after_worker_exit(&owners.handle)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    #[cfg(windows)]
-    {
+    if let Some(kept) = &owners.checkpoint {
         let bytes = owners
             .terminals
             .checkpoint_without_worker(&worker)
@@ -506,11 +470,9 @@ fn settle_without_worker(owners: &Owners, deadline: Instant) -> Result<(), Failu
                 io::ErrorKind::TimedOut.into(),
             ));
         }
-        publish_final_checkpoint(owners, &bytes)
+        kept.publish_final(&owners.terminals, &bytes)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     }
-    #[cfg(unix)]
-    let _publishes_no_checkpoint = deadline;
     Ok(())
 }
 
@@ -532,9 +494,9 @@ fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()
         owners
             .terminals
             .stop_agent_start_delivery_before(deadline)?;
-        if let Some(saver) = &mut owners.checkpoint_saver {
-            saver.stop_before(deadline)?;
-        }
+    }
+    if let Some(kept) = &mut owners.checkpoint {
+        kept.stop_saver_before(deadline)?;
     }
     owners.terminals.stop_process_observer_before(deadline)?;
     owners.terminals.stop_worktrees_before(deadline)?;
@@ -549,13 +511,6 @@ fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()
     owners.terminals.stop_graphics_before(deadline)
 }
 
-#[cfg(windows)]
-fn publish_final_checkpoint(owners: &Owners, bytes: &[u8]) -> io::Result<()> {
-    super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, bytes)?;
-    owners.terminals.terminal_output_after_save(bytes);
-    Ok(())
-}
-
 /// How long an `exit` may spend settling before the process ends regardless.
 const EXIT_BUDGET: Duration = Duration::from_secs(30);
 /// What an `exit` asks of the Worker's terminals.
@@ -565,10 +520,11 @@ const EXIT_TERMINALS: ShutdownTerminals = ShutdownTerminals::Keep;
 const EXIT_TERMINALS: ShutdownTerminals = ShutdownTerminals::Dispose;
 
 /// Ends this Server and its Worker for an `exit`. On Windows the Host and every terminal keep
-/// running; a POSIX Session restores no terminal, so its Worker disposes them and stops the Host.
-/// In-flight records and background jobs settle and the final checkpoint is published first; a
-/// settling failure is reported and the process still ends. No receipt is published, so until P1
-/// records this end the next activation recovers the Session as an unclean end.
+/// running; a POSIX Worker cannot leave its Host to a later Server, so it disposes them and stops
+/// the Host, and a Session that keeps a checkpoint relaunches them on its next start. In-flight
+/// records and background jobs settle and the final checkpoint is published first; a settling
+/// failure is reported and the process still ends. No receipt is published, so until P1 records
+/// this end the next activation recovers the Session as an unclean end.
 fn exit(
     mut owners: Owners,
     mut clients: local_client_service::ManagedClients,
@@ -594,22 +550,19 @@ fn settle_for_exit(
         return Err(io::ErrorKind::TimedOut.into());
     }
     stop_background_jobs(owners, deadline)?;
-    #[cfg(windows)]
     let worker = checkpoint_worker(&owners.handle)?;
     if owners.worker.try_wait()?.is_some() {
         owners
             .terminals
             .finish_process_observer_after_worker_exit(&owners.handle)?;
-        #[cfg(windows)]
-        {
+        if let Some(kept) = &owners.checkpoint {
             let bytes = owners.terminals.checkpoint_without_worker(&worker)?;
-            publish_final_checkpoint(owners, &bytes)?;
+            kept.publish_final(&owners.terminals, &bytes)?;
         }
     } else {
-        #[cfg(windows)]
-        {
+        if let Some(kept) = &owners.checkpoint {
             let bytes = owners.terminals.checkpoint(&worker, deadline)?;
-            publish_final_checkpoint(owners, &bytes)?;
+            kept.publish_final(&owners.terminals, &bytes)?;
         }
         let mut operation = [0; 16];
         getrandom::fill(&mut operation).map_err(|error| io::Error::other(error.to_string()))?;
@@ -697,9 +650,9 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
             owners
                 .terminals
                 .stop_agent_start_delivery_before(deadline)?;
-            if let Some(saver) = &mut owners.checkpoint_saver {
-                saver.stop_before(deadline)?;
-            }
+        }
+        if let Some(kept) = &mut owners.checkpoint {
+            kept.stop_saver_before(deadline)?;
         }
         owners.terminals.stop_process_observer_before(deadline)?;
         owners.terminals.stop_title_reads_before(deadline)?;
@@ -751,7 +704,6 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
         }
     }
 }
-#[cfg(windows)]
 fn checkpoint_worker(
     handle: &WorkerRequestHandle,
 ) -> io::Result<orchbee_workbench_protocol::WorkerId> {

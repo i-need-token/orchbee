@@ -508,7 +508,6 @@ impl WorkbenchService {
                     Err(_postcommit) => WorkbenchExecution::OutcomeUnknown,
                 }
             }
-            #[cfg(windows)]
             Err(WorkbenchRequest::Command(command))
                 if matches!(
                     &command.action,

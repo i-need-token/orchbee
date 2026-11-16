@@ -85,10 +85,27 @@ pub(crate) const fn login_shell_available() -> bool {
     cfg!(unix)
 }
 
-/// Only the Windows local activation adapter retains a diagnosable startup checkpoint when
-/// recovery is required; other hosts refuse without starting a replacement process.
-pub(crate) const fn startup_recovery_checkpoint() -> bool {
-    cfg!(windows)
+/// What a startup refused for required recovery can say about the Session's checkpoint. Every
+/// host refuses without starting a replacement process, so no Server touches the checkpoint.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RecoveryCheckpoint {
+    /// The checkpoint is retained, and `orchbee doctor` and another named Session are admitted.
+    Diagnosable,
+    /// The checkpoint is retained; neither command is admitted on this host yet.
+    Retained,
+    /// The Session keeps no checkpoint on this host.
+    Absent,
+}
+
+/// This host's [`RecoveryCheckpoint`].
+pub(crate) const fn startup_recovery_checkpoint() -> RecoveryCheckpoint {
+    if cfg!(windows) {
+        RecoveryCheckpoint::Diagnosable
+    } else if cfg!(target_os = "macos") {
+        RecoveryCheckpoint::Retained
+    } else {
+        RecoveryCheckpoint::Absent
+    }
 }
 
 impl std::fmt::Display for Unsupported {

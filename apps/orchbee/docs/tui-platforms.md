@@ -75,10 +75,11 @@ system rather than from the directory-entry adapter, so an empty Session creates
 Workspace there on every platform; interactive directory entry and quick creation still need it.
 
 Activation restore feedback is one optional typed fact on every platform, consumed by the same
-TUI notice and CLI warning projections. The Windows reader retains its activation-generation
-checks and I/O failures. The Unix reader reports an unsupported capability without probing storage;
-activation continues with no restore notice. Capability absence never hides a supported reader's
-I/O failure or fabricates a recovered or empty checkpoint.
+TUI notice and CLI warning projections. Windows and macOS keep a checkpoint, so their reader
+retains its activation-generation checks and I/O failures. Linux keeps none yet; its reader reports
+an unsupported capability without probing storage, and activation continues with no restore notice.
+Capability absence never hides a supported reader's I/O failure or fabricates a recovered or empty
+checkpoint.
 
 ## Admission and unsupported outcomes
 

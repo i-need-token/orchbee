@@ -16,12 +16,12 @@ impl Drop for PrivateRoot {
     }
 }
 
-/// Windows restoration launches before the process observer starts. Restoration therefore takes
-/// its settings from the startup read itself; launching without them would capture `Unavailable`,
-/// which the Worker refuses for every restored terminal.
+/// A restored terminal launches in the folder its checkpoint saved. Restoration launches before
+/// the process observer starts, so it takes its settings from the startup read itself; launching
+/// without them would capture `Unavailable`, which the Worker refuses for every restored terminal.
 #[test]
-fn restored_terminals_capture_the_session_preferences() -> Result<(), Box<dyn Error + Send + Sync>>
-{
+fn restored_terminals_launch_in_the_saved_folder_with_the_session_preferences()
+-> Result<(), Box<dyn Error + Send + Sync>> {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let local_worker = LocalWorkerId::from_bytes([9; 16]);
     let WorkerAdmission::Accepted { generation } = registry
@@ -86,6 +86,12 @@ fn restored_terminals_capture_the_session_preferences() -> Result<(), Box<dyn Er
         launch.preferences(),
         LaunchPreferences::Available(_)
     ));
+    assert_eq!(
+        launch
+            .cwd()
+            .map(orchbee_capability_node_protocol::AbsoluteCwd::as_str),
+        root.0.to_str()
+    );
     drop(worker_peer);
     restoring
         .join()

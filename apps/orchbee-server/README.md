@@ -214,8 +214,9 @@ Agent observation and Client listeners, waking and joining retained Client handl
 the stopped activation record. An activation guard excludes concurrent restart during publication
 and lifetime-lock release. Pipe absence or lost replies cannot prove completion. Failed attempts
 remain queryable while the control listener survives; after listener closure, the strict activation
-record remains a positive receipt. Linux and macOS run this owner without the checkpoint stages;
-[their startup](#managed-linux-and-macos-session-startup) describes what differs.
+record remains a positive receipt. macOS runs this owner with the checkpoint saver and final
+capture, and Linux without them; [their startup](#managed-linux-and-macos-session-startup)
+describes what differs.
 
 A Worker that already exited can neither sample a directory nor stop its Host. A stop then
 continues only once the retained record observes that Worker's Host gone, or never started, and its
@@ -369,20 +370,26 @@ explicit-endpoint stdout readiness marker.
 Client exit does not end the Session, and neither does `SIGHUP`. `server stop`, an admitted
 Client's `workbench.session-stop`, `SIGTERM` and `SIGINT` all reach the
 [managed stop owner](#managed-windows-session-shutdown), so a logout or a system shutdown, which
-sends `SIGTERM`, stops the Session normally. The owner runs as on Windows without the checkpoint
-saver, final capture, plugin hooks, automatic updates or Agent resume: the Worker shutdown request
-disposes every terminal, and after the Client listeners stop the owner removes the Session's
-socket files before it publishes the Stopped record, which is the receipt the next start consumes.
+sends `SIGTERM`, stops the Session normally. The owner runs as on Windows without plugin hooks,
+automatic updates, Agent resume or kept terminal output, and on Linux also without the checkpoint
+saver and final capture: the Worker shutdown request disposes every terminal, and after the Client
+listeners stop the owner removes the Session's socket files before it publishes the Stopped record,
+which is the receipt the next start consumes. A macOS start then relaunches every terminal from the
+final capture in its saved directory.
 Every stop the Server begins itself, on a signal or once its Worker exited and its Host is gone,
 uses one identity, and a later signal or loss check retries that identity once its attempt failed.
 After its Worker exited, a stop fails while that Worker's Host still runs, since nothing here may
 end it, and the loss check completes the stop once the Host is gone. An `exit` request also disposes the terminals: no later Linux or macOS Server can adopt a Host
-that keeps them, and that Host's lock would refuse every recovery while it runs.
+that keeps them, and that Host's lock would refuse every recovery while it runs. On macOS its final
+capture relaunches them at the next start.
 
 A Server ended by `SIGKILL` or a crash leaves an Active record and stale socket files. The next
 activation recovers that record to Crashed under the activation and lifetime locks once the Host's
-lock is free, and starts the Session again; socket files never count as a live process. A Host that
-still holds its lock keeps the Session's terminals and refuses recovery until it ends. This entry
+lock is free, and starts the Session again; socket files never count as a live process. On macOS
+that start restores the newest background save, so terminals return with the layout and
+directories saved at most 30 seconds, or half a second after a layout change, before the end. A
+Host that still holds its lock keeps the Session's terminals and refuses recovery until it ends, so
+a restore never starts beside them. This entry
 implements no service-manager installation or automatic restart. The ordinary explicit-endpoint
 test entry retains the behavior below.
 
@@ -400,10 +407,14 @@ and process observation. Client view, semantic event and window title
 requests are admitted as on Windows: their state lives in Server memory for the connection or its
 subscription, and nothing of it is saved. Panel Agent and Panel metadata requests are admitted the
 same way, so the sidebar and Panel titles read the Agent states process observation and reports
-publish; without checkpoints nothing of them is saved. Configured command, Panel graphics, Agent
-view, Workspace metadata and notification requests keep their earlier refusal at admission until
-their behavior off Windows is decided. Checkpoint and handoff remain Windows-only because only the
-Windows startup constructs their owners.
+publish. Configured command, Panel graphics, Agent view, Workspace metadata and notification
+requests keep their earlier refusal at admission until their behavior off Windows is decided.
+A macOS Session keeps the [checkpoint](docs/workbench-checkpoint.md#managed-startup-and-clean-stop)
+in the Session folder under its POSIX data root and holds a Panel whose saved directory is gone
+until `panel.restore-terminal`; a Linux Session keeps none yet, which takes the checkpoint policy
+in `managed/checkpoint.rs` and the restore-notice reader in the workbench Client plus a decision on
+logouts that leave user processes running. Handoff remains Windows-only because only the Windows
+startup constructs its owner.
 
 ## Local Worker service
 

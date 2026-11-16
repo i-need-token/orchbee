@@ -11,7 +11,6 @@ use orchbee_server::WorkbenchRestoreTarget;
 use std::io;
 
 impl SessionCoordinator {
-    #[cfg(windows)]
     pub(crate) fn checkpoint_revision(
         &self,
     ) -> io::Result<orchbee_workbench_protocol::WorkbenchRevision> {
@@ -21,7 +20,6 @@ impl SessionCoordinator {
             .ok_or_else(|| io::Error::other("Workbench unavailable"))
     }
 
-    #[cfg(windows)]
     pub(crate) fn checkpoint_observation_targets(
         &self,
     ) -> io::Result<(
@@ -64,7 +62,6 @@ impl SessionCoordinator {
         Ok((workbench.snapshot().revision, targets))
     }
 
-    #[cfg(windows)]
     pub(crate) fn checkpoint_with_observations(
         &self,
         worker: &orchbee_workbench_protocol::WorkerId,
@@ -107,7 +104,6 @@ impl SessionCoordinator {
     }
 
     /// The kept output token a held, still unbound Presentation would replay.
-    #[cfg(windows)]
     pub(crate) fn restart_output(
         &self,
         presentation_id: &orchbee_workbench_protocol::TerminalPresentationId,
@@ -117,7 +113,6 @@ impl SessionCoordinator {
 
     /// Keeps `target` unbound in its place because the directory it would start in is
     /// unavailable. Only used while this entire coordinator is unpublished.
-    #[cfg(windows)]
     pub(crate) fn hold_checkpoint_terminal(
         &mut self,
         target: &WorkbenchRestoreTarget,

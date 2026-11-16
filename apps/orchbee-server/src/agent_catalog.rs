@@ -261,15 +261,12 @@ impl AgentCatalog {
         self.change(|state| state.recent.start(agent));
     }
 
-    /// Replaces Recent with the list a checkpoint saved, newest first. Only Windows Sessions keep a
-    /// checkpoint.
-    #[cfg(windows)]
+    /// Replaces Recent with the list a checkpoint saved, newest first.
     pub(crate) fn restore_recent(&self, saved: &[AgentStartSelector]) {
         self.change(|state| state.recent = Recent::restored(saved));
     }
 
     /// Recent as the checkpoint saves it, newest first.
-    #[cfg(windows)]
     pub(crate) fn recent(&self) -> Vec<AgentStartSelector> {
         self.lock().recent.agents().to_vec()
     }

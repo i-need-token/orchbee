@@ -12,6 +12,16 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+/// The shared temporary folder. macOS reaches its per-user one through a symlinked path, so the
+/// fixture uses the canonical `/private/tmp`, as the local runtime's own tests do.
+fn temporary() -> PathBuf {
+    if cfg!(target_os = "macos") {
+        PathBuf::from("/private/tmp")
+    } else {
+        std::env::temp_dir()
+    }
+}
+
 struct Fixture(Option<ModeCheckedLocalSessionRendezvous>);
 
 impl Fixture {
@@ -24,8 +34,7 @@ impl Fixture {
         ))
         .unwrap();
         Self(Some(
-            ModeCheckedLocalSessionRendezvous::prepare_mode_checked(&std::env::temp_dir(), scope)
-                .unwrap(),
+            ModeCheckedLocalSessionRendezvous::prepare_mode_checked(&temporary(), scope).unwrap(),
         ))
     }
 
@@ -74,7 +83,7 @@ impl Drop for Fixture {
         let path = path.canonicalize().unwrap();
         assert_eq!(
             path.parent(),
-            Some(std::env::temp_dir().canonicalize().unwrap().as_path())
+            Some(temporary().canonicalize().unwrap().as_path())
         );
         assert!(
             path.file_name()
@@ -174,16 +183,18 @@ fn unsupported_catalog_is_rejected_before_pending_store_cleanup() {
     assert_eq!(fs::read(catalog_path).unwrap(), record);
 }
 
+#[cfg(windows)]
 fn samples() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("src/local_worker_service/managed/checkpoint_windows/tests/record-samples")
+        .join("src/local_worker_service/managed/checkpoint/tests/record-samples")
 }
 
 /// Records follow the window: `tests/record-samples/` keeps, for every format a release shipped, a
 /// stored checkpoint slot `checkpoint-v<version>.bin` and the kept terminal output it names,
 /// `terminal-output-v<version>.bin`, as the local runtime's record samples describe. Each slot
 /// restores through the loader without a recovery notice, and the restored Presentation replays
-/// the kept output.
+/// the kept output. Only Windows keeps terminal output.
+#[cfg(windows)]
 #[test]
 fn every_stored_sample_restores_its_checkpoint_and_kept_output() {
     let names: Vec<String> = fs::read_dir(samples())

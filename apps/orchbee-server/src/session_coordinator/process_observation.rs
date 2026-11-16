@@ -645,7 +645,6 @@ impl SessionCoordinator {
     }
 
     /// Read existing exact-physical samples only; never attach a viewer or substitute a child cwd.
-    #[cfg(windows)]
     pub(crate) fn cached_checkpoint_directories(
         &self,
         targets: &[ProcessObservationTarget],

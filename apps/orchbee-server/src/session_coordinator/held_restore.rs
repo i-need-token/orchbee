@@ -41,6 +41,7 @@ impl PendingHeldRestore {
     }
 
     /// Attaches the held Presentation's kept output; a refused seed starts without it.
+    #[cfg(windows)]
     pub(crate) fn set_output_seed(&mut self, seed: Vec<u8>) {
         if self.terminal.set_output_seed(seed).is_err() {
             eprintln!(

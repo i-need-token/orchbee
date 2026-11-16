@@ -42,9 +42,7 @@ mod agent_names;
 #[cfg(windows)]
 mod agent_resume;
 mod agent_start_delivery;
-#[cfg(windows)]
 mod checkpoint;
-#[cfg(windows)]
 pub(crate) use checkpoint::CheckpointRestore;
 mod close_maintenance;
 mod connected_hosts;
@@ -55,7 +53,6 @@ mod operation_maintenance;
 mod panel_agent;
 mod panel_create;
 mod panel_metadata;
-#[cfg(windows)]
 mod panel_restore;
 mod process_observer;
 mod projection;

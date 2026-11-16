@@ -21,8 +21,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-#[cfg(windows)]
-mod checkpoint_windows;
+mod checkpoint;
 #[cfg(unix)]
 mod signals;
 mod stop;
@@ -34,6 +33,10 @@ pub(super) fn run(
     // First, so a stop signal that arrives during startup waits for the signal thread.
     #[cfg(unix)]
     let signals = signals::catch()?;
+    // Only a location that cannot be admitted stops the Session; any file starts it.
+    #[cfg(unix)]
+    let configuration = orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name))
+        .map_err(io::Error::other)?;
     let deadline = Instant::now() + Duration::from_secs(20);
     let cohort = Cohort::current(deadline)?;
     let session = ModeCheckedLocalSessionRendezvous::from_runtime_directory(runtime)
@@ -53,15 +56,7 @@ pub(super) fn run(
     #[cfg(unix)]
     let socket_root = session.hold_socket_root()?;
     let record = session.retain_active_record()?;
-    #[cfg(windows)]
-    let (checkpoint_store, checkpoint, session_record, suppress_initial_empty) =
-        checkpoint_windows::load(&session)?;
-    #[cfg(unix)]
-    let session_record = orchbee_local_runtime::RetainedSessionRecord::retain(
-        &orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
-            .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?,
-        &session,
-    )?;
+    let (session_record, kept, checkpoint) = checkpoint::load(&session)?;
     // A Session that ended without its stop left its socket files, and no listener can serve
     // them while this Server holds the lifetime lock.
     #[cfg(unix)]
@@ -160,13 +155,11 @@ pub(super) fn run(
     drop(listener);
     #[cfg(windows)]
     if let Err(error) = admitted {
-        return Err(checkpoint_windows::abort_before_launch(
-            worker, carrier, error,
-        ));
+        return Err(checkpoint::abort_before_launch(worker, carrier, error));
     }
+    // No launch was sent, so this Worker owns no Host; it stops once its Server connection closes.
     #[cfg(not(windows))]
     admitted?;
-    #[cfg(windows)]
     let initialized = (|| {
         let handle = registry
             .lock()
@@ -182,31 +175,18 @@ pub(super) fn run(
     let (handle, terminals, pending) = match initialized {
         Ok(initialized) => initialized,
         Err(error) => {
-            return Err(checkpoint_windows::abort_before_launch(
-                worker, carrier, error,
-            ));
+            return Err(checkpoint::abort_before_launch(worker, carrier, error));
         }
     };
+    #[cfg(not(windows))]
+    let (handle, terminals, pending) = initialized?;
     #[cfg(windows)]
     let Some(carrier) = carrier else {
-        return Err(checkpoint_windows::abort_before_launch(
+        return Err(checkpoint::abort_before_launch(
             worker,
             None,
             io::Error::other("Worker wire owner did not start"),
         ));
-    };
-    #[cfg(not(windows))]
-    let handle = registry
-        .lock()
-        .map_err(|_| io::Error::other("Worker registry failed"))?
-        .request_handle()
-        .ok_or_else(|| io::Error::other("Worker carrier disappeared"))?;
-    // File frames refuse at the frame directory adapter here; creation stays lazy.
-    #[cfg(not(windows))]
-    let terminals = {
-        let mut terminals = LocalTerminalService::new(registry);
-        terminals.configure_graphics_files(runtime);
-        Arc::new(terminals)
     };
     #[cfg(not(windows))]
     let carrier = carrier.ok_or_else(|| io::Error::other("Worker wire owner did not start"))?;
@@ -223,25 +203,17 @@ pub(super) fn run(
             ingress: endpoint,
             terminals,
             agents,
-            #[cfg(windows)]
-            checkpoint_store: Arc::new(Mutex::new(checkpoint_store)),
-            #[cfg(windows)]
-            checkpoint_saver: None,
+            checkpoint: kept,
             #[cfg(windows)]
             automatic_updates: None,
-            #[cfg(windows)]
-            suppress_initial_empty,
             session_record,
         },
         shutdown,
         #[cfg(unix)]
         own,
         cohort.identity(),
-        #[cfg(windows)]
         pending,
-        #[cfg(windows)]
         deadline,
-        #[cfg(windows)]
         configuration,
     )
 }

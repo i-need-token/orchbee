@@ -15,7 +15,6 @@ impl Recent {
 
     /// A saved list, newest first, under the same rules: a repeated provider keeps its newest
     /// place and the oldest beyond the bound drop.
-    #[cfg(windows)]
     pub(super) fn restored(saved: &[AgentStartSelector]) -> Self {
         let mut recent = Self::default();
         for agent in saved.iter().rev() {

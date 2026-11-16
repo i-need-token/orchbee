@@ -153,7 +153,6 @@ impl Drop for ProcessObserver {
 }
 impl LocalTerminalService {
     /// Clean stop reuses the observer's sole cleanup slot after its sampling thread has joined.
-    #[cfg(windows)]
     pub(super) fn settle_checkpoint_viewer(&self, new: Option<PendingCleanup>) -> io::Result<()> {
         let observer = &self.process_observer;
         if !observer.wake.stop.load(Ordering::Acquire)

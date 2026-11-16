@@ -99,9 +99,7 @@ impl Saver {
                     if !schedule.ready(now) {
                         return Ok(false);
                     }
-                    if terminals.output_replay_enabled() {
-                        terminals.capture_terminal_output(Instant::now() + OUTPUT_CAPTURE);
-                    }
+                    terminals.capture_kept_output_within(OUTPUT_CAPTURE);
                     let (revision, bytes) = terminals.cached_checkpoint(&worker)?;
                     schedule.captured(revision, now);
                     if !publish_for_kind(
@@ -113,7 +111,7 @@ impl Saver {
                         return Ok(false);
                     }
                     suppressed_payload = None;
-                    terminals.terminal_output_after_save(&bytes);
+                    terminals.after_checkpoint_save(&bytes);
                     Ok(true)
                 })();
                 match result {
@@ -177,7 +175,7 @@ impl Saver {
     }
 }
 
-pub(super) fn publish(store: &Mutex<SessionStore>, bytes: &[u8]) -> io::Result<()> {
+fn publish(store: &Mutex<SessionStore>, bytes: &[u8]) -> io::Result<()> {
     store
         .lock()
         .map_err(|_| io::Error::other("checkpoint store failed"))?
@@ -197,10 +195,7 @@ fn publish_for_kind(
     Ok(true)
 }
 
-pub(in crate::local_worker_service::managed) fn publish_final(
-    store: &Mutex<SessionStore>,
-    bytes: &[u8],
-) -> io::Result<()> {
+pub(super) fn publish_final(store: &Mutex<SessionStore>, bytes: &[u8]) -> io::Result<()> {
     // Explicit clean stop confirms the current workspace even when it still matches the
     // all-invalid empty fallback that background publication suppresses.
     match publish_for_kind(store, bytes, SaveKind::Final, true)? {

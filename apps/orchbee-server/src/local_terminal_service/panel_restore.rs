@@ -3,7 +3,11 @@
 //! without holding the coordinator lock during I/O, and hands a retained Agent reference to the
 //! resume driver once the shell started where it was recorded. It never retries on its own.
 
-use super::{LocalTerminalService, create_reference, lease_expiry, placement};
+use super::{
+    LocalTerminalService,
+    checkpoint::{Riders, attach_held_seed},
+    create_reference, lease_expiry, placement,
+};
 use crate::session_coordinator::PostcommitCoordinationError;
 use crate::terminal_coordinator::{Completion, CreateInputs};
 use orchbee_workbench_protocol::{
@@ -41,13 +45,9 @@ impl LocalTerminalService {
             ));
         }
         let capture = self.launch_capture();
-        let resume = self.agent_resume_enabled();
+        let riders = Riders::current(self);
         // The held Presentation keeps its file while held; read it outside every gate.
-        let seed = probe
-            .output
-            .as_ref()
-            .filter(|_| self.output_replay_enabled())
-            .and_then(|(presentation, token)| self.restored_output_seed(presentation, *token));
+        let seed = riders.held_seed(self, probe.output.as_ref());
         let (pending, handle) = {
             let Ok(workers) = self.workers.lock() else {
                 return Ok(busy(&command));
@@ -64,9 +64,7 @@ impl LocalTerminalService {
             };
             match coordinator.prepare_held_restore(&command, inputs, probe.directory.as_ref()) {
                 Ok(mut pending) => {
-                    if let Some(seed) = seed {
-                        pending.set_output_seed(seed);
-                    }
+                    attach_held_seed(&mut pending, seed);
                     (pending, handle)
                 }
                 Err(result) => return Ok(*result),
@@ -88,15 +86,8 @@ impl LocalTerminalService {
             .map_err(|_poison| PostcommitCoordinationError)?;
         let completed = coordinator.complete_held_restore(pending, completion, current)?;
         // Handed over under the gate Client views and input are noted under, so the driver sees
-        // every one that reaches the started shell. It joins the running driver or starts a new
-        // run; only a stopping Server refuses, and the final checkpoint then carries the reference.
-        if let Some((presentation, directory)) = completed.agent_resume
-            && resume
-            && coordinator.has_pending_agent_session(&presentation)
-        {
-            let _kept_pending =
-                self.resume_retried_agent(&coordinator, current, presentation, directory);
-        }
+        // every one that reaches the started shell.
+        riders.resume_held_agent(self, &coordinator, current, completed.agent_resume);
         drop(coordinator);
         drop(workers);
         Ok(completed.result)

@@ -1,6 +1,7 @@
 //! Localized startup progress and typed failure feedback; does not launch or retry processes.
 
 use super::Locale;
+use crate::host_capabilities::RecoveryCheckpoint;
 
 impl Locale {
     /// The startup diagnostic when a derived Session socket path cannot fit one
@@ -202,17 +203,27 @@ impl Locale {
             (Self::ZhCn, StartupFailure::Runtime) => "本地会话运行时未通过所有者或权限检查。\n",
             (_, StartupFailure::SocketPathTooLong) => self.socket_path_too_long(),
             (Self::EnUs, StartupFailure::RecoveryRequired) => {
-                if crate::host_capabilities::startup_recovery_checkpoint() {
-                    "Local startup could not confirm existing ownership or startup completion. The checkpoint is retained. Run orchbee doctor with the same --session selection; use orchbee --session recovery-work server start for another session. Live tasks require Host adoption; incomplete or legacy records need diagnosis.\n"
-                } else {
-                    "The local session requires explicit recovery. No replacement process was started.\n"
+                match crate::host_capabilities::startup_recovery_checkpoint() {
+                    RecoveryCheckpoint::Diagnosable => {
+                        "Local startup could not confirm existing ownership or startup completion. The checkpoint is retained. Run orchbee doctor with the same --session selection; use orchbee --session recovery-work server start for another session. Live tasks require Host adoption; incomplete or legacy records need diagnosis.\n"
+                    }
+                    RecoveryCheckpoint::Retained => {
+                        "The local session requires explicit recovery. The checkpoint is retained. No replacement process was started.\n"
+                    }
+                    RecoveryCheckpoint::Absent => {
+                        "The local session requires explicit recovery. No replacement process was started.\n"
+                    }
                 }
             }
             (Self::ZhCn, StartupFailure::RecoveryRequired) => {
-                if crate::host_capabilities::startup_recovery_checkpoint() {
-                    "无法确认既有进程归属或启动完成情况，已保留检查点。请用相同 --session 选择运行 orchbee doctor；可执行 orchbee --session recovery-work server start 另开会话。存活任务仍需 Host 接管；不完整或旧版记录需要诊断。\n"
-                } else {
-                    "本地会话需要显式恢复。未启动替代进程。\n"
+                match crate::host_capabilities::startup_recovery_checkpoint() {
+                    RecoveryCheckpoint::Diagnosable => {
+                        "无法确认既有进程归属或启动完成情况，已保留检查点。请用相同 --session 选择运行 orchbee doctor；可执行 orchbee --session recovery-work server start 另开会话。存活任务仍需 Host 接管；不完整或旧版记录需要诊断。\n"
+                    }
+                    RecoveryCheckpoint::Retained => {
+                        "本地会话需要显式恢复。已保留检查点。未启动替代进程。\n"
+                    }
+                    RecoveryCheckpoint::Absent => "本地会话需要显式恢复。未启动替代进程。\n",
                 }
             }
             // Rendered with their versions or the refused item above.
