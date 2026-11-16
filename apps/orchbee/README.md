@@ -1053,7 +1053,7 @@ The bundle never reads checkpoints, layouts, terminal output, plugin data, saved
 destructive request log. The Client writes `tui-started` and `tui-exited` with a closed outcome,
 `server-start` and `server-start-finished` with the exit status, and `relay-started` and
 `relay-exited` to the
-[daily log](../../crates/local-runtime/README.md#windows-diagnostic-log), the remote link helper
+[daily log](../../crates/local-runtime/README.md#diagnostic-log), the remote link helper
 writes `link-rights` with the rights its token runs with or why it refused, and its
 `ensure-session` writes the [Session start's records](docs/machines.md#link-helper),
 `session-start-source` and `server-job`; other commands write none. The TUI also writes `client-retired` when its connection retires on a failure: the failure's

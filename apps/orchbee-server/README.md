@@ -9,10 +9,10 @@ Client scroll/visible output use the exact read-only Client viewport. History ga
 sources and uncertain observer cleanup remain explicit. [Event ownership and acceptance](docs/windows-events.md)
 defines the lifecycle, bounds and Windows evidence; Desktop receives no new consumer here.
 
-## Windows diagnostic log
+## Diagnostic log
 
 The Server installs its role in the
-[daily diagnostic log](../../crates/local-runtime/README.md#windows-diagnostic-log) at startup and,
+[daily diagnostic log](../../crates/local-runtime/README.md#diagnostic-log) at startup and,
 as a managed Session Server, records `started` with its version and `exited` with an outcome or
 closed I/O error kind. Each [Agent catalog](#agent-catalog) lookup that ends records
 `agent-catalog-lookup` with its outcome, `complete`, `failed` or `unsupported`, and how many
@@ -588,7 +588,7 @@ broken pipe) are ordinary ends and are not reported. The line carries no record 
 environment values, or nested error text, and changes no peer-visible outcome. Managed launch binds
 the Server's standard error to the null device, so only a harness that owns it reads these lines.
 A failure that drops a candidate before it is served, or stops the listener's accept, also writes
-the same tokens to the [daily diagnostic log](#windows-diagnostic-log) as `candidate-dropped` or
+the same tokens to the [daily diagnostic log](#diagnostic-log) as `candidate-dropped` or
 `listener-fault`, at most once a minute per operation and stage; a Connection that ends on a fault
 stays a standard-error line only.
 

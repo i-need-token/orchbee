@@ -2,7 +2,11 @@
 // the rules on real files, through a day change and past the limit.
 use super::super::{DAILY_LOG_LIMIT_BYTES, Stamp, days_from_civil, encode, file_name};
 use super::{Admission, admission, append_in, ends_capped, expired, parse_file_name, prune};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 struct Folder(PathBuf);
 impl Folder {
@@ -34,6 +38,18 @@ impl Drop for Folder {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+/// Writes a file only its owner may read, as every daily file is.
+fn seed(path: &Path, bytes: &[u8]) {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    options
+        .open(path)
+        .and_then(|mut file| file.write_all(bytes))
+        .expect("seed a file");
 }
 
 fn stamp(day: i64) -> Stamp {
@@ -91,7 +107,7 @@ fn opening_a_new_day_removes_only_expired_daily_files() {
         "destructive-commands.jsonl".to_owned(),
         "destructive-commands.1.jsonl".to_owned(),
     ] {
-        fs::write(folder.0.join(name), b"").expect("seed a file");
+        seed(&folder.0.join(name), b"");
     }
     append_in(
         &folder.0,
@@ -155,7 +171,7 @@ fn a_full_day_ends_with_one_capped_record_inside_the_limit() {
     let filler = DAILY_LOG_LIMIT_BYTES as usize - 300;
     let mut seeded = vec![b'x'; filler - 1];
     seeded.push(b'\n');
-    fs::write(&path, &seeded).expect("seed a nearly full day");
+    seed(&path, &seeded);
     for _ in 0..3 {
         append_in(&folder.0, &line, &capped(day), stamp(day)).expect("append");
     }

@@ -638,7 +638,7 @@ recorded and retried after the same pause, during which the stop pipe is still r
 `EINTR` retries at once. A connection dropped at accept, because it cannot be made
 nonblocking or arrives over capacity, writes a `candidate-dropped` record. Only stop ends
 the thread, named `orchbee-agent-observation`. These records follow the
-[Server diagnostic log](../README.md#windows-diagnostic-log) limits. `BoundEndpoint` owns the listener, stop pipe, path, and recorded identity until
+[Server diagnostic log](../README.md#diagnostic-log) limits. `BoundEndpoint` owns the listener, stop pipe, path, and recorded identity until
 `start` moves the listener into the poll thread and disarms the identity after a
 successful spawn; `AgentObservationEndpoint::drop` writes the stop byte, unconditionally
 joins the thread, then unlinks the path only when its current metadata still matches the

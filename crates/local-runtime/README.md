@@ -657,11 +657,11 @@ identity changes; like Windows they ignore `TZ`. A missing or malformed zone fil
 clock rather than a guessed offset, and leap-second records are skipped. The parser's evidence is
 its own tests against published zone rules; reading the system zone needs a native run.
 
-## Windows diagnostic log
+## Diagnostic log
 
 `install_diagnostic_log(role)` is called only by an executable entry point, the Client, Server and
 Worker, and `log_event` writes nothing until it has been, so library code that tests exercise never
-logs. A record is one JSON line in `logs\<YYYY-MM-DD>.jsonl`, named by local date:
+logs. A record is one JSON line in `logs/<YYYY-MM-DD>.jsonl`, named by local date:
 `{"time","level","role","pid","event","fields"}`, with UTC time to the millisecond and at most
 eight camelCase fields. Event names and text values are `&'static str` tokens of letters, digits,
 `.`, `_` and `-`, at most 64 bytes, and other values are counts and flags; a token outside the
@@ -672,15 +672,20 @@ the Host anomalies it contains, and the wait that ended it. Event names
 and record fields are unstable: a release may add, rename or drop them without migration, so read
 the log as diagnostics, not as an interface.
 
-A writer holds the day's file without write sharing while it appends, waiting up to 500 ms for
-another writer, so Desktop Main's exclusive open and the natives admit one record at a time. The
+A writer holds the day's file against every other writer while it appends, waiting up to 500 ms
+for another writer, so Desktop Main's exclusive open and the natives admit one record at a time.
+Windows holds the file without write sharing. macOS and Linux open the private regular file without
+following a link, hold its exclusive `flock` lock and append through `O_APPEND`, so a writer that
+skips the lock never overwrites a record; a
+reader takes no lock and drops a record still being written as an incomplete line. The
 first append of a process on a new day removes daily files dated more than six days earlier; the
 destructive request log, its generation, and any other name are never daily files. A record is
 admitted while the file plus the record plus a 256-byte reserve stays within
 `DAILY_LOG_LIMIT_BYTES`, 7 MiB; the first record refused closes the day with one `log-capped`
 record, so the folder holds at most 51 MiB with the destructive log. Every error is a non-event.
 Desktop Main writes the same records with role `desktop-main`; search for `daily-diagnostic-log`
-before changing the shape, a limit, or the names. POSIX processes do not log until ORC-328.
+before changing the shape, a limit, or the names. Linux processes write the same files; only
+Windows and macOS runs prove them.
 
 ## Diagnostic bundle redaction
 

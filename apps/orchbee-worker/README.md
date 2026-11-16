@@ -5,11 +5,11 @@ Linux, and macOS, with explicit-endpoint POSIX support. The emitted `orchbee-wor
 the verified four-artifact cohort and participates in the root Cargo gate. Server owns activation;
 Worker owns its admitted Host connection and authorized job lifetimes.
 
-## Windows diagnostic log
+## Diagnostic log
 
 The managed Worker records `started` and `exited`, and its Terminal Host start as `host-started` or
 `host-start-failed`, in the
-[daily diagnostic log](../../crates/local-runtime/README.md#windows-diagnostic-log). A failed start
+[daily diagnostic log](../../crates/local-runtime/README.md#diagnostic-log). A failed start
 names its cause: `error`, the closed I/O error kind; `stage`, one of `directory` (the Host's runtime
 folder), `endpoint` (the address, or an endpoint that already existed), `registration`
 (the Session record), `spawn` (process creation), `release` (publishing the Host's identity and

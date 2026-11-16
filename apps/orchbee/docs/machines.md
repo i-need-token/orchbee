@@ -511,7 +511,7 @@ the user as owner, a default access list of the user and SYSTEM), hands it its s
 output and error, closes its own copies, and exits with the child's status. The child is the
 helper, and the Session it starts runs with standard rights. When the derivation or the start
 fails, or the derived token is still elevated, the helper exits 5 and writes `link-rights` to the
-remote's [daily log](../../../crates/local-runtime/README.md#windows-diagnostic-log) with
+remote's [daily log](../../../crates/local-runtime/README.md#diagnostic-log) with
 `outcome` `refused` and `reason` `derive`, `still-elevated` or `start`; it never starts an elevated
 Session. A child status above 255 also ends with 5 and `link-rights` `outcome` `child-failed` with
 that `status`. Every helper that passes the check writes `link-rights` with `level` `low` or
@@ -549,7 +549,7 @@ the standard helper it starts both stay in the Job and end with the connection. 
 processes refuses the request, and the Server then starts inside it, as before, and ends with the
 connection. The start itself succeeds either way. Each start writes `session-start-source` and
 `server-job` to the remote's
-[daily log](../../../crates/local-runtime/README.md#windows-diagnostic-log), the latter with
+[daily log](../../../crates/local-runtime/README.md#diagnostic-log), the latter with
 `outcome` `outside`, or `inside` with the refused request's error kind as `reason`.
 
 A channel is begun once an effect may have started on it: a `session` from its `accept`, once its

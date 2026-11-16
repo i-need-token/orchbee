@@ -10,9 +10,8 @@
 //!
 //! When a process opens a day's file it removes daily files dated more than six days earlier. A
 //! day's file stops growing at [`DAILY_LOG_LIMIT_BYTES`] after one `log-capped` record. Writers
-//! hold the day's file without write sharing while they append, so a Rust writer and Desktop
-//! Main's exclusive open admit one record at a time. Logging is Windows only until the POSIX data
-//! root lands (ORC-328).
+//! hold the day's file against every other writer while they append, so a Rust writer and Desktop
+//! Main's exclusive open admit one record at a time.
 //!
 //! Cross-runtime contract: search for `daily-diagnostic-log` before changing the record shape, a
 //! limit, the retention rule or the file names; Desktop Main writes the same records.
@@ -22,10 +21,11 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-#[cfg(not(windows))]
-mod unsupported;
-#[cfg(not(windows))]
-use unsupported as platform;
+mod daily;
+#[cfg(unix)]
+mod unix;
+#[cfg(unix)]
+use unix as platform;
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
@@ -141,7 +141,7 @@ pub fn log_event(level: LogLevel, event: &'static str, fields: &[LogField]) {
         CAPPED_EVENT,
         &[],
     );
-    let _ = platform::append(&record, &capped, stamp);
+    let _ = daily::append(&record, &capped, stamp);
 }
 
 /// The daily files of the last seven days, each holding only the lines that are well-formed
@@ -158,7 +158,7 @@ pub fn recent_diagnostic_logs(root: &crate::DataRoot) -> io::Result<RecentDiagno
     let mut recent = RecentDiagnosticLogs::default();
     for day in (today - (RETAINED_LOG_DAYS - 1))..=today {
         let name = file_name(day);
-        let Some(bytes) = platform::read_daily(&root.logs().join(&name))? else {
+        let Some(bytes) = daily::read_daily(&root.logs().join(&name))? else {
             continue;
         };
         let (kept, omitted) = well_formed_lines(&bytes);
