@@ -89,7 +89,7 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                             .iter()
                             .map(|cell| cell.symbol())
                             .collect::<String>();
-                        assert!(text.contains(r"\checkout"));
+                        assert!(text.contains(&format!("{}checkout", std::path::MAIN_SEPARATOR)));
                         assert!(!text.contains('\x1b'));
                         // Wide-glyph continuation cells read as spaces.
                         assert!(

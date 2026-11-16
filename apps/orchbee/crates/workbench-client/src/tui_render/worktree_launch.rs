@@ -657,10 +657,11 @@ fn render_checkouts<'a>(
     (layout.area, ModalPresentation::Presented(picker.token))
 }
 
-/// Git reports Windows checkouts with forward slashes; display uses the native separator the
-/// user sees elsewhere. Identities and submitted values keep the reported text.
+/// Git reports Windows checkouts with forward slashes; Windows display uses the native separator
+/// the user sees elsewhere, and a POSIX path already shows its own. Identities and submitted values
+/// keep the reported text.
 fn native_path(path: &str) -> Cow<'_, str> {
-    if path.contains('/') {
+    if cfg!(windows) && path.contains('/') {
         Cow::Owned(sanitize_terminal_text(path).replace('/', "\\"))
     } else {
         sanitize_terminal_text(path)
