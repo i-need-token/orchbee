@@ -9,6 +9,15 @@ use crate::{
 use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchRequestId, WorktreeSource};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Modifier};
 
+/// A checkout path as the forms show it: Windows with its own separator, POSIX as reported.
+fn shown(path: &str) -> String {
+    if cfg!(windows) {
+        path.replace('/', "\\")
+    } else {
+        path.to_owned()
+    }
+}
+
 pub(in crate::workbench_client::ui) fn ready(mode: WorktreeMode) -> WorkbenchClientUi {
     ready_with_project(mode, true)
 }
@@ -334,7 +343,7 @@ fn worktree_checkout_picker_windows_selection_and_disambiguates_duplicate_branch
     let token = ui.worktrees.launcher.token().unwrap();
     assert!(ui.edit_worktree(token, WorktreeEdit::Next));
     let text = draw(&mut ui, crate::localization::Locale::ZhCn, 80, 24);
-    assert!(text.contains(r"C:\trees\猫"));
+    assert!(text.contains(&shown("C:/trees/猫")));
     let view = ui.view();
     assert_eq!(view.worktree().unwrap().selected(), 1);
 }
@@ -380,7 +389,10 @@ fn reading_the_repository_is_stated_only_until_the_checkout_picker_is_drawn() {
             WorktreeStage::Checkout
         );
         let text = draw(&mut ui, locale, 80, 24);
-        assert!(text.contains(r"C:\trees\猫"), "the picker list is drawn");
+        assert!(
+            text.contains(&shown("C:/trees/猫")),
+            "the picker list is drawn"
+        );
         assert_ne!(ui.view().status(locale, 80).text, reading);
         assert!(!text.contains(&reading.replace(' ', "")));
     }
@@ -669,7 +681,7 @@ fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto
                         "{locale:?} {width}x{height}: {}",
                         drawn.text
                     );
-                    assert!(drawn.text.contains(r"C:\trees\猫"));
+                    assert!(drawn.text.contains(&shown("C:/trees/猫")));
                     assert!(drawn.text.contains(&branch.replace(' ', "")));
                     assert!(drawn.text.contains(&format!("[{cancel}Esc]")));
                     assert!(drawn.text.contains(&format!("[{remove}Enter]")));
