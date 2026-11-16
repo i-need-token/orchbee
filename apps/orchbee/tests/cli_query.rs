@@ -784,7 +784,26 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         (&["status", "--format", "json"], "orchbee.status"),
         (&["api", "snapshot"], "orchbee.api.snapshot"),
     ];
-    let peer = spawn_peer_n(&scope, queries.len(), |stream| {
+    // macOS `status` also asks the Session for its processes, on the connection after its own.
+    let asks_processes = cfg!(target_os = "macos");
+    let query_connection = 1 + queries
+        .iter()
+        .position(|(arguments, _)| arguments.first() == Some(&"status"))
+        .expect("the queries run status");
+    let connection = std::sync::atomic::AtomicUsize::new(0);
+    let connections = queries.len() + usize::from(asks_processes);
+    let peer = spawn_peer_n(&scope, connections, move |stream| {
+        if asks_processes
+            && connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == query_connection
+        {
+            orchbee_workbench_client::test_support::local_client::handshake::answer_query(
+                &mut &stream,
+                "0.1.0",
+                2,
+            )
+            .expect("peer answers the query");
+            return;
+        }
         admit(&stream);
         let request_id = read_snapshot_request(&stream);
         snapshot_response(
@@ -1117,7 +1136,20 @@ fn missing_cohort_is_a_check_failure_not_a_crash() -> TestResult {
 fn query_writes_nothing_to_the_scope() -> TestResult {
     let base = base_dir("readonly");
     let scope = stage_scope(&base);
-    let peer = spawn_peer_n(&scope, 4, |stream| {
+    // macOS `status`, which runs first, also asks the Session for its processes, on the second
+    // connection.
+    let asks_processes = cfg!(target_os = "macos");
+    let connection = std::sync::atomic::AtomicUsize::new(0);
+    let peer = spawn_peer_n(&scope, 4 + usize::from(asks_processes), move |stream| {
+        if asks_processes && connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 1 {
+            orchbee_workbench_client::test_support::local_client::handshake::answer_query(
+                &mut &stream,
+                "0.1.0",
+                2,
+            )
+            .expect("peer answers the query");
+            return;
+        }
         admit(&stream);
         let request_id = read_snapshot_request(&stream);
         snapshot_response(
