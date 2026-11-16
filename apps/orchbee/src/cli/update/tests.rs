@@ -19,6 +19,8 @@ mod retention;
 mod signature_admission;
 #[cfg(not(windows))]
 mod unix_install;
+#[cfg(windows)]
+mod window_layout;
 #[cfg(any(windows, target_os = "macos"))]
 mod window_update;
 

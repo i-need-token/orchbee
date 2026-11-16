@@ -8,8 +8,10 @@ version's copy at the window entry `<store root>\desktop\orchbee-desktop.exe`, t
 menu shortcut, the taskbar and the uninstall registration name, so starting Orchbee starts the
 active window version. The design is
 [How the window updates](../../proposals/platform/automatic-updates.md#window-launcher). Staging
-builds it into every Windows cohort and release packaging requires it; Setup and the window step do
-not place it yet, so nothing starts it.
+builds it into every Windows cohort and release packaging requires it. The window step of `update`,
+of the automatic helper and of `--installer-window-v1` places it
+([the arrangement](../orchbee/docs/windows-cli-configuration.md)); Setup does not run that helper
+yet.
 
 On macOS a release directory carries it as `<stem>-desktop-launcher`, inside every application
 bundle's `Contents/Resources/cohort/`. The bundle itself is the entry there, so the launcher runs

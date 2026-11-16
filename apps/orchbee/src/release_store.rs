@@ -9,6 +9,8 @@ use windows as platform;
 mod unix;
 #[cfg(windows)]
 mod windows;
+#[cfg(windows)]
+pub(crate) use store::numbered_name;
 pub(crate) use store::{
     PathGrammar, ReleaseStore, open_listed_file, open_release_file, read_pointer, transient_name,
     valid_release_path, version_directory_parts,

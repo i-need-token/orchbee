@@ -12,4 +12,6 @@ pub(super) use unix::{
     StoreProcess, ancestors, inside, no_process_runs_from, processes_inside, same,
 };
 #[cfg(windows)]
-pub(super) use windows::{StoreProcess, inside, no_process_runs_from, processes_inside, same};
+pub(super) use windows::{
+    StoreProcess, inside, no_process_runs_from, no_process_runs_from_except, processes_inside, same,
+};

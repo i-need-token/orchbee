@@ -85,18 +85,35 @@ pub(in crate::cli::update) fn processes_inside(
 /// When the system cannot list every process, or a folder below cannot be read or lies deeper than
 /// a release can, so nothing can be told.
 pub(in crate::cli::update) fn no_process_runs_from(folder: &Path) -> io::Result<bool> {
+    no_process_runs_from_except(folder, &[])
+}
+
+/// [`no_process_runs_from`] for the files below `folder` other than the files and folders `skip`
+/// names, which both checks leave out: a flat window layout's own files beside the window store's.
+///
+/// # Errors
+/// As [`no_process_runs_from`].
+pub(in crate::cli::update) fn no_process_runs_from_except(
+    folder: &Path,
+    skip: &[PathBuf],
+) -> io::Result<bool> {
+    let skipped = |path: &Path| {
+        skip.iter()
+            .any(|skipped| same(path, skipped) || inside(path, skipped))
+    };
     let (processes, complete) = processes_inside(folder, &[]);
     if !complete {
         return Err(io::Error::other("the process list is incomplete"));
     }
-    if !processes.is_empty() {
+    if processes.iter().any(|process| !skipped(&process.image)) {
         return Ok(false);
     }
-    loaded_below(folder, 0).map(|loaded| !loaded)
+    loaded_below(folder, 0, &skipped).map(|loaded| !loaded)
 }
 
-/// Whether a program or library below `folder` cannot be opened for writing.
-fn loaded_below(folder: &Path, depth: usize) -> io::Result<bool> {
+/// Whether a program or library below `folder`, outside what `skipped` holds, cannot be opened for
+/// writing.
+fn loaded_below(folder: &Path, depth: usize, skipped: &dyn Fn(&Path) -> bool) -> io::Result<bool> {
     if depth > PROBE_DEPTH {
         return Err(io::ErrorKind::InvalidInput.into());
     }
@@ -104,12 +121,12 @@ fn loaded_below(folder: &Path, depth: usize) -> io::Result<bool> {
         let entry = entry?;
         // The listing's own attributes, so a link is never followed to read them.
         let metadata = entry.metadata()?;
-        if metadata.file_attributes() & REPARSE_POINT != 0 {
+        let path = entry.path();
+        if metadata.file_attributes() & REPARSE_POINT != 0 || skipped(&path) {
             continue;
         }
-        let path = entry.path();
         if metadata.is_dir() {
-            if loaded_below(&path, depth + 1)? {
+            if loaded_below(&path, depth + 1, skipped)? {
                 return Ok(true);
             }
         } else if program(&path) && !opens_for_writing(&path) {

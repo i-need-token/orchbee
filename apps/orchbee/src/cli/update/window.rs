@@ -8,10 +8,13 @@
 //! listed files into a private stage, each checked by size and SHA-256 as it is written and then
 //! flushed, gives a file the list marks executable mode 0700 and every other 0600, makes each
 //! listed link, publishes the stage without replacing, and moves the window pointer. A stored
-//! version with the same list is verified and reused; one with another list is a conflict. Nothing
-//! here touches a running window or a path outside `desktop/versions/` and `desktop/active.json`:
-//! placing the window entry, moving a flat layout and removing old window versions are not done
-//! here. Windows and macOS only, and only where [`window_updates_live`] holds.
+//! version with the same list is verified and reused; one with another list is a conflict. The
+//! install touches no running window and no path outside `desktop/versions/` and
+//! `desktop/active.json`; after it, [`layout::tend`] places the window entry, moves a flat layout on
+//! and removes old window versions. Windows and macOS only, and only where [`window_updates_live`]
+//! holds.
+pub(super) mod layout;
+
 use super::{
     Context, Error, Output, Settled,
     acquire::Source,
@@ -91,7 +94,9 @@ impl WindowReport {
 /// part: this build or platform installs no window versions, the store root has no `desktop`
 /// folder, the feed offers no window, or the store's active runtime version is lower than the
 /// offered window, whose bundled Client would then start its Session from its own folder, so the
-/// window waits for a later run. A malformed offer fails the window part alone.
+/// window waits for a later run. A malformed offer fails the window part alone. Wherever there is
+/// a window store, its arrangement follows, whether or not the run had a window part, unless the
+/// run was interrupted.
 pub(super) fn update(
     root: &Path,
     source: &Source,
@@ -108,6 +113,22 @@ pub(super) fn update(
     if !fs::symlink_metadata(&desktop).is_ok_and(|metadata| metadata.is_dir()) {
         return None;
     }
+    let report = version_step(root, source, offer, unpack, announce, context);
+    if context.check().is_ok() {
+        layout::tend(root);
+    }
+    report
+}
+
+/// The window part's version step, or none when the run has no window part.
+fn version_step(
+    root: &Path,
+    source: &Source,
+    offer: &WindowOffer,
+    unpack: Unpack<'_>,
+    announce: &dyn Fn(&str, u64),
+    context: &mut Context,
+) -> Option<WindowReport> {
     let window = match offer {
         WindowOffer::Absent => return None,
         WindowOffer::Invalid => {
@@ -522,9 +543,10 @@ fn bundled_window() -> Result<PathBuf, Error> {
 
 /// `--installer-window-v1`: installs the window directory the running Client is bundled in, as
 /// Setup or install.sh unpacked it, into the window store of this build's store root, creating the
-/// `desktop` folder when it is missing, and makes it the active window version. It answers like
-/// `install`, with one `orchbee.install` document whatever the outcome: exit 0, or 3 with
-/// `downgrade-refused` when a higher window version is active and stays active, or with
+/// `desktop` folder when it is missing, and makes it the active window version; then, whatever the
+/// install answered, the window store's arrangement follows unless the run was interrupted. It
+/// answers like `install`, with one `orchbee.install` document whatever the outcome: exit 0, or 3
+/// with `downgrade-refused` when a higher window version is active and stays active, or with
 /// `version-conflict`. It ignores the store's runtime version: a window above it only starts its
 /// Session from its own folder. A development build refuses.
 pub(crate) fn installer(locale: Locale) -> Output {
@@ -538,18 +560,19 @@ pub(crate) fn installer(locale: Locale) -> Output {
     };
     let mut report = WindowReport::new(None);
     report.phase = "source";
+    let mut store_root = None;
     let result = (|| {
         context.check()?;
         if environment_kind() == EnvironmentKind::Development {
             return Err(Error::DevelopmentBuild);
         }
         let window = bundled_window()?;
-        let root = platform::install_root().map_err(|_| Error::InstallLocation)?;
+        let root = store_root.insert(platform::install_root().map_err(|_| Error::InstallLocation)?);
         report.phase = "manifest";
         let list = source_list(&window).ok_or(Error::ManifestInvalid)?;
         report.version = Some(list.version.clone());
         install(
-            &root,
+            root,
             &window,
             &list,
             Lower::Refuse,
@@ -557,6 +580,9 @@ pub(crate) fn installer(locale: Locale) -> Output {
             &mut report,
         )
     })();
+    if let Some(root) = store_root.filter(|_| context.check().is_ok()) {
+        layout::tend(&root);
+    }
     let settled = settle_with(context, None, report.cleanup_pending.is_some(), result);
     answer_installer(&report, settled, locale)
 }

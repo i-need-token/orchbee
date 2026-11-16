@@ -4,8 +4,9 @@
 //! version directories, replaces the pointer atomically, cleans its own stage, and removes a version
 //! the caller names by moving it aside as `.remove-<process>-<number>` before deleting it, so
 //! `versions/` only ever holds whole versions. Besides those names it opens only the `.stage-*` and
-//! `.remove-*` folders writers leave, so a folder another installer keeps in the root, such as
-//! `desktop`, is never read; the window part opens `desktop` as a store root of its own. A stage
+//! `.remove-*` folders writers leave, and a folder its caller names for removal the same way, so a
+//! folder another installer keeps in the root, such as `desktop`, is never read; the window part
+//! opens `desktop` as a store root of its own. A stage
 //! creates files at release paths, or, for a macOS window version, at bundle paths, with the
 //! symbolic links that version lists.
 //!
@@ -58,6 +59,11 @@ impl ReleaseStore {
             lock,
         })
     }
+    /// The root this lock guards.
+    #[cfg(windows)]
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
+    }
     /// The immutable directory of one version under this root.
     pub(crate) fn version_path(&self, version: &str) -> io::Result<PathBuf> {
         version_path(&self.root, version)
@@ -93,6 +99,22 @@ impl ReleaseStore {
     /// be moved stays whole, and what cannot be deleted stays aside among the leftovers.
     pub(crate) fn remove_version(&self, version: &str) -> io::Result<()> {
         let aside = platform::move_aside(&self.root, &self.version_path(version)?)?;
+        platform::remove_directory(&aside)
+    }
+    /// Removes a real directory below the root that is no version, as the window store removes the
+    /// bundled release directory of a flat window layout: a rename to a fresh `.remove-*` in the
+    /// root first, then a deletion, as [`Self::remove_version`] does.
+    #[cfg(windows)]
+    pub(crate) fn remove_aside(&self, directory: &Path) -> io::Result<()> {
+        let real = std::fs::symlink_metadata(directory)?;
+        if !directory.starts_with(&self.root)
+            || directory == self.root
+            || !real.is_dir()
+            || real.is_symlink()
+        {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let aside = platform::move_aside(&self.root, directory)?;
         platform::remove_directory(&aside)
     }
     /// Deletes one directory [`Self::leftovers`] named; what cannot be deleted stays.
@@ -258,15 +280,21 @@ pub(crate) fn version_path(root: &Path, version: &str) -> io::Result<PathBuf> {
 /// Whether `name` is a directory a writer leaves in the root only while it works: a stage,
 /// `.stage-<process>-<number>`, or a removal, `.remove-<process>-<number>`.
 pub(crate) fn transient_name(name: &str) -> bool {
-    [".stage-", ".remove-"].iter().any(|prefix| {
-        name.strip_prefix(prefix)
-            .and_then(|rest| rest.split_once('-'))
-            .is_some_and(|(process, number)| {
-                [process, number]
-                    .iter()
-                    .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
-            })
-    })
+    [".stage-", ".remove-"]
+        .iter()
+        .any(|prefix| numbered_name(name, prefix))
+}
+
+/// Whether `name` is `<prefix><process>-<number>`, both parts decimal, as a writer names what it
+/// leaves only while it works.
+pub(crate) fn numbered_name(name: &str, prefix: &str) -> bool {
+    name.strip_prefix(prefix)
+        .and_then(|rest| rest.split_once('-'))
+        .is_some_and(|(process, number)| {
+            [process, number]
+                .iter()
+                .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+        })
 }
 
 /// The store root and version name of a version directory, `<root>/versions/<version>`.

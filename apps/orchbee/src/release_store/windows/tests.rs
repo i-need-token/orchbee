@@ -49,8 +49,9 @@ fn share_with_users(folder: &Path) {
 }
 
 /// Setup creates the store root below such a folder and writes its own files there before it runs
-/// the bundled `install`: that root is made private, and one holding anything else is refused as
-/// it is, before anything is written.
+/// the bundled `install`: that root is made private, and so is the flat window Setup left in it,
+/// which then opens as the window store; one holding anything else is refused as it is, before
+/// anything is written.
 #[test]
 fn an_installer_root_below_a_shared_folder_is_made_private_and_one_holding_more_refused() {
     use orchbee_local_runtime::{AdmissionRefusal, RefusalReason};
@@ -58,11 +59,12 @@ fn an_installer_root_below_a_shared_folder_is_made_private_and_one_holding_more_
     fs::create_dir(&programs).unwrap();
     share_with_users(&programs);
     let root = programs.join("Orchbee");
-    fs::create_dir_all(root.join("desktop")).unwrap();
-    fs::write(root.join(r"desktop\x.txt"), b"window").unwrap();
+    fs::create_dir_all(root.join(r"desktop\resources")).unwrap();
+    fs::write(root.join(r"desktop\resources\app.asar"), b"window").unwrap();
     {
         let _store = ReleaseStore::acquire(&root).unwrap();
         permissions::require_private(&permissions::open_directory(&root, false).unwrap()).unwrap();
+        let _window = ReleaseStore::acquire(&root.join("desktop")).unwrap();
     }
     let other = programs.join("Other");
     fs::create_dir_all(other.join("desktop")).unwrap();

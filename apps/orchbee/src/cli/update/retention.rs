@@ -6,7 +6,8 @@
 //! it, so `versions\` only ever holds whole versions. A Session or Host refers to a version only
 //! through the processes its registrations name, each started from that version's folder, and an
 //! Agent observation Capsule is a copy in the data root that names no store version, so the process
-//! check is the whole reference check. Window versions are not kept here.
+//! check is the whole reference check. The window store's arrangement removes window versions by the
+//! same rule.
 use super::running_programs::no_process_runs_from;
 use crate::release_store::ReleaseStore;
 use orchbee_release_records::Pointer;
