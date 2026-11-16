@@ -238,10 +238,12 @@ impl RealWorkerFixture {
         let directory = fixture.path().join("workspace");
         let marker = fixture.path().join("launch-cwds");
         let shell = runtime.join("orchbee-test-shell");
+        // The marker records terminal shell launches only. The macOS Worker's Agent probe also runs
+        // `$SHELL`, from the Worker's own folder, at a time of its own; its variable names it.
         fs::write(
             &shell,
             format!(
-                "#!/bin/sh\npwd >> {}\nexec /bin/sh \"$@\"\n",
+                "#!/bin/sh\n[ -n \"$ORCHBEE_AGENT_PROBE\" ] || pwd >> {}\nexec /bin/sh \"$@\"\n",
                 single_quote(marker.to_string_lossy().as_ref())
             ),
         )?;
@@ -400,7 +402,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
             revision,
         } if revision == after_workspace.revision
     ));
-    // The Host is already running in this fixture; this marker records shell launches only.
+    // The Host is already running in this fixture; this marker records terminal shell launches only.
     assert!(!fixture.marker.exists());
 
     let path = WorkbenchDirectoryPath::parse(
