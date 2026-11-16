@@ -27,7 +27,8 @@
 //! resumes each once after a restart with its exact cmd line, captures again, which for silent rows
 //! is the delivered reference carried forward, and resumes each again. One silent row's Agent then
 //! exits, so its reference drops, and a last restart with the preference off types nothing. A Panel
-//! whose directory was deleted, or that a Client typed into first, receives nothing.
+//! whose directory was deleted, or that a Client typed into first, receives nothing; the deleted one
+//! stays held in its place and keeps its reference until the preference is off.
 //!
 //! Every resume is an idle-prompt send that the Host types only at cmd's marked prompt, so each
 //! delivery seen here passed the Host's prompt gate. A refused send, its retry and the notice of a
@@ -684,7 +685,8 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
         sorted(instances.iter()),
         "capture retains each live stub's own reference"
     );
-    // A Panel whose directory is gone restores in home and is never resumed.
+    // A Panel whose directory is gone is held unlaunched in its place, is never resumed, and keeps
+    // its reference while it waits for a retry.
     witness.remove(&gone.directory());
     witness.start_session();
     // One Client opens the gate by taking control of a Panel and types into it within the settle;
@@ -712,11 +714,9 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
         !touched_screen.contains(&touched.id),
         "a touched Panel received resume text:\n{touched_screen}"
     );
-    let home = witness.directory("home").to_lowercase();
-    let moved = witness.screen(&terminals[&gone.panel]);
     assert!(
-        moved.to_lowercase().contains(&format!("{home}>")) && !moved.contains(&gone.id),
-        "a Panel without its directory did not restore as a plain shell in home:\n{moved}"
+        !terminals.contains_key(&gone.panel),
+        "a Panel without its directory launched instead of staying held"
     );
     touching.release();
     viewing.release();
@@ -725,7 +725,7 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
     // delivered reference bound to the run it started. Resuming again keeps working.
     witness.until_listed(&listed_after_resume(rows, None));
     witness.stop();
-    assert_eq!(witness.retained(), sorted(rows.iter()));
+    assert_eq!(witness.retained(), sorted(rows.iter().chain([gone])));
     witness.start_session();
     let viewing = witness.control(&rows[0].panel);
     witness.until_resumed(&resumable, 2);
@@ -746,7 +746,11 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
     witness.stop();
     assert_eq!(
         witness.retained(),
-        sorted(rows.iter().filter(|instance| instance.label != EXITING))
+        sorted(
+            rows.iter()
+                .filter(|instance| instance.label != EXITING)
+                .chain([gone])
+        )
     );
 
     // With the preference off at startup, the retained references are discarded unresumed, and
@@ -870,11 +874,8 @@ impl Witness {
     /// provider command: to that directory's own stub for its command, else to the first Panel's
     /// stub with that command.
     fn place_stubs(&self, labels: &[&'static str]) {
-        let bundle = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../crates/agent-integration-writer/agent-observation-adapters/bundle");
-        let bundle = fs::canonicalize(&bundle)
-            .unwrap_or_else(|error| panic!("{}: {error}", bundle.display()));
-        let bundle = bundle.to_str().unwrap().trim_start_matches(r"\\?\");
+        let bundle = self.stage_bundle();
+        let bundle = bundle.as_str();
         let literal = |value: &str| serde_json::to_string(value).unwrap();
         let mut entries: Vec<(&'static str, &'static str, PathBuf)> = Vec::new();
         for &label in labels {
@@ -935,13 +936,49 @@ impl Witness {
         }
     }
 
+    /// Copies the observation bundle into the fixture with the owner record that publishing adds,
+    /// naming this build's environment. A hook reports only to the environment that installed its
+    /// Capsule, and the checkout's bundle carries no record, so it would belong to release and stay
+    /// silent in this cohort's terminals.
+    fn stage_bundle(&self) -> String {
+        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../crates/agent-integration-writer/agent-observation-adapters/bundle");
+        let target = self.directory("bundle");
+        let mut pending = vec![(source, PathBuf::from(&target))];
+        while let Some((from, to)) = pending.pop() {
+            fs::create_dir_all(&to).unwrap();
+            for entry in
+                fs::read_dir(&from).unwrap_or_else(|error| panic!("{}: {error}", from.display()))
+            {
+                let entry = entry.unwrap();
+                let destination = to.join(entry.file_name());
+                if entry.file_type().unwrap().is_dir() {
+                    pending.push((entry.path(), destination));
+                } else {
+                    fs::copy(entry.path(), destination).unwrap();
+                }
+            }
+        }
+        fs::write(
+            PathBuf::from(&target).join(r"scripts\environment.json"),
+            serde_json::to_vec(&json!({
+                "environment": orchbee_local_runtime::environment_stem(),
+                "version": 1,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        target
+    }
+
     /// A Panel's row: the gone Panel plays Claude Code and the touched one Codex.
     fn row(label: &str) -> &'static Row {
-        match label {
-            "gone" => &TABLE[0],
-            "touched" => &TABLE[1],
-            _ => TABLE.iter().find(|row| row.label == label).unwrap(),
-        }
+        let label = match label {
+            "gone" => "claude-code",
+            "touched" => "codex",
+            label => label,
+        };
+        TABLE.iter().find(|row| row.label == label).unwrap()
     }
 
     /// A fixture path as Windows spells it.
