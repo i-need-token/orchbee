@@ -29,7 +29,7 @@ EXTENDS Naturals, FiniteSets, TLC
 \* the attach or the input settles that stage and the attachment is detached,
 \* and a Detach answered otherwise than by the acknowledgement or a refusal is
 \* left to a later cleanup on the kept carrier (deferred), which lies outside
-\* this one-request model. Only a malformed envelope or a lost stream retires
+\* this one-request model. Only lost framing or a lost stream retires
 \* the carrier. The Host refuses a Detach only for an attachment it no longer
 \* holds, since its Detach is idempotent, so a refusal settles cleanup like
 \* the acknowledgement: a trusted Host assumption, disclosed here.
@@ -130,9 +130,9 @@ HostTeardown ==
 \* ---------------------------------------------------------------------
 \* Attach stage answers. An exact echo requires the host to have applied
 \* the attachment; a typed refusal means it never was. A desync, an intact
-\* answer that grants something else, refuses the send and the attachment
-\* asked for is detached, whether or not the Host applied it; a malformed
-\* envelope or a lost stream retires the carrier.
+\* answer that grants something else or whose envelope is out of contract,
+\* refuses the send and the attachment asked for is detached, whether or not
+\* the Host applied it; lost framing or a lost stream retires the carrier.
 \* ---------------------------------------------------------------------
 
 AttachExact ==
@@ -184,7 +184,7 @@ AttachLocalFault ==
 \* Input stage answers. Exact requires the host to have applied the input;
 \* a typed refusal means it never did. A desync, an intact answer that
 \* contradicts the input, settles OutcomeUnknown and the attachment is
-\* detached; a malformed envelope or a lost stream settles OutcomeUnknown and
+\* detached; lost framing or a lost stream settles OutcomeUnknown and
 \* retires the carrier without a detach. No input is ever sent again.
 \* ---------------------------------------------------------------------
 
@@ -237,7 +237,7 @@ InputLocalFault ==
 \* Detach stage answers. The echoed DetachTerminalAccepted and a typed
 \* refusal confirm cleanup: the Host holds the attachment no longer. Another
 \* intact answer leaves it Unconfirmed and deferred to a later cleanup on the
-\* kept carrier; a malformed envelope or a lost stream leaves it Unconfirmed
+\* kept carrier; lost framing or a lost stream leaves it Unconfirmed
 \* and retires the carrier.
 \* ---------------------------------------------------------------------
 

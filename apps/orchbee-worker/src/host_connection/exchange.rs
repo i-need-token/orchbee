@@ -20,13 +20,15 @@ use std::{
 
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MAXIMUM_TERMINAL_FRAME_BYTES, MessageRole,
-    PayloadEncoding, decode_transport_envelope, encode_transport_envelope,
+    CURRENT_PROTOCOL_VERSION, CorrelationId, DecodedEnvelope, Envelope, HostEpoch,
+    MAXIMUM_TERMINAL_FRAME_BYTES, MessageRole, PayloadEncoding, decode_transport_envelope,
+    encode_transport_envelope,
 };
 
 use super::events::read_failure;
 use super::pacing::{HostFailure, NotStarted, SLOW_EXCHANGE};
-use crate::host_connection::{HostBrokerConnection, drain_events};
+use crate::diagnostic_events::{Anomaly, host_unexpected};
+use crate::host_connection::{HostBrokerConnection, drain_events, record_kind};
 
 /// A preflight drain reads at most this many queued events, then lets the request go ahead; the
 /// exchange reads any later event while it waits for its answer.
@@ -38,9 +40,9 @@ const MAXIMUM_LATE_RECORDS: usize = 64;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PeerFailure {
     Host,
-    /// The peer emitted bytes that violate the terminal protocol itself —
-    /// a malformed frame or an envelope that fails contract validation —
-    /// distinct from a carrier that simply stopped answering.
+    /// The Host lost its framing, a bad magic or a length that does not match, so no later byte
+    /// on the stream can be trusted. A record that arrived whole but breaks its contract is not
+    /// this class: it fails only the request, viewer or attachment it concerns.
     Protocol,
     Server,
 }
@@ -142,16 +144,24 @@ impl<'a> HostExchange<'a> {
     /// Same single exchange with a tighter bound on the correlated response
     /// payload; interleaved events keep the existing frame bound because a
     /// queued frame may exceed a row request's byte budget legitimately.
+    ///
+    /// The answer is the first response that names the request's correlation. Any other response
+    /// is stray and dropped: a request abandoned part way closes the connection, so no earlier
+    /// request's answer can still be due, and a response that names another request concerns none
+    /// this exchange owns.
     pub(crate) fn round_trip_bounded(
         &mut self,
         record: &[u8],
         maximum_response_payload: usize,
     ) -> Result<Vec<u8>, PeerFailure> {
+        let correlation = decode_transport_envelope(record)
+            .ok()
+            .and_then(|envelope| envelope.correlation_id);
         self.write_request(record, maximum_response_payload)?;
         let mut late = 0_usize;
         loop {
             let record = self.read_record(maximum_response_payload)?;
-            if let Some(response) = self.receive_interleaved(record, true)? {
+            if let Some(response) = self.receive_interleaved(record, correlation) {
                 let waited = self.started.elapsed();
                 if waited > SLOW_EXCHANGE {
                     crate::diagnostic_events::host_slow(self.host.pacing.site(), waited);
@@ -210,34 +220,43 @@ impl<'a> HostExchange<'a> {
         if ready.contains(PollFlags::POLLIN)
             && let Some(event) = self.advance(maximum_response_payload)?
         {
-            self.receive_interleaved(event, false)?;
+            // The request is not yet written, so no response can answer it.
+            let _stray = self.receive_interleaved(event, None);
         }
         Ok(0)
     }
 
-    /// Routes one record read during the exchange: an event goes to connection state; a response
-    /// is returned once the request has been written, and before that breaks the protocol.
+    /// Routes one whole record read during the exchange and returns it when it is the answer: a
+    /// record that names `answering`, the written request's correlation. An event goes to
+    /// connection state, which contains it. Any other record is dropped and recorded: a response
+    /// that names another request or arrives before the request is written is stray, and one too
+    /// damaged to decode broke its contract; its framing was intact, or it would not have been read.
     fn receive_interleaved(
         &self,
         record: Vec<u8>,
-        request_written: bool,
-    ) -> Result<Option<Vec<u8>>, PeerFailure> {
-        let envelope =
-            decode_transport_envelope(&record).map_err(|_| self.fail(PeerFailure::Protocol))?;
-        if envelope.role != MessageRole::Event {
-            return if request_written {
-                Ok(Some(record))
-            } else {
-                Err(self.fail(PeerFailure::Protocol))
-            };
+        answering: Option<CorrelationId>,
+    ) -> Option<Vec<u8>> {
+        let site = self.host.pacing.site();
+        let names_request = answering.is_some_and(|correlation| {
+            record.get(CORRELATION_BYTES) == Some(correlation.as_bytes().as_slice())
+        });
+        match decode_transport_envelope(&record) {
+            Ok(envelope) if envelope.role == MessageRole::Event => {
+                self.host.receive_event(record);
+                None
+            }
+            // An answer whose envelope is otherwise out of contract is still this request's: its
+            // caller refuses the request.
+            _ if names_request => Some(record),
+            Ok(envelope) => {
+                host_unexpected(site, envelope.kind, Anomaly::Stray);
+                None
+            }
+            Err(_) => {
+                host_unexpected(site, record_kind(&record), Anomaly::Contract);
+                None
+            }
         }
-        if self.host.receive_event(record).is_err() {
-            self.host
-                .pacing
-                .note_failure(self.failure_of(PeerFailure::Protocol));
-            return Err(self.fail(PeerFailure::Host));
-        }
-        Ok(None)
     }
 
     /// Reads the next whole record, continuing one the connection has begun.
@@ -381,8 +400,9 @@ pub(crate) fn exchange(
 }
 
 impl HostExchange<'_> {
-    /// Writes one correlated request and returns its ControlJson answer, whose envelope must be in
-    /// step with it.
+    /// Writes one correlated request and returns its ControlJson answer. An answer whose envelope
+    /// is out of contract arrived intact, so it is the request's [`UnexpectedAnswer`], which refuses
+    /// only that request.
     pub(crate) fn request(
         &mut self,
         correlation: CorrelationId,
@@ -404,17 +424,65 @@ impl HostExchange<'_> {
         let record = self
             .round_trip(&record)
             .map_err(|class| self.error(class))?;
-        let envelope = decode_transport_envelope(&record)?;
-        if envelope.correlation_id != Some(correlation)
-            || envelope.host_epoch != Some(host.host_epoch())
-            || envelope.role != MessageRole::Response
-            || envelope.protocol != CURRENT_PROTOCOL_VERSION
-            || envelope.optional_message
-            || envelope.payload_encoding != PayloadEncoding::ControlJson
-        {
-            self.note(PeerFailure::Protocol);
-            return Err(io::Error::other("unexpected Host request response envelope").into());
+        if !answers(&record, correlation, host.host_epoch()) {
+            return Err(UnexpectedAnswer::of(&record).into());
         }
         Ok(record)
     }
+}
+
+/// A correlated Host answer other than the exact acknowledgement: a refusal where none is
+/// expected, a payload for another target or value, or an envelope out of contract. The record
+/// arrived whole, so the connection stays in step and the answer concerns only its own request:
+/// the request is refused and its viewer or controller is closed.
+#[derive(Debug)]
+pub(crate) struct UnexpectedAnswer {
+    /// The answer's message kind, the only part of it the diagnostic log keeps.
+    pub(crate) kind: u16,
+}
+
+impl UnexpectedAnswer {
+    pub(crate) fn of(record: &[u8]) -> Self {
+        Self {
+            kind: record_kind(record),
+        }
+    }
+}
+
+impl std::fmt::Display for UnexpectedAnswer {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Host answered with an unexpected message")
+    }
+}
+
+impl Error for UnexpectedAnswer {}
+
+/// Where a record's fixed header carries its correlation.
+const CORRELATION_BYTES: std::ops::Range<usize> = 24..40;
+
+/// Whether `record` is a ControlJson response to the request `correlation` names, in step with the
+/// connection of `epoch`.
+fn answers(record: &[u8], correlation: CorrelationId, epoch: HostEpoch) -> bool {
+    response_envelope(record, correlation, epoch)
+        .is_ok_and(|envelope| envelope.payload_encoding == PayloadEncoding::ControlJson)
+}
+
+/// The envelope of `record` when it is a response, in any payload encoding, to the request
+/// `correlation` names, in step with the connection of `epoch`. Any other record that names the
+/// request arrived whole all the same, so it is that request's [`UnexpectedAnswer`].
+pub(crate) fn response_envelope(
+    record: &[u8],
+    correlation: CorrelationId,
+    epoch: HostEpoch,
+) -> Result<DecodedEnvelope<'_>, UnexpectedAnswer> {
+    decode_transport_envelope(record)
+        .ok()
+        .filter(|envelope| {
+            envelope.correlation_id == Some(correlation)
+                && envelope.host_epoch == Some(epoch)
+                && envelope.role == MessageRole::Response
+                && envelope.protocol == CURRENT_PROTOCOL_VERSION
+                && !envelope.optional_message
+        })
+        .ok_or_else(|| UnexpectedAnswer::of(record))
 }

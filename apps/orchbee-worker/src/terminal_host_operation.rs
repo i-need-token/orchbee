@@ -27,7 +27,8 @@ use crate::{
     },
 };
 
-use crate::host_connection::{HostExchange, PeerFailure};
+use crate::diagnostic_events::{self, Anomaly};
+use crate::host_connection::{HostExchange, PeerFailure, record_kind, response_envelope};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HostOperationDisposition {
@@ -94,8 +95,12 @@ enum ExpectedResponse {
 
 /// Why earlier output was not staged before a creation.
 enum StageFailure {
-    /// The Host answered and refused it; the creation proceeds without it.
+    /// The Host answered and refused it, or the stage could not be written; the creation proceeds
+    /// without it.
     Refused,
+    /// The Host's answer, of this kind, arrived whole but is neither a receipt nor a refusal. The
+    /// stream is still in step, so the creation proceeds, with or without the seed.
+    Unexpected(u16),
     /// The Host connection failed before the creation was written.
     Peer(PeerFailure),
 }
@@ -209,6 +214,9 @@ impl PreparedHostOperation {
                 Err(StageFailure::Refused) => eprintln!(
                     "orchbee-worker diagnostic component=terminal-launch operation=stage-output stage=host cause=refused"
                 ),
+                Err(StageFailure::Unexpected(kind)) => {
+                    diagnostic_events::host_unexpected(host.pacing.site(), kind, Anomaly::Answer);
+                }
                 Err(StageFailure::Peer(failure)) => {
                     stage.close(failure);
                     if failure == PeerFailure::Server {
@@ -241,8 +249,7 @@ impl PreparedHostOperation {
             HostHandoffAdmission::ResultReady => return Ok(HostOperationDisposition::ResultReady),
             HostHandoffAdmission::HandedOff => {}
         }
-        let response = exchange.round_trip(&record);
-        let failure = match response {
+        let failure = match exchange.round_trip(&record) {
             Ok(response) => match self.record_response(kernel, epoch, &response) {
                 Ok(created) => {
                     if let (Some(terminal), Some(theme)) = (created, self.host_theme) {
@@ -252,9 +259,17 @@ impl PreparedHostOperation {
                     }
                     return Ok(HostOperationDisposition::ResultReady);
                 }
+                // An answer that arrived whole but does not settle the operation leaves the stream
+                // in step: only this operation's effect is unknown, and the connection serves on.
+                // A kernel slot that no longer holds this dispatch fails here as well.
                 Err(_invalid_response) => {
-                    exchange.note(PeerFailure::Protocol);
-                    PeerFailure::Host
+                    diagnostic_events::host_unexpected(
+                        host.pacing.site(),
+                        record_kind(&response),
+                        Anomaly::Answer,
+                    );
+                    kernel.record_outcome_unknown(&self.dispatch)?;
+                    return Ok(HostOperationDisposition::ResultReady);
                 }
             },
             Err(failure) => failure,
@@ -358,14 +373,8 @@ fn stage_output(
     let response = exchange
         .round_trip_bounded(&record, STAGE_RESPONSE_BYTES)
         .map_err(StageFailure::Peer)?;
-    let envelope = decode_transport_envelope(&response)
-        .map_err(|_| StageFailure::Peer(PeerFailure::Protocol))?;
-    if envelope.role != MessageRole::Response
-        || envelope.correlation_id != Some(correlation)
-        || envelope.host_epoch != Some(epoch)
-    {
-        return Err(StageFailure::Peer(PeerFailure::Protocol));
-    }
+    let envelope = response_envelope(&response, correlation, epoch)
+        .map_err(|answer| StageFailure::Unexpected(answer.kind))?;
     if envelope.kind == TERMINAL_OUTPUT_STAGED_KIND
         && envelope.payload_encoding == PayloadEncoding::RawBytes
         && decode_terminal_output_staged(envelope.payload).is_ok_and(|staged| {
@@ -380,7 +389,7 @@ fn stage_output(
     ) {
         return Err(StageFailure::Refused);
     }
-    Err(StageFailure::Peer(PeerFailure::Protocol))
+    Err(StageFailure::Unexpected(envelope.kind))
 }
 
 const STAGE_TERMINAL_OUTPUT_KIND: u16 = 82;

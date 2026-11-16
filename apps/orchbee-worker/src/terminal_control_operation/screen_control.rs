@@ -5,8 +5,9 @@ use super::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     ConnectionControl, CorrelationId, Error, HostBrokerConnection, NonZeroU64, NotStarted,
     OperationId, Outcome, PayloadEncoding, Rejection, TerminalControlRequest, TerminalId,
-    UnixStream, decode_attachment_control, decode_connection_control, decode_transport_envelope,
-    diagnostic_events, encode_attachment_control, exchange, fresh_identity,
+    UnexpectedAnswer, UnixStream, decode_attachment_control, decode_connection_control,
+    decode_transport_envelope, diagnostic_events, encode_attachment_control, exchange,
+    fresh_identity,
 };
 use crate::diagnostic_events::Site;
 use orchbee_terminal_protocol::{
@@ -110,13 +111,16 @@ impl Transient<'_> {
         };
         let answered = (|| -> Result<(bool, u16), Box<dyn Error>> {
             let command = encode_attachment_control(&AttachmentControl::DetachTerminal(target))?;
-            let record = control_exchange(
+            let record = match control_exchange(
                 self.host,
                 self.server,
                 CorrelationId::from_bytes(fresh_identity()?)?,
                 command.kind,
                 &command.payload,
-            )?;
+            )? {
+                Ok(record) => record,
+                Err(kind) => return Ok((false, kind)),
+            };
             let envelope = decode_transport_envelope(&record)?;
             Ok((
                 decode_attachment_control(envelope.kind, envelope.role, envelope.payload).ok()
@@ -134,7 +138,11 @@ impl Transient<'_> {
             Err(_) => return false,
         };
         if !confirmed {
-            diagnostic_events::host_unexpected(Site::Control, kind);
+            diagnostic_events::host_unexpected(
+                Site::Control,
+                kind,
+                diagnostic_events::Anomaly::Answer,
+            );
         }
         self.may_exist = false;
         self.host.forget_controller(self.controller);
@@ -175,13 +183,16 @@ pub(super) fn apply(
         may_exist: true,
     };
     let attached = (|| -> Result<Answer<()>, Box<dyn Error>> {
-        let record = control_exchange(
+        let record = match control_exchange(
             host,
             server,
             CorrelationId::from_bytes(fresh_identity()?)?,
             command.kind,
             &command.payload,
-        )?;
+        )? {
+            Ok(record) => record,
+            Err(kind) => return Ok(Answer::Unexpected(kind)),
+        };
         let envelope = decode_transport_envelope(&record)?;
         if let Ok(ConnectionControl::TypedFailure(_)) =
             decode_connection_control(envelope.kind, envelope.role, envelope.payload)
@@ -208,7 +219,11 @@ pub(super) fn apply(
         Ok(Answer::Refused(rejection)) => return Ok(Outcome::Rejected(rejection)),
         // A grant other than the one asked for is never used: it is detached and refused.
         Ok(Answer::Unexpected(kind)) => {
-            diagnostic_events::host_unexpected(Site::Control, kind);
+            diagnostic_events::host_unexpected(
+                Site::Control,
+                kind,
+                diagnostic_events::Anomaly::Answer,
+            );
             transient.detach();
             return Ok(Outcome::Rejected(Rejection::HostRejected));
         }
@@ -225,13 +240,16 @@ pub(super) fn apply(
     }
     // Once this exchange begins, every untrusted response means unknown effect.
     let acknowledged = (|| -> Result<Answer<_>, Box<dyn Error>> {
-        let record = control_exchange(
+        let record = match control_exchange(
             host,
             server,
             CorrelationId::from_bytes(request.request_id.as_bytes())?,
             command.kind,
             &command.payload,
-        )?;
+        )? {
+            Ok(record) => record,
+            Err(kind) => return Ok(Answer::Unexpected(kind)),
+        };
         let envelope = decode_transport_envelope(&record)?;
         if let Ok(ConnectionControl::TypedFailure(failure)) =
             decode_connection_control(envelope.kind, envelope.role, envelope.payload)
@@ -279,24 +297,35 @@ pub(super) fn apply(
         }
         Answer::Refused(rejection) => Outcome::Rejected(rejection),
         Answer::Unexpected(kind) => {
-            diagnostic_events::host_unexpected(Site::Control, kind);
+            diagnostic_events::host_unexpected(
+                Site::Control,
+                kind,
+                diagnostic_events::Anomaly::Answer,
+            );
             operation.unknown()
         }
     })
 }
+/// One correlated control exchange: its answer, or the kind of an answer that arrived whole but
+/// out of contract, which leaves the stream in step. Only a failed exchange is an error.
 fn control_exchange(
     host: &HostBrokerConnection,
     server: &UnixStream,
     correlation: CorrelationId,
     kind: u16,
     payload: &[u8],
-) -> Result<Vec<u8>, Box<dyn Error>> {
-    exchange(
+) -> Result<Result<Vec<u8>, u16>, Box<dyn Error>> {
+    match exchange(
         host,
         server,
         correlation,
         kind,
         payload,
         PayloadEncoding::ControlJson,
-    )
+    ) {
+        Ok(record) => Ok(Ok(record)),
+        Err(error) => error
+            .downcast::<UnexpectedAnswer>()
+            .map(|answer| Err(answer.kind)),
+    }
 }

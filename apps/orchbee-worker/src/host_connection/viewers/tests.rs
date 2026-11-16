@@ -24,11 +24,11 @@ fn pausing_projection_retires_unacknowledged_frames_without_losing_events_or_oth
             viewers.admit(request).map_err(|e| format!("{e:?}"))?;
         }
         let epoch = HostEpoch::from_bytes([3; 16])?;
-        viewers.receive(frame(1, 1, epoch)?, epoch)?;
+        viewers.receive(frame(1, 1, epoch)?, epoch);
         let neighbor = frame(2, 1, epoch)?;
-        viewers.receive(neighbor.clone(), epoch)?;
+        viewers.receive(neighbor.clone(), epoch);
         let event = history(1, 1, epoch)?;
-        viewers.receive(event.clone(), epoch)?;
+        viewers.receive(event.clone(), epoch);
         if delivered {
             assert!(matches!(
                 viewers.poll(first.attachment_id),
@@ -59,7 +59,7 @@ fn pausing_projection_retires_unacknowledged_frames_without_losing_events_or_oth
         );
         viewers.set_demand(first.attachment_id, ProjectionDemand::Active);
         let fresh = frame(1, 2, epoch)?;
-        viewers.receive(fresh.clone(), epoch)?;
+        viewers.receive(fresh.clone(), epoch);
         assert!(viewers.open(first.attachment_id));
         assert_eq!(
             viewers.poll(first.attachment_id),
@@ -81,8 +81,10 @@ fn pausing_projection_retires_unacknowledged_frames_without_losing_events_or_oth
             TerminalViewerOutcome::Record(neighbor)
         );
         assert_eq!(viewers.retained_record_bytes(), 0);
-        assert!(
-            viewers.receive(frame(1, 1, epoch)?, epoch).is_err(),
+        viewers.receive(frame(1, 1, epoch)?, epoch);
+        assert_eq!(
+            viewers.closed_ids(),
+            vec![[1; 16]],
             "pause must not reset sequence fencing"
         );
     }
@@ -108,7 +110,7 @@ fn settlement_is_terminal_scoped_and_releases_its_budget_without_settling_a_fram
     }
     let epoch = HostEpoch::from_bytes([3; 16])?;
     let frame = frame(1, 1, epoch)?;
-    viewers.receive(frame.clone(), epoch)?;
+    viewers.receive(frame.clone(), epoch);
     let event = encode_lifecycle_control(&LifecycleControl::TerminalExited(TerminalExited {
         identity: TerminalIdentity {
             creation_id: CreationId::from_bytes([6; 16])?,
@@ -124,8 +126,8 @@ fn settlement_is_terminal_scoped_and_releases_its_budget_without_settling_a_fram
         &event.payload,
         epoch,
     )?;
-    viewers.receive(event.clone(), epoch)?;
-    viewers.receive(event.clone(), epoch)?;
+    viewers.receive(event.clone(), epoch);
+    viewers.receive(event.clone(), epoch);
     assert_eq!(
         viewers.retained_record_bytes(),
         frame.len() + 2 * event.len()
@@ -173,7 +175,7 @@ fn a_viewer_hints_once_until_polled_and_again_for_what_the_poll_left() -> TestRe
     viewers.admit(&second).map_err(|e| format!("{e:?}"))?;
     assert!(viewers.take_ready().is_empty());
     let epoch = HostEpoch::from_bytes([3; 16])?;
-    viewers.receive(frame(1, 1, epoch)?, epoch)?;
+    viewers.receive(frame(1, 1, epoch)?, epoch);
     assert_eq!(viewers.take_ready(), [first.attachment_id]);
     assert!(
         viewers.take_ready().is_empty(),
@@ -196,7 +198,7 @@ fn a_viewer_hints_once_until_polled_and_again_for_what_the_poll_left() -> TestRe
         &event.payload,
         epoch,
     )?;
-    viewers.receive(event, epoch)?;
+    viewers.receive(event, epoch);
     assert_eq!(viewers.take_ready(), [second.attachment_id]);
     assert!(matches!(
         viewers.poll(first.attachment_id),
@@ -224,7 +226,7 @@ fn delivery_requires_exact_feedback_and_does_not_stall_another_attachment() -> T
     viewers.admit(&second).map_err(|e| format!("{e:?}"))?;
     let epoch = HostEpoch::from_bytes([3; 16])?;
     let first_frame = frame(1, 1, epoch)?;
-    viewers.receive(first_frame.clone(), epoch)?;
+    viewers.receive(first_frame.clone(), epoch);
     let feedback = TerminalViewerRequest {
         action: TerminalViewerAction::FrameApplied {
             sequence: NonZeroU64::MIN,
@@ -254,7 +256,7 @@ fn delivery_requires_exact_feedback_and_does_not_stall_another_attachment() -> T
         Err(ViewerRejection::FeedbackMismatch)
     );
     let other = frame(2, 1, epoch)?;
-    viewers.receive(other.clone(), epoch)?;
+    viewers.receive(other.clone(), epoch);
     assert_eq!(
         viewers.poll(second.attachment_id),
         TerminalViewerOutcome::Record(other)
@@ -264,9 +266,9 @@ fn delivery_requires_exact_feedback_and_does_not_stall_another_attachment() -> T
         viewers.feedback(&feedback),
         Err(ViewerRejection::FeedbackMismatch)
     );
-    viewers.receive(frame(1, 2, epoch)?, epoch)?;
+    viewers.receive(frame(1, 2, epoch)?, epoch);
     // A full slot closes only this viewer, preserving the other flight.
-    viewers.receive(frame(1, 3, epoch)?, epoch)?;
+    viewers.receive(frame(1, 3, epoch)?, epoch);
     assert_eq!(
         viewers.poll(first.attachment_id),
         TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
@@ -294,7 +296,7 @@ fn snapshot_recovery_and_detach_are_attachment_scoped_and_capacity_is_reclaimed(
         Err(ViewerRejection::AttachmentAlreadyExists)
     );
     let epoch = HostEpoch::from_bytes([3; 16])?;
-    viewers.receive(frame(1, 1, epoch)?, epoch)?;
+    viewers.receive(frame(1, 1, epoch)?, epoch);
     viewers.poll(request(1)?.attachment_id);
     viewers
         .feedback(&TerminalViewerRequest {
@@ -309,11 +311,12 @@ fn snapshot_recovery_and_detach_are_attachment_scoped_and_capacity_is_reclaimed(
     delta[20..22].copy_from_slice(&42_u16.to_le_bytes());
     delta[64 + 6] = 2;
     delta[64 + 56..64 + 64].copy_from_slice(&4_u64.to_le_bytes());
-    assert!(viewers.receive(delta, epoch).is_err());
-    viewers.receive(frame(1, 2, epoch)?, epoch)?;
+    // A delta before the snapshot it needs breaks the flow and closes only this viewer.
+    viewers.receive(delta, epoch);
+    assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
     viewers.remove(request(1)?.attachment_id);
     viewers.admit(&request(25)?).map_err(|e| format!("{e:?}"))?;
-    let _dropped = viewers.receive(frame(1, 3, epoch)?, epoch);
+    viewers.receive(frame(1, 3, epoch)?, epoch);
     assert_eq!(
         viewers.poll(request(1)?.attachment_id),
         TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
@@ -339,15 +342,18 @@ fn blocked_projection_preserves_bytes_and_recovers_only_with_a_later_snapshot() 
         &blocked.payload,
         epoch,
     )?;
-    viewers.receive(record.clone(), epoch)?;
+    viewers.receive(record.clone(), epoch);
     assert_eq!(
         viewers.poll(request(1)?.attachment_id),
         TerminalViewerOutcome::Record(record)
     );
     let mut stale_recovery = frame(1, 1, epoch)?;
     stale_recovery[64 + 64..64 + 72].copy_from_slice(&4_u64.to_le_bytes());
-    assert!(viewers.receive(stale_recovery, epoch).is_err());
-    viewers.receive(frame(1, 1, epoch)?, epoch)?;
+    // A recovery no later than the blocked revision breaks the flow and closes only this viewer,
+    // which its cleanup then removes.
+    viewers.receive(stale_recovery, epoch);
+    assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
+    viewers.remove(request(1)?.attachment_id);
     viewers
         .admit(&request(2)?)
         .map_err(|error| format!("{error:?}"))?;
@@ -366,9 +372,9 @@ fn blocked_projection_preserves_bytes_and_recovers_only_with_a_later_snapshot() 
             epoch,
         )?,
         epoch,
-    )?;
+    );
     // Recovery cannot overwrite an unread blocked notification.
-    viewers.receive(frame(2, 1, epoch)?, epoch)?;
+    viewers.receive(frame(2, 1, epoch)?, epoch);
     assert_eq!(
         viewers.poll(request(2)?.attachment_id),
         TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
@@ -386,10 +392,10 @@ fn aggregate_pressure_retires_only_the_addressed_viewer_and_releases_exactly_onc
     viewers.admit(&request(1)?).map_err(|e| format!("{e:?}"))?;
     viewers.admit(&request(2)?).map_err(|e| format!("{e:?}"))?;
     // Equality retains: the ceiling equals this record's logical length.
-    viewers.receive(first.clone(), epoch)?;
+    viewers.receive(first.clone(), epoch);
     assert_eq!(viewers.retained_record_bytes, record_bytes);
     // Crossing the aggregate retires only the addressed viewer.
-    viewers.receive(frame(2, 1, epoch)?, epoch)?;
+    viewers.receive(frame(2, 1, epoch)?, epoch);
     assert_eq!(viewers.retained_record_bytes, record_bytes);
     assert_eq!(viewers.closed_ids(), vec![[2; 16]]);
     assert_eq!(
@@ -397,7 +403,7 @@ fn aggregate_pressure_retires_only_the_addressed_viewer_and_releases_exactly_onc
         TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
     );
     // A closed viewer's late frames are discarded without charging the budget.
-    viewers.receive(frame(2, 2, epoch)?, epoch)?;
+    viewers.receive(frame(2, 2, epoch)?, epoch);
     assert_eq!(viewers.retained_record_bytes, record_bytes);
     // The sibling record survives untouched and releases exactly once on poll.
     assert_eq!(
@@ -434,15 +440,15 @@ fn both_record_kinds_charge_the_logical_budget_and_remove_releases_once() -> Tes
     for id in 1..=3_u8 {
         viewers.admit(&request(id)?).map_err(|e| format!("{e:?}"))?;
     }
-    viewers.receive(blocked_record.clone(), epoch)?;
+    viewers.receive(blocked_record.clone(), epoch);
     assert_eq!(viewers.retained_record_bytes, blocked_record.len());
-    viewers.receive(frame_record.clone(), epoch)?;
+    viewers.receive(frame_record.clone(), epoch);
     assert_eq!(
         viewers.retained_record_bytes,
         blocked_record.len() + frame_record.len()
     );
     // The third record would cross the aggregate: only viewer 3 retires.
-    viewers.receive(third, epoch)?;
+    viewers.receive(third, epoch);
     assert_eq!(viewers.closed_ids(), vec![[3; 16]]);
     assert_eq!(
         viewers.retained_record_bytes,
@@ -462,30 +468,6 @@ fn both_record_kinds_charge_the_logical_budget_and_remove_releases_once() -> Tes
 }
 
 #[test]
-fn malformed_or_flow_invalid_records_still_fail_under_pressure() -> TestResult {
-    let epoch = HostEpoch::from_bytes([3; 16])?;
-    let first = frame(1, 1, epoch)?;
-    let mut viewers = HostViewers::with_retained_record_limit(first.len());
-    viewers.admit(&request(1)?).map_err(|e| format!("{e:?}"))?;
-    viewers.admit(&request(2)?).map_err(|e| format!("{e:?}"))?;
-    viewers.receive(first.clone(), epoch)?;
-    // A malformed record still fails the connection rather than retiring quietly.
-    let mut malformed = frame(2, 1, epoch)?;
-    malformed[0] = b'X';
-    assert!(viewers.receive(malformed, epoch).is_err());
-    // A flow-invalid frame (delta for a snapshot-needing viewer) still fails.
-    let mut delta = frame(2, 1, epoch)?;
-    delta[20..22].copy_from_slice(&42_u16.to_le_bytes());
-    delta[64 + 6] = 2;
-    delta[64 + 56..64 + 64].copy_from_slice(&4_u64.to_le_bytes());
-    assert!(viewers.receive(delta, epoch).is_err());
-    // Neither failure used cache pressure as a bypass.
-    assert_eq!(viewers.retained_record_bytes, first.len());
-    assert!(viewers.closed_ids().is_empty());
-    Ok(())
-}
-
-#[test]
 fn retained_budget_boundary_maps_to_the_actual_128_mib_ceiling() -> TestResult {
     assert_eq!(MAXIMUM_RETAINED_VIEWER_RECORD_BYTES, 128 * 1024 * 1024);
     const MIB: usize = 1024 * 1024;
@@ -498,18 +480,18 @@ fn retained_budget_boundary_maps_to_the_actual_128_mib_ceiling() -> TestResult {
     for id in 1..=22_u8 {
         let record = frame_sized(id, 1, epoch, 5 * MIB)?;
         retained += record.len();
-        viewers.receive(record, epoch)?;
+        viewers.receive(record, epoch);
     }
     assert_eq!(viewers.retained_record_bytes, retained);
     // Viewer 23 lands exactly on the real ceiling and is retained.
     let exact = MAXIMUM_RETAINED_VIEWER_RECORD_BYTES - retained;
-    viewers.receive(frame_sized(23, 1, epoch, exact)?, epoch)?;
+    viewers.receive(frame_sized(23, 1, epoch, exact)?, epoch);
     assert_eq!(
         viewers.retained_record_bytes,
         MAXIMUM_RETAINED_VIEWER_RECORD_BYTES
     );
     // Viewer 24's smallest valid record crosses it: only viewer 24 retires.
-    viewers.receive(frame(24, 1, epoch)?, epoch)?;
+    viewers.receive(frame(24, 1, epoch)?, epoch);
     assert_eq!(viewers.closed_ids(), vec![[24; 16]]);
     assert_eq!(
         viewers.retained_record_bytes,
@@ -533,14 +515,14 @@ fn history_events_poll_during_a_pending_frame_flight_without_disturbing_it() -> 
     viewers.admit(&request(2)?).map_err(|e| format!("{e:?}"))?;
     let epoch = HostEpoch::from_bytes([3; 16])?;
     let snapshot = frame(1, 1, epoch)?;
-    viewers.receive(snapshot.clone(), epoch)?;
+    viewers.receive(snapshot.clone(), epoch);
     assert_eq!(
         viewers.poll(request(1)?.attachment_id),
         TerminalViewerOutcome::Record(snapshot)
     );
     // The frame flight is now pending feedback, yet the event still delivers.
     let event = history(1, 1, epoch)?;
-    viewers.receive(event.clone(), epoch)?;
+    viewers.receive(event.clone(), epoch);
     assert_eq!(
         viewers.poll(request(1)?.attachment_id),
         TerminalViewerOutcome::Record(event)
@@ -559,8 +541,8 @@ fn history_events_poll_during_a_pending_frame_flight_without_disturbing_it() -> 
     // The settled flight frees the record slot: the next frame delivers
     // normally and the sibling viewer is unaffected throughout.
     let next = frame(1, 2, epoch)?;
-    viewers.receive(next.clone(), epoch)?;
-    viewers.receive(frame(2, 1, epoch)?, epoch)?;
+    viewers.receive(next.clone(), epoch);
+    viewers.receive(frame(2, 1, epoch)?, epoch);
     assert_eq!(
         viewers.poll(request(1)?.attachment_id),
         TerminalViewerOutcome::Record(next)
@@ -580,12 +562,12 @@ fn poll_arbitration_prefers_the_record_once_then_serves_the_waiting_fifo() -> Te
     let epoch = HostEpoch::from_bytes([3; 16])?;
     let first = history(1, 1, epoch)?;
     let second = history(1, 2, epoch)?;
-    viewers.receive(first.clone(), epoch)?;
-    viewers.receive(second.clone(), epoch)?;
+    viewers.receive(first.clone(), epoch);
+    viewers.receive(second.clone(), epoch);
     // The record slot is preferred initially: a queued event waits while the
     // frame takes the first poll, then the FIFO drains in arrival order.
     let snapshot = frame(1, 1, epoch)?;
-    viewers.receive(snapshot.clone(), epoch)?;
+    viewers.receive(snapshot.clone(), epoch);
     assert_eq!(
         viewers.poll(request(1)?.attachment_id),
         TerminalViewerOutcome::Record(snapshot)
@@ -612,18 +594,18 @@ fn a_full_event_fifo_closes_only_that_viewer_and_a_closed_viewer_discards() -> T
     viewers.admit(&request(2)?).map_err(|e| format!("{e:?}"))?;
     let epoch = HostEpoch::from_bytes([3; 16])?;
     for sequence in 1..=MAXIMUM_VIEWER_EVENTS as u64 {
-        viewers.receive(history(1, sequence, epoch)?, epoch)?;
+        viewers.receive(history(1, sequence, epoch)?, epoch);
     }
     // The next event saturates the bounded FIFO: only this viewer retires,
     // and the queued bytes leave with it.
-    viewers.receive(history(1, 9, epoch)?, epoch)?;
+    viewers.receive(history(1, 9, epoch)?, epoch);
     assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
     assert_eq!(viewers.retained_record_bytes, 0);
     // A closed viewer discards late events without charging the budget.
-    viewers.receive(history(1, 10, epoch)?, epoch)?;
+    viewers.receive(history(1, 10, epoch)?, epoch);
     assert_eq!(viewers.retained_record_bytes, 0);
     let sibling = history(2, 1, epoch)?;
-    viewers.receive(sibling.clone(), epoch)?;
+    viewers.receive(sibling.clone(), epoch);
     assert_eq!(
         viewers.poll(request(2)?.attachment_id),
         TerminalViewerOutcome::Record(sibling)
@@ -641,17 +623,17 @@ fn history_events_share_the_byte_budget_and_remove_releases_exactly_once() -> Te
     let mut viewers = HostViewers::with_retained_record_limit(limit);
     viewers.admit(&request(1)?).map_err(|e| format!("{e:?}"))?;
     viewers.admit(&request(2)?).map_err(|e| format!("{e:?}"))?;
-    viewers.receive(frame_record.clone(), epoch)?;
-    viewers.receive(first, epoch)?;
+    viewers.receive(frame_record.clone(), epoch);
+    viewers.receive(first, epoch);
     assert_eq!(viewers.retained_record_bytes, limit);
     // Crossing the aggregate with an event retires only the addressed viewer
     // and releases both its frame slot and its queued events exactly once.
-    viewers.receive(second, epoch)?;
+    viewers.receive(second, epoch);
     assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
     assert_eq!(viewers.retained_record_bytes, 0);
     let event = history(2, 1, epoch)?;
     let event_bytes = event.len();
-    viewers.receive(event.clone(), epoch)?;
+    viewers.receive(event.clone(), epoch);
     assert_eq!(viewers.retained_record_bytes, event_bytes);
     viewers.remove(request(2)?.attachment_id);
     assert_eq!(viewers.retained_record_bytes, 0);
@@ -677,8 +659,8 @@ fn pane_effect_streams_keep_independent_sequences_and_poll_only_from_the_exact_v
     // still leave through one arrival-ordered viewer FIFO.
     let clipboard = clipboard(1, 1, "selected text", epoch)?;
 
-    viewers.receive(bell.clone(), epoch)?;
-    viewers.receive(clipboard.clone(), epoch)?;
+    viewers.receive(bell.clone(), epoch);
+    viewers.receive(clipboard.clone(), epoch);
 
     assert_eq!(
         viewers.poll(request(2)?.attachment_id),
@@ -707,44 +689,31 @@ fn pane_effect_replays_and_regressions_fail_closed_and_skip_other_viewers() -> T
     bells
         .admit(&request(1)?)
         .map_err(|error| format!("{error:?}"))?;
-    let first_bell = bell(1, 2, epoch)?;
-    bells.receive(first_bell.clone(), epoch)?;
-    assert!(bells.receive(bell(1, 2, epoch)?, epoch).is_err());
-    assert!(bells.receive(bell(1, 1, epoch)?, epoch).is_err());
+    bells.receive(bell(1, 2, epoch)?, epoch);
+    // A replayed bell closes its viewer, and nothing it queued stays retained.
+    bells.receive(bell(1, 2, epoch)?, epoch);
+    assert_eq!(bells.closed_ids(), vec![[1; 16]]);
+    assert_eq!(bells.retained_record_bytes(), 0);
     assert_eq!(
         bells.poll(request(1)?.attachment_id),
-        TerminalViewerOutcome::Record(first_bell)
-    );
-    assert_eq!(
-        bells.poll(request(1)?.attachment_id),
-        TerminalViewerOutcome::Empty
+        TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
     );
 
     let mut clipboard_writes = HostViewers::default();
     clipboard_writes
         .admit(&request(1)?)
         .map_err(|error| format!("{error:?}"))?;
-    let first_write = clipboard(1, 3, "new", epoch)?;
-    clipboard_writes.receive(first_write.clone(), epoch)?;
-    assert!(
-        clipboard_writes
-            .receive(clipboard(1, 2, "stale", epoch)?, epoch)
-            .is_err()
-    );
-    assert_eq!(
-        clipboard_writes.poll(request(1)?.attachment_id),
-        TerminalViewerOutcome::Record(first_write)
-    );
-    assert_eq!(
-        clipboard_writes.poll(request(1)?.attachment_id),
-        TerminalViewerOutcome::Empty
-    );
+    clipboard_writes.receive(clipboard(1, 3, "new", epoch)?, epoch);
+    // A regressed write closes its viewer the same way.
+    clipboard_writes.receive(clipboard(1, 2, "stale", epoch)?, epoch);
+    assert_eq!(clipboard_writes.closed_ids(), vec![[1; 16]]);
+    assert_eq!(clipboard_writes.retained_record_bytes(), 0);
 
     let mut exact = HostViewers::default();
     exact
         .admit(&request(1)?)
         .map_err(|error| format!("{error:?}"))?;
-    let _dropped = exact.receive(bell(9, 1, epoch)?, epoch);
+    exact.receive(bell(9, 1, epoch)?, epoch);
     assert_eq!(
         exact.poll(request(1)?.attachment_id),
         TerminalViewerOutcome::Empty
@@ -770,20 +739,20 @@ fn pane_effects_share_fifo_capacity_and_closed_viewers_discard_late_records() ->
     ];
     let retained: usize = queued.iter().map(Vec::len).sum();
     for record in queued {
-        viewers.receive(record, epoch)?;
+        viewers.receive(record, epoch);
     }
     assert_eq!(viewers.retained_record_bytes(), retained);
 
     // One more pane effect closes only the saturated viewer and releases all
     // four heterogeneous records exactly once.
-    viewers.receive(bell(1, 2, epoch)?, epoch)?;
+    viewers.receive(bell(1, 2, epoch)?, epoch);
     assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
     assert_eq!(viewers.retained_record_bytes(), 0);
-    viewers.receive(clipboard(1, 2, "late", epoch)?, epoch)?;
+    viewers.receive(clipboard(1, 2, "late", epoch)?, epoch);
     assert_eq!(viewers.retained_record_bytes(), 0);
 
     let sibling = clipboard(2, 1, "sibling", epoch)?;
-    viewers.receive(sibling.clone(), epoch)?;
+    viewers.receive(sibling.clone(), epoch);
     assert_eq!(
         viewers.poll(request(2)?.attachment_id),
         TerminalViewerOutcome::Record(sibling)
@@ -806,17 +775,17 @@ fn pane_effects_share_the_aggregate_byte_budget_and_remove_releases_once() -> Te
     viewers
         .admit(&request(2)?)
         .map_err(|error| format!("{error:?}"))?;
-    viewers.receive(frame_record, epoch)?;
-    viewers.receive(bell_record, epoch)?;
+    viewers.receive(frame_record, epoch);
+    viewers.receive(bell_record, epoch);
     assert_eq!(viewers.retained_record_bytes(), limit);
 
-    viewers.receive(clipboard_record, epoch)?;
+    viewers.receive(clipboard_record, epoch);
     assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
     assert_eq!(viewers.retained_record_bytes(), 0);
 
     let sibling = bell(2, 1, epoch)?;
     let sibling_bytes = sibling.len();
-    viewers.receive(sibling, epoch)?;
+    viewers.receive(sibling, epoch);
     assert_eq!(viewers.retained_record_bytes(), sibling_bytes);
     viewers.remove(request(2)?.attachment_id);
     assert_eq!(viewers.retained_record_bytes(), 0);
@@ -843,7 +812,7 @@ fn selection_events_keep_opaque_bytes_and_arrival_order_for_the_exact_viewer() -
     let retained: usize = records.iter().map(Vec::len).sum();
 
     for record in &records {
-        viewers.receive(record.clone(), epoch)?;
+        viewers.receive(record.clone(), epoch);
     }
 
     assert_eq!(viewers.retained_record_bytes(), retained);
@@ -873,22 +842,22 @@ fn a_selection_snapshot_burst_keeps_its_viewer_and_delivers_the_newest_state() -
         .map_err(|error| format!("{error:?}"))?;
     let epoch = HostEpoch::from_bytes([3; 16])?;
     let ring = bell(1, 1, epoch)?;
-    viewers.receive(ring.clone(), epoch)?;
+    viewers.receive(ring.clone(), epoch);
     // A pane resized column by column reports its selection once per generation, faster than
     // the Client polls: each snapshot replaces the obsolete one instead of saturating the FIFO.
     for column in 0..2 * MAXIMUM_VIEWER_EVENTS as u16 {
-        viewers.receive(selection_active(1, column, epoch)?, epoch)?;
+        viewers.receive(selection_active(1, column, epoch)?, epoch);
     }
     let newest = selection_active(1, 40, epoch)?;
-    viewers.receive(newest.clone(), epoch)?;
+    viewers.receive(newest.clone(), epoch);
     assert!(viewers.closed_ids().is_empty());
     assert_eq!(viewers.retained_record_bytes(), ring.len() + newest.len());
 
     // An eviction replaces the obsolete snapshot too, but no later snapshot replaces it.
     let evicted = selection_snapshot(1, SelectionChangedState::Evicted, epoch)?;
-    viewers.receive(evicted.clone(), epoch)?;
+    viewers.receive(evicted.clone(), epoch);
     let reselected = selection_active(1, 2, epoch)?;
-    viewers.receive(reselected.clone(), epoch)?;
+    viewers.receive(reselected.clone(), epoch);
     for record in [ring, evicted, reselected] {
         assert_eq!(
             viewers.poll(request(1)?.attachment_id),
@@ -906,12 +875,12 @@ fn a_selection_snapshot_burst_keeps_its_viewer_and_delivers_the_newest_state() -
         viewers.receive(
             selection_snapshot(1, SelectionChangedState::Evicted, epoch)?,
             epoch,
-        )?;
+        );
     }
-    viewers.receive(selection_active(1, 3, epoch)?, epoch)?;
-    viewers.receive(selection_active(1, 4, epoch)?, epoch)?;
+    viewers.receive(selection_active(1, 3, epoch)?, epoch);
+    viewers.receive(selection_active(1, 4, epoch)?, epoch);
     assert!(viewers.closed_ids().is_empty());
-    viewers.receive(bell(1, 2, epoch)?, epoch)?;
+    viewers.receive(bell(1, 2, epoch)?, epoch);
     assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
     assert_eq!(viewers.retained_record_bytes(), 0);
     Ok(())
@@ -931,7 +900,7 @@ fn selection_events_for_unknown_attachments_leave_a_live_viewer_untouched() -> T
     ];
 
     for record in foreign {
-        let _dropped = viewers.receive(record, epoch);
+        viewers.receive(record, epoch);
     }
     assert_eq!(
         viewers.poll(request(1)?.attachment_id),

@@ -136,8 +136,14 @@ impl HostControllers {
             .find(|grant| grant.terminal_id == terminal)
             .map(|grant| grant.controller_id)
     }
-    pub(super) fn holds(&self, attachment: orchbee_terminal_protocol::AttachmentId) -> bool {
-        self.grants.contains_key(attachment.as_bytes())
+    /// The viewer a held controller attachment follows; `None` for one this Worker does not hold.
+    pub(super) fn viewer_of(
+        &self,
+        attachment: orchbee_terminal_protocol::AttachmentId,
+    ) -> Option<OperationId> {
+        self.grants
+            .get(attachment.as_bytes())
+            .map(|grant| grant.viewer_id)
     }
     pub(crate) fn validate_lease_event(
         &self,

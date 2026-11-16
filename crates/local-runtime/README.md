@@ -818,7 +818,11 @@ and kernel survive Host startup; the Host handoff revalidates authorization. The
 endpoint address is checked against the platform socket-address ABI before the `host` directory
 or the Host process exists; an address that cannot fit settles the same pre-handoff failure
 without either side effect. Preparation or startup failure settles a pre-handoff failure when
-deliverable and retires the Worker. Any existing Host endpoint is an explicit recovery failure.
+deliverable, and the Worker keeps serving: only a later authorized Launch starts a Host again. A
+failed start that may leave a Host process is the exception: a Host still running when the start
+window ends, or any Windows start failure from the Host's registration on, since that registration
+outlives the process. The Worker then answers the Launch and exits, so no later start can meet that
+Host. Any existing Host endpoint is an explicit recovery failure.
 No Host reconnect/adoption is allowed.
 
 ## Development cohort contract
@@ -887,7 +891,7 @@ has the separate [generation and process registration contract](docs/windows-cra
 | LS05 startup readiness includes a valid first frame within one budget                      | Client deadline, TerminalSession projection, same TTY handoff                            | Admission/submission deadline tests and bare TTY process tests             |
 
 `formal/tla/LocalSessionStartup.tla` bounds one activation generation: two Clients, one Server
-launch attempt, and one Host attempt. Its `Recovery` is an attempt that launches nothing in that
+launch attempt, and two Host attempts, each for its own authorized Launch. Its `Recovery` is an attempt that launches nothing in that
 generation; the [catalog](#durable-session-catalog) closes a generation that ended without its stop
 and the next one starts as a fresh instance. It abstracts filesystem checks as admitted facts,
 abstracts deadline observation as an expiry event, and checks safety without scheduler fairness.

@@ -2,10 +2,7 @@
 //! for one Host connection. It routes validated records without decoding terminal cells,
 //! rendering output, or authorizing product target exposure.
 
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    io,
-};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use orchbee_capability_node_protocol::{
     OperationId, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
@@ -21,6 +18,7 @@ use orchbee_terminal_protocol::{
 };
 
 use super::validate_event;
+use crate::diagnostic_events::Anomaly;
 
 pub(super) const MAXIMUM_VIEWERS: usize = 24;
 const MAXIMUM_VIEWER_EVENTS: usize = 4;
@@ -344,39 +342,46 @@ impl HostViewers {
         Ok(())
     }
 
-    pub(crate) fn receive(&mut self, record: Vec<u8>, epoch: HostEpoch) -> io::Result<()> {
-        let received = self.store(record, epoch);
+    /// Routes one intact viewer event. An event this broker cannot use never ends the connection:
+    /// one that breaks its envelope or payload contract is dropped, a flow or sequence break closes
+    /// only the viewer it names, which a later cleanup detaches, and each is recorded.
+    pub(crate) fn receive(&mut self, record: Vec<u8>, epoch: HostEpoch) {
+        self.store(record, epoch);
         self.note_ready();
-        received
     }
 
-    fn store(&mut self, record: Vec<u8>, epoch: HostEpoch) -> io::Result<()> {
-        let envelope = decode_transport_envelope(&record).map_err(invalid)?;
+    fn store(&mut self, record: Vec<u8>, epoch: HostEpoch) {
+        let Ok(envelope) = decode_transport_envelope(&record) else {
+            return anomaly(super::record_kind(&record), Anomaly::Contract);
+        };
         if envelope.protocol != CURRENT_PROTOCOL_VERSION
             || envelope.role != MessageRole::Event
             || envelope.correlation_id.is_some()
             || envelope.host_epoch != Some(epoch)
             || envelope.optional_message
         {
-            return Err(invalid("unexpected Host event envelope"));
+            return anomaly(envelope.kind, Anomaly::Contract);
         }
         if matches!(envelope.kind, 41 | 42)
             && envelope.payload_encoding == PayloadEncoding::TerminalFrame
         {
-            let route = inspect_terminal_frame_route(envelope.payload).map_err(invalid)?;
-            if route.host_epoch != epoch || (envelope.kind == 41) != route.base_revision.is_none() {
-                return Err(invalid("Host frame envelope and route disagree"));
-            }
+            let Ok(route) = inspect_terminal_frame_route(envelope.payload) else {
+                return anomaly(envelope.kind, Anomaly::Contract);
+            };
             let Some(viewer) = self.viewers.get_mut(route.attachment_id.as_bytes()) else {
                 unknown_attachment(&record);
-                return Ok(());
+                return;
             };
             if viewer.closed {
-                return Ok(());
+                return;
             }
             if viewer.record.is_some() || viewer.flight.is_some() {
                 self.retained_record_bytes -= viewer.close();
-                return Ok(());
+                return;
+            }
+            if route.host_epoch != epoch || (envelope.kind == 41) != route.base_revision.is_none() {
+                self.retained_record_bytes -= viewer.close();
+                return anomaly(envelope.kind, Anomaly::Contract);
             }
             if route.sequence.get() <= viewer.last_sequence
                 || (viewer.needs_snapshot && route.base_revision.is_some())
@@ -384,7 +389,8 @@ impl HostViewers {
                     route.base_revision.is_some() || route.revision <= revision
                 })
             {
-                return Err(invalid("Host frame violates attachment projection flow"));
+                self.retained_record_bytes -= viewer.close();
+                return anomaly(envelope.kind, Anomaly::Flow);
             }
             let Some(total) = self
                 .retained_record_bytes
@@ -392,7 +398,7 @@ impl HostViewers {
                 .filter(|total| *total <= self.retained_record_limit)
             else {
                 self.retained_record_bytes -= viewer.close();
-                return Ok(());
+                return;
             };
             self.retained_record_bytes = total;
             viewer.record = Some(record);
@@ -403,34 +409,41 @@ impl HostViewers {
                 route,
                 delivered: false,
             });
-            return Ok(());
+            return;
         }
         if envelope.kind == 65 && envelope.payload_encoding == PayloadEncoding::RawBytes {
-            let route =
-                decode_selection_export_chunk_route(envelope.kind, envelope.role, envelope.payload)
-                    .map_err(invalid)?;
-            return self.queue_event(route.attachment_id, record, false);
+            match decode_selection_export_chunk_route(
+                envelope.kind,
+                envelope.role,
+                envelope.payload,
+            ) {
+                Ok(route) => self.queue_event(route.attachment_id, record, false),
+                Err(_) => anomaly(envelope.kind, Anomaly::Contract),
+            }
+            return;
         }
         if envelope.payload_encoding != PayloadEncoding::ControlJson {
-            return Err(invalid("unexpected Host event encoding"));
+            return anomaly(envelope.kind, Anomaly::Contract);
         }
         if matches!(envelope.kind, 15 | 19) {
-            validate_event(&record, epoch)?;
             let event = orchbee_terminal_protocol::decode_lifecycle_control(
                 envelope.kind,
                 envelope.role,
                 envelope.payload,
-            )
-            .map_err(invalid)?;
+            );
             let terminal = match event {
-                orchbee_terminal_protocol::LifecycleControl::TerminalExited(event) => {
+                Ok(orchbee_terminal_protocol::LifecycleControl::TerminalExited(event))
+                    if validate_event(&record, epoch).is_ok() =>
+                {
                     event.identity.terminal_id
                 }
-                orchbee_terminal_protocol::LifecycleControl::TerminalFailed(event) => {
+                Ok(orchbee_terminal_protocol::LifecycleControl::TerminalFailed(event))
+                    if validate_event(&record, epoch).is_ok() =>
+                {
                     event.identity.terminal_id
                 }
-                // This lifecycle exchange requires its exact target-bearing acknowledgment; other control records cannot confirm it.
-                _ => return Err(invalid("unexpected lifecycle event")),
+                // Only an exit or a failure of a terminal of this epoch reaches its viewers.
+                _ => return anomaly(envelope.kind, Anomaly::Contract),
             };
             for viewer in self.viewers.values_mut().filter(|viewer| {
                 !viewer.closed && viewer.terminal_id.as_bytes() == *terminal.as_bytes()
@@ -444,40 +457,40 @@ impl HostViewers {
                 self.retained_record_bytes = total + record.len();
                 viewer.lifecycle = Some(record.clone());
             }
-            return Ok(());
+            return;
         }
         if envelope.kind == 53 {
-            let HistoryControl::HistoryChanged(event) =
-                decode_history_control(envelope.kind, envelope.role, envelope.payload)
-                    .map_err(invalid)?
-            else {
-                return Err(invalid("unexpected history event"));
-            };
-            return self.queue_event(event.attachment_id, record, false);
+            match decode_history_control(envelope.kind, envelope.role, envelope.payload) {
+                Ok(HistoryControl::HistoryChanged(event)) => {
+                    self.queue_event(event.attachment_id, record, false);
+                }
+                _ => anomaly(envelope.kind, Anomaly::Contract),
+            }
+            return;
         }
         if envelope.kind == 49 {
-            let ProjectionDemandControl::ProjectionBlocked(blocked) =
+            let Ok(ProjectionDemandControl::ProjectionBlocked(blocked)) =
                 decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)
-                    .map_err(invalid)?
             else {
-                return Err(invalid("unexpected projection-demand event"));
+                return anomaly(envelope.kind, Anomaly::Contract);
             };
             let Some(viewer) = self.viewers.get_mut(blocked.attachment_id.as_bytes()) else {
                 unknown_attachment(&record);
-                return Ok(());
+                return;
             };
             if viewer.closed {
-                return Ok(());
+                return;
             }
             if viewer.record.is_some() || viewer.flight.is_some() {
                 self.retained_record_bytes -= viewer.close();
-                return Ok(());
+                return;
             }
             if viewer
                 .blocked_revision
                 .is_some_and(|revision| blocked.revision <= revision)
             {
-                return Err(invalid("Host blocked revision did not advance"));
+                self.retained_record_bytes -= viewer.close();
+                return anomaly(envelope.kind, Anomaly::Flow);
             }
             let Some(total) = self
                 .retained_record_bytes
@@ -485,49 +498,56 @@ impl HostViewers {
                 .filter(|total| *total <= self.retained_record_limit)
             else {
                 self.retained_record_bytes -= viewer.close();
-                return Ok(());
+                return;
             };
             self.retained_record_bytes = total;
             viewer.flight = None;
             viewer.record = Some(record);
             viewer.blocked_revision = Some(blocked.revision);
             viewer.needs_snapshot = true;
-            return Ok(());
+            return;
         }
         if envelope.kind == 62 {
-            let SelectionControl::ChangedEvent(changed) =
-                decode_selection_control(envelope.kind, envelope.role, envelope.payload)
-                    .map_err(invalid)?
-            else {
-                return Err(invalid("unexpected selection event"));
-            };
-            return self.queue_selection_snapshot(changed, record);
+            match decode_selection_control(envelope.kind, envelope.role, envelope.payload) {
+                Ok(SelectionControl::ChangedEvent(changed)) => {
+                    self.queue_selection_snapshot(changed, record);
+                }
+                _ => anomaly(envelope.kind, Anomaly::Contract),
+            }
+            return;
         }
         if envelope.kind == 67 {
-            let SelectionExportControl::FinishedEvent(finished) =
-                decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)
-                    .map_err(invalid)?
-            else {
-                return Err(invalid("unexpected selection-export event"));
-            };
-            return self.queue_event(finished.attachment_id, record, false);
+            match decode_selection_export_control(envelope.kind, envelope.role, envelope.payload) {
+                Ok(SelectionExportControl::FinishedEvent(finished)) => {
+                    self.queue_event(finished.attachment_id, record, false);
+                }
+                _ => anomaly(envelope.kind, Anomaly::Contract),
+            }
+            return;
         }
-        match decode_terminal_effect_event(envelope.kind, envelope.role, envelope.payload) {
+        let kind = envelope.kind;
+        match decode_terminal_effect_event(kind, envelope.role, envelope.payload) {
             Ok(TerminalEffectEvent::Bell(event)) => self.receive_effect(
                 event.attachment_id,
                 event.sequence.get(),
                 EffectStream::Bell,
                 record,
+                kind,
             ),
             Ok(TerminalEffectEvent::ClipboardWriteRequest(event)) => self.receive_effect(
                 event.attachment_id,
                 event.sequence.get(),
                 EffectStream::ClipboardWrite,
                 record,
+                kind,
             ),
-            // ApplicationSignal records are intercepted in receive_event
-            // before this borrow; any that reach here are unexpected.
-            _ => validate_event(&record, epoch),
+            // ApplicationSignal records are intercepted in receive_event before this borrow; any
+            // other record is a lifecycle or metadata notice this broker keeps no projection for.
+            _ => {
+                if validate_event(&record, epoch).is_err() {
+                    anomaly(envelope.kind, Anomaly::Contract);
+                }
+            }
         }
     }
 
@@ -537,39 +557,37 @@ impl HostViewers {
         sequence: u64,
         stream: EffectStream,
         record: Vec<u8>,
-    ) -> io::Result<()> {
+        kind: u16,
+    ) {
         {
             let Some(viewer) = self.viewers.get_mut(id.as_bytes()) else {
                 unknown_attachment(&record);
-                return Ok(());
+                return;
             };
             if viewer.closed {
-                return Ok(());
+                return;
             }
             let last_sequence = match stream {
                 EffectStream::Bell => &mut viewer.last_bell_sequence,
                 EffectStream::ClipboardWrite => &mut viewer.last_clipboard_write_sequence,
             };
             if sequence <= *last_sequence {
-                return Err(invalid("Host effect sequence did not advance"));
+                self.retained_record_bytes -= viewer.close();
+                return anomaly(kind, Anomaly::Flow);
             }
             *last_sequence = sequence;
         }
-        self.queue_event(id, record, false)
+        self.queue_event(id, record, false);
     }
 
     /// The Host reports the selection again after every generation change, so a pane resized
     /// column by column emits a burst of snapshots that a busy Client cannot poll in step. Each
     /// snapshot replaces the queued snapshots of its viewer that it makes obsolete; an eviction
     /// stays queued because the Client must observe it. Only distinct events can saturate.
-    fn queue_selection_snapshot(
-        &mut self,
-        changed: SelectionChanged,
-        record: Vec<u8>,
-    ) -> io::Result<()> {
+    fn queue_selection_snapshot(&mut self, changed: SelectionChanged, record: Vec<u8>) {
         let Some(viewer) = self.viewers.get_mut(changed.attachment_id.as_bytes()) else {
             unknown_attachment(&record);
-            return Ok(());
+            return;
         };
         let mut released = 0;
         viewer.events.retain(|event| {
@@ -580,21 +598,16 @@ impl HostViewers {
         });
         self.retained_record_bytes -= released;
         let replaceable = changed.state != SelectionChangedState::Evicted;
-        self.queue_event(changed.attachment_id, record, replaceable)
+        self.queue_event(changed.attachment_id, record, replaceable);
     }
 
-    fn queue_event(
-        &mut self,
-        id: AttachmentId,
-        record: Vec<u8>,
-        replaceable: bool,
-    ) -> io::Result<()> {
+    fn queue_event(&mut self, id: AttachmentId, record: Vec<u8>, replaceable: bool) {
         let Some(viewer) = self.viewers.get_mut(id.as_bytes()) else {
             unknown_attachment(&record);
-            return Ok(());
+            return;
         };
         if viewer.closed {
-            return Ok(());
+            return;
         }
         // The event FIFO keeps the original record bytes. Queue-depth and
         // aggregate-byte saturation each close only this viewer; neither
@@ -602,7 +615,7 @@ impl HostViewers {
         // selection snapshot removes an obsolete one before this check.
         if viewer.events.len() == MAXIMUM_VIEWER_EVENTS {
             self.retained_record_bytes -= viewer.close();
-            return Ok(());
+            return;
         }
         let Some(total) = self
             .retained_record_bytes
@@ -610,14 +623,13 @@ impl HostViewers {
             .filter(|total| *total <= self.retained_record_limit)
         else {
             self.retained_record_bytes -= viewer.close();
-            return Ok(());
+            return;
         };
         self.retained_record_bytes = total;
         viewer.events.push_back(QueuedEvent {
             record,
             replaceable,
         });
-        Ok(())
     }
 }
 
@@ -641,12 +653,15 @@ impl Viewer {
 /// An intact event for an attachment this Worker does not hold is dropped and recorded; events for
 /// attachments it detached never reach here (the connection drops them first).
 fn unknown_attachment(record: &[u8]) {
-    let kind = decode_transport_envelope(record).map_or(0, |envelope| envelope.kind);
-    crate::diagnostic_events::host_unexpected(crate::diagnostic_events::Site::Viewer, kind);
+    anomaly(super::record_kind(record), Anomaly::UnknownAttachment);
 }
 
-fn invalid(error: impl std::fmt::Display) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, error.to_string())
+fn anomaly(kind: u16, anomaly: Anomaly) {
+    crate::diagnostic_events::host_unexpected(
+        crate::diagnostic_events::Site::Viewer,
+        kind,
+        anomaly,
+    );
 }
 
 #[cfg(test)]

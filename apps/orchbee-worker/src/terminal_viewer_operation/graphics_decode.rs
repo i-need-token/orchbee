@@ -2,7 +2,7 @@
 //! correlated Host result. It creates no viewer or Host and does not render or retain the
 //! decoded image.
 
-use super::{HostBrokerConnection, HostExchange, PeerFailure, UnexpectedAnswer, UnixStream};
+use super::{HostBrokerConnection, HostExchange, UnexpectedAnswer, UnixStream, response_envelope};
 use orchbee_capability_node_protocol::{
     TerminalGraphicsDecodeRequest, TerminalViewerOutcome as Outcome, TerminalViewerResult,
     ViewerRejection,
@@ -11,7 +11,7 @@ use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope,
     GRAPHICS_DECODE_RESULT_HEADER_BYTES, GraphicsDecodeRequest, MAXIMUM_GRAPHICS_RGBA_BYTES,
     MessageRole, PayloadEncoding, decode_connection_control, decode_graphics_decode_result,
-    decode_transport_envelope, encode_graphics_decode_request, encode_transport_envelope,
+    encode_graphics_decode_request, encode_transport_envelope,
 };
 use std::{error::Error, num::NonZeroU64};
 
@@ -76,15 +76,7 @@ fn read(
             MAXIMUM_GRAPHICS_RGBA_BYTES + GRAPHICS_DECODE_RESULT_HEADER_BYTES,
         )
         .map_err(|class| exchange.error(class))?;
-    let envelope = decode_transport_envelope(&record)?;
-    if envelope.correlation_id != Some(correlation)
-        || envelope.host_epoch != Some(host.host_epoch())
-        || envelope.protocol != CURRENT_PROTOCOL_VERSION
-        || envelope.role != MessageRole::Response
-        || envelope.optional_message
-    {
-        return Err(exchange.error(PeerFailure::Protocol).into());
-    }
+    let envelope = response_envelope(&record, correlation, host.host_epoch())?;
     if envelope.kind == 81 && envelope.payload_encoding == PayloadEncoding::GraphicsImage {
         let Ok(image) = decode_graphics_decode_result(envelope.payload) else {
             return Err(UnexpectedAnswer::of(&record).into());

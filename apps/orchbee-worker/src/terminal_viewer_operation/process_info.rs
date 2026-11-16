@@ -4,9 +4,9 @@
 
 use super::{
     AttachmentId, AttachmentTarget, CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId,
-    Envelope, Error, HostBrokerConnection, HostExchange, MessageRole, PayloadEncoding, PeerFailure,
+    Envelope, Error, HostBrokerConnection, HostExchange, MessageRole, PayloadEncoding,
     TerminalViewerOutcome, UnexpectedAnswer, UnixStream, ViewerRejection,
-    decode_connection_control, decode_transport_envelope, encode_transport_envelope,
+    decode_connection_control, encode_transport_envelope, response_envelope,
 };
 use orchbee_terminal_protocol::{
     MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl, ReadProcessInfo, decode_process_info_control,
@@ -50,15 +50,7 @@ pub(super) fn read(
     let record = exchange
         .round_trip_bounded(&record, MAXIMUM_CONTROL_JSON_BYTES)
         .map_err(|class| exchange.error(class))?;
-    let envelope = decode_transport_envelope(&record)?;
-    if envelope.correlation_id != Some(correlation)
-        || envelope.host_epoch != Some(host.host_epoch())
-        || envelope.protocol != CURRENT_PROTOCOL_VERSION
-        || envelope.role != MessageRole::Response
-        || envelope.optional_message
-    {
-        return Err(exchange.error(PeerFailure::Protocol).into());
-    }
+    let envelope = response_envelope(&record, correlation, host.host_epoch())?;
     if envelope.payload_encoding != PayloadEncoding::ControlJson {
         return Err(UnexpectedAnswer::of(&record).into());
     }

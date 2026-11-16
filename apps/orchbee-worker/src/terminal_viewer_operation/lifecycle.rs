@@ -1,10 +1,9 @@
 //! Read-only inventory behind an admitted viewer; never enters the exclusive lifecycle kernel.
 use super::{
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, Error,
-    HostBrokerConnection, HostExchange, MessageRole, PayloadEncoding, PeerFailure,
-    TerminalViewerOutcome, UnexpectedAnswer, UnixStream, ViewerRejection,
-    decode_connection_control, decode_transport_envelope, encode_transport_envelope,
-    fresh_identity,
+    HostBrokerConnection, HostExchange, MessageRole, PayloadEncoding, TerminalViewerOutcome,
+    UnexpectedAnswer, UnixStream, ViewerRejection, decode_connection_control,
+    encode_transport_envelope, fresh_identity, response_envelope,
 };
 use orchbee_capability_node_protocol::{HostTerminalIdentity, LifecycleTerminalPhase};
 use orchbee_terminal_protocol::{
@@ -171,15 +170,7 @@ fn inventory(
                 orchbee_terminal_protocol::MAXIMUM_CONTROL_JSON_BYTES,
             )
             .map_err(|class| exchange.error(class))?;
-        let envelope = decode_transport_envelope(&response)?;
-        if envelope.correlation_id != Some(correlation)
-            || envelope.host_epoch != Some(host.host_epoch())
-            || envelope.role != MessageRole::Response
-            || envelope.protocol != CURRENT_PROTOCOL_VERSION
-            || envelope.optional_message
-        {
-            return Err(exchange.error(PeerFailure::Protocol).into());
-        }
+        let envelope = response_envelope(&response, correlation, host.host_epoch())?;
         if matches!(
             decode_connection_control(envelope.kind, envelope.role, envelope.payload),
             Ok(ConnectionControl::TypedFailure(_))

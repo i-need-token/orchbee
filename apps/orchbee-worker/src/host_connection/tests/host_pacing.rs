@@ -140,7 +140,7 @@ fn delivered_viewer(host: &HostBrokerConnection, id: u8) -> TestResult {
         .admit(&viewer(id, attach)?)
         .map_err(|reason| format!("{reason:?}"))?;
     let record = frame(id, 1)?;
-    host.receive_event(record.clone())?;
+    host.receive_event(record.clone());
     assert_eq!(
         host.viewers
             .borrow_mut()
@@ -447,7 +447,7 @@ fn a_late_event_a_refused_detach_and_refused_feedback_leave_the_worker_serving()
     );
     assert!(matches!(read, TerminalViewerOutcome::Record(_)));
     // Each late frame was read and dropped by the next exchange; another is dropped the same way.
-    host.receive_event(frame(2, 3)?)?;
+    host.receive_event(frame(2, 3)?);
     assert_eq!(host.pacing.failure(), None);
     Ok(())
 }

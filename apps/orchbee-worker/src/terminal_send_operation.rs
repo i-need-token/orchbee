@@ -30,8 +30,10 @@ use orchbee_terminal_protocol::{
     encode_attachment_control, encode_input_message, encode_transport_envelope,
 };
 
-use crate::diagnostic_events::{Site, host_unexpected};
-use crate::host_connection::{HostBrokerConnection, HostExchange, HostFailure, PeerFailure};
+use crate::diagnostic_events::{Anomaly, Site, host_unexpected};
+use crate::host_connection::{
+    HostBrokerConnection, HostExchange, HostFailure, PeerFailure, record_kind, response_envelope,
+};
 use crate::worker_identity::fresh_identity;
 
 /// A send never opens a readable or resizable surface: the temporary
@@ -59,12 +61,16 @@ pub(crate) struct SendExecution {
 }
 
 /// One Host step's answer, classified by where the exchange ended. A
-/// well-formed correlated response lets the operation continue, and a step that
-/// wrote nothing leaves the carrier in step; every other answer ends the
-/// carrier without another exchange on the same stream.
+/// correlated response that arrived whole, in or out of contract, and a step
+/// that wrote nothing leave the carrier in step; a lost carrier or framing ends
+/// the carrier without another exchange on the same stream.
 enum StepAnswer {
     /// A complete correlated response record to interpret.
     Record(Vec<u8>),
+    /// A complete correlated response, of this message kind, whose envelope
+    /// breaks its contract. It arrived whole, so the carrier stays in step and
+    /// the step is treated like any other answer it cannot accept.
+    Desync(u16),
     /// The request had no room left for this exchange; nothing was written.
     NotStarted,
     /// The request could not even be constructed locally — a failed identity
@@ -73,9 +79,8 @@ enum StepAnswer {
     /// The carrier died in flight — refused write, EOF, timeout, or an
     /// unparseable frame. The request may or may not have reached the Host.
     TransportLost,
-    /// A response arrived but failed the correlation/epoch/role echo check.
-    /// The stream is desynchronized; another exchange on it would be
-    /// fabrication, so the carrier is shut down immediately.
+    /// The Host lost its framing: no later byte on the stream can be trusted,
+    /// so the carrier is shut down immediately.
     ProtocolFault,
 }
 
@@ -224,44 +229,15 @@ fn apply(
     if !may_start(input_deadline) || host.detach_backlog_full() {
         return not_started();
     }
-    let capability_revision = match exchange_fresh(
+    let attached = match exchange_fresh(
         host,
         server,
         command.kind,
         &command.payload,
         PayloadEncoding::ControlJson,
     )? {
-        StepAnswer::Record(record) => match attach_outcome(&record, attachment_id, terminal_id)? {
-            AttachOutcome::Revision(revision) => revision,
-            AttachOutcome::Refused(reason) => {
-                return respond(
-                    &request,
-                    TerminalSendOutcome::Rejected {
-                        reason,
-                        progress: SendProgress::none(),
-                        cleanup: SendCleanupStatus::NotNeeded,
-                    },
-                    host,
-                    false,
-                );
-            }
-            // A grant other than the one asked for is never used: this send is refused and
-            // the attachment detached. The answer arrived intact, so the carrier stays in step.
-            AttachOutcome::Desync(kind) => {
-                host_unexpected(Site::Send, kind);
-                let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
-                return respond(
-                    &request,
-                    TerminalSendOutcome::Rejected {
-                        reason: SendRejection::HostRejected,
-                        progress: SendProgress::none(),
-                        cleanup,
-                    },
-                    host,
-                    host_failed,
-                );
-            }
-        },
+        StepAnswer::Record(record) => attach_outcome(&record, attachment_id, terminal_id)?,
+        StepAnswer::Desync(kind) => AttachOutcome::Desync(kind),
         StepAnswer::NotStarted => return not_started(),
         // The Attach provably never reached the Host, so the carrier stays in step.
         StepAnswer::LocalFault => {
@@ -302,6 +278,37 @@ fn apply(
             );
         }
     };
+    let capability_revision = match attached {
+        AttachOutcome::Revision(revision) => revision,
+        AttachOutcome::Refused(reason) => {
+            return respond(
+                &request,
+                TerminalSendOutcome::Rejected {
+                    reason,
+                    progress: SendProgress::none(),
+                    cleanup: SendCleanupStatus::NotNeeded,
+                },
+                host,
+                false,
+            );
+        }
+        // A grant other than the one asked for is never used: this send is refused and the
+        // attachment detached. The answer arrived intact, so the carrier stays in step.
+        AttachOutcome::Desync(kind) => {
+            host_unexpected(Site::Send, kind, Anomaly::Answer);
+            let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
+            return respond(
+                &request,
+                TerminalSendOutcome::Rejected {
+                    reason: SendRejection::HostRejected,
+                    progress: SendProgress::none(),
+                    cleanup,
+                },
+                host,
+                host_failed,
+            );
+        }
+    };
 
     // Ordered correlated exchanges, one per step: a record, or the whole
     // idle-prompt line. The frontier cursor moves only on a validated
@@ -339,56 +346,21 @@ fn apply(
         let (command, expected_bytes) = step_command(step, attachment_id, capability_revision)?;
         // Input messages ride the raw-bytes encoding while every response is
         // still ControlJson.
-        match exchange_fresh(
+        let input = match exchange_fresh(
             host,
             server,
             command.kind,
             &command.payload,
             PayloadEncoding::RawBytes,
         )? {
-            StepAnswer::Record(record) => {
-                match input_outcome(
-                    &record,
-                    attachment_id,
-                    capability_revision,
-                    expected_bytes,
-                    matches!(step, Step::PromptLine(_)),
-                )? {
-                    InputOutcome::Accepted(bytes) => {
-                        accepted_encoded_bytes += u64::from(bytes.get());
-                        index += step.records(record_count);
-                    }
-                    InputOutcome::Refused(reason) => {
-                        let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
-                        return respond(
-                            &request,
-                            TerminalSendOutcome::Rejected {
-                                reason,
-                                progress: SendProgress::stopped(index, accepted_encoded_bytes),
-                                cleanup,
-                            },
-                            host,
-                            host_failed,
-                        );
-                    }
-                    // The record may have been typed, so its outcome is unknown and it is
-                    // never sent again. The answer arrived intact, so the carrier stays in
-                    // step and the attachment is detached.
-                    InputOutcome::Desync(kind) => {
-                        host_unexpected(Site::Send, kind);
-                        let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
-                        return respond(
-                            &request,
-                            TerminalSendOutcome::OutcomeUnknown {
-                                progress: SendProgress::stopped(index, accepted_encoded_bytes),
-                                cleanup,
-                            },
-                            host,
-                            host_failed,
-                        );
-                    }
-                }
-            }
+            StepAnswer::Record(record) => input_outcome(
+                &record,
+                attachment_id,
+                capability_revision,
+                expected_bytes,
+                matches!(step, Step::PromptLine(_)),
+            )?,
+            StepAnswer::Desync(kind) => InputOutcome::Desync(kind),
             // The request had no room for this record: a determinate stop, as at the input
             // deadline.
             StepAnswer::NotStarted => {
@@ -404,9 +376,9 @@ fn apply(
                     host_failed,
                 );
             }
-            // The record may have been applied before the carrier failed or
-            // the response desynced; it is never resent and no further
-            // exchange is attempted on this stream.
+            // The record may have been applied before the carrier or its
+            // framing failed; it is never resent and no further exchange is
+            // attempted on this stream.
             StepAnswer::ProtocolFault | StepAnswer::TransportLost => {
                 return close(
                     &request,
@@ -424,6 +396,41 @@ fn apply(
                     &request,
                     TerminalSendOutcome::Unavailable {
                         reason: SendUnavailable::HostUnavailable,
+                        progress: SendProgress::stopped(index, accepted_encoded_bytes),
+                        cleanup,
+                    },
+                    host,
+                    host_failed,
+                );
+            }
+        };
+        match input {
+            InputOutcome::Accepted(bytes) => {
+                accepted_encoded_bytes += u64::from(bytes.get());
+                index += step.records(record_count);
+            }
+            InputOutcome::Refused(reason) => {
+                let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
+                return respond(
+                    &request,
+                    TerminalSendOutcome::Rejected {
+                        reason,
+                        progress: SendProgress::stopped(index, accepted_encoded_bytes),
+                        cleanup,
+                    },
+                    host,
+                    host_failed,
+                );
+            }
+            // The record may have been typed, so its outcome is unknown and it is never sent
+            // again. The answer arrived intact, so the carrier stays in step and the attachment
+            // is detached.
+            InputOutcome::Desync(kind) => {
+                host_unexpected(Site::Send, kind, Anomaly::Answer);
+                let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
+                return respond(
+                    &request,
+                    TerminalSendOutcome::OutcomeUnknown {
                         progress: SendProgress::stopped(index, accepted_encoded_bytes),
                         cleanup,
                     },
@@ -453,8 +460,8 @@ fn may_start(input_deadline: Instant) -> bool {
 
 /// One Host round trip under a fresh correlation and the exchange bound. The
 /// answer is classified by where the exchange ended so the caller can tell a
-/// dead carrier from a desynchronized one; a Server-side failure is fatal to
-/// the whole session and propagates instead.
+/// dead carrier from an answer it cannot accept; a Server-side failure is fatal
+/// to the whole session and propagates instead.
 fn exchange_fresh(
     host: &HostBrokerConnection,
     server: &UnixStream,
@@ -494,18 +501,10 @@ fn exchange_fresh(
         Err(PeerFailure::Protocol) => return Ok(StepAnswer::ProtocolFault),
         Err(PeerFailure::Server) => return Err(server_interference()),
     };
-    let Ok(envelope) = decode_transport_envelope(&record) else {
-        return Ok(StepAnswer::ProtocolFault);
-    };
-    if envelope.correlation_id != Some(correlation)
-        || envelope.host_epoch != Some(host.host_epoch())
-        || envelope.role != MessageRole::Response
-        || envelope.protocol != CURRENT_PROTOCOL_VERSION
-        || envelope.optional_message
-        || envelope.payload_encoding != PayloadEncoding::ControlJson
-    {
-        host.pacing.note_failure(protocol_fault());
-        return Ok(StepAnswer::ProtocolFault);
+    let in_contract = response_envelope(&record, correlation, host.host_epoch())
+        .is_ok_and(|envelope| envelope.payload_encoding == PayloadEncoding::ControlJson);
+    if !in_contract {
+        return Ok(StepAnswer::Desync(record_kind(&record)));
     }
     Ok(StepAnswer::Record(record))
 }
@@ -610,17 +609,22 @@ fn detach(
     };
     let record = match answer {
         StepAnswer::Record(record) => record,
+        StepAnswer::Desync(kind) => {
+            host_unexpected(Site::Send, kind, Anomaly::Answer);
+            return deferred();
+        }
         StepAnswer::NotStarted | StepAnswer::LocalFault => return deferred(),
         StepAnswer::TransportLost | StepAnswer::ProtocolFault => return DetachOutcome::Lost,
     };
     let Ok(envelope) = decode_transport_envelope(&record) else {
-        return DetachOutcome::Lost;
+        host_unexpected(Site::Send, record_kind(&record), Anomaly::Answer);
+        return deferred();
     };
     if matches!(
         decode_connection_control(envelope.kind, envelope.role, envelope.payload),
         Ok(ConnectionControl::TypedFailure(_))
     ) {
-        host_unexpected(Site::Send, envelope.kind);
+        host_unexpected(Site::Send, envelope.kind, Anomaly::Answer);
         return DetachOutcome::Released;
     }
     match decode_attachment_control(envelope.kind, envelope.role, envelope.payload) {
@@ -629,7 +633,7 @@ fn detach(
         }
         // Only the requested Host acknowledgment can confirm this attachment/process operation.
         _ => {
-            host_unexpected(Site::Send, envelope.kind);
+            host_unexpected(Site::Send, envelope.kind, Anomaly::Answer);
             deferred()
         }
     }

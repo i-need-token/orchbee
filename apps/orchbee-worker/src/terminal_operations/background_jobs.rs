@@ -43,13 +43,19 @@ impl BackgroundJobs<'_> {
     }
 
     /// Fallback settlement when the request loop ends by disconnection, protocol failure or
-    /// startup failure. Unproven cleanup takes precedence over the loop's own outcome.
+    /// startup failure. Unproven cleanup is recorded on its own and never replaces the loop's own
+    /// error, which keeps naming why the loop ended; a loop that ended cleanly reports it instead.
     pub(super) fn settle_exit(
         &self,
         outcome: Result<(), Box<dyn Error>>,
     ) -> Result<(), Box<dyn Error>> {
-        self.stop_before(Instant::now() + EXIT_SETTLEMENT_BUDGET)?;
-        outcome
+        match self.stop_before(Instant::now() + EXIT_SETTLEMENT_BUDGET) {
+            Ok(()) => outcome,
+            Err(cleanup) => {
+                crate::diagnostic_events::cleanup_unproven(&cleanup);
+                outcome.and(Err(cleanup.into()))
+            }
+        }
     }
 }
 

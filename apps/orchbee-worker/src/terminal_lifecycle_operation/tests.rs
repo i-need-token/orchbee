@@ -501,8 +501,8 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
         protocol: CURRENT_PROTOCOL_VERSION,
         role: MessageRole::Event,
     })?;
-    fixture.host.receive_event(event.clone())?;
-    fixture.host.receive_event(event)?;
+    fixture.host.receive_event(event.clone());
+    fixture.host.receive_event(event);
     assert_eq!(fixture.host.viewers.borrow().closed_ids(), vec![[60; 16]]);
     let request = request(TerminalLifecycleAction::Dispose)?;
     let kernel = kernel()?;

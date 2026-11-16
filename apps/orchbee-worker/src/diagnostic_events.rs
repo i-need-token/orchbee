@@ -1,8 +1,9 @@
 //! The Worker's diagnostic log records: its own start and end, each Terminal Host start
-//! it attempts, and the Host anomalies it contains, so Host diagnostics reach the log through the
-//! Worker. A record carries only closed tokens and numbers: an error kind, a site and reason, a Host
-//! message kind number, and for a Host start its stage and codes; no record holds terminal content,
-//! input, launch commands, messages or paths.
+//! it attempts, the Host anomalies it contains with the class of each, and background cleanup its
+//! end could not prove, so Host diagnostics reach the log through the Worker. A record carries only
+//! closed tokens and numbers: an error kind, a site and reason, a Host message kind number and its
+//! anomaly, and for a Host start its stage and codes; no record holds terminal content, input,
+//! launch commands, messages or paths.
 use orchbee_local_runtime::{LogField, LogLevel, LogValue, log_event};
 use std::{
     cell::Cell,
@@ -24,6 +25,26 @@ thread_local! {
 
 /// Whether this run's one `exited` record has been written.
 static EXIT_RECORDED: AtomicBool = AtomicBool::new(false);
+
+#[cfg(test)]
+thread_local! {
+    /// The Host records this thread asked for, before a once-a-minute slot drops one, so a test
+    /// that drives the serving loop reads where a contained failure was recorded.
+    static NOTED: std::cell::RefCell<Vec<(&'static str, Vec<LogField>)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+#[cfg(test)]
+fn note(event: &'static str, fields: &[LogField]) {
+    NOTED.with_borrow_mut(|noted| noted.push((event, fields.to_vec())));
+}
+
+/// The Host records this thread asked for since the last call, oldest first, each with its event
+/// name and fields.
+#[cfg(test)]
+pub(crate) fn take_noted() -> Vec<(&'static str, Vec<LogField>)> {
+    NOTED.with_borrow_mut(std::mem::take)
+}
 
 /// Where the Worker was serving when it ended or when a contained anomaly arose.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -241,6 +262,8 @@ pub(crate) fn host_start_failed(
     if let Some(code) = host_exit {
         fields.push(("hostExit", LogValue::Count(u64::from(code))));
     }
+    #[cfg(test)]
+    note("host-start-failed", &fields);
     log_event(LogLevel::Error, "host-start-failed", &fields);
 }
 
@@ -261,18 +284,54 @@ pub(crate) fn host_slow(site: Site, waited: Duration) {
     }
 }
 
-/// An intact Host message this Worker dropped or refused instead of ending: a late event, an event
-/// for an attachment it does not hold, or a correlated answer other than the acknowledgement. At
+/// Why an intact Host message was dropped or refused instead of ending the Worker.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Anomaly {
+    /// A correlated answer other than the acknowledgement; the request is refused.
+    Answer,
+    /// An event for an attachment the Worker does not hold; the event is dropped.
+    UnknownAttachment,
+    /// A response no request is waiting for, or one that names another request; it is dropped.
+    Stray,
+    /// A break in one attachment's flow or sequence; that viewer or controller is closed.
+    Flow,
+    /// An event whose envelope or payload breaks its contract; the event is dropped, and an
+    /// attachment it names is closed.
+    Contract,
+}
+
+impl Anomaly {
+    const fn token(self) -> &'static str {
+        match self {
+            Self::Answer => "answer",
+            Self::UnknownAttachment => "unknown-attachment",
+            Self::Stray => "stray",
+            Self::Flow => "flow",
+            Self::Contract => "contract",
+        }
+    }
+}
+
+/// An intact Host message this Worker dropped or refused instead of ending, with its `anomaly`. At
 /// most one record a minute for each site, with the number its slot suppressed since the last.
-pub(crate) fn host_unexpected(site: Site, kind: u16) {
+pub(crate) fn host_unexpected(site: Site, kind: u16, anomaly: Anomaly) {
     static SLOTS: SiteSlots = SiteSlots::new();
+    let fields = [
+        ("site", LogValue::Token(site.token())),
+        ("kind", LogValue::Count(u64::from(kind))),
+        ("anomaly", LogValue::Token(anomaly.token())),
+    ];
+    #[cfg(test)]
+    note("host-unexpected", &fields);
     if let Some(suppressed) = SLOTS.admit(site) {
+        let [site, kind, anomaly] = fields;
         log_event(
             LogLevel::Warning,
             "host-unexpected",
             &[
-                ("site", LogValue::Token(site.token())),
-                ("kind", LogValue::Count(u64::from(kind))),
+                site,
+                kind,
+                anomaly,
                 ("suppressed", LogValue::Count(suppressed)),
             ],
         );
@@ -294,6 +353,12 @@ pub(crate) fn request_declined(kind: orchbee_capability_node_protocol::DeclinedR
             ],
         );
     }
+}
+
+/// Background jobs whose stop could not be proven when the serving loop ended. The loop's own end
+/// keeps its `exited` record; this one is written beside it.
+pub(crate) fn cleanup_unproven(error: &io::Error) {
+    log_event(LogLevel::Error, "cleanup-unproven", &[error_kind(error)]);
 }
 
 fn declined_token(kind: orchbee_capability_node_protocol::DeclinedRequestKind) -> &'static str {

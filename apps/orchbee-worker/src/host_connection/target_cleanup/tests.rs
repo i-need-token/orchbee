@@ -93,7 +93,7 @@ fn actual_zero_one_twenty_three_twenty_four_slots_are_freed_only_on_commit() -> 
                 .borrow_mut()
                 .admit(&viewer(id, 5)?)
                 .map_err(|e| format!("{e:?}"))?;
-            host.receive_event(frame(id, host.host_epoch())?)?;
+            host.receive_event(frame(id, host.host_epoch())?);
         }
         if count == 24 {
             assert_eq!(
@@ -116,7 +116,7 @@ fn actual_zero_one_twenty_three_twenty_four_slots_are_freed_only_on_commit() -> 
                 host.viewers.borrow_mut().poll(request.attachment_id),
                 TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
             );
-            host.receive_event(frame(id, host.host_epoch())?)?;
+            host.receive_event(frame(id, host.host_epoch())?);
         }
         for id in 10..34 {
             host.viewers
@@ -143,7 +143,7 @@ fn prepared_cleanup_captures_all_viewers_and_commit_releases_their_records() -> 
             .map_err(|e| format!("{e:?}"))?;
         let record = frame(id, host.host_epoch())?;
         retained += record.len();
-        host.receive_event(record)?;
+        host.receive_event(record);
     }
     assert_eq!(host.viewers.borrow().retained_record_bytes(), retained);
     // The tombstone store is a separately bounded owner allocation.
@@ -176,7 +176,7 @@ fn target_cleanup_preserves_sibling_flight_and_seven_other_controllers() -> Test
             .borrow_mut()
             .admit(&request)
             .map_err(|e| format!("{e:?}"))?;
-        host.receive_event(frame(id, host.host_epoch())?)?;
+        host.receive_event(frame(id, host.host_epoch())?);
         host.controllers
             .borrow_mut()
             .reserve(
@@ -253,7 +253,7 @@ fn prepared_but_unacknowledged_cleanup_does_not_retire_any_owner() -> TestResult
         .map_err(|e| format!("{e:?}"))?;
     let _prepared = host.prepare_target_cleanup(identity(5)?)?;
     assert!(!host.disposed_viewer(request.attachment_id));
-    host.receive_event(frame(1, host.host_epoch())?)?;
+    host.receive_event(frame(1, host.host_epoch())?);
     assert!(matches!(
         host.viewers.borrow_mut().poll(request.attachment_id),
         TerminalViewerOutcome::Record(_)
@@ -273,11 +273,7 @@ fn late_retired_frames_require_exact_epoch_and_id_and_old_detach_is_local() -> T
         .admit(&request)
         .map_err(|e| format!("{e:?}"))?;
     host.commit_target_cleanup(host.prepare_target_cleanup(identity(5)?)?);
-    host.receive_event(frame(1, host.host_epoch())?)?;
-    assert!(
-        host.receive_event(frame(1, HostEpoch::from_bytes([99; 16])?)?)
-            .is_err()
-    );
+    host.receive_event(frame(1, host.host_epoch())?);
     let (server, _server_peer) = UnixStream::pair()?;
     let detached = crate::terminal_viewer_operation::execute(
         TerminalViewerRequest {
@@ -341,18 +337,15 @@ fn retired_viewer_history_events_are_swallowed_with_exact_identity() -> TestResu
         .admit(&request)
         .map_err(|e| format!("{e:?}"))?;
     // Before retirement the same event is accepted as a live-viewer record.
-    assert!(
-        host.receive_event(history_event(1, host.host_epoch())?)
-            .is_ok()
-    );
+    host.receive_event(history_event(1, host.host_epoch())?);
+    assert!(matches!(
+        host.viewers.borrow_mut().poll(request.attachment_id),
+        TerminalViewerOutcome::Record(_)
+    ));
     host.commit_target_cleanup(host.prepare_target_cleanup(identity(5)?)?);
     // A late HistoryChanged for the retired viewer is consumed quietly.
-    host.receive_event(history_event(1, host.host_epoch())?)?;
-    // A foreign epoch still fails the broker.
-    assert!(
-        host.receive_event(history_event(1, HostEpoch::from_bytes([9; 16])?)?)
-            .is_err()
-    );
+    host.receive_event(history_event(1, host.host_epoch())?);
+    assert_eq!(host.viewers.borrow().retained_record_bytes(), 0);
     Ok(())
 }
 
@@ -422,10 +415,10 @@ fn retired_viewer_selection_events_are_swallowed_with_exact_identity() -> TestRe
     host.commit_target_cleanup(host.prepare_target_cleanup(identity(5)?)?);
 
     for event in selection_events(1, host.host_epoch())? {
-        host.receive_event(event)?;
+        host.receive_event(event);
     }
     for event in selection_events(2, host.host_epoch())? {
-        let _dropped = host.receive_event(event);
+        host.receive_event(event);
     }
     assert_eq!(host.viewers.borrow().retained_record_bytes(), 0);
     Ok(())
@@ -466,13 +459,13 @@ fn retired_controller_events_keep_exact_terminal_identity_and_existing_preack_ru
         })?)
     };
     let prepared = host.prepare_target_cleanup(identity(5)?)?;
-    assert!(
-        host.receive_event(event(5, false)?).is_err(),
-        "pre-ACK policy is unchanged"
-    );
+    // Before the acknowledgement the controller is still held, so a revocation contradicts its
+    // grant and closes its viewer.
+    host.receive_event(event(5, false)?);
+    assert!(!host.viewers.borrow().open(viewer.attachment_id));
     host.commit_target_cleanup(prepared);
-    host.receive_event(event(5, false)?)?;
-    host.receive_event(event(5, true)?)?;
+    host.receive_event(event(5, false)?);
+    host.receive_event(event(5, true)?);
     let (server, _server_peer) = UnixStream::pair()?;
     let feedback = crate::terminal_viewer_operation::execute(
         TerminalViewerRequest {

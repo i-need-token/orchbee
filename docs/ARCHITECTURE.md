@@ -99,3 +99,30 @@ const payload = rawPayload as RequestPayload;
 // ✅
 const payload = RequestPayloadSchema.parse(rawPayload);
 ```
+
+## Fault containment
+
+A process that holds independent units of work, such as terminals, viewers, attachments, or
+Client connections, contains every fault to the units it damaged. A peer's message, a contract
+violation, or a slow system call never takes down work it did not touch.
+
+- **Smallest scope.** Name what a fault damaged and fail no wider: one request gets a typed refusal,
+  one viewer, attachment, or controller closes alone, and a connection whose framing is lost ends
+  alone. An intact message that is unexpected, late, stray, refused, or outside its contract is
+  dropped or answered and recorded. Never end a process that holds other work for a fault in one
+  of its units.
+- **Late is not invalid.** Time is not evidence of misbehavior. An intact answer that arrives after
+  its caller stopped waiting is still well formed; a peer is lost only when it stays silent past
+  its hard bound.
+- **Keep the class.** A failure keeps its class, site, reason, and peer from detection to its
+  record, and no layer relabels it as another class. Every contained fault and every abnormal end
+  writes a record of closed tokens and numbers, never content.
+- **Hard bounds.** Every wait on a peer or on the operating system has a hard bound below the
+  waiting peer's own timeout. A wait that can block, such as a filesystem or account lookup, runs
+  off the thread that serves peers, and its late result is dropped.
+- **Exit last.** A process that holds user work exits last, and only for a cause that damages that
+  work, such as the loss of the connection all of it is served through, or an invariant of its own
+  whose violation would corrupt state or act without authority.
+
+Language rules apply these principles in [Rust](RUST.md#errors-and-panic-boundaries) and
+[Zig](ZIG.md#boundaries-and-safety).

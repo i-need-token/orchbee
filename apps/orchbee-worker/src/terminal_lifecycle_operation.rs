@@ -20,7 +20,9 @@ use orchbee_terminal_protocol::{
 };
 
 use crate::{
-    host_connection::{HostBrokerConnection, HostExchange, PeerFailure, PreparedTargetCleanup},
+    host_connection::{
+        HostBrokerConnection, HostExchange, PeerFailure, PreparedTargetCleanup, record_kind,
+    },
     terminal_authorization::{
         AuthorizedHostOperationKernel, HostHandoffAdmission, LifecycleDispatch,
     },
@@ -141,9 +143,21 @@ impl PreparedLifecycleOperation {
                     }
                     return Ok(HostOperationDisposition::ResultReady);
                 }
+                // An answer that arrived whole but does not settle the step leaves the stream in
+                // step: only this step's effect is unknown, and the connection serves on.
                 Err(_) => {
-                    exchange.note(PeerFailure::Protocol);
-                    (PeerFailure::Host, LifecycleUnknownReason::InvalidResponse)
+                    crate::diagnostic_events::host_unexpected(
+                        host.pacing.site(),
+                        record_kind(&record),
+                        crate::diagnostic_events::Anomaly::Answer,
+                    );
+                    kernel.record_lifecycle_completion(
+                        self.dispatch,
+                        TerminalLifecycleOutcome::OutcomeUnknown(
+                            LifecycleUnknownReason::InvalidResponse,
+                        ),
+                    )?;
+                    return Ok(HostOperationDisposition::ResultReady);
                 }
             },
             Err(failure) => (

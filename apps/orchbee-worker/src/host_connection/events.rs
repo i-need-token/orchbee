@@ -11,8 +11,9 @@ use std::{
 
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, HostEpoch, LifecycleControl, MAXIMUM_TERMINAL_FRAME_BYTES,
-    MessageRole, PayloadEncoding, TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalEffectEvent,
-    decode_lifecycle_control, decode_terminal_effect_event, decode_transport_envelope,
+    MessageRole, PayloadEncoding, ProtocolErrorCode, TRANSPORT_ENVELOPE_HEADER_BYTES,
+    TerminalEffectEvent, decode_lifecycle_control, decode_terminal_effect_event,
+    decode_transport_envelope,
 };
 
 use super::{PeerFailure, pacing::HostFailure};
@@ -111,6 +112,9 @@ impl PartialRecord {
                 if !(TRANSPORT_ENVELOPE_HEADER_BYTES..=bound).contains(&length) {
                     return Err(invalid("Host record exceeds its bound"));
                 }
+                if lost_framing(&self.header, false) {
+                    return Err(invalid("Host record lost its framing"));
+                }
                 self.record = vec![0; length];
                 self.record[..TRANSPORT_ENVELOPE_HEADER_BYTES].copy_from_slice(&self.header);
                 self.filled = TRANSPORT_ENVELOPE_HEADER_BYTES;
@@ -119,7 +123,11 @@ impl PartialRecord {
                 self.header_filled = 0;
                 self.filled = 0;
                 self.began = None;
-                return Ok(Some(std::mem::take(&mut self.record)));
+                let record = std::mem::take(&mut self.record);
+                if lost_framing(&record, true) {
+                    return Err(invalid("Host record lost its framing"));
+                }
+                return Ok(Some(record));
             }
             let Some(count) = read_available(stream, &mut self.record[self.filled..])? else {
                 return Ok(None);
@@ -131,6 +139,19 @@ impl PartialRecord {
     pub(crate) const fn began(&self) -> Option<Instant> {
         self.began
     }
+}
+
+/// Whether `bytes`, a `complete` record or only its fixed header, cannot have located its own end:
+/// its magic is wrong or its length fields disagree. The length that found the next record is then
+/// untrusted and the stream is out of step. Any other envelope fault leaves the stream in step, so
+/// the record is routed and contained by its consumer.
+fn lost_framing(bytes: &[u8], complete: bool) -> bool {
+    decode_transport_envelope(bytes).is_err_and(|error| match error.code() {
+        ProtocolErrorCode::InvalidMagic => true,
+        // A header read alone always disagrees with a longer record's total length.
+        ProtocolErrorCode::LengthMismatch => complete,
+        _ => false,
+    })
 }
 
 /// One read of bytes that have arrived; `None` when none have.
@@ -156,8 +177,9 @@ pub(crate) fn read_failure(error: &io::Error) -> PeerFailure {
 }
 
 /// Reads Host events that have arrived, without waiting, and routes each whole one, at most
-/// `maximum_events`; an event the Host has only begun stays partial for the next read. A failure
-/// is recorded on the connection with its class.
+/// `maximum_events`; an event the Host has only begun stays partial for the next read. Routing
+/// contains every intact event, so only a failed read, a lost framing included, is an error; it is
+/// recorded on the connection with its class.
 pub(crate) fn drain_events(
     connection: &super::HostBrokerConnection,
     maximum_events: usize,
@@ -181,11 +203,7 @@ pub(crate) fn drain_events(
                 return Err(error);
             }
         };
-        connection.receive_event(record).inspect_err(|_error| {
-            connection
-                .pacing
-                .note_failure(failed(PeerFailure::Protocol));
-        })?;
+        connection.receive_event(record);
     }
     Ok(())
 }

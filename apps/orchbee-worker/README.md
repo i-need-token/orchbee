@@ -25,14 +25,23 @@ A failed `exited` also names where and why the Worker stopped: `site`, the step 
 (`server-receive`, `server-send`, `viewer`, `process-read`, `lifecycle`, `graphics`, `control`,
 `send`, `launch`, `start`, `drain`, `titles`, `cleanup`, `handoff`, `host-start` or `shutdown`);
 `reason`, one of `deadline` (a peer stayed silent past its bound), `host-closed`, `host-protocol`
-(the Host broke its framing or a contract the Worker cannot contain), `server-closed`,
+(the Host lost its record framing: a bad magic or a length that does not match, after which no
+later record can be found), `server-closed`,
 `server-protocol`, `state` (a Worker invariant refused to continue), `local` or `panic` (the
 serving thread panicked); `peer`, `host`, `server` or `none`; and, for a bound that passed,
 `waitedMs` and `budgetMs`. A run writes one `exited` record. `host-slow` records a Host exchange
 that succeeded after more than a second, with its `site` and `waitedMs`; `host-unexpected` records
-an intact Host message the Worker dropped or refused instead of ending, with its `site` and `kind`,
-the Host message kind number. Each of the two is written at most once a minute for each site, with
-`suppressed`, the number of that site's records left out since the last one written.
+an intact Host message the Worker dropped or refused instead of ending, with its `site`, its
+`kind`, the Host message kind number, and its `anomaly`: `answer` (a correlated answer the request
+cannot use, which refuses or settles only that request), `stray` (a response no request waits
+for), `unknown-attachment` (an event for an attachment the Worker does not hold), `flow` (a break
+in one attachment's flow or sequence, which closes only that viewer or controller) or `contract`
+(an event whose envelope or payload breaks its contract: it is dropped, and a viewer it names is
+closed). Each of the two is
+written at most once a minute for each site, with `suppressed`, the number of that site's records
+left out since the last one written. `cleanup-unproven` records, with its `error` kind, background
+jobs whose stop the loop's end could not prove; it is written beside that end's `exited` record,
+which keeps the loop's own cause.
 `request-declined` records a whole Server request the Worker declined instead of ending, with its
 `kind` (`launch`, `start`, `viewer`, `control`, `lifecycle`, `cwd-validation`, `send`,
 `worktree-job`, `agent-drain`, `shutdown`, `worktree-mutation`, `titles`, `handoff`,
@@ -143,8 +152,8 @@ The [shared modeling record](../../crates/local-runtime/README.md) owns process/
 The first Launch passes the existing authorization kernel and resolves launch facts before Host
 startup. Typed invalid-lease/generation rejection creates no Host. Generation-pinned cwd validation
 and worktree-job requests may complete before that Launch without starting a Host — the discovery
-slot survives the handoff so an admitted job stays owned across it; any other non-Launch traffic
-retires the connection. The admitted dispatch and same kernel survive Host startup, and authorization is
+slot survives the handoff so an admitted job stays owned across it; any other terminal request
+before that Launch is declined, and the Worker keeps serving. The admitted dispatch and same kernel survive Host startup, and authorization is
 checked again before handoff. The Host directory is `host` under the runtime and holds the Host's
 lock; the Host receives the Session's endpoint ID and the socket folder as `--endpoint-id` and
 `--endpoint-directory`, and binds `<endpoint-id>-host.sock` there. The absolute endpoint address is
@@ -153,11 +162,17 @@ address that cannot fit produces the same pre-handoff failure without either sid
 newly spawned Host may be awaited for its final 0600 socket.
 Host startup, its dial, the `worker-host` offer with its `capacity` redials, and the strict OBTP
 handshake share five seconds without renewal.
-Preparation/startup failure returns a pre-handoff failure when deliverable and retires Worker;
-uncertain handed-off outcomes are never replayed. Later operations use the same serialized loop
-and replay cache. A Worker makes one Host start attempt and never a second: the person who asked
-for the terminal receives the definite `terminal-runtime-unavailable` failure, and the Session then
-stops by the [Server's Worker-exit rule](../orchbee-server/README.md).
+A preparation failure refuses only its Launch. A Host start failure answers its Launch with the
+definite pre-handoff failure, which reaches the person who asked for the terminal as
+`terminal-runtime-unavailable`. When the failed start leaves no Host process, because it failed
+before one was created or the one created has already exited, the Worker keeps serving and a later
+authorized Launch starts a Host again. Otherwise the Worker sends that answer, then exits with the
+start failure's cause, and the Session stops by the
+[Server's Worker-exit rule](../orchbee-server/README.md): a macOS or Linux Host still running when
+the start window ends could later bind the endpoint a second start dials, and a Windows Host's
+registration in the Session record outlives its process, so every Windows start failure from
+registration on exits. Uncertain handed-off outcomes are never replayed. Later operations use the
+same serialized loop and replay cache.
 
 Every Launch on this managed path also propagates the local Agent observation channel through the
 existing Terminal Protocol `environmentOverlay`. For each admitted Launch the launch adapter derives
@@ -274,8 +289,10 @@ deadline even after another fails, and reports the first failure. Explicit shutd
 the request deadline (at most 60 seconds for the whole shutdown). Every other loop exit,
 including Server disconnection, protocol failure and Host start failure, uses one
 six-second window, which exceeds each owner's five-second cleanup bound. Unproven cleanup
-takes precedence over the loop's own error. A task still running when the window closes
-is detached, and the Worker reports the cleanup failure instead of claiming success.
+never replaces the loop's own error: it is recorded as `cleanup-unproven`, the loop's error
+keeps naming why the loop ended, and a loop that ended cleanly reports the cleanup failure
+instead. A task still running when the window closes is detached, and the Worker never claims
+its cleanup succeeded.
 
 ## Live viewer relay refinement
 
@@ -312,7 +329,12 @@ remove, cleanup, Host loss, and target cleanup release frame and event bytes exa
 viewer event addressed to an already-retired viewer is consumed like a late frame record instead of
 retiring the broker. So is one for an attachment this Host epoch detached, whose identity the broker
 keeps among the last 256 detached, and one for any other attachment it does not hold, which also
-writes a rate-limited `host-unexpected` record.
+writes a rate-limited `host-unexpected` record. No viewer event ends the broker. A break in one
+viewer's flow or sequence, such as a frame sequence that does not advance, a delta without its
+snapshot, a stale recovery or projection block, or a replayed bell or clipboard write, closes only
+that viewer, releases its bytes and writes a `flow` record; an event whose envelope or payload
+breaks its contract is dropped with a `contract` record, and a viewer it names is closed. A later
+cleanup detaches each closed viewer, and every other viewer keeps its slot and sequence.
 
 The OBCN viewer carrier and Worker attachment transitions now serve Server's admitted Client
 Session relay, with actual Host process traces. Server owns OBCS viewer messages and Session cleanup;
@@ -384,8 +406,9 @@ new grant, whatever it answers.
 
 Viewer detach or closure first releases its controller, then detaches the viewer. Internal release
 is idempotent only when that viewer has no controller; it never clears a different current grant.
-Unexpected resize-lease revocation of a live grant retires the broker; a lease event for a
-controller the broker does not hold is dropped and recorded. A release whose Detach the Host
+A lease event that contradicts a live grant closes only that controller's viewer, which a later
+cleanup detaches with its controller, and writes a `flow` record; a lease event for a controller
+the broker does not hold is dropped and recorded. A release whose Detach the Host
 refuses or answers otherwise still forgets the grant. Exact retired-target events
 after known Dispose are validated and drained. Neither release nor loss promotes another
 viewer or terminates retained execution. Controller grants stay capped at eight regardless of
@@ -637,7 +660,8 @@ The accepted `HostBrokerConnection` epoch is immutable. Host loss before handoff
 | `handed-off`                    | Emit mapped command with one operation correlation                      | `awaiting-host`          | Send at most one Host command; Host may apply it before a response is observable.                                               |
 | `awaiting-host`                 | `Response` + expected success kind + exact correlation + handoff epoch  | `result-ready`           | Queue cached OBCN `HostAccepted`.                                                                                               |
 | `awaiting-host`                 | `Response` + generic `TypedFailure` + exact correlation + handoff epoch | `result-ready`           | Queue cached `Failed(HostReportedFailure)`; never derive `HostRejected` from the same exact record.                             |
-| `awaiting-host`                 | Wrong role, kind, correlation, or Host epoch                            | `draining-result`        | Retain the concrete mismatched observation, fail closed as cached outcome unknown, close Host, and block retry.                 |
+| `awaiting-host`                 | Exact correlation with a wrong role, kind, or Host epoch                | `result-ready`           | Record the mismatched answer, cache outcome unknown, and block retry; Host stays open because the stream is still in step.      |
+| `awaiting-host`                 | A response that names another correlation                               | `awaiting-host`          | Drop and record it as stray; the operation keeps waiting within its deadline.                                                   |
 | `handed-off` or `awaiting-host` | Host loss or timeout                                                    | `draining-result`        | Queue cached outcome unknown, close Host, block retry, and retain Server only for bounded result delivery.                      |
 | Any live operation/result       | Server loss                                                             | `stopped`                | Close both links immediately; an unobserved in-flight dispatch is unknown and any undelivered exact result is abandoned intact. |
 | `result-ready`                  | Result write succeeds or its bounded opportunity expires                | `completed` or `stopped` | Empty the global slot; deliver the cached result exactly once, or abandon it without changing its classification.               |
@@ -674,19 +698,21 @@ inventory, or VT state is added. Valid lifecycle and metadata events are drained
 including before handoff and between a command write and its exact response. They cannot complete
 an operation and consume the same Host deadline.
 
-| Boundary         | Runtime refinement and evidence obligation                                                                                                                                                                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Before handoff   | Check both peers without consuming Server bytes. Observed Server loss or unexpected Server data closes both links and abandons the pending operation. Host loss or invalid unsolicited Host data closes Host and records the kernel's exact pre-handoff failure (or expired-lease rejection). Preparation and invalid budgets send nothing. |
-| Handoff          | Call `begin_host_handoff` once with the retained immutable handshake epoch and freshly sampled lease clock. Its `ResultReady` branch sends nothing and preserves the exact cached lease rejection. Only `HandedOff` permits the first write.                                                                                                |
-| Response         | Require exact protocol, mandatory control encoding, Response role, command correlation, and handoff epoch before decoding the operation-specific success or generic `TypedFailure`. The existing mapper validates payload identity and geometry. Generic failure maps only to `HostReportedFailure`.                                        |
-| Uncertainty      | Any write/read/timeout/invalid-response failure after handoff records the kernel's exact unknown result and shuts down Host. Observed Server loss closes both links; no command is resent.                                                                                                                                                  |
-| Result ownership | Success and every classified failure remain in the kernel slot. The caller must deliver or abandon that result and honor `HostClosed`/`ServerClosed`; this adapter never drains the slot or claims OBCN delivery.                                                                                                                           |
+| Boundary         | Runtime refinement and evidence obligation                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Before handoff   | Check both peers without consuming Server bytes. Observed Server loss or unexpected Server data closes both links and abandons the pending operation. Host loss or lost Host framing closes Host and records the kernel's exact pre-handoff failure (or expired-lease rejection); other unsolicited Host data is contained as on any connection. Preparation and invalid budgets send nothing. |
+| Handoff          | Call `begin_host_handoff` once with the retained immutable handshake epoch and freshly sampled lease clock. Its `ResultReady` branch sends nothing and preserves the exact cached lease rejection. Only `HandedOff` permits the first write.                                                                                                                                                   |
+| Response         | Require exact protocol, mandatory control encoding, Response role, command correlation, and handoff epoch before decoding the operation-specific success or generic `TypedFailure`. The existing mapper validates payload identity and geometry. Generic failure maps only to `HostReportedFailure`.                                                                                           |
+| Uncertainty      | Any write/read/timeout failure after handoff records the kernel's exact unknown result and shuts down Host. An intact answer that does not settle the operation records it, caches the same unknown result, and keeps Host open. Observed Server loss closes both links; no command is resent.                                                                                                 |
+| Result ownership | Success and every classified failure remain in the kernel slot. The caller must deliver or abandon that result and honor `HostClosed`/`ServerClosed`; this adapter never drains the slot or claims OBCN delivery.                                                                                                                                                                              |
 
 A Launch that carried earlier output stages it first, in the same exchange and before handoff:
 the request loop takes the output from the OBCN launch before kernel admission, so the kernel never
 retains it, and `StageTerminalOutput` names the Create's exact `CreationId`. A typed refusal writes a
-`terminal-launch` diagnostic and the Create proceeds without the output; any other staging failure is
-a pre-handoff Host failure. The staged receipt and refusal are bounded at 64 KiB.
+`terminal-launch` diagnostic and the Create proceeds without the output; an intact answer that is
+neither the receipt nor a refusal writes a `host-unexpected` record and the Create proceeds as
+well. Only a failed exchange is a pre-handoff Host failure. The staged receipt and refusal are
+bounded at 64 KiB.
 
 The module depends only on `host_connection`, `terminal_authorization`,
 `terminal_host_launch_adapter`, and their protocol values. Its private `transport` child owns
@@ -700,7 +726,7 @@ Deterministic socket witnesses cover handoff, exact completion, mismatch, ordere
 | Handoff rejection sends nothing           | `handoff_rejections_and_invalid_preparation_never_send_a_command`                                                                                                                                     |
 | Exact completion and one result slot      | `exact_launch_success_remains_in_the_kernel_slot_and_replays_without_an_effect`, `start_responses_preserve_transitions_and_reject_contradictory_payloads`                                             |
 | Generic Host failure stays failed         | `exact_generic_failure_is_failed_even_when_its_diagnostics_say_rejected_and_retryable`                                                                                                                |
-| Invalid response is unknown without retry | `malformed_response_partitions_close_host_cache_unknown_and_never_resend`                                                                                                                             |
+| Invalid response is unknown without retry | `malformed_response_partitions_cache_unknown_and_never_resend`                                                                                                                                        |
 | Ordered loss closes the right links       | `observed_host_loss_before_handoff_is_a_definite_failure`, `server_loss_before_handoff_abandons_without_sending_or_inventing_a_result`, `server_loss_interrupts_a_waiting_host_and_closes_both_links` |
 | Deadline and retained execution           | `a_silent_host_is_bounded_by_the_operation_deadline`, `real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss`                                                                  |
 
@@ -796,7 +822,10 @@ events, so a Host writing to a full stream is never stalled by a Worker waiting 
 have already arrived are read before a bound is checked: a late Worker never refuses an answer that
 is waiting, and a bound ends an exchange only while the Host has sent nothing more. A request the
 Worker abandons part way, at its bound or on an error, closes the Host connection at once, since
-the stream is out of step for good. Host records are read incrementally: a record the Host has
+the stream is out of step for good. An answer that arrives whole leaves the stream in step: one the
+request cannot use refuses or settles only that request and writes `host-unexpected` with
+`answer`, and a response that names another request is dropped as `stray`; the connection serves
+on. Host records are read incrementally: a record the Host has
 only begun stays with the connection and the next read continues it, so a Host that pauses inside
 an event never holds a Server record or the next request. Before a request, the Worker drains at
 most 64 queued events, and after the bound it reads at most 64 more records that have already
@@ -827,7 +856,10 @@ Event role, absent correlation, exact protocol/epoch, payload codec, and matchin
 It drains these notifications without a lifecycle/metadata projection. The broker routes viewer
 frames and blocked events through their independent slots, including events interleaved with a
 Launch/Start response. Events never acknowledge an operation or adopt retained terminals.
-Response-like, unknown, malformed, or wrong-epoch events fail closed. An event the Host has begun
+An event the Worker cannot use never ends the connection: a Response-like, unknown, malformed, or
+wrong-epoch event is dropped with a `contract` record, a break in one attachment's flow closes only
+that attachment with a `flow` record, and only a record whose framing is lost ends the connection,
+because no later record can be found after it. An event the Host has begun
 stays with the connection for the next read to continue; between requests and while a Server
 record is read or written, a Host that has not finished it within the ten-second exchange bound of
 its first byte ends the connection, and inside an exchange that exchange's bound applies.

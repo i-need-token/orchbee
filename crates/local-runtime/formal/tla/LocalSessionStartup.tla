@@ -57,15 +57,19 @@ Connect(c) ==
   /\ guard' = IF guard = c THEN Nobody ELSE guard
   /\ UNCHANGED <<marker, launches, server, worker, authorized, hostAttempts, host, lifetime, workerAttempts, dispatch>>
   /\ action' = "Connect"
+\* A Launch that failed before handoff leaves the Worker serving, so a later Launch is authorized
+\* again; a handed-off Launch settles the startup and later ones belong to the admitted loop.
 Authorize ==
   /\ \E c \in Clients: phase[c] = "opening"
-  /\ server = "live" /\ worker /\ ~authorized
+  /\ server = "live" /\ worker /\ dispatch \in {"none", "failed"}
   /\ authorized' = TRUE /\ dispatch' = "authorized"
   /\ UNCHANGED <<phase, guard, marker, launches, server, worker, hostAttempts, host, lifetime, workerAttempts>>
   /\ action' = "Authorize"
+\* Each start answers one authorized Launch. A failed start leaves this Worker no Host, and only the
+\* next authorized Launch starts one again; the model bounds a generation at two attempts.
 StartHost ==
-  /\ dispatch = "authorized" /\ worker /\ hostAttempts = 0
-  /\ hostAttempts' = 1 /\ host' = "starting"
+  /\ dispatch = "authorized" /\ worker /\ host \in {"absent", "failed"} /\ hostAttempts < 2
+  /\ hostAttempts' = hostAttempts + 1 /\ host' = "starting"
   /\ UNCHANGED <<phase, guard, marker, launches, server, worker, authorized, lifetime, workerAttempts, dispatch>>
   /\ action' = "StartHost"
 HostReady ==
@@ -117,9 +121,15 @@ Handoff ==
   /\ dispatch' = "settled"
   /\ UNCHANGED <<phase, guard, marker, launches, server, worker, authorized, hostAttempts, host, lifetime, workerAttempts>>
   /\ action' = "Handoff"
+\* A pre-handoff failure: preparation, lease expiry, a Host start that failed, or no room left for
+\* the creation. The Launch is answered and the Worker keeps serving; a start in progress has failed.
+\* A failed start that may leave a Host process (one still running at the start deadline, or a
+\* Windows registration that outlives it) is this action followed by WorkerLoss: the Worker answers,
+\* then exits, so no later StartHost can meet that Host.
 ExpireDispatch ==
-  /\ dispatch = "authorized" /\ dispatch' = "failed" /\ worker' = FALSE
-  /\ UNCHANGED <<phase, guard, marker, launches, server, authorized, hostAttempts, host, lifetime, workerAttempts>>
+  /\ dispatch = "authorized" /\ dispatch' = "failed"
+  /\ host' = IF host \in {"starting", "dead"} THEN "failed" ELSE host
+  /\ UNCHANGED <<phase, guard, marker, launches, server, worker, authorized, hostAttempts, lifetime, workerAttempts>>
   /\ action' = "ExpireDispatch"
 ClientLoss(c) ==
   /\ phase[c] \in Active /\ phase' = [phase EXCEPT ![c] = "failed"]
@@ -135,8 +145,8 @@ TypeOK ==
   /\ phase \in [Clients -> Active \cup {"ready", "failed"}]
   /\ guard \in Clients \cup {Nobody} /\ marker \in BOOLEAN /\ launches \in 0..1
   /\ server \in {"absent", "starting", "live", "dead"} /\ worker \in BOOLEAN
-  /\ authorized \in BOOLEAN /\ hostAttempts \in 0..1
-  /\ host \in {"absent", "starting", "live", "dead"}
+  /\ authorized \in BOOLEAN /\ hostAttempts \in 0..2
+  /\ host \in {"absent", "starting", "live", "dead", "failed"}
   /\ lifetime \in BOOLEAN /\ workerAttempts \in 0..1
   /\ dispatch \in {"none", "authorized", "settled", "failed"}
 Singleton == (launches = 1 => marker) /\ (server # "absent" => marker)
@@ -144,6 +154,7 @@ LazyHost == hostAttempts > 0 => authorized /\ launches = 1
 GuardOwnership == guard # Nobody => phase[guard] \in {"locked", "committed", "waiting"}
 NoReplay == [][(marker => marker') /\ (hostAttempts <= hostAttempts')]_vars
 RetainedDispatch == [][(action' = "StartHost" => UNCHANGED dispatch)]_vars
+PreHandoffFailureKeepsWorker == [][(action' = "ExpireDispatch" => UNCHANGED worker)]_vars
 RejectPreservesHost == [][(action' = "Reject" => UNCHANGED <<host, hostAttempts>>)]_vars
 ClientLossPreservesSession == [][(action' = "ClientLoss" => UNCHANGED <<marker, launches, server, worker, host>>)]_vars
 ReadyRequiresFrame == [][(\A c \in Clients: phase[c] # "ready" /\ phase'[c] = "ready"

@@ -306,8 +306,15 @@ pub(crate) fn run(
                     );
                     kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
                     let result = super::take_result(&mut kernel)?;
-                    let _delivery = server_transport::send(&server, None, &result);
-                    return Err(failure.into_exit_cause());
+                    // The failure fails only this Launch while a later one can start a Host. A
+                    // Worker that can start none again can serve no terminal: it ends after its
+                    // answer, so the Server stops this Session.
+                    if !failure.retryable {
+                        let _delivery = server_transport::send(&server, None, &result);
+                        return Err(failure.into_exit_cause());
+                    }
+                    let _no_host = server_transport::send(&server, None, &result)?;
+                    continue;
                 }
             };
             host.stream().set_nonblocking(true)?;
@@ -417,18 +424,22 @@ impl HostStartStage {
 }
 
 /// A failed managed Host start: its stage, the time since the start began, the Host's exit code
-/// when it had exited, and the failure itself.
+/// when it had exited, the failure itself, and whether this Worker may start a Host again.
 #[derive(Debug)]
 struct HostStartFailure {
     stage: HostStartStage,
     elapsed: Duration,
     host_exit: Option<u32>,
     error: Box<dyn Error>,
+    /// No Host process was registered or created, or the one created has exited, so a later start
+    /// cannot meet it. A Windows Host's registration outlives its process, so there only a failure
+    /// before registration leaves a retry.
+    retryable: bool,
 }
 
 impl HostStartFailure {
-    /// The loop's end after this failure: the Host never answered in time, ended before it was
-    /// reached, or a local step failed.
+    /// The loop's end after a failure that leaves no retry: the Host never answered in time, ended
+    /// before it was reached, or a local step failed.
     fn into_exit_cause(self) -> Box<dyn Error> {
         let (reason, peer) = match self.stage {
             HostStartStage::Deadline => (Reason::Deadline, Peer::Host),
@@ -463,6 +474,7 @@ fn start_host(
         elapsed: began.elapsed(),
         host_exit: None,
         error,
+        retryable: true,
     };
     // The Host binds `<id>-host.sock` relatively inside the socket folder while the Worker
     // connects through the derived absolute path; validate that address before the Host
@@ -534,7 +546,10 @@ fn start_host(
                 Some(SessionChildStep::Release) => HostStartStage::Release,
                 Some(SessionChildStep::Registration) | None => HostStartStage::Registration,
             };
-            failed(stage, error.into())
+            HostStartFailure {
+                retryable: false,
+                ..failed(stage, error.into())
+            }
         })?;
     #[cfg(not(windows))]
     let mut child = orchbee_local_runtime::spawn_retained(&executable, &arguments)
@@ -552,7 +567,7 @@ fn start_host(
             ..failure
         })
     };
-    loop {
+    let ready = (|| loop {
         if Instant::now() >= deadline {
             return Err(failed(
                 HostStartStage::Deadline,
@@ -576,8 +591,12 @@ fn start_host(
         {
             match orchbee_local_ipc::endpoint_exists(&endpoint) {
                 Ok(true) => {
-                    let dial = HostBrokerConnection::connect_before(&endpoint, deadline, drain);
-                    return dialed(&mut child, dial).map(|host| (host, child));
+                    let dial = HostBrokerConnection::connect_before(
+                        &endpoint,
+                        deadline,
+                        Rc::clone(&drain),
+                    );
+                    return dialed(&mut child, dial);
                 }
                 Ok(false) => thread::sleep(Duration::from_millis(10)),
                 Err(error) => return Err(failed(HostStartStage::Connect, error.into())),
@@ -590,8 +609,9 @@ fn start_host(
                     && status.uid() == nix::unistd::geteuid().as_raw()
                     && status.mode() & 0o7777 == 0o600 =>
             {
-                let dial = HostBrokerConnection::connect_before(&endpoint, deadline, drain);
-                return dialed(&mut child, dial).map(|host| (host, child));
+                let dial =
+                    HostBrokerConnection::connect_before(&endpoint, deadline, Rc::clone(&drain));
+                return dialed(&mut child, dial);
             }
             Ok(status)
                 if status.file_type().is_socket()
@@ -612,6 +632,15 @@ fn start_host(
             }
             Err(error) => return Err(failed(HostStartStage::Endpoint, error.into())),
         }
+    })();
+    match ready {
+        Ok(host) => Ok((host, child)),
+        // A Host still running could later bind the endpoint a second start dials, and a Windows
+        // registration outlives the process; either leaves this Worker no further start.
+        Err(failure) => Err(HostStartFailure {
+            retryable: cfg!(not(windows)) && matches!(child.try_wait(), Ok(Some(_))),
+            ..failure
+        }),
     }
 }
 

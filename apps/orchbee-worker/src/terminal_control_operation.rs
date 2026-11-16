@@ -89,7 +89,11 @@ fn contain(
     request: &TerminalControlRequest,
 ) -> Result<Outcome, Box<dyn Error>> {
     let answer = error.downcast::<UnexpectedAnswer>()?;
-    diagnostic_events::host_unexpected(Site::Control, answer.kind);
+    diagnostic_events::host_unexpected(
+        Site::Control,
+        answer.kind,
+        diagnostic_events::Anomaly::Answer,
+    );
     release_viewer(host, server, request.viewer_id)?;
     Ok(Outcome::Rejected(match request.action {
         Action::Acquire | Action::Takeover { .. } => Rejection::HostRejected,
@@ -483,19 +487,34 @@ fn detach_controller(
         attachment_id: AttachmentId::from_bytes(controller.as_bytes())?,
     };
     let command = encode_attachment_control(&AttachmentControl::DetachTerminal(target))?;
-    let response = exchange(
+    let response = match exchange(
         host,
         server,
         CorrelationId::from_bytes(fresh_identity()?)?,
         command.kind,
         &command.payload,
         PayloadEncoding::ControlJson,
-    )?;
+    ) {
+        Ok(response) => response,
+        Err(error) => {
+            let answer = error.downcast::<UnexpectedAnswer>()?;
+            diagnostic_events::host_unexpected(
+                host.pacing.site(),
+                answer.kind,
+                diagnostic_events::Anomaly::Answer,
+            );
+            return Ok(());
+        }
+    };
     let envelope = decode_transport_envelope(&response)?;
     if decode_attachment_control(envelope.kind, envelope.role, envelope.payload).ok()
         != Some(AttachmentControl::DetachTerminalAccepted(target))
     {
-        diagnostic_events::host_unexpected(host.pacing.site(), envelope.kind);
+        diagnostic_events::host_unexpected(
+            host.pacing.site(),
+            envelope.kind,
+            diagnostic_events::Anomaly::Answer,
+        );
     }
     Ok(())
 }

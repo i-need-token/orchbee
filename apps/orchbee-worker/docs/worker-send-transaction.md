@@ -44,8 +44,9 @@
   `NotNeeded` is reachable in-model only through `AttachRefused`.
 - `exchange_fresh` per step → `SendAttach`/`SendInput`/`SendDetach` plus the
   response family: `*Exact`, `*Refused` (TypedFailure), `*Desync` (an intact
-  answer that contradicts the stage: another message, an echo mismatch or a
-  bound violation), `*Malformed` (envelope contract violation), `*Lost`
+  answer that contradicts the stage: another message, an envelope outside its
+  contract, an echo mismatch or a bound violation), `*Malformed` (a record
+  whose framing is lost), `*Lost`
   (EOF/write failure/step deadline), `*LocalFault` (pre-write, or no room left
   in the request), and `ServerLost`/`CarrierLost` peer events. `ServerLost*`
   also stands for a Server request observed during the send. The Server writes
@@ -92,7 +93,7 @@ Temporal: `EventualSettlement`, `TeardownEventuallyReleasesAttachments`,
 settle) may fire; no peer is assumed to answer successfully.
 
 `PairingMatrix` applies only once settled (`result-ready`/`done`): cleanup is
-`none` while the detach axis is unresolved. Only a malformed or lost answer,
+`none` while the detach axis is unresolved. Only an answer whose framing is lost, a lost answer,
 carrier loss, Server loss and the post-attach abort retire the carrier; every
 settlement reached through an intact answer or an unsent record keeps it, and
 unconfirmed cleanup at `done` implies a dead carrier or a `deferred`

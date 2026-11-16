@@ -230,7 +230,7 @@ fn wrong_worker_fence_is_fatal() -> TestResult {
 fn application_signal_without_viewer_reaches_the_queue() -> TestResult {
     let (connection, drain, _peer, directory) = scripted_host_peer()?;
     let epoch = connection.host_epoch();
-    connection.receive_event(signal_record(epoch, "{\"event\":\"ready\"}")?)?;
+    connection.receive_event(signal_record(epoch, "{\"event\":\"ready\"}")?);
     let (entries, minted, _, _) = drain.borrow().snapshot();
     let _ = fs::remove_dir_all(&directory);
     assert_eq!(minted, 1);
@@ -249,14 +249,16 @@ fn application_signal_without_viewer_reaches_the_queue() -> TestResult {
     Ok(())
 }
 
-/// A signal carrying a different Host epoch remains a fatal protocol error.
+/// A signal carrying a different Host epoch is dropped and mints nothing.
 #[test]
-fn foreign_epoch_signal_stays_fatal() -> TestResult {
-    let (connection, _drain, _peer, directory) = scripted_host_peer()?;
+fn foreign_epoch_signal_mints_nothing() -> TestResult {
+    let (connection, drain, _peer, directory) = scripted_host_peer()?;
     let foreign = HostEpoch::from_bytes([8; 16])?;
-    let result = connection.receive_event(signal_record(foreign, "{}")?);
+    connection.receive_event(signal_record(foreign, "{}")?);
+    let (entries, minted, _, _) = drain.borrow().snapshot();
     let _ = fs::remove_dir_all(&directory);
-    assert!(result.is_err());
+    assert_eq!(minted, 0);
+    assert!(entries.is_empty());
     Ok(())
 }
 

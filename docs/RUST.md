@@ -255,6 +255,15 @@ native types; do not reproduce TypeScript file-count or syntax conventions.
   numeric correlation, and error kinds — never record bytes, terminal content, credentials, paths,
   environment values, or nested error text. Product standard error and machine documents are not
   diagnostic exits.
+- A loop that serves independent work follows [fault containment](ARCHITECTURE.md#fault-containment).
+  A peer's anomaly reaches it as a typed outcome that names its scope, such as refusing the request,
+  closing one viewer, or ending one connection. Only a cause that damages all of the loop's work
+  propagates with `?` to the loop's end. An invariant that a well-formed peer sequence can reach is
+  contained like a peer anomaly; the rest name the code that owns them.
+- Attach a failure's class, site, reason, and peer where it is detected, as typed fields rather than
+  message text. Translation keeps them; never map one class to another, such as a deadline to
+  invalid data, on the way to a record or an exit.
+- When cleanup after a failure also fails, record both failures; neither error replaces the other.
 
 ## Resources and concurrency
 
@@ -273,6 +282,10 @@ native types; do not reproduce TypeScript file-count or syntax conventions.
   failure policy for a poisoned lock. Never hold a synchronous lock across `.await`, IPC,
   filesystem or process waits, callbacks, or blocking computation. Isolate unavoidable blocking
   work from the async executor; deadlines do not make blocking work asynchronous.
+- Every blocking wait, including socket I/O, a filesystem or account lookup, and a child or thread
+  join, has a hard bound. On a thread that serves peers, a call the operating system cannot bound
+  runs on a helper thread: the number of such helpers is bounded, the caller waits with a timeout,
+  and a result that arrives late is dropped.
 
 ## Local process and IPC boundaries
 

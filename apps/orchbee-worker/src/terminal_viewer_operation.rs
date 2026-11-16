@@ -5,7 +5,6 @@
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     error::Error,
-    fmt,
     num::NonZeroU64,
     time::{Duration, Instant},
 };
@@ -40,9 +39,7 @@ use orchbee_terminal_protocol::{
 };
 
 use crate::diagnostic_events::Site;
-use crate::host_connection::{
-    HostBrokerConnection, HostExchange, NotStarted, PeerFailure, exchange,
-};
+use crate::host_connection::{HostBrokerConnection, HostExchange, NotStarted, exchange};
 use crate::worker_identity::fresh_identity;
 
 mod graphics_decode;
@@ -54,30 +51,7 @@ fn invalid(error: impl std::fmt::Display) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string())
 }
 
-/// A correlated Host answer other than the exact acknowledgement: a refusal where none is
-/// expected, or a payload for another target or value. The envelope was in step, so it concerns
-/// only its own request: the request is refused and its viewer or controller is closed.
-#[derive(Debug)]
-pub(crate) struct UnexpectedAnswer {
-    /// The answer's message kind, the only part of it the diagnostic log keeps.
-    pub(crate) kind: u16,
-}
-
-impl UnexpectedAnswer {
-    pub(crate) fn of(record: &[u8]) -> Self {
-        Self {
-            kind: decode_transport_envelope(record).map_or(0, |envelope| envelope.kind),
-        }
-    }
-}
-
-impl fmt::Display for UnexpectedAnswer {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("Host answered with an unexpected message")
-    }
-}
-
-impl Error for UnexpectedAnswer {}
+pub(crate) use crate::host_connection::{UnexpectedAnswer, response_envelope};
 
 pub(crate) fn execute(
     request: TerminalViewerRequest,
@@ -129,7 +103,11 @@ fn contain(
     attachment: orchbee_capability_node_protocol::OperationId,
 ) -> Result<TerminalViewerOutcome, Box<dyn Error>> {
     let answer = error.downcast::<UnexpectedAnswer>()?;
-    crate::diagnostic_events::host_unexpected(host.pacing.site(), answer.kind);
+    crate::diagnostic_events::host_unexpected(
+        host.pacing.site(),
+        answer.kind,
+        crate::diagnostic_events::Anomaly::Answer,
+    );
     host.viewers.borrow_mut().close(attachment);
     Ok(TerminalViewerOutcome::Rejected(
         ViewerRejection::HostRejected,
@@ -232,7 +210,11 @@ fn record_cleanup_answer(answer: &DetachAnswer) {
     match answer {
         DetachAnswer::Detached => {}
         DetachAnswer::Refused(kind) | DetachAnswer::Unexpected(UnexpectedAnswer { kind }) => {
-            crate::diagnostic_events::host_unexpected(Site::Cleanup, *kind);
+            crate::diagnostic_events::host_unexpected(
+                Site::Cleanup,
+                *kind,
+                crate::diagnostic_events::Anomaly::Answer,
+            );
         }
     }
 }
@@ -258,7 +240,11 @@ fn follow_viewer_demand(
         Ok(DemandAnswer::Refused(kind)) => kind,
         Err(error) => error.downcast::<UnexpectedAnswer>()?.kind,
     };
-    crate::diagnostic_events::host_unexpected(host.pacing.site(), kind);
+    crate::diagnostic_events::host_unexpected(
+        host.pacing.site(),
+        kind,
+        crate::diagnostic_events::Anomaly::Answer,
+    );
     crate::terminal_control_operation::release_viewer(host, server, grant.viewer_id)
 }
 
@@ -385,10 +371,7 @@ fn apply(
                     *terminal_id.as_bytes(),
                 )?,
             )? {
-                Ok(Some(record)) => host
-                    .viewers
-                    .borrow_mut()
-                    .receive(record, host.host_epoch())?,
+                Ok(Some(record)) => host.viewers.borrow_mut().receive(record, host.host_epoch()),
                 Ok(None) => {}
                 // A refused Attach grants nothing, so the new Host attachment goes first.
                 Err(reason) => {
@@ -893,14 +876,21 @@ fn detach_attachment(
 ) -> Result<DetachAnswer, Box<dyn Error>> {
     let target = AttachmentTarget { attachment_id: id };
     let command = encode_attachment_control(&AttachmentControl::DetachTerminal(target))?;
-    let response = exchange(
+    let response = match exchange(
         host,
         server,
         correlation,
         command.kind,
         &command.payload,
         PayloadEncoding::ControlJson,
-    )?;
+    ) {
+        Ok(response) => response,
+        Err(error) => {
+            return error
+                .downcast::<UnexpectedAnswer>()
+                .map(|answer| DetachAnswer::Unexpected(*answer));
+        }
+    };
     let envelope = decode_transport_envelope(&response)?;
     if matches!(
         decode_connection_control(envelope.kind, envelope.role, envelope.payload),
@@ -946,7 +936,11 @@ fn detach_viewer(
     match detach_attachment(host, server, correlation, id)? {
         DetachAnswer::Detached => Ok(()),
         DetachAnswer::Refused(kind) => {
-            crate::diagnostic_events::host_unexpected(host.pacing.site(), kind);
+            crate::diagnostic_events::host_unexpected(
+                host.pacing.site(),
+                kind,
+                crate::diagnostic_events::Anomaly::Answer,
+            );
             Ok(())
         }
         DetachAnswer::Unexpected(answer) => Err(answer.into()),
@@ -1083,7 +1077,7 @@ fn read_rows(
         // The bounded exchange already proved the response record fits
         // the effective budget; confirm the payload length itself.
         if envelope.payload.len() > effective_maximum as usize {
-            return Err(invalid("Host row window exceeds its byte budget").into());
+            return Err(UnexpectedAnswer::of(&response).into());
         }
         return Ok(TerminalViewerOutcome::Record(response));
     }
@@ -1277,15 +1271,7 @@ fn exchange_rows(
     let record = exchange
         .round_trip_bounded(&record, maximum_record_bytes)
         .map_err(|class| exchange.error(class))?;
-    let envelope = decode_transport_envelope(&record)?;
-    if envelope.correlation_id != Some(correlation)
-        || envelope.host_epoch != Some(host.host_epoch())
-        || envelope.role != MessageRole::Response
-        || envelope.protocol != CURRENT_PROTOCOL_VERSION
-        || envelope.optional_message
-    {
-        return Err(exchange.error(PeerFailure::Protocol).into());
-    }
+    let envelope = response_envelope(&record, correlation, host.host_epoch())?;
     let row_window =
         envelope.kind == expected && envelope.payload_encoding == PayloadEncoding::RowWindow;
     let typed_failure = envelope.payload_encoding == PayloadEncoding::ControlJson

@@ -508,7 +508,9 @@ fn lazy_exit_after_disconnect_or_host_start_failure_settles_running_plugin_proce
             let fault = Instant::now();
             if host_start_failure {
                 // A valid Launch passes preparation; the fixture cohort's Host executable is
-                // not runnable, so startup fails and the loop ends through the fallback exit.
+                // not runnable, so startup fails. On Windows the Host registration outlives a
+                // failed start, so the failure is not retryable: the Worker answers the Launch,
+                // then exits through the fallback path.
                 send(&mut peer, &launch(91, "C:/Windows/System32/cmd.exe"));
                 assert_eq!(
                     outcome(&mut peer),

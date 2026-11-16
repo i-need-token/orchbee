@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod containment;
 mod drain;
 #[cfg(windows)]
 mod host_bound;

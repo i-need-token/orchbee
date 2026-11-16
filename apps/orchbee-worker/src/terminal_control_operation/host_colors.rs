@@ -2,8 +2,8 @@
 //! launch's display mode. Unknown outer ANSI colors keep the current fallback.
 use super::{
     ConnectionControl, CorrelationId, Error, HostBrokerConnection, NotStarted, Outcome,
-    PayloadEncoding, TerminalId, UnixStream, decode_connection_control, decode_transport_envelope,
-    diagnostic_events, exchange, fresh_identity,
+    PayloadEncoding, TerminalId, UnexpectedAnswer, UnixStream, decode_connection_control,
+    decode_transport_envelope, diagnostic_events, exchange, fresh_identity,
 };
 use crate::diagnostic_events::Site;
 use orchbee_capability_node_protocol::{HostDefaultColors, HostTerminalId};
@@ -46,16 +46,27 @@ pub(super) fn apply(
                 terminal: next,
                 terminal_id,
             }))?;
-        let Some(response) = NotStarted::optional(exchange(
+        let response = match NotStarted::optional(exchange(
             host,
             server,
             CorrelationId::from_bytes(fresh_identity()?)?,
             command.kind,
             &command.payload,
             PayloadEncoding::ControlJson,
-        ))?
-        else {
-            break;
+        )) {
+            Ok(Some(response)) => response,
+            Ok(None) => break,
+            // An answer out of contract arrived whole: this terminal stops following, as below.
+            Err(error) => {
+                let answer = error.downcast::<UnexpectedAnswer>()?;
+                diagnostic_events::host_unexpected(
+                    Site::Control,
+                    answer.kind,
+                    diagnostic_events::Anomaly::Answer,
+                );
+                host.host_colors.borrow_mut().remove(key);
+                break;
+            }
         };
         let envelope = decode_transport_envelope(&response)?;
         if matches!(
@@ -70,7 +81,11 @@ pub(super) fn apply(
                 result
             }
             _ => {
-                diagnostic_events::host_unexpected(Site::Control, envelope.kind);
+                diagnostic_events::host_unexpected(
+                    Site::Control,
+                    envelope.kind,
+                    diagnostic_events::Anomaly::Answer,
+                );
                 host.host_colors.borrow_mut().remove(key);
                 break;
             }

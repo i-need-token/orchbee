@@ -201,9 +201,15 @@ fn exact_generic_failure_is_failed_even_when_its_diagnostics_say_rejected_and_re
 }
 
 #[test]
-fn malformed_response_partitions_close_host_cache_unknown_and_never_resend() -> TestResult {
+fn malformed_response_partitions_cache_unknown_and_never_resend() -> TestResult {
     // Each mutation changes one semantic field of an otherwise valid Host response.
     for partition in 0..13 {
+        // A whole record that names the request's correlation is its answer, whatever else it
+        // breaks, and leaves the stream in step, so the Host stays open. One that names another
+        // correlation never answers it, so its bound passes; a lost length or a record cut short
+        // puts the stream out of step.
+        let unanswered = matches!(partition, 3 | 12);
+        let out_of_step = unanswered || matches!(partition, 9 | 11);
         let mut fixture = Fixture::fake()?;
         let mut kernel = kernel()?;
         let launch = AuthorizedTerminalLaunch::new(
@@ -276,11 +282,17 @@ fn malformed_response_partitions_close_host_cache_unknown_and_never_resend() -> 
                 || 100,
                 if partition == 11 {
                     Duration::from_millis(30)
+                } else if unanswered {
+                    Duration::from_millis(300)
                 } else {
                     BUDGET
                 }
             )?,
-            HostOperationDisposition::HostClosed,
+            if out_of_step {
+                HostOperationDisposition::HostClosed
+            } else {
+                HostOperationDisposition::ResultReady
+            },
             "partition {partition}"
         );
         join(peer)?;
@@ -294,7 +306,11 @@ fn malformed_response_partitions_close_host_cache_unknown_and_never_resend() -> 
             HostOperationAdmission::ResultReady
         );
         assert_eq!(kernel.take_result(), Some(result));
-        require_closed(&fixture.peer)?;
+        if out_of_step {
+            require_closed(&fixture.peer)?;
+        } else {
+            require_no_bytes(&fixture.peer)?;
+        }
     }
     Ok(())
 }
@@ -439,15 +455,17 @@ fn start_responses_preserve_transitions_and_reject_contradictory_payloads() -> T
             BUDGET,
         )?;
         join(response)?;
+        // Every answer that arrives whole settles the Start, a contradictory one as unknown, and
+        // leaves the Host open; only a lost Host closes it.
         assert_eq!(
             disposition,
-            if matches!(partition, 0 | 1 | 6) {
-                HostOperationDisposition::ResultReady
-            } else {
+            if partition == 7 {
                 HostOperationDisposition::HostClosed
+            } else {
+                HostOperationDisposition::ResultReady
             }
         );
-        if matches!(partition, 0 | 1 | 6) {
+        if partition != 7 {
             assert!(matches!(
                 duplicate.execute(
                     &mut kernel,
@@ -752,7 +770,7 @@ fn read_host_reply(host: &HostBrokerConnection) -> TestResult<Vec<u8>> {
         let record = read_record(&mut stream)?;
         let envelope = decode_transport_envelope(&record)?;
         if envelope.role == MessageRole::Event {
-            host.receive_event(record)?;
+            host.receive_event(record);
         } else {
             return Ok(record);
         }

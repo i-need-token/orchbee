@@ -47,13 +47,33 @@ mod viewers;
 
 #[cfg(test)]
 mod tests;
-pub(crate) use exchange::{HostExchange, PeerFailure, exchange};
+pub(crate) use exchange::{
+    HostExchange, PeerFailure, UnexpectedAnswer, exchange, response_envelope,
+};
 pub(crate) use host_colors::HostColors;
 #[cfg(test)]
 pub(crate) use offer::answer_test_offer;
 pub(crate) use pacing::{HostFailure, NotStarted, Pacing};
 pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;
+
+/// The message kind an intact Host record names in its fixed header, read without decoding the
+/// rest; zero for a record too short to hold one.
+pub(crate) fn record_kind(record: &[u8]) -> u16 {
+    record
+        .get(20..22)
+        .and_then(|kind| <[u8; 2]>::try_from(kind).ok())
+        .map_or(0, u16::from_le_bytes)
+}
+
+/// Records an intact Host event dropped because its envelope or payload breaks its contract.
+fn contract(site: crate::diagnostic_events::Site, kind: u16) {
+    crate::diagnostic_events::host_unexpected(
+        site,
+        kind,
+        crate::diagnostic_events::Anomaly::Contract,
+    );
+}
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const CLIENT_ID_BYTES: [u8; 16] = *b"orchbee-worker-1";
@@ -218,16 +238,24 @@ impl HostBrokerConnection {
         self.prompt_gated_input
     }
 
-    pub(crate) fn receive_event(&self, record: Vec<u8>) -> io::Result<()> {
+    /// Routes one intact Host event to connection state. An event this Worker cannot use never
+    /// ends the connection: one whose envelope or payload breaks its contract is dropped, a break in
+    /// one attachment's flow closes only that attachment, and each is recorded. Only a record whose
+    /// framing is lost, which [`PartialRecord`](events::PartialRecord) refuses before routing, ends
+    /// the connection.
+    pub(crate) fn receive_event(&self, record: Vec<u8>) {
+        // A record the retired-target check cannot read is routed on and judged below.
         if self
             .retired_targets
             .borrow()
-            .accept_event(&record, self.host_epoch)?
+            .accept_event(&record, self.host_epoch)
+            .unwrap_or(false)
         {
-            return Ok(());
+            return;
         }
-        let envelope = orchbee_terminal_protocol::decode_transport_envelope(&record)
-            .map_err(io::Error::other)?;
+        let Ok(envelope) = decode_transport_envelope(&record) else {
+            return contract(self.pacing.site(), record_kind(&record));
+        };
         // Envelope validation precedes every consumer below, including the
         // Agent Drain intercept and the viewer borrow.
         if envelope.protocol != CURRENT_PROTOCOL_VERSION
@@ -236,42 +264,10 @@ impl HostBrokerConnection {
             || envelope.host_epoch != Some(self.host_epoch)
             || envelope.optional_message
         {
-            return Err(io::Error::other("unexpected Host event envelope"));
+            return contract(self.pacing.site(), envelope.kind);
         }
         if envelope.kind == 23 {
-            if envelope.host_epoch != Some(self.host_epoch)
-                || envelope.protocol != CURRENT_PROTOCOL_VERSION
-                || envelope.correlation_id.is_some()
-                || envelope.optional_message
-                || envelope.payload_encoding
-                    != orchbee_terminal_protocol::PayloadEncoding::ControlJson
-            {
-                return Err(io::Error::other("unexpected controller event envelope"));
-            }
-            let event = orchbee_terminal_protocol::decode_attachment_control(
-                envelope.kind,
-                envelope.role,
-                envelope.payload,
-            )
-            .map_err(io::Error::other)?;
-            let orchbee_terminal_protocol::AttachmentControl::ResizeLeaseChanged(event) = event
-            else {
-                return Err(io::Error::other("unexpected controller resize lease event"));
-            };
-            let controllers = self.controllers.borrow();
-            if !controllers.holds(event.attachment_id) {
-                // Released controllers were excused by the retired-target check above; a lease
-                // for any other attachment this Worker does not hold is dropped and recorded.
-                crate::diagnostic_events::host_unexpected(
-                    crate::diagnostic_events::Site::Control,
-                    envelope.kind,
-                );
-                return Ok(());
-            }
-            if controllers.validate_lease_event(event) {
-                return Ok(());
-            }
-            return Err(io::Error::other("unexpected controller resize lease event"));
+            return self.receive_lease(&envelope);
         }
         if envelope.payload_encoding == PayloadEncoding::ControlJson
             && let Ok(TerminalEffectEvent::ApplicationSignal(signal)) =
@@ -279,29 +275,69 @@ impl HostBrokerConnection {
         {
             // The Agent Drain producer intercepts application signals before
             // the viewer borrow so terminals with no attached viewer still
-            // reach the queue. Decode failures and epoch mismatches keep their
-            // existing fatal outcome for this connection.
-            if signal.identity.host_epoch != self.host_epoch {
-                return Err(io::Error::other(
-                    "application signal has a different Host epoch",
-                ));
+            // reach the queue. A signal it cannot take is dropped and recorded.
+            let identity = (signal.identity.host_epoch == self.host_epoch)
+                .then(|| crate::terminal_host_launch_adapter::capability_identity(signal.identity))
+                .and_then(Result::ok);
+            let appended = identity.is_some_and(|identity| {
+                self.drain
+                    .borrow_mut()
+                    .append(identity, signal.payload)
+                    .is_ok()
+            });
+            if !appended {
+                contract(crate::diagnostic_events::Site::Drain, envelope.kind);
             }
-            let identity =
-                crate::terminal_host_launch_adapter::capability_identity(signal.identity)
-                    .map_err(io::Error::other)?;
-            return self.drain.borrow_mut().append(identity, signal.payload);
+            return;
         }
         if envelope.kind == 57 {
-            events::validate_event(&record, self.host_epoch)?;
-            let TerminalEffectEvent::MetadataChanged(event) =
-                decode_terminal_effect_event(envelope.kind, envelope.role, envelope.payload)
-                    .map_err(io::Error::other)?
-            else {
-                return Err(io::Error::other("invalid title event"));
-            };
-            return self.titles.borrow_mut().observe(event);
+            let observed = events::validate_event(&record, self.host_epoch).is_ok()
+                && match decode_terminal_effect_event(
+                    envelope.kind,
+                    envelope.role,
+                    envelope.payload,
+                ) {
+                    Ok(TerminalEffectEvent::MetadataChanged(event)) => {
+                        self.titles.borrow_mut().observe(event).is_ok()
+                    }
+                    _ => false,
+                };
+            if !observed {
+                contract(crate::diagnostic_events::Site::Titles, envelope.kind);
+            }
+            return;
         }
-        self.viewers.borrow_mut().receive(record, self.host_epoch)
+        self.viewers.borrow_mut().receive(record, self.host_epoch);
+    }
+
+    /// A controller's resize-lease event. One for a controller this Worker does not hold is
+    /// dropped; one that contradicts a held controller's grant closes that controller's viewer,
+    /// whose cleanup releases the controller with it.
+    fn receive_lease(&self, envelope: &orchbee_terminal_protocol::DecodedEnvelope<'_>) {
+        use crate::diagnostic_events::{Anomaly, Site, host_unexpected};
+        let event = (envelope.payload_encoding == PayloadEncoding::ControlJson)
+            .then(|| {
+                orchbee_terminal_protocol::decode_attachment_control(
+                    envelope.kind,
+                    envelope.role,
+                    envelope.payload,
+                )
+            })
+            .and_then(Result::ok);
+        let Some(orchbee_terminal_protocol::AttachmentControl::ResizeLeaseChanged(event)) = event
+        else {
+            return contract(Site::Control, envelope.kind);
+        };
+        let controllers = self.controllers.borrow();
+        let Some(viewer) = controllers.viewer_of(event.attachment_id) else {
+            // Released controllers were excused by the retired-target check above; a lease
+            // for any other attachment this Worker does not hold is dropped and recorded.
+            return host_unexpected(Site::Control, envelope.kind, Anomaly::UnknownAttachment);
+        };
+        if !controllers.validate_lease_event(event) {
+            self.viewers.borrow_mut().close(viewer);
+            host_unexpected(Site::Control, envelope.kind, Anomaly::Flow);
+        }
     }
 
     pub(crate) fn terminal_title(

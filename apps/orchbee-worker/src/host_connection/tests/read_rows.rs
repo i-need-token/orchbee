@@ -4,7 +4,7 @@
 use super::super::*;
 use orchbee_capability_node_protocol::{
     HostTerminalId, OperationId, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerRequest, ViewerRowDetail, WorkerGeneration, WorkerId,
+    TerminalViewerRequest, ViewerRejection, ViewerRowDetail, WorkerGeneration, WorkerId,
 };
 use orchbee_terminal_protocol::{
     HostEpoch, ReadRows, RowAccessControl, RowWindowOrigin, decode_row_access_control,
@@ -200,10 +200,10 @@ fn row_read_response_at_the_effective_budget_is_delivered() -> TestResult {
 fn row_read_request_budget_below_negotiation_is_the_effective_maximum() -> TestResult {
     let (result, peer_thread, observed) =
         row_exchange(ViewerRowDetail::Text, 2048, 65_536, 2048 + 1)?;
-    let error = result.expect_err("a row window past its budget must be rejected");
-    assert!(
-        error.to_string().contains("byte budget"),
-        "rejection must name the byte budget, got {error}"
+    // A window past its budget refuses only this request.
+    assert_eq!(
+        result?,
+        TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected)
     );
     peer_thread
         .join()
@@ -220,10 +220,10 @@ fn row_read_request_budget_below_negotiation_is_the_effective_maximum() -> TestR
 fn row_read_response_one_byte_over_the_effective_budget_is_rejected() -> TestResult {
     let (result, peer_thread, observed) =
         row_exchange(ViewerRowDetail::Text, 8 * 1024 * 1024, 4096, 4096 + 1)?;
-    let error = result.expect_err("a row window past its budget must be rejected");
-    assert!(
-        error.to_string().contains("byte budget"),
-        "rejection must name the byte budget, got {error}"
+    // A window past its budget refuses only this request.
+    assert_eq!(
+        result?,
+        TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected)
     );
     peer_thread
         .join()

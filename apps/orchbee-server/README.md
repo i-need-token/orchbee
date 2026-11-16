@@ -238,7 +238,9 @@ records a Session failure of the Server's own generation for the
 [fallback after a failed move](../../proposals/platform/automatic-updates.md#what-counts-and-who-records-it),
 synchronously within the recorder's 2 s lock bound; a Server outside a store version folder, or
 long after a move, records nothing. A Worker that exits during a stop counts nothing.
-A Worker whose Host failed to start sends that Launch's pre-handoff failure before it exits. The
+A Worker whose Host failed to start sends that Launch's pre-handoff failure. It keeps serving when
+the failed start left no Host process, and otherwise exits after that answer (see the
+[Worker's lazy Host startup](../orchbee-worker/README.md#managed-linux-lazy-host-startup)). The
 failure settles as a definite `terminal-runtime-unavailable` even when the registry already dropped
 the Worker, because no Host received the Launch, so the request is answered before this stop begins.
 
