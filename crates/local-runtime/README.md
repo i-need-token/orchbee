@@ -1433,6 +1433,35 @@ longer counts.
 - While the counting move carries `restore` for the version the process runs, a writer restores a
   record it meets in a newer format, as [persisted data versions](#persisted-data-versions) says.
 
+`formal/tla/ReleaseStoreFallback.tla` checks these transitions under every interleaving of two
+writers, with lock-free decisions between them and a crash at any point. The registered
+configuration has four versions, where version 0 stands for a release before slice 1 or a build
+whose switch is off, a floor of 2 on version 3, one Session generation and two failures standing
+for three. The TLA gate runs it twice: with two moves and a clock that stays at its first tick, so
+every failure falls inside its window, and with one move and a clock that passes the one-tick
+window. It checks that no committed start or failure is lost,
+that only a move or a fallback changes `active` or `previous`, that a failure counts only toward
+the move of its own version, that a Session failure belongs to a generation in `starts`, that no
+fallback goes to version 0, below the failed version's floor, outside its window or twice in one
+move, that no held version becomes active or `previous` and no version a fallback left becomes
+active again before a higher one has, and that every queued write ends. It assumes that every
+component carries the product version, as packaging writes it today; that the implementation
+ignores a failure dated before `since`, where the model's clock never goes back; that a crash
+releases the lock and leaves no partial write; that cleanup keeps `active` and `previous`, and the
+model lets it remove every other folder at once, as retention does; that the completion runs in
+the target's own binary; that readers read whole files; and that the switch is fixed per build.
+
+`formal/tla/deep/ReleaseStoreFallback.cfg` keeps the designed bounds, three Session generations, a
+window of one tick over two ticks and three moves, as a deep check outside the gate, since no
+configuration that reaches every guard fits the gate's 20-second deadline. Only it lets a window
+close during a run of several moves, and only it reaches a Session failure of a generation the move
+did not start, the counterexample `AttributeStarts = FALSE` needs, which the
+mutation suite therefore leaves out; with that guard off, the deep configuration reaches
+`Attribution` within a minute on one worker. Run it from `formal/tla` with the pinned TLC:
+`java -jar tla2tools-1.7.4.jar -workers 4 -fp 0 -lncheck final -config deep/ReleaseStoreFallback.cfg ReleaseStoreFallback.tla`.
+It is long: four workers at low priority had found 21,066,825 distinct states, with 4,735,140
+still queued at depth 23, when they were stopped after 90 minutes.
+
 ## Update channel writes
 
 `set_update_channel` saves the channel through the [settings editor](#editing), so it shares its lock, validation, digest check and atomic replacement, and may create the absent file. It never downloads, and never rolls back the saved channel after a caller's update failure.

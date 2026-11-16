@@ -439,6 +439,48 @@
 			]
 		},
 		{
+			"id": "release-store-fallback",
+			"owner": "orchbee-local-runtime",
+			"workspace": "crates/local-runtime",
+			"module": "crates/local-runtime/formal/tla/ReleaseStoreFallback.tla",
+			"config": "crates/local-runtime/formal/tla/ReleaseStoreFallback.cfg",
+			"claims": ["crates/local-runtime/README.md"],
+			"triggers": [
+				"crates/release-records/src/**",
+				"crates/local-runtime/src/release_store**",
+				"apps/orchbee/src/release_store/**",
+				"apps/orchbee/src/cli/update/**",
+				"apps/orchbee-launcher/src/**",
+				"apps/orchbee/npm/orchbee/lib/launcher.mjs",
+				"apps/orchbee/crates/workbench-client/src/local_activation*",
+				"apps/orchbee-server/src/local_worker_service/managed/stop**",
+				"crates/local-runtime/src/session_catalog/**"
+			],
+			"requiredCoverage": [
+				"Offer",
+				"ExplicitInstall",
+				"LegacyInstall",
+				"StartClient",
+				"FailClient",
+				"StartGeneration",
+				"FailGeneration",
+				"Acquire",
+				"Drop",
+				"CommitMove",
+				"RefuseHeld",
+				"CommitRecord",
+				"CommitFallback",
+				"Crash",
+				"Cleanup",
+				"Tick"
+			],
+			"variants": [
+				{ "name": "fixed-clock", "constants": { "MaxTime": 0 } },
+				{ "name": "window", "constants": { "MaxTime": 1, "MaxMoves": 1 } }
+			],
+			"workers": 4
+		},
+		{
 			"id": "session-crash-recovery",
 			"owner": "orchbee-local-runtime",
 			"workspace": "crates/local-runtime",
