@@ -22,6 +22,10 @@ has one parser.
   absent. `counting_move` returns the move only while its entry is the active one. This crate owns
   the format alone; the local runtime's
   [release store](../local-runtime/README.md#fallback-after-a-failed-move) owns its transitions.
+- `client_failure_helper` names the previous version's Client that records a failed start or join
+  of a store Client, from that Client's path and the pointer read again, only while the failed
+  version is active through a counting move whose `back` is true. The Windows launcher and a macOS
+  TUI that no launcher started share it; the npm launcher keeps its own copy of the rule.
 
 The record layouts are owned by
 [Release distribution](../../proposals/platform/release-distribution.md#runtime-store). This crate
@@ -33,6 +37,7 @@ Run from the repository root:
 
 ```sh
 cargo clippy -p orchbee-release-records --all-targets --locked -- -D warnings
+cargo test -p orchbee-release-records --locked
 cargo test -p orchbee --bins --locked update::tests
 ```
 

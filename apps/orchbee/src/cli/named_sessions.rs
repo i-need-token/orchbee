@@ -37,7 +37,8 @@ pub(crate) fn run(command: &NamedSessionCommand, format: OutputFormat, locale: L
     }
     match command {
         NamedSessionCommand::Attach { mouse, .. } => {
-            crate::relaunch::tui_output(&crate::local_startup::run(locale, *mouse), locale)
+            let outcome = crate::relaunch::run_tui(|| crate::local_startup::run(locale, *mouse));
+            crate::relaunch::tui_output(&outcome, locale)
         }
         NamedSessionCommand::Stop { name, command } => {
             if let ServerStopCommand::Stop { confirm, .. } = command

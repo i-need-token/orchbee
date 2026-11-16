@@ -130,7 +130,7 @@ fn main() -> ExitCode {
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     if let Ok(invocation::Request::Tui { mouse }) = &parsed {
         diagnostic_events::tui_started();
-        let outcome = local_startup::run(locale, *mouse);
+        let outcome = relaunch::run_tui(|| local_startup::run(locale, *mouse));
         diagnostic_events::tui_exited(&outcome);
         return emit(relaunch::tui_output(&outcome, locale), locale);
     }

@@ -8,7 +8,7 @@ mod tokens;
 
 pub use fallback::{
     ClientWindow, FALLBACK_FAILURES, FALLBACK_WINDOW_MILLISECONDS, Fallback, Move, SessionWindow,
-    valid_activation_id,
+    client_failure_helper, valid_activation_id,
 };
 pub use pointer::{Entry, Pointer};
 pub use strict_json::{check_extensions, closed_object, parse_object};

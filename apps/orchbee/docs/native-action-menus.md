@@ -180,7 +180,11 @@ announcing [launcher](../../orchbee-launcher/README.md#relaunch-protocol). Witho
 replaces its own process with the store's active Client, read again, with the same arguments and
 environment and no blocked signal, so the new version opens in the same terminal under the same
 parent; elsewhere, or when that replacement cannot start, it exits with `0` and one line naming the
-command that opens that version. When it does not, nothing switches and
+command that opens that version. A macOS TUI that no launcher started, the replacement included,
+[records its own failure](../../../proposals/platform/automatic-updates.md#what-counts-and-who-records-it)
+as a launcher would: a replacement that cannot start, a failed join that a launcher would see as
+status `76`, and a panic each run the previous version's Client-failure helper. When it does not,
+nothing switches and
 the status line says the update applies when no terminal is running; a row chosen after the store
 moved back says there is no update to switch to.
 

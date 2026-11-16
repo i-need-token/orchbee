@@ -72,8 +72,10 @@ as above and sets no variable. The npm launcher follows the same rule on Windows
   [records the failure](../../proposals/platform/automatic-updates.md#what-counts-and-who-records-it)
   for the fallback after a failed move. It waits for that helper at most five seconds and leaves it
   running after that; a helper that cannot start records nothing.
-- The decisions are pure functions in `src/relaunch.rs` and, for the failure record,
-  `failure_recorder` in `src/resolve.rs`, tested in both launchers.
+- The decisions are pure functions in `src/relaunch.rs`, tested in both launchers. The failure
+  record's helper comes from `client_failure_helper` in
+  [release-records](../../crates/release-records/README.md), which a macOS TUI with no launcher
+  also uses.
 - On macOS and Linux it prints that it runs only on Windows and exits `4`; those platforms install
   a link instead.
 

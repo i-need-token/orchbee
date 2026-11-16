@@ -319,7 +319,7 @@ it is a few minutes into a move to 0.5.0, and then after that version's fallback
 | Server or Worker fails to start  | The activator that started the Server, when starting it fails or it ends before its endpoint appears, as it does when its Worker fails to start | A Session failure of that generation                         |
 | Server crash                     | Any activator whose crash recovery proves the generation dead                                                                                   | A Session failure of that generation                         |
 | Worker crash                     | The Server, when its Worker exits outside a stop                                                                                                | A Session failure of the Server's generation                 |
-| Client fails to start or to join | Either launcher, as it classifies the outcome, through the previous version's helper below                                                      | A Client failure of the version it started                   |
+| Client fails to start or to join | Either launcher, as it classifies the outcome, through the previous version's helper below; on macOS without a launcher, the TUI itself         | A Client failure of the version it started                   |
 
 - A recorder writes only the store its own executable runs from, so a process outside a store
   version folder records nothing. It first reads the pointer without the lock and goes on only
@@ -911,6 +911,10 @@ A click switches the Client it is in; other open Clients keep their own control.
 - A TUI started without such a launcher exits normally and prints one line: "Run orchbee to open
   version {version}."
 - macOS and Linux replace the process in place when they ship, so they need no launcher protocol.
+  A macOS TUI that no launcher started records its own failures through the same helper: a
+  replacement that cannot start, a failed join that a launcher would read as status 76, and a
+  panic. A crash or signal that ends the replaced process records nothing, as the npm launcher
+  records nothing for a Client a signal ended.
 
 ### Window
 

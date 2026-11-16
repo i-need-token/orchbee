@@ -114,15 +114,18 @@ fn run(client: &Path, announced: Option<u32>) -> Outcome {
 }
 
 /// After the Client at `client` failed to start or to join, reads the pointer again and, when
-/// [`resolve::failure_recorder`] names a helper, runs it outside the Client's Job with null standard
-/// streams and waits for it at most five seconds. A helper still running then is left to finish;
-/// one that cannot start records nothing. Either way the launcher goes on as it would without it.
+/// [`orchbee_release_records::client_failure_helper`] names a helper, runs it outside the Client's
+/// Job with null standard streams and waits for it at most five seconds. A helper still running then
+/// is left to finish; one that cannot start records nothing. Either way the launcher goes on as it
+/// would without it.
 fn record_failure(launcher: &Path, client: &Path) {
     let Some(root) = launcher.parent().and_then(Path::parent) else {
         return;
     };
     let pointer = read_pointer(&root.join("active.json"));
-    let Some((helper, version)) = resolve::failure_recorder(client, pointer.as_deref()) else {
+    let Some((helper, version)) =
+        orchbee_release_records::client_failure_helper(client, pointer.as_deref())
+    else {
         return;
     };
     let Ok(mut child) = Command::new(helper)
