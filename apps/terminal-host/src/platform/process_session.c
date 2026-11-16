@@ -989,8 +989,7 @@ int orchbee_try_observe_process_exit_now(
 // its retained process reference cannot itself prevent proc_refdrain from
 // making the child waitable. A still-running child is then re-registered. The
 // caller follows a witnessed exit, an already-waitable child, and registration
-// ESRCH with the same bounded non-blocking waitid poll, and registers again
-// when that poll ends without a waitable status.
+// ESRCH with the same bounded non-blocking waitid observation loop.
 enum {
     darwin_wait_ready = 0,
     darwin_wait_audit_timeout = 1,
@@ -1127,12 +1126,8 @@ int orchbee_observe_process_exit(
     // EVFILT_PROC registration can race proc_refdrain before waitid considers
     // the child waitable. Never fall back to blocking waitid. A witnessed exit
     // or registration ESRCH gets the full fixed retry bound. An audit timeout
-    // closes the kqueue first and gives proc_refdrain one millisecond to
-    // advance. Either poll that ends without a waitable status registers again:
-    // a CPU-starved child can take longer than the bound to become waitable
-    // after NOTE_EXIT, and giving up would leave its exit unobserved and its
-    // leader unreleasable. Registration then answers ESRCH for a child that is
-    // still draining, which polls again, or waits for the next exit or audit.
+    // closes the kqueue first, gives proc_refdrain one millisecond to advance,
+    // and re-registers if the child is still running.
     enum {
         darwin_waitid_retry_limit = 1000,
         darwin_audit_retry_limit = 2,
@@ -1159,6 +1154,7 @@ int orchbee_observe_process_exit(
                 while (nanosleep(&remaining, &remaining) != 0 && errno == EINTR) {}
             }
         }
+        if (wait_result != darwin_wait_audit_timeout) return EAGAIN;
     }
 #else
     siginfo_t information = {0};
