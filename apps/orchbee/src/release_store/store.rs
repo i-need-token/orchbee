@@ -5,7 +5,9 @@
 //! the caller names by moving it aside as `.remove-<process>-<number>` before deleting it, so
 //! `versions/` only ever holds whole versions. Besides those names it opens only the `.stage-*` and
 //! `.remove-*` folders writers leave, so a folder another installer keeps in the root, such as
-//! `desktop`, is never read.
+//! `desktop`, is never read; the window part opens `desktop` as a store root of its own. A stage
+//! creates files at release paths, or, for a macOS window version, at bundle paths, with the
+//! symbolic links that version lists.
 //!
 //! Creation order: whichever writer comes first creates the root. A missing root is created with a
 //! protected private access rule, so a `desktop` folder written afterwards inherits it; an existing
@@ -134,9 +136,44 @@ impl ReleaseStage<'_> {
 
     /// Creates an exclusive private regular file at a portable relative release path.
     pub(crate) fn create_file(&mut self, relative: &str) -> io::Result<(PathBuf, File)> {
-        if !valid_release_path(relative) {
+        self.create_file_as(PathGrammar::Release, relative)
+    }
+
+    /// Creates an exclusive private regular file at a relative path of `grammar`.
+    pub(crate) fn create_file_as(
+        &mut self,
+        grammar: PathGrammar,
+        relative: &str,
+    ) -> io::Result<(PathBuf, File)> {
+        if !grammar.admits(relative) {
             return Err(io::ErrorKind::InvalidInput.into());
         }
+        self.create_parents(relative)?;
+        let path = self.path.join(relative);
+        let file = permissions::open_file(&path, true, true)?;
+        Ok((path, file))
+    }
+
+    /// Creates a symbolic link at the bundle path `relative` naming `target`, a relative path whose
+    /// parts are bundle path parts or `..`; the caller checked that it stays inside the version.
+    /// Only a macOS window version lists links, so Windows refuses.
+    pub(crate) fn create_link(&mut self, relative: &str, target: &str) -> io::Result<PathBuf> {
+        let relative_target = !target.is_empty()
+            && target
+                .split('/')
+                .all(|part| part == ".." || valid_bundle_path(part));
+        if !valid_bundle_path(relative) || !relative_target {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        self.create_parents(relative)?;
+        let path = self.path.join(relative);
+        platform::create_link(target, &path)?;
+        Ok(path)
+    }
+
+    /// Creates and pins the folders above `relative` in this stage. A folder that exists must be a
+    /// private folder, never a link.
+    fn create_parents(&mut self, relative: &str) -> io::Result<()> {
         let mut parent = self.path.clone();
         let mut parts = relative.split('/').peekable();
         while let Some(part) = parts.next() {
@@ -158,9 +195,7 @@ impl ReleaseStage<'_> {
                 self.pinned_directories.insert(parent.clone());
             }
         }
-        let path = self.path.join(relative);
-        let file = permissions::open_file(&path, true, true)?;
-        Ok((path, file))
+        Ok(())
     }
     /// Makes a program file this stage created executable, where the system asks that of a
     /// program; the cohort's admission checks it.
@@ -295,9 +330,54 @@ pub(crate) fn valid_release_path(value: &str) -> bool {
         })
 }
 
+/// The grammar of a path a store version lists: the portable release grammar, or a macOS
+/// application bundle's.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PathGrammar {
+    Release,
+    /// Only macOS window versions use it.
+    Bundle,
+}
+
+impl PathGrammar {
+    pub(crate) fn admits(self, value: &str) -> bool {
+        match self {
+            Self::Release => valid_release_path(value),
+            Self::Bundle => valid_bundle_path(value),
+        }
+    }
+}
+
+/// A bundle path: the release grammar without its device names, whose parts also admit spaces
+/// and parentheses, since Electron names its helper applications and frameworks so, such as
+/// `Orchbee Helper (GPU).app`. A part never starts or ends with a space and never ends with `.`.
+fn valid_bundle_path(value: &str) -> bool {
+    value.len() <= 240
+        && value.split('/').count() <= 12
+        && value.split('/').all(|part| {
+            !part.is_empty()
+                && part.len() <= 120
+                && part.trim() == part
+                && !part.ends_with('.')
+                && part
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"._ ()-".contains(&byte))
+        })
+}
+
 /// Pins ancestors while opening a private release artifact without following links.
 pub(crate) fn open_release_file(directory: &Path, relative: &str) -> io::Result<File> {
-    if !valid_release_path(relative) {
+    open_listed_file(directory, relative, PathGrammar::Release)
+}
+
+/// Pins ancestors while opening a private listed file at a path of `grammar` without following
+/// links.
+pub(crate) fn open_listed_file(
+    directory: &Path,
+    relative: &str,
+    grammar: PathGrammar,
+) -> io::Result<File> {
+    if !grammar.admits(relative) {
         return Err(io::ErrorKind::InvalidInput.into());
     }
     let path = directory.join(relative);

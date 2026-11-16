@@ -141,7 +141,7 @@ fn offer(fixture: &Fixture, source: &Path) {
 fn update(fixture: &Fixture, channel: Option<UpdateChannel>) -> Report {
     let data = fixture.0.join("data");
     let state = move |name: &str| (name == "ORCHBEE_HOME").then(|| data.clone().into_os_string());
-    let announce = |_: &str, _: u64| panic!("a held version is never downloaded");
+    let announce = |_: engine::Part, _: &str, _: u64| panic!("a held version is never downloaded");
     let inputs = engine::Inputs {
         channel,
         state: &state,

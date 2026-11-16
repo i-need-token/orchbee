@@ -12,8 +12,8 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 pub(super) const FILE_LIMIT: u64 = 512 * 1024 * 1024;
-const TOTAL_LIMIT: u64 = 2 * 1024 * 1024 * 1024;
-const FILE_COUNT_LIMIT: usize = 4096;
+pub(super) const TOTAL_LIMIT: u64 = 2 * 1024 * 1024 * 1024;
+pub(super) const FILE_COUNT_LIMIT: usize = 4096;
 const COMPONENT_LIMIT: usize = 64;
 const CONNECTION_LIMIT: usize = 64;
 /// Paths the installation stores beside the listed files, so no listed file may take them.

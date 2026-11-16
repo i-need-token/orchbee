@@ -23,7 +23,7 @@ pub(crate) fn run(locale: Locale) -> Output {
     let result = update_release(
         None,
         engine::PathPolicy::LauncherIfPresent,
-        &|_, _| {},
+        &|_, _, _| {},
         &mut context,
         &mut report,
     );

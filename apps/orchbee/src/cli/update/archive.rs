@@ -4,12 +4,14 @@
 //! takes a [`Verified`] archive, which only [`Download::fetch`] returns, and only after the check.
 //!
 //! The folder holds `download.lock`, the archive (`archive.zip` on Windows, `archive.tar.gz` on
-//! macOS, the feed's format as its extension) and `unpacked\`. Whoever holds the lock removes
-//! the archive and the unpacked tree when it takes the lock and again when it finishes, so a run
-//! that crashed leaves at most one of each for the next run to remove. The folder and its lock file
-//! stay, like `install.lock`. The lock is always taken before `install.lock`, and `install` never
-//! takes it.
-use super::{Context, Error, Report, acquire::Source, feed::Archive, platform};
+//! macOS, the runtime archive's format as its extension) and `unpacked\`. The window part fetches
+//! its archive, a zip on every platform, under the same name after the runtime part has finished
+//! with the folder: the system tar reads the format from the bytes, not from the name. Whoever
+//! holds the lock removes the archive and the unpacked tree when it takes the lock and again when
+//! it finishes, so a run that crashed leaves at most one of each for the next run to remove. The
+//! folder and its lock file stay, like `install.lock`. The lock is always taken before
+//! `install.lock`, and `install` never takes it.
+use super::{Context, Error, acquire::Source, feed::Archive, platform};
 use orchbee_local_runtime::{CommandFailure, PrivateCache, private_filesystem as permissions};
 use sha2::{Digest, Sha256};
 use std::{
@@ -54,11 +56,16 @@ pub(super) struct Verified {
 
 impl Download {
     /// Takes `download.lock`, creating the folder with the store's private rule, then removes
-    /// whatever an earlier run left. A held lock is another update: `busy`.
+    /// whatever an earlier run left. A held lock is another update: `busy`. When the leftovers stay,
+    /// `pending` names the folder.
     ///
     /// # Errors
     /// `busy`, or `storage` when the folder is refused or its leftovers cannot be removed.
-    pub fn acquire(root: &Path, context: &mut Context, report: &mut Report) -> Result<Self, Error> {
+    pub fn acquire(
+        root: &Path,
+        context: &mut Context,
+        pending: &mut Option<PathBuf>,
+    ) -> Result<Self, Error> {
         context.check()?;
         let folder = root.join(FOLDER);
         let lock = PrivateCache::acquire(&folder, LOCK).map_err(|error| {
@@ -74,7 +81,7 @@ impl Download {
             _lock: lock,
         };
         if let Err(error) = download.clean() {
-            report.cleanup_pending = Some(download.folder.clone());
+            *pending = Some(download.folder.clone());
             return Err(context.storage(&download.folder, &error));
         }
         Ok(download)
@@ -150,11 +157,11 @@ impl Download {
     }
 
     /// Ends the run: removes the archive and the unpacked tree and releases the lock. When a child
-    /// that wrote here may still run, or removal fails, nothing more is removed and
-    /// `cleanupPending` names the folder, unless it already names a stage.
-    pub fn finish(self, report: &mut Report) {
+    /// that wrote here may still run, or removal fails, nothing more is removed and `pending` names
+    /// the folder, unless it already names a stage.
+    pub fn finish(self, pending: &mut Option<PathBuf>) {
         if self.unsettled || self.clean().is_err() {
-            report.cleanup_pending.get_or_insert(self.folder);
+            pending.get_or_insert(self.folder);
         }
     }
 

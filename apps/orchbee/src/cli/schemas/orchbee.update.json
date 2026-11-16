@@ -85,35 +85,48 @@
 					"type": ["string", "null"]
 				},
 				"error": {
-					"enum": [
-						null,
-						"non-release-build",
-						"configuration",
-						"source-unconfigured",
-						"source-invalid",
-						"signing-keys-unavailable",
-						"signature-untrusted",
-						"signature-invalid",
-						"manifest-invalid",
-						"download",
-						"checksum",
-						"storage",
-						"install-location",
-						"busy",
-						"cohort-invalid",
-						"version-conflict",
-						"downgrade-refused",
-						"other-architecture",
-						"smoke-failed",
-						"activation",
-						"activation-unknown",
-						"cancelled",
-						"timeout",
-						"physical-unknown",
-						"internal",
-						"download-unavailable",
-						"no-release"
-					]
+					"$ref": "#/$defs/error"
+				},
+				"desktop": {
+					"description": "The window part, present only when the run had one.",
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"phase",
+						"releasePath",
+						"reused",
+						"activated",
+						"upToDate",
+						"releaseVersion",
+						"cleanupPending",
+						"error"
+					],
+					"properties": {
+						"phase": {
+							"enum": ["manifest", "download", "verify", "publish", "activate", "complete"]
+						},
+						"releasePath": {
+							"type": ["string", "null"]
+						},
+						"reused": {
+							"type": "boolean"
+						},
+						"activated": {
+							"type": "boolean"
+						},
+						"upToDate": {
+							"type": "boolean"
+						},
+						"releaseVersion": {
+							"type": ["string", "null"]
+						},
+						"cleanupPending": {
+							"type": ["string", "null"]
+						},
+						"error": {
+							"$ref": "#/$defs/error"
+						}
+					}
 				},
 				"interrupted": {
 					"type": "boolean"
@@ -196,6 +209,37 @@
 		}
 	},
 	"$defs": {
+		"error": {
+			"enum": [
+				null,
+				"non-release-build",
+				"configuration",
+				"source-unconfigured",
+				"source-invalid",
+				"signing-keys-unavailable",
+				"signature-untrusted",
+				"signature-invalid",
+				"manifest-invalid",
+				"download",
+				"checksum",
+				"storage",
+				"install-location",
+				"busy",
+				"cohort-invalid",
+				"version-conflict",
+				"downgrade-refused",
+				"other-architecture",
+				"smoke-failed",
+				"activation",
+				"activation-unknown",
+				"cancelled",
+				"timeout",
+				"physical-unknown",
+				"internal",
+				"download-unavailable",
+				"no-release"
+			]
+		},
 		"configurationFailure": {
 			"type": "object",
 			"required": ["field", "reason"],

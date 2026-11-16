@@ -11,10 +11,14 @@ use super::{
     manifest::{self, Release},
     path_step,
     signature::{self, Refusal, TrustedKey, TrustedManifest},
+    window,
 };
 use crate::cli::configuration;
 use orchbee_local_runtime::UpdateChannel;
-use std::{ffi::OsString, path::PathBuf};
+use std::{
+    ffi::OsString,
+    path::{Path, PathBuf},
+};
 
 /// Everything one update reads besides the feed itself.
 pub(super) struct Inputs<'a> {
@@ -36,9 +40,18 @@ pub(super) struct Inputs<'a> {
     pub(super) activation: Activation,
     /// Unpacks the verified archive into its private folder.
     pub(super) unpack: Unpack<'a>,
-    /// Told the offered version and the archive's signed size once, just before the archive
-    /// transfer starts; never when the run ends without one.
-    pub(super) announce: &'a dyn Fn(&str, u64),
+    /// Told which part's archive, the offered version and the archive's signed size once, just
+    /// before that archive's transfer starts; never for a part that ends without one.
+    pub(super) announce: &'a dyn Fn(Part, &str, u64),
+}
+
+/// The two parts of an update, each with its own archive.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Part {
+    /// The release directory of the CLI, Server, Worker and Terminal Host.
+    Runtime,
+    /// The window version, after the runtime part.
+    Window,
 }
 
 /// Everything one `install` reads.
@@ -87,11 +100,14 @@ enum Next {
 /// [`PathPolicy::LauncherIfPresent`] the completion runs without the PATH step, after an existing
 /// launcher was refreshed from the published version. Each reached phase is recorded in `report`.
 /// A settings file that cannot be saved or read stops the run with its typed reason in `report`. A
-/// channel switch is the person's choice, so it may move to a lower version.
+/// channel switch is the person's choice, so it may move to a lower version. Once that runtime
+/// part succeeded, the window part runs and records itself in `report.desktop`; its failure is
+/// its own and leaves the runtime part's outcome as it was.
 ///
 /// # Errors
-/// Returns the first refusal or failure; `report` keeps the phase and every committed effect. The
-/// download folder holds only its lock afterwards, unless `cleanupPending` names it.
+/// Returns the runtime part's first refusal or failure; `report` keeps the phase and every
+/// committed effect. The download folder holds only its lock afterwards, unless `cleanupPending`
+/// names it.
 pub(super) fn run(
     inputs: &Inputs<'_>,
     context: &mut Context,
@@ -128,17 +144,37 @@ pub(super) fn run(
         path: matches!(inputs.path, PathPolicy::Step) && complete::PATH_STEP_BUILT,
         allow_downgrade: inputs.channel.is_some(),
     };
-    if matches!(
-        decide(&root, &feed, completion, context, report)?,
-        Next::Done
-    ) {
+    runtime(inputs, &source, &feed, &root, completion, context, report)?;
+    let announce = |version: &str, size: u64| (inputs.announce)(Part::Window, version, size);
+    report.desktop = window::update(
+        &root,
+        &source,
+        &feed.window,
+        inputs.unpack,
+        &announce,
+        context,
+    );
+    Ok(())
+}
+
+/// The runtime part of [`run`] once the feed is admitted.
+fn runtime(
+    inputs: &Inputs<'_>,
+    source: &Source,
+    feed: &Feed,
+    root: &Path,
+    completion: Completion,
+    context: &mut Context,
+    report: &mut Report,
+) -> Result<(), Error> {
+    if matches!(decide(root, feed, completion, context, report)?, Next::Done) {
         return Ok(());
     }
     report.phase = "download";
-    let mut download = Download::acquire(&root, context, report)?;
+    let mut download = Download::acquire(root, context, &mut report.cleanup_pending)?;
     let result = (|| {
         // Another update may have finished while this one read the feed.
-        let next = decide(&root, &feed, completion, context, report)?;
+        let next = decide(root, feed, completion, context, report)?;
         let (directory, mut release, signature) = match next {
             Next::Done => return Ok(()),
             Next::Stored {
@@ -160,7 +196,7 @@ pub(super) fn run(
             }
             Next::Download => {
                 let archive = source.artifact(&feed.archive.url)?;
-                (inputs.announce)(&feed.version, feed.archive.size);
+                (inputs.announce)(Part::Runtime, &feed.version, feed.archive.size);
                 let verified = download.fetch(&archive, &feed.archive, context)?;
                 let unpacked = download.unpack(verified, inputs.unpack, context)?;
                 report.phase = "verify";
@@ -181,7 +217,7 @@ pub(super) fn run(
         let source = Source::release_directory(&directory)?;
         directory_files(&mut release);
         let path = install::publish(
-            &root,
+            root,
             &source,
             &release,
             &signature,
@@ -191,10 +227,10 @@ pub(super) fn run(
         )?;
         report.phase = "activate";
         if matches!(inputs.path, PathPolicy::LauncherIfPresent) {
-            path_step::refresh_launcher(&root, &release.version)?;
+            path_step::refresh_launcher(root, &release.version)?;
         }
         match install::activate(
-            &root,
+            root,
             &path,
             &release,
             inputs.activation,
@@ -209,7 +245,7 @@ pub(super) fn run(
         report.phase = "complete";
         Ok(())
     })();
-    download.finish(report);
+    download.finish(&mut report.cleanup_pending);
     result
 }
 
@@ -219,7 +255,7 @@ pub(super) fn run(
 /// another manifest (`version-conflict`); it is stored but not active; otherwise it must be
 /// downloaded. Nothing is requested or written.
 fn decide(
-    root: &std::path::Path,
+    root: &Path,
     feed: &Feed,
     completion: Completion,
     context: &mut Context,

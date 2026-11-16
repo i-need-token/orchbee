@@ -14,6 +14,11 @@ pub const AUTOMATIC_UPDATE_HELPER: &str = "--automatic-update-v1";
 /// never changes; a changed helper takes a new name.
 pub const CLIENT_FAILURE_HELPER: &str = "--record-client-failure-v1";
 
+/// The one argument with which Setup or install.sh runs the Client bundled in a window directory
+/// to install that window version into the store. Its spelling never changes; a changed helper
+/// takes a new name.
+pub const WINDOW_INSTALLER_HELPER: &str = "--installer-window-v1";
+
 /// The variable through which a launcher announces the relaunch protocol to the Client it starts:
 /// the launcher's own process id in decimal. A Client uses the protocol's statuses only when that
 /// process is its parent, so a value another process inherits does nothing. Its spelling never
@@ -35,4 +40,21 @@ pub const fn automatic_updates_live() -> bool {
         EnvironmentKind::Release => IN_RELEASE_BUILDS,
         EnvironmentKind::Development | EnvironmentKind::Test => true,
     }
+}
+
+/// Whether release builds install window versions, false until the window self-update release
+/// passes its real run. While it is false, a release build's `update` and automatic helper leave
+/// the window store alone, and its Client does not know `--installer-window-v1`.
+const WINDOW_IN_RELEASE_BUILDS: bool = false;
+
+/// Whether this build installs window versions: only where [`automatic_updates_live`] holds, and
+/// in a release build only once `WINDOW_IN_RELEASE_BUILDS` is set. Test builds always do, and
+/// development builds answer true as that switch does, since the window part keeps its own
+/// development rule. It is a constant expression, so a caller may decide at compile time.
+pub const fn window_updates_live() -> bool {
+    automatic_updates_live()
+        && match environment_kind() {
+            EnvironmentKind::Release => WINDOW_IN_RELEASE_BUILDS,
+            EnvironmentKind::Development | EnvironmentKind::Test => true,
+        }
 }

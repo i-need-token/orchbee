@@ -1485,6 +1485,15 @@ builds turn it on. The npm launcher, plain JavaScript that cannot read it, keeps
 half as its own constant, `automaticUpdatesInReleaseBuilds` in
 `apps/orchbee/npm/orchbee/lib/launcher.mjs`; the change that sets `IN_RELEASE_BUILDS` sets both.
 
+`window_updates_live()` is the second switch, for the
+[window self-update](../../proposals/platform/automatic-updates.md#how-the-window-updates): it holds
+only where `automatic_updates_live()` holds, and in a release build only once the private
+`WINDOW_IN_RELEASE_BUILDS` constant is set, false until the window self-update release passes its
+real run. While it does not hold, `update` and the automatic helper leave the store's `desktop`
+folder alone, and a Client does not know `WINDOW_INSTALLER_HELPER`, `--installer-window-v1`, the
+word with which Setup or install.sh runs the Client bundled in a window directory to install that
+window version; its spelling never changes.
+
 `AUTOMATIC_UPDATE_HELPER` is `--automatic-update-v1`, the one argument with which a Session Server
 runs the store's active Client for an automatic update and by which that Client recognizes the
 [automatic helper](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation).

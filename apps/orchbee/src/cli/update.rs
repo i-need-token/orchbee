@@ -1,9 +1,10 @@
 //! Native release installation: `install` from the signed release directory the running Client
-//! sits in, cohort updates on Windows and macOS, save-then-update channel changes on Windows, the
-//! automatic helper the Session Server runs, the completion helper a published copy runs, and the
-//! Client-failure helper a launcher runs; none starts a Session. This entry
-//! layer owns the build checks and reads the release environment; the engine below it receives
-//! every location, key and command as a value.
+//! sits in, cohort updates on Windows and macOS with their window part, save-then-update channel
+//! changes on Windows, the automatic helper the Session Server runs, the completion helper a
+//! published copy runs, the Client-failure helper a launcher runs, and the window installer helper
+//! Setup and install.sh run; none starts a Session. This entry layer owns the build checks and
+//! reads the release environment; the engine below it receives every location, key and command as
+//! a value.
 use crate::cli_text::CliText;
 mod acquire;
 mod archive;
@@ -29,6 +30,8 @@ mod running_programs;
 mod signature;
 mod source_path;
 mod uninstall;
+mod window;
+mod window_files;
 use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish},
@@ -39,6 +42,7 @@ pub(crate) use automatic::run as automatic_update;
 pub(crate) use client_failure::run as record_client_failure;
 pub(crate) use complete::run as complete_install;
 pub(in crate::cli) use installed::{VerifiedRelease, observe as observe_installation};
+pub(crate) use window::installer as installer_window;
 
 /// The `client-server` generations the active release's manifest lists for its `client`
 /// component, for the TUI's join check before an Update switch.
@@ -299,6 +303,8 @@ struct Report {
     up_to_date: bool,
     /// Why the settings file could not be saved or read, once that stopped the run.
     configuration_failure: Option<super::configuration::Error>,
+    /// The window part, when the run had one.
+    desktop: Option<window::WindowReport>,
 }
 impl Report {
     fn new() -> Self {
@@ -316,6 +322,7 @@ impl Report {
             active_before: None,
             up_to_date: false,
             configuration_failure: None,
+            desktop: None,
         }
     }
     /// Records why the settings file stopped the run and returns the run's error.
@@ -332,7 +339,7 @@ fn document(
     error: Option<Error>,
     interrupted: bool,
 ) -> serde_json::Value {
-    json!({
+    let mut document = json!({
         "schema":"orchbee.update", "version":1, "source":{"kind":"local-installation"},
         "result":{
             "operation": if channel.is_some() {"channel-set"} else {"update"},
@@ -346,7 +353,11 @@ fn document(
                 .filter(|_| matches!(error, Some(Error::Configuration)))
                 .map(super::configuration::Error::details),
         }
-    })
+    });
+    if let Some(window) = &report.desktop {
+        document["result"]["desktop"] = window.document();
+    }
+    document
 }
 
 /// What `install` did to the user `Path` or, on macOS and Linux, the command link, or why it did
@@ -459,8 +470,27 @@ fn start(
 }
 
 /// Settles the console interrupt and derives the exit status: interruption first, then the
-/// error, then a stage left for recovery.
+/// error, then the window part's error, then a stage or folder left for recovery by either part.
 fn settle(context: Context, report: &Report, result: Result<(), Error>) -> Settled {
+    let window = report.desktop.as_ref();
+    let pending = report.cleanup_pending.is_some()
+        || window.is_some_and(|window| window.cleanup_pending.is_some());
+    settle_with(
+        context,
+        window.and_then(|window| window.error),
+        pending,
+        result,
+    )
+}
+
+/// [`settle`] from the facts alone: `later` is an error that did not end the run but sets its
+/// status, and `pending` whether something was left for recovery.
+fn settle_with(
+    context: Context,
+    later: Option<Error>,
+    pending: bool,
+    result: Result<(), Error>,
+) -> Settled {
     let mut finalization = None;
     let mut error = result.err();
     let interrupted = match context.signals.finish() {
@@ -477,7 +507,7 @@ fn settle(context: Context, report: &Report, result: Result<(), Error>) -> Settl
     let status = if interrupted {
         130
     } else {
-        error.map_or(u8::from(report.cleanup_pending.is_some()), Error::status)
+        error.or(later).map_or(u8::from(pending), Error::status)
     };
     Settled {
         status,
@@ -517,8 +547,12 @@ pub(crate) fn run(
     };
     context.deadline = Instant::now() + Duration::from_millis(u64::from(timeout_ms));
     let mut report = Report::new();
-    let announce = |version: &str, size: u64| {
-        say(&CliText::new(locale).cli_update_downloading(version, size));
+    let announce = |part: engine::Part, version: &str, size: u64| {
+        let text = CliText::new(locale);
+        say(&match part {
+            engine::Part::Runtime => text.cli_update_downloading(version, size),
+            engine::Part::Window => text.cli_update_downloading_window(version, size),
+        });
     };
     let result = update_release(
         channel,
@@ -584,7 +618,15 @@ pub(crate) fn run(
                 text.push_str(&line);
                 text.push('\n');
             }
-            if let Some(path) = &report.cleanup_pending {
+            if let Some(window) = &report.desktop {
+                text.push_str(&window_line(window, CliText::new(locale)));
+                text.push('\n');
+            }
+            let window_pending = report
+                .desktop
+                .as_ref()
+                .and_then(|window| window.cleanup_pending.as_ref());
+            for path in report.cleanup_pending.iter().chain(window_pending) {
                 text.push_str(CliText::new(locale).cli_update_message("cleanup-pending"));
                 text.push_str(&crate::native_path::display(&path.to_string_lossy()));
                 text.push('\n');
@@ -595,13 +637,35 @@ pub(crate) fn run(
     answer(encoded, String::new(), settled, format, locale)
 }
 
+/// The one text line of a window part: the version it made active, the version that stays active,
+/// or why it failed.
+fn window_line(window: &window::WindowReport, text: CliText) -> String {
+    match window.error {
+        Some(error) => format!(
+            "{}{}",
+            text.cli_update_message("window-failed"),
+            text.cli_update_message(error.message())
+        ),
+        None if window.up_to_date => format!(
+            "{}{}",
+            text.cli_update_message("window-up-to-date"),
+            window.active_before.as_deref().unwrap_or_default()
+        ),
+        None => format!(
+            "{}{}",
+            text.cli_update_message("window-updated-to"),
+            window.version.as_deref().unwrap_or_default()
+        ),
+    }
+}
+
 /// One update of the selected channel, after saving `channel` when given, through the feed, keys,
 /// store root and commands of this build's release environment; `path` says what it does to the
-/// user `Path` and the launcher, and `announce` hears the download line.
+/// user `Path` and the launcher, and `announce` hears each part's download line.
 fn update_release(
     channel: Option<UpdateChannel>,
     path: engine::PathPolicy,
-    announce: &dyn Fn(&str, u64),
+    announce: &dyn Fn(engine::Part, &str, u64),
     context: &mut Context,
     report: &mut Report,
 ) -> Result<(), Error> {

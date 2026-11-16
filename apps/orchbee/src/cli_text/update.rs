@@ -10,6 +10,9 @@ impl super::CliText {
                 "运行中的终端和智能体保持原版本；重新打开 Orchbee 即可使用新版本。",
             ),
             "up-to-date" => ("Up to date: ", "已是最新版本："),
+            "window-updated-to" => ("Window updated to ", "窗口程序已更新到 "),
+            "window-up-to-date" => ("Window up to date: ", "窗口程序已是最新版本："),
+            "window-failed" => ("Window not updated: ", "窗口程序未更新："),
             "channel-saved" => (
                 "Channel preference saved. It remains saved if the update fails.",
                 "频道偏好已保存；更新失败时也会保留该偏好。",
@@ -222,6 +225,15 @@ impl super::CliText {
         match self.locale {
             Locale::EnUs => format!("Downloading Orchbee {version} ({megabytes} MB)…\n"),
             Locale::ZhCn => format!("正在下载 Orchbee {version}（{megabytes} MB）…\n"),
+        }
+    }
+
+    /// The line before the window archive's transfer: the offered window version and its size.
+    pub(crate) fn cli_update_downloading_window(self, version: &str, bytes: u64) -> String {
+        let megabytes = (bytes.saturating_add(500_000) / 1_000_000).max(1);
+        match self.locale {
+            Locale::EnUs => format!("Downloading the Orchbee window {version} ({megabytes} MB)…\n"),
+            Locale::ZhCn => format!("正在下载 Orchbee 窗口程序 {version}（{megabytes} MB）…\n"),
         }
     }
 

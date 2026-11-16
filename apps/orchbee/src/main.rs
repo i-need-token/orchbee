@@ -74,7 +74,8 @@ const _: fn(localization::Locale, bool) -> Result<(), tui_shell::TuiFailure> = t
 
 /// Whether a request reads or writes the data root, so its layout must be admitted first. Help,
 /// the version, the skill text, completion, schemas, the default settings template, the release
-/// store's install and completion, and the Client-failure helper read no file in it.
+/// store's install and completion, the window installer, and the Client-failure helper read no
+/// file in it.
 fn opens_data_root(request: &invocation::Request) -> bool {
     !matches!(
         request,
@@ -88,6 +89,7 @@ fn opens_data_root(request: &invocation::Request) -> bool {
             | invocation::Request::SchemaExport { .. }
             | invocation::Request::Install { .. }
             | invocation::Request::CompleteInstall { .. }
+            | invocation::Request::InstallerWindow
             | invocation::Request::RecordClientFailure { .. }
     )
 }
@@ -244,6 +246,7 @@ fn main() -> ExitCode {
                 allow_downgrade,
             }) => cli::update::complete_install(no_path, allow_downgrade, locale),
             Ok(invocation::Request::AutomaticUpdate) => cli::update::automatic_update(locale),
+            Ok(invocation::Request::InstallerWindow) => cli::update::installer_window(locale),
             Ok(invocation::Request::RecordClientFailure { version }) => {
                 cli::update::record_client_failure(&version)
             }

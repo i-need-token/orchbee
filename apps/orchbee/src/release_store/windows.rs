@@ -105,6 +105,11 @@ pub(super) fn remove_directory(path: &Path) -> io::Result<()> {
     fs::remove_dir_all(path)
 }
 
+/// No Windows store version lists a link.
+pub(super) fn create_link(_target: &str, _path: &Path) -> io::Result<()> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
 /// Nothing to mark: Windows runs any program file a person may read.
 pub(super) fn mark_executable(_file: &File) -> io::Result<()> {
     Ok(())

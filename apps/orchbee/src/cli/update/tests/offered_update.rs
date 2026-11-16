@@ -42,22 +42,27 @@ use std::{
 /// The archive's name beside the feed.
 const ARCHIVE: &str = "release.zip";
 
-struct Run {
+pub(super) struct Run {
     result: Result<(), Error>,
     report: Report,
-    rendered: Value,
+    pub(super) rendered: Value,
     /// Each version and size announced before an archive transfer.
-    announced: Vec<(String, u64)>,
+    pub(super) announced: Vec<(String, u64)>,
 }
 
 impl Run {
-    fn code(&self) -> &'static str {
+    pub(super) fn code(&self) -> &'static str {
         self.result.err().map_or("complete", Error::code)
     }
 }
 
 /// A signed release directory `name` of `version` under the fixture, and its manifest bytes.
-fn release(fixture: &Fixture, name: &str, version: &str, build: &str) -> (PathBuf, Vec<u8>) {
+pub(super) fn release(
+    fixture: &Fixture,
+    name: &str,
+    version: &str,
+    build: &str,
+) -> (PathBuf, Vec<u8>) {
     let source = fixture.0.join(name);
     stage_cohort(&source, version);
     let bytes = manifest(&source, |value| {
@@ -70,7 +75,7 @@ fn release(fixture: &Fixture, name: &str, version: &str, build: &str) -> (PathBu
 
 /// Signs and writes the fixture's feed offering `version` with `manifest` in an archive of the
 /// bytes `archive`, with `change` applied; the archive file itself is the caller's to write.
-fn offer(
+pub(super) fn offer(
     fixture: &Fixture,
     version: &str,
     manifest: &[u8],
@@ -94,17 +99,18 @@ fn offer(
 }
 
 /// Places `bytes` as the archive beside the feed.
-fn serve(fixture: &Fixture, bytes: &[u8]) {
+pub(super) fn serve(fixture: &Fixture, bytes: &[u8]) {
     fs::write(fixture.0.join("feed").join(ARCHIVE), bytes).unwrap();
 }
 
 /// One update from the fixture's feed, unpacking with `unpack`.
-fn update(fixture: &Fixture, channel: Option<UpdateChannel>, unpack: Unpack<'_>) -> Run {
+pub(super) fn update(fixture: &Fixture, channel: Option<UpdateChannel>, unpack: Unpack<'_>) -> Run {
     let data = fixture.0.join("data");
     let state = move |name: &str| (name == "ORCHBEE_HOME").then(|| data.clone().into_os_string());
     let announced = std::cell::RefCell::new(Vec::new());
-    let announce =
-        |version: &str, size: u64| announced.borrow_mut().push((version.to_owned(), size));
+    let announce = |_: engine::Part, version: &str, size: u64| {
+        announced.borrow_mut().push((version.to_owned(), size));
+    };
     let inputs = engine::Inputs {
         channel,
         state: &state,
@@ -146,7 +152,7 @@ fn update(fixture: &Fixture, channel: Option<UpdateChannel>, unpack: Unpack<'_>)
 }
 
 /// One `install` of the signed release directory `source` into the fixture's store.
-fn install(fixture: &Fixture, source: &Path, allow_downgrade: bool) {
+pub(super) fn install(fixture: &Fixture, source: &Path, allow_downgrade: bool) {
     let inputs = engine::InstallInputs {
         directory: Ok(source.to_path_buf()),
         keys: TEST_TABLE,
@@ -635,7 +641,7 @@ fn automatic(fixture: &Fixture, unpack: Unpack<'_>) -> Automatic {
         probe: print_probe,
         activation: recording_completion,
         unpack,
-        announce: &|_, _| {},
+        announce: &|_, _, _| {},
     };
     PATH_STEP.set(None);
     let mut context = context();

@@ -19,6 +19,8 @@ mod retention;
 mod signature_admission;
 #[cfg(not(windows))]
 mod unix_install;
+#[cfg(any(windows, target_os = "macos"))]
+mod window_update;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use ed25519_dalek::{Signer, SigningKey};

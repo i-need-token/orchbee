@@ -889,6 +889,10 @@ pub(crate) enum Request {
     RecordClientFailure {
         version: String,
     },
+    /// The window installer helper Setup and install.sh run through the Client bundled in a window
+    /// directory: installs that window version into the store and prints only its JSON document;
+    /// hidden from help, completion and the Agent guide.
+    InstallerWindow,
     /// `uninstall`: removes the installed release, its PATH entry, installer entries and Agent
     /// integrations; data stays unless `delete_data`.
     Uninstall {

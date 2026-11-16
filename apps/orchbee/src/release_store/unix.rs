@@ -103,6 +103,11 @@ pub(super) fn directories(folder: &Path) -> io::Result<Vec<String>> {
     Ok(names)
 }
 
+/// Creates the symbolic link `path` naming `target`, never replacing anything at `path`.
+pub(super) fn create_link(target: &str, path: &Path) -> io::Result<()> {
+    std::os::unix::fs::symlink(target, path)
+}
+
 /// Deletes a directory tree without following a link inside it.
 pub(super) fn remove_directory(path: &Path) -> io::Result<()> {
     fs::remove_dir_all(path)

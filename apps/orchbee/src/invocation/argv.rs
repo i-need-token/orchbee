@@ -58,7 +58,25 @@ pub(crate) fn parse_selected_request(
             session: None,
         });
     }
+    if let Some(request) = installer_window(&tokens) {
+        // Setup and install.sh read its answer, so a refusal before the install is a JSON document.
+        return Ok(SelectedRequest {
+            availability: super::grammar::Availability::WindowsAndMacos,
+            format: Some(OutputFormat::Json),
+            request,
+            session: None,
+        });
+    }
     machine_routing::parse(tokens)
+}
+
+/// The window installer helper `--installer-window-v1`, alone. A build that does not install
+/// window versions does not know it, so there it reaches the grammar as an unknown option. This
+/// helper grammar is permanent; a change adds a new helper name.
+fn installer_window(tokens: &[String]) -> Option<super::Request> {
+    let helper = orchbee_local_runtime::WINDOW_INSTALLER_HELPER;
+    (orchbee_local_runtime::window_updates_live() && matches!(tokens, [only] if only == helper))
+        .then_some(super::Request::InstallerWindow)
 }
 
 /// The automatic helper `--automatic-update-v1`, alone. A build that does not run automatic

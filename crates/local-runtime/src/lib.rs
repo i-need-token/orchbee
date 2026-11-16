@@ -45,7 +45,7 @@ pub use release_store::{
 mod automatic_updates;
 pub use automatic_updates::{
     AUTOMATIC_UPDATE_HELPER, CLIENT_FAILURE_HELPER, RELAUNCH_PROTOCOL_VARIABLE,
-    automatic_updates_live,
+    WINDOW_INSTALLER_HELPER, automatic_updates_live, window_updates_live,
 };
 mod user_path;
 pub use user_path::{
