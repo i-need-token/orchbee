@@ -32,6 +32,20 @@ const RUNTIME_FILES: &[&str] = &[
 /// The records the Terminal Host may leave in its `host` folder: its fatal record and its log of
 /// survived faults (`apps/terminal-host/docs/runtime-model.md`).
 const HOST_FILES: &[&str] = &["host-fatal.json", "host-diagnostics.jsonl"];
+
+/// The files a runtime folder's `host` folder may hold: [`HOST_FILES`], and on POSIX the lock file
+/// a Terminal Host holds for its whole life and leaves behind when it exits.
+fn host_files(runtime: &Path) -> Vec<String> {
+    let records = HOST_FILES.iter().map(|name| (*name).to_owned());
+    #[cfg(unix)]
+    let lock = Some(format!("{}.l", Rendezvous::host_endpoint_id(runtime)));
+    #[cfg(windows)]
+    let lock = {
+        let _no_lock_file_on_windows = runtime;
+        None
+    };
+    records.chain(lock).collect()
+}
 /// The files a Session folder holds beside its catalog record, its corrupt checkpoint originals
 /// and its owned folders.
 const SESSION_FILES: &[&str] = &[
@@ -985,10 +999,14 @@ impl OwnedDirectory {
                 }
                 Kind::Runtime if name == "host" => {
                     let _pins = permissions::open_tree(&entry.path())?;
+                    let files = host_files(path);
                     for owned in fs::read_dir(entry.path())? {
                         let owned = owned?;
                         let leaf = owned.file_name();
-                        if !leaf.to_str().is_some_and(|name| HOST_FILES.contains(&name)) {
+                        if !leaf
+                            .to_str()
+                            .is_some_and(|name| files.iter().any(|file| file == name))
+                        {
                             return Err(io::ErrorKind::InvalidData.into());
                         }
                         permissions::open_file(&owned.path(), false, false)?;
@@ -1076,7 +1094,7 @@ impl OwnedDirectory {
         let path = self.path.join("host");
         match permissions::open_tree(&path) {
             Ok(pins) => {
-                for name in HOST_FILES {
+                for name in host_files(&self.path) {
                     check()?;
                     let file = path.join(name);
                     match permissions::open_file(&file, false, false) {

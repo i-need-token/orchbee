@@ -100,3 +100,60 @@ fn stale_sockets_never_block_recovery_and_a_held_host_lock_does() {
         fs::remove_file(path).unwrap();
     }
 }
+
+/// A Terminal Host leaves its lock file in `host` when it exits. Deleting a stopped Session
+/// removes that file, and refuses while a Host still holds its lock.
+#[test]
+fn deletion_removes_an_exited_host_lock_and_refuses_a_held_one() {
+    use crate::{NamedSessionDeleteOutcome as Outcome, NamedSessionDeleteReason as Reason};
+    let fixture = Fixture::new();
+    let root = fixture.root();
+    let catalog = Catalog::try_lock(&fixture.0, &root).unwrap();
+    let name = SessionName::parse("work").unwrap();
+    catalog.prepare_activation(&name).unwrap();
+    let session = fixture.open(name.as_str());
+    {
+        let LockAttempt::Acquired(_activation) = session.try_acquire_activation_lock().unwrap()
+        else {
+            panic!("activation");
+        };
+        catalog.begin_activation(&session, [1; 16]).unwrap();
+        session.commit_activation().unwrap();
+        Retained::retain(&root, &session)
+            .unwrap()
+            .complete([9; 16])
+            .unwrap();
+        session
+            .retain_active_record()
+            .unwrap()
+            .complete([9; 16])
+            .unwrap();
+    }
+    let runtime = session.runtime_directory().to_path_buf();
+    drop(session);
+    let host = runtime.join(crate::HOST_SCOPE_NAME);
+    fs::create_dir(&host).unwrap();
+    fs::set_permissions(&host, fs::Permissions::from_mode(0o700)).unwrap();
+    let held = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(host.join(format!("{}.l", Rendezvous::host_endpoint_id(&runtime))))
+        .unwrap();
+    held.try_lock().unwrap();
+    let deadline = || Instant::now() + Duration::from_secs(5);
+    assert_eq!(
+        catalog
+            .delete(&name, deadline(), || Ok(false))
+            .unwrap_err()
+            .reason,
+        Reason::InUse
+    );
+    drop(held);
+    assert_eq!(
+        catalog.delete(&name, deadline(), || Ok(false)),
+        Ok(Outcome::Deleted)
+    );
+    assert!(!runtime.exists());
+}
