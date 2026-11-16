@@ -1,4 +1,4 @@
-//! The Windows holder thread and its request threads. A request thread holds the owner only for
+//! The holder thread and its request threads. A request thread holds the owner only for
 //! its request, and never the shared lock while it waits.
 use super::{Ask, Hub, Reach, Reported, Settled, Shared, State, Stop};
 use crate::{

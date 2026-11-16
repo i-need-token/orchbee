@@ -4,16 +4,13 @@
 //! answer itself never takes this way; it reaches the helper over the question's own endpoint or
 //! from the credential store. `docs/machines.md#askpass-helper` owns the rules.
 
-#[cfg(windows)]
 mod helper;
-#[cfg(windows)]
 mod pairing;
 pub(crate) use orchbee_workbench_client::application::machine_question as question;
 
-#[cfg(windows)]
 pub(crate) use pairing::{
-    Asked, Pairing, RAISE_HEADER_BYTES, RECALL_BYTES, REMEMBERED, Raise, TAKEN, TICKET_BYTES,
-    UNREMEMBERED, VARIABLE, hex, recall, recalled, unhex,
+    ANSWER_ROLE, ASKPASS_ROLE, Asked, Pairing, RAISE_HEADER_BYTES, RECALL_BYTES, REMEMBERED, Raise,
+    TAKEN, TICKET_BYTES, UNREMEMBERED, VARIABLE, hex, recall, recalled, unhex,
 };
 
 use std::ffi::OsString;
@@ -37,7 +34,6 @@ enum Start {
 /// Runs the askpass helper when the variable is set, whatever the arguments are, so text `ssh`
 /// passes never reaches the command-line parser. `None` lets every other start parse its command
 /// line: one without the variable, and a non-release stand-in's far end.
-#[cfg(windows)]
 pub(crate) fn run_if_selected() -> Option<std::process::ExitCode> {
     let pairing = std::env::var_os(VARIABLE)?;
     let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();

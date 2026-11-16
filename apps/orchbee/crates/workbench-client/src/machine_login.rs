@@ -38,10 +38,6 @@ pub struct Token {
 
 /// What the hub and the delivery report about the episodes this client claimed.
 #[derive(Debug)]
-#[cfg_attr(
-    not(any(windows, test)),
-    expect(dead_code, reason = "only the Windows holder reaches a hub")
-)]
 pub(crate) enum Notice {
     /// The hub offers command episode `login` of `machine` to every client that asks, with
     /// `waiters` commands waiting on it; again when it counts them again.
@@ -75,10 +71,6 @@ pub(crate) enum Notice {
 
 /// How a delivery ended.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg_attr(
-    not(any(windows, test)),
-    expect(dead_code, reason = "only the Windows holder reaches a hub")
-)]
 pub(crate) enum Delivery {
     Taken,
     /// The answer held a character `ssh` cannot take; nothing was sent.

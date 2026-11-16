@@ -212,7 +212,7 @@ const fn install_ssh_en() -> &'static str {
     if cfg!(windows) {
         "Install OpenSSH Client in Settings > System > Optional features."
     } else if cfg!(target_os = "macos") {
-        "macOS includes OpenSSH; check that `ssh` is on PATH."
+        "macOS includes OpenSSH; Orchbee runs /usr/bin/ssh, so check that it is there."
     } else {
         "Install the openssh-client package with your package manager."
     }
@@ -222,7 +222,7 @@ const fn install_ssh_zh() -> &'static str {
     if cfg!(windows) {
         "在「设置 > 系统 > 可选功能」中安装 OpenSSH 客户端。"
     } else if cfg!(target_os = "macos") {
-        "macOS 自带 OpenSSH，请确认 PATH 上有 `ssh`。"
+        "macOS 自带 OpenSSH；Orchbee 运行 /usr/bin/ssh，请确认它存在。"
     } else {
         "用系统的包管理器安装 openssh-client。"
     }

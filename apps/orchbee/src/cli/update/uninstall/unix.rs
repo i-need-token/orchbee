@@ -1,11 +1,13 @@
 //! macOS and Linux effects of uninstall outside the two roots: the command link install's PATH step
 //! placed, `~/.local/bin/<stem>`, removed only while it names a version of this store; the
-//! processes running from the store, through the shared process scan; and the npm carrier. No
-//! installer leaves files, entries or a registration here, and no machine hub runs. A running
-//! program's files can be deleted here, so the removal never waits for this process to exit.
+//! processes running from the store, through the shared process scan; the npm carrier; and the
+//! machine hub, through its client's ending path. No installer leaves files, entries or a
+//! registration here. A running program's files can be deleted here, so the removal never waits
+//! for this process to exit.
 use super::super::path_step;
 pub(super) use super::super::running_programs::{StoreProcess, ancestors, inside, same};
 use orchbee_local_runtime::DataRoot;
+use orchbee_workbench_client::application::machine_hub;
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -118,13 +120,15 @@ pub(super) fn remove_registration(_locations: &Locations) -> io::Result<()> {
     Ok(())
 }
 
-/// No machine hub runs here.
-pub(super) fn machine_hub(_data: &DataRoot, _deadline: Instant) -> Option<u32> {
-    None
+/// The process id of the machine hub serving `data`; none when none runs or none answers.
+pub(super) fn machine_hub(data: &DataRoot, deadline: Instant) -> Option<u32> {
+    machine_hub::running(data, deadline).ok().flatten()
 }
 
-pub(super) fn end_machine_hub(_data: &DataRoot, _deadline: Instant) -> bool {
-    false
+/// Ends the machine hub serving `data` through the hub client's one ending path; whether a hub
+/// ended.
+pub(super) fn end_machine_hub(data: &DataRoot, deadline: Instant) -> bool {
+    matches!(machine_hub::end(data, deadline), Ok(Some(_)))
 }
 
 /// The processes whose program file is inside `root`, other than this one, those in `except` and

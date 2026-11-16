@@ -6,20 +6,17 @@ use super::Locale;
 
 /// What a login question `machine connect` puts on the console asks; every interface words it
 /// from the same sentences.
-#[cfg(windows)]
 pub(crate) use crate::localization::MachineQuestion;
-#[cfg(windows)]
 use orchbee_workbench_client::application::machine_question::shown_lines;
-#[cfg(all(test, windows))]
+#[cfg(test)]
 use orchbee_workbench_client::application::machine_question::{
     PROMPT_LINE_CHARACTERS, PROMPT_LINES,
 };
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests;
 
 /// What `machine connect` says about a remembered answer.
-#[cfg(windows)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RememberedLine {
     /// `ssh` refused the remembered answer, which is deleted.
@@ -35,7 +32,6 @@ impl super::CliText {
     /// whose `ssh` target is `target`: each line of `ssh`'s own `prompt`, escaped and bounded, then
     /// one line of Orchbee's wording for the kind; `repeated` says `ssh` refused the previous
     /// answer of this kind.
-    #[cfg(windows)]
     pub(crate) fn cli_machine_question(
         self,
         target: &str,
@@ -58,7 +54,6 @@ impl super::CliText {
 
     /// The line `machine connect` writes about a remembered answer: `ssh` refused the one the
     /// store held, which is deleted, or `--remember` cannot be honored here and why.
-    #[cfg(windows)]
     pub(crate) fn cli_machine_remembered(self, line: RememberedLine) -> &'static str {
         match (self.locale, line) {
             (Locale::EnUs, RememberedLine::Rejected) => "The saved password no longer works.\n",
@@ -79,7 +74,6 @@ impl super::CliText {
     /// The line `machine connect` writes when an answer was not delivered: `again` when the answer
     /// held a character `ssh` cannot take and the question is asked again; otherwise its endpoint
     /// was gone or refused it and the login stops.
-    #[cfg(windows)]
     pub(crate) fn cli_machine_answer_undelivered(self, again: bool) -> String {
         format!("{}\n", self.locale.machine_answer_undelivered(again))
     }
@@ -266,10 +260,14 @@ impl super::CliText {
             (Locale::ZhCn, "capacity") => "机器目录已达到 64 台机器的容量上限。",
             (Locale::EnUs, "revision-exhausted") => "The machine catalog revision cannot advance.",
             (Locale::ZhCn, "revision-exhausted") => "机器目录修订号无法继续增加。",
-            (Locale::EnUs, "ssh-unavailable") => {
+            (Locale::EnUs, "ssh-unavailable") if cfg!(windows) => {
                 "Windows OpenSSH Client is unavailable in the system directory."
             }
-            (Locale::ZhCn, "ssh-unavailable") => "系统目录中的 Windows OpenSSH 客户端不可用。",
+            (Locale::ZhCn, "ssh-unavailable") if cfg!(windows) => {
+                "系统目录中的 Windows OpenSSH 客户端不可用。"
+            }
+            (Locale::EnUs, "ssh-unavailable") => "OpenSSH Client is unavailable at /usr/bin/ssh.",
+            (Locale::ZhCn, "ssh-unavailable") => "/usr/bin/ssh 处的 OpenSSH 客户端不可用。",
             (Locale::EnUs, "ssh-failed") => {
                 "SSH preparation failed. Check OpenSSH batch authentication, host trust, and the installed remote orchbee.exe."
             }
@@ -378,7 +376,6 @@ impl super::CliText {
     }
 
     /// The machine hub state printer's failure line.
-    #[cfg(windows)]
     pub(crate) fn cli_machine_hub_failure(
         self,
         failure: &crate::cli::machines::hub::StateFailure,
@@ -404,7 +401,6 @@ impl super::CliText {
         }
     }
 
-    #[cfg(windows)]
     fn cli_machine_hub_fixed_failure(
         self,
         locale: Locale,
@@ -412,11 +408,17 @@ impl super::CliText {
     ) -> &'static str {
         use crate::cli::machines::hub::StateFailure as F;
         match (locale, failure) {
-            (Locale::EnUs, F::DataRoot) => {
+            (Locale::EnUs, F::DataRoot) if cfg!(windows) => {
                 "The Orchbee data folder is unavailable; check USERPROFILE or ORCHBEE_HOME."
             }
-            (Locale::ZhCn, F::DataRoot) => {
+            (Locale::ZhCn, F::DataRoot) if cfg!(windows) => {
                 "Orchbee 数据文件夹不可用；请检查 USERPROFILE 或 ORCHBEE_HOME。"
+            }
+            (Locale::EnUs, F::DataRoot) => {
+                "The Orchbee data folder is unavailable; check HOME or ORCHBEE_HOME."
+            }
+            (Locale::ZhCn, F::DataRoot) => {
+                "Orchbee 数据文件夹不可用；请检查 HOME 或 ORCHBEE_HOME。"
             }
             (Locale::EnUs, F::Unavailable) => "The machine hub could not be reached or started.",
             (Locale::ZhCn, F::Unavailable) => "无法连接或启动连接进程。",
@@ -439,7 +441,6 @@ impl super::CliText {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_machine_hub_held(self) -> &'static str {
         match self.locale {
             Locale::EnUs => "held",
@@ -447,7 +448,6 @@ impl super::CliText {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_machine_hub_expiring(self, seconds: u64) -> String {
         match self.locale {
             Locale::EnUs => format!("expiring, closes in {seconds} s"),
@@ -456,7 +456,6 @@ impl super::CliText {
     }
 
     /// An `expiring` hub past its `expiresAt`, which closes once no routed command runs.
-    #[cfg(windows)]
     pub(crate) fn cli_machine_hub_overdue(self) -> &'static str {
         match self.locale {
             Locale::EnUs => "expired, closes once no remote command runs",
@@ -464,7 +463,6 @@ impl super::CliText {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_machine_hub_closing(self) -> &'static str {
         match self.locale {
             Locale::EnUs => "closing",
@@ -473,7 +471,6 @@ impl super::CliText {
     }
 
     /// The printer's heading lines: the hub's state, its process id, and the catalog revision.
-    #[cfg(windows)]
     pub(crate) fn cli_machine_hub_summary(self, state: &str, pid: u32, revision: u64) -> String {
         match self.locale {
             Locale::EnUs => format!(
@@ -492,7 +489,6 @@ Catalog revision: {revision}
     }
 
     /// A Machine's state as the hub reports it; `None` when none arrived.
-    #[cfg(windows)]
     pub(crate) fn cli_machine_hub_machine_state(
         self,
         state: Option<&orchbee_machine_protocol::hub::MachineState>,

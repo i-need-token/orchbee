@@ -156,9 +156,7 @@ pub fn notification_available(
     let Some(native) = workbench_client else {
         return false;
     };
-    let client_claims = ClientCaptureClaims::default();
-    #[cfg(windows)]
-    let client_claims = client_claims.with_machine(view.machines.captures());
+    let client_claims = ClientCaptureClaims::default().with_machine(view.machines.captures());
     project_capture(client_claims, native.capture_claims()).is_none()
         && !view.prefix_active()
         && view.overlay().is_none()

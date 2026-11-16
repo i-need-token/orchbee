@@ -18,10 +18,12 @@ use orchbee_connection_handshake::{
     DrainResult, ExitResult, Extensions, ProcessRole, ProcessState, ReadError, RejectionReason,
     RequestKind, read_initiator_message,
 };
-use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_local_runtime::{DataRoot, create_private_directory, machine_hub_endpoint};
 use orchbee_machine_protocol::ByeReason;
-use orchbee_workbench_client::application::machine_hub;
+use orchbee_workbench_client::application::{
+    machine_endpoint::{LocalListener, LocalStream, bind_locked, hold_folder},
+    machine_hub,
+};
 use std::{
     fs::{File, TryLockError},
     io::{self, Read},
@@ -62,6 +64,11 @@ const CARRIERS_END: Duration = Duration::from_secs(10);
 /// Runs the hub until it closes and returns its exit status.
 pub(super) fn serve() -> u8 {
     end_on_panic();
+    // A Unix hub leaves the session and process group of the client that started it, so the
+    // terminal that client runs in signals it neither at an interrupt nor when it closes. A hub
+    // already leading a group, as one a shell starts by hand, stays where it is.
+    #[cfg(unix)]
+    let _left = nix::unistd::setsid();
     let environment = Environment::take();
     let Ok(root) = DataRoot::resolve(|name| environment.get(name)) else {
         return CANNOT_SERVE;
@@ -74,8 +81,13 @@ pub(super) fn serve() -> u8 {
     let Ok(endpoint) = machine_hub_endpoint(&root) else {
         return CANNOT_SERVE;
     };
+    // A socket folder holds the Unix endpoints, kept until the hub has closed them; Windows pipes
+    // need none.
+    let Ok(_folder) = hold_folder() else {
+        return CANNOT_SERVE;
+    };
     // Bound at once, so a starting client finds the endpoint instead of starting more hubs; its
-    // connection waits in the pipe until the listener accepts it after the reads below.
+    // connection waits in the endpoint until the listener accepts it after the reads below.
     let Some(listener) = bind(&endpoint) else {
         return CANNOT_SERVE;
     };
@@ -170,11 +182,12 @@ fn take_lock(root: &DataRoot) -> io::Result<Option<File>> {
     }
 }
 
-/// Binds the endpoint, retrying a name a killed predecessor's pipe still holds for a moment.
+/// Binds the endpoint under the lock, retrying a name a killed predecessor's pipe still holds for a
+/// moment; a socket file a killed predecessor left is removed first.
 fn bind(endpoint: &Path) -> Option<LocalListener> {
     let deadline = Instant::now() + BIND_RETRY;
     loop {
-        match LocalListener::bind(endpoint) {
+        match bind_locked(endpoint) {
             Ok(listener) => return listener.set_nonblocking(true).ok().map(|()| listener),
             Err(_) if Instant::now() < deadline => thread::sleep(RETRY_PAUSE),
             Err(_) => return None,

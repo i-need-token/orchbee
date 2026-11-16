@@ -46,7 +46,8 @@ regex.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 
 [target.'cfg(unix)'.dependencies]
-nix = { workspace = true, features = ["dir", "fs", "poll", "signal", "user"] }
+# `term`: the echo-free terminal read of a `machine connect` question.
+nix = { workspace = true, features = ["dir", "fs", "poll", "signal", "term", "user"] }
 
 [target.'cfg(windows)'.dependencies]
 # System-directory lookup for the owned, cancellable stdin reader and command routing, and the

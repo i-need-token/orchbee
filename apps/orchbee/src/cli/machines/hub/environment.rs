@@ -43,7 +43,8 @@ impl Environment {
     /// The view the hub keeps of this process's environment: every variable outside Orchbee's,
     /// the three that select shared folders, the runtime base when it applies to this build, and
     /// the expiry and question overrides and the `ssh` stand-in in a development or test build. Names compare
-    /// without letter case; a variable that is not valid Unicode is left out.
+    /// as the platform compares them, see [`canonical`]; a variable that is not valid Unicode is
+    /// left out.
     pub(super) fn take() -> Self {
         let variables = std::env::vars_os()
             .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
@@ -57,7 +58,7 @@ impl Environment {
         let variables = variables
             .into_iter()
             .filter(|(name, _)| {
-                let name = name.to_ascii_uppercase();
+                let name = canonical(name);
                 !name.starts_with(PREFIX)
                     || SHARED.contains(&name.as_str())
                     || (name == RUNTIME_BASE && applies)
@@ -68,7 +69,7 @@ impl Environment {
         Self { variables }
     }
 
-    /// A variable of the view, its name compared without letter case.
+    /// A variable of the view, its name compared as the platform compares it.
     pub(super) fn get(&self, name: &str) -> Option<OsString> {
         lookup(&self.variables, name)
     }
@@ -117,7 +118,7 @@ impl Environment {
         self.variables
             .iter()
             .filter(|(name, _)| {
-                let name = name.to_ascii_uppercase();
+                let name = canonical(name);
                 !name.starts_with(PREFIX) && !TERMINAL.contains(&name.as_str())
             })
             .cloned()
@@ -125,10 +126,23 @@ impl Environment {
     }
 }
 
-/// The value of `name` in `variables`, comparing names without letter case.
+/// The value of `name` in `variables`, comparing names as the platform compares them.
 fn lookup(variables: &[(String, String)], name: &str) -> Option<OsString> {
+    let name = canonical(name);
     variables
         .iter()
-        .find(|(candidate, _)| candidate.eq_ignore_ascii_case(name))
+        .find(|(candidate, _)| canonical(candidate) == name)
         .map(|(_, value)| OsString::from(value))
+}
+
+/// A variable name as the platform compares it: without letter case on Windows, exactly elsewhere.
+#[cfg(windows)]
+fn canonical(name: &str) -> String {
+    name.to_ascii_uppercase()
+}
+
+/// A variable name as the platform compares it: without letter case on Windows, exactly elsewhere.
+#[cfg(not(windows))]
+fn canonical(name: &str) -> String {
+    name.to_owned()
 }

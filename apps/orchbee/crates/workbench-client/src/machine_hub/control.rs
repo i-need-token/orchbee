@@ -2,18 +2,36 @@
 //! one path that ends a hub on purpose, and watching a hub until it goes.
 
 use super::attach::{self, Reached};
+use crate::machine_endpoint::endpoint_exists;
 use orchbee_connection_handshake::{
     ControlRequest, Extensions, InitiatorMessage, ProcessRole, RejectionReason, RequestFailure,
     RequestKind, RequestReply, conclude_request,
 };
 use orchbee_local_runtime::{DataRoot, machine_hub_endpoint};
+use platform::{Process, exited};
 use std::{
     cell::Cell,
     path::{Path, PathBuf},
     thread,
     time::{Duration, Instant},
 };
-use winsafe::{self as w, co, guard::CloseHandleGuard};
+
+#[cfg(unix)]
+#[path = "control/unix.rs"]
+mod platform;
+#[cfg(windows)]
+#[path = "control/windows.rs"]
+mod platform;
+
+/// Why the hub process could not be opened to wait for its exit.
+enum Open {
+    /// No such process: the next query tells.
+    Gone,
+    /// An elevated hub, or one of another user.
+    Denied,
+    /// Another failure.
+    Unavailable,
+}
 
 /// How long `end` waits for a drained hub to exit before it sends `exit`.
 const DRAIN_WAIT: Duration = Duration::from_secs(10);
@@ -78,21 +96,17 @@ pub fn end(root: &DataRoot, deadline: Instant) -> Result<Option<u32>, EndFailure
         let Some(process_id) = hub_process(&endpoint, deadline)? else {
             return Ok(ended);
         };
-        let process = match w::HPROCESS::OpenProcess(
-            co::PROCESS::SYNCHRONIZE | co::PROCESS::QUERY_LIMITED_INFORMATION,
-            false,
-            process_id,
-        ) {
+        let process = match platform::open(process_id) {
             Ok(process) => process,
             // Gone already: the next query tells.
-            Err(error) if error == co::ERROR::INVALID_PARAMETER => {
+            Err(Open::Gone) => {
                 pause(deadline)?;
                 continue;
             }
             // An elevated hub, or one of another user: without waiting for its exit this process
             // could not tell when its program file is free, so it leaves the hub as it is.
-            Err(error) if error == co::ERROR::ACCESS_DENIED => return Err(EndFailure::Denied),
-            Err(_) => return Err(EndFailure::Unavailable),
+            Err(Open::Denied) => return Err(EndFailure::Denied),
+            Err(Open::Unavailable) => return Err(EndFailure::Unavailable),
         };
         // The same id once the handle is open proves the handle is the hub's, not a reused id's.
         match hub_process(&endpoint, deadline)? {
@@ -127,7 +141,7 @@ pub fn end(root: &DataRoot, deadline: Instant) -> Result<Option<u32>, EndFailure
 /// starts nothing and creates nothing.
 pub struct HubWatch {
     endpoint: Option<PathBuf>,
-    process: Option<CloseHandleGuard<w::HPROCESS>>,
+    process: Option<Process>,
     /// The process id the hub named when the watch began, if it named one.
     named: Option<u32>,
     /// When a watch without the process looks at the endpoint next.
@@ -148,8 +162,7 @@ impl HubWatch {
         };
         let named = hub_process(&endpoint, deadline).ok().flatten();
         let process = named.and_then(|process_id| {
-            let process =
-                w::HPROCESS::OpenProcess(co::PROCESS::SYNCHRONIZE, false, process_id).ok()?;
+            let process = platform::watch(process_id)?;
             // The same id once the handle is open proves the handle is the hub's.
             (hub_process(&endpoint, deadline).ok().flatten() == Some(process_id)).then_some(process)
         });
@@ -171,7 +184,7 @@ impl HubWatch {
             (None, Some(endpoint)) => {
                 if Instant::now() >= self.look.get() {
                     self.look.set(Instant::now() + LOOK);
-                    if !orchbee_local_ipc::endpoint_exists(endpoint).unwrap_or(true) {
+                    if !endpoint_exists(endpoint).unwrap_or(true) {
                         return true;
                     }
                     let now = hub_process(endpoint, Instant::now() + LOOK_QUERY)
@@ -191,8 +204,7 @@ impl HubWatch {
 
 /// Whether a hub serves `root` now, by its endpoint's name alone: nothing is opened or created.
 pub fn present(root: &DataRoot) -> bool {
-    machine_hub_endpoint(root)
-        .is_ok_and(|endpoint| orchbee_local_ipc::endpoint_exists(&endpoint).unwrap_or(false))
+    machine_hub_endpoint(root).is_ok_and(|endpoint| endpoint_exists(&endpoint).unwrap_or(false))
 }
 
 /// Asks a hub to enter `closing`.
@@ -276,18 +288,4 @@ fn pause(deadline: Instant) -> Result<(), EndFailure> {
     }
     thread::sleep(attach::RETRY_PAUSE.min(remaining));
     Ok(())
-}
-
-/// Whether `process` exited by `until`.
-fn exited(process: &w::HPROCESS, until: Instant) -> bool {
-    loop {
-        let remaining = until.saturating_duration_since(Instant::now());
-        let milliseconds = u32::try_from(remaining.as_millis()).unwrap_or(u32::MAX);
-        match process.WaitForSingleObject(Some(milliseconds)) {
-            Ok(co::WAIT::OBJECT_0) => return true,
-            Ok(_) if remaining.is_zero() => return false,
-            Ok(_) => {}
-            Err(_) => return false,
-        }
-    }
 }

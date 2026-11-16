@@ -12,7 +12,7 @@ use super::{
     attach::{self, Cancel, Link, READ_BUFFER_BYTES, Start},
     data_root,
 };
-use orchbee_local_ipc::LocalStream;
+use crate::machine_endpoint::LocalStream;
 use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
     ByeReason, Connection, Delivery, FrameDecoder, Id, Message, ResetReason, SendError,

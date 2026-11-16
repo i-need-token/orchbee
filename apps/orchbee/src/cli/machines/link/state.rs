@@ -2,8 +2,8 @@
 //! link ended, under one lock that no thread holds across I/O. The carrier's threads wait on one
 //! signal; each channel's workers wait on their channel's own.
 
-use orchbee_local_ipc::LocalStream;
 use orchbee_machine_protocol::{ByeReason, Connection, ResetReason, link};
+use orchbee_workbench_client::application::machine_endpoint::LocalStream;
 use std::{
     collections::{BTreeMap, VecDeque},
     net::Shutdown,

@@ -1,5 +1,5 @@
 //! Scoped console interrupts for commands admitted to the Windows execution capability, and for
-//! the release commands on macOS. Shared command workflows own arbitration; only the native port
+//! the release and saved-machine commands on macOS. Shared command workflows own arbitration; only the native port
 //! registers a handler.
 
 pub(super) use super::input_source::SourceFailure;
@@ -82,8 +82,9 @@ impl ArmedSignals {
     }
 
     /// [`Self::arm_interrupts`] on Windows, and on macOS the interrupt pair `SIGINT` and `SIGTERM`
-    /// captured for the release commands, `install`, `update` and the automatic helper, so an
-    /// interruption settles their children and answers its document there too. Linux keeps the
+    /// captured for the release commands, `install`, `update` and the automatic helper, and for
+    /// the saved-machine commands, so an interruption settles their children and answers its
+    /// document there too. Linux keeps the
     /// inherited action, as [`Self::arm_interrupts_or_inherit`] does.
     pub(super) fn arm_interrupts_except_linux() -> io::Result<Self> {
         #[cfg(windows)]

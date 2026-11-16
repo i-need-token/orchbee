@@ -1,5 +1,6 @@
 //! The optional console-command capability refuses without installing a Unix signal policy. The
-//! release commands on macOS borrow the source owner's interrupt pair instead, latched.
+//! release and saved-machine commands on macOS borrow the source owner's interrupt pair instead,
+//! latched, and a routed command reads its declared document through the source owner's reader.
 
 use super::NativeSignals;
 use std::io;
@@ -99,6 +100,32 @@ impl NativeSignals for Latched {
     }
 }
 
+#[cfg(target_os = "macos")]
+pub(super) fn acquire_document(
+    path: Option<&str>,
+    limit: usize,
+    deadline: std::time::Instant,
+    signals: &mut super::ArmedSignals,
+) -> Result<Vec<u8>, super::SourceFailure> {
+    crate::cli::source::acquire_document(path, limit, deadline, signals)
+}
+
+/// The source reader's view of a latched owner: a read error keeps its system code.
+#[cfg(target_os = "macos")]
+impl crate::cli::source::SignalWatch for super::ArmedSignals {
+    fn poll_fd(&self) -> Option<std::os::fd::BorrowedFd<'_>> {
+        self.poll_fd()
+    }
+    fn take(&mut self) -> Result<Option<i32>, nix::errno::Errno> {
+        self.take().map_err(|error| {
+            error
+                .raw_os_error()
+                .map_or(nix::errno::Errno::EIO, nix::errno::Errno::from_raw)
+        })
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
 pub(super) fn acquire_document(
     _path: Option<&str>,
     _limit: usize,

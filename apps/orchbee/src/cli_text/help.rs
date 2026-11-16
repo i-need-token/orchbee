@@ -31,6 +31,12 @@ impl super::CliText {
             (Locale::ZhCn, crate::invocation::grammar::Availability::Windows) => {
                 "执行目前需要 Windows。所有平台均公开相同语法、帮助与补全；其他宿主返回 unsupported-platform（退出码 4）。"
             }
+            (Locale::EnUs, crate::invocation::grammar::Availability::WindowsAndMacos) => {
+                "Execution currently requires Windows or macOS. Syntax, help and completion are available on every platform; other hosts return unsupported-platform (exit 4)."
+            }
+            (Locale::ZhCn, crate::invocation::grammar::Availability::WindowsAndMacos) => {
+                "执行目前需要 Windows 或 macOS。所有平台均公开相同语法、帮助与补全；其他宿主返回 unsupported-platform（退出码 4）。"
+            }
             (Locale::EnUs, crate::invocation::grammar::Availability::Portable) => {
                 "Syntax, help and completion are identical on every platform. The selected execution adapter retains its documented capabilities and defaults; unavailable operations return unsupported-platform (exit 4)."
             }

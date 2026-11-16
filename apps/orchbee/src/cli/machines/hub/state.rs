@@ -14,13 +14,13 @@ use super::{
     stop::Stops,
 };
 use crate::cli::machines::askpass::{RECALL_BYTES, recall};
-use orchbee_local_ipc::LocalStream;
 use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
     Connection, MachineId,
     hub::{self, ConnectOutcome, Event, Reply},
 };
 use orchbee_workbench_client::application::machine_credentials::{Item, SecretKind, Store};
+use orchbee_workbench_client::application::machine_endpoint::LocalStream;
 use std::{
     collections::BTreeMap,
     net::Shutdown,

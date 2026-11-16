@@ -1,6 +1,7 @@
 //! One carrier: the child that carries a Machine's `machine-link` connection on its standard input
-//! and output, started inside a Job only the hub holds. Its owner thread starts it, waits for its
-//! root process, settles the Job and reaps it, and reports the end after its reader, writer and
+//! and output, started inside a Job only the hub holds on Windows, and as the leader of its own
+//! process group elsewhere. Its owner thread starts it, waits for its root process, settles the Job
+//! or group and reaps it, and reports the end after its reader, writer and
 //! standard-error threads have ended. The reader hands each link event to the Machine, and each
 //! channel frame to the relay, under the hub state's lock and pauses while 256 frames other than
 //! `data` wait to be written; the writer writes the offer at once and then the link's frames.
@@ -19,7 +20,6 @@ use orchbee_connection_handshake::{
     AcceptorMessage, Build, ConnectionKind, InitiatorMessage, Offer, ProductVersion, ReadError,
     encode_initiator_frame, read_acceptor_message,
 };
-use orchbee_local_runtime::CommandChild;
 use orchbee_machine_protocol::{
     ByeReason, Connection, Delivery, Frame, FrameDecoder, MachineId, Message, SessionName,
     hub::OfflineCause,
@@ -35,7 +35,13 @@ use std::{
     thread,
     time::Duration,
 };
-use winsafe::{HPROCESS, co, guard::CloseHandleGuard};
+
+#[cfg(unix)]
+#[path = "carrier/unix.rs"]
+mod platform;
+#[cfg(windows)]
+#[path = "carrier/windows.rs"]
+mod platform;
 
 /// The one argument a stand-in runs with.
 const LINK_ENTRY: &str = "--machine-link-v1";
@@ -49,8 +55,6 @@ const BACKLOG: usize = 256;
 const WRITE_BATCH_BYTES: usize = 64 * 1024;
 /// How long one wait for the root process lasts before the owner waits again.
 const ROOT_WAIT: Duration = Duration::from_secs(3600);
-/// The exit status the hub gives a carrier it ends.
-const ENDED_BY_HUB: u32 = 1;
 /// The `DISPLAY` an `ssh` older than 8.4 needs before it runs an askpass program. Such an `ssh`
 /// still carries typed answers; it is never given a remembered one, see [`Launch::recalls`].
 const DISPLAY: &str = "orchbee:0";
@@ -75,8 +79,9 @@ pub(super) struct Handle {
     /// no random bytes could be drawn.
     pub(super) ticket: [u8; TICKET_BYTES],
     line: Arc<LinkLine>,
-    /// The root process, held to end it; set once the child exists.
-    root: Option<CloseHandleGuard<HPROCESS>>,
+    /// The root process, held to end it; set once the child exists and cleared before it is
+    /// reaped, after which its ID may be given away.
+    root: Option<platform::Root>,
     ending: bool,
 }
 
@@ -101,14 +106,14 @@ impl Handle {
     }
 
     /// Ends the carrier: its writer stops and its root process is terminated, after which the
-    /// owner ends the rest of the Job. A carrier still starting is ended once its child exists.
+    /// owner ends the rest of the Job or group. A carrier still starting is ended once its child
+    /// exists.
     pub(super) fn end(&mut self) {
         self.ending = true;
         self.line.lock().open = false;
         self.line.wake();
         if let Some(root) = &self.root {
-            // A root that already exited refuses; its owner is settling the Job either way.
-            let _terminated = root.TerminateProcess(ENDED_BY_HUB);
+            platform::end(root);
         }
     }
 
@@ -177,7 +182,7 @@ impl Launch {
             environment: environment.child(),
             askpass: std::env::current_exe().ok()?,
             endpoint,
-            folder: winsafe::GetSystemDirectory().ok().map(PathBuf::from),
+            folder: platform::folder(),
             offer: encode_initiator_frame(&InitiatorMessage::Offer(offer))
                 .expect("this build's offer fits one frame"),
             recalls: OnceLock::new(),
@@ -298,7 +303,7 @@ fn carry(shared: &Arc<Shared>, launch: &Launch, carrier: u64, route: &Route) -> 
         .stdin(child_input)
         .stdout(child_output)
         .stderr(child_errors);
-    let mut child = match CommandChild::spawn_contained(command) {
+    let mut child = match platform::spawn(command) {
         Ok(child) => child,
         Err(failure) => {
             return End::NotStarted {
@@ -306,12 +311,7 @@ fn carry(shared: &Arc<Shared>, launch: &Launch, carrier: u64, route: &Route) -> 
             };
         }
     };
-    let root = HPROCESS::OpenProcess(
-        co::PROCESS::SYNCHRONIZE | co::PROCESS::TERMINATE,
-        false,
-        child.id(),
-    );
-    let Ok(root) = root else {
+    let Some(root) = platform::root(&child) else {
         let code = child.settle().ok().and_then(|status| status.code());
         return End::Exited {
             code,
@@ -334,6 +334,10 @@ fn carry(shared: &Arc<Shared>, launch: &Launch, carrier: u64, route: &Route) -> 
         handle.end();
     }
     while matches!(child.wait_root_exit(ROOT_WAIT), Ok(false)) {}
+    // Settling reaps the root, after which its ID may be given away; the hub no longer ends it.
+    if let Some(handle) = shared.lock().carriers.get_mut(&carrier) {
+        handle.root = None;
+    }
     let code = child.settle().ok().and_then(|status| status.code());
     line.lock().open = false;
     line.wake();
@@ -347,13 +351,11 @@ fn carry(shared: &Arc<Shared>, launch: &Launch, carrier: u64, route: &Route) -> 
 }
 
 /// Gives the hub the root process to end, or ends it at once when the carrier is already ending.
-fn register(shared: &Shared, carrier: u64, root: CloseHandleGuard<HPROCESS>) {
+fn register(shared: &Shared, carrier: u64, root: platform::Root) {
     let mut hub = shared.lock();
     match hub.carriers.get_mut(&carrier) {
         Some(handle) if !handle.ending => handle.root = Some(root),
-        _ => {
-            let _terminated = root.TerminateProcess(ENDED_BY_HUB);
-        }
+        _ => platform::end(&root),
     }
 }
 

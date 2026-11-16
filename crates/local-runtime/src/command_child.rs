@@ -13,7 +13,10 @@ mod unix;
 #[cfg(windows)]
 mod windows;
 #[cfg(unix)]
-pub use unix::{CommandChild, SpawnEnvironment, run_unix_command, run_unmasked_unix_command};
+pub use unix::{
+    CommandChild, SpawnEnvironment, run_unix_command, run_unix_command_exchange,
+    run_unmasked_unix_command,
+};
 #[cfg(windows)]
 pub use windows::{
     CommandChild, resolve_windows_program, run_background_command_exchange,

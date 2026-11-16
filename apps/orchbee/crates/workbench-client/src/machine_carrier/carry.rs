@@ -1,13 +1,13 @@
-//! Windows carrier endpoints: a private same-user pipe whose every accepted connection is one hub
-//! `session` channel, copied up and down on two threads of its own. No thread holds the hub
-//! owner's lock while it reads or writes the pipe, and each channel's credit returns only as its
-//! own pipe takes the bytes.
+//! Carrier endpoints: a private same-user endpoint, a pipe on Windows and a socket elsewhere, whose
+//! every accepted connection is one hub `session` channel, copied up and down on two threads of its
+//! own. No thread holds the hub owner's lock while it reads or writes the endpoint, and each
+//! channel's credit returns only as its own endpoint takes the bytes.
 use super::{Gate, StartedCarrier};
 use crate::{
+    machine_endpoint::{LocalListener, LocalStream, hold_folder, private_endpoint},
     machine_hub::{ChannelDelivery, ChannelHandle, HubClient},
     machines::ProfileId,
 };
-use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_machine_protocol::{MachineId, hub::Channel};
 use std::{
     io::{self, Read, Write},
@@ -42,7 +42,8 @@ pub(super) fn start(hub: &Hub, machine: &ProfileId, online: Gate) -> io::Result<
         .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
     let id = ProfileId::generate()
         .map_err(|_| io::Error::other("machine endpoint identity unavailable"))?;
-    let endpoint = PathBuf::from(format!(r"\\.\pipe\orchbee-machine-{}", id.as_str()));
+    let folder = hold_folder()?;
+    let endpoint: PathBuf = private_endpoint("machine", id.as_str());
     let listener = LocalListener::bind(&endpoint)?;
     listener.set_nonblocking(true)?;
     let stop = Arc::new(AtomicBool::new(false));
@@ -52,6 +53,8 @@ pub(super) fn start(hub: &Hub, machine: &ProfileId, online: Gate) -> io::Result<
         thread::Builder::new()
             .name("orchbee-machine-carrier".into())
             .spawn(move || {
+                // The folder stays held while the endpoint is served.
+                let _folder = folder;
                 let open = Arc::new(AtomicUsize::new(0));
                 while !stop.load(Ordering::Acquire) {
                     match listener.accept() {

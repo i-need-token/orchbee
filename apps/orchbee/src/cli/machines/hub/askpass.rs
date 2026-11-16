@@ -6,12 +6,14 @@
 
 use super::{carrier::Launch, machine::Raised, state::Shared};
 use crate::cli::machines::askpass::{
-    Asked, RAISE_HEADER_BYTES, REMEMBERED, Raise, TAKEN, TICKET_BYTES, UNREMEMBERED, hex, question,
-    unhex,
+    ANSWER_ROLE, ASKPASS_ROLE, Asked, RAISE_HEADER_BYTES, REMEMBERED, Raise, TAKEN, TICKET_BYTES,
+    UNREMEMBERED, hex, question, unhex,
 };
-use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_machine_protocol::{AnswerToken, PathText, hub::AnswerEndpoint, hub::QuestionKind};
-use orchbee_workbench_client::application::machine_credentials::SecretKind;
+use orchbee_workbench_client::application::{
+    machine_credentials::SecretKind,
+    machine_endpoint::{LocalListener, LocalStream, names_private_endpoint, private_endpoint},
+};
 use std::{
     io::{Read, Write},
     net::Shutdown,
@@ -29,19 +31,16 @@ pub(super) const HELPERS: usize = 16;
 const RECORD: Duration = Duration::from_secs(5);
 /// The listener's pause between accept attempts.
 const ACCEPT_PAUSE: Duration = Duration::from_millis(10);
-/// The prefix every answer endpoint a helper binds carries.
-const ANSWER_PREFIX: &str = r"\\.\pipe\orchbee-answer-";
-
 /// Binds the askpass endpoint under a fresh name; its name and listener.
 pub(super) fn bind() -> Option<(String, LocalListener)> {
     let mut suffix = [0; 8];
     getrandom::fill(&mut suffix).ok()?;
-    let name = format!(
-        r"\\.\pipe\orchbee-askpass-{}-{}",
-        std::process::id(),
-        hex(&suffix)
+    let path = private_endpoint(
+        ASKPASS_ROLE,
+        &format!("{}-{}", std::process::id(), hex(&suffix)),
     );
-    let listener = LocalListener::bind(&name).ok()?;
+    let name = path.to_str()?.to_owned();
+    let listener = LocalListener::bind(&path).ok()?;
     listener.set_nonblocking(true).ok()?;
     Some((name, listener))
 }
@@ -187,7 +186,7 @@ fn raised(raise: Asked) -> Option<Raised> {
     };
     let endpoint = PathText::new(raise.endpoint)
         .ok()
-        .filter(|endpoint| endpoint.as_str().starts_with(ANSWER_PREFIX))?;
+        .filter(|endpoint| names_private_endpoint(endpoint.as_str(), ANSWER_ROLE))?;
     Some(Raised {
         kind,
         prompt: question::prompt_text(&raise.prompt)?,

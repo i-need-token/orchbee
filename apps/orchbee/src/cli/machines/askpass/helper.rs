@@ -1,4 +1,4 @@
-//! The askpass helper on Windows: it reaches the hub, reads the question, binds its own one-shot
+//! The askpass helper: it reaches the hub, reads the question, binds its own one-shot
 //! answer endpoint, hands the question to the hub, and waits for the answer. With an answer it
 //! prints it for `ssh` and exits 0. Without one it prints nothing and does not exit before its own
 //! bound, since `ssh` would send the empty answer of a helper that exits: a helper that cannot ask
@@ -8,14 +8,17 @@
 //! itself and prints it the same way; the hub only names the item.
 
 use super::{
-    Asked, Pairing, RECALL_BYTES, REMEMBERED, Raise, TAKEN, UNREMEMBERED, hex, question, recalled,
+    ANSWER_ROLE, Asked, Pairing, RECALL_BYTES, REMEMBERED, Raise, TAKEN, UNREMEMBERED, hex,
+    question, recalled,
 };
-use orchbee_local_ipc::{LocalListener, LocalStream, Readiness};
 use orchbee_machine_protocol::{
     ANSWER_HEADER_BYTES, ANSWER_TAKEN, AnswerToken, MAXIMUM_ANSWER_BYTES, admissible_answer,
     decode_answer_header, hub::QuestionKind, wipe,
 };
-use orchbee_workbench_client::application::machine_credentials::{Item, Store};
+use orchbee_workbench_client::application::{
+    machine_credentials::{Item, Store},
+    machine_endpoint::{LocalListener, LocalStream, Readiness, private_endpoint},
+};
 use std::{
     ffi::OsStr,
     io::{self, Read, Write},
@@ -99,12 +102,12 @@ fn prepare(prompt: &OsStr, ticket: String) -> Option<Ready> {
     let mut suffix = [0; 8];
     getrandom::fill(&mut token).ok()?;
     getrandom::fill(&mut suffix).ok()?;
-    let endpoint = format!(
-        r"\\.\pipe\orchbee-answer-{}-{}",
-        std::process::id(),
-        hex(&suffix)
+    let path = private_endpoint(
+        ANSWER_ROLE,
+        &format!("{}-{}", std::process::id(), hex(&suffix)),
     );
-    let listener = LocalListener::bind(&endpoint).ok()?;
+    let endpoint = path.to_str()?.to_owned();
+    let listener = LocalListener::bind(&path).ok()?;
     listener.set_nonblocking(true).ok()?;
     let (name, host_key) = match kind {
         QuestionKind::Password => ("password", None),

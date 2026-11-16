@@ -60,7 +60,9 @@ impl Capability {
             | Self::DirectoryInput
             | Self::Worktrees
             | Self::Graphics => cfg!(any(windows, target_os = "macos")),
-            Self::SavedMachines => cfg!(windows),
+            // macOS runs the machine hub, its carriers and the far end over the system `ssh`;
+            // Linux builds the same code unverified, so it stays off there.
+            Self::SavedMachines => cfg!(any(windows, target_os = "macos")),
         }
     }
 

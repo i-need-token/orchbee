@@ -1187,6 +1187,7 @@ dependencies = [
  "orchbee-local-client",
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
+ "orchbee-local-peer-credentials",
  "orchbee-local-runtime",
  "orchbee-machine-protocol",
  "orchbee-terminal-protocol",

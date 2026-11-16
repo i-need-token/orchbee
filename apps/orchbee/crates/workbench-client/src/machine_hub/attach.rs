@@ -3,11 +3,11 @@
 //! start a hub; the lock lets one serve and every caller connects to it.
 
 use super::{AttachFailure, Attached, Attachment, HUB_ENTRY, Incompatible, control, holders};
+use crate::machine_endpoint::LocalStream;
 use orchbee_connection_handshake::{
     AcceptorMessage, Build, ConnectionKind, InitiatorMessage, Offer, OfferFailure, ProductVersion,
     Rejection, RejectionReason, conclude_offer, encode_initiator_frame, read_acceptor_message,
 };
-use orchbee_local_ipc::LocalStream;
 use orchbee_local_runtime::{
     DataRoot, RetainedChild, create_private_directory, machine_hub_endpoint, spawn_retained,
 };

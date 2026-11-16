@@ -12,7 +12,9 @@ pub use crate::rendezvous_types::{
     EntryKind, EntryObservation, LockKind, RendezvousError, SessionLifetimeObservation,
     SessionScope,
 };
-use crate::rendezvous_types::{SocketRole, endpoint_id, socket_leaf, socket_root};
+use crate::rendezvous_types::{
+    SessionHolderObservation, SocketRole, endpoint_id, socket_leaf, socket_root,
+};
 use crate::{AdmissionRefusal, RefusalReason};
 use std::{
     ffi::OsStr,
@@ -725,6 +727,65 @@ impl ModeCheckedLocalSessionRendezvous {
             Err(TryLockError::WouldBlock) => Ok(SessionLifetimeObservation::Held),
             Err(TryLockError::Error(source)) => Err(source),
         }
+    }
+
+    /// Reads the lifetime lock under the existing activation lock, as the Windows read does: it
+    /// never creates the activation lock, and it releases it before returning, so it never takes
+    /// a free lifetime lock at the instant a Server takes it. An activation lock that fails its
+    /// owner, mode or type rule is an error.
+    pub fn observe_session_holder(&self) -> std::io::Result<SessionHolderObservation> {
+        let descriptor = match openat(
+            &self.directory,
+            LockKind::Activation.name(),
+            LOCK_OPEN_FLAGS,
+            Mode::empty(),
+        ) {
+            Ok(descriptor) => descriptor,
+            Err(Errno::ENOENT) => return Ok(SessionHolderObservation::NoActivation),
+            Err(error) => return Err(error.into()),
+        };
+        validate_lock_file(
+            &descriptor,
+            LockKind::Activation,
+            &self.paths.activation_lock,
+            self.expected_uid,
+            false,
+        )
+        .map_err(std::io::Error::other)?;
+        let activation = File::from(descriptor);
+        let observation = match activation.try_lock() {
+            Ok(()) => self
+                .observe_session_lifetime_lock()
+                .map(SessionHolderObservation::Lifetime),
+            Err(TryLockError::WouldBlock) => Ok(SessionHolderObservation::ActivationHeld),
+            Err(TryLockError::Error(source)) => Err(source),
+        };
+        drop(activation);
+        observation
+    }
+
+    /// Creates this environment's socket folder for the effective user when it is missing, admits
+    /// it, and holds it shared for as long as the returned lock lives, as a Session's
+    /// [`Self::hold_socket_root`] does: for an owner of sockets there that is not a Session, such
+    /// as the machine hub.
+    pub fn hold_prepared_socket_root() -> Result<ModeCheckedSessionLock, RendezvousError> {
+        let path = Self::socket_root_path();
+        let sockets = prepare_socket_root(&path, effective_uid())?;
+        let file = File::from(
+            openat(&sockets, ".", DIRECTORY_OPEN_FLAGS, Mode::empty())
+                .map_err(|error| system_error("open socket folder", &path, error))?,
+        );
+        file.lock_shared()
+            .map_err(|source| RendezvousError::System {
+                operation: "hold socket folder",
+                path: path.clone(),
+                source,
+            })?;
+        Ok(ModeCheckedSessionLock {
+            _file: file,
+            runtime: path,
+            kind: None,
+        })
     }
 }
 

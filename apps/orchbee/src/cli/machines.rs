@@ -1,12 +1,10 @@
 //! Saved-machine commands; remote readiness and local publication have separate outcomes.
 use crate::cli_text::CliText;
-#[cfg(any(windows, test))]
 pub(crate) mod askpass;
 mod connect;
 pub(crate) mod hub;
 pub(crate) mod link;
 pub(crate) mod routing;
-#[cfg(windows)]
 mod shared_carrier;
 use super::{
     Failure, FailureKind, Output,
@@ -26,13 +24,6 @@ use std::{
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg_attr(
-    not(windows),
-    expect(
-        dead_code,
-        reason = "the machine hub's connect failures arise only where the hub runs, on Windows"
-    )
-)]
 enum Error {
     Catalog(CatalogError),
     SshUnavailable,
@@ -164,13 +155,6 @@ impl Context {
     }
 }
 #[derive(Clone, Copy)]
-#[cfg_attr(
-    not(windows),
-    expect(
-        dead_code,
-        reason = "only the machine hub, which runs on Windows, contacts a remote"
-    )
-)]
 enum Remote {
     NotContacted,
     Unchanged,
@@ -231,7 +215,7 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
         },
         _ => None,
     };
-    let signals = match ArmedSignals::arm_interrupts() {
+    let signals = match ArmedSignals::arm_interrupts_except_linux() {
         Ok(s) => s,
         Err(_) => {
             return failure_output(

@@ -39,6 +39,8 @@ toml_edit.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true, features = ["dir", "fs", "poll", "signal", "user"] }
+# The same-user proof of every machine endpoint's peer.
+orchbee-local-peer-credentials = { path = "../../../../crates/local-peer-credentials" }
 rustix = { workspace = true, features = ["fs", "termios"] }
 signal-hook.workspace = true
 

@@ -500,7 +500,6 @@ fn client_line(report: &Report) -> Option<String> {
 
 /// The release store root this build installs into and updates: the `storeRoot` the remote link
 /// helper reports.
-#[cfg(windows)]
 pub(in crate::cli) fn store_root() -> io::Result<PathBuf> {
     platform::install_root()
 }

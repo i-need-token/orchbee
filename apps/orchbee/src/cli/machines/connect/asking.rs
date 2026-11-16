@@ -18,7 +18,7 @@ use crate::{
     localization::Locale,
 };
 use orchbee_machine_protocol::{
-    Id, MAXIMUM_ANSWER_BYTES, MachineId,
+    Id, MachineId,
     hub::{
         Claimant, ConnectOutcome, ConnectResult, Event, LoginEnd, LoginPhase, Question,
         QuestionKind, Reply, Request,
@@ -37,7 +37,13 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use winsafe::{self as w, co};
+
+#[cfg(unix)]
+#[path = "asking/unix.rs"]
+mod platform;
+#[cfg(windows)]
+#[path = "asking/windows.rs"]
+mod platform;
 
 /// How often the wait looks for the reply, a typed line, an event and an interrupt.
 const POLL: Duration = Duration::from_millis(50);
@@ -47,11 +53,6 @@ const DISMISS: Duration = Duration::from_secs(3);
 /// and time waiting for a person elsewhere extend, ends the wait sooner, and the hub bounds every
 /// question and the attempt.
 const REQUEST: Duration = Duration::from_secs(60 * 60);
-/// UTF-16 units one read takes: the longest admissible answer, one unit for each byte, and the
-/// line's CR LF.
-const UNITS: usize = MAXIMUM_ANSWER_BYTES + 2;
-const LINE_FEED: u16 = 0x0A;
-const CARRIAGE_RETURN: u16 = 0x0D;
 
 /// One command's wait for a person who answers elsewhere, across its requests: the line it writes
 /// once, and whether it was written.
@@ -69,7 +70,7 @@ impl<'a> Waited<'a> {
 /// The console the command asks on, and the machine it names in its questions.
 pub(in super::super) struct Console {
     /// The input mode before any question, restored after each.
-    mode: co::CONSOLE,
+    mode: platform::Earlier,
     target: String,
     text: CliText,
     /// `--remember`: where answers typed here go once the login succeeds.
@@ -84,8 +85,7 @@ impl Console {
         locale: Locale,
         remember: Option<Remember>,
     ) -> Option<Self> {
-        let mode = standard(co::STD_HANDLE::INPUT)?.GetConsoleMode().ok()?;
-        standard(co::STD_HANDLE::ERROR)?.GetConsoleMode().ok()?;
+        let mode = platform::detect()?;
         Some(Self {
             mode,
             target,
@@ -304,7 +304,7 @@ fn reply<'a>(line: &'a Line, kind: &QuestionKind) -> Act<'a> {
 struct Asking {
     question: Question,
     since: Instant,
-    mode: Mode,
+    mode: platform::Mode,
     lines: mpsc::Receiver<Line>,
     text: CliText,
 }
@@ -317,7 +317,7 @@ impl Asking {
         // The client reads the prompt as the hub does, so nothing else turns echo on or takes `yes`.
         question.kind = attributed(question.kind, question.prompt.as_str(), &console.target);
         let echo = matches!(question.kind, QuestionKind::HostKey { .. });
-        let mode = Mode::set(console.mode, echo)?;
+        let mode = platform::Mode::set(&console.mode, echo)?;
         let shown = MachineQuestion::of(&question.kind);
         let line = console.text.cli_machine_question(
             &console.target,
@@ -336,7 +336,7 @@ impl Asking {
             .name("machine-question".to_owned())
             .spawn(move || {
                 // The line is wiped where it is dropped, here when nobody waits for it any more.
-                let _ = sender.send(read_line());
+                let _ = sender.send(platform::read_line());
             })
             .ok()?;
         Some(Self {
@@ -379,42 +379,6 @@ fn say(text: &str) {
         .and_then(|()| stderr.flush());
 }
 
-/// The console's input mode while a question reads; the earlier mode returns when it drops.
-struct Mode {
-    earlier: co::CONSOLE,
-    echo: bool,
-}
-
-impl Mode {
-    fn set(earlier: co::CONSOLE, echo: bool) -> Option<Self> {
-        let line = earlier | co::CONSOLE::ENABLE_LINE_INPUT | co::CONSOLE::ENABLE_PROCESSED_INPUT;
-        let reading = if echo {
-            line | co::CONSOLE::ENABLE_ECHO_INPUT
-        } else {
-            line & !co::CONSOLE::ENABLE_ECHO_INPUT
-        };
-        let input = standard(co::STD_HANDLE::INPUT)?;
-        // A failed set may still have changed the mode, so the earlier one returns either way.
-        let mode = Self { earlier, echo };
-        input.SetConsoleMode(reading).ok()?;
-        Some(mode)
-    }
-}
-
-impl Drop for Mode {
-    fn drop(&mut self) {
-        if let Some(input) = standard(co::STD_HANDLE::INPUT) {
-            let _ = input.SetConsoleMode(self.earlier);
-        }
-    }
-}
-
-/// A standard handle, left open: it belongs to the process, not to this command.
-fn standard(which: co::STD_HANDLE) -> Option<w::HSTD> {
-    let mut guard = w::HSTD::GetStdHandle(which).ok()?;
-    Some(guard.leak())
-}
-
 /// What one read of the console gave.
 enum Line {
     /// A non-empty answer, its line ending removed.
@@ -435,76 +399,4 @@ impl Drop for Typed {
     fn drop(&mut self) {
         wipe(&mut self.0);
     }
-}
-
-/// The console's UTF-16 read buffer, wiped when dropped. It has no debug form.
-struct Units(w::WString);
-
-impl Drop for Units {
-    fn drop(&mut self) {
-        wipe_units(self.0.as_mut_slice());
-    }
-}
-
-fn wipe_units(units: &mut [u16]) {
-    units.fill(0);
-    std::hint::black_box(units);
-}
-
-/// Reads one line from the console, to its end even when it is too long, so nothing typed is left
-/// for whatever reads the console next.
-fn read_line() -> Line {
-    let Some(input) = standard(co::STD_HANDLE::INPUT) else {
-        return Line::Failed;
-    };
-    let mut units = Units(w::WString::new_alloc_buf(UNITS));
-    // One character past the bound is refused before it is pushed, so the buffer never grows.
-    let mut typed = Typed(Vec::with_capacity(MAXIMUM_ANSWER_BYTES));
-    let mut fits = true;
-    loop {
-        let read = match input.ReadConsole(&mut units.0, None) {
-            Ok(read) => usize::try_from(read).unwrap_or(0),
-            Err(_) => return Line::Failed,
-        };
-        if read == 0 {
-            return Line::Aborted;
-        }
-        let buffer = units.0.as_slice();
-        let chunk = buffer.get(..read).unwrap_or(buffer);
-        let ended = chunk.last() == Some(&LINE_FEED);
-        let mut content = chunk;
-        while let [rest @ .., LINE_FEED | CARRIAGE_RETURN] = content {
-            content = rest;
-        }
-        fits = fits && append(&mut typed.0, content);
-        wipe_units(units.0.as_mut_slice());
-        if ended {
-            break;
-        }
-    }
-    match (fits, typed.0.is_empty()) {
-        (false, _) => Line::TooLong,
-        (true, true) => Line::Empty,
-        (true, false) => Line::Answer(typed),
-    }
-}
-
-/// Appends `units` as UTF-8 within the longest admissible answer; `false` once it would not fit.
-fn append(typed: &mut Vec<u8>, units: &[u16]) -> bool {
-    for decoded in char::decode_utf16(units.iter().copied()) {
-        let mut bytes = [0; 4];
-        let length = decoded
-            .unwrap_or(char::REPLACEMENT_CHARACTER)
-            .encode_utf8(&mut bytes)
-            .len();
-        let fits = typed.len() + length <= MAXIMUM_ANSWER_BYTES;
-        if fits {
-            typed.extend_from_slice(&bytes[..length]);
-        }
-        wipe(&mut bytes);
-        if !fits {
-            return false;
-        }
-    }
-    true
 }

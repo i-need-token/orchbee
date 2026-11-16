@@ -12,77 +12,15 @@
 //! Session the way a remote stop does before the record goes, and keeps the record when it does
 //! not stop.
 
-#[cfg(not(windows))]
-use super::{Context, Error, Report};
-#[cfg(not(windows))]
-use crate::{
-    localization::Locale,
-    machines::{Catalog, Draft, ProfileId, Store},
-};
-
-#[cfg(windows)]
 mod asking;
-#[cfg(windows)]
 mod remember;
 
-#[cfg(windows)]
-pub(super) use windows::{
+pub(super) use requests::{
     add, ask, ask_connect, ask_reload, close, connect, disconnect, open, reload_running,
     stop_session,
 };
 
-/// No hub runs where it is not built, so an edit has nothing to tell.
-#[cfg(not(windows))]
-pub(super) fn reload_running(_context: &mut Context) -> Result<(), Error> {
-    Ok(())
-}
-
-#[cfg(not(windows))]
-pub(super) fn connect(
-    _store: &Store,
-    _selector: &str,
-    _remember: bool,
-    _context: &mut Context,
-    _report: &mut Report,
-    _locale: Locale,
-) -> Result<(), Error> {
-    Err(Error::Internal)
-}
-
-#[cfg(not(windows))]
-pub(super) fn add(
-    _store: &Store,
-    _draft: &Draft,
-    _context: &mut Context,
-    _report: &mut Report,
-    _locale: Locale,
-) -> Result<(), Error> {
-    Err(Error::Internal)
-}
-
-#[cfg(not(windows))]
-pub(super) fn stop_session(
-    _machine: &ProfileId,
-    _catalog: Catalog,
-    _context: &mut Context,
-    _report: &mut Report,
-    _locale: Locale,
-) -> Result<(), Error> {
-    Err(Error::Internal)
-}
-
-#[cfg(not(windows))]
-pub(super) fn disconnect(
-    _store: &Store,
-    _selector: &str,
-    _context: &mut Context,
-    _report: &mut Report,
-) -> Result<(), Error> {
-    Err(Error::Internal)
-}
-
-#[cfg(windows)]
-mod windows {
+mod requests {
     use super::{
         super::{Context, Error, Remote, Report},
         asking::{self, Console},

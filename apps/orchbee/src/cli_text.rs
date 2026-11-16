@@ -108,7 +108,6 @@ mod agent_projection;
 mod configured_commands;
 mod events;
 mod machines;
-#[cfg(windows)]
 pub(crate) use machines::{MachineQuestion, RememberedLine};
 mod notification;
 mod operation;

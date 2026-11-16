@@ -13,7 +13,6 @@ use orchbee_machine_protocol::{Connection, Frame, FrameDecoder, FrameKind, PathT
 use std::{
     fs::File,
     io::{self, IsTerminal, Read, Write},
-    os::windows::io::{AsHandle, BorrowedHandle},
     sync::{Arc, mpsc},
     thread,
     time::{Duration, Instant},
@@ -44,10 +43,7 @@ pub(super) fn serve() -> u8 {
     }
     // Owned copies of the two handles: the writer may block on a hub that stopped reading, and
     // must never hold the process's own stdout lock while it does.
-    let (Ok(input), Ok(mut output)) = (
-        duplicate(io::stdin().as_handle()),
-        duplicate(io::stdout().as_handle()),
-    ) else {
+    let (Ok(input), Ok(mut output)) = (duplicate(&io::stdin()), duplicate(&io::stdout())) else {
         return REFUSED;
     };
     let Some(facts) = facts() else {
@@ -59,8 +55,16 @@ pub(super) fn serve() -> u8 {
     }
 }
 
-fn duplicate(handle: BorrowedHandle<'_>) -> io::Result<File> {
-    handle.try_clone_to_owned().map(File::from)
+/// An owned copy of a standard stream's handle.
+#[cfg(windows)]
+fn duplicate(stream: &impl std::os::windows::io::AsHandle) -> io::Result<File> {
+    stream.as_handle().try_clone_to_owned().map(File::from)
+}
+
+/// An owned copy of a standard stream's descriptor.
+#[cfg(unix)]
+fn duplicate(stream: &impl std::os::fd::AsFd) -> io::Result<File> {
+    stream.as_fd().try_clone_to_owned().map(File::from)
 }
 
 /// The `facts` this helper reports: its own build's platform and architecture, its path, and the
@@ -71,7 +75,7 @@ fn facts() -> Option<link::Facts> {
         .ok()
         .and_then(|root| root.to_str().and_then(|text| PathText::new(text).ok()));
     Some(link::Facts {
-        platform: Token::new("windows").ok()?,
+        platform: Token::new(std::env::consts::OS).ok()?,
         architecture: Token::new(std::env::consts::ARCH).ok()?,
         executable: PathText::new(executable.to_str()?).ok()?,
         store_root,

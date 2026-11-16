@@ -12,7 +12,6 @@ use super::{
     state::{Hub, Line, Shared},
     stop,
 };
-use orchbee_local_ipc::LocalStream;
 use orchbee_machine_protocol::{
     Delivery, FrameDecoder, Id, Message,
     hub::{
@@ -21,6 +20,7 @@ use orchbee_machine_protocol::{
         Request, StopSessionOutcome,
     },
 };
+use orchbee_workbench_client::application::machine_endpoint::LocalStream;
 use orchbee_workbench_client::application::machines::valid_target;
 use std::{
     io::{self, Read, Write},

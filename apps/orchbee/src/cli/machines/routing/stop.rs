@@ -21,22 +21,8 @@ use orchbee_machine_protocol::hub::StopSessionOutcome;
 use serde_json::json;
 use std::time::Instant;
 
-#[cfg(windows)]
 #[path = "stop/hub.rs"]
 pub(in crate::cli::machines) mod hub;
-/// No machine hub runs where it is not built.
-#[cfg(not(windows))]
-mod hub {
-    use super::{super::Refusal, Context, Error, Stopped, mapped};
-
-    pub(super) fn stop(
-        _machine: &str,
-        _waiting: &str,
-        _context: &mut Context,
-    ) -> Result<Stopped, Refusal> {
-        Err(mapped(Error::SshUnavailable))
-    }
-}
 
 /// The schema of the result document.
 pub(super) const SCHEMA: &str = "orchbee.machine.server-stop";
@@ -91,7 +77,7 @@ pub(crate) fn run(stop: &RemoteStop, locale: Locale) -> Output {
     if let Err(refusal) = admit_remote_stop(stop.confirm, &target, stop.format, locale) {
         return *refusal;
     }
-    let Ok(signals) = ArmedSignals::arm_interrupts() else {
+    let Ok(signals) = ArmedSignals::arm_interrupts_except_linux() else {
         return refuse(Error::Internal);
     };
     let mut context = Context {

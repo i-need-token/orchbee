@@ -3,12 +3,19 @@
 //! release may change any of it.
 
 use orchbee_machine_protocol::MachineId;
-use orchbee_workbench_client::application::machine_credentials::SecretKind;
+use orchbee_workbench_client::application::{
+    machine_credentials::SecretKind, machine_endpoint::names_private_endpoint,
+};
 use serde::{Deserialize, Serialize};
 
 /// The private variable that makes this program the askpass helper. Only the hub sets it, in its
 /// carrier children.
 pub(crate) const VARIABLE: &str = "ORCHBEE_MACHINE_ASKPASS";
+/// The role that names the hub's askpass endpoint, `orchbee-askpass-<pid>-<hex>` on Windows and
+/// `askpass-<pid>-<hex>.sock` in the socket folder elsewhere.
+pub(crate) const ASKPASS_ROLE: &str = "askpass";
+/// The role that names each helper's one-shot answer endpoint.
+pub(crate) const ANSWER_ROLE: &str = "answer";
 /// The bytes of a carrier's ticket.
 pub(crate) const TICKET_BYTES: usize = 16;
 /// The first bytes of the helper's record.
@@ -70,8 +77,7 @@ impl Pairing {
     pub(crate) fn parse(text: &str) -> Option<Self> {
         let (endpoint, ticket) = text.rsplit_once(' ')?;
         Some(Self {
-            endpoint: endpoint
-                .starts_with(r"\\.\pipe\")
+            endpoint: names_private_endpoint(endpoint, ASKPASS_ROLE)
                 .then(|| endpoint.to_owned())?,
             ticket: unhex(ticket)?,
         })

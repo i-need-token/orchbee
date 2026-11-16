@@ -185,13 +185,11 @@ pub use cohort::{
     Cohort, CohortArtifact, CohortError, ObservationAdaptersSidecar, current_executable,
 };
 #[cfg(windows)]
-pub use rendezvous::{
-    CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME, SessionHolderObservation,
-};
+pub use rendezvous::{CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME};
 pub use rendezvous::{
     EntryKind, EntryObservation, HOST_SCOPE_NAME, LockAttempt, LockKind,
     ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock, RendezvousError,
-    SessionLifetimeObservation, SessionScope, acquire_past_probes,
+    SessionHolderObservation, SessionLifetimeObservation, SessionScope, acquire_past_probes,
 };
 #[cfg(windows)]
 pub use retained_child::JobPlacement;
@@ -214,7 +212,9 @@ pub use session_path::spawn_session_server;
 mod command_child;
 pub use command_child::{CommandChild, CommandSpawnFailure};
 #[cfg(unix)]
-pub use command_child::{SpawnEnvironment, run_unix_command, run_unmasked_unix_command};
+pub use command_child::{
+    SpawnEnvironment, run_unix_command, run_unix_command_exchange, run_unmasked_unix_command,
+};
 #[cfg(windows)]
 pub use command_child::{
     resolve_windows_program, run_background_command_exchange, run_contained_command_exchange,

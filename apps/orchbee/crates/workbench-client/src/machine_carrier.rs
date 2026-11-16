@@ -1,17 +1,11 @@
 //! The local endpoint a remote Client connection runs on: every connection it accepts is carried
 //! over one hub `session` channel to the Machine's Session, which admits this build's own offer
-//! through the handshake. The carrier judges no byte. Windows only, as the hub is;
-//! `apps/orchbee/docs/machines.md#session-carrier` owns the rules.
-#[cfg(not(windows))]
-mod unix;
-#[cfg(windows)]
-mod windows;
-#[cfg(not(windows))]
-use unix as platform;
-#[cfg(windows)]
-use windows as platform;
+//! through the handshake. The carrier judges no byte. It builds wherever the hub does, and starts
+//! only where the `SavedMachines` capability holds; `apps/orchbee/docs/machines.md#session-carrier`
+//! owns the rules.
+mod carry;
 
-pub(crate) use platform::Hub;
+pub(crate) use carry::Hub;
 
 use crate::{
     local_client::{LocalClient, RetainedCarrier, cancellation::Cancellation},
@@ -52,7 +46,7 @@ pub(crate) fn connect(
         endpoint,
         stop,
         task,
-    } = platform::start(hub, machine, online)?;
+    } = carry::start(hub, machine, online)?;
     let guard = Arc::new(RetainedCarrier::new(stop, task));
     // The stream carries an ordinary Client connection: the remote Session admits this build's
     // own offer through the handshake. The invocation-owned wake is observed throughout.

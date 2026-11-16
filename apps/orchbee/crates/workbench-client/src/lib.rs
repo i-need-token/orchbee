@@ -27,7 +27,7 @@ mod machine_agents;
 mod machine_carrier;
 mod machine_credentials;
 mod machine_discovery;
-#[cfg(windows)]
+mod machine_endpoint;
 mod machine_hub;
 mod machine_login;
 mod machine_observation;
@@ -165,11 +165,9 @@ pub mod application {
             activate_local_session, check_deadline, pause, refusal, runtime_base_unstarted,
             runtime_location, selected_session_name, target_session_name,
         };
+        pub use crate::local_activation::{activate_named_session, session_client_endpoint};
         #[cfg(windows)]
-        pub use crate::local_activation::{
-            activate_named_session, inside_selected_session, select_session,
-            session_client_endpoint,
-        };
+        pub use crate::local_activation::{inside_selected_session, select_session};
         pub use crate::startup_status::RefusedVersions;
     }
 
@@ -269,7 +267,13 @@ pub mod application {
         };
     }
 
-    #[cfg(windows)]
+    pub mod machine_endpoint {
+        pub use crate::machine_endpoint::{
+            FolderHold, LocalListener, LocalStream, Readiness, bind_locked, endpoint_exists,
+            endpoint_prefix, hold_folder, names_private_endpoint, private_endpoint,
+        };
+    }
+
     pub mod machine_hub {
         pub use crate::machine_hub::{
             AttachFailure, Attached, Attachment, ChannelDelivery, ChannelFailure, ChannelHandle,

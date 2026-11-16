@@ -8,9 +8,9 @@ use crate::{
     cli::machines::routing,
     local_activation::{self, ActivationCause, StartupFailure},
 };
-use orchbee_local_ipc::LocalStream;
 use orchbee_local_runtime::SessionName;
 use orchbee_machine_protocol::{Delivery, MAXIMUM_DATA_PAYLOAD_BYTES, Message, ResetReason, link};
+use orchbee_workbench_client::application::machine_endpoint::LocalStream;
 use std::{
     io::{self, Read, Write},
     net::Shutdown,

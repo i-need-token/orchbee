@@ -2,16 +2,11 @@
 //! the Machine states the hub reports, published into one shared view, the login notices of the
 //! episodes this TUI claimed, queued in order, and the `reload`, `connect` and `dismiss` requests
 //! and answer deliveries discovery asks for. A frame copies the view and never waits for the hub.
-//! Windows only, as the hub is; `apps/orchbee/docs/machines.md#the-tui-as-a-hub-client` owns the
-//! rules.
-#[cfg(not(windows))]
-mod unix;
-#[cfg(windows)]
-mod windows;
-#[cfg(not(windows))]
-use unix as platform;
-#[cfg(windows)]
-use windows as platform;
+//! It builds wherever the hub does; `apps/orchbee/docs/machines.md#the-tui-as-a-hub-client` owns
+//! the rules.
+mod holder;
+
+use holder as platform;
 
 use super::overview::Blocked;
 use crate::{
@@ -40,10 +35,6 @@ use std::{
 
 /// Whether the holder reaches a hub, and when it does not, why.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-#[cfg_attr(
-    not(windows),
-    expect(dead_code, reason = "only the Windows holder reaches a hub")
-)]
 pub(super) enum Reach {
     /// An attachment is being made, or the owner is re-attaching after a loss: no Machine state is
     /// known now.
@@ -76,16 +67,8 @@ pub(super) enum Ask {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Settled {
     Pending,
-    #[cfg_attr(
-        not(windows),
-        expect(dead_code, reason = "only the Windows holder connects")
-    )]
     Online,
     /// Not online, with the failure the reply named and the state it reported, when it did.
-    #[cfg_attr(
-        not(windows),
-        expect(dead_code, reason = "only the Windows holder connects")
-    )]
     Failed(Option<ConnectFailure>, Option<MachineStateName>),
 }
 
@@ -139,10 +122,6 @@ impl View {
     }
 
     /// Forgets every state, as leaving an attachment does.
-    #[cfg_attr(
-        not(windows),
-        expect(dead_code, reason = "only the Windows holder attaches")
-    )]
     pub(super) fn forget(&mut self) {
         self.states.clear();
         self.drafts.clear();
@@ -168,7 +147,6 @@ struct State {
     /// discovery takes them.
     logins: Vec<Notice>,
     /// The holder's attachments, as selections waiting for a hub read them.
-    #[cfg(windows)]
     attempts: platform::Attempts,
 }
 
@@ -178,7 +156,6 @@ pub(super) struct Shared {
     state: Mutex<State>,
     stop: AtomicBool,
     /// Ends the holder's attachment in progress at the stop request.
-    #[cfg(windows)]
     cancel: crate::machine_hub::OpenCancel,
     wakeup: Option<UiWakeup>,
 }
@@ -195,11 +172,9 @@ impl Shared {
                 next_ask: 0,
                 saved: None,
                 logins: Vec::new(),
-                #[cfg(windows)]
                 attempts: platform::Attempts::default(),
             }),
             stop: AtomicBool::new(false),
-            #[cfg(windows)]
             cancel: crate::machine_hub::OpenCancel::default(),
             wakeup,
         }
@@ -225,7 +200,6 @@ impl Shared {
 
     /// Publishes `reach` when it changed; leaving `Attached` forgets every Machine state, and
     /// every login episode ends with the link.
-    #[cfg(windows)]
     fn reach(&self, reach: Reach) {
         if self.lock().view.reach == reach {
             return;
@@ -242,12 +216,10 @@ impl Shared {
     }
 
     /// Queues a login notice for discovery and wakes the UI loop.
-    #[cfg(windows)]
     fn login(&self, notice: Notice) {
         self.update(|state| state.logins.push(notice));
     }
 
-    #[cfg(windows)]
     fn stopping(&self) -> bool {
         self.stop.load(Ordering::Acquire)
     }
@@ -469,7 +441,6 @@ impl Holder {
     /// and requests in flight end on their own threads.
     pub(super) fn request_stop(&self) {
         self.shared.stop.store(true, Ordering::Release);
-        #[cfg(windows)]
         self.shared.cancel.cancel();
     }
 }

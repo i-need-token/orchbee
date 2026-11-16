@@ -28,7 +28,7 @@ use super::CommandSpawnFailure;
 
 mod capture;
 mod spawn;
-pub use capture::{run_unix_command, run_unmasked_unix_command};
+pub use capture::{run_unix_command, run_unix_command_exchange, run_unmasked_unix_command};
 pub use spawn::SpawnEnvironment;
 
 /// The cleanup budget the Windows Job owner also applies, counted from the first settle.
@@ -37,6 +37,8 @@ const SETTLE_BUDGET: Duration = Duration::from_secs(5);
 /// partly created checkout, before the group is killed.
 const TERM_GRACE: Duration = Duration::from_secs(2);
 const POLL_SLICE: Duration = Duration::from_millis(10);
+/// How often a root wait looks again; a long-lived root, such as a machine carrier, costs little.
+const ROOT_POLL: Duration = Duration::from_millis(50);
 
 enum Settlement {
     Running,
@@ -84,6 +86,24 @@ impl CommandChild {
 
     pub fn id(&self) -> u32 {
         self.group.as_raw_nonzero().get().cast_unsigned()
+    }
+
+    /// Waits up to `timeout` for the root to exit, as the Windows owner's root wait does, without
+    /// reaping it or signalling its group, so the group ID stays pinned for another thread that
+    /// signals the group. True once the root has exited. Runs only on the retained command owner
+    /// thread, before [`Self::settle`].
+    pub fn wait_root_exit(&mut self, timeout: Duration) -> io::Result<bool> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if self.root_exited()? {
+                return Ok(true);
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Ok(false);
+            }
+            thread::sleep(remaining.min(ROOT_POLL));
+        }
     }
 
     /// Runs only on the retained command owner thread. A root exit is not completion until the

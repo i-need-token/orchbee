@@ -116,7 +116,35 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
         windows_selection::location,
         #[cfg(windows)]
         ServerJob::Inherit,
+        #[cfg(unix)]
+        None,
     )
+}
+
+/// [`activate_local_session`] for the Session `name` rather than the invocation's selection, as the
+/// link helper's `ensure-session` asks. macOS and Linux serve only the default Session, as they
+/// refuse `--session`; any other name fails before anything is created.
+#[cfg(unix)]
+pub fn activate_named_session(
+    name: &orchbee_local_runtime::SessionName,
+    deadline: Instant,
+) -> Result<StartedSession, ActivationFailure> {
+    activate(deadline, Some(name))
+}
+
+/// The Client endpoint of the existing Session `name` of this user and environment, found as a
+/// local Client finds it; only the default Session, as for [`activate_named_session`]. A Session
+/// whose runtime folder is absent fails with `NotFound`.
+#[cfg(unix)]
+pub fn session_client_endpoint(name: &orchbee_local_runtime::SessionName) -> io::Result<PathBuf> {
+    let location = unix_named_location(name)?;
+    let scope = SessionScope::parse(&location.scope).map_err(io::Error::other)?;
+    let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(&location.base, scope)
+        .map_err(|error| match error {
+        orchbee_local_runtime::RendezvousError::System { source, .. } => source,
+        other => io::Error::other(other),
+    })?;
+    Ok(session.client_socket_path().to_owned())
 }
 
 /// [`activate_local_session`] for the Session `name` rather than the invocation's selection, so one
@@ -168,6 +196,7 @@ fn activate(
     #[cfg(windows)] explicit: Option<&str>,
     #[cfg(windows)] locate: impl FnOnce() -> io::Result<windows_selection::Location>,
     #[cfg(windows)] server_job: ServerJob,
+    #[cfg(unix)] named: Option<&orchbee_local_runtime::SessionName>,
 ) -> Result<StartedSession, ActivationFailure> {
     let cohort = Cohort::current_with_diagnostic(deadline).map_err(|error| {
         ActivationFailure::caused(
@@ -191,7 +220,9 @@ fn activate(
     // already exist.
     #[cfg(unix)]
     let (base, scope_text) = {
-        let location = unix_location().map_err(runtime_location_failure)?;
+        let location = named
+            .map_or_else(unix_location, unix_named_location)
+            .map_err(runtime_location_failure)?;
         let base = if location.default_base {
             orchbee_local_runtime::prepare_default_runtime_base(|name| std::env::var_os(name))
                 .map_err(runtime_location_failure)?
@@ -793,4 +824,19 @@ pub fn target_session_name() -> Option<orchbee_local_runtime::SessionName> {
     unix_location()
         .ok()
         .and_then(|location| orchbee_local_runtime::SessionName::parse(&location.scope).ok())
+}
+
+/// The runtime location of the Session `name`, which must be the default Session; the base is
+/// found as [`unix_location`] finds it.
+#[cfg(unix)]
+fn unix_named_location(name: &orchbee_local_runtime::SessionName) -> io::Result<UnixLocation> {
+    if name.as_str() != orchbee_local_runtime::SessionName::default_session().as_str() {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "only the default Session is served on this platform",
+        ));
+    }
+    let mut location = unix_location()?;
+    name.as_str().clone_into(&mut location.scope);
+    Ok(location)
 }

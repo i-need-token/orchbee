@@ -3,7 +3,7 @@
 //! once and wiped, and the endpoint's receipt is awaited for at most 5 seconds. The caller owns the
 //! answer's bytes and wipes them; nothing here logs, formats or keeps them.
 
-use orchbee_local_ipc::LocalStream;
+use crate::machine_endpoint::LocalStream;
 use orchbee_machine_protocol::{
     ANSWER_HEADER_BYTES, ANSWER_TAKEN, admissible_answer, encode_answer, hub::AnswerEndpoint, wipe,
 };

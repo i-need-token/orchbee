@@ -30,7 +30,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     // This helper grammar is permanent; a change adds a new helper name instead.
     if tokens == ["--machine-link-v1"] {
         return Ok(SelectedRequest {
-            availability: super::grammar::Availability::Windows,
+            availability: super::grammar::Availability::WindowsAndMacos,
             format: None,
             request: Request::MachineLink,
             session: None,
@@ -45,7 +45,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     ] {
         if tokens == [token] {
             return Ok(SelectedRequest {
-                availability: super::grammar::Availability::Windows,
+                availability: super::grammar::Availability::WindowsAndMacos,
                 format: None,
                 request,
                 session: None,
@@ -123,7 +123,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             ));
         }
         return Ok(SelectedRequest {
-            availability: super::grammar::Availability::Windows,
+            availability: super::grammar::Availability::WindowsAndMacos,
             format: Some(*format),
             session: None,
             request: Request::MachineStop(RemoteStop {
@@ -143,7 +143,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         )
     })?;
     Ok(SelectedRequest {
-        availability: super::grammar::Availability::Windows,
+        availability: super::grammar::Availability::WindowsAndMacos,
         format: Some(format),
         session: None,
         request: Request::MachineRoute(Route {

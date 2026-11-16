@@ -29,9 +29,9 @@ Experimental native Rust CLI and TUI Client. On Windows and Linux, and in the Ap
 development package, bare invocation connects or activates a local Session from a verified executable
 cohort and enters its TUI after the first validated terminal
 projection frame or a stable navigation view for an unavailable terminal. Native Clients operate shared Workbench state while keeping independent selection and
-retained terminal processes. Windows also supports saved-machine SSH command routing and live TUI
-switching, user configuration, and complete-cohort release installation and updates through the contracts
-linked below. The emitted `orchbee` participates in root Cargo verification. macOS packaging is an
+retained terminal processes. Windows and macOS also support saved-machine SSH command routing and
+live TUI switching, and Windows supports user configuration and complete-cohort release installation
+and updates, through the contracts linked below. The emitted `orchbee` participates in root Cargo verification. macOS packaging is an
 unsigned, per-user development cohort for Apple Silicon; it does not include release signing or installation.
 
 Use `agent rename <session-id> <name>` to assign a runtime name, `agent list` to see each Agent's name,
@@ -59,7 +59,7 @@ See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and r
 
 Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Session. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).
 
-Windows `machine list|add|rename|remove|enable|disable` manages saved remote machines, named by ID or exact label; `add` checks the new machine through the background machine hub and saves it only once it is online, keeping that connection; `remove --stop-session --confirm` stops the remote Session before removing the record; `machine connect|disconnect` connect a saved machine through the hub and end that connection, and `connect --remember` remembers a typed sign-in answer; `add --no-install` is parsed and refused as not yet available, and help and completion leave it out. See [remote machines](docs/machines.md) for the catalog, partial outcomes, command routing, and live TUI switching.
+Windows and macOS `machine list|add|rename|remove|enable|disable` manage saved remote machines, named by ID or exact label; `add` checks the new machine through the background machine hub and saves it only once it is online, keeping that connection; `remove --stop-session --confirm` stops the remote Session before removing the record; `machine connect|disconnect` connect a saved machine through the hub and end that connection, and `connect --remember` remembers a typed sign-in answer on Windows, while macOS has no credential store yet and says so; `add --no-install` is parsed and refused as not yet available, and help and completion leave it out. See [remote machines](docs/machines.md) for the catalog, partial outcomes, command routing, and live TUI switching.
 
 Windows `install` publishes the signed release directory the running Client sits in into the store's `versions\<version>` and makes it the active version through `active.json`, then performs the PATH step unless `--no-path` is given. Help and completion leave `install` out; it stays callable. `update` reads the signed Orchbee update feed, or the one `ORCHBEE_UPDATE_FEED` names, says it is up to date when the channel offers nothing newer before fetching anything large, and otherwise downloads the one archive the feed names, checks its signed size and SHA-256, unpacks it and installs it beside the running one with the same verification, immutable publication and activation; `channel set` saves a channel first. The hidden `--automatic-update-v1`, the entry for the Session Server's automatic updates, is the same update without touching the user `Path`, refreshing only a launcher that exists and answering only its JSON document; a release build does not answer it until automatic updates are switched on. The hidden `--record-client-failure-v1 <version>`, which either launcher runs through the previous version after a Client of `<version>` failed, records that failure for the fallback after a failed move, prints nothing and exits `0`, under the same switch. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation). A release build withholds the whole `channel` family; see [release-withheld surfaces](#release-withheld-surfaces).
 
@@ -82,7 +82,7 @@ cell geometry, then run the local startup workflow below on Windows, Linux, and 
 They are the same Client route; `tui` does not select a different mode. Other platforms return localized unavailability. `--help`
 and `--version` initialize neither TUI nor service. Commands use the exact grammar below without
 abbreviations; unknown commands, undeclared options, extra operands, and non-Unicode arguments are usage
-failures. Windows remote selection follows the [saved-machine routing contract](docs/machines.md#command-routing-contract).
+failures. Windows and macOS remote selection follows the [saved-machine routing contract](docs/machines.md#command-routing-contract).
 A release build withholds some surfaces; see [release-withheld surfaces](#release-withheld-surfaces).
 
 ```text

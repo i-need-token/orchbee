@@ -88,7 +88,6 @@ pub enum SessionLifetimeObservation {
 }
 
 /// What a read of a Session's lifetime holder under its activation lock found.
-#[cfg(windows)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SessionHolderObservation {
     /// The folder has no activation lock, so no Session was ever activated there.

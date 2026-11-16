@@ -1,5 +1,5 @@
-//! Shared Windows SSH command policy, the remote launch line, and the OpenSSH release remembered
-//! answers need, without catalog or UI ownership. Nothing here compares a product version, protocol,
+//! Shared SSH command policy, the remote launch line, and the OpenSSH release remembered answers
+//! need, without catalog or UI ownership. Nothing here compares a product version, protocol,
 //! or cohort across machines: the remote Session judges this Client through the handshake a hub
 //! Session stream carries.
 use crate::machine_credentials::{Remembering, Store};
