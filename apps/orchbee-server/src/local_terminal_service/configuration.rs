@@ -759,15 +759,13 @@ impl super::LocalTerminalService {
             }
         }
     }
-    /// Kept output exists only in the Windows checkpoint store; turning the setting off removes
-    /// it at once, whether an edit or another editor turned it off.
+    /// Kept output lives beside the checkpoint; turning the setting off removes it at once,
+    /// whether an edit or another editor turned it off. A Session that keeps no checkpoint keeps
+    /// no output either.
     fn after_configuration_commit(&self, output_off: bool) {
-        #[cfg(windows)]
         if output_off {
             self.remove_terminal_output();
         }
-        #[cfg(not(windows))]
-        let _ = output_off;
     }
 }
 

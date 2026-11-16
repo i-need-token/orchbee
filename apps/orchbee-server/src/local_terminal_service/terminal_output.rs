@@ -4,19 +4,15 @@
 //! caps and storage belong to `crate::terminal_output`.
 
 use super::LocalTerminalService;
+use super::viewer_connection::process_sampling::screen::{ReplayCapture, replay_capture};
 use crate::localization::{self, Locale};
 use crate::session_coordinator::ProcessObservationTarget;
 use crate::terminal_output::{self, TerminalOutput};
 use orchbee_workbench_protocol::{PresentationBinding, TerminalPresentationId};
 use std::{
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    sync::{Arc, atomic::AtomicBool},
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
-
-#[cfg(windows)]
-use super::viewer_connection::process_sampling::screen::{ReplayCapture, replay_capture};
-#[cfg(windows)]
-use std::{sync::atomic::AtomicBool, time::Instant};
 
 impl LocalTerminalService {
     pub(crate) fn install_terminal_output(&self, output: Arc<TerminalOutput>) -> bool {
@@ -101,7 +97,6 @@ impl LocalTerminalService {
     /// Captures every live terminal's recent output before a background save, one temporary
     /// viewer at a time through the shared observer. A busy observer, a failed capture or the
     /// deadline keeps that terminal's previous file.
-    #[cfg(windows)]
     pub(crate) fn capture_terminal_output(&self, deadline: Instant) {
         let Some(output) = self.terminal_output() else {
             return;
@@ -139,7 +134,6 @@ impl LocalTerminalService {
     }
 
     /// Captures one terminal during the final save, whose viewer cleanup the caller settles.
-    #[cfg(windows)]
     pub(super) fn capture_final_output(
         &self,
         target: &ProcessObservationTarget,
@@ -162,7 +156,6 @@ impl LocalTerminalService {
         pending
     }
 
-    #[cfg(windows)]
     fn keep_capture(
         &self,
         output: &TerminalOutput,
@@ -178,7 +171,6 @@ impl LocalTerminalService {
     }
 
     /// Every live checkpoint terminal and the Presentation it shows.
-    #[cfg(windows)]
     pub(crate) fn output_targets(
         &self,
     ) -> std::io::Result<Vec<(ProcessObservationTarget, TerminalPresentationId)>> {

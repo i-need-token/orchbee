@@ -90,7 +90,6 @@ impl SessionCoordinator {
     }
 
     /// Every bound checkpoint member and the Presentation it shows.
-    #[cfg(windows)]
     pub(crate) fn checkpoint_presentations(
         &self,
     ) -> Vec<(

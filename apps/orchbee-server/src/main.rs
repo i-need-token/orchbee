@@ -31,7 +31,6 @@ mod local_terminal_service;
 #[cfg(any(unix, windows))]
 mod local_worker_service;
 #[cfg(any(unix, windows))]
-#[cfg(windows)]
 mod localization;
 #[cfg(any(unix, windows))]
 mod notification_registry;
@@ -42,7 +41,6 @@ mod session_shutdown;
 #[cfg(any(unix, windows))]
 mod terminal_coordinator;
 #[cfg(any(unix, windows))]
-#[cfg(windows)]
 mod terminal_output;
 #[cfg(any(unix, windows))]
 mod terminal_titles;

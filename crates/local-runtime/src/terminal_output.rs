@@ -1,5 +1,5 @@
 //! Pure naming and framing for kept terminal output. Each file is one opaque payload named by the
-//! nonzero sequence number the Server chooses, in decimal; only the Windows storage adapter performs
+//! nonzero sequence number the Server chooses, in decimal; only the session store performs
 //! filesystem effects and the Server owns what a payload means, which numbers its checkpoint names
 //! and when to write.
 use crate::checkpoint_rotation::{Candidate, HEADER_BYTES, encode};

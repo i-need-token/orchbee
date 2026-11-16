@@ -69,7 +69,6 @@ impl Kept {
     }
 
     /// The store kept terminal output shares with the checkpoint.
-    #[cfg(windows)]
     pub(super) fn output_store(&self) -> Arc<dyn crate::terminal_output::TerminalOutputStore> {
         Arc::clone(&self.store) as _
     }

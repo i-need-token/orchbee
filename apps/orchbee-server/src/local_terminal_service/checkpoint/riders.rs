@@ -1,13 +1,12 @@
-//! Agent resume and output replay ride on a Windows checkpoint: a save records each terminal's
-//! retained Agent session and kept output, a restore resumes the one and replays the other, and a
-//! held restore does both for its one Presentation. The Session's settings turn each on. It does
-//! not sample directories or publish a checkpoint.
+//! Agent resume and output replay ride on a checkpoint: a save records each terminal's retained
+//! Agent session and kept output, a restore resumes the one and replays the other, and a held
+//! restore does both for its one Presentation. The Session's settings turn each on. Output replay
+//! rides wherever the Session keeps a checkpoint; Agent resume rides on Windows only, through
+//! `resume`. It does not sample directories or publish a checkpoint.
 
-use super::super::{LocalTerminalService, agent_resume::AgentResumeCandidates};
+use super::super::LocalTerminalService;
 use crate::{
-    session_coordinator::{
-        PendingHeldRestore, ProcessObservationTarget, RunTableEntry, SessionCoordinator,
-    },
+    session_coordinator::{PendingHeldRestore, ProcessObservationTarget, SessionCoordinator},
     terminal_coordinator::{PendingOperation, WorkerPlacement},
 };
 use orchbee_server::WorkbenchRestoreTarget;
@@ -21,13 +20,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Agent references a restore resumes once the Session runs.
-pub(super) type Resumes = AgentResumeCandidates;
-
-/// No Agent reference yet.
-pub(super) fn resumes() -> Resumes {
-    Resumes::default()
-}
+#[cfg(windows)]
+mod resume;
+#[cfg(not(windows))]
+#[path = "riders/without_resume.rs"]
+mod resume;
+pub(super) use resume::{Resumes, resumes};
 
 /// The kept output one restored Presentation replays before its program starts, if any.
 pub(super) type Output = Option<RestoredOutput>;
@@ -43,7 +41,7 @@ pub(in crate::local_terminal_service) type Seed = Option<Vec<u8>>;
 /// Whether Agent resume and output replay are on for one save or restore.
 #[derive(Clone, Copy)]
 pub(in crate::local_terminal_service) struct Riders {
-    resume: bool,
+    resume: resume::Resume,
     replay: bool,
 }
 
@@ -51,7 +49,7 @@ impl Riders {
     /// The Session's current choices, read before the caller takes any lock.
     pub(in crate::local_terminal_service) fn current(service: &LocalTerminalService) -> Self {
         Self {
-            resume: service.agent_resume_enabled(),
+            resume: resume::Resume::current(service),
             replay: service.output_replay_enabled(),
         }
     }
@@ -59,24 +57,14 @@ impl Riders {
     /// The startup read's choices, which decide a restore once.
     pub(super) fn startup(values: &UserSettingsValues) -> Self {
         Self {
-            resume: values.resume_agents_on_restore,
+            resume: resume::Resume::startup(values),
             replay: values.restore_terminal_output,
         }
     }
 
-    /// What Claude Code's run table names for each published Claude Code run, read while no lock
-    /// is held. Capture admits an entry only for a run still published as that exact process, so
-    /// any change in between gains nothing. Resuming off, or an unreadable coordinator, reads
-    /// nothing.
-    pub(super) fn entries(self, service: &LocalTerminalService) -> Vec<RunTableEntry> {
-        if !self.resume {
-            return Vec::new();
-        }
-        let anchors = match service.coordinator.lock() {
-            Ok(coordinator) => coordinator.run_table_anchors(),
-            Err(_) => return Vec::new(),
-        };
-        crate::session_coordinator::read_run_table(&anchors)
+    /// What Agent resume reads for a save while no lock is held.
+    pub(super) fn entries(self, service: &LocalTerminalService) -> resume::Entries {
+        self.resume.entries(service)
     }
 
     /// Every bound checkpoint member and the Presentation it shows, which a final save captures
@@ -119,11 +107,9 @@ impl Riders {
         worker: &WorkerId,
         directories: &[(PresentationBinding, WorkbenchDirectoryPath)],
         targets: &[ProcessObservationTarget],
-        entries: &[RunTableEntry],
+        entries: &resume::Entries,
     ) -> io::Result<Vec<u8>> {
-        let agents = self
-            .resume
-            .then(|| coordinator.checkpoint_agent_sessions(targets, entries));
+        let agents = self.resume.agent_sessions(coordinator, targets, entries);
         let outputs = service.checkpoint_outputs(self.replay, targets);
         coordinator.checkpoint_with_observations(
             worker,
@@ -140,12 +126,7 @@ impl Riders {
         coordinator: &mut SessionCoordinator,
         target: &WorkbenchRestoreTarget,
     ) -> bool {
-        let agent_resume =
-            self.resume && coordinator.has_pending_agent_session(target.presentation_id());
-        if !agent_resume {
-            coordinator.take_pending_agent_session(target.presentation_id());
-        }
-        agent_resume
+        self.resume.hold_agent(coordinator, target)
     }
 
     /// Queues a restored Presentation's Agent reference to resume where it was recorded, or drops
@@ -156,20 +137,7 @@ impl Riders {
         target: &WorkbenchRestoreTarget,
         resumes: &mut Resumes,
     ) {
-        if coordinator.has_pending_agent_session(target.presentation_id()) {
-            // A reference resumes only where it was recorded.
-            match target
-                .restored_directory()
-                .filter(|p| std::path::Path::new(p.as_str()).is_dir())
-            {
-                Some(directory) if self.resume => {
-                    resumes.push(target.presentation_id().clone(), directory.clone());
-                }
-                _ => {
-                    coordinator.take_pending_agent_session(target.presentation_id());
-                }
-            }
-        }
+        self.resume.restore_agent(coordinator, target, resumes);
     }
 
     /// The kept output a restored Presentation replays, while replay is on.
@@ -204,13 +172,8 @@ impl Riders {
         current: Option<WorkerPlacement>,
         started: Option<(TerminalPresentationId, WorkbenchDirectoryPath)>,
     ) {
-        if let Some((presentation, directory)) = started
-            && self.resume
-            && coordinator.has_pending_agent_session(&presentation)
-        {
-            let _kept_pending =
-                service.resume_retried_agent(coordinator, current, presentation, directory);
-        }
+        self.resume
+            .resume_held_agent(service, coordinator, current, started);
     }
 }
 

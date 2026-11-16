@@ -202,7 +202,6 @@ fn start(
     #[cfg(windows)]
     let resumes = restored.take_agent_resume();
     // Restored launches read their kept output through the same store.
-    #[cfg(windows)]
     if let Some(kept) = &owners.checkpoint {
         owners.terminals.install_terminal_output(Arc::new(
             crate::terminal_output::TerminalOutput::new(kept.output_store()),

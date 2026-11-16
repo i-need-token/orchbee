@@ -15,10 +15,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(windows)]
-mod riders;
-#[cfg(not(windows))]
-#[path = "checkpoint/without_riders.rs"]
 mod riders;
 pub(super) use riders::{Riders, attach_held_seed};
 

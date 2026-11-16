@@ -183,7 +183,6 @@ fn unsupported_catalog_is_rejected_before_pending_store_cleanup() {
     assert_eq!(fs::read(catalog_path).unwrap(), record);
 }
 
-#[cfg(windows)]
 fn samples() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src/local_worker_service/managed/checkpoint/tests/record-samples")
@@ -193,8 +192,7 @@ fn samples() -> PathBuf {
 /// stored checkpoint slot `checkpoint-v<version>.bin` and the kept terminal output it names,
 /// `terminal-output-v<version>.bin`, as the local runtime's record samples describe. Each slot
 /// restores through the loader without a recovery notice, and the restored Presentation replays
-/// the kept output. Only Windows keeps terminal output.
-#[cfg(windows)]
+/// the kept output.
 #[test]
 fn every_stored_sample_restores_its_checkpoint_and_kept_output() {
     let names: Vec<String> = fs::read_dir(samples())

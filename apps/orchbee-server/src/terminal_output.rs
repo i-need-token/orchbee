@@ -27,7 +27,6 @@ pub(crate) trait TerminalOutputStore: Send + Sync {
     fn remove(&self, token: u64) -> io::Result<()>;
 }
 
-#[cfg(windows)]
 impl TerminalOutputStore for Mutex<orchbee_local_runtime::SessionStore> {
     fn tokens(&self) -> io::Result<Vec<u64>> {
         lock(self)?.terminal_output_tokens()
@@ -43,7 +42,6 @@ impl TerminalOutputStore for Mutex<orchbee_local_runtime::SessionStore> {
     }
 }
 
-#[cfg(windows)]
 fn lock(
     store: &Mutex<orchbee_local_runtime::SessionStore>,
 ) -> io::Result<std::sync::MutexGuard<'_, orchbee_local_runtime::SessionStore>> {

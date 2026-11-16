@@ -228,14 +228,16 @@ restart directory, and it publishes only once that Worker's Host is observed abs
 Fresh physical creation establishes terminal bindings. Client and history recovery remain separate. Activation markers retain their existing recovery semantics on failed boot.
 
 macOS runs this startup, clean stop and the running save model in the same Session folder under
-its POSIX data root, with the same storage owner, record format and restore notice. Agent session
-references and kept terminal output ride on a checkpoint only on Windows
-(`local_terminal_service/checkpoint/riders.rs`): a macOS save records neither and its restore
-resumes and replays nothing. A macOS stop, an `exit` included, disposes every terminal and stops the
-Host, so its next start relaunches them from the final capture. A Session that ended without its stop
-has no final capture: once activation has recovered it, which waits until every recorded process is
-gone and refuses while its Host holds its lock, startup restores the newest background save. No
-restore therefore starts beside a running terminal.
+its POSIX data root, with the same storage owner, record format and restore notice. Kept terminal
+output rides on a macOS checkpoint as on Windows
+([Terminal output replay](#terminal-output-replay)); Agent session references ride only on Windows
+(`local_terminal_service/checkpoint/riders/resume.rs`), so a macOS save records none and its
+restore resumes nothing. A macOS stop, an `exit` included, disposes every terminal and stops the
+Host, so its next start relaunches them from the final capture, each showing its kept output first
+while the preference is on. A Session that ended without its stop has no final capture: once
+activation has recovered it, which waits until every recorded process is gone and refuses while its
+Host holds its lock, startup restores the newest background save and the output that save named, at
+most one save period old. No restore therefore starts beside a running terminal.
 
 ## Running save model
 
@@ -261,7 +263,8 @@ completion rather than allowing two storage writers.
 ## Terminal output replay
 
 The `restoreTerminalOutput` preference (off by default) keeps each terminal's recent output on this
-computer and shows it again after a full Server restart. `terminal_output.rs` owns the payload, the
+computer and shows it again after a full Server restart, on every platform whose Session keeps a
+checkpoint (Windows and macOS; a Linux Session keeps neither). `terminal_output.rs` owns the payload, the
 caps, the file numbers and an in-memory index of what each live terminal last kept;
 `local_terminal_service/terminal_output.rs` connects it to capture, saves and restore. The Server
 reads the preference at every save and restore, so a change from any writer applies at the next
@@ -331,7 +334,8 @@ in a POSIX folder on macOS too, and the restore witness checks that a restored t
 its saved directory.
 
 Terminal output tests cover the line and byte caps and that only the named Presentation replays,
-with a foreign file removed. The Windows restart witness `cli_windows_output_replay` drives real
+with a foreign file removed; they and the record-sample witness run on macOS too. The Windows
+restart witness `cli_windows_output_replay` drives real
 Sessions: kept output for live terminals, a closed terminal's file gone after the next save, the
 checkpoint naming exactly the kept files, the replay above the divider and a new prompt in each
 terminal's own client text, swapped files deleted and never replayed, and the preference off

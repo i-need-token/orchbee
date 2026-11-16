@@ -371,11 +371,12 @@ Client exit does not end the Session, and neither does `SIGHUP`. `server stop`, 
 Client's `workbench.session-stop`, `SIGTERM` and `SIGINT` all reach the
 [managed stop owner](#managed-windows-session-shutdown), so a logout or a system shutdown, which
 sends `SIGTERM`, stops the Session normally. The owner runs as on Windows without plugin hooks,
-automatic updates, Agent resume or kept terminal output, and on Linux also without the checkpoint
-saver and final capture: the Worker shutdown request disposes every terminal, and after the Client
+automatic updates or Agent resume, and on Linux also without the checkpoint saver, final capture
+and kept terminal output: the Worker shutdown request disposes every terminal, and after the Client
 listeners stop the owner removes the Session's socket files before it publishes the Stopped record,
 which is the receipt the next start consumes. A macOS start then relaunches every terminal from the
-final capture in its saved directory.
+final capture in its saved directory, showing its kept output first while `terminal.restore_output`
+is on.
 Every stop the Server begins itself, on a signal or once its Worker exited and its Host is gone,
 uses one identity, and a later signal or loss check retries that identity once its attempt failed.
 After its Worker exited, a stop fails while that Worker's Host still runs, since nothing here may
@@ -410,8 +411,9 @@ same way, so the sidebar and Panel titles read the Agent states process observat
 publish. Configured command, Panel graphics, Agent view, Workspace metadata and notification
 requests keep their earlier refusal at admission until their behavior off Windows is decided.
 A macOS Session keeps the [checkpoint](docs/workbench-checkpoint.md#managed-startup-and-clean-stop)
-in the Session folder under its POSIX data root and holds a Panel whose saved directory is gone
-until `panel.restore-terminal`; a Linux Session keeps none yet, which takes the checkpoint policy
+and [kept terminal output](docs/workbench-checkpoint.md#terminal-output-replay) in the Session
+folder under its POSIX data root and holds a Panel whose saved directory is gone until
+`panel.restore-terminal`; a Linux Session keeps neither yet, which takes the checkpoint policy
 in `managed/checkpoint.rs` and the restore-notice reader in the workbench Client plus a decision on
 logouts that leave user processes running. Handoff remains Windows-only because only the Windows
 startup constructs its owner.
@@ -1372,5 +1374,5 @@ publishes exactly one settings snapshot with a higher revision; a refused edit p
 nothing. A file that stops parsing or cannot be read keeps the last valid settings: terminal
 creation is not blocked, the snapshot reports `syntax-error` with its line and column or
 `unreadable`, and an edit against it is refused without writing. Turning
-`terminal.restore_output` off removes kept output at once on Windows, whichever editor turned it
-off.
+`terminal.restore_output` off removes kept output at once on Windows and macOS, whichever editor
+turned it off.
