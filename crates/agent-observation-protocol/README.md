@@ -140,6 +140,13 @@ reuse it rather than keeping their own tables.
   is an alias has written its process title over its arguments: it names that provider with an
   unreadable command line, so the run shows without a proven mode. Windows images keep the exact
   argv[0] rule.
+- Script operands: on POSIX a package manager installs a JavaScript Agent as a bin link, and the
+  shebang hands the runtime that link (`node /opt/homebrew/bin/copilot`), where npm's Windows shim
+  hands it the package entry itself. `unverified_script_operand` names the argv index of such a
+  runtime script when its shared or generic name is the only reason the process stays unverified.
+  The crate never reads the file system: a caller that can resolves that operand to its real path,
+  classifies again with it, and adopts the result only when that path proves the provider, so a
+  name alone still proves nothing.
 - Provider arguments: `interactive_agent_arguments` returns the provider and the arguments after
   its program exactly as the classifier read them, and only when it finds the process interactive.
   A reader of a provider's own command line, such as the Server's conversation id source, uses it,

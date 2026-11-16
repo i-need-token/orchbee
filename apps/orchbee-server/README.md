@@ -401,8 +401,14 @@ owner's typed outcome: plugin stores and Worker plugin jobs answer `Unsupported`
 configuration-backed requests answer `Unavailable`. Startup starts the process observer as on
 Windows: these Hosts sample each terminal's POSIX session, so Agent identity, screen states, close
 evidence, directory reads, installed Agent manifests and external settings edits work here too. A
-catalog download has no owned fetch process off Windows and fails as a process failure before any
-network effect. Startup also configures Panel graphics
+POSIX package manager installs a JavaScript Agent as a bin link that its shebang hands the runtime,
+where npm's Windows shim hands it the package entry. So before identity, the Server replaces a
+runtime script whose shared or generic name alone leaves its row unverified with the file it
+resolves to, read against the process's working folder, and keeps that path only when it proves
+the provider. A relayed sample carries the same path, so Clients read the rows the Server read. On
+macOS a catalog download runs `/usr/bin/curl` with the Windows arguments, attempts and limits;
+Linux admits no system curl and fails it as a process failure before any network effect. Startup
+also configures Panel graphics
 file frames, whose private frame directory refuses reservation with `Unsupported`. Agent names
 resolve through the same guarded path as on Windows; terminal name owners come from Agent reports
 and process observation. Client view, semantic event and window title

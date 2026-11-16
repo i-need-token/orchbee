@@ -96,6 +96,43 @@ pub fn interactive_agent_arguments(
     }
 }
 
+/// The index in `argv` of the script a runtime runs when that script's name is the only reason
+/// [classify_agent_process] leaves the process unverified: `node`, `bun`, a Python or a POSIX shell
+/// running a script named by a shared or generic alias outside every listed install root. A native
+/// image, a wrapper, a retitled runtime and a Python module give none. A reader that can see the
+/// file system may replace that operand with the file it names, such as the package entry a POSIX
+/// package manager's bin link points to, and classify the process again with that path; the name
+/// alone still proves nothing.
+pub fn unverified_script_operand(image: Option<&str>, argv: Option<&[String]>) -> Option<usize> {
+    let (image, argv) = (image?, argv?);
+    let unverified = matches!(
+        classify_agent_process(Some(image), Some(argv)),
+        AgentProcessRecognition::Unresolved {
+            reason: AgentUnresolvedProcess::UnverifiedProvenance,
+            ..
+        }
+    );
+    if !unverified || !matches!(resolve_name(image), Name::Absent) {
+        return None;
+    }
+    let stem = basename(image);
+    let host = Host::of(&stem).filter(|host| {
+        matches!(
+            host,
+            Host::Node | Host::Bun | Host::Python | Host::PosixShell
+        )
+    })?;
+    if retitled_runtime(host, image, &stem, argv).is_some()
+        || !names_image(argv.first()?, image, &stem, host)
+    {
+        return None;
+    }
+    match entrypoint(host, argv)? {
+        Entry::Script(index) => Some(index),
+        Entry::Module(_) => None,
+    }
+}
+
 /// What a process resolves to before its provider's mode grammar applies.
 enum Resolved<'a> {
     /// A provider shape with the arguments after its program; `None` when they are unreadable.

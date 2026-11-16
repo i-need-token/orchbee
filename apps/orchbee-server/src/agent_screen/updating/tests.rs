@@ -75,6 +75,7 @@ fn cached(root: &Root, name: &str) -> PathBuf {
     remote_root(&root.0).join(name)
 }
 /// The cached Codex version that a Session configured with `source` selects, if any.
+#[cfg(windows)]
 fn selected(root: &Root, source: &CatalogUrl) -> Option<String> {
     let cache = remote_cache(Some(&root.0), &Ok(Some(source.clone())));
     let codex = ScreenDetector::load(Some(&root.0), cache)
@@ -137,6 +138,9 @@ fn cache_updates_preserve_versions_bytes_partial_outcomes_and_corrupt_inputs() {
     assert!(!rejected.status_saved);
     assert_eq!(fs::read(status).unwrap(), b"corrupt status");
 }
+/// The failure probe holds the index open without delete sharing, which only Windows offers: a
+/// POSIX rename or removal depends on the folder, never on an open file.
+#[cfg(windows)]
 #[test]
 fn a_catalog_selects_only_rules_its_own_update_cached() {
     let root = Root::new();
@@ -299,7 +303,7 @@ impl Http {
                     if budget.is_zero() {
                         return;
                     }
-                    // Windows accepts inherit the listener's nonblocking mode.
+                    // An accept may inherit the listener's nonblocking mode, as on Windows.
                     stream.set_nonblocking(false).unwrap();
                     stream.set_read_timeout(Some(budget)).unwrap();
                     stream.set_write_timeout(Some(budget)).unwrap();

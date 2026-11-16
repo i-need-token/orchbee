@@ -8,6 +8,7 @@ use super::{
     WorkerOperationResult, WorkerOutcome, WorkerRequest, WorkerRequestError, rejected,
     snapshot_reason, unavailable,
 };
+use crate::session_coordinator::resolve_script_operands;
 use orchbee_capability_node_protocol::{
     OperationId, ViewerHistoryDemand as WorkerHistoryDemand,
     ViewerProjectionDemand as WorkerProjectionDemand, ViewerRowDetail as WorkerRowDetail,
@@ -28,13 +29,18 @@ use orchbee_client_server_protocol::{
     ViewerSelectionGestureAction, ViewerSelectionPoint, ViewportRowOrigin,
 };
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, HistoryControl, MessageRole,
-    PayloadEncoding, RowWindowDetail, SelectionControl, SelectionExportControl,
-    SelectionExportFormat, SelectionExportStatus, TerminalEffectEvent, decode_connection_control,
-    decode_history_control, decode_selection_control, decode_selection_export_chunk_route,
-    decode_selection_export_control, decode_terminal_effect_event, decode_transport_envelope,
-    inspect_terminal_row_window_route,
+    CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, DecodedEnvelope, HistoryControl,
+    MAXIMUM_CONTROL_JSON_BYTES, MessageRole, PayloadEncoding, RowWindowDetail, SelectionControl,
+    SelectionExportControl, SelectionExportFormat, SelectionExportStatus,
+    TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalEffectEvent, TerminalProcessInfo,
+    decode_connection_control, decode_history_control, decode_selection_control,
+    decode_selection_export_chunk_route, decode_selection_export_control,
+    decode_terminal_effect_event, decode_transport_envelope, inspect_terminal_row_window_route,
 };
+
+/// The largest process record accepted from a Worker or relayed to a Client.
+const MAXIMUM_PROCESS_RECORD_BYTES: usize =
+    TRANSPORT_ENVELOPE_HEADER_BYTES + MAXIMUM_CONTROL_JSON_BYTES;
 
 impl LocalTerminalConnection<'_> {
     pub(super) fn execute_viewer(&mut self, request: &TerminalViewerRequest) -> Outcome {
@@ -283,7 +289,7 @@ impl LocalTerminalConnection<'_> {
         match completion {
             Ok(WorkerOperationResult::Viewer(result)) => match result.outcome {
                 WorkerOutcome::Empty => Outcome::Empty {},
-                WorkerOutcome::Record(record) => {
+                WorkerOutcome::Record(mut record) => {
                     // Row-read and correlated selection responses validate
                     // against their issued request and pinned attachment rather
                     // than the frame projection. Poll may carry history and
@@ -292,7 +298,7 @@ impl LocalTerminalConnection<'_> {
                     // wrong action is therefore still a strict route violation.
                     let accepted = match request.action() {
                         Action::ReadProcessInfo { .. } => {
-                            valid_process_record(viewer, request_id, &record, process_started)
+                            valid_process_record(viewer, request_id, &mut record, process_started)
                         }
                         Action::ReadRows { .. } => {
                             valid_rows_record(request.action(), viewer, request_id, &record)
@@ -583,18 +589,24 @@ fn valid_selection_action_record(
     }
 }
 
+/// Validates and observes a relayed process record. When a script operand resolves, `record`
+/// becomes the record that carries the resolved sample, so the Client reads the rows this Server
+/// observed.
 pub(super) fn valid_process_record(
     viewer: &ViewerAttachment<'_>,
     operation: OperationId,
-    record: &[u8],
+    record: &mut Vec<u8>,
     started: std::time::Instant,
 ) -> bool {
-    match process_record(viewer, operation, record) {
-        Ok(Some(info)) => {
+    match process_evidence(viewer, operation, record) {
+        Ok(Some(evidence)) => {
+            if let Some(carried) = evidence.record {
+                *record = carried;
+            }
             viewer.service.observe_host_process(
                 &viewer.handle,
                 viewer.target,
-                &info,
+                &evidence.sample,
                 None,
                 None,
                 started,
@@ -605,17 +617,32 @@ pub(super) fn valid_process_record(
         Err(()) => false,
     }
 }
-/// Validates complete correlated process evidence without publishing it.
+/// Validates complete correlated process evidence without publishing it, with every script
+/// operand this build resolves already in its rows.
 pub(super) fn process_record(
     viewer: &ViewerAttachment<'_>,
     operation: OperationId,
     record: &[u8],
-) -> Result<Option<orchbee_terminal_protocol::TerminalProcessInfo>, ()> {
-    use orchbee_terminal_protocol::{
-        MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl, TRANSPORT_ENVELOPE_HEADER_BYTES,
-        decode_process_info_control,
-    };
-    if record.len() > TRANSPORT_ENVELOPE_HEADER_BYTES + MAXIMUM_CONTROL_JSON_BYTES {
+) -> Result<Option<TerminalProcessInfo>, ()> {
+    process_evidence(viewer, operation, record).map(|evidence| evidence.map(|e| e.sample))
+}
+
+/// One validated process sample with the script operands this build resolves.
+struct ProcessEvidence {
+    sample: TerminalProcessInfo,
+    /// The record that carries `sample`, present only when an operand resolved.
+    record: Option<Vec<u8>>,
+}
+
+/// A resolved sample that no record can carry is dropped for the Host's own, so the Server and a
+/// relayed Client never read different rows.
+fn process_evidence(
+    viewer: &ViewerAttachment<'_>,
+    operation: OperationId,
+    record: &[u8],
+) -> Result<Option<ProcessEvidence>, ()> {
+    use orchbee_terminal_protocol::{ProcessInfoControl, decode_process_info_control};
+    if record.len() > MAXIMUM_PROCESS_RECORD_BYTES {
         return Err(());
     }
     let envelope = decode_transport_envelope(record).map_err(|_| ())?;
@@ -637,7 +664,18 @@ pub(super) fn process_record(
         {
             return Err(());
         }
-        return Ok(Some(info));
+        let resolved = resolve_script_operands(&info)
+            .and_then(|sample| Some((carried_record(&envelope, &sample)?, sample)));
+        return Ok(Some(match resolved {
+            Some((carried, sample)) => ProcessEvidence {
+                sample,
+                record: Some(carried),
+            },
+            None => ProcessEvidence {
+                sample: info,
+                record: None,
+            },
+        }));
     }
     if matches!(
         decode_connection_control(envelope.kind, envelope.role, envelope.payload),
@@ -647,6 +685,28 @@ pub(super) fn process_record(
     } else {
         Err(())
     }
+}
+
+/// The Host's record re-encoded around `sample`, with its own correlation, epoch and protocol, or
+/// `None` when the sample no longer fits a process record.
+fn carried_record(envelope: &DecodedEnvelope<'_>, sample: &TerminalProcessInfo) -> Option<Vec<u8>> {
+    use orchbee_terminal_protocol::{
+        Envelope, ProcessInfoControl, encode_process_info_control, encode_transport_envelope,
+    };
+    let control =
+        encode_process_info_control(&ProcessInfoControl::ProcessInfo(sample.clone())).ok()?;
+    encode_transport_envelope(&Envelope {
+        correlation_id: envelope.correlation_id,
+        host_epoch: envelope.host_epoch,
+        kind: control.kind,
+        optional_message: envelope.optional_message,
+        payload: &control.payload,
+        payload_encoding: envelope.payload_encoding,
+        protocol: envelope.protocol,
+        role: control.role,
+    })
+    .ok()
+    .filter(|carried| carried.len() <= MAXIMUM_PROCESS_RECORD_BYTES)
 }
 
 /// A Poll record is either an ordinary projection record or a dedicated

@@ -1336,6 +1336,70 @@ fn posix_launch_shapes_name_providers_as_windows_shapes_do() {
     }
 }
 
+/// A shared alias that a POSIX bin link names stays unverified by its name; only the file the link
+/// resolves to, inside the package's install root, proves the provider, as npm's Windows shim does.
+#[test]
+fn bin_links_of_shared_aliases_prove_a_provider_only_through_their_real_path() {
+    const NODE: &str = "/opt/homebrew/Cellar/node/24.1.0/bin/node";
+    const PACKAGES: &str = "/opt/homebrew/lib/node_modules";
+    /// Image, argv, the operand with the package entry its link resolves to, and that path's result.
+    type Row = (
+        &'static str,
+        &'static [&'static str],
+        Option<(usize, &'static str)>,
+        AgentProcessRecognition,
+    );
+    let rows: [Row; 8] = [
+        (
+            NODE,
+            &["node", "/opt/homebrew/bin/copilot"],
+            Some((1, "@github/copilot/index.js")),
+            interactive(P::Copilot, S::PackageEntry),
+        ),
+        (
+            NODE,
+            &["node", "--no-warnings", "bin/pi"],
+            Some((2, "@earendil-works/pi-coding-agent/dist/cli.js")),
+            interactive(P::Pi, S::PackageEntry),
+        ),
+        (
+            "/bin/bash",
+            &["/bin/sh", "/usr/local/bin/kilo"],
+            Some((1, "@kilocode/cli/bin/kilo")),
+            interactive(P::Kilo, S::Shim),
+        ),
+        // A real path outside the install root proves nothing either.
+        (
+            NODE,
+            &["node", "/opt/homebrew/bin/copilot"],
+            Some((1, "copilot-clone/index.js")),
+            NOT,
+        ),
+        // No script operand: a native image, a retitled runtime, a unique alias and a module.
+        ("/usr/local/bin/cbc", &["cbc"], None, NOT),
+        (NODE, &["copilot"], None, NOT),
+        (NODE, &["node", "/opt/homebrew/bin/gemini"], None, NOT),
+        ("/usr/bin/python3", &["python3", "-m", "copilot"], None, NOT),
+    ];
+    for (image, argv, resolved, want) in rows {
+        let mut argv: Vec<String> = argv.iter().map(|&a| a.to_owned()).collect();
+        let operand = crate::unverified_script_operand(Some(image), Some(&argv));
+        assert_eq!(
+            operand,
+            resolved.map(|(index, _)| index),
+            "{image} {argv:?}"
+        );
+        if let Some((index, entry)) = resolved {
+            argv[index] = format!("{PACKAGES}/{entry}");
+            assert_eq!(
+                classify_agent_process(Some(image), Some(&argv)),
+                want,
+                "{image} {argv:?}"
+            );
+        }
+    }
+}
+
 /// Each platform reads only its own shells as a terminal's interactive root.
 #[test]
 fn interactive_shell_roots_follow_their_platform_family() {

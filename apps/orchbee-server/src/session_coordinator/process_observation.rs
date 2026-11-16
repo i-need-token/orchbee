@@ -14,10 +14,12 @@ use orchbee_workbench_protocol::PresentationBinding;
 use std::{collections::BTreeMap, time::Instant};
 mod host_conventions;
 mod identity;
+mod script_operands;
 #[cfg(all(test, not(windows)))]
 mod tests;
 #[cfg(all(test, windows))]
 pub(crate) use identity::SETTLE;
+pub(crate) use script_operands::resolve_script_operands;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Selected {
     pid: u32,

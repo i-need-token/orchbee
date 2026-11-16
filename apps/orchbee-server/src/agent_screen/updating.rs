@@ -209,7 +209,8 @@ pub(crate) fn configured_source() -> Source {
         Err(std::env::VarError::NotUnicode(_)) => Err(Failure::InvalidSource),
     }
 }
-/// The retained updater thread calls this once. Every fetch is a real bounded owned curl Job.
+/// The retained updater thread calls this once. Every fetch is a real bounded system curl child
+/// that its platform adapter owns until it and its descendants have exited.
 pub(crate) fn run(root: &Path, source: &CatalogUrl, stop: &AtomicBool) -> UpdateReport {
     run_with_fetch(
         root,
@@ -329,5 +330,5 @@ fn run_with_fetch(
     report
 }
 
-#[cfg(all(test, windows))]
+#[cfg(all(test, any(windows, target_os = "macos")))]
 pub(crate) mod tests;

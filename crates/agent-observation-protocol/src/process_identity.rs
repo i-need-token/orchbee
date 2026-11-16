@@ -10,7 +10,7 @@ mod sample;
 mod shell;
 pub use executable::{
     AgentProcessRecognition, AgentUnresolvedProcess, classify_agent_process,
-    interactive_agent_arguments,
+    interactive_agent_arguments, unverified_script_operand,
 };
 pub use mode::{AgentInvocationMode, AgentModeGrammar};
 pub use registry::{

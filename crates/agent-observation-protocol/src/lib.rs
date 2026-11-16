@@ -87,4 +87,5 @@ pub use process_identity::{
     AgentSampleVerdict, AgentUnresolvedProcess, InteractiveShells, ShellRoot,
     classify_agent_process, classify_shell_root, descends_from, evaluate_agent_sample,
     idle_shell_only, interactive_agent_arguments, is_console_host, native_agent_basename,
+    unverified_script_operand,
 };

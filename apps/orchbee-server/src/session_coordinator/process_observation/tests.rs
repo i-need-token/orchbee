@@ -105,3 +105,77 @@ fn macos_samples_name_the_agent_its_launch_shape_names() {
         assert_eq!(identified(members), want, "{case}");
     }
 }
+
+/// A shared alias's bin link names its provider only through the package entry it resolves to,
+/// read against the process's working folder. A link elsewhere, or a relative operand without a
+/// working folder, leaves the sample as the Host reported it.
+#[test]
+fn bin_links_of_shared_aliases_resolve_through_the_working_folder() {
+    struct Scratch(std::path::PathBuf);
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+    const NODE: &str = "/opt/homebrew/Cellar/node/24.1.0/bin/node";
+    let mut nonce = [0; 16];
+    getrandom::fill(&mut nonce).unwrap();
+    let scratch = Scratch(std::env::temp_dir().canonicalize().unwrap().join(format!(
+        "orchbee-script-operands-{:032x}",
+        u128::from_le_bytes(nonce)
+    )));
+    let package = scratch.0.join("lib/node_modules/@github/copilot");
+    for folder in [&package, &scratch.0.join("bin"), &scratch.0.join("other")] {
+        std::fs::create_dir_all(folder).unwrap();
+    }
+    std::fs::write(package.join("index.js"), "").unwrap();
+    std::fs::write(scratch.0.join("other/index.js"), "").unwrap();
+    let link = |target: &str, name: &str| {
+        std::os::unix::fs::symlink(target, scratch.0.join("bin").join(name)).unwrap();
+    };
+    link("../lib/node_modules/@github/copilot/index.js", "copilot");
+    link("../other/index.js", "cbc");
+    let root = scratch.0.to_str().unwrap();
+    let line = |argv: &[&str]| {
+        host_conventions::line(&argv.iter().map(|&a| a.to_owned()).collect::<Vec<_>>()).unwrap()
+    };
+    let sample = |argv: &[&str], directory: Option<&str>| TerminalProcessInfo {
+        attachment_id: AttachmentId::from_bytes([1; 16]).unwrap(),
+        terminal_id: TerminalId::from_bytes([2; 16]).unwrap(),
+        launch_kind: None,
+        root_pid: 10,
+        processes: vec![
+            process(10, 1, "/bin/zsh", Some("-zsh")),
+            TerminalProcess {
+                current_directory: directory.map(Into::into),
+                ..process(20, 10, NODE, Some(&line(argv)))
+            },
+        ],
+    };
+    let unresolved = sample(&["node", "bin/copilot"], Some(root));
+    assert_eq!(identify(&unresolved), None, "the name alone proves nothing");
+    let resolved = resolve_script_operands(&unresolved).unwrap();
+    let entry = package.join("index.js");
+    assert_eq!(
+        decoded_argv(resolved.processes[1].command_line.as_deref()),
+        Some(vec!["node".to_owned(), entry.to_str().unwrap().to_owned()])
+    );
+    assert_eq!(
+        identify(&resolved).map(|selected| (selected.pid(), selected.provider)),
+        Some((20, AgentReportProvider::Copilot))
+    );
+    let absolute = format!("{root}/bin/copilot");
+    assert!(resolve_script_operands(&sample(&["node", &absolute], None)).is_some());
+    let outside = format!("{root}/bin/cbc");
+    for (argv, directory) in [
+        (["node", "bin/copilot"], None),
+        (["node", "bin/cbc"], Some(root)),
+        (["node", outside.as_str()], None),
+    ] {
+        assert_eq!(
+            resolve_script_operands(&sample(&argv, directory)),
+            None,
+            "{argv:?} {directory:?}"
+        );
+    }
+}

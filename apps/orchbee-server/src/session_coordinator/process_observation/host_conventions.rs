@@ -3,6 +3,8 @@
 //! command line, which only the Windows parser splits; a POSIX Host quotes every argument for a
 //! POSIX shell. Neither split guesses: a line its Host could not have written is unreadable.
 use orchbee_agent_observation_protocol::{InteractiveShells, ShellRoot, classify_shell_root};
+#[cfg(not(windows))]
+use std::borrow::Cow;
 
 /// Argument vector for one Host-reported command line, or `None` when the Windows parser rejects
 /// the line.
@@ -16,6 +18,23 @@ pub(super) fn argv(line: &str) -> Option<Vec<String>> {
 #[cfg(not(windows))]
 pub(super) fn argv(line: &str) -> Option<Vec<String>> {
     orchbee_terminal_protocol::split_posix_command_line(line)
+}
+
+/// The command line a POSIX Host writes for `argv`: each argument quoted as Python's `shlex.quote`
+/// quotes it, joined by one space, so [`argv`] splits it back. An empty vector has none.
+#[cfg(not(windows))]
+pub(super) fn line(argv: &[String]) -> Option<String> {
+    (!argv.is_empty()).then(|| argv.iter().map(|a| quoted(a)).collect::<Vec<_>>().join(" "))
+}
+
+#[cfg(not(windows))]
+fn quoted(argument: &str) -> Cow<'_, str> {
+    let bare = |c: char| c.is_ascii_alphanumeric() || "_@%+=:,./-".contains(c);
+    if !argument.is_empty() && argument.chars().all(bare) {
+        Cow::Borrowed(argument)
+    } else {
+        Cow::Owned(format!("'{}'", argument.replace('\'', "'\"'\"'")))
+    }
 }
 
 /// How a terminal's root reads among the shells a Windows Host starts, including the Worker's

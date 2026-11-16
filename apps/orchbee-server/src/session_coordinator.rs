@@ -65,7 +65,7 @@ pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
 pub(crate) use process_observation::decoded_argv;
 pub(crate) use process_observation::{
     ProcessObservationTarget, host_time_as_creation, identify as identify_host_agent,
-    names_provider, root_shell,
+    names_provider, resolve_script_operands, root_shell,
 };
 
 pub(crate) struct SessionCoordinator {

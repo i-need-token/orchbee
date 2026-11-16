@@ -17,39 +17,14 @@ impl Drop for Job {
     }
 }
 
-pub(in crate::agent_screen::updating) fn text(
-    source: &CatalogUrl,
-    stop: &AtomicBool,
-    deadline: Instant,
-) -> Result<String, Failure> {
-    let program = PathBuf::from(winsafe::GetSystemDirectory().map_err(|_| Failure::Process)?)
-        .join("curl.exe");
-    let mut result = Err(Failure::Fetch);
-    for attempt in 0..3 {
-        cancelled(stop, deadline)?;
-        result = once(
-            &program,
-            source,
-            stop,
-            deadline.min(Instant::now() + Duration::from_secs(15)),
-        );
-        if matches!(result, Err(Failure::Deadline)) && cancelled(stop, deadline).is_ok() {
-            result = Err(Failure::Fetch);
-        }
-        if !matches!(result, Err(Failure::Fetch)) {
-            break;
-        }
-        if attempt < 2 {
-            let retry = deadline.min(Instant::now() + Duration::from_millis(250));
-            while Instant::now() < retry {
-                cancelled(stop, deadline)?;
-                thread::sleep(Duration::from_millis(10));
-            }
-        }
-    }
-    result
+/// The inbox curl in the System Directory, never one a search path finds.
+pub(super) fn curl() -> Result<PathBuf, Failure> {
+    Ok(
+        PathBuf::from(winsafe::GetSystemDirectory().map_err(|_| Failure::Process)?)
+            .join("curl.exe"),
+    )
 }
-fn once(
+pub(super) fn once(
     program: &std::path::Path,
     source: &CatalogUrl,
     stop: &AtomicBool,
@@ -66,27 +41,8 @@ fn once(
                 .and_then(std::path::Path::parent)
                 .ok_or(Failure::Process)?,
         )
-        .args([
-            "--disable",
-            "--fail",
-            "--silent",
-            "--show-error",
-            "--location",
-            "--max-redirs",
-            "5",
-            "--proto",
-            "=http,https",
-            "--proto-redir",
-            "=http,https",
-            "--connect-timeout",
-            "5",
-            "--max-time",
-            "15",
-            "--max-filesize",
-            "262144",
-            "--url",
-            &source.0,
-        ])
+        .args(super::CURL_ARGUMENTS)
+        .arg(&source.0)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
