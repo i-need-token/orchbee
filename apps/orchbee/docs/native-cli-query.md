@@ -1891,12 +1891,15 @@ profileId?,name?}` per
 - `orchbee.config.check` → `{ok,checks:[{name,status,details}]}` in fixed order
   `runtime-base`, `runtime-directory`, `cohort`, `locale`, `sockets`; all five always report.
   A failed check still produces this success schema with `ok:false` and exit 1.
-- `orchbee.server.start` → `{outcome,restoreNotice,scope,runtimeBase}`: `outcome` is `started` or
-  `already-running` (the branch this invocation took, not a Session identity receipt),
-  `restoreNotice` is what this Session's restore reported, `recovered` from a backup, `empty` when
-  every checkpoint was corrupt, otherwise null, `scope` is the Session name, and
+- `orchbee.server.start` → `{outcome,restoreNotice,scope,runtimeBase,negotiatedCapabilities}`:
+  `outcome` is `started` or `already-running` (the branch this invocation took, not a Session
+  identity receipt), `restoreNotice` is what this Session's restore reported, `recovered` from a
+  backup, `empty` when every checkpoint was corrupt, otherwise null, `scope` is the Session name,
   `runtimeBase` carries exactly one of `path` (UTF-8) or `pathBytesHex` (non-UTF-8, never a lossy
-  display string).
+  display string), and `negotiatedCapabilities` lists, in bytewise order, the capability names both
+  sides listed in this invocation's `client-server` handshake. The window's Update reads it to
+  prove that the active window version joins this Session; it is optional in the schema because
+  Clients before the window self-update release omit it.
 - `orchbee.doctor` → `{ok,checks:{installation,settings,records,runtime,session,integrations}}`:
   each check is `{status,reason,details}` or `{kind:"unsupported"}`; `details` are the
   `orchbee.status.client` result, the `user-config` and `records` row details, the runtime folder

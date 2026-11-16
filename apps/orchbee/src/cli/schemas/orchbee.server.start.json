@@ -58,6 +58,15 @@
 							"required": ["pathBytesHex"]
 						}
 					]
+				},
+				"negotiatedCapabilities": {
+					"type": "array",
+					"maxItems": 256,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^[a-z0-9-]{1,64}$"
+					}
 				}
 			}
 		}

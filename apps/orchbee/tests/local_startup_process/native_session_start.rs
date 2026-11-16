@@ -97,6 +97,13 @@ fn session_start_cold_then_warm_reports_the_actual_branch() -> TestResult {
             .is_none(),
         "UTF-8 base never emits pathBytesHex"
     );
+    // The window's Update proves that a version joins this Session by this name.
+    assert!(
+        document["result"]["negotiatedCapabilities"]
+            .as_array()
+            .is_some_and(|names| names.iter().any(|name| name == "compatibility-window")),
+        "{document}"
+    );
     assert_server_running(&fixture);
     let server_pid = fixture.processes("orchbee-server")[0];
 

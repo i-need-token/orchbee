@@ -50,6 +50,7 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
                 }),
                 "scope": started.scope,
                 "runtimeBase": Map::from_iter([started.runtime_base]),
+                "negotiatedCapabilities": started.negotiated_capabilities,
             });
             // A preparation overflow answers in the caller's format, never
             // with a second stdout document.
@@ -129,6 +130,8 @@ struct StartOutcome {
     scope: String,
     /// The single-member `runtimeBase` detail (`path` or `pathBytesHex`).
     runtime_base: (String, serde_json::Value),
+    /// The capabilities the admitted probe's `client-server` handshake listed, in bytewise order.
+    negotiated_capabilities: Vec<String>,
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
@@ -146,6 +149,12 @@ fn run() -> Result<StartOutcome, Failure> {
     let deadline = Instant::now() + START_BUDGET;
     crate::local_activation::activate_local_session(deadline)
         .map(|started| StartOutcome {
+            negotiated_capabilities: started
+                .client
+                .server_capabilities()
+                .iter()
+                .map(|name| name.as_str().to_owned())
+                .collect(),
             restore_notice: started.restore_notice,
             outcome: if started.spawned {
                 "started"

@@ -105,6 +105,12 @@ impl ClientTransport {
             Self::Lane(lane) => lane.connection.serves(capability),
         }
     }
+    fn capabilities(&self) -> orchbee_connection_handshake::CapabilitySet {
+        match self {
+            Self::Direct(connection) => connection.capabilities().clone(),
+            Self::Lane(lane) => lane.connection.capabilities(),
+        }
+    }
     fn reply_generation(&self) -> Option<std::num::NonZeroU64> {
         match self {
             Self::Direct(connection) => Some(connection.generation()),
@@ -409,6 +415,16 @@ impl LocalClient {
         self.connection
             .as_ref()
             .is_some_and(|connection| connection.serves(capability))
+    }
+
+    /// Every capability the Session's handshake answer listed on the current connection, as
+    /// `server start` reports them; empty without a connection.
+    #[must_use]
+    pub fn server_capabilities(&self) -> orchbee_connection_handshake::CapabilitySet {
+        self.connection
+            .as_ref()
+            .map(ClientTransport::capabilities)
+            .unwrap_or_default()
     }
 
     pub fn submit_terminal_viewer_before(

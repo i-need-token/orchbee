@@ -879,13 +879,18 @@ unpacking, and a bundle the launcher swaps at the click.
   `LocalClient::server_serves` answers one at a time today
   (`apps/orchbee/crates/local-client/src/local_client.rs:389-397`).
 - Desktop Main already runs `server start` before each document's relay
-  (`apps/desktop/src/main/server-connection/readServerRestoreState.ts:8-28`). It strict-parses the
-  member beside `restoreNotice` (`interpretServerStartAnswer.ts:4-6` in the same folder) and gives
-  the page a bootstrap member of the same name
-  (`packages/desktop-client-protocol/src/desktop-server-connection-contract.ts:44-71`), an empty
-  list when the answer has none. The relay's own handshake joins the same Server with the same
-  Client, so it negotiates the same names, and each document reads them anew. The window checks
-  each action's capability against that list.
+  (`apps/desktop/src/main/server-connection/readServerStartAnswer.ts`). It strict-parses the
+  member beside `restoreNotice` (`interpretServerStartAnswer.ts` in the same folder), and the
+  window's Update reads it for the join check.
+- Chosen when the window self-update release was built: no window action needs a capability yet.
+  `prompt-gated-input` serves only the TUI's start in the focused Panel, which the window lacks;
+  `agent-input-area` serves only the CLI's Agent read; and `compatibility-window` serves Main's
+  join check. So the page gets no bootstrap member yet. The first window action that needs a
+  capability adds the bootstrap member of the same name
+  (`packages/desktop-client-protocol/src/desktop-server-connection-contract.ts`), null when the
+  answer has none, and one table from capability to window actions, as the TUI's
+  `session_capabilities.rs` does. The relay's own handshake joins the same Server with the same
+  Client, so it negotiates the same names, and each document reads them anew.
 - Rejected: a first frame on the relay. Main and its bundled Client are an exact pair
   ([what stays exact](versioning-and-upgrade.md#what-stays-exact)), so it would be allowed, but it
   changes both ends of the page's stream, whose bytes Main keeps opaque
