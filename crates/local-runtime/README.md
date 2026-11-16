@@ -695,8 +695,9 @@ destructive request log, its generation, and any other name are never daily file
 admitted while the file plus the record plus a 256-byte reserve stays within
 `DAILY_LOG_LIMIT_BYTES`, 7 MiB; the first record refused closes the day with one `log-capped`
 record, so the folder holds at most 51 MiB with the destructive log. Every error is a non-event.
-Desktop Main writes the same records with role `desktop-main`; search for `daily-diagnostic-log`
-before changing the shape, a limit, or the names. Linux processes write the same files; only
+Desktop Main writes the same records with role `desktop-main` on Windows and macOS, where its open
+takes the same `flock` lock through `O_EXLOCK`; search for `daily-diagnostic-log` before changing
+the shape, a limit, or the names. Linux processes write the same files; only
 Windows and macOS runs prove them.
 
 ## Diagnostic bundle redaction

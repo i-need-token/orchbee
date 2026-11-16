@@ -12,6 +12,7 @@ import {
 	closeSync,
 	constants,
 	fstatSync,
+	lstatSync,
 	mkdirSync,
 	openSync,
 	readSync,
@@ -33,6 +34,13 @@ const FIELD_NAME = /^[a-z][A-Za-z0-9]{0,31}$/u;
 const DAILY_FILE = /^(\d{4})-(\d{2})-(\d{2})\.jsonl$/u;
 /** libuv's Windows open without sharing, so a native writer waits while Main appends. */
 const UV_FS_O_EXLOCK = 0x1000_0000;
+/**
+ * macOS `O_EXLOCK`: the open takes the file's exclusive `flock` lock, the one the natives hold while
+ * they append, and with `O_NONBLOCK` answers `EAGAIN` while another writer holds it.
+ */
+const DARWIN_O_EXLOCK = 0x20;
+/** Access for anyone but the owner, which a private log file and folder never grant. */
+const OTHERS_ACCESS = 0o077;
 const SHARING_WAIT_MILLISECONDS = 500;
 const SHARING_RETRY_MILLISECONDS = 10;
 const DAY_MILLISECONDS = 86_400_000;
@@ -106,8 +114,10 @@ export class DesktopDiagnosticLog {
 
 	#write(day: number, record: string, capped: string): void {
 		mkdirSync(this.#directory, { mode: 0o700, recursive: true });
+		if (process.platform !== 'win32') requirePrivateFolder(this.#directory);
 		const descriptor = openExclusive(path.join(this.#directory, dailyFileName(day)));
 		try {
+			if (process.platform !== 'win32') requirePrivateFile(descriptor);
 			if (this.#prunedDay !== day) {
 				this.#prunedDay = day;
 				pruneDailyFiles(this.#directory, day);
@@ -210,18 +220,53 @@ function readTail(descriptor: number, size: number): string {
 	return buffer.subarray(0, read).toString('utf8');
 }
 
-/** Opens the day's file without sharing, waiting briefly while another writer holds it. */
+/**
+ * Opens the day's file held against every other writer, waiting briefly while another writer holds
+ * it: without sharing on Windows, and on macOS under its exclusive lock, never through a link.
+ */
 function openExclusive(file: string): number {
-	const flags =
-		constants.O_RDWR | constants.O_CREAT | (process.platform === 'win32' ? UV_FS_O_EXLOCK : 0);
+	const flags = constants.O_RDWR | constants.O_CREAT | platformOpenFlags();
 	const deadline = Date.now() + SHARING_WAIT_MILLISECONDS;
 	for (;;) {
 		try {
 			return openSync(file, flags, 0o600);
 		} catch (error) {
-			const busy = error instanceof Error && 'code' in error && error.code === 'EBUSY';
+			const code = error instanceof Error && 'code' in error ? error.code : undefined;
+			const busy = code === 'EBUSY' || code === 'EAGAIN';
 			if (!busy || Date.now() >= deadline) throw error;
 			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, SHARING_RETRY_MILLISECONDS);
 		}
 	}
+}
+
+/** The open's hold on the file; Linux Main writes no log, so its open takes no lock. */
+function platformOpenFlags(): number {
+	switch (process.platform) {
+		case 'win32':
+			return UV_FS_O_EXLOCK;
+		case 'darwin':
+			return DARWIN_O_EXLOCK | constants.O_NONBLOCK | constants.O_NOFOLLOW;
+		default:
+			return constants.O_NONBLOCK | constants.O_NOFOLLOW;
+	}
+}
+
+/** The natives' folder rule: a real folder, owned by this user, that grants nobody else access. */
+function requirePrivateFolder(directory: string): void {
+	const status = lstatSync(directory);
+	if (!status.isDirectory() || !ownedPrivately(status.uid, status.mode)) {
+		throw new Error('The log folder is not private.');
+	}
+}
+
+/** The natives' file rule: a single-link regular file, owned by this user, private to it. */
+function requirePrivateFile(descriptor: number): void {
+	const status = fstatSync(descriptor);
+	if (!status.isFile() || status.nlink !== 1 || !ownedPrivately(status.uid, status.mode)) {
+		throw new Error('The daily log file is not private.');
+	}
+}
+
+function ownedPrivately(uid: number, mode: number): boolean {
+	return uid === process.getuid?.() && (mode & OTHERS_ACCESS) === 0;
 }

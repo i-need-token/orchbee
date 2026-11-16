@@ -72,7 +72,8 @@ describe('DesktopDiagnosticLog', () => {
 		const directory = folder();
 		const day = 20_100;
 		const file = path.join(directory, dailyFileName(day));
-		writeFileSync(file, 'x'.repeat(DAILY_LOG_LIMIT_BYTES - 300 - 1) + '\n');
+		// Private, as a writer leaves it, so macOS admits it as a day's file.
+		writeFileSync(file, 'x'.repeat(DAILY_LOG_LIMIT_BYTES - 300 - 1) + '\n', { mode: 0o600 });
 		const record = new DesktopDiagnosticLog(directory, clockAt(day)).recorder();
 		for (let attempt = 0; attempt < 3; attempt += 1) {
 			record('info', 'renderer-gone', { count: attempt, reason: 'crashed' });

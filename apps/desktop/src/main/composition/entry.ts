@@ -119,9 +119,9 @@ if (process.platform === 'win32' && packaged) {
 }
 const dataRoot = prepareOrRefuseDesktopDataRoot();
 app.setPath('userData', dataRoot.electronDirectory);
-// The natives write the same daily logs on Windows only until ORC-328, and so does Main.
+// Main writes the natives' daily logs on Windows and macOS; Linux Desktop keeps writing none.
 const recordEvent: DesktopDiagnosticRecorder =
-	process.platform === 'win32'
+	process.platform === 'win32' || process.platform === 'darwin'
 		? new DesktopDiagnosticLog(dataRoot.logDirectory).recorder()
 		: () => undefined;
 
