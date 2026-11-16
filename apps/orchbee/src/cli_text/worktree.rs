@@ -192,7 +192,8 @@ impl super::CliText {
                 Locale::ZhCn => format!("Git 已不再将此 checkout 登记为工作树，此移除无法恢复。请检查该目录和 `git worktree list`，然后关闭仍保持关闭中的工作区：\norchbee workspace close {workspace} --confirm\n"),
             });
         }
-        if let Some(post) = result.get("postOpen") {
+        // `postOpen` is null unless the invocation asked to focus a TUI.
+        if let Some(post) = result.get("postOpen").filter(|post| post.is_object()) {
             text.push_str(match (self.locale, post["outcome"].as_str()) {
                 (Locale::EnUs, Some("completed")) => "TUI focus completed.\n",
                 (Locale::ZhCn, Some("completed")) => "TUI 聚焦已完成。\n",

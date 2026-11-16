@@ -237,6 +237,17 @@ fn opening_a_workspace_does_not_turn_a_failed_terminal_launch_into_success() {
             post_open::opened(&opened.observation).is_some(),
             expected == 0
         );
+        // Only an invocation that asked to focus a TUI reports its focus stage.
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let unfocused = CliText::new(locale).cli_worktree_result(&opened.document());
+            let mut focused = opened.document();
+            focused["postOpen"] = post_open::Receipt::new().document();
+            let focused = CliText::new(locale).cli_worktree_result(&focused);
+            assert!(
+                focused.len() > unfocused.len() && focused.starts_with(&unfocused),
+                "{unfocused}"
+            );
+        }
     }
 }
 
