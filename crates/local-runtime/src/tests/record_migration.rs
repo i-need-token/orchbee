@@ -3,12 +3,12 @@
 //! failures that leave a record unchanged.
 use super::Fixture;
 use crate::{
-    DataRoot, LayoutRefusal, PRODUCT_VERSION, VersionedRecord,
+    DataRoot, LayoutRefusal, OpenedRecord, PRODUCT_VERSION, RecordProblem, VersionedRecord,
     data_root::{create_state_directory, settle_version_record},
     private_filesystem as permissions,
     record_migration::{
-        KEPT_UPGRADE_FOLDERS, MigrationStep, RecordOpening, open_with, persist_migration,
-        upgrade_folder,
+        KEPT_UPGRADE_FOLDERS, MigrationStep, RecordOpening, open_with, open_writing_with,
+        persist_migration, upgrade_folder,
     },
 };
 use serde_json::{Value, json};
@@ -241,6 +241,89 @@ fn a_migration_backs_up_the_original_before_replacing_it() {
             .join("state")
             .join("synthetic.json")
     );
+}
+
+// After a fallback, a writer that meets a record in a newer format puts back, through its own
+// replacement, the unnumbered copy that a held version's upgrade folder kept, trying the version
+// held last first and taking only a copy that opens as current. Without one the record stays as it
+// is, and `session.json` is never restored.
+#[test]
+fn a_fallback_restores_a_newer_record_from_a_held_upgrade_folder() {
+    let fixture = Fixture::new();
+    let root = fixture.root();
+    let record = root.state().join("machines.json");
+    let newer = br#"{"version":2,"machines":[]}"#;
+    let first = br#"{"version":1,"machines":["first"]}"#;
+    let open = |record_kind, path: &Path, held: Vec<String>| {
+        let bytes = fs::read(path).ok();
+        open_writing_with(
+            Some(&root),
+            record_kind,
+            path,
+            bytes,
+            |_| true,
+            |copy| super::write_private(path, copy),
+            || held,
+        )
+    };
+    let state = |version: &str| {
+        root.backups()
+            .join(format!("2026-01-01-upgrade-{version}"))
+            .join("internal")
+            .join("state")
+    };
+    write_private(&record, newer);
+    write_private(&state("9.0.0").join("machines.json"), first);
+    write_private(
+        &state("9.0.0").join("machines-2.json"),
+        br#"{"version":1,"machines":["later"]}"#,
+    );
+    // The version held last migrated the record again; its copy is in a newer format itself.
+    write_private(
+        &state("9.1.0").join("machines.json"),
+        br#"{"version":2,"machines":[]}"#,
+    );
+
+    let unusable = |opened| matches!(opened, OpenedRecord::Unusable(notice) if notice.problem == RecordProblem::Newer);
+    assert!(unusable(open(
+        VersionedRecord::Machines,
+        &record,
+        Vec::new()
+    )));
+    assert!(unusable(open(
+        VersionedRecord::Machines,
+        &record,
+        vec!["8.0.0".into()]
+    )));
+    assert_eq!(fs::read(&record).unwrap(), newer);
+
+    assert_eq!(
+        open(
+            VersionedRecord::Machines,
+            &record,
+            vec!["9.1.0".into(), "9.0.0".into()]
+        ),
+        OpenedRecord::Readable(first.to_vec())
+    );
+    assert_eq!(fs::read(&record).unwrap(), first);
+
+    let session = root.sessions().join("work").join("session.json");
+    write_private(&session, newer);
+    write_private(
+        &root
+            .backups()
+            .join("2026-01-01-upgrade-9.0.0")
+            .join("sessions")
+            .join("work")
+            .join("session.json"),
+        first,
+    );
+    assert!(unusable(open(
+        VersionedRecord::SessionLifecycle,
+        &session,
+        vec!["9.0.0".into()]
+    )));
+    assert_eq!(fs::read(&session).unwrap(), newer);
 }
 
 // Only the three newest upgrade folders stay, a version reuses its folder whatever the day, and a

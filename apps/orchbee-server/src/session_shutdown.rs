@@ -110,7 +110,7 @@ impl SessionShutdown {
         }
     }
 
-    #[cfg(any(windows, test))]
+    /// Whether a Session stop is recorded; it stays recorded until the process ends.
     pub(crate) fn stopping(&self) -> bool {
         self.state
             .lock()

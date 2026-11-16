@@ -305,6 +305,11 @@ impl FallbackRecorder {
         })
     }
 
+    /// The recorder for the store this process's program runs from; see [`Self::for_executable`].
+    pub fn for_current_executable() -> Option<Self> {
+        Self::for_executable(&crate::current_executable().ok()?)
+    }
+
     /// The version this recorder runs.
     pub fn version(&self) -> &str {
         &self.version
@@ -402,6 +407,50 @@ impl FallbackRecorder {
             );
         }
         Ok(outcome)
+    }
+}
+
+/// The text an activation identifier takes in the fallback record and its events: 32 lowercase
+/// hexadecimal digits.
+pub fn activation_text(activation: &[u8; 16]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut text = String::with_capacity(32);
+    for byte in activation {
+        text.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        text.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    text
+}
+
+/// The held versions whose upgrade folders this process restores records from, held last first.
+/// Empty unless the switch is on, this process runs from a store version folder, and the store's
+/// counting move made that version active and carries `restore`. Only a writer that met a record
+/// in a newer format asks, so the read stays off every ordinary open.
+pub(crate) fn restore_sources() -> Vec<String> {
+    if !automatic_updates_live() {
+        return Vec::new();
+    }
+    let Some(recorder) = FallbackRecorder::for_current_executable() else {
+        return Vec::new();
+    };
+    PrivateCache::read_existing(&recorder.root, RELEASE_POINTER, RELEASE_POINTER_LIMIT)
+        .ok()
+        .flatten()
+        .and_then(|bytes| Pointer::parse(&bytes))
+        .map_or_else(Vec::new, |pointer| {
+            restore_sources_of(&pointer, &recorder.version)
+        })
+}
+
+/// [`restore_sources`] for a pointer read and this process's version `own`.
+fn restore_sources_of(pointer: &Pointer, own: &str) -> Vec<String> {
+    match pointer.counting_move() {
+        Some(moved) if moved.restore && moved.entry.product == own => {
+            let mut held = held_versions(pointer);
+            held.reverse();
+            held
+        }
+        _ => Vec::new(),
     }
 }
 

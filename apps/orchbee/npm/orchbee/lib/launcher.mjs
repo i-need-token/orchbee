@@ -4,7 +4,8 @@
 // the store's active program in place of itself. The store's pointer `active.json` alone names the
 // active version; a carried version the pointer holds after a failed move is never installed, and the
 // active one runs instead. On Windows, where automatic updates run, it follows the relaunch protocol
-// of `apps/orchbee-launcher` with the same rule. Nothing runs at install time.
+// of `apps/orchbee-launcher` with the same rule, and records a failed Client through the previous
+// version's program as that launcher does. Nothing runs at install time.
 //
 // The launcher is plain JavaScript that runs on the person's own Node, so it uses only Node built-ins
 // available since Node 18 and reads nothing beyond its own package, the sub-package, and the pointer.
@@ -43,6 +44,10 @@ const errorSeverity = 0xc0000000;
 const consoleExitStatus = 0xc000013a;
 const relaunchLimit = 3;
 const relaunchWindowMilliseconds = 10_000;
+// The helper that records a failed Client through the previous version, `CLIENT_FAILURE_HELPER` in
+// `crates/local-runtime/src/automatic_updates.rs`, and how long the launcher waits for it.
+const clientFailureHelperArgument = '--record-client-failure-v1';
+const clientFailureWaitMilliseconds = 5_000;
 // The release-build half of the local runtime's automatic-update switch, `IN_RELEASE_BUILDS` in
 // `crates/local-runtime/src/automatic_updates.rs`: the change that turns one on turns on both.
 const automaticUpdatesInReleaseBuilds = false;
@@ -204,8 +209,9 @@ function validFallback(value) {
 
 /**
  * The active version a format-1 pointer names, with the versions its fallback record holds above
- * it, or null for any other bytes: a missing or unreadable pointer means no active version, which an
- * install repairs.
+ * it, its previous version or null, and whether the record's move counts for the active entry and
+ * may fall back; or null for any other bytes: a missing or unreadable pointer means no active
+ * version, which an install repairs.
  */
 function pointerRecord(text) {
 	let value;
@@ -224,10 +230,14 @@ function pointerRecord(text) {
 		return null;
 	const active = value.active.product;
 	const fallback = value.extensions?.fallback;
-	const held = validFallback(fallback)
-		? fallback.held.filter((version) => compareVersions(version, active) > 0)
-		: [];
-	return { active, held };
+	const valid = validFallback(fallback);
+	const held = valid ? fallback.held.filter((version) => compareVersions(version, active) > 0) : [];
+	const back =
+		valid &&
+		fallback.move.back &&
+		fallback.move.entry.product === active &&
+		fallback.move.entry.manifest === value.active.manifest;
+	return { active, held, previous: value.previous?.product ?? null, back };
 }
 
 /** The active product version a format-1 pointer names, or null for any other bytes. */
@@ -262,15 +272,40 @@ export function storeRoot(stem, platform, environment) {
 	return home && paths.isAbsolute(home) ? paths.join(home, '.local', 'share', stem) : null;
 }
 
-function readPointer(root) {
+/**
+ * The helper that records a failed start or join of the Client at `started`,
+ * `<root>\versions\<version>\<name>.exe`, given the pointer `text` read again after it failed:
+ * `{ program: <root>\versions\<previous>\<name>.exe, version }` when the pointer still makes
+ * `<version>` active through a counting move that may fall back and names a previous version, or
+ * null. The previous version runs it because the failed Client may be what broke. Windows only, like
+ * the relaunch protocol.
+ */
+export function clientFailureHelper(started, text) {
+	const record = text === null ? null : pointerRecord(text);
+	const versions = path.win32.dirname(path.win32.dirname(started));
+	const version = path.win32.basename(path.win32.dirname(started));
+	if (record === null || !record.back || record.previous === null || record.active !== version)
+		return null;
+	return {
+		program: path.win32.join(versions, record.previous, path.win32.basename(started)),
+		version,
+	};
+}
+
+function readPointerText(root) {
 	if (root === null) return null;
 	const file = path.join(root, 'active.json');
 	try {
 		if (statSync(file).size > maximumPointer) return null;
-		return pointerRecord(readFileSync(file, 'utf8'));
+		return readFileSync(file, 'utf8');
 	} catch {
 		return null;
 	}
+}
+
+function readPointer(root) {
+	const text = readPointerText(root);
+	return text === null ? null : pointerRecord(text);
 }
 
 function samePath(left, right) {
@@ -431,15 +466,52 @@ function run(program, text) {
 }
 
 /**
+ * Runs the helper `clientFailureHelper` named with null standard streams and calls `then` once it
+ * ends, cannot start, or has run for five seconds; a helper still running then is left to finish.
+ */
+function recordClientFailure(helper, then) {
+	let done = false;
+	let timer = null;
+	const finish = () => {
+		if (done) return;
+		done = true;
+		if (timer !== null) clearTimeout(timer);
+		then();
+	};
+	let child;
+	try {
+		child = spawn(helper.program, [clientFailureHelperArgument, helper.version], {
+			stdio: 'ignore',
+		});
+	} catch {
+		finish();
+		return;
+	}
+	timer = setTimeout(finish, clientFailureWaitMilliseconds);
+	child.on('error', finish);
+	child.on('exit', finish);
+}
+
+/**
  * `run` under the relaunch protocol, on Windows only: each start receives this process's id in the
  * protocol variable, and `nextStart` decides after each one. A relaunch reads the pointer again; a
- * pointer that names no version counts as a relaunched Client that did not start.
+ * pointer that names no version counts as a relaunched Client that did not start. After a failed
+ * start or join, the failure is recorded through the previous version first when the pointer still
+ * makes the failed version active through a move that may fall back.
  */
 function runWithRelaunch(program, root, programName, text) {
 	const environment = { ...process.env, [relaunchVariable]: String(process.pid) };
 	const relaunches = [];
 	let replaced = null;
 	function decide(current, start, code, error) {
+		const helper =
+			current !== null && judgeClientExit(code) === 'failed'
+				? clientFailureHelper(current, readPointerText(root))
+				: null;
+		if (helper === null) proceed(current, start, code, error);
+		else recordClientFailure(helper, () => proceed(current, start, code, error));
+	}
+	function proceed(current, start, code, error) {
 		const now = performance.now();
 		const next = nextStart(start, code, relaunches, now);
 		if (next.step === 'end') process.exit(next.status);

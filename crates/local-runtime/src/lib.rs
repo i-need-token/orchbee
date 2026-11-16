@@ -38,12 +38,14 @@ pub use private_cache::PrivateCache;
 mod release_store;
 pub use release_store::{
     ActiveRelease, FallbackEvent, FallbackOutcome, FallbackRecorder, RELEASE_POINTER,
-    RELEASE_POINTER_LIMIT, RELEASE_VERSIONS, Recorded, VersionHeld, active_release, complete_move,
-    held_versions, is_release_version_directory, record_event, release_store_root,
+    RELEASE_POINTER_LIMIT, RELEASE_VERSIONS, Recorded, VersionHeld, activation_text,
+    active_release, complete_move, held_versions, is_release_version_directory, record_event,
+    release_store_root,
 };
 mod automatic_updates;
 pub use automatic_updates::{
-    AUTOMATIC_UPDATE_HELPER, RELAUNCH_PROTOCOL_VARIABLE, automatic_updates_live,
+    AUTOMATIC_UPDATE_HELPER, CLIENT_FAILURE_HELPER, RELAUNCH_PROTOCOL_VARIABLE,
+    automatic_updates_live,
 };
 mod user_path;
 pub use user_path::{

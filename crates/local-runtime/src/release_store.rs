@@ -7,9 +7,10 @@
 //! processes running from a store version share, which writes the pointer under the same
 //! `install.lock`.
 mod fallback;
+pub(crate) use fallback::restore_sources;
 pub use fallback::{
-    FallbackEvent, FallbackOutcome, FallbackRecorder, Recorded, VersionHeld, complete_move,
-    held_versions, record_event,
+    FallbackEvent, FallbackOutcome, FallbackRecorder, Recorded, VersionHeld, activation_text,
+    complete_move, held_versions, record_event,
 };
 
 use crate::PrivateCache;

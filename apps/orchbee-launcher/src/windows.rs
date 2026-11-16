@@ -1,7 +1,7 @@
-//! The launcher's effects: its own path and command line, the pointer read, and each Client it
-//! starts in a Job that ends the Client with the launcher while every process the Client starts
-//! stays outside the Job.
-use crate::relaunch::{self, Next, Outcome, Start};
+//! The launcher's effects: its own path and command line, the pointer read, each Client it starts
+//! in a Job that ends the Client with the launcher while every process the Client starts stays
+//! outside the Job, and the helper that records a failed Client.
+use crate::relaunch::{self, Next, Outcome, Start, Verdict};
 use crate::resolve::{self, Failure};
 use process_wrap::std::{CommandWrap, JobObject, KillOnJobClose, SilentBreakaway};
 use std::{
@@ -9,14 +9,18 @@ use std::{
     io::Read,
     os::windows::process::CommandExt,
     path::{Path, PathBuf},
-    process::Command,
-    time::Instant,
+    process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
 /// The largest pointer the launcher reads, the same bound the store's own reader uses.
 const POINTER_LIMIT: u64 = 16 * 1024;
 /// Exit code `8`: the Client ran, but its exit status could not be read.
 const UNKNOWN_OUTCOME: i32 = 8;
+/// How long the launcher waits for the helper that records a failed Client, and how often it looks.
+const RECORD_BOUND: Duration = Duration::from_secs(5);
+const RECORD_POLL: Duration = Duration::from_millis(50);
 
 /// Runs the active version's Client to its end and returns its exit code, or why none started.
 /// Where automatic updates run, it announces the relaunch protocol and follows its decisions.
@@ -43,6 +47,11 @@ pub(crate) fn launch() -> Result<i32, Failure> {
             Ok(path) => run(path, Some(announced)),
             Err(_) => Outcome::NotStarted,
         };
+        if relaunch::judge(outcome) == Verdict::Failed
+            && let Ok(path) = &client
+        {
+            record_failure(&launcher, path);
+        }
         let now = Instant::now();
         match relaunch::next(start, outcome, &relaunches, now) {
             Next::End(code) => return Ok(code),
@@ -102,6 +111,34 @@ fn run(client: &Path, announced: Option<u32>) -> Outcome {
     Outcome::Exited(child.wait().map_or(UNKNOWN_OUTCOME, |status| {
         status.code().unwrap_or(UNKNOWN_OUTCOME)
     }))
+}
+
+/// After the Client at `client` failed to start or to join, reads the pointer again and, when
+/// [`resolve::failure_recorder`] names a helper, runs it outside the Client's Job with null standard
+/// streams and waits for it at most five seconds. A helper still running then is left to finish;
+/// one that cannot start records nothing. Either way the launcher goes on as it would without it.
+fn record_failure(launcher: &Path, client: &Path) {
+    let Some(root) = launcher.parent().and_then(Path::parent) else {
+        return;
+    };
+    let pointer = read_pointer(&root.join("active.json"));
+    let Some((helper, version)) = resolve::failure_recorder(client, pointer.as_deref()) else {
+        return;
+    };
+    let Ok(mut child) = Command::new(helper)
+        .arg(orchbee_local_runtime::CLIENT_FAILURE_HELPER)
+        .arg(version)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    else {
+        return;
+    };
+    let give_up = Instant::now() + RECORD_BOUND;
+    while matches!(child.try_wait(), Ok(None)) && Instant::now() < give_up {
+        thread::sleep(RECORD_POLL);
+    }
 }
 
 /// The pointer's bytes, or `None` when it is missing, unreadable, or larger than the bound.

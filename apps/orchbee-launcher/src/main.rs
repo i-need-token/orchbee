@@ -3,8 +3,9 @@
 //! command line, console, standard handles and environment, ends that Client when the launcher
 //! itself is ended, and returns its exit code. Where automatic updates run, it follows the
 //! relaunch protocol: a Client that asks for it is started again on the active version, and a
-//! relaunched Client that fails to start or to join gives way to the one it replaced. It reads
-//! nothing else.
+//! relaunched Client that fails to start or to join gives way to the one it replaced. After any
+//! failed start or join of a moved version, it runs the previous version's Client once to record
+//! the failure for the fallback after a failed move. It reads nothing else.
 mod localization;
 #[cfg(windows)]
 mod relaunch;

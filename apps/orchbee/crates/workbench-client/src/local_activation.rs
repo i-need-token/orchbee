@@ -16,6 +16,7 @@ use orchbee_local_runtime::{
 };
 use std::{io, path::PathBuf, thread, time::Instant};
 
+mod fallback;
 mod restore_feedback;
 
 #[cfg(windows)]
@@ -299,6 +300,8 @@ fn connect_or_activate(
         if let Some(client) = connect(session, cohort, deadline)? {
             return Ok((client, false));
         }
+        // The generation this attempt publishes, whose failure to start the fallback counts.
+        let mut generation = None;
         // An observer probes the lifetime lock for an instant without the activation lock; only a
         // lock still held past that has an owner.
         let mut child = match orchbee_local_runtime::acquire_past_probes(|| {
@@ -357,6 +360,10 @@ fn connect_or_activate(
                 check_deadline(deadline)?;
                 session.commit_activation().map_err(runtime_failure)?;
                 check_deadline(deadline)?;
+                // Recorded only now, so a generation that never starts its Server counts nothing
+                // when recovery later proves it dead.
+                fallback::observe(&activation_id, fallback::Seen::Started, fallback::record);
+                generation = Some(activation_id);
                 let executable = cohort.executable(CohortArtifact::Server);
                 let arguments = [
                     std::ffi::OsStr::new("--runtime-directory"),
@@ -400,6 +407,11 @@ fn connect_or_activate(
                 #[cfg(not(windows))]
                 let child = orchbee_local_runtime::spawn_session_server(&executable, &arguments);
                 Some(child.map_err(|_| {
+                    fallback::observe(
+                        &activation_id,
+                        fallback::Seen::FailedToStart,
+                        fallback::record,
+                    );
                     ActivationFailure::caused(
                         StartupFailure::RecoveryRequired,
                         ActivationCause::SpawnIo,
@@ -432,6 +444,13 @@ fn connect_or_activate(
                     })?
                     .is_some()
                 {
+                    if let Some(activation_id) = &generation {
+                        fallback::observe(
+                            activation_id,
+                            fallback::Seen::FailedToStart,
+                            fallback::record,
+                        );
+                    }
                     return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
                 }
             } else if matches!(
@@ -472,7 +491,12 @@ fn recover_inactive(
     let grace = Instant::now() + HOST_EXIT_GRACE;
     loop {
         match catalog.recover_inactive(session, activation, lifetime) {
-            Ok(_recovered) => return Ok(()),
+            Ok(recovered) => {
+                if let Some(activation_id) = &recovered {
+                    fallback::observe(activation_id, fallback::Seen::Crashed, fallback::record);
+                }
+                return Ok(());
+            }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock && Instant::now() < grace => {
                 pause(deadline)?;
             }
@@ -490,10 +514,13 @@ fn recover_inactive(
     lifetime: &orchbee_local_runtime::ModeCheckedSessionLock,
     _deadline: Instant,
 ) -> Result<(), ActivationFailure> {
-    catalog
+    let recovered = catalog
         .recover_inactive(session, activation, lifetime)
-        .map(|_recovered| ())
-        .map_err(recovery_failure)
+        .map_err(recovery_failure)?;
+    if let Some(activation_id) = &recovered {
+        fallback::observe(activation_id, fallback::Seen::Crashed, fallback::record);
+    }
+    Ok(())
 }
 
 /// Writes `server-job`: `outcome` `outside` for a Server created outside the activating process's

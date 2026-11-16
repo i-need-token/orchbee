@@ -62,7 +62,16 @@ as above and sets no variable. The npm launcher follows the same rule on Windows
 - When the Client of a relaunch fails to start or to join, a pointer naming no version included,
   the launcher starts the version it replaced with the same command line. After a first start, or
   such a return, a failure ends the launcher with the Client's status as above.
-- The decisions are pure functions in `src/relaunch.rs`, tested in both launchers.
+- After any start whose Client failed, before it goes on, the launcher reads the pointer again. When
+  the pointer still makes the failed version active through a counting move whose `back` is true
+  and names a `previous`, it runs the previous version's Client as
+  `versions\<previous>\<name>.exe --record-client-failure-v1 <version>` outside the Client's Job
+  with null standard streams, which
+  [records the failure](../../proposals/platform/automatic-updates.md#what-counts-and-who-records-it)
+  for the fallback after a failed move. It waits for that helper at most five seconds and leaves it
+  running after that; a helper that cannot start records nothing.
+- The decisions are pure functions in `src/relaunch.rs` and, for the failure record,
+  `failure_recorder` in `src/resolve.rs`, tested in both launchers.
 - On macOS and Linux it prints that it runs only on Windows and exits `4`; those platforms install
   a link instead.
 
@@ -79,6 +88,6 @@ cargo clippy -p orchbee-launcher --all-targets --locked -- -D warnings
 cargo clippy -p orchbee-launcher --all-targets --locked --target x86_64-unknown-linux-gnu -- -D warnings
 ```
 
-The unit tests cover pointer-to-Client resolution, the command-line tail, and the relaunch
-decisions. Console, signal, exit
-code and process-lifetime behavior need a staged test package and a real terminal.
+The unit tests cover pointer-to-Client resolution, the command-line tail, the relaunch decisions
+and which failed Client is recorded. Console, signal, exit code and process-lifetime behavior need
+a staged test package and a real terminal.

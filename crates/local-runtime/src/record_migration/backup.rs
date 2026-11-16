@@ -95,8 +95,8 @@ pub fn inspect_records(root: &DataRoot, session: Option<&str>) -> Vec<RecordNoti
     notices
 }
 
-/// Larger than every versioned record's own bound, so inspection reads each one whole.
-const INSPECTED_LIMIT: usize = 1024 * 1024;
+/// Larger than every versioned record's own bound, so inspection and a restore read each one whole.
+pub(super) const INSPECTED_LIMIT: usize = 1024 * 1024;
 
 /// The upgrade folder of `version`: an existing `<date>-upgrade-<version>` folder, or a new one
 /// named by `date`, after which only the [`KEPT_UPGRADE_FOLDERS`] newest upgrade folders stay.
@@ -121,6 +121,19 @@ pub(crate) fn upgrade_folder(backups: &Path, date: &str, version: &str) -> io::R
         let _ = fs::remove_dir_all(backups.join(name));
     }
     Ok(folder)
+}
+
+/// The upgrade folders `version` backed up into, newest date first; none when `backups` cannot be
+/// read. Creating nothing, it serves a restore after a fallback.
+pub(super) fn upgrade_folders_of(backups: &Path, version: &str) -> Vec<PathBuf> {
+    let version = version_folder_name(version);
+    let mut folders = upgrade_folders(backups).unwrap_or_default();
+    folders.retain(|(_, held, _)| *held == version);
+    folders.sort_by(|(left, _, _), (right, _, _)| right.cmp(left));
+    folders
+        .into_iter()
+        .map(|(_, _, name)| backups.join(name))
+        .collect()
 }
 
 /// Every `<YYYY-MM-DD>-upgrade-<version>` folder below `backups`, as date, version and name.

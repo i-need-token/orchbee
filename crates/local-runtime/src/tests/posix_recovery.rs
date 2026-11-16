@@ -71,6 +71,7 @@ fn stale_sockets_never_block_recovery_and_a_held_host_lock_does() {
         catalog
             .recover_inactive(&session, &activation, &lifetime)
             .unwrap()
+            .is_some()
     );
     assert_eq!(
         session.activation_state().unwrap(),

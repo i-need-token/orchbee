@@ -52,10 +52,12 @@ fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_on
                     store.publish(b"last valid workbench").unwrap();
                 }
                 let (activation, lifetime) = guards(&session);
-                assert!(
+                // Recovery answers the generation it proved dead, which a fallback counts.
+                assert_eq!(
                     catalog
                         .recover_inactive(&session, &activation, &lifetime)
-                        .unwrap()
+                        .unwrap(),
+                    Some([1; 16])
                 );
                 assert_eq!(
                     session.activation_state().unwrap(),
@@ -72,6 +74,7 @@ fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_on
                     catalog
                         .recover_inactive(&session, &activation, &lifetime)
                         .unwrap()
+                        .is_some()
                 );
                 assert!(catalog.begin_activation(&session, [1; 16]).is_err());
                 catalog.begin_activation(&session, [2; 16]).unwrap();
@@ -128,7 +131,8 @@ fn interrupted_new_generation_recovers_only_while_every_child_is_not_started() {
             assert!(
                 catalog
                     .recover_inactive(&session, &activation, &lifetime)
-                    .unwrap(),
+                    .unwrap()
+                    .is_some(),
                 "{text}/{receipt}"
             );
             assert_eq!(
@@ -148,6 +152,7 @@ fn interrupted_new_generation_recovers_only_while_every_child_is_not_started() {
                 catalog
                     .recover_inactive(&session, &activation, &lifetime)
                     .unwrap()
+                    .is_some()
             );
             assert_eq!(
                 session.activation_state().unwrap(),
@@ -323,6 +328,7 @@ fn committed_crash_publication_retries_only_its_matching_interrupted_marker() {
             catalog
                 .recover_inactive(&session, &activation, &lifetime)
                 .unwrap()
+                .is_some()
         );
         assert_eq!(
             session.activation_state().unwrap(),
@@ -437,6 +443,7 @@ fn registered_dead_runtime_loss_remains_discoverable_and_recreates_the_same_rout
             catalog
                 .recover_inactive(&session, &activation, &lifetime)
                 .unwrap()
+                .is_some()
         );
         catalog.begin_activation(&session, [2; 16]).unwrap();
         assert_eq!(session.runtime_directory(), runtime);

@@ -1,5 +1,6 @@
-//! From the launcher's own path and the store pointer beside it to the Client it runs, and from its
-//! own command line to the arguments that Client receives.
+//! From the launcher's own path and the store pointer beside it to the Client it runs, from its own
+//! command line to the arguments that Client receives, and from a failed Client and the pointer to
+//! the helper that records the failure.
 use orchbee_release_records::Pointer;
 use std::path::{Path, PathBuf};
 
@@ -35,6 +36,28 @@ pub(crate) fn client(
         return Err(Failure::NoActiveVersion(pointer));
     };
     Ok(root.join("versions").join(active.product).join(name))
+}
+
+/// The helper that records a failed start or join of the Client at
+/// `<root>\versions\<version>\<name>.exe`, given the pointer read again after it failed:
+/// `<root>\versions\<previous>\<name>.exe` with `<version>`, when the pointer still makes
+/// `<version>` active through a counting move whose `back` is true and names a `previous`. Any
+/// other pointer, or none, records nothing. The previous version runs the helper because the
+/// launcher links no store writer and the failed Client may be what broke.
+pub(crate) fn failure_recorder(client: &Path, pointer: Option<&[u8]>) -> Option<(PathBuf, String)> {
+    let name = client.file_name()?;
+    let folder = client.parent()?;
+    let version = folder.file_name()?.to_str()?;
+    let pointer = Pointer::parse(pointer?)?;
+    let previous = pointer.previous.as_ref()?;
+    let counting = pointer.counting_move()?;
+    if !counting.back || pointer.active.product != version {
+        return None;
+    }
+    Some((
+        folder.parent()?.join(&previous.product).join(name),
+        version.to_owned(),
+    ))
 }
 
 /// The arguments after the program name in a Windows command line, exactly as written. The program

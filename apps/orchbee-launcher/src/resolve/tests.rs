@@ -1,6 +1,6 @@
 //! The launcher's pointer-to-command resolution: which Client a pointer names, which pointer bytes
-//! name none, and which part of a command line passes on unchanged.
-use super::{Failure, client, command_tail};
+//! name none, which part of a command line passes on unchanged, and which failed Client is recorded.
+use super::{Failure, client, command_tail, failure_recorder};
 use std::{
     cell::RefCell,
     path::{Path, PathBuf},
@@ -81,6 +81,59 @@ fn a_missing_or_invalid_pointer_names_no_active_version() {
             "{bytes}"
         );
     }
+}
+
+// A failed Client is recorded through the previous version only while the pointer still makes the
+// failed version active through a counting move that may fall back.
+#[test]
+fn a_failed_client_is_recorded_through_the_previous_version_only_while_its_move_counts() {
+    let entry = |product: &str| format!(r#"{{"product":"{product}","manifest":"{DIGEST}"}}"#);
+    let pointer = |active: &str, previous: Option<&str>, moved: &str, back: bool| {
+        let previous = previous.map_or_else(String::new, |previous| {
+            format!(r#","previous":{}"#, entry(previous))
+        });
+        format!(
+            r#"{{"version":1,"active":{}{previous},"extensions":{{"fallback":{{"held":[],"move":{{"entry":{},"back":{back}}}}}}}}}"#,
+            entry(active),
+            entry(moved)
+        )
+    };
+    let client = Path::new(r"C:\Store\versions\0.2.0\orchbee.exe");
+    let counting = pointer("0.2.0", Some("0.1.0"), "0.2.0", true);
+    assert_eq!(
+        failure_recorder(client, Some(counting.as_bytes())),
+        Some((
+            PathBuf::from(r"C:\Store\versions\0.1.0\orchbee.exe"),
+            "0.2.0".to_owned()
+        ))
+    );
+    for (case, bytes) in [
+        (
+            "may not fall back",
+            pointer("0.2.0", Some("0.1.0"), "0.2.0", false),
+        ),
+        ("no previous", pointer("0.2.0", None, "0.2.0", true)),
+        (
+            "a move for another entry",
+            pointer("0.2.0", Some("0.1.0"), "0.1.0", true),
+        ),
+        (
+            "another version active",
+            pointer("0.3.0", Some("0.2.0"), "0.3.0", true),
+        ),
+        (
+            "no fallback record",
+            pointer("0.2.0", Some("0.1.0"), "0.2.0", true).replace("fallback", "later"),
+        ),
+        ("invalid", counting[..40].to_owned()),
+    ] {
+        assert_eq!(
+            failure_recorder(client, Some(bytes.as_bytes())),
+            None,
+            "{case}"
+        );
+    }
+    assert_eq!(failure_recorder(client, None), None);
 }
 
 #[test]

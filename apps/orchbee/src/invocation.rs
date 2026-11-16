@@ -884,6 +884,12 @@ pub(crate) enum Request {
     /// The automatic helper the Session Server runs on its schedule: `update` without the PATH
     /// step, printing only its JSON document; hidden from help, completion and the Agent guide.
     AutomaticUpdate,
+    /// The Client-failure helper a launcher runs through the previous version after a Client of
+    /// `version` failed: records that failure and prints nothing; hidden from help, completion and
+    /// the Agent guide.
+    RecordClientFailure {
+        version: String,
+    },
     /// `uninstall`: removes the installed release, its PATH entry, installer entries and Agent
     /// integrations; data stays unless `delete_data`.
     Uninstall {

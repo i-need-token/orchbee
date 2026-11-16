@@ -469,7 +469,9 @@ impl RetainedSessionRecord {
     pub(crate) fn checkpoint_directory(&self) -> PathBuf {
         self.directory.folder(&self.scope)
     }
-    pub(crate) fn current_activation_id(&self) -> io::Result<[u8; 16]> {
+    /// The activation identifier of the retained generation, read again from the record: an error
+    /// when the record no longer names that generation.
+    pub fn current_activation_id(&self) -> io::Result<[u8; 16]> {
         let current = self
             .directory
             .read(&self.scope)?

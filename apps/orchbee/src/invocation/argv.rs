@@ -30,9 +30,11 @@ pub(crate) fn parse_selected_request(
         }
         tokens.push(text.to_owned());
     }
-    // A published copy completes its own install wherever `install` runs; only Windows has a
-    // platform uninstaller to start the uninstaller helper.
+    // A published copy completes its own install wherever `install` runs, and a Client failure is
+    // recorded in whatever store the helper runs from; only Windows has a platform uninstaller to
+    // start the uninstaller helper.
     let helper = complete_install(&tokens)
+        .or_else(|| record_client_failure(&tokens))
         .map(|request| (super::grammar::Availability::Portable, request))
         .or_else(|| {
             installer_uninstall(&tokens)
@@ -66,6 +68,21 @@ fn automatic_update(tokens: &[String]) -> Option<super::Request> {
     let helper = orchbee_local_runtime::AUTOMATIC_UPDATE_HELPER;
     (orchbee_local_runtime::automatic_updates_live() && matches!(tokens, [only] if only == helper))
         .then_some(super::Request::AutomaticUpdate)
+}
+
+/// The Client-failure helper `--record-client-failure-v1 <version>`, with exactly one version. A
+/// build that does not run automatic updates does not know it, so there it reaches the grammar as
+/// an unknown option. This helper grammar is permanent; a change adds a new helper name.
+fn record_client_failure(tokens: &[String]) -> Option<super::Request> {
+    let helper = orchbee_local_runtime::CLIENT_FAILURE_HELPER;
+    match tokens {
+        [first, version] if orchbee_local_runtime::automatic_updates_live() && first == helper => {
+            Some(super::Request::RecordClientFailure {
+                version: version.clone(),
+            })
+        }
+        _ => None,
+    }
 }
 
 /// The completion helper `--complete-install-v1 [--no-path] [--allow-downgrade]`, each flag at

@@ -30,6 +30,7 @@ use std::{
 
 #[cfg(windows)]
 mod idle;
+mod worker_loss;
 
 /// One stop attempt's cooperative deadline.
 const STOP_ATTEMPT_BUDGET: Duration = Duration::from_secs(60);
@@ -109,11 +110,12 @@ pub(super) fn run(
     let mut worker_completed = false;
     #[cfg(windows)]
     let mut idle = idle::IdleMove::default();
+    let mut loss = worker_loss::WorkerLoss::default();
     loop {
         #[cfg(windows)]
-        let work = next_work(&mut owners, &shutdown, &clients, &mut idle);
+        let work = next_work(&mut owners, &shutdown, &clients, &mut idle, &mut loss);
         #[cfg(unix)]
-        let work = next_work(&mut owners, &shutdown, own);
+        let work = next_work(&mut owners, &shutdown, own, &mut loss);
         let attempt = match work {
             Work::Stop(attempt) => attempt,
             Work::Exit => return exit(owners, clients, &shutdown),
@@ -390,20 +392,26 @@ fn settle(
 /// Waits for a stop request or an `exit`. The managed Session never enrolls a replacement Worker,
 /// so once its Worker has exited and that Worker's Host is gone too, no terminal can run here again
 /// and the Server begins its own stop. While that Host still runs, the Server keeps running beside
-/// it. Each tick also feeds the idle move.
+/// it. Each tick also feeds the idle move, and a Worker exit no stop explains is recorded as this
+/// generation's failure first.
 #[cfg(windows)]
 fn next_work(
     owners: &mut Owners,
     shutdown: &SessionShutdown,
     clients: &local_client_service::ManagedClients,
     idle: &mut idle::IdleMove,
+    loss: &mut worker_loss::WorkerLoss,
 ) -> Work {
     loop {
         if let Some(work) = shutdown.take_within(Duration::from_secs(1)) {
             return work;
         }
+        let exited = matches!(owners.worker.try_wait(), Ok(Some(_)));
+        loss.look(exited, shutdown.stopping(), || {
+            worker_loss::record(&owners.session_record);
+        });
         if !shutdown.stopping()
-            && matches!(owners.worker.try_wait(), Ok(Some(_)))
+            && exited
             && host_absent(owners)
             && let Some(id) = own_stop_id()
         {
@@ -418,12 +426,21 @@ fn next_work(
 /// shutdown signals the Worker and Host too, so a first attempt can find the Host still exiting.
 /// Every stop this Server begins uses `own`, the identity its signal handler uses too.
 #[cfg(unix)]
-fn next_work(owners: &mut Owners, shutdown: &SessionShutdown, own: StopId) -> Work {
+fn next_work(
+    owners: &mut Owners,
+    shutdown: &SessionShutdown,
+    own: StopId,
+    loss: &mut worker_loss::WorkerLoss,
+) -> Work {
     loop {
         if let Some(work) = shutdown.take_within(Duration::from_secs(1)) {
             return work;
         }
-        if matches!(owners.worker.try_wait(), Ok(Some(_))) && host_absent(owners) {
+        let exited = matches!(owners.worker.try_wait(), Ok(Some(_)));
+        loss.look(exited, shutdown.stopping(), || {
+            worker_loss::record(&owners.session_record);
+        });
+        if exited && host_absent(owners) {
             begin_own(shutdown, own);
         }
     }

@@ -28,8 +28,15 @@ use std::{
 // sessions and the localization routing on their existing path.
 pub(crate) use crate::local_activation::StartupFailure;
 
-/// Runs the TUI until it closes, answering the version a click on Update left for.
+mod fallback;
+
+/// Runs the TUI until it closes, answering the version a click on Update left for. Its start is
+/// recorded for the fallback after a failed move beside it.
 pub(crate) fn run(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
+    fallback::with_start_recorded(fallback::record_start, || run_tui(locale, mouse))
+}
+
+fn run_tui(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
     #[cfg(windows)]
     if local_activation::inside_selected_session().map_err(|_| StartupFailure::Runtime)? {
         return Err(StartupFailure::AlreadyInSession);

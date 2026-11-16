@@ -1,13 +1,14 @@
 //! Native release installation: `install` from the signed release directory the running Client
 //! sits in, cohort updates on Windows and macOS, save-then-update channel changes on Windows, the
-//! automatic helper the Session Server runs, and the completion helper a published copy runs; none
-//! starts a Session. This entry
+//! automatic helper the Session Server runs, the completion helper a published copy runs, and the
+//! Client-failure helper a launcher runs; none starts a Session. This entry
 //! layer owns the build checks and reads the release environment; the engine below it receives
 //! every location, key and command as a value.
 use crate::cli_text::CliText;
 mod acquire;
 mod archive;
 mod automatic;
+mod client_failure;
 mod complete;
 mod engine;
 mod feed;
@@ -35,6 +36,7 @@ use super::{
 };
 use crate::{invocation::OutputFormat, localization::Locale};
 pub(crate) use automatic::run as automatic_update;
+pub(crate) use client_failure::run as record_client_failure;
 pub(crate) use complete::run as complete_install;
 pub(in crate::cli) use installed::{VerifiedRelease, observe as observe_installation};
 

@@ -351,6 +351,18 @@ is reported, and the process keeps treating that record so until it ends, so its
 agree. The folder's date is the [local date](#local-clock), or the UTC date on a host without a
 local clock.
 
+After a [fallback](#fallback-after-a-failed-move), while the store's counting move carries
+`restore` for the version this process runs from a store version folder, a writer's opening of a
+record in a newer format restores it instead of reporting it: it looks for the unnumbered copy at
+the record's relative path in an upgrade folder of each held version, the version held last first,
+and takes the first copy that opens as current for this build. The writer's own replacement puts
+that copy back, the writer uses it, and `record-restored` is logged with the record and the newer
+version it replaced; the copy stays in place. Without such a copy, or when the replacement fails,
+the record stays as a newer record does. The store is read only for a record in a newer format.
+`session.json` is never restored, since two installed versions read it at once, and a reader
+restores nothing: `VersionedFile::read` and `open_to_read` leave the record to its writer's next
+opening.
+
 | Record                            | Version and extension object | While its version is one this build cannot use                                                          |
 | --------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `internal/plugins/registry.json`  | `version`; `extensions`      | Readers see no plugin; link, install, folder assignment and cleanup are refused with `UnusableRegistry` |
@@ -1398,6 +1410,19 @@ longer counts.
   recorded, nothing falls back, and the role records nothing more for the move.
 - `held_versions` lists the held versions above the active one. Nothing makes them active until a
   higher version has been, which drops them.
+- `FallbackRecorder::for_current_executable` is the recorder of the program the process runs, and
+  `activation_text` the 32 lowercase hexadecimal digits an activation identifier takes in the
+  record. The observers that use them belong to their processes: the activator records each
+  generation's start just before it starts the Server and its failure when the Server cannot start
+  or ends before its endpoint, and a generation `SessionCatalog::recover_inactive` proves dead,
+  whose identifier it answers; the Server records a Worker that exits outside a stop, reading its
+  own generation with `RetainedSessionRecord::current_activation_id`; the TUI records its start on
+  a background thread it waits for before it exits; and the
+  [Client-failure helper](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation)
+  records a Client failure. Only the TUI start uses a thread; each other record is written on its
+  failing path, within the 2 s lock bound and only while a move counts.
+- While the counting move carries `restore` for the version the process runs, a writer restores a
+  record it meets in a newer format, as [persisted data versions](#persisted-data-versions) says.
 
 ## Update channel writes
 
@@ -1422,6 +1447,10 @@ half as its own constant, `automaticUpdatesInReleaseBuilds` in
 runs the store's active Client for an automatic update and by which that Client recognizes the
 [automatic helper](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation).
 A Client answers it only while `automatic_updates_live()` holds, and its spelling never changes.
+`CLIENT_FAILURE_HELPER` is `--record-client-failure-v1`, the word with which either launcher runs
+the previous version's Client, followed by the failed version, to record a Client failure for the
+[fallback after a failed move](#fallback-after-a-failed-move); the same switch and the same rule
+apply.
 
 `Cohort::artifact_sha256` retains each executable digest from successful admission. Installation provenance compares its declared digests against these observations, so a cohort change between reads cannot be presented as the previously admitted release.
 

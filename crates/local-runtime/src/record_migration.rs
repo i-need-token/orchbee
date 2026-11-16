@@ -1,7 +1,8 @@
 //! Persisted record versions and migration (ORC-397). Every record the data root layout versions
 //! with a top-level integer `version` opens through here: a current record is parsed as usual, an
 //! older one is migrated by pure N to N+1 steps whose result must pass the store's current strict
-//! parser, and a newer one, or one no step can update, is never rewritten.
+//! parser, and a newer one, or one no step can update, is never rewritten. The one exception is a
+//! writer's restore after a fallback, which puts back the copy an upgrade backup kept.
 //!
 //! A store receives a record's bytes only through [`open_to_read`], in a process that does not
 //! write the record, which keeps a migration in memory, or through [`open_to_write`], under the
@@ -206,6 +207,11 @@ pub fn open_to_write(
 
 /// [`open_to_write`] for a writer that may lack a data root: without one there is no upgrade
 /// backup folder, so an earlier record stays unchanged as one no step could update.
+///
+/// After a fallback, a record in a newer format is restored instead while the store's move carries
+/// `restore` for this process's version; see [`restore_from_held`]. `session.json` is never
+/// restored: two installed versions read it at once, and a restore could hide a running
+/// generation.
 pub(crate) fn open_writing(
     root: Option<&DataRoot>,
     record: VersionedRecord,
@@ -214,10 +220,32 @@ pub(crate) fn open_writing(
     admits: impl Fn(&[u8]) -> bool,
     replace: impl FnOnce(&[u8]) -> io::Result<()>,
 ) -> OpenedRecord {
+    open_writing_with(
+        root,
+        record,
+        path,
+        bytes,
+        admits,
+        replace,
+        crate::release_store::restore_sources,
+    )
+}
+
+/// [`open_writing`] with the store read that lists the held versions to restore from, asked only
+/// for a record in a newer format.
+pub(crate) fn open_writing_with(
+    root: Option<&DataRoot>,
+    record: VersionedRecord,
+    path: &Path,
+    bytes: Option<Vec<u8>>,
+    admits: impl Fn(&[u8]) -> bool,
+    replace: impl FnOnce(&[u8]) -> io::Result<()>,
+    restore_sources: impl FnOnce() -> Vec<String>,
+) -> OpenedRecord {
     let Some(original) = bytes else {
         return OpenedRecord::Absent;
     };
-    match open_record(record, &original, admits) {
+    match open_record(record, &original, &admits) {
         RecordOpening::Migrated { from, .. } if not_updated_here(path) => {
             unusable(record, RecordProblem::NotUpdated, from, path)
         }
@@ -231,11 +259,60 @@ pub(crate) fn open_writing(
             }
         }
         RecordOpening::Current | RecordOpening::Unversioned => OpenedRecord::Readable(original),
-        RecordOpening::Newer { version } => unusable(record, RecordProblem::Newer, version, path),
+        RecordOpening::Newer { version } => {
+            let copy = root
+                .filter(|_| record != VersionedRecord::SessionLifecycle)
+                .and_then(|root| {
+                    restore_from_held(root, record, path, &restore_sources(), &admits)
+                });
+            let Some(copy) = copy else {
+                return unusable(record, RecordProblem::Newer, version, path);
+            };
+            if replace(&copy).is_err() {
+                return unusable(record, RecordProblem::Newer, version, path);
+            }
+            crate::log_event(
+                crate::LogLevel::Warning,
+                "record-restored",
+                &[
+                    ("record", LogValue::Token(record.token())),
+                    ("version", LogValue::Count(version)),
+                ],
+            );
+            OpenedRecord::Readable(copy)
+        }
         RecordOpening::NotUpdated { version } => {
             unusable(record, RecordProblem::NotUpdated, version, path)
         }
     }
+}
+
+/// The copy that restores the record at `path` after a fallback: the unnumbered copy at its path
+/// relative to `root` in the upgrade folder of one of `held`, the held versions held last first,
+/// that opens as current for this build. That copy is the record as the version below the held
+/// one left it, before the held version first migrated it. A numbered copy, one that would need a
+/// migration, and one that cannot be read are passed over; with none, the record stays as it is.
+fn restore_from_held(
+    root: &DataRoot,
+    record: VersionedRecord,
+    path: &Path,
+    held: &[String],
+    admits: impl Fn(&[u8]) -> bool,
+) -> Option<Vec<u8>> {
+    let relative = path.strip_prefix(root.path()).ok()?;
+    let backups = root.backups();
+    held.iter()
+        .flat_map(|version| backup::upgrade_folders_of(&backups, version))
+        .find_map(|folder| {
+            let copy = folder.join(relative);
+            let bytes = PrivateCache::read_existing(
+                copy.parent()?,
+                copy.file_name()?.to_str()?,
+                backup::INSPECTED_LIMIT,
+            )
+            .ok()??;
+            (open_record(record, &bytes, &admits) == RecordOpening::Current).then_some(bytes)
+        })
 }
 
 /// Whether this process already reported the record at `path` as not updated. A migration this

@@ -304,8 +304,9 @@ it is a few minutes into a move to 0.5.0, and then after that version's fallback
 - A recorder tries the lock every 50 ms for at most 2 s, then drops the record and logs
   `fallback-record-dropped`. A dropped failure or Session start can only delay a fallback, and a
   dropped TUI start only lets the Client window open at the first failure instead. The Session
-  start notice is written before the Server starts, and the helper below writes as its only work;
-  every other record is written on a background thread that its process waits for before it exits.
+  start notice is written just before the Server starts, each Session failure on the path that
+  found it, and the helper below writes as its only work; the TUI start is written on a background
+  thread that its process waits for before it exits, so it never delays the TUI.
 - Rejected: a file of its own under its own lock, because a fallback would then change two files
   under two locks, and a crash between them could move the pointer without holding the version.
 

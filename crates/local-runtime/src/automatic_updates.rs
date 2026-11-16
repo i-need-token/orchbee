@@ -1,12 +1,18 @@
 //! Whether this build runs automatic updates: the one switch that every automatic-update behavior a
 //! release build would show or run consults, so that release builds turn them on together, and the
 //! spelling of the helper the Session Server runs. It decides nothing else; each behavior keeps its
-//! own rule for development builds, platforms and settings.
+//! own rule for development builds, platforms and settings. It also spells the helpers other
+//! processes run a Client with.
 use crate::{EnvironmentKind, environment_kind};
 
 /// The one argument with which a Session Server runs the store's active Client for an automatic
 /// update. Its spelling never changes; a changed helper takes a new name.
 pub const AUTOMATIC_UPDATE_HELPER: &str = "--automatic-update-v1";
+
+/// The argument with which a launcher, after a Client of the moved version failed, runs the
+/// previous version's Client to record that failure, followed by the failed version. Its spelling
+/// never changes; a changed helper takes a new name.
+pub const CLIENT_FAILURE_HELPER: &str = "--record-client-failure-v1";
 
 /// The variable through which a launcher announces the relaunch protocol to the Client it starts:
 /// the launcher's own process id in decimal. A Client uses the protocol's statuses only when that

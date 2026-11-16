@@ -184,22 +184,24 @@ impl SessionCatalog {
     }
 
     /// Proved-dead recovery uses the same namespace and exact runtime guards as new activation.
+    /// Answers the activation identifier of the generation it proved dead, or `None` when the
+    /// Session has no record or stopped.
     pub fn recover_inactive(
         &self,
         session: &Rendezvous,
         activation: &crate::ModeCheckedSessionLock,
         lifetime: &crate::ModeCheckedSessionLock,
-    ) -> io::Result<bool> {
+    ) -> io::Result<Option<[u8; 16]>> {
         session.require_lock(activation, crate::LockKind::Activation)?;
         session.require_lock(lifetime, crate::LockKind::SessionLifetime)?;
         let runtime = session.runtime_directory();
         let scope = self.scope_of(runtime)?;
         let _writer = self.durable.try_writer(scope)?;
         let Some(mut record) = self.durable.read(scope)? else {
-            return Ok(false);
+            return Ok(None);
         };
         if matches!(record.lifecycle, Lifecycle::Stopped { .. }) {
-            return Ok(false);
+            return Ok(None);
         }
         if !matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed)
             || !record.uses_runtime(runtime)
@@ -236,7 +238,7 @@ impl SessionCatalog {
             retry,
             allow_previous_receipt,
         )?;
-        Ok(true)
+        Ok(Some(activation_id))
     }
 
     /// One new generation is published before its runtime marker or Server can exist.

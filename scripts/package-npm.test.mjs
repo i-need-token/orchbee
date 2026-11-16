@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
+	clientFailureHelper,
 	compareVersions,
 	judgeClientExit,
 	heldVersions,
@@ -278,6 +279,36 @@ test('the launcher holds only the versions a well-formed fallback record holds a
 	])
 		assert.deepEqual(heldVersions(pointer(other)), [], JSON.stringify(other));
 	assert.deepEqual(heldVersions('{}'), []);
+});
+
+test('the launcher records a failed Client through the previous version only while its move counts', () => {
+	const digest = 'a'.repeat(64);
+	const entry = (product) => ({ product, manifest: digest });
+	const pointer = ({ active = '0.2.0', previous = '0.1.0', moved = entry(active), back = true }) =>
+		JSON.stringify({
+			version: 1,
+			active: entry(active),
+			...(previous === null ? {} : { previous: entry(previous) }),
+			extensions: { fallback: { held: [], move: { entry: moved, back } } },
+		});
+	const started = `C:\\Store\\versions\\0.2.0\\${stem}.exe`;
+	assert.deepEqual(clientFailureHelper(started, pointer({})), {
+		program: `C:\\Store\\versions\\0.1.0\\${stem}.exe`,
+		version: '0.2.0',
+	});
+	for (const [name, text] of [
+		['may not fall back', pointer({ back: false })],
+		['no previous', pointer({ previous: null })],
+		['a move for another entry', pointer({ moved: entry('0.1.0') })],
+		[
+			'a move for another manifest',
+			pointer({ moved: { product: '0.2.0', manifest: 'b'.repeat(64) } }),
+		],
+		['another version active', pointer({ active: '0.3.0', previous: '0.2.0' })],
+		['no pointer', null],
+		['invalid', '{}'],
+	])
+		assert.equal(clientFailureHelper(started, text), null, name);
 });
 
 test('the launcher reads the store root the install command writes', () => {

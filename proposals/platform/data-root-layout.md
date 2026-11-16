@@ -291,12 +291,13 @@ veto). Every other row applies from the first public release:
 - The one exception is the restore after a fallback, Proposed with
   [automatic updates](automatic-updates.md#falling-back-after-a-failed-move):
   - While the store's `fallback` record carries `restore` for the active version, a process that
-    runs from that version's store folder and writes a record restores it whenever it opens it, to
-    read or to write, and finds it in a newer format. Under the record's writer lock it copies back
-    the highest-numbered copy of the record from the upgrade folder of the version held last,
-    through the store's flushed atomic replacement, and opens the record again; while the record is
-    still in a newer format, it tries the upgrade folders of the earlier held versions, newest
-    first. With no copy left the record stays as above, and so does a record whose writer lock is
+    runs from that version's store folder and writes a record restores it whenever it opens it to
+    write and finds it in a newer format; a read leaves it to that writer. Under the record's writer
+    lock it takes the unnumbered copy of the record, the first original the version held last backed
+    up, from that version's upgrade folder, and when that copy opens as current it puts it back
+    through the store's flushed atomic replacement and uses it; otherwise it tries the upgrade
+    folders of the earlier held versions, newest first. A copy that would need a migration is passed
+    over. With no copy left the record stays as above, and so does a record whose writer lock is
     busy at that open. Copies stay in place, and each restore is logged as `record-restored`.
   - Only the process that migrates a record restores it: the TUI restores `tui-position.json`, and
     the Server that holds the Session store restores its checkpoint slots, restore notice, earlier
