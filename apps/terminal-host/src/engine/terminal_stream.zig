@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
 
 const hyperlink_budget = @import("hyperlink_budget.zig");
+const scroll_clear = @import("scroll_clear.zig");
 
 /// Ghostty requires an allocator for OSC color operations and for a few OSC
 /// payloads that may exceed its fixed parser buffer. Keep those child-driven
@@ -153,6 +154,12 @@ pub const Handler = struct {
             .print_slice => self.hyperlinks.admitPrint(screen, value.cps.len),
             .print_repeat => self.hyperlinks.admitPrint(screen, value),
             .start_hyperlink => if (!self.hyperlinks.admitLink(screen)) return,
+            .erase_display_complete, .erase_display_scroll_complete => {
+                const lifted = scroll_clear.liftPruning(screen);
+                self.terminal_handler.vt(action, value);
+                lifted.restore();
+                return;
+            },
             .set_mode => {
                 if (self.handleColumnMode(value, true)) return;
                 self.terminal_handler.vt(action, value);

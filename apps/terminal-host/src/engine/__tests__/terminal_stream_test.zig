@@ -133,6 +133,38 @@ test "Host terminal stream delegates bounded DCS replies and recovers overlappin
     try std.testing.expectEqualStrings("A", plain);
 }
 
+// Found by the release fuzz pass, seed 0x6f72636862656501 within 50,000 batches: ED 22 pruned the
+// page that held the cursor, and Ghostty released the cursor's style and link on the next page.
+test "Host scroll clear keeps the cursor style and link when it clears the cursor's page" {
+    const allocator = std.testing.allocator;
+    const columns = 400;
+    const page_rows = page_rows: {
+        var probe: ghostty_vt.Terminal = try .init(std.testing.io, allocator, .{ .cols = columns, .rows = 1 });
+        defer probe.deinit(allocator);
+        break :page_rows probe.screens.active.pages.pages.first.?.capacity().rows;
+    };
+    // The default byte limit keeps only the minimum: the active area and one more page.
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, allocator, .{
+        .cols = columns,
+        .rows = page_rows + 2,
+    });
+    defer terminal.deinit(allocator);
+    var stream: terminal_stream.Stream = .init(.{ .handler = .init(&terminal) });
+    defer stream.deinit();
+
+    // The active area now spans the last row of one full page, a second full page and one row of
+    // a third, so ED 22 needs a fourth page while the cursor is still on the first.
+    for (0..2 * page_rows) |_| stream.nextSlice("x\r\n");
+    stream.nextSlice("x\x1b[H\x1b[1m\x1b]8;;https://example.invalid\x1b\\\x1b[22Jy");
+
+    const pages = &terminal.screens.active.pages;
+    const cleared = pages.getCell(.{ .active = .{} }).?;
+    try std.testing.expectEqual(@as(u21, 'y'), cleared.cell.content.codepoint.data);
+    try std.testing.expect(cleared.style().flags.bold);
+    try std.testing.expect(cleared.cell.hyperlink);
+    try std.testing.expect(pages.page_size <= pages.limits.max(.bytes));
+}
+
 test "Host terminal stream delegates Kitty graphics APC commands" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
