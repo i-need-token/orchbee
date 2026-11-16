@@ -1543,7 +1543,7 @@ fn guarded_enable(
     let runtime_source = spec
         .runtime_relative
         .map(|relative| context.capsule_root.join(relative));
-    let Some(target) = providers::guarded_target(id, spec, context.home) else {
+    let Some(target) = providers::guarded_target(id, spec, context) else {
         return Attempt::Failed(FailureCode::OperationFailed);
     };
     if !inspect::guarded_source_ready(&source_path, spec.kind, runtime_source.as_deref()) {
@@ -1939,7 +1939,7 @@ fn guarded_disable(
     attempted: &mut Vec<AttemptedStep>,
     effect: &mut bool,
 ) -> Attempt {
-    let Some(target) = providers::guarded_target(id, spec, context.home) else {
+    let Some(target) = providers::guarded_target(id, spec, context) else {
         return Attempt::Failed(FailureCode::OperationFailed);
     };
     #[cfg(all(any(test, feature = "test-support"), unix))]
@@ -2291,7 +2291,7 @@ pub(crate) fn plan_enable(
             let Some(spec) = providers::guarded_spec(id) else {
                 return steps;
             };
-            let Some(target) = providers::guarded_target(id, spec, context.home) else {
+            let Some(target) = providers::guarded_target(id, spec, context) else {
                 return steps;
             };
             if providers::obsolete_guarded_spec(id).is_none()
@@ -2307,7 +2307,7 @@ pub(crate) fn plan_enable(
                 // The combined state cannot say which entry is stale, so the
                 // plan names both; a current one is left as it is.
                 if let Some(companion) = providers::companion_guarded_spec(id)
-                    && let Some(target) = providers::guarded_target(id, companion, context.home)
+                    && let Some(target) = providers::guarded_target(id, companion, context)
                 {
                     steps.push(PlannedStep::GuardedWrite { target });
                 }
@@ -2318,7 +2318,7 @@ pub(crate) fn plan_enable(
             } = detail
                 && *state != TargetState::Missing
                 && let Some(old) = providers::obsolete_guarded_spec(id)
-                && let Some(target) = providers::guarded_target(id, old, context.home)
+                && let Some(target) = providers::guarded_target(id, old, context)
             {
                 steps.push(PlannedStep::GuardedRemove { target });
             }

@@ -38,6 +38,7 @@ fn changed_preimages_arrivals_and_cancellation_preserve_user_data() {
             deadline: Instant::now() + Duration::from_secs(10),
             cancel: Some(&cancel),
             management_mode: ManagementMode::ManagedLocal,
+            variables: |_| None,
         };
         let mut attempted = Vec::new();
         let mut residuals = Vec::new();

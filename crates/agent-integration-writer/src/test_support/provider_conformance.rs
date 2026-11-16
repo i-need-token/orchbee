@@ -965,6 +965,7 @@ fn run_case(case: &Case, cli_status: CliStatus) {
         deadline,
         cancel: Some(&cancel),
         management_mode: case.management_mode,
+        variables: |_| None,
     };
 
     if case.inspect_only {

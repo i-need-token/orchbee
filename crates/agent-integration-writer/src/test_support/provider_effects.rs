@@ -1226,6 +1226,7 @@ fn drive_provider(case: &Case, dirs: &Dirs) -> mutation::MutationReport {
         deadline,
         cancel: Some(&cancel),
         management_mode: super::super::model::ManagementMode::ManagedLocal,
+        variables: |_| None,
     };
     // Provider-level cases pin provider-command behavior — the managed
     // capsule starts already published so the publish step never enters
@@ -2095,6 +2096,7 @@ fn run_static(case: &Case, cli_status: CliStatus) {
                 deadline: inject::now() + PROVIDER_BUDGET,
                 cancel: Some(&cancel),
                 management_mode: super::super::model::ManagementMode::ManagedLocal,
+                variables: |_| None,
             };
             let _item = providers::inspect_provider(IntegrationId::Grok, &context);
             let witnessed = inject::witnessed();
@@ -2159,6 +2161,7 @@ fn drive_provider_at(
         deadline: inject::now() + PROVIDER_BUDGET,
         cancel: Some(&cancel),
         management_mode: super::super::model::ManagementMode::ManagedLocal,
+        variables: |_| None,
     };
     mutation::mutate(id, direction, &context)
 }

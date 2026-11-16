@@ -41,6 +41,8 @@ pub(crate) struct ProviderContext<'a> {
     /// platforms the managed flow does not support. A spec-level property,
     /// never an inspected value.
     pub(crate) management_mode: ManagementMode,
+    /// The environment the providers' own override variables are read from.
+    pub(crate) variables: crate::provider_roots::Variables,
 }
 
 /// Build the classifier's content-addressed resource options.
@@ -338,31 +340,36 @@ pub(crate) fn companion_guarded_spec(id: IntegrationId) -> Option<GuardedSpec> {
     None
 }
 
-pub(crate) fn guarded_target(id: IntegrationId, spec: GuardedSpec, home: &Path) -> Option<PathBuf> {
-    #[cfg(windows)]
-    if id == IntegrationId::Opencode {
-        let paths = crate::configuration::opencode_entries(home)?;
-        let target = if spec.kind == BootstrapKind::OpencodeClient {
-            paths.client
-        } else if spec.target_relative.ends_with(".mjs") {
-            paths.obsolete
-        } else {
-            paths.current
-        };
-        return super::files::path_admitted(&target).then_some(target);
-    }
-    #[cfg(windows)]
-    if id == IntegrationId::Kilo {
-        let target = crate::configuration::kilo_entry(home)?;
-        return super::files::path_admitted(&target).then_some(target);
-    }
-    #[cfg(windows)]
-    if matches!(id, IntegrationId::Gemini | IntegrationId::QwenCode) {
-        let target = crate::configuration::extension_directory(id.as_str(), home)?;
-        return super::files::path_admitted(&target).then_some(target);
-    }
-    let _ = id;
-    Some(home.join(spec.target_relative))
+/// Where a guarded entry goes. OpenCode, Kilo, Gemini and Qwen follow their own override variables
+/// on every platform; every other entry sits at its fixed place under `home`.
+pub(crate) fn guarded_target(
+    id: IntegrationId,
+    spec: GuardedSpec,
+    context: &ProviderContext<'_>,
+) -> Option<PathBuf> {
+    let (home, variables) = (context.home, context.variables);
+    let target = match id {
+        #[cfg(windows)]
+        IntegrationId::Opencode => {
+            let paths = crate::configuration::opencode_entries(home, variables)?;
+            if spec.kind == BootstrapKind::OpencodeClient {
+                paths.client
+            } else if spec.target_relative.ends_with(".mjs") {
+                paths.obsolete
+            } else {
+                paths.current
+            }
+        }
+        #[cfg(not(windows))]
+        IntegrationId::Opencode => crate::provider_roots::opencode_plugins(home, variables)?
+            .join(Path::new(spec.target_relative).file_name()?),
+        IntegrationId::Kilo => crate::provider_roots::kilo_entry(home, variables)?,
+        IntegrationId::Gemini | IntegrationId::QwenCode => {
+            crate::provider_roots::extension_directory(id.as_str(), home, variables)?
+        }
+        _ => return Some(home.join(spec.target_relative)),
+    };
+    super::files::path_admitted(&target).then_some(target)
 }
 
 fn inspect_guarded_spec(
@@ -371,7 +378,7 @@ fn inspect_guarded_spec(
     context: &ProviderContext,
     options: &ResourceOptions,
 ) -> GuardedTarget {
-    let Some(target) = guarded_target(id, spec, context.home) else {
+    let Some(target) = guarded_target(id, spec, context) else {
         return GuardedTarget::Here(TargetState::Unknown);
     };
     inspect::read_guarded_target(

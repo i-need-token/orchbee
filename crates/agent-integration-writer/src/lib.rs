@@ -43,6 +43,8 @@ pub(crate) mod model;
 #[cfg(any(unix, windows))]
 mod mutation;
 #[cfg(any(unix, windows))]
+mod provider_roots;
+#[cfg(any(unix, windows))]
 mod providers;
 
 #[cfg(all(any(test, feature = "test-support"), unix))]
@@ -150,6 +152,7 @@ mod imp {
                 // The provider registry further restricts platform capabilities;
                 // Provider policy admits only the supported Windows entries.
                 management_mode: ManagementMode::ManagedLocal,
+                variables: crate::provider_roots::process,
             }
         }
     }
@@ -419,8 +422,8 @@ pub trait TerminationSource {
 }
 
 #[cfg(windows)]
-pub use configuration::{
-    extension_directory, hook_configuration_candidates_for, kilo_entry, opencode_entries,
-};
+pub use configuration::{hook_configuration_candidates_for, opencode_entries};
+#[cfg(windows)]
+pub use provider_roots::{Variables, extension_directory, kilo_entry};
 #[cfg(all(unix, feature = "test-support"))]
 pub use test_support::{provider_conformance64_replay, provider_effects52_conformance};

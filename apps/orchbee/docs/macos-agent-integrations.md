@@ -35,6 +35,16 @@ it there, as on Windows. Devin's documentation names `~/.config/devin` without m
 itself; a value that would need expansion refuses instead of being guessed, and Hermes's commands
 run with `HERMES_HOME` pinned to the folder whose entry files were read.
 
+The plugin and extension providers follow the same override variables as on Windows, under the
+same nonempty-and-absolute rule:
+
+- OpenCode: `$XDG_CONFIG_HOME/opencode/plugins/orchbee-agent-observation.mjs`, otherwise under
+  `~/.config/opencode/plugins/`.
+- Kilo: `$KILO_CONFIG_DIR/plugin/orchbee-agent-observation.js`, otherwise under
+  `$XDG_CONFIG_HOME/kilo/`, otherwise under `~/.config/kilo/`. Kilo stays manual-only here.
+- Gemini: `$GEMINI_CLI_HOME/.gemini/extensions/orchbee-agent-observation/`, otherwise under `~`.
+- Qwen Code: `$QWEN_HOME/extensions/orchbee-agent-observation/`, otherwise under `~/.qwen/`.
+
 ## Hook command
 
 The providers run a hook's `command` through a POSIX shell: Mastracode and Kimi through
