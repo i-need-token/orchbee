@@ -2,6 +2,7 @@
 //! check; with a name it also covers reservation, readiness observation and best-effort name
 //! release.
 
+use super::command::Shell;
 use super::failure::ExchangeFailure;
 use super::{DeliveryDisposition, Report, Request, ReservationState, Verdict, elapsed_ms};
 use super::{Failure, StartFailure, Submission};
@@ -139,11 +140,12 @@ pub(super) fn run_admitted(
         shell_refused: false,
     };
     // Only a Session that types the line at a confirmed prompt may receive it; there is no
-    // ungated fallback.
+    // ungated fallback. The line this platform's shells read must fit before anything is read.
     let result = if client.server_serves(orchbee_connection_handshake::PROMPT_GATED_INPUT) {
         let session = workflow.session.as_deref();
-        match super::command::launch(request.provider.as_str(), &request.args, session) {
-            Some(text) => workflow.span(&mut client, &snapshot, &panel, &text, wake),
+        let provider = request.provider.as_str();
+        match super::command::launch(provider, &request.args, session, Shell::NATIVE) {
+            Some(_) => workflow.span(&mut client, &snapshot, &panel, wake),
             None => Err(Failure::Start(StartFailure::CommandTooLong)),
         }
     } else {
@@ -183,12 +185,11 @@ impl Workflow<'_> {
         client: &mut LocalClient,
         snapshot: &Snapshot,
         panel: &WorkbenchPanelId,
-        text: &str,
         wake: Option<LocalIo<'_>>,
     ) -> Result<Confirmed, Failure> {
         let terminal =
             agent_start_runtime::binding::primary(snapshot, panel).map_err(Failure::Primary)?;
-        let answer = self.launch_on_session(client, snapshot, &terminal, text, wake);
+        let answer = self.launch_on_session(client, snapshot, &terminal, wake);
         if answer.is_err() && self.state == ReservationState::Pending {
             self.release(client);
         }
@@ -200,18 +201,15 @@ impl Workflow<'_> {
         client: &mut LocalClient,
         snapshot: &Snapshot,
         terminal: &PrimaryTerminal,
-        text: &str,
         wake: Option<LocalIo<'_>>,
     ) -> Result<Confirmed, Failure> {
         let sample = self.sample(client, terminal, wake)?;
-        // The Host's own launch record, not the root's command line, selects the command format.
-        let powershell = sample.info.launch_kind == Some(TerminalLaunchKind::ManagedPowershell);
         if self.request.start_command {
             // The Server delivers and watches the start of a creation that carried one: managed
             // PowerShell, zsh or bash runs it as its first command, a marked cmd gets the line once
             // at its first confirmed prompt, and any other shell gets nothing. This Client never
             // types it and reserves nothing.
-            if powershell {
+            if sample.info.launch_kind == Some(TerminalLaunchKind::ManagedPowershell) {
                 return Ok(Confirmed::Sent);
             }
             return match root_shell(&sample.info)? {
@@ -223,21 +221,34 @@ impl Workflow<'_> {
             };
         }
         let shell = idle_shell(&sample.info)?;
-        // The idle-shell check above admits only managed PowerShell and marked cmd.
+        // The Host's own launch record, not the root's command line, selects the command format;
+        // the idle-shell check above admits only the shells named here.
+        let family = match sample.info.launch_kind {
+            Some(TerminalLaunchKind::ManagedPowershell) => Shell::Powershell,
+            Some(TerminalLaunchKind::ManagedZsh | TerminalLaunchKind::ManagedBash) => Shell::Posix,
+            _ => Shell::Cmd,
+        };
+        let text = super::command::launch(
+            self.request.provider.as_str(),
+            &self.request.args,
+            self.session.as_deref(),
+            family,
+        )
+        .ok_or(Failure::Start(StartFailure::CommandTooLong))?;
         let Some(name) = self.request.name.clone() else {
             // Without a name nothing is reserved: the line goes once to the confirmed prompt and
             // the early check reads only the shell's own answer.
             interrupted(wake)?;
-            // The line still carries a run prefix on managed PowerShell: only a prefixed line
-            // stays out of the person's PSReadLine history. Nothing reserved this token, so no
-            // receipt is read for it.
-            let run_token = powershell.then(mint_run_token).flatten();
+            // The line still carries a run prefix where the shell strips one: only a prefixed
+            // line stays out of the person's history. Nothing reserved this token, so no receipt
+            // is read for it.
+            let run_token = (family != Shell::Cmd).then(mint_run_token).flatten();
             let submitted = self.submit(
                 client,
                 snapshot,
                 terminal,
-                text,
-                powershell,
+                &text,
+                family,
                 run_token.as_ref(),
                 wake,
             )?;
@@ -317,8 +328,8 @@ impl Workflow<'_> {
             client,
             snapshot,
             terminal,
-            text,
-            powershell,
+            &text,
+            family,
             Some(&run_token),
             wake,
         )?;
@@ -326,7 +337,7 @@ impl Workflow<'_> {
     }
 
     /// Types the one launch line at the confirmed prompt and records its receipt; a refusal
-    /// typed nothing. `run_token` marks the line for managed PowerShell's receipt.
+    /// typed nothing. `run_token` marks the line for the receipt of a shell that strips the mark.
     #[allow(clippy::too_many_arguments)]
     fn submit(
         &mut self,
@@ -334,7 +345,7 @@ impl Workflow<'_> {
         snapshot: &Snapshot,
         terminal: &PrimaryTerminal,
         text: &str,
-        powershell: bool,
+        shell: Shell,
         run_token: Option<&AgentRunToken>,
         wake: Option<LocalIo<'_>>,
     ) -> Result<Instant, Failure> {
@@ -346,28 +357,18 @@ impl Workflow<'_> {
             .is_empty()
             .then(|| {
                 let provider = self.request.provider.as_str();
-                super::command::interactive(provider, powershell, self.session.as_deref())
+                super::command::interactive(provider, shell, self.session.as_deref())
             })
             .flatten();
-        let text = concise.as_deref().unwrap_or(text);
-        // Managed PowerShell strips this exact comment prefix, echoes the run token in its
-        // start and finish markers, and exports it to this command only. A marked PowerShell
-        // without the managed wrapper reads the prefix as a block comment and runs the command
-        // unchanged.
-        let receipted;
-        let text = match run_token {
-            Some(run_token) if powershell => {
-                receipted = format!("<#orchbee-run:{run_token}#> {text}");
-                receipted.as_str()
-            }
-            _ => text,
-        };
+        let text = super::command::typed_line(concise.as_deref().unwrap_or(text), shell, run_token);
         let receipt = match agent_start_runtime::send::submit_prompt(
             client,
             &terminal.binding,
             snapshot.revision,
-            text,
-            powershell,
+            &text,
+            // PowerShell takes a Right before Enter to flush its paste handling; zsh and bash
+            // take the pasted line and Enter as they are.
+            shell == Shell::Powershell,
             self.step()?,
             wake,
         ) {
@@ -823,14 +824,8 @@ fn root_shell(sample: &TerminalProcessInfo) -> Result<ShellRoot, Failure> {
 fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure> {
     let refuse = || Failure::Start(StartFailure::TerminalNotIdle);
     let interpreted = agent_start_runtime::interpret(sample);
-    // Managed zsh and bash run a start their launch carried, but this Client has no typed line
-    // for them yet: the launch text is PowerShell's, and their run prefix differs.
-    let root = match sample.launch_kind {
-        Some(TerminalLaunchKind::ManagedZsh | TerminalLaunchKind::ManagedBash) => ShellRoot::Other,
-        _ => root_shell(sample)?,
-    };
     if !idle_shell_only(
-        root,
+        root_shell(sample)?,
         sample.processes.len() < orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS,
         interpreted
             .iter()

@@ -1,7 +1,8 @@
-# Windows Agent startup
+# Windows and macOS Agent startup
 
-`agent start` starts one provider command on a running Windows Session, in a new Tab, a new split
-or an existing Panel's idle shell. A new Panel's shell can run the exact catalog command as its
+`agent start` starts one provider command on a running Windows or macOS Session, in a new Tab, a
+new split or an existing Panel's idle shell. Linux Clients refuse it as unsupported until the Linux
+Host's managed shells are verified. A new Panel's shell can run the exact catalog command as its
 first command; otherwise the command is typed once at the confirmed prompt. Without a name that is
 the whole start: after a short
 [early check](#workflow-and-invariants) the Agent is observed exactly like one the person typed by
@@ -35,15 +36,17 @@ to the caller's Panel. The target is the chosen Panel's primary terminal.
 
 Agent arguments follow `--`. Repeated `--arg=<value>` is an alternative to trailing arguments;
 mixing both forms is refused. Empty arguments are retained, control characters are refused, and the
-encoded command must fit 8000 ASCII characters.
+command line this platform's shells read must fit 8000 bytes: the encoded PowerShell command on
+Windows, the [quoted words](#typed-start-in-zsh-and-bash) on macOS.
 
 A new Tab or split is created with the TUI's Server operations, `tab.create` or `panel.split`,
 under one stale-view-retried request identity. A start with no arguments and no name is exactly
 the catalog command: the creation carries `options.agentStart` and the new shell runs the Agent
 as its [first command](#start-as-the-shells-first-command); the CLI returns once the Panel exists
-and that shell is confirmed managed PowerShell or a cmd the Host marks, and answers any other shell
-with the not-idle refusal at once. A start with arguments or a name creates a plain shell and types the workflow once at its
-first confirmed prompt; a named start keeps the reservation and readiness wait. While the new
+and that shell is confirmed managed PowerShell, managed zsh or bash, or a cmd the Host marks, and
+answers any other shell with the not-idle refusal at once. A start with arguments or a name
+creates a plain shell and types the workflow once at its first confirmed prompt; a named start
+keeps the reservation and readiness wait. While the new
 terminal is unbound or its shell is not idle, the CLI only reads again, every 250 ms until two
 seconds before the deadline. A submission the [prompt gate](#prompt-gated-input) refused typed
 nothing and is this workflow's stale-base refusal: it is attempted again under a fresh request
@@ -66,8 +69,9 @@ The [Start Agent picker](start-agent-picker.md) lists from the Session's
 [Agent catalog](../../orchbee-server/README.md#agent-catalog), which the Server keeps from its
 Worker's [Agent probe](../../orchbee-worker/README.md#agent-probe-job); the Client looks at no
 `PATH` of its own and runs no lookup process. Each opening of the picker asks the Server to look
-again. Found means found on the `PATH` a new shell on the Session's machine starts with, before its
-profile runs, which is a hint, never proof: a provider listed as not found still starts, and once
+again. Found means found on the `PATH` a new shell on the Session's machine starts with: on
+Windows before its profile runs, on macOS after an interactive login shell's startup files have
+run. Either is a hint, never proof: a provider listed as not found still starts, and once
 it runs the Server lists it as found. A command that the process-identity registry classes as
 generic is never checked: [Cursor uses `agent`](https://prod.cursor.com/docs/cli/installation), but
 other providers can install the same basename, and Snow CLI's `snow` is a common word that
@@ -101,7 +105,8 @@ process sampling and the single send exchange, but a best-effort reservation rel
 second can still delay teardown; cancellation is not instantaneous.
 
 The terminal's root must be a shell the Host itself launched with prompt marks: managed
-PowerShell or pwsh, or interactive cmd, as the `launchKind` of the Host's process sample records.
+PowerShell or pwsh, interactive cmd, or managed zsh or bash, as the `launchKind` of the Host's
+process sample records.
 Startup never reads the root's command line. Any other root, running commands, missing process
 details and additional processes other than known console infrastructure refuse startup with
 `terminal-not-idle`. Unmanaged PowerShell and cmd started with `/Q` or under `echo off` show no
@@ -205,12 +210,11 @@ recognition and resume evidence match a typed start's, and the person is left at
 the Agent exits. A command that is not found ends only the startup script: the shell's own error
 stays visible above its first prompt and the shell keeps working.
 
-On macOS and Linux, managed zsh and bash take the same variable. The Worker passes the start's
-tokens as plain words, single-quoting a token that starts with `=`, which zsh would expand to a
-command's path, and the managed startup runs that line once before the first prompt, after the
-person's startup files, with its own start marker and run token. The line runs as a typed line
-would, so the person's own alias or function of the program's name runs, where PowerShell resolves
-only an application or script.
+On macOS and Linux, managed zsh and bash take the same variable. The Worker writes the start's
+tokens as the same [quoted words](#typed-start-in-zsh-and-bash) a typed start uses, and the managed
+startup runs that line once before the first prompt, after the person's startup files, with its own
+start marker and run token. The line runs as a typed line would, so the person's own alias or
+function of the program's name runs, where PowerShell resolves only an application or script.
 
 Every other shell starts without the command; the Worker also removes the variable so a value
 inherited from its environment never runs. The Server
@@ -229,10 +233,22 @@ When the Tab's creation or the split commits, the CLI reads the new Panel's shel
 PowerShell, managed zsh or bash and a marked cmd count as launched; any other shell answers the not-idle refusal without
 the settling retry, since nothing will be typed into it. The TUI reads nothing and runs no early
 check for a new Panel: its start notices come from that `agentStartFailure` fact, shown once as the
-[Start Agent picker](start-agent-picker.md) describes. Managed zsh and bash run a start their launch
-carried, but no Client offers one on POSIX yet: the Session's Agent catalog reports nothing
-startable there, a start typed into an existing zsh or bash is refused as not idle, and the CLI
-parses the same grammar on POSIX and reports its existing unsupported outcome.
+[Start Agent picker](start-agent-picker.md) describes. On Linux no Client offers a start yet: the
+Session's Agent catalog reports nothing startable there, and the CLI parses the same grammar and
+reports its existing unsupported outcome.
+
+### Typed start in zsh and bash
+
+A start typed into an existing managed zsh or bash, or into a new Panel's shell because it has
+arguments or a name, follows the Host's `launchKind`, not the Client's platform. The line is the
+provider's command, its fixed words, a [launch-time id](#launch-time-conversation-ids) where it
+takes one, then the caller's arguments, written by `orchbee_local_runtime::posix_command_line`: a
+word of only `[A-Za-z0-9._/:,+@%=-]` stays as it is unless it starts with `=`, which zsh would
+expand to a command's path, and every other word, the empty word included, is single-quoted with
+each `'` written as `'\''`. zsh, bash and `sh` read every word back literally. There is no shorter
+argument-free form, because the words are already short, and no Right keystroke before Enter. The
+line carries the [run prefix](#launch-receipt) `: orchbee-run:<token>; `, so the receipt, the
+history rule and the typed-run identity work as they do for managed PowerShell.
 
 ## Workflow and invariants
 
@@ -291,7 +307,8 @@ authentication of a provider or a newly launched session.
 
 A named start's Reserve also returns a Server-minted run token: a nonzero, never-reused 32-digit
 lowercase hexadecimal value. When the Host's launch kind is managed PowerShell, Agent
-start prefixes its one submitted line with `<#orchbee-run:<token>#> `. A start without a name has
+start prefixes its one submitted line with `<#orchbee-run:<token>#> `; for managed zsh or bash it
+prefixes `: orchbee-run:<token>; `, a no-op command that names the token. A start without a name has
 no reservation: its line carries a prefix with a token the Client mints from OS entropy, only so
 that the line stays out of the person's history, and its early check reads the shell's prompt
 instead of a receipt. The verified reader
@@ -300,12 +317,15 @@ echoes it in the start and finish markers; the prompt removes the variable when 
 returns. The prefixed line enters neither PSReadLine history (memory, saved file or Up-arrow
 recall) nor `Get-History`. An interactive PowerShell whose own prompt shows the marks without the
 managed wrapper reads the prefix as a comment, runs the command unchanged and keeps the line in its
-own history. cmd receives no prefix; its console
+own history. Managed zsh and bash strip or recognise their prefix the same way, run the command
+with the token, echo it in the marks and keep neither form in their history; zsh or bash without
+the managed startup run the no-op, then the command unchanged. cmd receives no prefix; its console
 line history keeps the short provider command, because removing one entry would reset the user's
 whole doskey history.
 
 The Server latches each reservation's receipt from its sampler's latest frame of the same Host
-Terminal: `awaiting`, `started`, then `finished` with PowerShell's `$?`. Inspect returns it as
+Terminal: `awaiting`, `started`, then `finished` with PowerShell's `$?` or the POSIX shell's exit
+status (zero is success). Inspect returns it as
 `receipt`. A finished receipt ends startup at once: `$?` false reports `launch-command-failed`,
 for example when the provider is not found, and true reports `agent-exited`. Without a receipt,
 the idle-shell check after 3000 ms still reports `agent-exited`.

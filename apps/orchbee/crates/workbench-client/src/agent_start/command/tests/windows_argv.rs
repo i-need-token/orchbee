@@ -85,7 +85,7 @@ fn actual_windows_programs_receive_literal_arguments() {
         ("qodercli".to_owned(), values.clone()),
     ] {
         let text = if matches!(program.as_str(), "cursor" | "qodercli") {
-            launch(&program, &args, None).unwrap()
+            launch(&program, &args, None, Shell::Powershell).unwrap()
         } else {
             launch_program(&program, &args).unwrap()
         };

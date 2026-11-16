@@ -63,7 +63,7 @@ impl LocalTerminalService {
 pub(super) fn launch_capture(values: &UserSettingsValues) -> LaunchCapture {
     let intent = UserTerminalLaunchIntent::capture(values, true).unwrap_or_else(|_| {
         UserTerminalLaunchIntent {
-            program: Some(UserLaunchCommand::SystemShell { login: false }),
+            program: Some(UserLaunchCommand::BUILT_IN),
             scrollback_bytes: UserSettingsValues::default().scrollback_bytes,
             colors: None,
             themes: Default::default(),

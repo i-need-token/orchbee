@@ -30,7 +30,8 @@ export function launchProfileChanges(
 ): readonly SettingChange[] {
 	const keys = launchProfileKeys(platform);
 	const [first, ...rest] = catalog.profiles;
-	const written = first !== undefined && isUntouchedBuiltIn(first) ? rest : catalog.profiles;
+	const written =
+		first !== undefined && isUntouchedBuiltIn(first, platform) ? rest : catalog.profiles;
 	return [
 		{ key: keys.profiles, value: written.map(profileEntry) },
 		{ key: keys.defaultProfile, value: catalog.defaultProfileId },
@@ -46,12 +47,16 @@ export function launchProfileRestore(platform: SettingsPlatform): readonly Setti
 	];
 }
 
-function isUntouchedBuiltIn(profile: UserLaunchProfile): boolean {
+/**
+ * The built-in profile as the reader builds it on `platform`: the system shell, a login shell on
+ * macOS (`UserLaunchCommand::BUILT_IN` in `orchbee-workbench-protocol`).
+ */
+function isUntouchedBuiltIn(profile: UserLaunchProfile, platform: SettingsPlatform): boolean {
 	return (
 		profile.id === BUILT_IN_USER_LAUNCH_PROFILE_ID &&
 		profile.name === null &&
 		profile.command.kind === 'system-shell' &&
-		!profile.command.login
+		profile.command.login === (platform === 'macos')
 	);
 }
 

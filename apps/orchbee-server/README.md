@@ -1211,7 +1211,7 @@ and a restored Session hands it back before any Client connects
 can be checked come from `StartableAgent` in
 [`orchbee-agent-observation-protocol`](../../crates/agent-observation-protocol/README.md#native-process-input-rules);
 a provider whose start command is a generic alias is `cant-check`, and its command is never sent.
-`startable` is true on Windows, the only platform that starts Agents.
+`startable` is true on Windows and macOS, the platforms that start Agents.
 
 One pump thread, started by Session composition, keeps the catalog current through the registered
 Worker's [Agent probe job](../orchbee-worker/README.md#agent-probe-job), OBCN kinds 37 and 38. Each
@@ -1221,7 +1221,7 @@ checkable commands, then a Poll every 100 milliseconds. A refresh starts another
 is running or the last ended under two seconds ago. A lookup fails on any other answer, a lost
 exchange, the loss of its Worker, or after ten seconds; a failed lookup the Worker had accepted is
 cancelled once. A failed later lookup keeps the last completed rows, and a failed first lookup
-leaves checkable rows `unknown`, as does a POSIX Worker's `Unsupported`. The module comment holds
+leaves checkable rows `unknown`, as does a Linux Worker's `Unsupported`. The module comment holds
 the schedule's states and transitions. A Windows Session stop joins the pump before Close
 maintenance stops, without waiting for a Worker job, which the Worker ends at its own deadline or
 exit.
@@ -1229,7 +1229,7 @@ exit.
 `workbench.agent-catalog` (OBWP 75/76) is a read-granted query of the catalog. `current` reads it
 and `refresh` asks for a lookup under the rule above; both answer at once with the catalog as it
 stands. A request naming another Session answers `denied`; before the first Worker registers and
-once the Session stops, it answers `unavailable`. It is not withheld off Windows: a POSIX Session
+once the Session stops, it answers `unavailable`. It is not withheld elsewhere: a Linux Session
 answers `startable: false` with status `unsupported`, and a drained Server still answers it,
 `refresh` included. Only `current` opens a State stream, which follows the catalog's own change
 count rather than commits or terminal output. The catalog wakes its watching Client connections,

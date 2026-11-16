@@ -20,8 +20,8 @@ modules perform the typed Snapshot and OBAP reads, exact binding resolution, att
 reads with viewer cleanup, and single terminal submission consumed by native startup and CLI
 adapters. Callers retain discovery, selectors, presentation and signal ownership; operations use
 the original absolute deadline and wake. The OS startup adapter only admits Agent launch:
-Windows accepts, while Unix returns typed `Unsupported` before connection, reservation, viewer
-or input admission. The pure startup workflow and its receipt reasoning remain compiled.
+Windows and macOS accept, while Linux returns typed `Unsupported` before connection, reservation,
+viewer or input admission. The pure startup workflow and its receipt reasoning remain compiled.
 
 `local_client::cancellation` privately owns one-shot cancellation for observation jobs, event
 watches, saved-machine observers and selection attempts. Creation finishes before thread spawn;
@@ -54,7 +54,8 @@ and SSH-guard retirement scheduling keep their original cadence.
 | Browser link activation                                                        | Windows shell                               | `open` or `xdg-open` in a local desktop session                                          |
 | Saved-machine SSH carriers                                                     | Owned OpenSSH processes                     | Unsupported                                                                              |
 | Saved-machine catalog, remembered position and first-run dismissal storage     | Private Windows cache                       | Unsupported                                                                              |
-| Local directory entry and Agent launch/provider probing                        | Existing Windows adapters                   | Unsupported                                                                              |
+| Local directory entry                                                          | Existing Windows adapter                    | Unsupported                                                                              |
+| Agent launch and provider probing                                              | Existing Windows adapters                   | macOS: managed zsh and bash, login-shell probe; Linux: unsupported                       |
 | Legacy TOML configuration and plugin registry persistence                      | Existing Windows adapters                   | Unsupported                                                                              |
 | Host window title                                                              | Console title, original restored on exit    | OSC 0, original restored from the terminal's title stack on exit                         |
 | Terminal notification transport                                                | Ghostty/iTerm/WezTerm OSC 9 or Kitty OSC 99 | Same as Windows                                                                          |

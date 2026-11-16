@@ -21,7 +21,7 @@ orchbee-local-worker-protocol = { path = "../../crates/local-worker-protocol" }
 orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 
 [target.'cfg(unix)'.dependencies]
-nix = { workspace = true, features = ["fs", "poll", "socket", "user"] }
+nix = { workspace = true, features = ["fs", "poll", "signal", "socket", "user"] }
 
 [target.'cfg(windows)'.dependencies]
 process-wrap.workspace = true

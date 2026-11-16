@@ -23,6 +23,13 @@ fn idle_shell_admits_only_a_shell_the_host_launched_with_prompt_marks() {
         launch_kind: Some(TerminalLaunchKind::Cmd),
     };
     assert!(idle_shell(&sample).is_ok());
+    for managed in [
+        TerminalLaunchKind::ManagedZsh,
+        TerminalLaunchKind::ManagedBash,
+    ] {
+        sample.launch_kind = Some(managed);
+        assert!(idle_shell(&sample).is_ok());
+    }
     sample.launch_kind = Some(TerminalLaunchKind::ManagedPowershell);
     assert!(idle_shell(&sample).is_ok());
     sample

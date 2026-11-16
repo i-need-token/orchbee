@@ -14,6 +14,14 @@ pub enum UserLaunchCommand {
         arguments: Vec<String>,
     },
 }
+impl UserLaunchCommand {
+    /// The built-in `system-default` profile's command on the platform this is built for: the
+    /// system shell, started as a login shell on macOS, where terminals start login shells so
+    /// `path_helper` and the person's profile set `PATH`, and as it is elsewhere.
+    pub const BUILT_IN: Self = Self::SystemShell {
+        login: cfg!(target_os = "macos"),
+    };
+}
 /// A null name is the localized built-in label, allowed only for system-default.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -82,7 +90,7 @@ impl Default for UserLaunchProfiles {
             profiles: vec![UserLaunchProfile {
                 id: "system-default".into(),
                 name: None,
-                command: UserLaunchCommand::SystemShell { login: false },
+                command: UserLaunchCommand::BUILT_IN,
             }],
         }
     }

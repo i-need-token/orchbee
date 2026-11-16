@@ -14,7 +14,7 @@ use crate::{
     agent_start::Request,
     cli::{
         caller_context::PanelTarget,
-        console_interrupt::{ArmedSignals, Finish},
+        command_interrupt::{ArmedSignals, Finish},
     },
 };
 use crate::{

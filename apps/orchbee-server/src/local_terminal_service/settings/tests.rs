@@ -8,7 +8,10 @@ use orchbee_workbench_protocol::{WorkbenchRequest, WorkbenchResponse};
 use serde_json::{Value, json};
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -34,9 +37,12 @@ fn private_root() -> Fixture {
     let parent = std::env::temp_dir().canonicalize().unwrap();
     #[cfg(windows)]
     let parent = std::env::temp_dir();
+    // Tests run in parallel and may read the same clock value, so a counter keeps names apart.
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
     let root = parent.join(format!(
-        "orchbee-session-settings-{}-{}",
+        "orchbee-session-settings-{}-{}-{}",
         std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -150,9 +156,12 @@ fn launch_capture_reads_the_session_settings_and_refuses_before_configuration() 
     std::fs::write(fixture.file(), "[appearance]\nmode = \"dark\"\n").unwrap();
     service.install_configuration(&fixture.load()).unwrap();
     let default = captured(None).unwrap();
+    // No profile is configured, so the built-in one starts: a login shell on macOS only.
     assert_eq!(
         default.program(),
-        Some(&DefaultLaunchProgram::SystemShell { login: false })
+        Some(&DefaultLaunchProgram::SystemShell {
+            login: cfg!(target_os = "macos")
+        })
     );
     assert_eq!(
         default.colors(),

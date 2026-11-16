@@ -47,9 +47,10 @@ impl Capability {
             Self::Clipboard | Self::Browser | Self::SystemNotification | Self::WindowTitle => {
                 session_admits(self)
             }
+            // macOS shells get the same managed prompt and run prefix as Windows PowerShell.
+            Self::AgentLaunch => cfg!(any(windows, target_os = "macos")),
             Self::SavedMachines
             | Self::DirectoryInput
-            | Self::AgentLaunch
             | Self::PositionStorage
             | Self::ConfigurationFile
             | Self::Graphics => cfg!(windows),

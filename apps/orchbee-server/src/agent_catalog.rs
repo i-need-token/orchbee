@@ -15,11 +15,12 @@
 //! ([`AgentCatalog::mark_not_found`]) makes its row `NotFound` until the next completed lookup. A
 //! run of the provider that the Session coordinator first publishes ([`AgentCatalog::mark_found`])
 //! makes it `Found` until such a start or the next Worker generation's registration; completed
-//! lookups keep the found mark. The lookup searches the `PATH` a shell has before its profile runs,
-//! so an Agent that only a profile puts on `PATH`, as a version manager's activation does, runs in
-//! a Panel and still misses in every lookup. A refresh, which a Client may send each time it shows
-//! the list, would otherwise move that row back among the not-found providers while the list is
-//! open. A new generation ends the mark, since the run it records belonged to the previous Worker.
+//! lookups keep the found mark. On Windows the lookup searches the `PATH` a shell has before its
+//! profile runs, so an Agent that only a profile puts on `PATH`, as a version manager's activation
+//! does, runs in a Panel and still misses in every lookup. A refresh, which a Client may send each
+//! time it shows the list, would otherwise move that row back among the not-found providers while
+//! the list is open. A new generation ends the mark, since the run it records belonged to the
+//! previous Worker.
 //! Rows the catalog cannot check take neither mark.
 //!
 //! # Lookup schedule
@@ -89,9 +90,9 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 const LOOKUP_DEADLINE: Duration = Duration::from_secs(10);
 /// A refresh this soon after the last lookup ended starts nothing.
 const REFRESH_FLOOR: Duration = Duration::from_secs(2);
-/// Whether this Session's machine can start Agents at all: only Windows Sessions start them
-/// today. A policy constant rather than a `cfg`, so every branch compiles everywhere.
-const STARTABLE: bool = cfg!(windows);
+/// Whether this Session's machine can start Agents at all: Windows and macOS Sessions start them.
+/// A policy constant rather than a `cfg`, so every branch compiles everywhere.
+const STARTABLE: bool = cfg!(any(windows, target_os = "macos"));
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LookupStatus {

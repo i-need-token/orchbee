@@ -26,8 +26,15 @@ impl Coordinator {
                 executable,
                 arguments,
             } => (executable.clone(), arguments.clone()),
-            UserLaunchCommand::SystemShell { login: false } if self.local_system_shell => {
-                let launch = system_shell::resolve().map_err(|_| ())?;
+            // A login shell takes `-l`, as the Worker starts the default profile's login shell.
+            UserLaunchCommand::SystemShell { login }
+                if self.local_system_shell
+                    && (!*login || crate::host_capabilities::login_shell_available()) =>
+            {
+                let mut launch = system_shell::resolve().map_err(|_| ())?;
+                if *login {
+                    launch.arguments.push("-l".into());
+                }
                 (launch.executable, launch.arguments)
             }
             UserLaunchCommand::SystemShell { .. } => return Err(()),

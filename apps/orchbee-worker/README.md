@@ -211,7 +211,8 @@ fenced to this Worker ID and generation before owner access. Start runs one look
 requested command names; while it runs, another Start answers `Busy`, and a replayed Start with the
 same names answers `Accepted`. Poll returns one result per name in request order; Cancel sets the
 flag every query observes. Eight settled jobs stay pollable, and admission evicts the oldest
-settled one first. POSIX Workers have no lookup and answer every Start `Unsupported`.
+settled one first. macOS and Windows have a lookup; other POSIX Workers answer every Start
+`Unsupported`.
 
 On Windows the lookup, which no Client runs on its own, uses the system directory's
 `where.exe /Q $PATH:<name>` with a cleared environment, the fixed `PATHEXT` `.EXE;.COM;.CMD;.BAT;.PS1`,
@@ -229,19 +230,31 @@ manager's shim directory, is searched, but a directory a shell profile adds, suc
 `mise activate`, nvm or fnm puts on `PATH`, is not, so an Agent that only a profile enables reads
 `Missing` although it starts in a Panel.
 
+On macOS a new terminal starts a login shell, so the lookup searches the `PATH` such a shell ends
+up with. It starts the system shell a new terminal starts (`$SHELL`, the account shell, then
+`/bin/sh`) once as `-i -l -c 'exec /bin/sh -c "$ORCHBEE_AGENT_PROBE"'`, with standard input from
+`/dev/null` and its own process group: `/etc/zprofile`'s `path_helper`, the person's profile and
+their interactive startup file run first, then `/bin/sh` runs the script in that variable, which
+prints a marker line and then `found` or `missing` for each name in `ORCHBEE_AGENT_PROBE_COMMANDS`
+by `command -v`, with globbing off. Neither the names nor the script are ever parsed by the
+person's shell. The whole probe gets six seconds before the process group settles; answers printed
+before a deadline or a cancellation stay answers, and every other name, or a missing marker, is
+`Unavailable`. The lookup thread clears its signal mask before it starts the shell, because a
+child keeps the mask of the thread that starts it.
+
 ## Background job owners and exit
 
 Each Worker generation owns five kinds of background jobs. The request loop borrows them;
 pre-Host to Host handoff and Windows Server handoff keep the same owners, so ownership never
 moves to another thread or connection.
 
-| Job                            | Owner                                           | Platforms | Physical cleanup bound after cancellation |
-| ------------------------------ | ----------------------------------------------- | --------- | ----------------------------------------- |
-| Worktree discovery             | `worktree_discovery_job::WorktreeDiscoverySlot` | all       | five-second Job/child settlement          |
-| Worktree mutation              | `worktree_mutation_job::WorktreeMutationSlot`   | all       | five-second Job/group settlement          |
-| Plugin and configured commands | `plugin_jobs::PluginJobs`                       | Windows   | five-second Job settlement                |
-| Agent integration              | `agent_integration_jobs::AgentIntegrationJobs`  | all       | 0.6-second provider command teardown      |
-| Agent probe                    | `agent_probe_jobs::AgentProbeJobs`              | all       | 0.6-second `where.exe` Job teardown       |
+| Job                            | Owner                                           | Platforms | Physical cleanup bound after cancellation                                          |
+| ------------------------------ | ----------------------------------------------- | --------- | ---------------------------------------------------------------------------------- |
+| Worktree discovery             | `worktree_discovery_job::WorktreeDiscoverySlot` | all       | five-second Job/child settlement                                                   |
+| Worktree mutation              | `worktree_mutation_job::WorktreeMutationSlot`   | all       | five-second Job/group settlement                                                   |
+| Plugin and configured commands | `plugin_jobs::PluginJobs`                       | Windows   | five-second Job settlement                                                         |
+| Agent integration              | `agent_integration_jobs::AgentIntegrationJobs`  | all       | 0.6-second provider command teardown                                               |
+| Agent probe                    | `agent_probe_jobs::AgentProbeJobs`              | all       | 0.6-second `where.exe` Job teardown; five-second process-group settlement on macOS |
 
 Every owner separates the stop request from task completion. `request_stop` closes new
 admission where the owner has admission, signals every running task and never waits.

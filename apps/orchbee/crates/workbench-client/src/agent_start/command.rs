@@ -1,12 +1,48 @@
-//! Literal Windows launch text constructed before runtime admission.
+//! Literal launch text for the shell that types it, constructed before runtime admission.
 use crate::agent_provider::{chooses_session, executable, launch_arguments, launch_session_option};
+use orchbee_agent_observation_protocol::AgentRunToken;
+
+/// The shell a start's line is typed into, as the Host's launch record names it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Shell {
+    /// Managed PowerShell, which strips a run prefix and echoes its token.
+    Powershell,
+    /// A marked cmd.
+    Cmd,
+    /// Managed zsh or bash, which strip a run prefix and echo its token.
+    Posix,
+}
+
+impl Shell {
+    /// The family of line this platform's shells read, for the budget check before any effect:
+    /// a Windows Host starts PowerShell or cmd, a macOS or Linux Host zsh or bash.
+    pub(super) const NATIVE: Self = if cfg!(windows) {
+        Self::Cmd
+    } else {
+        Self::Posix
+    };
+}
 
 /// The provider's fixed launch arguments come first, then its launch session option with
-/// `session`, when given and the provider has one; the caller's arguments follow them.
-pub(super) fn launch(provider: &str, args: &[String], session: Option<&str>) -> Option<String> {
+/// `session`, when given and the provider has one; the caller's arguments follow them. Windows
+/// shells take one literal-argv PowerShell launch; zsh and bash take the words themselves.
+pub(super) fn launch(
+    provider: &str,
+    args: &[String],
+    session: Option<&str>,
+    shell: Shell,
+) -> Option<String> {
     let program = executable(provider)?;
-    launch_program(program, &arguments(provider, args, session))
+    let arguments = arguments(provider, args, session);
+    match shell {
+        Shell::Powershell | Shell::Cmd => launch_program(program, &arguments),
+        Shell::Posix => orchbee_local_runtime::posix_command_line(program, &arguments)
+            .filter(|text| text.len() <= TYPED_LIMIT),
+    }
 }
+
+/// Launch text is typed into an existing shell; every shell keeps cmd.exe's smaller limit.
+const TYPED_LIMIT: usize = 8000;
 
 fn arguments(provider: &str, args: &[String], session: Option<&str>) -> Vec<String> {
     let session = session.and_then(|id| Some([launch_session_option(provider)?, id]));
@@ -45,27 +81,29 @@ fn takes_session(provider: &str, args: &[String]) -> bool {
     launch_session_option(provider).is_some() && !chooses_session(provider, args)
 }
 
-/// Whether the launch text fits, with room for the id a start may add.
+/// Whether this platform's launch text fits, with room for the id a start may add.
 pub(super) fn fits(provider: &str, args: &[String]) -> bool {
     const SLOT: &str = "00000000-0000-4000-8000-000000000000";
     launch(
         provider,
         args,
         takes_session(provider, args).then_some(SLOT),
+        Shell::NATIVE,
     )
     .is_some()
 }
 
-/// The native form has no caller arguments. Resolve the fixed provider without aliases,
+/// The Windows form without caller arguments. Resolve the fixed provider without aliases,
 /// preserving the caller's console and avoiding a multi-page encoded wrapper; a provider's
 /// fixed launch arguments are plain words that need no quoting. PowerShell single-quotes the
 /// session option and its id, so neither is read as a parameter or a number; cmd takes them bare,
-/// where both are inert.
-pub(super) fn interactive(
-    provider: &str,
-    powershell: bool,
-    session: Option<&str>,
-) -> Option<String> {
+/// where both are inert. zsh and bash have no shorter form: their launch text is already the words.
+pub(super) fn interactive(provider: &str, shell: Shell, session: Option<&str>) -> Option<String> {
+    let powershell = match shell {
+        Shell::Powershell => true,
+        Shell::Cmd => false,
+        Shell::Posix => return None,
+    };
     let program = executable(provider)?;
     let command = if powershell {
         orchbee_local_runtime::windows_powershell_application(program)
@@ -99,8 +137,22 @@ pub(super) fn interactive(
 fn launch_program(program: &str, args: &[String]) -> Option<String> {
     let encoded = orchbee_local_runtime::windows_encoded_command(program, args)?;
     let text = format!("powershell.exe -NoLogo -NoProfile -EncodedCommand {encoded}");
-    // This text is typed into an existing shell; retain cmd.exe's smaller limit.
-    (text.len() <= 8000).then_some(text)
+    (text.len() <= TYPED_LIMIT).then_some(text)
+}
+
+/// `text` as typed, marked with `run_token` for a shell that strips the mark: managed
+/// PowerShell's `<#orchbee-run:<token>#> ` comment, or managed zsh's and bash's
+/// `: orchbee-run:<token>; ` no-op (`orchbee.zsh`, `orchbee.bash`). Either shell runs the command
+/// with that token, echoes it in the command's start and finish marks, and keeps neither form in
+/// the person's history. A marked PowerShell without the managed wrapper reads its prefix as a
+/// block comment, and zsh or bash without it run the no-op first; both then run the command
+/// unchanged. cmd gets no mark.
+pub(super) fn typed_line(text: &str, shell: Shell, run_token: Option<&AgentRunToken>) -> String {
+    match (run_token, shell) {
+        (Some(token), Shell::Powershell) => format!("<#orchbee-run:{token}#> {text}"),
+        (Some(token), Shell::Posix) => format!(": orchbee-run:{token}; {text}"),
+        (_, Shell::Powershell | Shell::Cmd | Shell::Posix) => text.to_owned(),
+    }
 }
 
 #[cfg(test)]

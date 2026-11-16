@@ -17,23 +17,9 @@ pub(super) fn agent_start(
         && arguments
             .iter()
             .all(|argument| matches!(argument.as_str(), "-i" | "-l" | "-il" | "-li" | "--login"));
-    managed.then(|| {
-        std::iter::once(start.program())
-            .chain(start.arguments().iter().map(String::as_str))
-            .map(word)
-            .collect::<Vec<_>>()
-            .join(" ")
-    })
-}
-
-/// One token as the shell reads it back literally. A start's tokens hold only
-/// `[A-Za-z0-9._:=-]`, which zsh and bash take as they are, except a leading `=`, which zsh expands
-/// to a command's path; such a token is single-quoted. The line runs as typed, so the person's
-/// own alias or function of the program's name runs, as it would for a line they typed.
-fn word(token: &str) -> String {
-    if token.starts_with('=') {
-        format!("'{token}'")
-    } else {
-        token.to_owned()
-    }
+    // The line runs as typed, so the person's own alias or function of the program's name runs,
+    // as it would for a line they typed; a typed start in an existing shell reads the same way.
+    managed
+        .then(|| orchbee_local_runtime::posix_command_line(start.program(), start.arguments()))
+        .flatten()
 }

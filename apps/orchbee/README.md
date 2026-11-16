@@ -47,7 +47,7 @@ sends semantic keys through the existing terminal input receipt. Both also accep
 unblocked preflight. It observes activity before waiting for a condition and retains the
 input receipt on later timeout or cancellation; it does not promise turn causality.
 
-`agent start codex` starts an Agent on Windows in a new Tab beside the caller's Panel, or with
+`agent start codex` starts an Agent on Windows or macOS in a new Tab beside the caller's Panel, or with
 `--split right|down` in a new split, or with `--here --panel <id>` at the confirmed prompt of that
 idle terminal. Without arguments or a name, a new Panel's shell runs the Agent as its first command
 and the CLI returns once the Panel exists; otherwise the command is typed and the CLI returns after
@@ -209,7 +209,8 @@ orchbee agent wait <session-id> --until ended
 
 The Apple Silicon macOS development cohort runs the same Session-backed Agent commands as Linux:
 `agent list`, `get`, `read` and `wait`, `agent prompt`, and Agent names through `agent resolve` and
-`agent rename`. The per-Client projection (`--client`) and `agent start` remain Windows-only.
+`agent rename`. macOS also runs `agent start`, which Linux refuses as unsupported. The
+per-Client projection (`--client`) remains Windows-only.
 `SIGINT` and `SIGTERM` cancel these commands as on Linux, with the typed cancellation document at
 exit 130, and `terminal send --file` and `--stdin` read their declared source on macOS too.
 

@@ -103,7 +103,7 @@ fn built_in() -> Value {
     json!({
         "id": SYSTEM_DEFAULT,
         "name": null,
-        "command": { "kind": "system-shell", "login": false },
+        "command": UserLaunchCommand::BUILT_IN,
     })
 }
 

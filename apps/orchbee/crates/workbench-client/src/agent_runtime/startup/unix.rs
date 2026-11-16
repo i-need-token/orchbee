@@ -1,9 +1,16 @@
-//! Agent launch refuses before any lane, viewer, reservation or input effect.
+//! Agent launch is admitted on macOS, whose Terminal Host gives zsh and bash the managed startup
+//! that confirms a prompt and strips a run prefix; other Unix hosts refuse before any lane, viewer,
+//! reservation or input effect.
 use super::Unsupported;
-/// Refuse Agent launch before a caller creates a lane, viewer, reservation or input submission.
+/// Admit Agent launch on macOS, and refuse it elsewhere before a caller creates a lane, viewer,
+/// reservation or input submission.
 ///
 /// # Errors
-/// Always returns `Unsupported`; this adapter performs no observation or mutation.
+/// Returns `Unsupported` off macOS; this adapter performs no observation or mutation.
 pub fn admit() -> Result<(), Unsupported> {
-    Err(Unsupported)
+    if cfg!(target_os = "macos") {
+        Ok(())
+    } else {
+        Err(Unsupported)
+    }
 }

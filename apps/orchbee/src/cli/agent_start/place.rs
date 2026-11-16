@@ -3,7 +3,7 @@
 //! catalog id ever names the Agent; the Server resolves the command the new shell runs first.
 use crate::{
     cli::{
-        Failure, FailureKind, caller_context::PanelTarget, console_interrupt::ArmedSignals,
+        Failure, FailureKind, caller_context::PanelTarget, command_interrupt::ArmedSignals,
         mutation, results,
     },
     invocation::{AgentStartPlace, MutationCommand, Resource, TabContext, Target},

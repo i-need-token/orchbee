@@ -71,7 +71,9 @@ pub use directory::{
 mod command_outcome;
 pub use command_outcome::{CommandFailure, CommandOutput};
 mod command;
-pub use command::{windows_encoded_command, windows_raw_command_encoded};
+pub use command::{
+    posix_command_line, posix_shell_word, windows_encoded_command, windows_raw_command_encoded,
+};
 mod activation_record;
 mod cohort;
 mod data_root;

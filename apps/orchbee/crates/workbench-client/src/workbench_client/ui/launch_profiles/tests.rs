@@ -73,10 +73,7 @@ fn system_one_shot_requires_local_origin_while_ordinary_defaults_stay_unpinned()
                 ui.set_agent_board_origin(origin.clone());
             }
             let profile = ui.preferences.launch_profiles.profiles[0].clone();
-            assert_eq!(
-                profile.command,
-                UserLaunchCommand::SystemShell { login: false }
-            );
+            assert_eq!(profile.command, UserLaunchCommand::BUILT_IN);
             let saved = ui.preferences.clone();
             let (launch, description) = ui.default_create_launch();
             assert!(launch.is_none());
