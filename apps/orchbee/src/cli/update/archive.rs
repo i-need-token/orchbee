@@ -135,7 +135,7 @@ impl Download {
     ) -> Result<PathBuf, Error> {
         context.check()?;
         let path = self.folder.join(UNPACKED);
-        fs::create_dir(&path).map_err(|error| context.storage(&path, &error))?;
+        create_private_folder(&path).map_err(|error| context.storage(&path, &error))?;
         let pin = permissions::open_directory(&path, false)
             .and_then(|folder| {
                 permissions::require_private(&folder)
@@ -167,6 +167,18 @@ impl Download {
         };
         absent(fs::remove_file(self.folder.join(ARCHIVE)))?;
         absent(fs::remove_dir_all(self.folder.join(UNPACKED)))
+    }
+}
+
+/// Creates `path` as a folder only its owner may enter: on Windows it inherits the download
+/// folder's private access list, and on Unix it takes mode 0700, which no umask widens.
+fn create_private_folder(path: &Path) -> io::Result<()> {
+    #[cfg(windows)]
+    return fs::create_dir(path);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        fs::DirBuilder::new().mode(0o700).create(path)
     }
 }
 

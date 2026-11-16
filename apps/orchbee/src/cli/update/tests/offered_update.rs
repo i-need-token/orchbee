@@ -271,6 +271,12 @@ fn update_installs_one_verified_archive_and_leaves_only_the_lock() {
     // What a crashed run left, and a file the signed manifest does not list (rule U4).
     let folder = root.join(archive::FOLDER);
     fs::create_dir_all(folder.join("unpacked/orchbee-0.2.0")).unwrap();
+    // That run created the folder under the store's private rule, as Windows inherits it.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&folder, fs::Permissions::from_mode(0o700)).unwrap();
+    }
     fs::write(folder.join(archive::ARCHIVE), b"partial").unwrap();
     let tree = fixture.0.join("unpacked-tree");
     copy_into(&newer, &tree);
