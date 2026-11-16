@@ -69,6 +69,7 @@ pub fn shutdown(self: *state.State) contracts.ShutdownError!void {
     // blocked input and output pipe calls. Containment makes that close safe
     // even when process observation failed before the wait worker could do it.
     releaseOutputForShutdown(self) catch return error.OutputReleaseFailed;
+    if (comptime target_builtin.os.tag != .windows) closePtyForShutdown(self);
     self.input_mutex.lock();
     self.release_process_identity = true;
     self.input_condition.broadcast();
@@ -76,6 +77,27 @@ pub fn shutdown(self: *state.State) contracts.ShutdownError!void {
     joinThreads(self);
     self.process.releaseProcessIdentity() catch
         return error.ProcessIdentityReleaseFailed;
+}
+
+/// POSIX: closes the PTY master before the wait for the session leader. A leader
+/// that owns a controlling terminal may finish exiting only once the terminal's
+/// output queue drains or its master closes, and shutdown no longer reads that
+/// output. The reader and writer are the only workers that use the master, so
+/// both stop first: the closed descriptor number may be reused by a later open.
+fn closePtyForShutdown(self: *state.State) void {
+    if (self.reader_thread) |thread| {
+        thread.join();
+        self.reader_thread = null;
+    }
+    self.input_mutex.lock();
+    self.writer_stop = true;
+    self.input_condition.broadcast();
+    self.input_mutex.unlock();
+    if (self.writer_thread) |thread| {
+        thread.join();
+        self.writer_thread = null;
+    }
+    self.process.closePtyForShutdown();
 }
 
 pub fn pendingShutdownCleanup(self: *const state.State) ?contracts.ShutdownCleanupPhase {

@@ -67,10 +67,18 @@ const PosixPty = if (builtin.os.tag == .windows) void else struct {
 
     pub fn deinit(self: *PosixPty) void {
         if (self.slave) |slave| _ = posix.system.close(slave);
-        _ = posix.system.close(self.master);
+        self.closeMaster();
         _ = posix.system.close(self.abort_read_fd);
         _ = posix.system.close(self.abort_write_fd);
         self.* = undefined;
+    }
+
+    /// Closes the master early, once no thread can use it again: a later open may reuse the
+    /// descriptor number. Later master operations then fail instead of reaching that file.
+    pub fn closeMaster(self: *PosixPty) void {
+        if (self.master < 0) return;
+        _ = posix.system.close(self.master);
+        self.master = -1;
     }
 
     pub fn abortRead(self: *PosixPty) !void {

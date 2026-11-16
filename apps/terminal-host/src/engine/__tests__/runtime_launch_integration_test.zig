@@ -589,3 +589,43 @@ test "Linux session descendant with a forged newline comm stays contained until 
     // descendant remains live and would keep the result false. Host tests do
     // not wait for the unrelated timing of init reaping an exited descendant.
 }
+test "POSIX shutdown releases a session leader whose terminal output was never read" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    // The reader never takes the child's output, so it is still queued in the
+    // terminal when containment kills the session leader. XNU lets that leader
+    // finish exiting only once the queue drains or the master closes; shutdown
+    // must still observe the exit and release the identity.
+    const UnreadOutput = struct {
+        aborted: TestSignal = .{},
+
+        fn read(context: *anyopaque, _: []u8) anyerror!usize {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.aborted.wait();
+            return 0;
+        }
+
+        fn abortRead(context: *anyopaque) anyerror!void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.aborted.notify();
+        }
+    };
+    var probe: UnreadOutput = .{};
+    const arguments = [_][]const u8{ "-c", "printf unread-output; exec sleep 60" };
+    const runtime = try createRuntimeWithHooksAndCommand(.{
+        .abort_read = UnreadOutput.abortRead,
+        .context = &probe,
+        .read_pty = UnreadOutput.read,
+    }, "/bin/sh", &arguments);
+    defer runtime.destroy();
+
+    var descriptors = [_]std.posix.pollfd{.{
+        .fd = runtimeState(runtime).process.pty.master,
+        .events = std.posix.POLL.IN,
+        .revents = 0,
+    }};
+    if (try std.posix.poll(&descriptors, 10_000) == 0) return error.ExpectedQueuedOutput;
+
+    try runtime.shutdown();
+    try std.testing.expect(runtimeState(runtime).process.identityReleased());
+}

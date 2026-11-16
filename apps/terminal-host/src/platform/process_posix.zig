@@ -291,6 +291,13 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn finishPtyAfterChildExit(_: *Process) !void {}
 
+    /// Closes the PTY master for shutdown after containment, once the reader and writer have
+    /// stopped. A session leader that owns the terminal may be unable to finish exiting while
+    /// output nobody reads is queued; the close discards it.
+    pub fn closePtyForShutdown(self: *Process) void {
+        self.pty.closeMaster();
+    }
+
     pub fn abortRead(self: *Process) !void {
         try self.pty.abortRead();
     }

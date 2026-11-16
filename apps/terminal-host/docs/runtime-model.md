@@ -664,6 +664,23 @@ retries only `EAGAIN` within a fixed bound while holding that fence, bridging th
 interval in which `waitid` has reported exit but `waitpid` cannot reap yet; exhaustion still retains
 the fence for a later containment, observation, and reap attempt.
 
+POSIX shutdown closes the PTY master before it waits for the session leader. XNU lets a session
+leader that owns a controlling terminal finish exiting only after the terminal's output queue
+drains or its master closes (`ttywait` in `proc_exit`, with no timeout). Shutdown has already
+stopped reading output, so a leader killed with output nobody read would wait for the Host while
+the Host waited for its exit. Once containment is confirmed and the output read is aborted,
+shutdown therefore joins the reader and the writer, the only workers that use the master, closes
+the master, and only then asks the wait worker to release the identity and joins it. The kernel
+discards the queued output, as it does when a terminal emulator closes a window, and the leader
+finishes exiting within the bounded exit poll. Joining both workers first keeps the closed
+descriptor number out of use, since a later open may reuse it. A natural exit keeps its order:
+the reader drains output until end of file, so the leader's exit never waits on the Host. The exit
+poll stays bounded: an unbounded poll would leave shutdown's join waiting on any leader that cannot
+finish exiting, which stalls the dispatch thread and every terminal it serves; an exhausted poll
+retains the runtime for a later release attempt instead. Windows keeps its order: it closes the
+pseudoconsole after containment and before it joins the workers, because that close releases
+their blocked pipe calls.
+
 ### Stable POSIX process identity (THCR-006)
 
 A numeric PID is never an effect authority. On Linux and macOS, a session-member scan acquires one
@@ -718,7 +735,9 @@ observed only by a fresh scan and stable reference.
 The per-terminal identity fence serializes graceful HUP, force STOP/KILL/CONT, containment
 observation, and final leader reap. It admits those operations only while the leader identity is
 retained. Containment confirmation must precede reap; after reap, the numeric session/subtree key is
-never consulted again. Platform preparation, enumeration, stable-reference, signal, liveness, and
+never consulted again. Shutdown closes the PTY master between the two, as
+[Terminal lifecycle](#terminal-lifecycle) describes; the close signals no process by identifier, so
+it needs no fence. Platform preparation, enumeration, stable-reference, signal, liveness, and
 reap failures remain typed failures and preserve the retained ownership state for retry. A stable
 member signal scan records its first member error but still attempts and releases every later
 captured reference. A permanent error takes precedence over an invalidated-reference retry from
