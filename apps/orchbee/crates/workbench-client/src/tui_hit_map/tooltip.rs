@@ -96,6 +96,8 @@ impl Key {
 pub(crate) enum TooltipContent {
     /// A glyph or bracket control's action, then the key that does the same to the same target now.
     Action { label: String, key: Option<String> },
+    /// What a worded control does that its label cannot say, such as what keeps running.
+    Effect { text: String },
     /// A cut name in full, then a legend of the target's glyphs. A legend follows the name.
     Describe {
         text: Option<TooltipText>,

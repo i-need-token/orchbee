@@ -231,6 +231,21 @@ fn lines(content: &TooltipContent, room: usize, theme: &Theme) -> Vec<Line<'stat
             }
             vec![Line::from(spans)]
         }
+        TooltipContent::Effect { text } => {
+            let text = TooltipText {
+                text: text.clone(),
+                middle: false,
+            };
+            text_lines(&text, room, TEXT_LINES, theme)
+                .into_iter()
+                .map(|line| {
+                    Line::from(Span::styled(
+                        line,
+                        on_box(Role::TextPrimary, theme.style(Role::TextPrimary)),
+                    ))
+                })
+                .collect()
+        }
         TooltipContent::Describe { text, legend } => {
             let text_wanted = text.as_ref().map_or(0, |text| wrap(&text.text, room).len());
             let legend_lines = legend_lines(legend, room, usize::MAX, theme);

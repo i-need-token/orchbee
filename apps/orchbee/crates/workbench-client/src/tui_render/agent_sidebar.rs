@@ -41,6 +41,8 @@ pub(super) enum SidebarInput {
 
 pub(super) struct RenderContext<'a> {
     pub(super) native: Option<&'a crate::workbench_client::WorkbenchClientView<'a>>,
+    /// The version the Update control offers while it is Ready.
+    pub(super) update: Option<&'a str>,
     pub(super) view: &'a ClientView,
     pub(super) sidebar_surface: crate::client_view::SidebarSurface,
     pub(super) locale: Locale,
@@ -249,6 +251,7 @@ pub(super) fn render(
 ) {
     let RenderContext {
         native,
+        update,
         view,
         sidebar_surface,
         locale,
@@ -323,6 +326,7 @@ pub(super) fn render(
             inner,
             touch::Context {
                 native,
+                update,
                 view,
                 locale,
                 theme,
@@ -389,15 +393,43 @@ pub(super) fn render(
             layer,
             hits.as_deref_mut(),
         );
+    // Update follows Settings one cell apart and keeps its place before Help does.
+    let update_action = settings_action.zip(update).and_then(|(action, version)| {
+        let x = action
+            .right()
+            .saturating_add(super::sidebar_chrome::ACTION_GAP);
+        let row = Rect::new(x, settings.y, settings.right().saturating_sub(x), 1);
+        let target = super::sidebar_chrome::update_target();
+        let painted = render_fixed_action(
+            frame,
+            row,
+            FixedAction {
+                label: locale.update_control(),
+                kind: ActionKind::Primary,
+                enabled: true,
+                target: target.clone(),
+            },
+            theme,
+            layer,
+            hits.as_deref_mut(),
+        )?;
+        if let Some(hits) = hits.as_deref_mut() {
+            super::sidebar_chrome::publish_update_tooltip(
+                hits, layer, painted, &target, version, locale,
+            );
+        }
+        Some(painted)
+    });
+    let leading = update_action.or(settings_action);
     let help = super::sidebar_chrome::render_help(
         frame,
         settings,
-        settings_action,
+        leading,
         &controls,
         hits.as_deref_mut(),
     );
-    // The environment marker yields first: it takes only what Settings and Help leave.
-    if let (Some(action), Some(help)) = (settings_action, help) {
+    // The environment marker yields first: it takes only what Settings, Update and Help leave.
+    if let (Some(action), Some(help)) = (leading, help) {
         let (start, end) = super::environment_marker::bounds(action.right(), help.x);
         if let Some(marker) = super::environment_marker::layout(&controls, settings.y, start, end) {
             super::environment_marker::paint(

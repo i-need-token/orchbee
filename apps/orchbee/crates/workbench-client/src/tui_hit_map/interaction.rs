@@ -137,6 +137,7 @@ impl InteractionTarget {
                 super::GlobalChromeAction::RestoreSidebar => HitTarget::SidebarRestoreButton,
                 super::GlobalChromeAction::HideSidebar => HitTarget::SidebarHideButton,
                 super::GlobalChromeAction::Shortcuts => HitTarget::ShortcutsButton,
+                super::GlobalChromeAction::Update => HitTarget::UpdateButton,
                 super::GlobalChromeAction::OpenTabList => HitTarget::TabListButton,
                 super::GlobalChromeAction::CloseTabList => HitTarget::TabListCloseButton,
             },

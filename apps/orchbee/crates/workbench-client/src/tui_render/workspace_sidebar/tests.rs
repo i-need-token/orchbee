@@ -950,6 +950,7 @@ fn cut_names_give_their_whole_text_only_when_cut_and_each_cut_line_its_own() {
                 } => Some(text.text.as_str()),
                 TooltipContent::Describe { text: None, .. }
                 | TooltipContent::Action { .. }
+                | TooltipContent::Effect { .. }
                 | TooltipContent::Roster { .. }
                 | TooltipContent::Members { .. } => None,
             })

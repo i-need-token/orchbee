@@ -2015,6 +2015,7 @@ impl PointerState {
                 | HitTarget::SidebarRestoreButton
                 | HitTarget::SidebarHideButton
                 | HitTarget::ShortcutsButton
+                | HitTarget::UpdateButton
                 | HitTarget::TabListButton
                 | HitTarget::TabListCloseButton
                 | HitTarget::ActionMenuRow { .. }

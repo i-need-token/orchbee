@@ -467,6 +467,9 @@ pub fn render_terminal_shell_with_resize<'a>(
                     sidebar,
                     agent_sidebar::RenderContext {
                         native: workbench_client.as_ref(),
+                        update: workbench_client
+                            .as_ref()
+                            .and_then(WorkbenchClientView::update_version),
                         view,
                         sidebar_surface,
                         locale,

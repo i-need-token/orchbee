@@ -349,6 +349,8 @@ pub struct WorkbenchClientView<'a> {
     command_notice: Option<WorkbenchClientNotice>,
     notice_context: Option<&'a NoticeContext>,
     popup: Option<&'a crate::independent_popup::Driver>,
+    /// The version the Update control offers while it is Ready.
+    update: Option<&'a str>,
 }
 
 pub(crate) use crate::localization::LaunchFailure;
@@ -367,6 +369,11 @@ pub(crate) struct HeldRestoreView<'a> {
 pub(crate) use crate::localization::LaunchProfile;
 
 impl<'a> WorkbenchClientView<'a> {
+    /// The version the Update control offers, while it is Ready.
+    pub(crate) const fn update_version(&self) -> Option<&'a str> {
+        self.update
+    }
+
     pub(crate) fn launch_failure(
         &self,
         panel: &'a super::ClientPanel,
@@ -1380,6 +1387,7 @@ impl<'a> WorkbenchClientView<'a> {
             command_notice: None,
             notice_context: None,
             popup: None,
+            update: None,
         }
     }
 
@@ -1423,6 +1431,7 @@ impl<'a> WorkbenchClientView<'a> {
             command_notice: None,
             notice_context: None,
             popup: None,
+            update: None,
         }
     }
 }
@@ -1804,6 +1813,7 @@ impl WorkbenchClientUi {
             command_notice,
             notice_context: self.command_notice.context(),
             popup: Some(&self.popup),
+            update: self.update_version.as_deref(),
             worktree: Some(&self.worktrees.launcher),
             menu: Some(&self.menus),
             settings: Some(&self.settings),

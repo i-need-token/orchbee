@@ -141,7 +141,8 @@ Fixed-action shortcut hints end at the sidebar divider, or two blank cells befor
 toggle on the first row, with at least two blank cells after the button. A hint that cannot fit in
 full is omitted; its cells are outside
 the button's pointer target. The Settings action leads the sidebar's last row without a shortcut
-hint, followed only by the [Help control](#sidebar-toggle-and-help) at the row's end, and at every
+hint, followed only by the [Update control](#update-control) while it is offered and the
+[Help control](#sidebar-toggle-and-help) at the row's end, and at every
 size the list runs directly down to it with no divider, hint or blank row between them. The
 prefix status teaches the sidebar-focus binding as `Tab` sidebar; while sidebar navigation
 owns the keyboard, the floating status shows its Back binding. The default focus switch
@@ -706,10 +707,30 @@ keep them after Settings. Neither overlaps New workspace, Search, Settings or ro
 [list screen](#mobile-sidebar-list) paints both at touch size. The GUI does not present these
 controls yet.
 
+### Update control
+
+While the release store names a version newer than this Client active, `[ Update ]` (`[ 更新 ]`)
+follows Settings one blank cell apart, its label in `accent-action`, and invokes the Update Client
+Action through global chrome, as the action menu's Update row does. Its pointer tooltip is the
+effect line "Switch to Orchbee {version}. Terminals keep running." (`切换到 Orchbee {version}，终端继续运行。`).
+A development build never shows it. Each claim on the row takes only what the claims before it
+leave, in the order Settings, Update, Help, then the [marker](#environment-marker): as the row
+narrows Help gives way first, then Update, which stays reachable in the action menu. Help returns
+in the cells Update gave up when they hold it.
+
+```text
+[ Settings ] [ Update ]  Test  [?]    room for all four
+[ Settings ] [ Update ]               Help gives way first
+[ Settings ]  [?]                     no room for Update
+```
+
+The touch Settings row places it the same way: Settings' target ends at its brackets, the blank
+cell belongs to neither, and Update's target runs over both touch lines to Help's.
+
 ### Environment marker
 
 A development or test build names its environment on the Settings row, right-aligned two cells
-before Help with two blank cells after Settings: `Dev` or `Test` (`开发版` or `测试版`) in secondary
+before Help with two blank cells after Settings, or after Update while it shows: `Dev` or `Test` (`开发版` or `测试版`) in secondary
 text, then, for a build from a checkout, a middle dot and the checkout directory's name in muted
 text. Release paints nothing there.
 
@@ -729,11 +750,14 @@ places it the same way, ending Settings' target, which otherwise reaches R-7, on
 the same marker between Settings and Shortcuts.
 
 The [sidebar chrome renders](../crates/workbench-client/src/tui_render/sidebar_chrome/tests.rs)
-cover the marker's drop order in 3- to 40-column regions in both locales, and 120x40, 80x24 and
+cover the marker's drop order and Update's place, role, tooltip and drop order in 3- to 40-column
+regions in both locales, Update's touch targets, and 120x40, 80x24 and
 60x12 at widths 24, 30 and 60 in both locales with native, RGB and
 simplified glyphs, the hidden strip toggle and the drop order in 3- to 24-column regions. The
 [dispatcher trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/sidebar_width.rs)
-clicks the painted controls: hide, show at the retained width, and Help.
+clicks the painted controls: hide, show at the retained width, and Help; the
+[Update trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/action_menu/update.rs)
+clicks Update's target through each switch outcome.
 
 ## Mobile sidebar list
 
@@ -758,13 +782,13 @@ Below 24 rows the list keeps the ordinary sidebar composition at full width: thr
 At 24 rows or more the list is spaced for touch. Column R is the window's last, the right padding
 cell, and line B the window's last:
 
-| Lines    | Content                                                                                    | Pointer target                                         |
-| -------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
-| 0–2      | Line 1: `[ New workspace ]`, its shortcut hint ending two cells before `[ « ]` at R-5..R-1 | New workspace from the left edge to R-7; toggle R-6..R |
-| 3–4      | Line 3: `[ Search ]`, its shortcut hint ending at R-1                                      | both lines, left edge to R                             |
-| 5        | blank                                                                                      | none                                                   |
-| 6 to B-3 | the list; each entry is its text and one touch line below it                               | the entry's own columns over its text and touch line   |
-| B-2, B-1 | Line B-2: `[ Settings ]`, any [marker](#environment-marker), then `[ ? ]` at R-5..R-1      | Settings from the left edge to R-7; Help R-6..R        |
+| Lines    | Content                                                                                                             | Pointer target                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| 0–2      | Line 1: `[ New workspace ]`, its shortcut hint ending two cells before `[ « ]` at R-5..R-1                          | New workspace from the left edge to R-7; toggle R-6..R                            |
+| 3–4      | Line 3: `[ Search ]`, its shortcut hint ending at R-1                                                               | both lines, left edge to R                                                        |
+| 5        | blank                                                                                                               | none                                                                              |
+| 6 to B-3 | the list; each entry is its text and one touch line below it                                                        | the entry's own columns over its text and touch line                              |
+| B-2, B-1 | Line B-2: `[ Settings ]`, any [Update](#update-control) and [marker](#environment-marker), then `[ ? ]` at R-5..R-1 | Settings from the left edge to R-7, or to its brackets before Update; Help R-6..R |
 
 A group after the first keeps one inert blank line before it, and touch spacing replaces the
 configured item gaps. On overflow the scrollbar runs down column R beside lines 6 to B-3. Hover

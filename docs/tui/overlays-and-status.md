@@ -414,11 +414,13 @@ A pointer tooltip states in words what one painted chrome target shows only as g
 control, or a cut name. It supplements discovery: everything it says stays reachable without a
 pointer through help, menus, or the binding table.
 
-- Content is a legend, a full name, an action, or a roster. A legend names each glyph the target shows, in
+- Content is a legend, a full name, an action, an effect, or a roster. A legend names each glyph the target shows, in
   the glyph's own role, followed by its word; items stand two cells apart with no separator. A cut
   name appears whole before its legend. An action states its label, then the key that does the same
-  to the same target now, taken from the effective binding table and never hard-coded. A target
-  already explained in words gets none; a tooltip never names the current marker, the row kind, or
+  to the same target now, taken from the effective binding table and never hard-coded. An effect
+  is one sentence for a worded control whose label cannot say what its action keeps running, such
+  as a switch that leaves terminals running; it follows the limits of a name, and the control's
+  menu entry carries the same sentence. Any other target already explained in words gets none; a tooltip never names the current marker, the row kind, or
   help. A glyph inside a larger target, such as a row's state glyph, names itself only while the
   pointer rests on that glyph; so does a short name that stands for a longer one, such as a folder
   named in place of its directory, which gives the longer one in full. The rest of the target

@@ -66,3 +66,68 @@ fn update_leaves_with_status_75_or_the_hint() {
         Some("Run orchbee to open version 9.0.0.\n")
     );
 }
+
+/// A press and release on the Update control's painted target runs the same switch as the menu
+/// row: it leaves under a Session the new version joins, waits under one before slice 1, and says
+/// there is nothing to switch to once the control is no longer Ready.
+#[test]
+fn a_click_on_the_control_switches_as_the_menu_row_does() {
+    use crate::tui_hit_map::{
+        GlobalChromeAction, HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget,
+        PrimaryContract,
+    };
+    use ratatui::layout::Rect;
+    for (update, outcome, notice) in [
+        (Some(true), DispatchOutcome::Exit, None),
+        (
+            Some(false),
+            DispatchOutcome::Continue,
+            Some(crate::client_view::Notice::UpdateWaiting),
+        ),
+        (
+            None,
+            DispatchOutcome::Continue,
+            Some(crate::client_view::Notice::UpdateUnavailable),
+        ),
+    ] {
+        let mut port = Port::new(MenuAction::Update);
+        port.update =
+            update.map(|marker| (Updater::ready("9.0.0", listing_generation_one()), marker));
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(120);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        let control = Rect::new(13, 39, 10, 1);
+        let mut hits = HitMapBuilder::new();
+        hits.record_interaction(
+            HitLayer::Chrome,
+            control,
+            control,
+            InteractionTarget::GlobalChrome(GlobalChromeAction::Update),
+            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+        );
+        dispatcher.publish_hit_map(hits.finish());
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;16;40M");
+        let released = dispatcher
+            .dispatch(
+                &mut view,
+                b"\x1b[<0;16;40m",
+                &mut port,
+                Instant::now(),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(released, outcome, "{update:?}");
+        assert_eq!(view.notice(), notice, "{update:?}");
+        let departed = port
+            .update
+            .as_ref()
+            .and_then(|(updater, _)| updater.departure().take());
+        assert_eq!(
+            departed.as_deref(),
+            (update == Some(true)).then_some("9.0.0"),
+            "{update:?}"
+        );
+        assert!(forwarded_bytes(&port.calls).is_empty(), "{update:?}");
+    }
+}

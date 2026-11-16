@@ -1963,6 +1963,10 @@ impl InputDispatcher {
                                             crate::tui_hit_map::GlobalChromeAction::Shortcuts => {
                                                 Some(ClientAction::OpenActionMenu)
                                             }
+                                            // The control and the menu row switch alike.
+                                            crate::tui_hit_map::GlobalChromeAction::Update => {
+                                                Some(ClientAction::Update)
+                                            }
                                             // The Tab list is the strip's own presentation; opening
                                             // or leaving it changes no Workbench state.
                                             crate::tui_hit_map::GlobalChromeAction::OpenTabList => {

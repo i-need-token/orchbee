@@ -23,6 +23,8 @@ const LIST_LINE: u16 = 6;
 
 pub(super) struct Context<'a> {
     pub(super) native: Option<&'a crate::workbench_client::WorkbenchClientView<'a>>,
+    /// The version the Update control offers while it is Ready.
+    pub(super) update: Option<&'a str>,
     pub(super) view: &'a ClientView,
     pub(super) locale: Locale,
     pub(super) theme: &'a Theme,
@@ -80,6 +82,7 @@ pub(super) fn render(
     use crate::machine_picker::{SidebarCommand, SidebarFixedAction};
     let Context {
         native,
+        update,
         view,
         locale,
         theme,
@@ -215,19 +218,41 @@ pub(super) fn render(
         place: settings_place,
     };
     let resolved = resolve(frame, &settings, theme);
-    let help_x = resolved.and_then(|_| sidebar_chrome::touch_trailing_x(settings_row, resolved));
-    // The environment marker takes only what Settings and Help leave, and Settings' target ends a
-    // cell before it, so a press on the marker never opens Settings.
-    let marker = resolved.zip(help_x).and_then(|(action, help_x)| {
+    // Update follows Settings one cell apart and keeps its place before Help does; that cell
+    // belongs to neither target.
+    let update = resolved.zip(update).and_then(|(action, version)| {
+        let x = action.right().saturating_add(sidebar_chrome::ACTION_GAP);
+        let row = Rect::new(x, settings_line, inner.right().saturating_sub(x), 1);
+        let control = TouchAction {
+            label: locale.update_control(),
+            kind: ActionKind::Primary,
+            enabled: true,
+            target: sidebar_chrome::update_target(),
+            place: TouchRow {
+                row,
+                ..settings_place
+            },
+        };
+        resolve(frame, &control, theme).map(|rect| (control, rect, version))
+    });
+    let leading = update.as_ref().map(|(_, rect, _)| *rect).or(resolved);
+    let help_x = leading.and_then(|_| sidebar_chrome::touch_trailing_x(settings_row, leading));
+    // The environment marker takes only what Settings, Update and Help leave, and the target
+    // before it ends a cell before it, so a press on the marker opens neither.
+    let marker = leading.zip(help_x).and_then(|(action, help_x)| {
         let (start, end) = environment_marker::bounds(action.right(), help_x);
         environment_marker::layout(controls, settings_line, start, end)
     });
-    let settings_end = match (&marker, help_x) {
+    let leading_end = match (&marker, help_x) {
         (Some(marker), _) => marker.rect.x - 1,
         (None, Some(x)) => x - 1,
         (None, None) => edge,
     };
-    let painted = paint_action(
+    let settings_end = match (&update, resolved) {
+        (Some(_), Some(action)) => action.right(),
+        _ => leading_end,
+    };
+    let mut painted = paint_action(
         frame,
         settings,
         settings_end,
@@ -235,7 +260,31 @@ pub(super) fn render(
         layer,
         &mut halos,
         hits.as_deref_mut(),
-    );
+    )
+    .map(|painted| painted.action);
+    if let Some((control, _, version)) = update {
+        let place = control.place;
+        let target = control.target.clone();
+        painted = paint_action(
+            frame,
+            control,
+            leading_end,
+            theme,
+            layer,
+            &mut halos,
+            hits.as_deref_mut(),
+        )
+        .map(|painted| painted.action);
+        if let (Some(hits), true) = (hits.as_deref_mut(), painted.is_some()) {
+            let rect = Rect::new(
+                place.row.x,
+                place.top,
+                leading_end - place.row.x,
+                place.height,
+            );
+            sidebar_chrome::publish_update_tooltip(hits, layer, rect, &target, version, locale);
+        }
+    }
     if let Some(marker) = marker {
         environment_marker::paint(frame, marker, sidebar.area, controls, hits.as_deref_mut());
     }
@@ -244,7 +293,7 @@ pub(super) fn render(
         let _ = sidebar_chrome::render_touch_help(
             frame,
             settings_place,
-            painted.as_ref().map(|painted| painted.action),
+            painted,
             controls,
             &mut halos,
             hits.as_deref_mut(),

@@ -1,6 +1,14 @@
 use super::Locale;
 
 impl Locale {
+    /// The Update control's label on the Settings row.
+    pub(crate) const fn update_control(self) -> &'static str {
+        match self {
+            Self::EnUs => "Update",
+            Self::ZhCn => "更新",
+        }
+    }
+
     /// The Update control's effect line: its tooltip, and the sentence its action menu row carries.
     pub(crate) fn update_tooltip(self, version: &str) -> String {
         match self {

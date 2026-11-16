@@ -1,4 +1,5 @@
-//! The sidebar toggle and Shortcuts icon actions around the sidebar's fixed chrome.
+//! The sidebar toggle and Shortcuts icon actions around the sidebar's fixed chrome, and the Update
+//! control's target and tooltip.
 //!
 //! The toggle ends the sidebar's first fixed-action row while the sidebar is visible and leads the
 //! Tab strip while it is hidden, so it stays on the first row in both states; Shortcuts ends the
@@ -6,6 +7,9 @@
 //! cover, and publishes the existing sidebar visibility or action-menu action through global
 //! chrome. On a touch-spaced list both take their five-cell size and a target one cell wider on
 //! each side that spans their row's touch lines; the Mobile bar's toggle takes the same size.
+//!
+//! Update follows Settings one cell apart while a newer version is active. It keeps its place
+//! before Shortcuts does, and publishes the Update action through global chrome.
 
 use ratatui::{Frame, layout::Rect};
 
@@ -28,6 +32,32 @@ use crate::{
 pub(super) const TRAILING_GAP: u16 = 2;
 /// Blank strip cells between the hidden sidebar's toggle and the first Tab.
 const STRIP_GAP: u16 = 1;
+/// Blank cells between two adjacent bracket actions, as between Settings and Update.
+pub(super) const ACTION_GAP: u16 = 1;
+
+/// The Update control's target: the Update action through global chrome.
+pub(super) const fn update_target() -> InteractionTarget {
+    InteractionTarget::GlobalChrome(GlobalChromeAction::Update)
+}
+
+/// Offers the Update control's tooltip over `rect`: its effect line, naming `version`.
+pub(super) fn publish_update_tooltip(
+    hits: &mut HitMapBuilder,
+    layer: HitLayer,
+    rect: Rect,
+    target: &InteractionTarget,
+    version: &str,
+    locale: Locale,
+) {
+    hits.record_interaction_tooltip(
+        layer,
+        rect,
+        target,
+        TooltipContent::Effect {
+            text: locale.update_tooltip(&crate::terminal_text::sanitize_terminal_text(version)),
+        },
+    );
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Control {
