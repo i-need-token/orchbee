@@ -4,6 +4,7 @@ use super::{
     ExpectedValue, FailureEnvelope, Options, ParseFailure, QueryCommand, Request, Resource,
     UsageContext, UsageReason, check_scope, identifier, query, usage_with,
 };
+use orchbee_local_runtime::UserPathGrammar;
 
 pub(super) fn request(
     schema_id: Option<&str>,
@@ -41,13 +42,27 @@ pub(super) fn request(
     })
 }
 
-/// Windows publication syntax is interpreted lexically on every host.
+/// A publication destination in the executing host's grammar, interpreted lexically: Windows
+/// takes its drive, UNC and verbatim syntax and refuses reserved names, macOS and Linux take any
+/// POSIX path that names a file.
 pub(super) fn valid_path(value: &str) -> bool {
-    if value.is_empty()
-        || value.len() > 4096
-        || value.chars().any(char::is_control)
-        || value.ends_with(['/', '\\'])
-    {
+    if value.is_empty() || value.len() > 4096 || value.chars().any(char::is_control) {
+        return false;
+    }
+    match super::user_path::HOST_GRAMMAR {
+        UserPathGrammar::Windows => valid_windows_path(value),
+        UserPathGrammar::Posix => valid_posix_path(value),
+    }
+}
+
+/// A POSIX path naming a file: not a folder spelling, so neither a trailing `/` nor a last
+/// component of `.` or `..`.
+fn valid_posix_path(value: &str) -> bool {
+    !value.ends_with('/') && !matches!(value.rsplit('/').next(), Some("." | ".."))
+}
+
+fn valid_windows_path(value: &str) -> bool {
+    if value.ends_with(['/', '\\']) {
         return false;
     }
     let normalized = value.replace('\\', "/");
