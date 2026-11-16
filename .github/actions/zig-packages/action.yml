@@ -1,0 +1,69 @@
+name: Zig packages
+description: >-
+  Makes the Terminal Host's Zig packages available offline before any Zig build: restores them from
+  the Actions cache, or fetches them with bounded retries and caches them. Run it after Zig is on
+  PATH and before the first Zig build.
+
+runs:
+  using: composite
+  steps:
+    # Zig keeps every fetched package as an archive under `p` in its global cache and unpacks a
+    # project's `zig-pkg` from there, so restoring `p` is enough to build offline.
+    - name: Locate the Zig package archives
+      id: store
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = Windows ]; then
+          echo "path=$LOCALAPPDATA\\zig\\p" >> "$GITHUB_OUTPUT"
+        else
+          echo "path=${XDG_CACHE_HOME:-$HOME/.cache}/zig/p" >> "$GITHUB_OUTPUT"
+        fi
+
+    # The Terminal Host's manifest pins every package by hash, Ghostty's own dependencies through
+    # Ghostty's. Which lazy dependencies a build needs follows from build.zig and the target, so the
+    # key holds both files, the runner's OS and architecture, and this action, whose fetch decides
+    # what an entry contains. An entry is never updated, so any of these changing makes a new one.
+    - name: Restore the Zig packages
+      id: restore
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: zig-packages-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/terminal-host/build.zig.zon', 'apps/terminal-host/build.zig', '.github/actions/zig-packages/action.yml') }}
+
+    # Zig's own download of this transitive dependency (Ghostty's translate_c -> arocc) fails on
+    # GitHub's Windows and macOS runners with HttpConnectionClosing. curl fetches it, and `zig fetch`
+    # admits it only under the content hash translate_c pins. Drop the step once Zig fetches it, or
+    # update it when the Ghostty pin moves translate_c.
+    - name: Prefetch the arocc Zig package
+      if: steps.restore.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: apps/terminal-host
+      run: |
+        archive="$RUNNER_TEMP/arocc.tar.gz"
+        curl --fail --location --silent --show-error --retry 5 --retry-all-errors 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output "$archive"
+        hash="$(zig fetch "$archive")"
+        if [ "$hash" != 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD' ]; then echo "Unexpected arocc package hash: $hash" >&2; exit 1; fi
+
+    # Package downloads on the hosted runners fail now and then mid-transfer ("HTTP response read
+    # failure", "unable to unpack tarball"). Listing the steps runs the build script, which fetches
+    # the eager dependencies and every lazy one this build requests; `zig build --fetch` would leave
+    # the lazy ones, Ghostty's translate_c and Wuffs among them, to the build itself. A failed
+    # fetch leaves no partial package, so the whole listing is retried. With every archive restored
+    # it runs offline.
+    - name: Fetch the Zig packages
+      shell: bash
+      working-directory: apps/terminal-host
+      run: |
+        for attempt in 1 2 3 4; do
+          if zig build --list-steps > /dev/null; then exit 0; fi
+          echo "Fetching the Zig packages failed (attempt $attempt of 4)" >&2
+          if [ "$attempt" -lt 4 ]; then sleep $((attempt * 20)); fi
+        done
+        exit 1
+
+    - name: Cache the Zig packages
+      if: steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: ${{ steps.restore.outputs.cache-primary-key }}

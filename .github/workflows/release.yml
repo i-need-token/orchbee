@@ -123,17 +123,8 @@ jobs:
           if ($unpack.ExitCode -ne 0) { throw "Inno Setup unpacking exited $($unpack.ExitCode)" }
           if (-not (Test-Path -LiteralPath (Join-Path $destination 'ISCC.exe'))) { throw 'Inno Setup unpacked no ISCC.exe' }
 
-      # Zig's own download of this transitive Terminal Host dependency (Ghostty's translate_c → arocc)
-      # fails on GitHub's Windows runners with HttpConnectionClosing. curl fetches it, and `zig fetch`
-      # admits it only under the content hash translate_c pins, so the build finds it offline. Drop
-      # the step once Zig fetches it, or update it when the Ghostty pin moves translate_c.
-      - name: Prefetch the arocc Zig package
-        working-directory: apps/terminal-host
-        run: |
-          $archive = Join-Path $env:RUNNER_TEMP 'arocc.tar.gz'
-          curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
-          $hash = zig fetch $archive
-          if ($hash -ne 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD') { throw "Unexpected arocc package hash: $hash" }
+      - name: Fetch the Zig packages
+        uses: ./.github/actions/zig-packages
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -365,14 +356,8 @@ jobs:
           $zigDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           & (Join-Path $zigDirectory 'zig.exe') version
 
-      # See the dry run's step of the same name.
-      - name: Prefetch the arocc Zig package
-        working-directory: apps/terminal-host
-        run: |
-          $archive = Join-Path $env:RUNNER_TEMP 'arocc.tar.gz'
-          curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
-          $hash = zig fetch $archive
-          if ($hash -ne 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD') { throw "Unexpected arocc package hash: $hash" }
+      - name: Fetch the Zig packages
+        uses: ./.github/actions/zig-packages
 
       - name: Stage the release cohort
         run: node scripts/stage-local-runtime.mjs --output "$env:RUNNER_TEMP\cohort" --artifact-stem orchbee
@@ -401,9 +386,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # The macOS rows' `release-build`, in bash, with the pinned Zig download and the arocc prefetch of
-  # the Verify job `rust-macos`. The macOS jobs run only when the plan has a macOS row, since a job
-  # with no row fails.
+  # The macOS rows' `release-build`, in bash, with the pinned Zig download of the Verify job
+  # `rust-macos`. The macOS jobs run only when the plan has a macOS row, since a job with no row
+  # fails.
   release-build-macos:
     name: Release build ${{ matrix.platform }}
     needs: [release-plan, release-preconditions]
@@ -458,14 +443,8 @@ jobs:
           echo "$RUNNER_TEMP/orchbee-zig" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/orchbee-zig/zig" version
 
-      # Zig's own arocc download fails on macOS runners too; see the Windows step of this name.
-      - name: Prefetch the arocc Zig package
-        working-directory: apps/terminal-host
-        run: |
-          archive="$RUNNER_TEMP/arocc.tar.gz"
-          curl --fail --location --silent --show-error --retry 5 --retry-all-errors 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output "$archive"
-          hash="$(zig fetch "$archive")"
-          if [ "$hash" != 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD' ]; then echo "Unexpected arocc package hash: $hash" >&2; exit 1; fi
+      - name: Fetch the Zig packages
+        uses: ./.github/actions/zig-packages
 
       - name: Stage the release cohort
         run: node scripts/stage-local-runtime.mjs --output "$RUNNER_TEMP/cohort" --artifact-stem orchbee
