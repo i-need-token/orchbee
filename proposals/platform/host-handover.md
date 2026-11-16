@@ -188,7 +188,11 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
 1. **Hold.** The Worker stops sending the terminal's input, resizes, and viewer changes, and holds
    them in order. More than 64 KiB of input, such as a large paste, aborts the move.
 2. **Quiesce.** The old Host stops reading output, on Windows by cancelling its blocked read as
-   `abortRead` does today. It applies every byte it has read, writes the input it has accepted, marks
+   `abortRead` does today. The quiesce ends when the reader thread has stopped with its last batch
+   applied, not when `abortRead` returns, because a read can complete with data despite the cancel,
+   as [prototype 3](#prototype-3-result) measured; and the stop must be undoable, because an
+   aborted move resumes reading in the same Host, while today's abort is final and ends the reader
+   thread. It applies every byte it has read, writes the input it has accepted, marks
    the terminal in the Keeper as quiesced for the new Host, and exports its record. It does not wait
    for the parser to finish a sequence: the record carries the unfinished bytes. If those bytes
    outgrew the continuation bound, Ghostty has dropped them and cannot export them, and the move
@@ -199,7 +203,9 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
 4. **Claim, the commit.** The new Host claims the terminal in the Keeper and receives its handles or
    master. It checks them against the record by program identity, Job membership, OpenConsole image
    and signal format, and pipe types, or by the master's session; rebuilds the pseudoconsole with
-   `ConptyPackPseudoConsole`; and starts reading.
+   `ConptyPackPseudoConsole`; and starts reading. It must not read before the old reader has
+   stopped: a duplicated read handle shares the pipe's file object, so a second read waits behind a
+   blocked one, and the blocked read takes the next output.
 5. **Release.** The Worker sends the held input, resizes, and viewer changes to the new Host, gives
    each viewer a full frame, and reports the new Host terminal identity to the Server's binding
    record. The old Host then drops the terminal: it closes its own handles without
@@ -232,7 +238,9 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
   when a newer version becomes active.
 - Pause: the target is well under a second from quiesce to claim. At the default scrollback, encoding
   and decoding the snapshot take at most 10 and 20 milliseconds, as
-  [prototype 2](#prototype-2-result) measured; prototype 3 and H1 measure the rest.
+  [prototype 2](#prototype-2-result) measured, and stopping the reader takes tens of microseconds
+  and at most 6 milliseconds, as [prototype 3](#prototype-3-result) measured; H1 measures the rest,
+  including applying the last batch of up to 256 KiB.
 
 | Ends during a move | Before the claim                                                                               | After the claim                                                                        |
 | ------------------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -386,6 +394,9 @@ Docker it keeps a small holder apart, and unlike Docker it replaces that holder 
   snapshot at all, and Ghostty may still change version 1 without a new version number. Moves
   therefore run only between Hosts with the same Ghostty pin, or with pins that the pin check
   admitted.
+- Prototype 3 has run on Windows: a quiesce loses and repeats no bytes, and a cancelled read never
+  consumes bytes it does not return. The quiesce waits for the reader to stop, not for
+  `abortRead`, and the claiming Host reads only after that stop.
 
 ### Prototype 1 result
 
@@ -461,6 +472,49 @@ which the terminal can render while its history arrives.
   Host allows up to 1 GB. Above about 130 MB a snapshot would outgrow one transport record, and near
   1 GB it would take seconds (inferred from the 100 MB row). H1 decides how such a record travels,
   and whether the new Host claims at READY and takes history afterwards.
+
+### Prototype 3 result
+
+Run on 2026-11-15 on Windows 11 build 26300 with the pinned conpty 1.25.260930003 and with the
+system ConHost. A driver held the output pipe, as the Keeper will, and gave a duplicated read handle
+to each of two reader processes. The readers took turns. Each read as the Host's reader does, with
+a 256 KiB `ReadFile` marked active under the reader's lock, and after a random delay stopped as
+`abortRead` does: it set the abort, called `CancelSynchronousIo`, retried on `ERROR_NOT_FOUND`, and
+waited for the read to leave. The other reader started only after the first had applied every byte
+it read. A third of the delays were zero, a third under 200 µs, and a third under 3 ms. Each run had
+20,000 turns, so each reader resumed 9,999 times after its own cancel. Every result is measured
+unless it says inferred.
+
+| Producer                                                                    |  Turns | Before the read started | Cancelled while blocked | Completed before the cancel landed | Completed with data despite the cancel | Lost or repeated      |
+| --------------------------------------------------------------------------- | -----: | ----------------------: | ----------------------: | ---------------------------------: | -------------------------------------: | --------------------- |
+| A child through the pinned conpty, a line every 1 ms or 100 µs, or flooding | 60,000 |                  20,613 |                  29,322 |                              8,833 |                                  1,232 | 0 of 648,793 lines    |
+| The same child through the system ConHost                                   | 60,000 |                  20,247 |                  30,659 |                              7,928 |                                  1,166 | 0 of 573,961 lines    |
+| A raw pipe, a counter stream in chunks every 20 µs or flooding              | 40,000 |                  19,450 |                   4,327 |                             14,985 |                                  1,238 | 0 of 4.15 GB, by byte |
+
+| Question               | Result                                                                                                                                                                                                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Loss or repeat         | Through both consoles the turns, joined in order, held every numbered line once and in order with no stray text, and the raw stream matched byte for byte                                                                                                                                                                                           |
+| Hidden consumption     | Every read that ended in `ERROR_OPERATION_ABORTED` returned 0 bytes, and the next reader, in the other process, got the very next byte. No read ended aborted without a cancel, and no cancel reached a later read. A cancelled read never consumes bytes it does not return: the pipe completes a read either with its data or cancelled with none |
+| Completion past cancel | 3,636 of the 160,000 reads returned data after `CancelSynchronousIo` had succeeded, so bytes still arrive after the abort is requested and before the reader stops. 1,193 cancels came before `ReadFile` began, got `ERROR_NOT_FOUND`, and succeeded on a retry                                                                                     |
+| Stop time              | From the abort to the reader stopped with its last batch applied, the run medians were 6 to 22 µs, the 99th percentiles 46 to 82 µs, and the maximum 5.9 ms; `abortRead` alone returned at a median of at most 20 µs. The probe applied a batch by checking or logging it, not by parsing it with Ghostty                                           |
+| Two readers at once    | While one read was blocked, `PeekNamedPipe` and `ReadFile` through a duplicated handle waited behind it, because a duplicate shares the synchronous file object; the blocked read took the next byte and the second read the byte after. Tested in one process; a duplicate in another process shares the same file object (inferred)               |
+
+- The quiesce waits for the reader thread to stop, as [step 2](#how-a-terminal-moves) now says. In
+  the probe a reset flag and a parked reader thread resumed reading 159,984 times, and no cancel
+  ever reached a later read; H1 decides whether the Host parks its reader thread or starts a new
+  one.
+- The Host already maps an aborted read to 0 bytes, which the counts show is exact; H1 may assert
+  that an aborted read reports no bytes.
+- Recovery on Windows: a hung Host with a blocked read keeps taking output until it ends, so the
+  Worker ends it before the new Host reads, and bytes it read but never applied are lost, as
+  recovery already accepts (inferred).
+- POSIX, from the code; prototype 4 and H5 test it. `PosixPty.read` polls the master and an abort
+  pipe, returns before reading once the abort is set, and reads the master only after poll reports
+  data, so nothing cancels a read in progress. A stop takes effect between reads, and a poll that
+  reports both the abort and data leaves the data in the PTY buffer for the next reader, so a read
+  that completes as it is cancelled cannot occur. The abort marker is never drained and
+  `read_aborted` stays set, so the stop must become undoable there too, and two readers of one
+  master would split its output, so the one-reader rule holds on POSIX as well (inferred).
 
 ## Phases
 
