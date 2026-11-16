@@ -329,11 +329,11 @@ an explicit dev/test/release profile. Each command builds Web resources and the 
 bundles, then stages the whole native cohort with `scripts/stage-local-runtime.mjs`: the Client,
 Server, Worker, Terminal Host, the observation Capsule, the platform's terminal runtime, and on
 macOS the window launcher that a relaunch runs ([Window Update](#window-update)). The
-application carries it because the window's Session may run it: on Windows the bundled Client of a
-test or release package hands a Session start to the store's active version, which that Client
-installs, and starts this cohort only when the store holds no usable version
+application carries it because the window's Session may run it: on Windows and macOS the bundled
+Client of a test or release package hands a Session start to the store's active version, which on
+Windows that Client installs, and starts this cohort only when the store holds no usable version
 ([store start](../orchbee/docs/windows-cli-configuration.md#windows-release-installation)); a
-development package, and macOS and Linux, run this cohort. The cohort and the Web resources stay
+development package, and Linux, run this cohort. The cohort and the Web resources stay
 outside `app.asar` as `resources/cohort` and `resources/dist`.
 
 On Windows and macOS the test and release commands then make the cohort a signed release directory

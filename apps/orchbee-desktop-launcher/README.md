@@ -83,9 +83,13 @@ are in `src/macos.rs`. The steps run in this order.
    that start fails too; it shows no message.
 
 The renames stay in one folder, so each is atomic; a launcher that is killed between them can leave
-its hidden `.update-`, `.previous-` or `.failed-` folder beside the application. A Session that the
-replaced application started keeps the programs it runs, but whatever it starts later from its
-cohort folder, such as its first Terminal Host, now comes from the new bundle at the same path.
+its hidden `.update-`, `.previous-` or `.failed-` folder beside the application. The window's
+Session runs from the store's version folder, since the application's bundled Client hands its
+start to the store
+([store start](../orchbee/docs/windows-cli-configuration.md#macos-and-linux-release-installation)),
+so a replacement changes no program that Session starts later. Only a Session that the bundle's
+own cohort started, because the store held no usable version then, starts its later programs from
+the new bundle at the same path.
 
 ## Switches between builds
 

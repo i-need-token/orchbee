@@ -156,7 +156,7 @@ dedicated `orchbee.project.rename` document. `server start` is the headless acti
 it runs the same connect-or-activate sequence the TUI startup uses — validate the cohort,
 prepare the runtime directory, take the locks, commit the marker, spawn the Server when no
 running Session answers — under one absolute 20-second deadline, then reports `started` only
-when this invocation, or the release store's Client it handed the start to on Windows
+when this invocation, or the release store's Client it handed the start to on Windows and macOS
 ([store start](docs/windows-cli-configuration.md#windows-release-installation)), actually
 spawned the child and `already-running` when an existing Session admitted its probe. `workspace create`, `project create`,
 `worktree create` and `worktree open` run the same start first when no Session answers and print its

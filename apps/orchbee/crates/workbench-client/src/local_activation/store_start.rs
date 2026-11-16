@@ -5,7 +5,8 @@
 //! newer store never loses the start to an older Client. Whatever the store's Client answers, the
 //! caller's own activation stays the only verdict: it joins the Session that Client started, reports
 //! the refusal it meets, or starts its own Server as before. Each start decision writes one
-//! `session-start-source` record with tokens and counts only.
+//! `session-start-source` record with tokens and counts only. Windows and macOS run it; Linux keeps
+//! starting its own cohort.
 use super::{ActivationFailure, StartupFailure};
 use crate::local_client::CLIENT_VERSION;
 use orchbee_local_ipc::ChildOutputReader;
@@ -13,11 +14,14 @@ use orchbee_local_runtime::{
     ActiveRelease, CohortArtifact, EnvironmentKind, LogLevel, LogValue,
     ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope, private_filesystem,
 };
+#[cfg(target_os = "macos")]
+use std::os::unix::process::CommandExt;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{
     cmp::Ordering,
     fs::File,
     io::{self, Read},
-    os::windows::process::CommandExt,
     path::{Path, PathBuf},
     process::{Command, ExitStatus, Stdio},
     thread,
@@ -34,6 +38,7 @@ const POINTER_RETRY_PAUSE: Duration = Duration::from_millis(20);
 /// How often the wait for the store's Client checks its exit and the deadline.
 const POLL: Duration = Duration::from_millis(10);
 /// `CREATE_NO_WINDOW`: the store's Client runs without a console window.
+#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// Why a Session start stays with this Client's own cohort; each token names the reason in the log.
@@ -128,14 +133,17 @@ pub(super) fn decide(
 /// Before this Client's own activation: when the selected Session's Client endpoint is absent and
 /// the rule chooses the store, runs the store's Client and waits for it until `deadline`. Answers
 /// whether that Client reports it started the Session. At the deadline the answer is `TimedOut` and
-/// the store's Client keeps running.
+/// the store's Client keeps running. macOS serves only the default Session, so there the store's
+/// Client is never given a Session name.
 pub(super) fn start_if_absent(
     base: &Path,
     scope: &str,
-    explicit: Option<&str>,
+    #[cfg(windows)] explicit: Option<&str>,
     own_client: &Path,
     deadline: Instant,
 ) -> Result<bool, ActivationFailure> {
+    #[cfg(target_os = "macos")]
+    let explicit = None;
     if !session_absent(base, scope) {
         return Ok(false);
     }
@@ -204,9 +212,10 @@ fn read_active(root: &Path) -> io::Result<Option<ActiveRelease>> {
 }
 
 /// Pins every folder down to the Client's version folder, which must be private, and the Client,
-/// which must be a private regular file with one link. While the handles live no folder on the path
-/// can be renamed or replaced by a link, so the program started is the admitted file inside
-/// `<store root>\versions\<version>\`.
+/// which must be a private regular file with one link. On Windows no folder on the path can be
+/// renamed or replaced by a link while the handles live; on macOS the private rule keeps every
+/// other account from doing so. Either way the program started is the admitted file inside
+/// `<store root>/versions/<version>/`.
 fn admit(client: &Path) -> io::Result<Vec<File>> {
     let directory = client.parent().ok_or(io::ErrorKind::InvalidInput)?;
     let mut pins = private_filesystem::open_tree(directory)?;
@@ -223,16 +232,21 @@ enum Run {
 
 /// Runs `[--session <name>] server start --format json` with the store's Client, which inherits
 /// this process's environment, so it selects the same Session, except the relaunch protocol's
-/// variable, which no process a Client starts receives. It gets no console window,
-/// null standard input and error, a bounded standard output, and the system folder as its working
-/// folder, since a Session it starts outlives this Client.
+/// variable, which no process a Client starts receives. It gets null standard input and error, a
+/// bounded standard output, and a working folder no version owns, since a Session it starts
+/// outlives this Client: the system folder on Windows, where it also gets no console window, and
+/// `/` on macOS, where it leads a process group of its own, so a terminal's interrupt meant for
+/// this Client never reaches a Client that may be starting the Session.
 fn run(client: &Path, explicit: Option<&str>, deadline: Instant) -> Run {
     let Ok(pins) = admit(client) else {
         return Run::Failed;
     };
+    #[cfg(windows)]
     let Ok(directory) = winsafe::GetSystemDirectory() else {
         return Run::Failed;
     };
+    #[cfg(target_os = "macos")]
+    let directory = "/";
     let Ok((mut reader, writer)) = ChildOutputReader::pipe() else {
         return Run::Failed;
     };
@@ -246,8 +260,11 @@ fn run(client: &Path, explicit: Option<&str>, deadline: Instant) -> Run {
         .current_dir(directory)
         .stdin(Stdio::null())
         .stdout(writer)
-        .stderr(Stdio::null())
-        .creation_flags(CREATE_NO_WINDOW);
+        .stderr(Stdio::null());
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    #[cfg(target_os = "macos")]
+    command.process_group(0);
     let spawned = command.spawn();
     // The command holds the parent's copy of the output pipe's writer; the image is mapped once
     // the process exists, so the pins have done their part.

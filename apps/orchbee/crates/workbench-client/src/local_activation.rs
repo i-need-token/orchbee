@@ -3,8 +3,8 @@
 //! precedes runtime-directory preparation; one absolute caller-supplied
 //! deadline bounds the whole attempt and is never reset per phase. The
 //! lock/marker/spawn order is identical for both callers; only the failure
-//! projection differs. On Windows a release or test Client outside the
-//! release store first hands a start to the store's active version (see
+//! projection differs. On Windows and macOS a release or test Client outside
+//! the release store first hands a start to the store's active version (see
 //! `store_start`), then runs this same sequence to join. A Session whose Server
 //! is ending by a stop is waited out without the activation lock, and the whole
 //! sequence, the store's start included, then runs again, so a Client opened
@@ -33,7 +33,7 @@ const STOPPING_PAUSE: Duration = Duration::from_millis(100);
 mod fallback;
 mod restore_feedback;
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod store_start;
 #[cfg(windows)]
 mod windows_selection;
@@ -257,10 +257,11 @@ fn activate(
     loop {
         // A start the store's Client takes runs before the catalog lock, which that Client's own
         // activation takes in turn; this activation then joins its Session as any other.
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let started_by_store = store_start::start_if_absent(
             &base,
             &scope_text,
+            #[cfg(windows)]
             explicit,
             &cohort.executable(CohortArtifact::Client),
             deadline,
@@ -313,7 +314,7 @@ fn activate(
                 continue;
             }
         };
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let spawned = spawned || started_by_store;
         // Reading the notice leaves it in place, so a Client that joins a Session the store's Client
         // started reads the same notice that Client reported.

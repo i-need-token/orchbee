@@ -9,13 +9,36 @@ use std::{
 
 const OWN_VERSION: &str = "0.1.0-beta.3";
 
+#[cfg(windows)]
 fn root() -> PathBuf {
     PathBuf::from(r"C:\Users\person\AppData\Local\Programs\store")
 }
 
+#[cfg(target_os = "macos")]
+fn root() -> PathBuf {
+    PathBuf::from("/Users/person/.local/share/store")
+}
+
+#[cfg(windows)]
+fn elsewhere() -> PathBuf {
+    PathBuf::from(r"D:\elsewhere")
+}
+
+#[cfg(target_os = "macos")]
+fn elsewhere() -> PathBuf {
+    PathBuf::from("/Volumes/elsewhere")
+}
+
 /// An outside Client's folder, such as the one setup keeps for the window.
+#[cfg(windows)]
 fn outside() -> PathBuf {
-    root().join(r"desktop\resources\cohort")
+    root().join("desktop").join("resources").join("cohort")
+}
+
+/// An outside Client's folder, such as the window application's.
+#[cfg(target_os = "macos")]
+fn outside() -> PathBuf {
+    PathBuf::from("/Applications/Orchbee.app/Contents/Resources/cohort")
 }
 
 fn active(version: &str) -> impl FnOnce(&Path) -> io::Result<Option<ActiveRelease>> {
@@ -54,8 +77,8 @@ fn a_development_build_never_hands_a_start_to_the_store() {
 fn a_client_inside_a_store_never_hands_a_start_on() {
     for kind in [EnvironmentKind::Release, EnvironmentKind::Test] {
         for own in [
-            root().join(r"versions\0.1.0-beta.3"),
-            PathBuf::from(r"D:\elsewhere\Versions\0.1.0"),
+            root().join("versions").join("0.1.0-beta.3"),
+            elsewhere().join("Versions").join("0.1.0"),
         ] {
             assert_eq!(
                 decide_with(kind, &own, active("9.0.0")),
