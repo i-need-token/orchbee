@@ -1780,15 +1780,16 @@ fn unsupported_commands_share_the_platform_failure_contract() {
     let validator = jsonschema::validator_for(&schema).unwrap();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for format in [OutputFormat::Json, OutputFormat::Text] {
-            for output in [
-                // Linux reads Client views, but Client control stays Windows-only.
+            // Linux reads Client views, but Client control stays Windows and macOS only.
+            let control = cfg!(target_os = "linux").then(|| {
                 super::client_control::run(
                     &ClientCommand::ControlStatus(WorkbenchRequestId::parse(ID).unwrap()),
                     format,
                     locale,
-                ),
-                super::agent_manifests::run(&ManifestCommand::Current, format, locale),
-            ] {
+                )
+            });
+            let manifests = super::agent_manifests::run(&ManifestCommand::Current, format, locale);
+            for output in control.into_iter().chain([manifests]) {
                 assert_eq!(output.status, 4);
                 assert!(!output.stderr.is_empty());
                 if format == OutputFormat::Json {

@@ -209,8 +209,10 @@ orchbee agent wait <session-id> --until ended
 
 The Apple Silicon macOS development cohort runs the same Session-backed Agent commands as Linux:
 `agent list`, `get`, `read` and `wait`, `agent prompt`, and Agent names through `agent resolve` and
-`agent rename`. macOS also runs `agent start`, which Linux refuses as unsupported. The
-per-Client projection (`--client`) remains Windows-only.
+`agent rename`. macOS also runs `agent start`, which Linux refuses as unsupported. Like Windows,
+macOS reads them through the unified Agent projection, so physical terminal Agents, `@agent:`
+selectors, the per-Client projection (`--client`) and `agent focus` work there; Linux keeps the
+canonical sessions only.
 `SIGINT` and `SIGTERM` cancel these commands as on Linux, with the typed cancellation document at
 exit 130, and `terminal send --file` and `--stdin` read their declared source on macOS too.
 
@@ -1010,9 +1012,9 @@ menu; see the [Web Workbench](../web/docs/workbench.md#release-withheld-search).
 
 Windows CLI Panel/Tab/Workspace Close captures and settles every bound primary and child Presentation, including grouped/pinned Tabs. Canonical removal waits for all target disposal/cleanup and exact membership revalidation; unknown effects keep their retained receipts and recovery constraints. Unbound Presentations, child navigation and other structural operations retain their separate contracts; see the [Close model](../orchbee-server/docs/terminal-tab-close.md#complete-presentation-membership).
 
-## Windows Client navigation
+## Windows and macOS Client navigation
 
-[Windows Client view control](docs/windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. Catalog v68 includes 76 schemas, adding `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`, all v1. No operating-system window activation or Mac/Linux control runtime is added; Linux and macOS admit only the read-only `client list` and `client get`.
+[Windows Client view control](docs/windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. Catalog v68 includes 76 schemas, adding `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`, all v1. No operating-system window activation is added. macOS admits the same controls; Linux admits only the read-only `client list` and `client get`.
 
 Windows process tests execute the emitted completion in Git for Windows Bash, found relative to `git --exec-path`; that installed Bash is required for this witness. Conflicting flags are checked before and after their command verb without contacting a Session. PowerShell has a separate real-shell grammar witness.
 
@@ -1066,7 +1068,7 @@ line in any terminal, and Desktop offers it as an Action.
 
 `panel focus [source] --direction left|right|up|down` finds one neighbor in the selected TUI's unmaximized cell layout and preserves the maximized state. No neighbor returns `direction-unchanged` without activating the source Tab. A found destination is pinned and returns `direction-focused` only after a successful draw. Receipt reads never repeat the movement.
 
-`panel resize [panel] --direction left|right|up|down [--amount <number>]` adjusts one eligible split border through a Windows TUI, preserving focus and the maximized state. `layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` sets an exact binary split path. An explicit target without `--client` commits the shared ratio directly; Client-routed adjustments retain a `layout-adjusted` receipt and wait for a draw when selected. Finite ratios clamp to 0.1–0.9, and finite resize amounts normalize to an absolute magnitude at most 0.5 (default 0.05). Server owns shared ratios; Clients project them at their own viewport sizes and retain local focus, maximized state and control. See the [layout contract](docs/windows-client-layout.md).
+`panel resize [panel] --direction left|right|up|down [--amount <number>]` adjusts one eligible split border through a TUI, preserving focus and the maximized state. `layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` sets an exact binary split path. An explicit target without `--client` commits the shared ratio directly; Client-routed adjustments retain a `layout-adjusted` receipt and wait for a draw when selected. Finite ratios clamp to 0.1–0.9, and finite resize amounts normalize to an absolute magnitude at most 0.5 (default 0.05). Server owns shared ratios; Clients project them at their own viewport sizes and retain local focus, maximized state and control. See the [layout contract](docs/windows-client-layout.md).
 
 ## Shared Panel titles
 
@@ -1113,7 +1115,7 @@ Bare `status` reads the Workbench and then lists the Session's processes and the
 
 ## Agent navigation
 
-Windows `agent focus <target> [--client <id>]` resolves a name, session or Panel to its unique live primary Panel before one Client control submission, which a definite `stale-view` refusal repeats on a fresh read up to three times while the target resolves the same way. Explicit `--agent-session`, `--name` and `--panel` selectors use the existing resolver; `--request-id`, `--detach` and the 30000 ms total default timeout retain the common navigation recovery contract. Starting or Unavailable Clients fail with `client-not-ready` before Agent reads; Busy permits the Client-owned cancellable-mode preflight. The [Agent navigation contract](docs/native-agent-navigation.md) defines primary binding, ambiguity, cancellation and retained operation status. Successful explicit focus acknowledges current known Agent versions in the selected Tab even when the outer terminal is unfocused. Ordinary paint still requires host focus.
+Windows and macOS `agent focus <target> [--client <id>]` resolves a name, session or Panel to its unique live primary Panel before one Client control submission, which a definite `stale-view` refusal repeats on a fresh read up to three times while the target resolves the same way. Explicit `--agent-session`, `--name` and `--panel` selectors use the existing resolver; `--request-id`, `--detach` and the 30000 ms total default timeout retain the common navigation recovery contract. Starting or Unavailable Clients fail with `client-not-ready` before Agent reads; Busy permits the Client-owned cancellable-mode preflight. The [Agent navigation contract](docs/native-agent-navigation.md) defines primary binding, ambiguity, cancellation and retained operation status. Successful explicit focus acknowledges current known Agent versions in the selected Tab even when the outer terminal is unfocused. Ordinary paint still requires host focus.
 
 Windows host focus reporting is owned by [native Client attention](docs/native-client-attention.md); focus reports are Client metadata and never terminal text. The attention/CLI acknowledgement integration remains under development.
 

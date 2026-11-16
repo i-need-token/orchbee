@@ -93,7 +93,6 @@ impl<'a> HostExchange<'a> {
     }
 
     /// Observes events that have already arrived and writes no request, so no start limit applies.
-    #[cfg(windows)]
     pub(crate) fn observer(host: &'a HostBrokerConnection, server: &'a UnixStream) -> Self {
         let started = Instant::now();
         Self {
@@ -109,7 +108,6 @@ impl<'a> HostExchange<'a> {
     }
 
     /// A read-only cache observation must yield to a continuously active Host stream.
-    #[cfg(windows)]
     pub(crate) fn observe_pending(&self, maximum_events: usize) -> Result<(), PeerFailure> {
         self.consume_pending(maximum_events)
     }

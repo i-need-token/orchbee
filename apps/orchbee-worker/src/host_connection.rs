@@ -304,7 +304,6 @@ impl HostBrokerConnection {
         self.viewers.borrow_mut().receive(record, self.host_epoch)
     }
 
-    #[cfg(windows)]
     pub(crate) fn terminal_title(
         &self,
         identity: orchbee_capability_node_protocol::HostTerminalIdentity,

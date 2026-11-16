@@ -87,13 +87,13 @@ pub(super) const HELP_PANEL_PROCESS_INFO_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_PANEL_SWAP_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee panel swap [<panel>] (--with <target> | --direction left|right|up|down) [--current] [--client <id>] [--timeout <ms>] [--format text|json]",
-        "Explicit source and --with without --client perform a shared, headless exchange with no focus phase (orchbee.panel.swap v1). Other modes require one Ready Client and preserve the existing focus workflow. Exchange two complete Panel positions in one Tab, then focus the source in the selected Windows TUI. Source selectors are exclusive; omitted source uses valid caller context or the selected Client. Targets are exact IDs or @panel:0x<hex>. Multiple Clients require an explicit selection.\n\nSame Panel, cross-Tab pair and no neighbor leave layout and focus unchanged. Positions commit before focus acknowledgment: a later failure preserves the committed receipt; never automatically retry a swap. One total timeout defaults to 30000 ms (1..3600000). No --detach or --request-id.",
+        "Explicit source and --with without --client perform a shared, headless exchange with no focus phase (orchbee.panel.swap v1). Other modes require one Ready Client and preserve the existing focus workflow. Exchange two complete Panel positions in one Tab, then focus the source in the selected TUI. Source selectors are exclusive; omitted source uses valid caller context or the selected Client. Targets are exact IDs or @panel:0x<hex>. Multiple Clients require an explicit selection.\n\nSame Panel, cross-Tab pair and no neighbor leave layout and focus unchanged. Positions commit before focus acknowledgment: a later failure preserves the committed receipt; never automatically retry a swap. One total timeout defaults to 30000 ms (1..3600000). No --detach or --request-id.",
     );
 
 pub(super) const HELP_PANEL_SWAP_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee panel swap [<panel>] (--with <target> | --direction left|right|up|down) [--current] [--client <id>] [--timeout <ms>] [--format text|json]",
-        "显式来源及 --with 且省略 --client 时，无头交换共享位置，不执行聚焦阶段（orchbee.panel.swap v1）。其他模式需要 Ready 客户端，并保留既有聚焦流程。 交换同一标签页中两个完整面板的位置，再在所选 Windows TUI 聚焦来源。来源选择器互斥；省略时使用有效调用者上下文或所选客户端。目标为精确 ID 或 @panel:0x<hex>。多个客户端时须明确选择。\n\n同一面板、跨标签页或没有邻居不改变布局和焦点。位置提交先于聚焦确认；后续失败保留提交回执，绝不自动重试交换。总超时默认 30000 ms（1..3600000）。不支持 --detach 或 --request-id。",
+        "显式来源及 --with 且省略 --client 时，无头交换共享位置，不执行聚焦阶段（orchbee.panel.swap v1）。其他模式需要 Ready 客户端，并保留既有聚焦流程。 交换同一标签页中两个完整面板的位置，再在所选 TUI 聚焦来源。来源选择器互斥；省略时使用有效调用者上下文或所选客户端。目标为精确 ID 或 @panel:0x<hex>。多个客户端时须明确选择。\n\n同一面板、跨标签页或没有邻居不改变布局和焦点。位置提交先于聚焦确认；后续失败保留提交回执，绝不自动重试交换。总超时默认 30000 ms（1..3600000）。不支持 --detach 或 --request-id。",
     );
 
 pub(super) const HELP_PANEL_MOVE_EN: crate::cli_text::HelpDetails =

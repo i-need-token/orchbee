@@ -39,7 +39,6 @@ pub(crate) enum Site {
     Launch,
     Start,
     Drain,
-    #[cfg(windows)]
     Titles,
     Cleanup,
     #[cfg(windows)]
@@ -66,7 +65,6 @@ impl Site {
             Self::Launch => "launch",
             Self::Start => "start",
             Self::Drain => "drain",
-            #[cfg(windows)]
             Self::Titles => "titles",
             Self::Cleanup => "cleanup",
             #[cfg(windows)]

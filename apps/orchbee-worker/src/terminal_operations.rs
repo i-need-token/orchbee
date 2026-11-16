@@ -41,7 +41,6 @@ mod handoff;
 mod server_transport;
 mod shutdown;
 mod title_changes;
-#[cfg(windows)]
 mod titles;
 
 #[cfg(test)]
@@ -256,7 +255,6 @@ fn serve(
                 aux.managed_host.map(|owner| (&*host, owner)),
             );
         }
-        #[cfg(windows)]
         if let CapabilityNodeMessage::TerminalTitlesRequest(request) = request {
             host.pacing.set_site(Site::Titles);
             let result = titles::execute(&server, Some(host), request, worker_id, generation)?;

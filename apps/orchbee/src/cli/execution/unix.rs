@@ -5,8 +5,9 @@
 //! These commands borrow the interrupt-pair port, which captures `SIGINT` and `SIGTERM` on both,
 //! and both admit a declared `terminal send` input source under its own signal watch.
 //! macOS and Linux admit release installation and uninstallation, but not the update download.
-//! macOS admits `server stop`, Worktree operations and source queries, and `project close-all`,
-//! which its managed Session serves.
+//! macOS admits `server stop`, Worktree operations and source queries, `project close-all`, the
+//! unified Agent projection with per-Client attention, and Client control, which its managed
+//! Session serves.
 //! Admission itself does not inspect environment or native state.
 use super::{Capability, Unsupported};
 
@@ -17,6 +18,8 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         Capability::ServerStop
         | Capability::WorktreeOperation
         | Capability::WorkspaceGroupClose
+        | Capability::AgentProjection
+        | Capability::ClientControl
             if cfg!(target_os = "macos") =>
         {
             Ok(())

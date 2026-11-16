@@ -1,4 +1,5 @@
-//! Windows observation-only request. No Host startup, viewer, input or Agent acknowledgement.
+//! Observation-only title read on every platform. No Host startup, viewer, input or Agent
+//! acknowledgement.
 use super::{Error, HostBrokerConnection, NonZeroU64, UnixStream, WorkerId};
 use orchbee_capability_node_protocol::{
     TerminalTitleObservation, TerminalTitleRow, TerminalTitlesRequest, TerminalTitlesResult,

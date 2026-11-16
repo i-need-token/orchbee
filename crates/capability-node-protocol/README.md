@@ -756,7 +756,7 @@ An explicit terminal launch may carry a separate `PluginTerminalEnvironment` (`p
 
 `TerminalTitlesRequest` uses OBCN request kind 23 and carries operation identity,
 Worker identity/generation and at most four complete Host identities. The
-observation-only Windows adapter drains already queued Host metadata; it cannot
+observation-only Worker adapter, on every platform, drains already queued Host metadata; it cannot
 start a Host, attach a viewer or claim input/resize. Replies echo operation and
 ordered physical identities, distinguishing unavailable from observed null clear.
 

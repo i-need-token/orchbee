@@ -181,8 +181,9 @@ pub(super) fn agent_after_revision_option(
 }
 
 /// `agent wait --timeout`: the total wait budget in milliseconds measured
-/// from command start. Explicit values are 1..=3600000. Windows defaults to
-/// no total timeout; existing non-Windows defaults remain 600000.
+/// from command start. Explicit values are 1..=3600000. Hosts with the unified
+/// Agent projection (Windows and macOS) default to no total timeout; canonical-only
+/// hosts keep 600000.
 pub(super) fn agent_wait_timeout_option(
     options: &Options,
     context: UsageContext,

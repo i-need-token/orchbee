@@ -439,12 +439,14 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
         bytes
     }
 
-    let capability = if cfg!(windows) {
+    // Hosts that admit the Agent projection report unknown Client members, the others unsupported.
+    let projected = cfg!(any(windows, target_os = "macos"));
+    let capability = if projected {
         json!("unknown")
     } else {
         json!({"kind":"unsupported"})
     };
-    let selection = if cfg!(windows) {
+    let selection = if projected {
         Value::Null
     } else {
         json!({"kind":"unsupported"})

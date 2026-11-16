@@ -4,7 +4,8 @@ use crate::{
     cli::{
         Failure, FailureKind, Output,
         caller_context::PanelTarget,
-        console_interrupt::{ArmedSignals, Finish},
+        command_interrupt::{ArmedSignals, Finish},
+        console_interrupt::SignalWatch,
         failure_output, query,
     },
     invocation::{

@@ -2296,7 +2296,7 @@ same resolved window; empty trailing space is a non-activating sidebar surface.
 ## Live terminal title observation model
 
 An Agent row's identity title can come from the OSC title of the exact physical terminal.
-The existing Host metadata event is the only title writer. The Windows Worker
+The existing Host metadata event is the only title writer. The Worker on every platform
 keeps a connection-owned, bounded projection keyed by the complete Host identity
 and metadata revision, independent of Agent report sequence, view filters and
 Client seen state. Closing the Host connection drops that projection; confirmed

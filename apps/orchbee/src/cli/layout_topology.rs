@@ -5,7 +5,8 @@ mod ratio;
 use crate::{
     cli::{
         Failure, FailureKind, Output,
-        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        command_interrupt::{ArmedSignals, Finish},
+        console_interrupt::SignalWatch,
         failure_output, output, query, results,
     },
     invocation::{ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, OutputFormat, Resource},

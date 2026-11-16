@@ -11,7 +11,8 @@ use super::{
 use crate::cli::{
     Failure, FailureKind,
     client_control::exchange::{exchange, submit_control},
-    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    command_interrupt::{ArmedSignals, Finish},
+    console_interrupt::SignalWatch,
     query, results, success_output,
 };
 use orchbee_agent_observation_protocol::{

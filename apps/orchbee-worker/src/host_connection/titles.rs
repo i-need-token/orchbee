@@ -106,7 +106,6 @@ impl Titles {
         self.bytes = bytes.expect("checked title bound");
         Ok(())
     }
-    #[cfg(any(windows, test))]
     pub(super) fn read(&self, identity: HostTerminalIdentity) -> TerminalTitleObservation {
         match self
             .rows

@@ -12,12 +12,12 @@ fn panel(id: &Value) -> String {
 pub(super) const HELP_AGENT_FOCUS_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent focus [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>] [--client <id>] [--timeout <ms>] [--format text|json]",
-        "Focus the live Agent's unique primary panel in an existing Windows terminal client. Choose exactly one target: a positional name/session/panel, --agent-session, --name or --panel. '@agent:<kind>' selects a unique provider; '@agent:<n>' selects a one-based ordinal in the complete Agent list, not a page. Bare names preserve Server alias precedence before provider matching. Get, read, prompt, send-keys, wait and focus share this resolver; partial projections cannot establish uniqueness. Child-only and ambiguous bindings are refused.\n\n--client selects explicitly; otherwise use the caller or the single current client. Default timeout: 30000 ms; range: 1..3600000.\n\nTimeout or Ctrl+C stops waiting without undoing accepted focus. This command does not start an Agent or activate an OS window. Successful visible paint acknowledges this client's observed Agent state unless the window is known to be unfocused.",
+        "Focus the live Agent's unique primary panel in an existing terminal client. Choose exactly one target: a positional name/session/panel, --agent-session, --name or --panel. '@agent:<kind>' selects a unique provider; '@agent:<n>' selects a one-based ordinal in the complete Agent list, not a page. Bare names preserve Server alias precedence before provider matching. Get, read, prompt, send-keys, wait and focus share this resolver; partial projections cannot establish uniqueness. Child-only and ambiguous bindings are refused.\n\n--client selects explicitly; otherwise use the caller or the single current client. Default timeout: 30000 ms; range: 1..3600000.\n\nTimeout or Ctrl+C stops waiting without undoing accepted focus. This command does not start an Agent or activate an OS window. Successful visible paint acknowledges this client's observed Agent state unless the window is known to be unfocused.",
     );
 pub(super) const HELP_AGENT_FOCUS_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent focus [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>] [--client <id>] [--timeout <ms>] [--format text|json]",
-        "在已有 Windows 终端客户端中聚焦存活智能体唯一对应的主面板。必须选择一个目标：位置参数名称／会话／面板，或 --agent-session、--name、--panel。'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整智能体列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；部分投影不能证明匹配唯一。拒绝仅有子终端或存在歧义的绑定。\n\n--client 显式选择客户端，否则使用调用者或唯一当前客户端。默认时限 30000 毫秒，范围 1..3600000。\n\n超时或 Ctrl+C 只停止等待，不撤销已接受的聚焦。不启动智能体，也不激活操作系统窗口。成功绘制会确认该客户端观察到的智能体状态，已知窗口未聚焦时除外。",
+        "在已有终端客户端中聚焦存活智能体唯一对应的主面板。必须选择一个目标：位置参数名称／会话／面板，或 --agent-session、--name、--panel。'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整智能体列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；部分投影不能证明匹配唯一。拒绝仅有子终端或存在歧义的绑定。\n\n--client 显式选择客户端，否则使用调用者或唯一当前客户端。默认时限 30000 毫秒，范围 1..3600000。\n\n超时或 Ctrl+C 只停止等待，不撤销已接受的聚焦。不启动智能体，也不激活操作系统窗口。成功绘制会确认该客户端观察到的智能体状态，已知窗口未聚焦时除外。",
     );
 
 impl super::CliText {
@@ -527,37 +527,37 @@ pub(super) const HELP_CLIENT_GET_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_WORKSPACE_FOCUS_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee workspace focus <target> [--client <client-id>] [--timeout <ms>] [--format text|json]",
-        "Select a Workspace in one Windows TUI.\n\nWithout --client, validated metadata of the calling terminal selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. Interruption ends waiting only; query operation status with the reported operation ID.",
+        "Select a Workspace in one TUI.\n\nWithout --client, validated metadata of the calling terminal selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. Interruption ends waiting only; query operation status with the reported operation ID.",
     );
 
 pub(super) const HELP_WORKSPACE_FOCUS_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee workspace focus <target> [--client <client-id>] [--timeout <ms>] [--format text|json]",
-        "在一个 Windows TUI 中选中工作区。\n\n省略 --client 时，经校验的调用者终端信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。中断仅结束等待；使用输出中的操作标识查询 operation status。",
+        "在一个 TUI 中选中工作区。\n\n省略 --client 时，经校验的调用者终端信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。中断仅结束等待；使用输出中的操作标识查询 operation status。",
     );
 
 pub(super) const HELP_TAB_FOCUS_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee tab focus <target> [--client <client-id>] [--timeout <ms>] [--format text|json]",
-        "Select a Tab in one Windows TUI, including its owning Workspace.\n\nWithout --client, validated metadata of the calling terminal selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. Interruption ends waiting only; query operation status with the reported operation ID.",
+        "Select a Tab in one TUI, including its owning Workspace.\n\nWithout --client, validated metadata of the calling terminal selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. Interruption ends waiting only; query operation status with the reported operation ID.",
     );
 
 pub(super) const HELP_TAB_FOCUS_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee tab focus <target> [--client <client-id>] [--timeout <ms>] [--format text|json]",
-        "在一个 Windows TUI 中选中标签页及其所属工作区。\n\n省略 --client 时，经校验的调用者终端信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。中断仅结束等待；使用输出中的操作标识查询 operation status。",
+        "在一个 TUI 中选中标签页及其所属工作区。\n\n省略 --client 时，经校验的调用者终端信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。中断仅结束等待；使用输出中的操作标识查询 operation status。",
     );
 
 pub(super) const HELP_PANEL_FOCUS_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee panel focus [<panel>] [--current] [--direction left|right|up|down] [--client <client-id>] [--timeout <ms>] [--format text|json]",
-        "Select a Panel in one Windows TUI, including its owning Tab and Workspace. With --direction, resolve one neighbor from this source before navigation, preserving maximization. No neighbor returns direction-unchanged without selecting the source; unavailable geometry fails. A found neighbor returns direction-focused after drawing.\n\nWithout --client, validated metadata of the calling terminal selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Focus success requires observed selection and a successful draw; no-neighbor succeeds without changing selection or drawing. Interruption ends waiting only; query operation status with the reported operation ID.",
+        "Select a Panel in one TUI, including its owning Tab and Workspace. With --direction, resolve one neighbor from this source before navigation, preserving maximization. No neighbor returns direction-unchanged without selecting the source; unavailable geometry fails. A found neighbor returns direction-focused after drawing.\n\nWithout --client, validated metadata of the calling terminal selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Focus success requires observed selection and a successful draw; no-neighbor succeeds without changing selection or drawing. Interruption ends waiting only; query operation status with the reported operation ID.",
     );
 
 pub(super) const HELP_PANEL_FOCUS_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee panel focus [<panel>] [--current] [--direction left|right|up|down] [--client <client-id>] [--timeout <ms>] [--format text|json]",
-        "在一个 Windows TUI 中选中面板及其所属标签页和工作区。--direction 在导航前从来源解析一个邻居，保留最大化。没有邻居时返回 direction-unchanged，不选择来源；几何不可用时失败。找到邻居则在绘制后返回 direction-focused。\n\n省略 --client 时，经校验的调用者终端信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。聚焦成功要求观测到目标选择且成功绘制；无邻居成功不改变选择，也不要求绘制。中断仅结束等待；使用输出中的操作标识查询 operation status。",
+        "在一个 TUI 中选中面板及其所属标签页和工作区。--direction 在导航前从来源解析一个邻居，保留最大化。没有邻居时返回 direction-unchanged，不选择来源；几何不可用时失败。找到邻居则在绘制后返回 direction-focused。\n\n省略 --client 时，经校验的调用者终端信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。聚焦成功要求观测到目标选择且成功绘制；无邻居成功不改变选择，也不要求绘制。中断仅结束等待；使用输出中的操作标识查询 operation status。",
     );
 
 pub(super) const HELP_PANEL_MAXIMIZE_EN: crate::cli_text::HelpDetails =

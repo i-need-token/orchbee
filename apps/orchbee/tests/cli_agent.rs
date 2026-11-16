@@ -3,7 +3,9 @@
 //! the genuine OBLC admission and the OBAP record protocol, so every admitted
 //! outcome class — listed/found, semantic refusal, unavailable, malformed,
 //! correlation mismatch — is exercised against the production code path.
-#![cfg(any(target_os = "linux", target_os = "macos"))]
+//! Linux only: macOS admits the unified Agent projection, whose list, get and wait
+//! compose Workbench and change reads that this OBAP-only peer cannot answer.
+#![cfg(target_os = "linux")]
 
 use std::{
     fs,

@@ -158,7 +158,6 @@ pub(crate) fn run(
                     None,
                 );
             }
-            #[cfg(windows)]
             if let CapabilityNodeMessage::TerminalTitlesRequest(request) = request {
                 site.set(Site::Titles);
                 let result = super::titles::execute(&server, None, request, worker_id, generation)?;

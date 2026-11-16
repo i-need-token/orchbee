@@ -4,7 +4,8 @@
 use super::{
     Failure, FailureKind, Output,
     agent_projection::{Item, List, classify, confirm, failure, name, read, source},
-    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    command_interrupt::{ArmedSignals, Finish},
+    console_interrupt::SignalWatch,
     failure_output, query,
     results::{self, Projection},
     stale_retry::{Ended, StaleRetry},

@@ -10,7 +10,7 @@ Syntax and discovery are identical on Windows, Linux and macOS. Unsupported exec
 
 Agent startup, saved-machine management and relay, and configuration reporting keep preparation, settlement and presentation in shared CLI owners. Capability admission precedes environment reads, signal registration, connections and persistence for unavailable operations. Named native ports retain Windows interrupt arbitration, SSH process ownership and bounded input acquisition; Unix refusal does not change existing supported query or configuration-check results. Configuration checks and Server diagnosis share classification and report assembly; native ports retain path encoding, scope discovery and metadata/private-activation observations. Linux and Windows keep their existing observations and field support, while macOS refuses before environment or filesystem inspection.
 
-Agent projection reads, exact terminal metadata, Client attention interpretation and retained Client exchanges share their protocol and rendering owners. Native interrupt borrowing does not register another handler or replace Unix cancellation. Projection admission precedes effects; canonical Unix Agent reads keep their current selectors and `AgentListCursor`, while the projection backend decodes its own cursor.
+Agent projection reads, exact terminal metadata, Client attention interpretation and retained Client exchanges share their protocol and rendering owners. Native interrupt borrowing does not register another handler or replace Unix cancellation. Projection admission precedes effects; canonical Unix Agent reads keep their current selectors and `AgentListCursor`, while the projection backend decodes its own cursor. Windows and macOS admit the projection, per-Client Agent attention and Client control; where this document qualifies those three contracts as Windows, macOS behaves the same, and their Unix or other-platform statements describe Linux.
 
 Workspace-group closure, Worktree operations and source queries keep request preparation, retained observation and post-open focus receipts in shared workflows. Their capability admission runs before literal-path resolution or operation ID generation. The executing CLI resolves literal path operands in its host's grammar, the Windows drive grammar on Windows and the POSIX grammar on macOS and Linux, without touching the filesystem; compiling a decoder on another host does not enable filesystem or Git operations there. A completed canonical operation is not erased by a failed or cancelled Client-focus observation. Canonical terminal reads/waits, launch-profile catalog and close status classification also compile in shared owners; Linux and Windows keep their existing query paths, while macOS refuses before discovery or signal registration. Worktree listing compiles in the same shared owner and runs on Windows and macOS.
 
@@ -63,7 +63,7 @@ their versions remain `1`. This terminology boundary preserves Desktop's current
 
 Every CLI machine document, including the offline API catalog, has one current contract and version `1`. Platform capabilities and options never select a document version or remove its members. A member unsupported on the platform is `{kind:"unsupported"}`; `null` means the source said none and `"unknown"` means the source cannot say. Whole-command platform refusal uses `stage: "platform"`, `reason: "unsupported-platform"`, and exit `4`. The [CLI output standard](../../../docs/cli/output.md#machine-documents) owns these rules.
 
-Agent List uses rows with separate canonical, terminal, placement and Client facets; Agent Get uses `{kind:"projected",agent,inspection}`. Windows joins physical and canonical observations. Other supported platforms retain canonical observations and mark unavailable facets unsupported. `--client` selects evidence in existing members. Canonical and terminal subjects remain distinct tagged business variants.
+Agent List uses rows with separate canonical, terminal, placement and Client facets; Agent Get uses `{kind:"projected",agent,inspection}`. Windows and macOS join physical and canonical observations. Linux retains canonical observations and marks unavailable facets unsupported. `--client` selects evidence in existing members. Canonical and terminal subjects remain distinct tagged business variants.
 
 ## Current CLI discovery and platform contracts
 
@@ -623,12 +623,12 @@ These repair stale schema projections; wire and receipt versions remain unchange
 ## Agent prompt submission
 
 The prompt workflow compiles on every host. Capability admission precedes deadline creation,
-signal registration and Session access. Linux and macOS use the canonical sampled observation;
-Windows retains physical targets, journal history and Client evidence. The common INT/TERM
+signal registration and Session access. Linux uses the canonical sampled observation;
+Windows and macOS retain physical targets, journal history and Client evidence. The common INT/TERM
 port delegates to each existing native guard, and the Client Connection is dropped before
 signal finalization and receipt projection. macOS and Linux capture `SIGINT` and `SIGTERM` through
 the same Unix signal owner. Unsupported hosts return the existing platform
-failure without acquiring those resources; Unix prompt results keep their existing
+failure without acquiring those resources; Linux prompt results keep their existing
 unsupported journal and Client fields.
 
 `agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]`
@@ -685,11 +685,11 @@ only Agent status authority; this command does not add screen inference or a pro
 
 ## Agent wait policy
 
-Windows `agent wait` and `agent prompt --wait` default to no total timeout and the ordered conditions `idle`, `done`, `blocked`. `--forever` remains an explicit synonym and conflicts with `--timeout`; prompt requires `--wait`. Finite timeouts remain 1–3600000 ms. Admission, resolution and each read remain bounded to five seconds; interruption stops the wait and never reconnects. Existing Linux and macOS polling defaults are unchanged. Prompt retains its five-second non-working activity gate.
+Windows and macOS `agent wait` and `agent prompt --wait` default to no total timeout and the ordered conditions `idle`, `done`, `blocked`. `--forever` remains an explicit synonym and conflicts with `--timeout`; prompt requires `--wait`. Finite timeouts remain 1–3600000 ms. Admission, resolution and each read remain bounded to five seconds; interruption stops the wait and never reconnects. Existing Linux polling defaults are unchanged. Prompt retains its five-second non-working activity gate.
 
 Windows wait establishes an authenticated changes checkpoint before its first canonical Get, then consumes contiguous retained pages before subsequent Gets. The single admitted session, optional monotonic total deadline and cancellation owner cover all steps. Each evaluation drains at most 512 changes, 100 per page, retaining at most one matching change. No cursor reset or foreign boot is silently recovered: lost history is an explicit rejection. A partial/failed read cannot become a matching observation.
 
-Wait version 1 on Windows adds nullable `matchedChange`. Null means the current sample matched; otherwise the historical change is the matching evidence, while `revision` and `session` remain the separate latest Get sample. The historical record never overwrites current status. `source.requestId` identifies the matching Get or changes read. Requested condition order is preserved. `--after-revision` remains a global revision fence, not turn causality. Linux and macOS wait and prompt success retain version 1. Finite/infinite failures keep their existing version and null timeout distinction.
+Wait version 1 on Windows adds nullable `matchedChange`. Null means the current sample matched; otherwise the historical change is the matching evidence, while `revision` and `session` remain the separate latest Get sample. The historical record never overwrites current status. `source.requestId` identifies the matching Get or changes read. Requested condition order is preserved. `--after-revision` remains a global revision fence, not turn causality. Linux wait and prompt success retain version 1. Finite/infinite failures keep their existing version and null timeout distinction.
 
 `blocked` matches fresh needs-attention; `done` currently matches fresh succeeded/failed/canceled/interrupted. Client-relative unseen enrichment is a separate dependent consumer and is not implied by the change feed. Evidence covers transient states, unrelated sessions, ordered pages, reset refusal, retained identity, deadline and cancellation cleanup.
 
@@ -808,7 +808,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   any runtime access under a 1 MiB program-size limit and a 1 MiB lazy-DFA cache limit.
   A missing, empty, oversized, or non-compiling value — or coexistence with `--match` — is
   `invalid-usage`.
-- `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (defaults to `30000` on every platform) and on `agent wait` (Windows defaults to no total timeout, Linux and macOS to `600000`); one decimal `u32` in `1..=3600000`.
+- `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (defaults to `30000` on every platform) and on `agent wait` (Windows and macOS default to no total timeout, Linux to `600000`); one decimal `u32` in `1..=3600000`.
   A repeated, non-numeric, or out-of-range value is `invalid-usage`.
 
 - `--target-panel <target>`: optional single-use value flag with `panel move --into-tab`;
@@ -844,11 +844,11 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
 - `--limit <n>`: single-use value flag, admitted only on `agent list`; the page size as
   one decimal `u64` in `1..=100`, defaulting to the wire contract's 50. A repeated,
   non-numeric, or out-of-range value is `invalid-usage`.
-- `--cursor <c>`: single-use value flag, admitted only on `agent list`. Windows uses
+- `--cursor <c>`: single-use value flag, admitted only on `agent list`. Windows and macOS use
   a structured `u1.<base64url>` cursor capped at 1024 characters and bound to the Session,
   source revisions, filters, Client choice and page position/fingerprint. Malformed cursors
   fail as invalid input before live source reads. Determining whether a cursor is stale requires reading current sources, so stale structured
-  cursors are rejected only after those reads. Other platforms retain their canonical
+  cursors are rejected only after those reads. Linux retains its canonical
   Server cursor contract.
 - `--until <condition>`: repeatable value flag, admitted on `agent wait` and `agent prompt --wait`; one
   condition name per occurrence drawn from the fourteen-name vocabulary
@@ -856,7 +856,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   `idle`, `unknown`, `ended`, `fresh`, `stale`, `disconnected`. Repeated values
   stay in requested order for matching and the emitted echo; a duplicate value or
   an unknown name is `invalid-usage`. Absent `--until` entirely, the effective set
-  on Windows is `idle`, `done`, `blocked`; on Linux and macOS it is `needs-attention`, `failed`,
+  on Windows and macOS is `idle`, `done`, `blocked`; on Linux it is `needs-attention`, `failed`,
   `succeeded`, `canceled`, `interrupted`, `idle`, `ended`, each in that order.
 - `--after-revision <n>`: single-use value flag, admitted only on `agent wait`;
   the optional global-revision fence as one decimal `u64` in the safe-integer
@@ -1406,7 +1406,7 @@ canonical Agent sessions only; an `ended` session is reported, never resurrected
 `--include-ended` widens the page filter rather than the lifecycle itself.
 
 `agent wait` holds one admitted Client Connection. Windows follows canonical changes as described
-in the Agent wait policy above and also reads current detail; Linux and macOS use Get polling.
+in the Agent wait policy above and also reads current detail, as macOS does; Linux uses Get polling.
 Every exchange has a fresh request identity, and no historical fields overwrite current detail. One
 optional absolute monotonic deadline sampled at command start covers admission, every read, and
 every backoff; `--forever` omits only that total ceiling; each poll runs under `min(5 s, remaining total)`. Between non-matching
@@ -1446,7 +1446,7 @@ deadline that ended the wait — the `--timeout` value for `wait-deadline`, the 
 for `read-deadline`, the five-second activity gate for a prompt's `effect-deadline` — and
 the `--until` conditions it was waiting for; those conditions reach standard error only.
 
-The existing Linux and macOS wait samples the current projected state at each completed poll — it is not a
+The existing Linux wait samples the current projected state at each completed poll — it is not a
 subscription and provides no change notification. A transition that begins and ends
 between two completed observations is missed: pending requests may clear, turn
 outcomes are replaced by later turns, and freshness moves between polls. The miss
@@ -1806,7 +1806,7 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, 
   `{matchedConditions,revision,session,wait}` where `matchedConditions` is the
   satisfying subset of the effective `until` list in requested order (1–14 unique
   condition names), `revision` is the satisfying poll's global runtime revision,
-  `session` is that poll's wire `AgentSessionDetail` verbatim. `matchedChange` separates historical matching evidence from that sample; it is nullable on Windows and unsupported on Linux and macOS; `wait` echoes the
+  `session` is that poll's wire `AgentSessionDetail` verbatim. `matchedChange` separates historical matching evidence from that sample; it is nullable on Windows and macOS and unsupported on Linux; `wait` echoes the
   effective run `{until,afterRevision,timeoutMs,observations,elapsedMs}` —
   `afterRevision` always present, null when no revision was selected.
 - `orchbee.api.snapshot` → `{snapshot}`: the complete `WorkbenchProtocolDocument::Snapshot`
@@ -2387,8 +2387,8 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Windows public process and PowerShell 5.1/7 pipeline source validation                                                                                                                                            | source completion reaches the text control's same post-source refusal; invalid sources fail first | `tests/cli_windows_input.rs`                                         |
 | PowerShell 5.1/7 completion and offline localized skill                                                                                                                                                           | scoped candidates, repeated keys, paste exclusions, sole-root skill without runtime access        | `src/cli/completion/powershell/tests.rs` + `tests/process.rs`        |
 | Scripted OBCS viewer peer + hand-built OBTF/OBRW records: increasing `requestSequence`, visible/history boundary window, real `FrameApplied` per frame, stale re-pin, excerpt tail match, deadline incl. preamble | `terminal wait-output` success + typed failures                                                   | `tests/cli_query.rs`                                                 |
-| Scripted OBLC/OBAP peers: list/get/explain verbatim outcomes, option→wire echo, denied/not-found/cursor/unavailable answers, malformed/wrong-kind/miscorrelated frames, no-retry                                  | agent read success + typed `agent-read` failures                                                  | `tests/cli_agent.rs`                                                 |
-| Agent envelopes ↔ embedded schemas: emitted success/failure documents validate; wire-impossible variants (count 129, duplicate capabilities/ceiling) rejected                                                     | schema restatement of the wire contract                                                           | `tests/cli_agent.rs`                                                 |
+| Scripted OBLC/OBAP peers: list/get/explain verbatim outcomes, option→wire echo, denied/not-found/cursor/unavailable answers, malformed/wrong-kind/miscorrelated frames, no-retry                                  | agent read success + typed `agent-read` failures                                                  | `tests/cli_agent.rs` (Linux)                                         |
+| Agent envelopes ↔ embedded schemas: emitted success/failure documents validate; wire-impossible variants (count 129, duplicate capabilities/ceiling) rejected                                                     | schema restatement of the wire contract                                                           | `tests/cli_agent.rs` (Linux)                                         |
 | Real staged-cohort Server + live TUI terminal: `wait-output` matches existing/later/scrolled-off/UTF-8 output, short deadline exits 7, cancel frees the slot                                                      | public wait observation coexisting with the TUI's own viewer                                      | `tests/local_startup_process`                                        |
 | Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                                                              | real read-only observation coexisting with the TUI's own viewer                                   | `tests/local_startup_process`                                        |
 | Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                                                                                          | exact parse/failure kinds before runtime access                                                   | `src/invocation` tests                                               |
@@ -2655,9 +2655,9 @@ Windows `project close-all <target> --confirm` explicitly closes captured member
 
 `orchbee.project.close-all` v1 separates retained Server truth from nullable wait disposition. Source is `local-workspace-group` with required-nullable Session ID. Results have only a Project scope; at most 256 captured members carry Workspace ID, label and nullable child Close. Empty groups are valid. Start/Resume submits once, followed only by reads of the same attempt/members; unknown effects are never replayed. Exit codes and partial truth follow [Project close-all](windows-worktrees.md#project-close-all). Help, `--skill` and completion declare these commands offline.
 
-## Windows Client navigation
+## Windows and macOS Client navigation
 
-[Windows Client view control](windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. The current catalog includes `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`; view/control are v1, routing failure is v1 and composed Agent Client read failure is v1. No operating-system window activation or Mac/Linux control runtime is added; Linux and macOS admit only the read-only `client list` and `client get`.
+[Windows Client view control](windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. The current catalog includes `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`; view/control are v1, routing failure is v1 and composed Agent Client read failure is v1. No operating-system window activation is added. macOS admits the same control; Linux admits only the read-only `client list` and `client get`.
 
 ## Windows offline schema export
 
@@ -2745,13 +2745,13 @@ Windows `agent focus <target> [--client <id>]` resolves a canonical Session or t
 
 For canonical session targets, Windows `agent prompt --wait` checkpoints the retained Agent change journal after runtime preflight and before submitting input once. A failed checkpoint prevents submission. The checkpoint must cover the preflight revision. Each later fully validated page preserves transient activity; a fresh newer provider version must show working/blocked or a turn-finished transition to open the activity gate. Only working/blocked conditions can match that gate event; settled conditions must match a current sample, so a transient completion followed by working keeps waiting. Metadata and freshness changes alone do not establish activity. The five-second activity gate, original total/read deadlines, pinned identity and cancellation owner remain. A current canonical sample must cover the journal head. Windows v1 separates nullable `matchedChange` and its source from the current observation; Linux remains v1. History loss or a foreign cursor fails explicitly and preserves the accepted input receipt. This proves observed activity after the checkpoint, not causality or exclusive ownership of the submitted turn.
 
-For canonical session targets, Windows `agent prompt <target> <text> --wait --client <id>` preflights one exact Client before sending and reads its attention on each later sample. The canonical activity gate still applies. Idle/done match only its current corroborated resting projection; missing/stale versions keep waiting. A lost Client or read failure stops the wait with the accepted input receipt retained. The Client read bundle is bounded to two seconds inside the existing five-second evaluation and original total deadline. No read acknowledges, focuses or resubmits. Selected-Client success is v1 with required `client`; ordinary Windows prompt remains v1 and Linux v1. `--client` requires `--wait` and has no Mac/Linux implementation.
+For canonical session targets, Windows `agent prompt <target> <text> --wait --client <id>` preflights one exact Client before sending and reads its attention on each later sample. The canonical activity gate still applies. Idle/done match only its current corroborated resting projection; missing/stale versions keep waiting. A lost Client or read failure stops the wait with the accepted input receipt retained. The Client read bundle is bounded to two seconds inside the existing five-second evaluation and original total deadline. No read acknowledges, focuses or resubmits. Selected-Client success is v1 with required `client`; ordinary Windows prompt remains v1 and Linux v1. `--client` requires `--wait`; macOS runs it as Windows does, and Linux has no implementation.
 
 ## Windows unified Agent projection
 
 Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v1. Its `source.kind` is `agent-projection`; the source carries `sessionId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows may also carry placement when a current terminal incarnation is observed with no Agent. `workspaceId` within placement is nullable. `cwd` is a nullable string. When `--include-ended` is used, ended sessions sort after all current live rows, keeping live ordinals stable; ended rows follow canonical ID order and can be inspected by exact `--agent-session`.
 
-Windows rows also carry `name`: the row's live alias, or null when it has none. The list reads the Session's names on its own connection before confirming the projection; a terminal binding names the row with that exact launch binding, a pending launch reservation names its terminal, and a session binding names the row with that `sessionId`. A row's own target wins, so a terminal's name takes precedence over its session's. Other platforms mark `name` unsupported. The text table prints `#`, `HANDLE`, `AGENT`, `NAME`, `STATE` and `CWD`; the identity `source` stays in JSON, and `agent get` text names the Agent and its state without it. Elsewhere, `agent list` text prints `SESSION`, `AGENT` and `STATE`, and `agent get` text prints the session, provider, lifecycle, status, last outcome and the kinds of pending requests; freshness, execution location, observation coordinates, capabilities, request IDs and presentation attachments stay in JSON.
+Windows rows also carry `name`: the row's live alias, or null when it has none. The list reads the Session's names on its own connection before confirming the projection; a terminal binding names the row with that exact launch binding, a pending launch reservation names its terminal, and a session binding names the row with that `sessionId`. A row's own target wins, so a terminal's name takes precedence over its session's. macOS carries `name` as Windows does; Linux marks it unsupported. The text table prints `#`, `HANDLE`, `AGENT`, `NAME`, `STATE` and `CWD`; the identity `source` stays in JSON, and `agent get` text names the Agent and its state without it. On Linux, `agent list` text prints `SESSION`, `AGENT` and `STATE`, and `agent get` text prints the session, provider, lifecycle, status, last outcome and the kinds of pending requests; freshness, execution location, observation coordinates, capabilities, request IDs and presentation attachments stay in JSON.
 
 `clientId` and every row's `client` are always present, null on Windows when no Client was selected, with canonical and terminal Client facets kept separate. Client unread state never supplies semantic Agent status. Optional cwd enrichment covers at most 64 rows per page and returns null when unavailable. Pages contain 1–100 rows (default 50); the joined output ceiling is 4096 rows and 8 MiB. Source admission can fail earlier: the canonical source is bounded to 512 sessions/six pages of 100, and physical source registration is bounded to 1024 entries. The 4096-row output ceiling does not promise that many physical sources.
 
