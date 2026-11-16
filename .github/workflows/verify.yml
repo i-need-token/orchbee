@@ -125,14 +125,20 @@ jobs:
         run: pnpm verify:rust-native --part ${{ matrix.part }} --verbose
 
   rust-macos:
-    name: Rust native (macos-15, ${{ matrix.part }})
-    # Non-blocking until macOS is green: remove this line once the macOS jobs pass.
-    continue-on-error: true
+    name: Rust native (macos-15, ${{ matrix.label }})
     strategy:
       fail-fast: false
       matrix:
-        # The same test parts as `rust-windows`.
-        part: [workspace, client, client-commands]
+        # The same test parts as `rust-windows`. The native Terminal Host tests share the shortest
+        # part's job, so a run needs three macOS runners rather than four (docs/VERIFICATION.md).
+        include:
+          - part: workspace
+            label: workspace
+          - part: client
+            label: client
+          - part: client-commands
+            label: client-commands, Terminal Host
+            host: true
     runs-on: macos-15
     timeout-minutes: 60
     steps:
@@ -155,7 +161,7 @@ jobs:
           rustc --version
           cargo --version
 
-      # The same pinned download as `terminal-host-native`.
+      # The same pinned download as the release workflow's macOS jobs.
       - name: Set up Zig
         shell: bash
         run: |
@@ -188,15 +194,19 @@ jobs:
       - name: Verify the Rust workspace natively
         run: pnpm verify:rust-native --part ${{ matrix.part }} --verbose
 
+      # Runs after a red Rust part too, so a run reports both.
+      - name: Test native Terminal Host
+        if: ${{ matrix.host && !cancelled() }}
+        run: pnpm --filter @orchbee/terminal-host test
+
+      - name: Check native Terminal Host formatting
+        if: ${{ matrix.host && !cancelled() }}
+        run: pnpm --filter @orchbee/terminal-host format:check
+
   terminal-host-native:
-    name: Terminal Host native (${{ matrix.os }})
-    # Non-blocking until macOS is green: remove this line once the macOS jobs pass.
-    continue-on-error: ${{ matrix.os == 'macos-15' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15, windows-latest]
-    runs-on: ${{ matrix.os }}
+    name: Terminal Host native (windows-latest)
+    # macOS runs these steps in the `rust-macos` client-commands job.
+    runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - name: Check out repository
@@ -211,32 +221,7 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Set up Zig on macOS
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          case "$(uname -m)" in
-            arm64)
-              zig_url="https://ziglang.org/download/0.16.0/zig-aarch64-macos-0.16.0.tar.xz"
-              zig_sha256="b23d70deaa879b5c2d486ed3316f7eaa53e84acf6fc9cc747de152450d401489"
-              ;;
-            x86_64)
-              zig_url="https://ziglang.org/download/0.16.0/zig-x86_64-macos-0.16.0.tar.xz"
-              zig_sha256="0387557ed1877bc6a2e1802c8391953baddba76081876301c522f52977b52ba7"
-              ;;
-            *)
-              exit 1
-              ;;
-          esac
-          curl --fail --location --silent --show-error --retry 5 --retry-all-errors "$zig_url" --output "$RUNNER_TEMP/orchbee-zig.tar.xz"
-          echo "$zig_sha256  $RUNNER_TEMP/orchbee-zig.tar.xz" | shasum -a 256 -c
-          mkdir -p "$RUNNER_TEMP/orchbee-zig"
-          tar -xJf "$RUNNER_TEMP/orchbee-zig.tar.xz" --strip-components=1 --directory "$RUNNER_TEMP/orchbee-zig"
-          echo "$RUNNER_TEMP/orchbee-zig" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/orchbee-zig/zig" version
-
-      - name: Set up Zig on Windows
-        if: runner.os == 'Windows'
+      - name: Set up Zig
         shell: pwsh
         run: |
           $zigUrl = 'https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip'

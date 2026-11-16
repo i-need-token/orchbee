@@ -216,7 +216,8 @@ results remain unchanged.
   the bound leaves more than six times that. A 20-minute deadline bounds the whole `zig build test`
   run, including compilation and the native witnesses outside Zig's test runner. A cold run took
   3.7 minutes and a warm run 41 seconds, so the bound leaves over five times the cold run, and it
-  stays below the 30-minute `terminal-host-native` CI job limit so the gate reports before CI
+  stays inside the CI job limits (30 minutes for `terminal-host-native`, and 60 for the macOS
+  `client-commands` job, which runs the tests after its Rust part) so the gate reports before CI
   cancels the job. Measurements: Windows 11 x64, Zig 0.16.0, 2026-10-31. On expiry the runner lists
   the test binaries still running and the process tree that run started, terminates only that tree,
   and fails with exit 124. Either timeout fails the stage, never passes or skips it. Remeasure
@@ -289,11 +290,13 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   binary: four of their real Session pairs at once saturate the four-vCPU runner, and shells then
   echo typed input seconds late.
 - The `rust-macos` job runs the same three parts of `pnpm verify:rust-native` on `macos-15`
-  (Apple Silicon), and `terminal-host-native` runs the native Terminal Host tests and formatting
-  check on `macos-15` and `windows-latest`. The macOS jobs are non-blocking
-  (`continue-on-error`) until they are green; then the flag is removed and a red macOS job counts
-  like any other. No Verify job runs on an Intel Mac runner; Intel macOS is left to the release
-  workflow's `macos-x86_64` row.
+  (Apple Silicon), and its `client-commands` job also runs the native Terminal Host tests and
+  formatting check, which `terminal-host-native` runs on `windows-latest`. macOS runners are the
+  account's scarcest, so the Terminal Host tests (about 8 minutes) share the shortest part's job
+  (about 7 minutes) instead of taking a fourth runner; that job still ends before the slowest
+  Windows part (26 to 33 minutes; measured on `main`, 2026-11-16). A red macOS job counts like any
+  other. No Verify job runs on an Intel Mac runner; Intel macOS is left to the release workflow's
+  `macos-x86_64` row.
 - Every job that builds the Terminal Host, here and in the release workflow, first runs the local
   action `.github/actions/zig-packages`. It restores Zig's package archives from the Actions cache,
   keyed on the runner's OS and architecture, the Terminal Host's `build.zig.zon` and `build.zig`,
