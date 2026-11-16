@@ -90,13 +90,21 @@ fn open_workspace(client: &mut UnixStream, value: u128) -> TestResult<Snapshot> 
         return Err(format!("Workspace create: {:?}", created.outcome).into());
     };
     let created = snapshot(client, value + 2)?;
+    // A first shell that reports another path than its Workspace's primary Directory makes the
+    // Server publish that terminal directory in a revision of its own, which the exact revisions
+    // and snapshot comparisons here cannot admit. `/tmp` is a link on macOS, so the primary names
+    // the path it reaches.
+    let directory = std::fs::canonicalize("/tmp")?;
+    let directory = directory
+        .to_str()
+        .ok_or_else(|| io::Error::other("Workspace directory path was not UTF-8"))?;
     let accepted = command(
         client,
         &created,
         value + 3,
         WorkbenchAction::WorkspacePrimaryDirectoryAccept {
             workspace_id,
-            path: orchbee_workbench_protocol::WorkbenchDirectoryPath::parse("/tmp")?,
+            path: orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(directory)?,
         },
     )?;
     assert!(
