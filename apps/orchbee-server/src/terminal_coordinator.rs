@@ -333,6 +333,21 @@ impl TerminalCoordinator {
         }
     }
 
+    /// Whether a launch has not settled: one still creating or starting, one created and waiting
+    /// for its start, or one whose outcome is unknown. Each may leave a program running.
+    #[cfg(windows)]
+    pub(crate) fn launch_unsettled(&self) -> bool {
+        self.bindings.values().any(|binding| {
+            matches!(
+                binding.phase,
+                TerminalPhase::Creating
+                    | TerminalPhase::AwaitingStart(_)
+                    | TerminalPhase::Starting(_)
+                    | TerminalPhase::Unknown(_)
+            )
+        })
+    }
+
     /// The terminals whose Host reported a start, each as the exact target a Close disposes.
     pub(crate) fn started_targets(&self) -> impl Iterator<Item = BindingViewerTarget> + '_ {
         self.bindings

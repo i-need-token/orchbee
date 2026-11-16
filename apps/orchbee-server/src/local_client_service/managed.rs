@@ -27,7 +27,15 @@ use std::{
 #[derive(Default)]
 struct Control {
     stop: AtomicBool,
-    streams: Mutex<Vec<(u64, UnixStream)>>,
+    streams: Mutex<Streams>,
+}
+
+/// Every Client connection the listener holds, admitted or still in its handshake.
+#[derive(Default)]
+struct Streams {
+    open: Vec<(u64, UnixStream)>,
+    /// The identity of the last connection opened; 0 before the first.
+    opened: u64,
 }
 
 /// Closing this owner wakes idle Clients; success proves the listener and handlers have joined.
@@ -58,6 +66,19 @@ impl ManagedClients {
         }
         Ok(())
     }
+
+    /// The idle move's view of Client connections: `None` while any is open, admitted or still in
+    /// its handshake, otherwise the identity of the last one opened. Two equal marks prove that no
+    /// connection opened between the two reads.
+    #[cfg(windows)]
+    pub(crate) fn idle_mark(&self) -> Option<u64> {
+        let streams = self
+            .control
+            .streams
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        streams.open.is_empty().then_some(streams.opened)
+    }
 }
 
 impl Drop for ManagedClients {
@@ -79,6 +100,7 @@ impl Drop for Registration {
             .streams
             .lock()
             .unwrap_or_else(|e| e.into_inner())
+            .open
             .retain(|(id, _)| *id != self.id);
     }
 }
@@ -215,11 +237,12 @@ fn start_with(
                                 continue;
                             }
                         };
-                        owner
-                            .streams
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner())
-                            .push((id, cloned));
+                        {
+                            let mut streams =
+                                owner.streams.lock().unwrap_or_else(|e| e.into_inner());
+                            streams.open.push((id, cloned));
+                            streams.opened = id;
+                        }
                         let registration = Registration {
                             control: Arc::clone(&owner),
                             id,
@@ -269,7 +292,7 @@ fn start_with(
             drop(listener);
             {
                 let streams = owner.streams.lock().unwrap_or_else(|e| e.into_inner());
-                for (_, stream) in &*streams {
+                for (_, stream) in &streams.open {
                     let _closed = stream.shutdown(Shutdown::Both);
                 }
             }

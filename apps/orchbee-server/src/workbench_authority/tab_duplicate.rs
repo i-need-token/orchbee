@@ -39,6 +39,13 @@ pub(super) struct TabDuplicates {
 }
 
 impl WorkbenchAuthority {
+    pub(super) fn tab_duplicates_pending(&self) -> bool {
+        self.tab_duplicates
+            .records
+            .values()
+            .any(|record| matches!(record.status, Status::Pending {}))
+    }
+
     /// Answers a Read, replays a known Start, or retains a new Start that passed every guard for
     /// the one owned driver. Nothing is created here.
     pub fn tab_duplicate(

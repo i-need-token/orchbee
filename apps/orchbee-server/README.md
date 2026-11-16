@@ -141,6 +141,37 @@ helper is ended through its Job within its settlement budget, and the stop never
 it. Installing, verifying and cleaning up stay with the
 [helper](../orchbee/docs/windows-cli-configuration.md#windows-release-installation).
 
+## Idle move
+
+A managed Windows Server that schedules automatic updates
+[moves its Session](../../proposals/platform/automatic-updates.md#how-the-session-moves) once it is
+older than the store's active version and the Session has stayed idle for one unbroken minute; the
+switch and the store version folder therefore gate it as they gate the schedule, and
+`update.automatic` does not. The stop loop looks once a second. Idle means no terminal that `query`
+counts and no launch that has not settled (creating, awaiting its start, starting, or with an
+unknown outcome), no Client connection open or opened since the previous look, admitted or still in
+its handshake, no helper run, and no pending Workbench operation: a terminal Tab or Panel creation,
+a Worktree operation, a Workspace group close, a Tab set close or a Tab duplication. Anything found
+starts the minute again.
+
+After the minute the Server compares the name of the version folder it runs from with the store's
+active version, found by the same rule as a run; only an older Server goes on. It then asks its
+Worker how many plugin jobs and configured commands still run, with
+[OBPJ action 6](../../crates/capability-node-protocol/README.md#configured-background-commands).
+Anything but a correlated answer of zero counts as running: no Worker, backpressure, a refusal, and
+a reply that is lost, late or uncorrelated. Nothing about the query ends the Worker or its carrier.
+Last, the Server looks again and records its own stop only if no record lease is held and no Client
+connection opened since the last look, under the lock every Client admission passes first, so a
+Client either keeps the Session or is refused with `stopping`. A check that fails waits a new
+minute, so the store and the Worker are read at most once a minute.
+
+The stop is the ordinary Session stop under a fresh identity of the Server's own. Nothing runs, so
+it asks nothing and disposes nothing, and its final capture keeps the layout for the next start,
+which runs the active version. A failed attempt is retried at each tick, since a recorded stop
+refuses every Client until it ends. A plugin hook job started in the moment between the Worker's
+answer and the stop goes unseen and ends with the Worker. The countdown rule names no platform type;
+only the Windows Session wires it.
+
 ## Managed Windows Session shutdown
 
 The managed Server automatically saves committed Workbench changes after a 500ms debounce and

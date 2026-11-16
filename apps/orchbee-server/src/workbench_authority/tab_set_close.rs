@@ -135,6 +135,13 @@ impl TabSetCloseAdmission<'_> {
 }
 
 impl WorkbenchAuthority {
+    pub(super) fn tab_sets_pending(&self) -> bool {
+        self.tab_sets
+            .records
+            .values()
+            .any(|record| matches!(record.status, Status::Pending {}))
+    }
+
     /// Answers a Read or a known Start purely, and returns a new Start that passed every guard for
     /// the Session to admit once its condition holds. `worker` is the incarnation it runs under.
     pub fn begin_tab_set_close(

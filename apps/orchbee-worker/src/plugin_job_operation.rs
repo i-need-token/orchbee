@@ -53,7 +53,8 @@ fn route(
         }
         orchbee_capability_node_protocol::PluginJobAction::List { .. }
         | orchbee_capability_node_protocol::PluginJobAction::Get { .. }
-        | orchbee_capability_node_protocol::PluginJobAction::Cancel { .. } => None,
+        | orchbee_capability_node_protocol::PluginJobAction::Cancel { .. }
+        | orchbee_capability_node_protocol::PluginJobAction::Running => None,
     };
     if let Some((directory, environment)) = fields {
         if !std::path::Path::new(directory).is_absolute() {

@@ -272,3 +272,93 @@ fn plugin_server_dispatch_pins_worker_and_preserves_transport_uncertainty() {
         wire.join().unwrap();
     }
 }
+/// The idle move's Worker query over the real carrier: only a correlated zero answer reads as idle.
+/// A running command, a refusal, an uncorrelated reply or a lost one reads as running, and none of
+/// them retires the carrier, so the next query is still answered.
+#[test]
+fn worker_process_query_reads_only_a_correlated_zero_as_idle() {
+    use crate::{
+        worker_obcn_carrier::create_worker_carrier,
+        worker_registry::{WorkerAdmission, WorkerRegistry},
+    };
+    use orchbee_local_ipc::LocalStream;
+    use orchbee_workbench_protocol::SessionId;
+    let workers = Arc::new(Mutex::new(WorkerRegistry::new()));
+    let local = orchbee_local_worker_protocol::WorkerId::from_bytes([7; 16]);
+    let WorkerAdmission::Accepted { generation } = workers.lock().unwrap().admit(local, None)
+    else {
+        panic!()
+    };
+    let owner = WorkerRegistry::register_carrier(
+        &workers,
+        generation,
+        create_worker_carrier(local, generation),
+    )
+    .unwrap();
+    let (server, mut peer) = LocalStream::pair().unwrap();
+    peer.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    peer.set_write_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let wire = thread::spawn(move || owner.run(server));
+    let service = LocalTerminalService::from_identity(
+        workers,
+        Ok(SessionId::parse(&"2".repeat(32)).unwrap()),
+    );
+    let counts = |plugin_jobs, configured_commands| node::PluginJobOutcome::Running {
+        plugin_jobs,
+        configured_commands,
+    };
+    // Each answer, whether it correlates, and the reading the query must give.
+    let script = [
+        (counts(0, 1), true, false),
+        (counts(1, 0), true, false),
+        (
+            node::PluginJobOutcome::Refused(node::PluginJobRefusal::PhysicalUnknown),
+            true,
+            false,
+        ),
+        (counts(0, 0), false, false),
+        (counts(0, 0), true, true),
+    ];
+    let answers = script
+        .iter()
+        .map(|(outcome, correlated, _)| (outcome.clone(), *correlated))
+        .collect::<Vec<_>>();
+    let driver = thread::spawn(move || {
+        for (outcome, correlated) in answers {
+            let node::CapabilityNodeMessage::PluginJobRequest(request) =
+                node::read_message(&mut peer).unwrap()
+            else {
+                panic!()
+            };
+            assert_eq!(request.action, node::PluginJobAction::Running);
+            let operation_id = if correlated {
+                request.operation_id
+            } else {
+                node::OperationId::from_bytes([9; 16]).unwrap()
+            };
+            node::write_message(
+                &mut peer,
+                &node::CapabilityNodeMessage::PluginJobResult(node::PluginJobResult {
+                    operation_id,
+                    worker_id: request.worker_id,
+                    worker_generation: request.worker_generation,
+                    outcome,
+                }),
+            )
+            .unwrap();
+        }
+        // The last query finds the Worker gone without an answer.
+        assert!(matches!(
+            node::read_message(&mut peer).unwrap(),
+            node::CapabilityNodeMessage::PluginJobRequest(_)
+        ));
+    });
+    for (_, _, idle) in script {
+        assert_eq!(service.worker_processes_idle(), idle);
+    }
+    assert!(!service.worker_processes_idle());
+    driver.join().unwrap();
+    drop(service);
+    wire.join().unwrap();
+}

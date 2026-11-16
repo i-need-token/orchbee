@@ -201,6 +201,22 @@ impl LocalTerminalService {
         u32::try_from(coordinator.terminal_count()).unwrap_or(u32::MAX)
     }
 
+    /// Whether a terminal runs, or a launch has not settled. A poisoned coordinator reads as one.
+    #[cfg(windows)]
+    pub(crate) fn terminal_activity(&self) -> bool {
+        self.coordinator
+            .lock()
+            .map_or(true, |coordinator| coordinator.terminal_activity())
+    }
+
+    /// Whether a Workbench operation is pending. A poisoned coordinator reads as one.
+    #[cfg(windows)]
+    pub(crate) fn operation_pending(&self) -> bool {
+        self.coordinator
+            .lock()
+            .map_or(true, |coordinator| coordinator.operation_pending())
+    }
+
     pub(crate) fn workbench_session_matches(
         &self,
         session: &orchbee_workbench_protocol::SessionId,

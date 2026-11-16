@@ -211,6 +211,26 @@ impl SessionShutdown {
         if state.entry.is_some() {
             return false;
         }
+        self.record_own(&mut state, id);
+        true
+    }
+
+    /// Admits the idle move's stop under `id` only while nothing is admitted at this moment: no
+    /// stop, `drain` or `exit` recorded, no record lease held, and `idle` holds. `idle` runs under
+    /// this owner's lock, which every Client admission passes through first, so a Client is either
+    /// seen by `idle` or refused afterwards. It must not call back into this owner.
+    #[cfg(any(windows, test))]
+    pub(crate) fn begin_idle(&self, id: StopId, idle: impl FnOnce() -> bool) -> bool {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.entry.is_some() || state.course != Course::Serving || state.records > 0 || !idle()
+        {
+            return false;
+        }
+        self.record_own(&mut state, id);
+        true
+    }
+
+    fn record_own(&self, state: &mut State, id: StopId) {
         state.entry = Some(Entry {
             attempt: Attempt {
                 id,
@@ -219,7 +239,6 @@ impl SessionShutdown {
             progress: Progress::Queued,
         });
         self.changed.notify_all();
-        true
     }
 
     /// Waits up to `timeout` for one queued attempt, granting its execution ownership exactly once,

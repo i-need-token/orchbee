@@ -183,6 +183,6 @@ fn control_fences_admission_freezes_new_hellos_and_joins_idle_and_partial_client
     let mut byte = [0];
     assert_eq!(admitted.read(&mut byte).unwrap(), 0);
     assert_eq!(partial.read(&mut byte).unwrap(), 0);
-    assert!(service.control.streams.lock().unwrap().is_empty());
+    assert!(service.control.streams.lock().unwrap().open.is_empty());
     assert!(service.thread.is_none());
 }

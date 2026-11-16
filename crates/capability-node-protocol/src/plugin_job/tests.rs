@@ -184,10 +184,32 @@ fn plugin_query_cancel_and_refusal_tags_roundtrip() {
         PluginJobAction::Cancel {
             job_id: OperationId::from_bytes([4; 16]).unwrap(),
         },
+        PluginJobAction::Running,
     ] {
         let m = Message::PluginJobRequest(request(action));
         assert_eq!(decode_message(&encode_message(&m).unwrap()).unwrap(), m);
     }
+    // Only a Running query accepts the running counts, and a Running query accepts nothing else.
+    let query = request(PluginJobAction::Running);
+    let mut counts = PluginJobResult {
+        operation_id: query.operation_id,
+        worker_id: query.worker_id,
+        worker_generation: query.worker_generation,
+        outcome: PluginJobOutcome::Running {
+            plugin_jobs: 2,
+            configured_commands: 1,
+        },
+    };
+    let m = Message::PluginJobResult(counts.clone());
+    assert_eq!(decode_message(&encode_message(&m).unwrap()).unwrap(), m);
+    assert!(counts.answers(&query));
+    assert!(!counts.answers(&request(PluginJobAction::Cancel {
+        job_id: OperationId::from_bytes([4; 16]).unwrap(),
+    })));
+    counts.outcome = PluginJobOutcome::Cancellation {
+        already_complete: true,
+    };
+    assert!(!counts.answers(&query));
     for refusal in [
         PluginJobRefusal::RejectedFencing,
         PluginJobRefusal::InvalidIntent,

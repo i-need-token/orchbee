@@ -115,6 +115,12 @@ impl PluginJobs {
                     },
                 }
             }
+            // A retired owner cannot vouch that its processes ended, so it answers no count.
+            PluginJobAction::Running if inner.retired => Outcome::Refused(Refusal::PhysicalUnknown),
+            PluginJobAction::Running => Outcome::Running {
+                plugin_jobs: count(running_plugin_jobs(&inner)),
+                configured_commands: count(running_commands(&inner)),
+            },
         }
     }
     fn start(&self, inner: &mut Inner, id: OperationId, intent: PluginCommandIntent) -> Outcome {
@@ -272,12 +278,21 @@ impl Drop for PluginJobs {
     }
 }
 fn running(inner: &Inner) -> usize {
+    running_plugin_jobs(inner) + running_commands(inner)
+}
+fn running_plugin_jobs(inner: &Inner) -> usize {
     inner
         .records
         .iter()
         .filter(|r| matches!(r.state, State::Running { .. }))
         .count()
-        + inner.commands.iter().filter(|r| r.running()).count()
+}
+fn running_commands(inner: &Inner) -> usize {
+    inner.commands.iter().filter(|r| r.running()).count()
+}
+/// Admission keeps each count within [`MAX_RUNNING`]; a larger one still reads as running.
+fn count(running: usize) -> u8 {
+    u8::try_from(running).unwrap_or(u8::MAX)
 }
 fn now_ms() -> u64 {
     SystemTime::now()

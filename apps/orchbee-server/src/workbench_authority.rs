@@ -376,6 +376,22 @@ impl WorkbenchAuthority {
         &self.projection.snapshot().session_id
     }
 
+    /// Whether an operation this authority retains is still pending: a terminal Tab or Panel
+    /// creation not yet settled, or a Worktree operation, Workspace group close, Tab set close or
+    /// Tab duplication not yet ended.
+    #[must_use]
+    pub fn operation_pending(&self) -> bool {
+        self.ledger.values().any(|request| {
+            matches!(
+                request,
+                RetainedRequest::PendingTabCreate(_) | RetainedRequest::PendingPanelCreate(_)
+            )
+        }) || self.worktrees_pending()
+            || self.workspace_group_close_active()
+            || self.tab_sets_pending()
+            || self.tab_duplicates_pending()
+    }
+
     /// The committed projection head. Callers already hold the coordinator
     /// lock, so the returned snapshot is a consistent join with any retained
     /// terminal facts resolved under the same acquisition.

@@ -176,6 +176,55 @@ fn configured_shell_is_retained_independently_and_shutdown_joins_its_process() {
     );
     owned.cleanup().unwrap();
 }
+/// The idle move's Worker query, through the dispatch the Worker loops use: a configured `shell`
+/// command that runs keeps the count above zero, and one that ended no longer counts.
+#[test]
+fn running_query_counts_a_configured_shell_command_only_while_it_runs() {
+    let mut owned = ConfiguredFixture::new();
+    let ask = |n, action| {
+        crate::plugin_job_operation::execute(
+            orchbee_capability_node_protocol::PluginJobRequest {
+                operation_id: id(n),
+                worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([3; 16]).unwrap(),
+                worker_generation: orchbee_capability_node_protocol::WorkerGeneration::new(
+                    std::num::NonZeroU64::MIN,
+                ),
+                action,
+            },
+            orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
+            std::num::NonZeroU64::MIN,
+            &owned.jobs,
+            None,
+        )
+        .outcome
+    };
+    let counts = |configured_commands| Outcome::Running {
+        plugin_jobs: 0,
+        configured_commands,
+    };
+    assert_eq!(ask(900, PluginJobAction::Running), counts(0));
+    let command = orchbee_capability_node_protocol::ConfiguredCommandIntent {
+        command_id: "cmd_profile_0".into(),
+        directory: owned.directory.to_str().unwrap().into(),
+        // About two seconds, far longer than the query that follows its confirmed start.
+        command: "ping -n 3 127.0.0.1 >nul".into(),
+        environment: vec![],
+    };
+    assert_eq!(
+        ask(901, PluginJobAction::StartConfigured(command)),
+        Outcome::ConfiguredStarted {
+            job_id: id(901),
+            existing: false
+        }
+    );
+    assert_eq!(ask(902, PluginJobAction::Running), counts(1));
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while ask(903, PluginJobAction::Running) != counts(0) {
+        assert!(Instant::now() < deadline, "the configured command ended");
+        thread::sleep(Duration::from_millis(50));
+    }
+    owned.cleanup().unwrap();
+}
 fn intent(args: &[&str]) -> PluginCommandIntent {
     PluginCommandIntent {
         plugin_id: "test".into(),

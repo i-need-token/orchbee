@@ -21,6 +21,9 @@ mod client_view_registry;
 mod fault_records;
 #[cfg(any(unix, windows))]
 mod frame_directory;
+// The rule names no platform type; only the Windows Session wires it yet.
+#[cfg(any(windows, test))]
+mod idle_move;
 #[cfg(any(unix, windows))]
 mod local_client_service;
 #[cfg(any(unix, windows))]

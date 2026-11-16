@@ -167,3 +167,23 @@ fn the_process_ends_only_after_each_exit_requester_replies() {
     let _silent = state.exit();
     assert!(!state.end(Instant::now() + Duration::from_millis(20)));
 }
+
+#[test]
+fn an_idle_stop_begins_only_with_nothing_admitted() {
+    let id = StopId::new([9; 16]).unwrap();
+    // An admitted record, a Client the check sees, or a drain each refuse the idle stop.
+    let state = SessionShutdown::default();
+    let record = state.enter().unwrap();
+    assert!(!state.begin_idle(id, || true));
+    drop(record);
+    assert!(!state.begin_idle(id, || false));
+    let drained = SessionShutdown::default();
+    drained.drain();
+    assert!(!drained.begin_idle(id, || true));
+    // Once begun, the stop is the owner's next work and every later Client is refused.
+    assert!(state.begin_idle(id, || true));
+    assert!(state.enter().is_none());
+    assert_eq!(attempt(&state).id, id);
+    // An idle stop never replaces a stop already recorded.
+    assert!(!state.begin_idle(StopId::new([8; 16]).unwrap(), || true));
+}

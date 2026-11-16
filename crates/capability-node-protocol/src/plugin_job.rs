@@ -151,6 +151,9 @@ pub enum PluginJobAction {
     Cancel {
         job_id: OperationId,
     },
+    /// Asks how many plugin jobs and configured commands still run. It reads only; nothing in
+    /// the Worker changes.
+    Running,
 }
 impl PluginJobAction {
     pub fn validate(&self) -> Result<(), ProtocolError> {
@@ -173,7 +176,7 @@ impl PluginJobAction {
                 }
                 Ok(())
             }
-            Self::Get { .. } | Self::Cancel { .. } => Ok(()),
+            Self::Get { .. } | Self::Cancel { .. } | Self::Running => Ok(()),
         }
     }
 }
@@ -289,6 +292,11 @@ pub enum PluginJobOutcome {
     Cancellation {
         already_complete: bool,
     },
+    /// The plugin jobs and configured commands still running when the Worker answered.
+    Running {
+        plugin_jobs: u8,
+        configured_commands: u8,
+    },
     Refused(PluginJobRefusal),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -323,7 +331,9 @@ impl PluginJobResult {
                     log.validate()?;
                 }
             }
-            PluginJobOutcome::Cancellation { .. } | PluginJobOutcome::Refused(_) => {}
+            PluginJobOutcome::Cancellation { .. }
+            | PluginJobOutcome::Running { .. }
+            | PluginJobOutcome::Refused(_) => {}
         }
         Ok(())
     }
@@ -367,6 +377,9 @@ impl PluginJobResult {
                 }
                 PluginJobAction::Cancel { .. } => {
                     matches!(&self.outcome, PluginJobOutcome::Cancellation { .. }) || refused
+                }
+                PluginJobAction::Running => {
+                    matches!(&self.outcome, PluginJobOutcome::Running { .. }) || refused
                 }
             }
     }

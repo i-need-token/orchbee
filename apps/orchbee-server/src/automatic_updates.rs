@@ -4,12 +4,16 @@
 //! process holds, at below-normal priority, with bounded output, on the schedule's own thread; no
 //! Session work waits on it, its failure only writes the outcome record, and it ends with the
 //! Server. Installing, verifying and cleaning up stay with the helper; this owner never touches the
-//! store.
+//! store. It also answers the [idle move](crate::idle_move) whether the helper runs and whether the
+//! store's active version has passed this Server.
 use crate::local_terminal_service::LocalTerminalService;
 use orchbee_local_runtime::{EnvironmentKind, LogLevel, LogValue, log_event};
 use std::{
     path::Path,
-    sync::{Arc, Condvar, Mutex, PoisonError},
+    sync::{
+        Arc, Condvar, Mutex, PoisonError,
+        atomic::{AtomicBool, Ordering},
+    },
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
@@ -29,6 +33,10 @@ const FEED_VARIABLE: &str = "ORCHBEE_UPDATE_FEED";
 pub(crate) struct AutomaticUpdates {
     stop: Arc<Stop>,
     thread: Option<JoinHandle<()>>,
+    /// Whether the helper runs now.
+    helper: Arc<AtomicBool>,
+    /// The name of the store version folder this Server runs from.
+    own_version: String,
 }
 
 impl AutomaticUpdates {
@@ -36,14 +44,14 @@ impl AutomaticUpdates {
     /// when the build would schedule at all. None means nothing runs: the build or the Server's
     /// place rules it out, or the schedule's thread could not start.
     pub(crate) fn start(terminals: Arc<LocalTerminalService>) -> Option<Self> {
+        let own_directory = std::env::current_exe()
+            .ok()
+            .and_then(|executable| executable.parent().map(Path::to_path_buf));
         let decision = rule(
             orchbee_local_runtime::environment_kind(),
             orchbee_local_runtime::automatic_updates_live(),
             std::env::var_os(FEED_VARIABLE).is_some_and(|value| !value.is_empty()),
-            std::env::current_exe()
-                .ok()
-                .as_deref()
-                .and_then(Path::parent),
+            own_directory.as_deref(),
         );
         match decision {
             Decision::Scheduled => {}
@@ -55,15 +63,31 @@ impl AutomaticUpdates {
             // switch leave no trace, so a dark build writes nothing about automatic updates.
             Decision::Unscheduled(_) => return None,
         }
+        // The rule schedules only a Server that runs from a store version folder, which a valid
+        // version names.
+        let own_version = own_directory
+            .as_deref()
+            .and_then(Path::file_name)
+            .and_then(|name| name.to_str())?
+            .to_owned();
         let stop = Arc::new(Stop::default());
         let owner = Arc::clone(&stop);
+        let helper = Arc::new(AtomicBool::new(false));
+        let running = Arc::clone(&helper);
         let spawned = thread::Builder::new()
             .name("orchbee-automatic-update".into())
             .spawn(move || {
                 serve(
                     &*owner,
                     || terminals.automatic_updates_enabled(),
-                    || helper::run(&owner),
+                    || {
+                        // A helper that panics leaves the flag set, so the Session never moves
+                        // under a helper whose end nothing observed.
+                        running.store(true, Ordering::Release);
+                        let outcome = helper::run(&owner);
+                        running.store(false, Ordering::Release);
+                        outcome
+                    },
                     Outcome::record,
                 );
             });
@@ -73,6 +97,8 @@ impl AutomaticUpdates {
                 Some(Self {
                     stop,
                     thread: Some(thread),
+                    helper,
+                    own_version,
                 })
             }
             Err(_) => {
@@ -92,6 +118,25 @@ impl AutomaticUpdates {
             // A panic already reached the log through the panic hook; nothing is left to settle.
             let _ = thread.join();
         }
+    }
+
+    /// Whether the helper runs now. It holds the active version folder and may start its Client.
+    pub(crate) fn helper_running(&self) -> bool {
+        self.helper.load(Ordering::Acquire)
+    }
+
+    /// Whether the store's active version, found as a run and the next Client start find it, is
+    /// newer than the version folder this Server runs from. A store whose active version cannot be
+    /// read answers false.
+    pub(crate) fn superseded(&self) -> bool {
+        let Ok(root) = orchbee_local_runtime::release_store_root(|name| std::env::var_os(name))
+        else {
+            return false;
+        };
+        matches!(
+            orchbee_local_runtime::active_release(&root),
+            Ok(Some(active)) if crate::idle_move::older(&self.own_version, &active.version)
+        )
     }
 }
 

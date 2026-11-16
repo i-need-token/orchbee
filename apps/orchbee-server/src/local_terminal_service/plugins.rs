@@ -169,6 +169,8 @@ impl LocalTerminalService {
                     already_complete,
                 }
             }
+            // Only a Running query is answered with counts, and no Client action sends one.
+            node::PluginJobOutcome::Running { .. } => return Err(Failure::InvalidIntent),
             node::PluginJobOutcome::Refused(reason) => Outcome::Failed {
                 reason: match reason {
                     node::PluginJobRefusal::RejectedFencing => Failure::WorkerChanged,
@@ -182,6 +184,35 @@ impl LocalTerminalService {
                 },
             },
         })
+    }
+
+    /// Whether the Worker reports that none of its plugin jobs and configured commands still runs.
+    /// The query only reads. Anything short of a correlated zero answer reads as running: no
+    /// Worker or identity, backpressure, a refusal, or a reply that is lost, late or does not
+    /// correlate. None of these ends the Worker or its carrier.
+    #[cfg(windows)]
+    pub(crate) fn worker_processes_idle(&self) -> bool {
+        let identity = self
+            .coordinator
+            .lock()
+            .ok()
+            .and_then(|mut coordinator| coordinator.allocate_identity_block(1))
+            .and_then(|value| node::OperationId::from_bytes(value.to_be_bytes()).ok());
+        let handle = self
+            .workers
+            .lock()
+            .ok()
+            .and_then(|workers| workers.request_handle());
+        let (Some(identity), Some(handle)) = (identity, handle) else {
+            return false;
+        };
+        matches!(
+            request_plugin_job(&handle, identity, node::PluginJobAction::Running),
+            Ok(node::PluginJobOutcome::Running {
+                plugin_jobs: 0,
+                configured_commands: 0
+            })
+        )
     }
 }
 /// A Worker plugin-job exchange without a correlated answer.

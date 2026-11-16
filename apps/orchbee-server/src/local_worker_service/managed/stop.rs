@@ -31,6 +31,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(windows)]
+mod idle;
+
 /// One stop attempt's cooperative deadline.
 const STOP_ATTEMPT_BUDGET: Duration = Duration::from_secs(60);
 /// The most of an attempt the Worker may spend disposing terminals and stopping its Host. The rest
@@ -114,9 +117,11 @@ pub(super) fn run(
             crate::automatic_updates::AutomaticUpdates::start(Arc::clone(&owners.terminals));
     }
     let mut worker_completed = false;
+    #[cfg(windows)]
+    let mut idle = idle::IdleMove::default();
     loop {
         #[cfg(windows)]
-        let work = next_work(&mut owners, &shutdown);
+        let work = next_work(&mut owners, &shutdown, &clients, &mut idle);
         #[cfg(unix)]
         let work = next_work(&mut owners, &shutdown, own);
         let attempt = match work {
@@ -419,9 +424,14 @@ fn settle(
 /// Waits for a stop request or an `exit`. The managed Session never enrolls a replacement Worker,
 /// so once its Worker has exited and that Worker's Host is gone too, no terminal can run here again
 /// and the Server begins its own stop. While that Host still runs, the Server keeps running beside
-/// it.
+/// it. Each tick also feeds the idle move.
 #[cfg(windows)]
-fn next_work(owners: &mut Owners, shutdown: &SessionShutdown) -> Work {
+fn next_work(
+    owners: &mut Owners,
+    shutdown: &SessionShutdown,
+    clients: &local_client_service::ManagedClients,
+    idle: &mut idle::IdleMove,
+) -> Work {
     loop {
         if let Some(work) = shutdown.take_within(Duration::from_secs(1)) {
             return work;
@@ -433,6 +443,7 @@ fn next_work(owners: &mut Owners, shutdown: &SessionShutdown) -> Work {
         {
             shutdown.begin(id);
         }
+        idle.tick(owners, shutdown, clients);
     }
 }
 

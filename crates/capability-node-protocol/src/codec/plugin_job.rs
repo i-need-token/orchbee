@@ -68,6 +68,7 @@ pub(super) fn encode(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoco
                     body.push(4);
                     body.extend(job_id.as_bytes());
                 }
+                PluginJobAction::Running => body.push(6),
             }
         }
         CapabilityNodeMessage::PluginJobResult(value) => {
@@ -98,6 +99,10 @@ pub(super) fn encode(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoco
                 PluginJobOutcome::Cancellation { already_complete } => {
                     body.extend([3, u8::from(*already_complete)])
                 }
+                PluginJobOutcome::Running {
+                    plugin_jobs,
+                    configured_commands,
+                } => body.extend([6, *plugin_jobs, *configured_commands]),
                 PluginJobOutcome::Refused(reason) => body.extend([
                     4,
                     match reason {
@@ -318,6 +323,7 @@ fn decode_body(body: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
                 4 => PluginJobAction::Cancel {
                     job_id: OperationId::from_bytes(r.read_array()?)?,
                 },
+                6 => PluginJobAction::Running,
                 _ => return Err(ProtocolError::InvalidPayload),
             };
             action.validate()?;
@@ -357,6 +363,10 @@ fn decode_body(body: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
                 }
                 3 => PluginJobOutcome::Cancellation {
                     already_complete: boolean(&mut r)?,
+                },
+                6 => PluginJobOutcome::Running {
+                    plugin_jobs: r.read_u8()?,
+                    configured_commands: r.read_u8()?,
                 },
                 4 => PluginJobOutcome::Refused(match r.read_u8()? {
                     1 => PluginJobRefusal::RejectedFencing,

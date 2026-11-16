@@ -121,6 +121,21 @@ impl SessionCoordinator {
             .count()
     }
 
+    /// Whether a terminal runs or may run: one counted by [`Self::terminal_count`], or a launch
+    /// that has not settled.
+    #[cfg(windows)]
+    pub(crate) fn terminal_activity(&self) -> bool {
+        self.terminal_count() > 0 || self.terminals.launch_unsettled()
+    }
+
+    /// Whether a Workbench operation is pending.
+    #[cfg(windows)]
+    pub(crate) fn operation_pending(&self) -> bool {
+        self.workbench
+            .as_ref()
+            .is_some_and(WorkbenchAuthority::operation_pending)
+    }
+
     pub(crate) fn workbench_session_matches(
         &self,
         session: &orchbee_workbench_protocol::SessionId,

@@ -1213,7 +1213,7 @@ tests exercise real protocol exchanges, not a packaged Worker/Host process accep
 
 ## Windows plugin process ownership
 
-The admitted request loop also serves bounded plugin-job start/list/get/cancel records before and after Host creation. `plugin_jobs` retains up to 32 command owners and 200 logs; the shared `orchbee-local-runtime` Windows command owner supplies the same Job settlement used by Git. CLI disconnect leaves accepted work running. Explicit Session shutdown signals, settles and joins all plugin owners before reporting success; every other exit uses the shared [background job window](#background-job-owners-and-exit), and Drop never waits. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns invocation, paging, output limits and remaining integration.
+The admitted request loop also serves bounded plugin-job start/list/get/cancel/running records before and after Host creation. The running query answers from memory how many plugin jobs and configured commands still run, which the Server's [idle move](../orchbee-server/README.md#idle-move) reads; an owner whose cleanup is unknown refuses it with `physical-unknown`, and it changes nothing. `plugin_jobs` retains up to 32 command owners and 200 logs; the shared `orchbee-local-runtime` Windows command owner supplies the same Job settlement used by Git. CLI disconnect leaves accepted work running. Explicit Session shutdown signals, settles and joins all plugin owners before reporting success; every other exit uses the shared [background job window](#background-job-owners-and-exit), and Drop never waits. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns invocation, paging, output limits and remaining integration.
 
 ## Plugin terminal launch environment
 

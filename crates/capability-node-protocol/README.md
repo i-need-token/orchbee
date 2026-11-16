@@ -67,6 +67,12 @@ Plugin and configured jobs share the 32-running-process admission bound.
 Configured receipts are bounded to 200 records and are never exposed as plugin
 history. Shutdown cancels and joins both kinds before a complete receipt.
 
+Request action 6 carries no operand and reads how many plugin jobs and configured commands still
+run; result outcome 6 carries both counts as `u8`. It changes nothing in the Worker, and a Worker
+whose process cleanup is unknown refuses it with `physical-unknown`. Action 6 is same-version only:
+the Server sends it only to the Worker it started from its own version folder, so it carries no
+negotiation, and a Worker that predates it would reject the frame as malformed.
+
 ## Agent start command
 
 A default or explicit launch may carry an `AgentStartCommand`: the command the launched shell runs
@@ -740,7 +746,7 @@ select the default program, so decoders refuse kind 2 as invalid payload.
 
 ## Plugin job records
 
-Plugin requests/results use distinct `OBPJ` records: magic, encoding version 1 (`u16`), reserved zero (`u16`), bounded big-endian `u32` body length, maximum 2 MiB. Ordinary OBCN frames stay unchanged. Bodies carry direction, operation ID, Worker ID/generation and checked start/list/get/cancel or started/logs/cancellation/refused variants. Strings and byte buffers have `u32` lengths, argv counts `u16`, environment/page counts `u8`; no trailing bytes are accepted. Frozen intent is capped at 160 KiB, argv at 128 entries/128 KiB and each retained output stream at 64 KiB. Pages carry at most four descending logs and a consistent next sequence. Frame validation does not grant execution authority. Server/Worker matched cohorts activate together; [the owning native plugin guide](../../apps/orchbee/docs/windows-plugins.md) defines lifecycle and semantics.
+Plugin requests/results use distinct `OBPJ` records: magic, encoding version 1 (`u16`), reserved zero (`u16`), bounded big-endian `u32` body length, maximum 2 MiB. Ordinary OBCN frames stay unchanged. Bodies carry direction, operation ID, Worker ID/generation and checked start/list/get/cancel/running or started/logs/cancellation/running/refused variants. Strings and byte buffers have `u32` lengths, argv counts `u16`, environment/page counts `u8`; no trailing bytes are accepted. Frozen intent is capped at 160 KiB, argv at 128 entries/128 KiB and each retained output stream at 64 KiB. Pages carry at most four descending logs and a consistent next sequence. Frame validation does not grant execution authority. Server/Worker matched cohorts activate together; [the owning native plugin guide](../../apps/orchbee/docs/windows-plugins.md) defines lifecycle and semantics.
 
 ## Plugin terminal display environment
 
