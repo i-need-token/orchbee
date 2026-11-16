@@ -352,8 +352,7 @@ static int darwin_read_member_process_info(
 
 // XNU answers task_name_for_pid with KERN_FAILURE both when it refuses the
 // caller and when it no longer hands the process out: once its exit has begun,
-// as a zombie, or when the PID is gone. A process whose task is already gone
-// is answered with success and no right. The caller's prefilter already placed
+// as a zombie, or when the PID is gone. The caller's prefilter already placed
 // this PID in the owned session, so ask getsid again: a PID that no longer
 // answers, or answers another session, was lost (0), and the scan restarts. A
 // PID still in the session was refused. The owned-session candidate capability
@@ -382,12 +381,16 @@ static int acquire_session_member_ref(
         errno = ENOMEM;
         return -1;
     }
-    if (task_result != KERN_SUCCESS || task == MACH_PORT_NULL) {
+    if (task_result != KERN_SUCCESS) {
         if (task_result == KERN_INVALID_ARGUMENT || task_result == KERN_TERMINATED) {
             return 0;
         }
         return darwin_classify_unacquired_member(pid, session_id);
     }
+    // XNU grants an empty right only after its permission check, to a process
+    // whose task is already gone while its exit finishes; getsid still names
+    // the session then. It was lost, not refused.
+    if (task == MACH_PORT_NULL) return 0;
 
     audit_token_t audit_token = {0};
     const int token_result = darwin_read_task_audit_token(task, &audit_token);

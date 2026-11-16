@@ -702,11 +702,13 @@ observed only by a fresh scan and stable reference.
   acquisition loss, `ESRCH`, a terminated, invalid or dead task right, token change, or exact-ID
   loss fails the whole scan for retry; exec or same-session PID ABA can therefore never become false
   empty evidence. XNU refuses a task-name right with the same `KERN_FAILURE` it gives a process
-  whose exit has begun, and grants an empty right to a process without a task, so either answer
-  asks `getsid` again: a candidate that no longer answers, or answers another session, was lost and
-  the scan retries, while one still in the session was refused and the operation fails. It signals
-  through `proc_signal_with_audittoken`, validates liveness through the task right and exact
-  PID-version query, and deallocates the task-name right after the member operation.
+  whose exit has begun, so that answer asks `getsid` again: a candidate that no longer answers, or
+  answers another session, was lost and the scan retries, while one still in the session was
+  refused and the operation fails. An empty right comes only after XNU's permission check, from a
+  process whose task is gone while its exit finishes and whose `getsid` still names the session; it
+  is a loss too. It signals through `proc_signal_with_audittoken`, validates liveness through the
+  task right and exact PID-version query, and deallocates the task-name right after the member
+  operation.
 - FreeBSD verifies that the Terminal Host is a process reaper before any terminal leader is forked.
   `PROC_REAP_KILL` with `REAPER_KILL_SUBTREE` and `PROC_REAP_GETPIDS` use the retained direct-child
   leader as the subtree identity; the kernel resolves members while holding process identities.
