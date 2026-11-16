@@ -465,19 +465,23 @@ Notes about Client views and input are taken while their paths hold the coordina
 
 Each read then decides:
 
-| Shell report       | Process sample                                        | Decision                                  |
-| ------------------ | ----------------------------------------------------- | ----------------------------------------- |
-| Running            | Any                                                   | Give up: not idle.                        |
-| Any                | No sample                                             | Wait.                                     |
-| Any                | Another program beside the shell and its console host | Give up: not idle.                        |
-| Any                | Launch kind is another shell                          | Give up: unsupported shell.               |
-| Any                | No launch kind                                        | Give up: terminal too old.                |
-| Any                | Row limit reached or an unreadable row                | Wait.                                     |
-| At prompt          | Shell only                                            | Try the gated send.                       |
-| Silent or no frame | Shell only                                            | Wait: only the Host can confirm a prompt. |
+| Shell report        | Process sample                                        | Decision                    |
+| ------------------- | ----------------------------------------------------- | --------------------------- |
+| Running             | Any                                                   | Give up: not idle.          |
+| Any                 | No sample                                             | Wait.                       |
+| Any                 | Another program beside the shell and its console host | Give up: not idle.          |
+| Any                 | Launch kind is another shell                          | Give up: unsupported shell. |
+| Any                 | No launch kind                                        | Give up: terminal too old.  |
+| Any                 | Row limit reached or an unreadable row                | Wait.                       |
+| At prompt or silent | Shell only                                            | Try the gated send.         |
+| No frame            | Shell only                                            | Wait.                       |
 
-A shell's report is only a sign that a send is worth trying; the Host's gate decides. Silence never
-admits a send, since a silent shell may be a program waiting for input.
+A shell's report is only a sign that a send is worth trying; the Host's gate decides, typing only
+at a fresh, empty prompt it confirmed. A silent shell is tried too: the Client viewing a restored
+Panel resizes it within the settle, and the console host's repaint erases the prompt's marks from
+every later frame while the Host's gate still holds that prompt. With no Client input or command
+since the restore and the shell alone in its console, nothing else can be waiting for input there.
+Agent start delivery does not count silence.
 
 The shell-only rule is the strict idle-shell rule an Agent start uses, shared in
 `orchbee-agent-observation-protocol`. The directory, the reported one else the root's, must equal

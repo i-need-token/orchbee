@@ -55,8 +55,9 @@ acceptance before its first sample, and from the last read that had one in overt
 A marked cmd's line is the command and its arguments joined by single spaces, the same tokens a
 managed shell runs; every token is plain ASCII without spaces, quotes or shell syntax, so cmd reads
 none as code. The line is sent only when the prompt readiness rule it shares with
-[resume](agent-session-resume.md#guards), without resume's directory check, admits a shell at its
-prompt with nothing else in its console, and only through the Host's prompt gate, as one idle-prompt
+[resume](agent-session-resume.md#guards), without resume's directory check, admits a shell its frame
+shows at its prompt with nothing else in its console, a silent one waiting unlike in resume, and
+only through the Host's prompt gate, as one idle-prompt
 submission of a paste and Enter. A refusal that typed nothing waits 250 milliseconds, or the
 prompt's quiet period when the Host found it settling, and reads again. A Host without the gate ends
 `terminal-too-old`. Any other result ends with no fact and is never sent again, since part of the

@@ -1,5 +1,5 @@
 //! The delivery rule's decisions: a gated resume is tried only in an idle shell the Host launched
-//! with prompt marks, at its prompt in the retained directory, and never in a busy, foreign or
+//! with prompt marks, at its prompt or silent in the retained directory, and never in a busy, foreign or
 //! too-old terminal; and the handover of a retried reference to the driver at any point of its run.
 //! Timing, ordering, the Host's gate and wiring are witnessed end to end by
 //! `cli_windows_agent_resume`.
@@ -143,6 +143,26 @@ fn a_shell_at_its_prompt_in_the_retained_directory_receives_the_resume_for_its_k
 }
 
 #[test]
+fn a_silent_shell_in_the_retained_directory_is_offered_to_the_hosts_gate() {
+    // The viewing Client's resize repaints the console, which erases the prompt's marks from every
+    // later frame while the Host's gate still holds the prompt: only the gate can tell.
+    for (root, shell) in [
+        (managed_powershell(), MarkedShell::ManagedPowerShell),
+        (cmd(), MarkedShell::Cmd),
+    ] {
+        let idle = sample(root, vec![conhost(2)]);
+        assert_eq!(
+            decide(&facts(
+                Some(ShellReport::Silent),
+                Some(idle),
+                Some(RETAINED)
+            )),
+            Readiness::Try(shell)
+        );
+    }
+}
+
+#[test]
 fn a_busy_foreign_or_too_old_terminal_never_receives_the_resume() {
     let idle = || sample(managed_powershell(), vec![conhost(2)]);
     let at_prompt = Some(ShellReport::AtPrompt);
@@ -235,19 +255,12 @@ fn evidence_that_cannot_decide_waits() {
             Readiness::Wait
         );
     }
-    // No frame, or a silent shell, which may be waiting for input: nothing says the shell is at
-    // its prompt, whatever the shell.
+    // No frame: nothing says what the shell shows, whatever the shell.
     for root in [cmd(), managed_powershell()] {
-        for report in [None, Some(ShellReport::Silent)] {
-            assert_eq!(
-                decide(&facts(
-                    report,
-                    Some(sample(root.clone(), vec![])),
-                    Some(RETAINED)
-                )),
-                Readiness::Wait
-            );
-        }
+        assert_eq!(
+            decide(&facts(None, Some(sample(root, vec![])), Some(RETAINED))),
+            Readiness::Wait
+        );
     }
 }
 

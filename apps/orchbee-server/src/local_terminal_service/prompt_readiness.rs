@@ -1,10 +1,10 @@
 //! Whether one fresh read of a terminal makes a gated line worth trying now, later or never. Only a
-//! shell the Host launched with prompt marks, with nothing else in its console, at its prompt, and
-//! in the expected directory when one is given, is worth trying; the Host's prompt gate alone
-//! decides whether anything is typed. Every doubt waits, and every refutation refuses. It reads
-//! evidence only and never decides timing, ordering or consumption. Agent session resume reads a
-//! restored shell through it with the retained directory, and Agent start delivery reads a new
-//! shell through it without one.
+//! shell the Host launched with prompt marks, with nothing else in its console, and in the expected
+//! directory when one is given, is worth trying: at its prompt, or silent where the caller counts
+//! silence; the Host's prompt gate alone decides whether anything is typed. Every doubt waits, and
+//! every refutation refuses. It reads evidence only and never decides timing, ordering or
+//! consumption. Agent session resume reads a restored shell through it with the retained directory
+//! and also tries a silent one, and Agent start delivery reads a new shell through it without one.
 use crate::local_terminal_service::tab_close::evidence::ShellReport;
 use orchbee_agent_observation_protocol::{ShellRoot, idle_shell_only, is_console_host};
 use orchbee_terminal_protocol::{
@@ -54,8 +54,13 @@ pub(in crate::local_terminal_service) enum Refusal {
 /// What one read admits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::local_terminal_service) enum Readiness {
-    /// Worth one gated send of the line for this shell now.
+    /// Worth one gated send of the line for this shell now: its frame shows it at its prompt.
     Try(MarkedShell),
+    /// Everything but the frame admits the line: the shell is silent, with no prompt mark at or
+    /// above the cursor. A console host repaints its screen after a resize, which erases those
+    /// marks from every later frame while the Host's prompt gate still holds the prompt, so only
+    /// that gate can tell whether the shell waits at it.
+    Silent(MarkedShell),
     /// The read cannot decide yet.
     Wait,
     /// The terminal must never receive the line.
@@ -66,8 +71,8 @@ pub(in crate::local_terminal_service) enum Readiness {
 /// launch record names the shell: managed PowerShell, marked cmd and managed zsh or bash are tried,
 /// another program refuses as unsupported, and a Host that records no launch kind predates the
 /// prompt gate and refuses as too old. When `expected` is given, a directory other than it refuses
-/// as a mismatch and a missing directory waits. A truncated sample, an unreadable row, a missing
-/// frame and a silent shell wait: only a shell at its prompt is tried.
+/// as a mismatch and a missing directory waits. A truncated sample, an unreadable row and a missing
+/// frame wait. A shell at its prompt is tried, and a silent one is named for the caller to decide.
 pub(in crate::local_terminal_service) fn readiness(
     facts: &ResumeFacts,
     expected: Option<&WorkbenchDirectoryPath>,
@@ -113,7 +118,8 @@ pub(in crate::local_terminal_service) fn readiness(
     }
     match facts.report {
         Some(ShellReport::AtPrompt) => Readiness::Try(shell),
-        None | Some(ShellReport::Silent | ShellReport::Running) => Readiness::Wait,
+        Some(ShellReport::Silent) => Readiness::Silent(shell),
+        None | Some(ShellReport::Running) => Readiness::Wait,
     }
 }
 
