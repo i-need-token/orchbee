@@ -313,11 +313,18 @@ impl super::CliText {
             (Locale::ZhCn, ExpectedValue::ExecutableName) => {
                 "绝对可执行路径或在 PATH 中查找的单个文件名"
             }
-            (Locale::EnUs, ExpectedValue::ExecutableOnPath) => {
+            // Windows finds `.exe` and `.com` names; macOS and Linux take a file the user may run.
+            (Locale::EnUs, ExpectedValue::ExecutableOnPath) if cfg!(windows) => {
                 "an executable present in an absolute PATH directory (Windows: .exe or .com)"
             }
-            (Locale::ZhCn, ExpectedValue::ExecutableOnPath) => {
+            (Locale::EnUs, ExpectedValue::ExecutableOnPath) => {
+                "a file you may execute, present in an absolute PATH directory"
+            }
+            (Locale::ZhCn, ExpectedValue::ExecutableOnPath) if cfg!(windows) => {
                 "绝对 PATH 目录中存在的可执行文件（Windows：.exe 或 .com）"
+            }
+            (Locale::ZhCn, ExpectedValue::ExecutableOnPath) => {
+                "绝对 PATH 目录中存在、且当前用户有执行权限的文件"
             }
             (Locale::EnUs, ExpectedValue::Executable) => "a nonempty absolute executable path",
             (Locale::ZhCn, ExpectedValue::Executable) => "非空的绝对可执行文件路径",
