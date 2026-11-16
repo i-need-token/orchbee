@@ -566,7 +566,9 @@ function install(identity, logs) {
 	});
 	if (result.status !== 0)
 		throw new StepFailure(`Setup exited ${result.status}\n${logTail(logFile)}`);
-	for (const required of ['active.json', path.join('bin', `${identity.stem}.exe`)]) {
+	// The window entry the Start menu shortcut names, which the window installer helper places.
+	const entry = path.join('desktop', `${identity.stem}-desktop.exe`);
+	for (const required of ['active.json', path.join('bin', `${identity.stem}.exe`), entry]) {
 		if (!existsSync(path.join(identity.storeRoot, required)))
 			throw new StepFailure(`Setup left no ${required} in ${identity.storeRoot}`);
 	}

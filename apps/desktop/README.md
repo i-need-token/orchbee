@@ -403,16 +403,25 @@ languages.
 
 An install changes exactly this:
 
-1. `<store root>\desktop\` receives the packaged window application. A previous version's folder
-   first moves aside to `desktop.previous`, which goes once the new one is in place and comes back if
-   the install fails.
+1. `<store root>\desktop\` holds the window. Setup unpacks the packaged window application into its
+   own temporary folder, and step 4 installs it as the window version `desktop\versions\<version>\`
+   and places the window entry `desktop\<executable>`, a copy of that version's window launcher,
+   which starts the active window version. A window that a release before the window self-update
+   left directly in `desktop\` moves on there: its files go once that window has quit, and its
+   bundled cohort once no Session runs from it, as does a `desktop.previous` an earlier Setup left.
+   A build whose window updates are still switched off, which Setup asks its bundled Client first,
+   writes the window application directly into `desktop\` instead: a previous version's folder
+   first moves aside to `desktop.previous`, which goes once the new one is in place and comes back
+   if the install fails.
 2. The Start menu entry `%APPDATA%\Microsoft\Windows\Start Menu\Programs\<name>.lnk` points at
-   the window executable with the profile's AppUserModelID.
+   the window entry with the profile's AppUserModelID.
 3. The registration `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\<registration>`
    gives Settings › Apps the name, version, publisher `Orchbee`, icon, size and the uninstaller
    `<store root>\unins000.exe`, which Setup writes with `unins000.dat`.
-4. Setup runs `<store root>\desktop\resources\cohort\<client>.exe install --format json` with
-   `ORCHBEE_INSTALL_DIR` set to the store root. The store root inherits the access list of
+4. Setup runs the bundled Client, `resources\cohort\<client>.exe` below the unpacked window, as
+   `install --format json` and then as `--installer-window-v1`, with `ORCHBEE_INSTALL_DIR` set to the
+   store root. The window installer helper installs the window as step 1 says whatever `install`
+   answered, and a higher window version already active stays active. The store root inherits the access list of
    `%LOCALAPPDATA%\Programs`, which on some profiles lets another account in; that bundled Client
    first replaces the root's list with its private rule when the root holds only what Setup wrote
    there, and leaves `Programs` as it is. It then verifies its signed release
@@ -422,9 +431,15 @@ An install changes exactly this:
    so a terminal opened afterwards finds the command.
 
 Installing a newer setup over an older one replaces it in place: one Settings entry, one Start menu
-entry, the new window application, and the new version active in the store. Setup never ends
-Orchbee. While any program or library below `desktop\` is loaded, Setup stops before changing
-anything and exits with code 7, saying which program to quit. When the bundled cohort's Server,
+entry, the new window version active, and the new version active in the store. Setup never ends
+Orchbee. It stops before changing anything, exits with code 7 and asks the person to quit the window
+while keeping its terminals running only while the window of a flat layout runs, which happens at
+most once, before that layout moves on. A window that runs from a window version keeps running, and
+its next start runs the new version; the helper removes no file a process runs from, so a Session an
+earlier window started blocks nothing.
+
+A build whose window updates are still switched off stops instead while any program or library
+below `desktop\` is loaded, and exits with code 7, saying which program to quit. When the bundled cohort's Server,
 Worker or Terminal Host is among them, a Session runs from there, started by an earlier version's
 window or by a start that found no usable store version: Setup asks the person to close those
 terminals or choose Quit All, which is needed only once, because a later window starts its Session
@@ -435,8 +450,8 @@ they are compatible and otherwise says they are too old.
 
 Removal from Settings › Apps runs the uninstaller, which asks once and then, in this order:
 
-1. runs `<store root>\bin\<client>.exe --installer-uninstall-v1`, or the bundled Client when no
-   launcher is left, and waits for it from `unins000.exe` in the store root; the Client does not
+1. runs `<store root>\bin\<client>.exe --installer-uninstall-v1`, or, when no launcher is left, a
+   flat window's bundled Client or else a window version's, and waits for it from `unins000.exe` in the store root; the Client does not
    count that waiting uninstaller as Orchbee running. It ends no terminal: while one is open, or
    while any other program runs from the installation, it changes nothing, and the uninstaller
    shows its reason and stops. Otherwise it removes the store's versions, `bin`, `desktop\`, the
@@ -462,7 +477,8 @@ without a window, and `<store root>\unins000.exe /VERYSILENT /SUPPRESSMSGBOXES /
 /LOG="<file>"` removes. Without `/LOG`, Setup still writes `Setup Log <date> #<n>.txt` in `%TEMP%`,
 with the exit code and output of each Client command. Setup exits 0 on success, 7 while Orchbee runs
 from the installation, 10 when the window application was installed but `orchbee install` failed,
-and otherwise with Inno Setup's own codes, such as 2 when cancelled before installing. The
+11 when the window could not be installed, which it reports instead of a failed `install`, and
+otherwise with Inno Setup's own codes, such as 2 when cancelled before installing. The
 uninstaller exits 0 when the removal finished and non-zero when it stopped.
 
 ### macOS disk image

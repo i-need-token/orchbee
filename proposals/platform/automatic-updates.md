@@ -751,6 +751,14 @@ programs exist:
 
 - Setup extracts the packaged window into `{tmp}\desktop` instead of `{app}\desktop`
   (`orchbee.iss:76`), so it writes no file under `desktop\` itself.
+- Built (vetoable): Setup keeps no copy of the window switch. Before it installs, it extracts its
+  bundled Client alone and runs it with `--installer-window-v1` from its temporary folder. A build
+  that installs window versions answers `not-release-directory` with exit 4, because that Client
+  sits in no window's bundled cohort there, and changes nothing; a build whose window updates are
+  off refuses the word as unknown, and a development build answers `development-build`. Setup then
+  installs as this section says only after the first answer, and otherwise writes the flat
+  `desktop\` of earlier releases as before, with its move to `desktop.previous` and its two refusals.
+  So release builds keep the flat install until the window self-update release sets the switch.
 - After its files, the bundled Client in `{tmp}\desktop\resources\cohort\` runs
   `install --format json` as today (`orchbee.iss:255-274`) and then the new helper mode
   `orchbee --installer-window-v1`. That mode installs the window directory two levels above its own

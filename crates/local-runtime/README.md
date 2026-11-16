@@ -1493,7 +1493,9 @@ only where `automatic_updates_live()` holds, and in a release build only once th
 real run. While it does not hold, `update` and the automatic helper leave the store's `desktop`
 folder alone, and a Client does not know `WINDOW_INSTALLER_HELPER`, `--installer-window-v1`, the
 word with which Setup or install.sh runs the Client bundled in a window directory to install that
-window version; its spelling never changes.
+window version; its spelling never changes. Setup has no copy of the switch: it asks its bundled
+Client that word first and installs the flat window layout of earlier releases when the Client does
+not know it.
 
 `AUTOMATIC_UPDATE_HELPER` is `--automatic-update-v1`, the one argument with which a Session Server
 runs the store's active Client for an automatic update and by which that Client recognizes the
