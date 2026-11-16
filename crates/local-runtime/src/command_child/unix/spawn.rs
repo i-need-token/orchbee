@@ -8,16 +8,13 @@
 use super::CommandChild;
 use crate::CommandSpawnFailure;
 use nix::{
-    fcntl::OFlag,
     spawn::{PosixSpawnAttr, PosixSpawnFileActions, PosixSpawnFlags, posix_spawn},
-    sys::{
-        signal::{SigSet, Signal},
-        stat::Mode,
-    },
+    sys::signal::{SigSet, Signal},
 };
 use rustix::process::Pid;
 use std::{
     ffi::{CString, OsString},
+    fs::File,
     io,
     os::{
         fd::{AsRawFd, OwnedFd},
@@ -62,9 +59,12 @@ pub(super) fn spawn(
         .collect::<io::Result<Vec<_>>>()
         .map_err(not_created)?;
     let variables = variables(command, environment).map_err(not_created)?;
+    // Opened here, close-on-exec, and duplicated onto the child's input, so the launch needs no
+    // open action.
+    let input = File::open("/dev/null").map_err(not_created)?;
     let launch = || -> nix::Result<nix::unistd::Pid> {
         let mut actions = PosixSpawnFileActions::init()?;
-        actions.add_open(0, c"/dev/null", OFlag::O_RDONLY, Mode::empty())?;
+        actions.add_dup2(input.as_raw_fd(), 0)?;
         actions.add_dup2(stdout.as_raw_fd(), 1)?;
         actions.add_dup2(stderr.as_raw_fd(), 2)?;
         let mut attributes = PosixSpawnAttr::init()?;
