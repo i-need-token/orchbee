@@ -9,8 +9,8 @@ organization. Windows and macOS support separate named Sessions through `--sessi
 Agent IDs use `--agent-session <id>`. The [Session contract](docs/native-cli-query.md#sessions-and-background-services)
 defines terminology, supported boundaries and unchanged storage/protocol identities.
 
-Windows refuses a TUI launched from a terminal already inside the selected Session before opening
-another Client. The localized message returns to the current Shell; CLI subcommands and explicit
+Windows and macOS refuse a TUI launched from a terminal already inside the selected Session before
+opening another Client. The localized message returns to the current Shell; CLI subcommands and explicit
 routes to another Session remain usable. Failed and ended terminals retain navigation, creation
 and close paths; [terminal settlement](docs/native-panel-lifecycle.md#terminal-settlement) preserves
 final output and known exit codes. An interactive Shell that exits with code 0 instead closes its

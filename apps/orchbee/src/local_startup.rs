@@ -37,7 +37,9 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
 }
 
 fn run_tui(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
-    #[cfg(windows)]
+    // A TUI inside a terminal of the Session it selects could select its own hosting terminal.
+    // Linux has no `--session` to name another Session, so it keeps starting there.
+    #[cfg(any(windows, target_os = "macos"))]
     if local_activation::inside_selected_session().map_err(|_| StartupFailure::Runtime)? {
         return Err(StartupFailure::AlreadyInSession);
     }
