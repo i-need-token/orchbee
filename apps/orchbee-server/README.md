@@ -405,7 +405,10 @@ POSIX package manager installs a JavaScript Agent as a bin link that its shebang
 where npm's Windows shim hands it the package entry. So before identity, the Server replaces a
 runtime script whose shared or generic name alone leaves its row unverified with the file it
 resolves to, read against the process's working folder, and keeps that path only when it proves
-the provider. A relayed sample carries the same path, so Clients read the rows the Server read. On
+the provider. One retained thread does those reads: a sample waits 25 ms for its answer, skips at
+once while an earlier read is unanswered, and otherwise keeps the Host's row, so a stuck network
+mount never holds a terminal's routing; answers serve the same path for ten seconds. A relayed
+sample carries the same path, so Clients read the rows the Server read. On
 macOS a catalog download runs `/usr/bin/curl` with the Windows arguments, attempts and limits;
 Linux admits no system curl and fails it as a process failure before any network effect. Startup
 also configures Panel graphics

@@ -1,7 +1,9 @@
 //! A POSIX Host's samples, in the shapes macOS reports, name the Agent a Windows sample of the
 //! same launch would. Only POSIX builds decode the POSIX Host's quoted command lines.
+use super::script_operands::{ANSWER_WAIT, OperandResolver, file_real_path, resolve_with};
 use super::*;
 use orchbee_terminal_protocol::{AttachmentId, TerminalId, TerminalProcess};
+use std::time::Duration;
 
 fn process(pid: u32, parent: u32, image: &str, command_line: Option<&str>) -> TerminalProcess {
     TerminalProcess {
@@ -152,6 +154,8 @@ fn bin_links_of_shared_aliases_resolve_through_the_working_folder() {
             },
         ],
     };
+    let resolver = OperandResolver::spawn(file_real_path).unwrap();
+    let resolve_script_operands = |sample: &TerminalProcessInfo| resolve_with(&resolver, sample);
     let unresolved = sample(&["node", "bin/copilot"], Some(root));
     assert_eq!(identify(&unresolved), None, "the name alone proves nothing");
     let resolved = resolve_script_operands(&unresolved).unwrap();
@@ -178,4 +182,41 @@ fn bin_links_of_shared_aliases_resolve_through_the_working_folder() {
             "{argv:?} {directory:?}"
         );
     }
+}
+
+/// A real-path lookup that never returns, as on an unresponsive network mount, leaves the row as
+/// the Host reported it within the resolver's wait, and later samples skip it at once.
+#[test]
+fn an_unanswered_real_path_lookup_leaves_the_row_unchanged_within_the_wait() {
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let resolver = OperandResolver::spawn(move |_| {
+        let _released = held.recv();
+        None
+    })
+    .unwrap();
+    let sample = TerminalProcessInfo {
+        attachment_id: AttachmentId::from_bytes([1; 16]).unwrap(),
+        terminal_id: TerminalId::from_bytes([2; 16]).unwrap(),
+        launch_kind: None,
+        root_pid: 10,
+        processes: vec![
+            process(10, 1, "/bin/zsh", Some("-zsh")),
+            process(
+                20,
+                10,
+                "/opt/homebrew/Cellar/node/24.1.0/bin/node",
+                Some("node /Volumes/share/bin/copilot"),
+            ),
+        ],
+    };
+    let started = Instant::now();
+    assert_eq!(resolve_with(&resolver, &sample), None);
+    assert!(started.elapsed() < Duration::from_secs(1));
+    let started = Instant::now();
+    assert_eq!(resolve_with(&resolver, &sample), None);
+    assert!(
+        started.elapsed() < ANSWER_WAIT,
+        "an unanswered lookup is skipped, not awaited again"
+    );
+    drop(release);
 }
