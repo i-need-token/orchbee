@@ -1,10 +1,8 @@
 //! Resolve a configured checkout destination before any canonical or Git mutation.
 use crate::{
     cli::{
-        Failure, FailureKind,
-        configuration::Error,
-        console_interrupt::{ArmedSignals, SignalWatch},
-        query,
+        Failure, FailureKind, command_interrupt::ArmedSignals, configuration::Error,
+        console_interrupt::SignalWatch, query,
     },
     invocation::{WorktreeStartCommand, WorktreeStartKind},
     local_client::{LocalClient, WorktreeQueryError},

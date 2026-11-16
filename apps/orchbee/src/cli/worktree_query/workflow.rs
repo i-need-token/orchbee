@@ -5,7 +5,8 @@
 use super::{Failure, FailureKind, Output, emit, failure_output};
 use crate::{
     cli::{
-        console_interrupt::{ArmedSignals, Finish},
+        command_interrupt::{ArmedSignals, Finish},
+        console_interrupt::SignalWatch,
         query, worktree_source,
     },
     invocation::{OutputFormat, WorktreeQueryCommand},

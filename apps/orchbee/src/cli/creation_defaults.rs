@@ -1,10 +1,6 @@
 //! Creation defaults from the running Session's published configuration snapshot. Creation never
 //! reads `config.toml`; the Server owns file errors and keeps its last valid snapshot.
-use super::{
-    Failure, FailureKind,
-    console_interrupt::{ArmedSignals, SignalWatch},
-    query,
-};
+use super::{Failure, FailureKind, console_interrupt::SignalWatch, query};
 use crate::{
     invocation::CreationDirectory,
     local_client::{LocalClient, MetadataExchangeReason},
@@ -20,7 +16,7 @@ pub(super) fn apply_directory(
     client: &mut LocalClient,
     session_id: &SessionId,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
     directory: &mut CreationDirectory,
     options: &mut LaunchOptions,
 ) -> Result<(), Failure> {
@@ -46,7 +42,7 @@ pub(super) fn worktree_root(
     client: &mut LocalClient,
     session_id: &SessionId,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Option<WorkbenchDirectoryPath>, Failure> {
     current(client, session_id, deadline, signals)?
         .worktrees_directory
@@ -64,7 +60,7 @@ fn current(
     client: &mut LocalClient,
     session_id: &SessionId,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<ConfigurationSnapshot, Failure> {
     signals.check_before(deadline)?;
     let request = ConfigurationRequest {
