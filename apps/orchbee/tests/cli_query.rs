@@ -17,7 +17,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(target_os = "linux")]
 use nix::{
     sys::signal::{Signal, kill},
     unistd::Pid,
@@ -4594,9 +4593,7 @@ fn terminal_wait_match_with_refused_detach_reports_match_observed() -> TestResul
 /// is the typed refusal released — so the cancellation provably preceded
 /// the failure answer. The cancellation outranks the refused detach's own
 /// classification: exit 130 with `cancelled`, still honestly reporting that
-/// the match was observed and the release stays unconfirmed. Linux only:
-/// macOS keeps SIGINT's inherited action.
-#[cfg(target_os = "linux")]
+/// the match was observed and the release stays unconfirmed.
 #[test]
 fn terminal_wait_sigint_during_refused_detach_reports_cancelled() -> TestResult {
     let base = base_dir("twait-detach-int");
