@@ -1,4 +1,4 @@
-//! Windows private-cache locking and persistence witness for the joined position writer.
+//! Private-cache locking and persistence witness for the joined position writer.
 use super::{Preferences, Writer};
 use crate::startup_preference::tests::position;
 use crate::startup_preference::{MAXIMUM_BYTES, decode};
@@ -17,6 +17,17 @@ fn record(root: &Root) -> VersionedFile {
     )
 }
 
+/// The per-user temporary folder. macOS reaches it through the `/var` link, which admission
+/// refuses, so the fixture starts from its canonical path there and keeps its root owner-only.
+fn temporary() -> PathBuf {
+    let folder = std::env::temp_dir();
+    if cfg!(target_os = "macos") {
+        folder.canonicalize().unwrap()
+    } else {
+        folder
+    }
+}
+
 struct Root(PathBuf);
 impl Root {
     fn new() -> Self {
@@ -24,9 +35,10 @@ impl Root {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root =
-            Self(std::env::temp_dir().join(format!("orchbee-startup-preference-{nonce:032x}")));
+        let root = Self(temporary().join(format!("orchbee-startup-preference-{nonce:032x}")));
         fs::create_dir(&root.0).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&root.0, std::os::unix::fs::PermissionsExt::from_mode(0o700)).unwrap();
         root
     }
 }

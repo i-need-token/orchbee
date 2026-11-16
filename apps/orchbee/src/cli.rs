@@ -381,7 +381,7 @@ pub(crate) fn default_config(locale: Locale) -> Output {
     {
         return unsupported_platform(None, locale);
     }
-    let actions = crate::client_view::Bindings::default_windows_key_action_bindings();
+    let actions = crate::client_view::Bindings::default_key_action_bindings();
     let config = orchbee_local_runtime::default_user_settings_toml_with_actions(&actions);
     fixed_text(&config, locale)
 }

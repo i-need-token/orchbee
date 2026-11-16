@@ -37,19 +37,3 @@ pub fn posix_reported_directory(
     }
     Some(path)
 }
-
-/// This machine's host name, as shells write it into an OSC 7 URI. Linux publishes it in procfs;
-/// a build without that file reads none, so only an empty or `localhost` URI host names this
-/// machine there.
-#[cfg(unix)]
-pub(super) fn local_host_name() -> Option<String> {
-    #[cfg(target_os = "linux")]
-    {
-        let name = std::fs::read_to_string("/proc/sys/kernel/hostname").ok()?;
-        Some(name.trim_end_matches('\n').to_owned()).filter(|name| !name.is_empty())
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        None
-    }
-}

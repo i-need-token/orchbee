@@ -1,6 +1,11 @@
 use super::*;
 use orchbee_local_runtime::UserSettings;
 
+#[cfg(windows)]
+const SNAPSHOT: &str = "C:/snapshot/config.toml";
+#[cfg(not(windows))]
+const SNAPSHOT: &str = "/snapshot/config.toml";
+
 fn located(path: Option<&Path>, explicit: bool) -> UserSettingsLoad {
     UserSettingsLoad {
         settings: UserSettings {
@@ -15,48 +20,48 @@ fn located(path: Option<&Path>, explicit: bool) -> UserSettingsLoad {
 #[test]
 fn frozen_location_is_read_once_without_resolving_the_environment() {
     for (text, explicit) in [("true", true), ("false", false)] {
-        let load = resolve(
+        let load = parse(
             [
                 "--configuration-file",
-                "C:/snapshot/config.toml",
+                SNAPSHOT,
                 "--configuration-file-explicit",
                 text,
             ]
             .map(OsString::from)
             .into_iter(),
+        )
+        .unwrap()
+        .read(
             || panic!("a frozen location must not resolve the environment"),
             |path, explicit| Ok(located(path, explicit)),
         )
         .unwrap();
-        assert_eq!(
-            load.settings.path.as_deref(),
-            Some(Path::new("C:/snapshot/config.toml"))
-        );
+        assert_eq!(load.settings.path.as_deref(), Some(Path::new(SNAPSHOT)));
         assert_eq!(load.settings.explicit, explicit);
     }
 }
 
 #[test]
 fn direct_startup_reads_through_the_shared_settings_owner() {
+    let direct = || parse(std::iter::empty()).unwrap();
     assert!(
-        resolve(
-            std::iter::empty(),
-            || Ok(located(None, false)),
-            |_, _| panic!("direct startup resolves its own location")
-        )
-        .unwrap()
-        .settings
-        .path
-        .is_none()
+        direct()
+            .read(
+                || Ok(located(None, false)),
+                |_, _| panic!("direct startup resolves its own location")
+            )
+            .unwrap()
+            .settings
+            .path
+            .is_none()
     );
-    let error = resolve(
-        std::iter::empty(),
-        || Err(SettingsError::new("ORCHBEE_CONFIG_FILE", "invalid-path")),
-        |_, _| panic!("direct startup resolves its own location"),
-    )
-    .unwrap_err();
-    assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
-    assert!(error.to_string().contains("ORCHBEE_CONFIG_FILE"));
+    let error = direct()
+        .read(
+            || Err(SettingsError::new("ORCHBEE_CONFIG_FILE", "invalid-path")),
+            |_, _| panic!("direct startup resolves its own location"),
+        )
+        .unwrap_err();
+    assert_eq!(error.field, "ORCHBEE_CONFIG_FILE");
 }
 
 #[test]
@@ -80,34 +85,42 @@ fn private_argument_is_closed_and_never_falls_back() {
         ],
         vec![
             "--configuration-file",
-            "C:/config.toml",
+            SNAPSHOT,
             "--configuration-file-explicit",
             "false",
             "extra",
         ],
+        #[cfg(not(windows))]
+        vec![
+            "--configuration-file",
+            "config.toml",
+            "--configuration-file-explicit",
+            "false",
+        ],
+        #[cfg(not(windows))]
+        vec![
+            "--configuration-file",
+            "/snapshot/../config.toml",
+            "--configuration-file-explicit",
+            "false",
+        ],
     ] {
         assert_eq!(
-            resolve(
-                args.into_iter().map(OsString::from),
-                || panic!("no fallback"),
-                |_, _| panic!("no fallback")
-            )
-            .unwrap_err()
-            .kind(),
+            parse(args.into_iter().map(OsString::from))
+                .unwrap_err()
+                .kind(),
             io::ErrorKind::InvalidInput
         );
     }
-    use std::os::windows::ffi::OsStringExt;
-    assert!(
-        resolve(
-            [
-                OsString::from("--configuration-file"),
-                OsString::from_wide(&[0xd800])
-            ]
-            .into_iter(),
-            || panic!("no fallback"),
-            |_, _| panic!("no fallback")
-        )
-        .is_err()
-    );
+    #[cfg(windows)]
+    let unpaired = {
+        use std::os::windows::ffi::OsStringExt;
+        OsString::from_wide(&[0xd800])
+    };
+    #[cfg(not(windows))]
+    let unpaired = {
+        use std::os::unix::ffi::OsStringExt;
+        OsString::from_vec(vec![0xff])
+    };
+    assert!(parse([OsString::from("--configuration-file"), unpaired].into_iter()).is_err());
 }

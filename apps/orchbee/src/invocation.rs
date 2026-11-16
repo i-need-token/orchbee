@@ -833,7 +833,7 @@ pub(crate) enum Request {
     /// An invocation that reaches a command surface this release withholds; it is refused before
     /// any grammar or runtime work.
     Withheld(grammar::Withheld),
-    /// The canonical Windows user configuration template; no runtime discovery.
+    /// The canonical user configuration template; no runtime discovery.
     DefaultConfig,
     RootHelp,
     Help(HelpTopic),

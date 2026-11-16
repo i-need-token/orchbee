@@ -22,9 +22,11 @@ use orchbee_local_runtime::{
 
 const CHECK_BUDGET: Duration = Duration::from_secs(5);
 
-/// Unix keeps the existing trailing unsupported-check row; Windows reports its complete check
-/// inventory.
-const APPEND_UNSUPPORTED_CHECK: bool = cfg!(not(windows));
+/// A platform that reads no configuration file keeps the trailing unsupported-check row in place
+/// of `user-config`; Windows and macOS report their complete check inventory.
+fn append_unsupported_check() -> bool {
+    !crate::tui_capabilities::Capability::ConfigurationFile.available()
+}
 
 fn pass(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {
@@ -75,7 +77,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                     })
                 })
                 .collect::<Vec<_>>();
-            if APPEND_UNSUPPORTED_CHECK {
+            if append_unsupported_check() {
                 // The marker takes the user configuration's place; the records check stays last.
                 let records = check_documents.pop();
                 check_documents.push(json!({"kind":"unsupported"}));

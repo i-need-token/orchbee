@@ -176,10 +176,10 @@ impl Locale {
                 "当前终端已在此会话内。请返回现有窗口切换位置，或使用 --session <name> 进入其他会话。CLI 子命令仍可正常使用。\n"
             }
             (Self::EnUs, StartupFailure::Configuration) => {
-                "Invalid Windows configuration. Run orchbee config check for details, correct the setting and retry.\n"
+                "Invalid configuration. Run orchbee config check for details, correct the setting and retry.\n"
             }
             (Self::ZhCn, StartupFailure::Configuration) => {
-                "Windows 配置无效。运行 orchbee config check 查看详情，修正后重试。\n"
+                "配置无效。运行 orchbee config check 查看详情，修正后重试。\n"
             }
             (Self::EnUs, StartupFailure::Interface) => {
                 "The terminal interface failed. Existing session processes were retained.\n"

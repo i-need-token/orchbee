@@ -53,7 +53,7 @@ fn default_config_action_rows_match_resolved_bindings_after_round_trip() {
 
     let registered = KeySettings::registered_actions();
     let defaults = Bindings::default();
-    let generated = Bindings::default_windows_key_action_bindings();
+    let generated = Bindings::default_key_action_bindings();
     let rendered_actions = generated
         .iter()
         .map(|entry| entry.action)

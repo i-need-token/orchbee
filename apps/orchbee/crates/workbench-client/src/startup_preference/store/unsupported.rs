@@ -1,4 +1,4 @@
-//! Unix has no admitted Client position-cache storage adapter.
+//! A build without an admitted Client position-cache storage adapter, Linux today.
 
 use orchbee_local_runtime::VersionedFile;
 use std::{io, path::Path};

@@ -5,14 +5,14 @@ use super::{MAXIMUM_BYTES, Position, Record, Schema, decode, decode_record};
 use crate::background_thread::BackgroundThread;
 use orchbee_local_runtime::{OpenedRecord, VersionedFile};
 
-#[cfg(unix)]
-mod unix;
-#[cfg(windows)]
-mod windows;
-#[cfg(unix)]
-use unix::storage;
-#[cfg(windows)]
-use windows::storage;
+#[cfg(any(windows, target_os = "macos"))]
+mod session_folder;
+#[cfg(not(any(windows, target_os = "macos")))]
+mod unsupported;
+#[cfg(any(windows, target_os = "macos"))]
+use session_folder::storage;
+#[cfg(not(any(windows, target_os = "macos")))]
+use unsupported::storage;
 
 pub(crate) struct Preferences {
     record: Option<VersionedFile>,
@@ -215,5 +215,5 @@ impl Drop for Writer {
     }
 }
 
-#[cfg(all(test, windows))]
+#[cfg(all(test, any(windows, target_os = "macos")))]
 mod tests;

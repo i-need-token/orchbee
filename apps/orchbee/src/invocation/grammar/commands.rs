@@ -126,7 +126,7 @@ commands! {
     ApiSnapshot => ["api", "snapshot"], 0, Operand, Portable, true, true, false;
     ApiSchema => ["api", "schema"], 1, Operand, Portable, true, false, false;
     ConfigCheck => ["config", "check"], 0, Operand, Portable, true, false, false;
-    ConfigDefault => ["config", "default"], 0, Operand, Windows, false, false, false;
+    ConfigDefault => ["config", "default"], 0, Operand, Portable, false, false, false;
     ConfigReload => ["config", "reload"], 0, Operand, Portable, true, true, false;
     DiagnosticsCreate => ["diagnostics", "create"], 0, Operand, Windows, true, false, false;
     ServerStart => ["server", "start"], 0, Operand, Portable, true, false, false;

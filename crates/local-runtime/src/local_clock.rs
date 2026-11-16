@@ -1,6 +1,12 @@
-//! Converts a Unix-millisecond instant to the host's local wall clock for display. On Windows it
-//! applies the time zone rules in force at that instant; elsewhere no local clock is offered, so a
-//! caller shows only what it can derive without one.
+//! Converts a Unix-millisecond instant to the host's local wall clock for display, applying the
+//! system time zone's rules in force at that instant. Windows asks the system; macOS and Linux read
+//! the zone file `/etc/localtime` links to and, like Windows, ignore `TZ`. A host whose zone cannot
+//! be read offers no local clock, so a caller shows only what it can derive without one.
+
+#[cfg(unix)]
+mod system_zone;
+#[cfg(any(unix, test))]
+mod tzif;
 
 /// A local date and minute, for display only.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,7 +44,28 @@ fn platform(unix_milliseconds: u64) -> Option<LocalClock> {
     })
 }
 
-#[cfg(not(windows))]
+#[cfg(unix)]
+fn platform(unix_milliseconds: u64) -> Option<LocalClock> {
+    let seconds = i64::try_from(unix_milliseconds / 1000).ok()?;
+    wall_clock(seconds, system_zone::offset_at(seconds)?)
+}
+
+#[cfg(not(any(windows, unix)))]
 const fn platform(_unix_milliseconds: u64) -> Option<LocalClock> {
     None
+}
+
+/// The civil date and minute `offset` seconds east of UTC at `seconds` after the Unix epoch.
+#[cfg(unix)]
+fn wall_clock(seconds: i64, offset: i32) -> Option<LocalClock> {
+    let local = seconds.checked_add(i64::from(offset))?;
+    let (year, month, day) = crate::diagnostic_log::civil_from_days(local.div_euclid(86_400));
+    let second_of_day = local.rem_euclid(86_400);
+    Some(LocalClock {
+        year: u16::try_from(year).ok()?,
+        month: u16::try_from(month).ok()?,
+        day: u16::try_from(day).ok()?,
+        hour: u16::try_from(second_of_day / 3600).ok()?,
+        minute: u16::try_from(second_of_day % 3600 / 60).ok()?,
+    })
 }

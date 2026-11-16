@@ -6,7 +6,7 @@
 
 从 `orchbee --help` 开始，再查看 `orchbee <family> --help` 和 `orchbee <family> <command> --help`。`--` 前任意位置的单个帮助开关，也支持已填写的操作数和选项，且不会执行它们。未知选项、缺值和重复选项仍会失败。`help <path>` 接受精确帮助路径。裸 `orchbee` 会启动 TUI。
 
-`--version`、`--skill`、`completion <shell>`、`api schema` 和 Windows `config default` 均可离线使用。补全支持 Bash、Zsh、Fish、PowerShell 和 Elvish。`api schema` 列出 schema ID；用 `api schema <schema-id>` 查看同一构建的机器契约，或添加 `--output <path>` 导出。读取输出中的 `schema` 与 `version`；本指南不固定目录数量或历史版本。
+`--version`、`--skill`、`completion <shell>`、`api schema` 以及 Windows 和 macOS 上的 `config default` 均可离线使用。补全支持 Bash、Zsh、Fish、PowerShell 和 Elvish。`api schema` 列出 schema ID；用 `api schema <schema-id>` 查看同一构建的机器契约，或添加 `--output <path>` 导出。读取输出中的 `schema` 与 `version`；本指南不固定目录数量或历史版本。
 
 所有 CLI JSON 文档均使用版本 `1`，每种只有一个当前 schema。不同平台及参数下字段均保留：`{kind:"unsupported"}` 表示平台无此能力，`null` 表示来源说没有，`"unknown"` 表示来源说不清。整条命令不支持时返回 `stage: "platform"`、`reason: "unsupported-platform"`，退出码为 `4`；当前发布版本暂不提供的命令返回 `stage: "release"`、`reason: "withheld-in-release"`，退出码为 `4`。`doctor` 在所有平台上都在 `orchbee.doctor` 中保留全部六项检查；平台无法执行的检查为 `{kind:"unsupported"}`。
 

@@ -11,7 +11,7 @@ mod provider_packs;
 
 use serde_json::{Value, json};
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 #[test]
 fn default_config_uses_the_setting_and_client_action_registries() {
     let output = super::default_config(Locale::EnUs);
@@ -26,7 +26,7 @@ fn default_config_uses_the_setting_and_client_action_registries() {
     );
     assert!(text.lines().any(|line| line == "# [keys]"));
     assert!(text.lines().any(|line| line == "# prefix = \"ctrl+b\""));
-    let actions = crate::client_view::Bindings::default_windows_key_action_bindings();
+    let actions = crate::client_view::Bindings::default_key_action_bindings();
     let registered_actions = actions.iter().map(|entry| entry.action).collect::<Vec<_>>();
     assert_eq!(
         registered_actions.as_slice(),

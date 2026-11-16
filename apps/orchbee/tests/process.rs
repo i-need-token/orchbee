@@ -20,7 +20,7 @@ fn skill_is_offline_localized_and_describes_the_native_surface() -> Result<(), B
     Ok(())
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 #[test]
 fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error>> {
     let invoke = |arguments: &[&str], locale: &str| {
@@ -30,6 +30,7 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
             .env("APPDATA", "relative-appdata")
             .env("LOCALAPPDATA", "relative-localappdata")
             .env("USERPROFILE", "relative-userprofile")
+            .env("HOME", "relative-home")
             .env("ORCHBEE_CONFIG_FILE", "relative-config.toml")
             .env("ORCHBEE_RUNTIME_BASE", "relative-runtime")
             .env("ORCHBEE_RUNTIME_SCOPE", "not-a-scope")

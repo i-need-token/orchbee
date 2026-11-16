@@ -70,7 +70,7 @@ impl Default for Bindings {
 }
 
 impl Bindings {
-    pub fn default_windows_key_action_bindings() -> Vec<DefaultActionBindings> {
+    pub fn default_key_action_bindings() -> Vec<DefaultActionBindings> {
         let defaults = Self::default();
         orchbee_local_runtime::KeySettings::registered_actions()
             .iter()

@@ -44,13 +44,28 @@ mod managed;
 #[cfg(any(unix, windows))]
 mod agent_observation_endpoint;
 
-#[cfg(windows)]
-mod configuration_windows;
 mod connection_end;
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+mod startup_configuration;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 const VERSION: LogValue = LogValue::Token(env!("CARGO_PKG_VERSION"));
+
+/// Reads the managed start's configuration at `location` with this process's environment.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn read_configuration(
+    location: startup_configuration::Location,
+) -> Result<orchbee_local_runtime::UserSettingsLoad, orchbee_local_runtime::SettingsError> {
+    location.read(
+        || orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name)),
+        |path, explicit| {
+            orchbee_local_runtime::read_startup_settings_at(path, explicit, |name| {
+                std::env::var_os(name)
+            })
+        },
+    )
+}
 
 /// Records how the managed Server ended; a failure carries only its error kind.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -87,26 +102,13 @@ pub(crate) fn run(
             io::Error::new(io::ErrorKind::InvalidInput, "missing Session runtime")
         })?;
         // A file the start cannot read never stops the Session; only an inadmissible location does.
+        let configuration = startup_configuration::parse(arguments)?;
+        // POSIX reads it once the managed start catches stop signals.
         #[cfg(windows)]
-        let configuration = configuration_windows::resolve(
-            arguments,
-            || orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name)),
-            |path, explicit| {
-                orchbee_local_runtime::read_startup_settings_at(path, explicit, |name| {
-                    std::env::var_os(name)
-                })
-            },
-        )?;
-        #[cfg(not(windows))]
-        if arguments.next().is_some() {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
+        let configuration = read_configuration(configuration)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
         log_event(LogLevel::Info, "started", &[("version", VERSION)]);
-        let outcome = managed::run(
-            &runtime,
-            #[cfg(windows)]
-            configuration,
-        );
+        let outcome = managed::run(&runtime, configuration);
         log_exit(outcome.as_ref().err().map(io::Error::kind));
         return outcome;
     }

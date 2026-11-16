@@ -1,6 +1,5 @@
 //! Terminal-reported directory observations, the Agent start variable and Windows shell bootstrap
-//! text. Decoding is pure; only [`reported_directory`] on Linux reads this machine's host name from
-//! procfs.
+//! text. Decoding is pure; only [`reported_directory`] on POSIX reads this machine's host name.
 mod posix;
 mod windows;
 pub use posix::posix_reported_directory;
@@ -31,7 +30,7 @@ pub fn reported_directory(value: &str) -> Option<String> {
 #[cfg(unix)]
 #[must_use]
 pub fn reported_directory(value: &str) -> Option<String> {
-    posix_reported_directory(value, posix::local_host_name)
+    posix_reported_directory(value, crate::local_host_name)
 }
 
 /// Percent-decodes a URI path once; a truncated or non-hexadecimal escape, or a result that is not

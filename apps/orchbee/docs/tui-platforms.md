@@ -53,10 +53,12 @@ and SSH-guard retirement scheduling keep their original cadence.
 | System clipboard writes                                                        | Hidden Win32 owner                          | Desktop clipboard program or OSC 52, by [session route](#linux-and-macos-session-routes) |
 | Browser link activation                                                        | Windows shell                               | `open` or `xdg-open` in a local desktop session                                          |
 | Saved-machine SSH carriers                                                     | Owned OpenSSH processes                     | Unsupported                                                                              |
-| Saved-machine catalog, remembered position and first-run dismissal storage     | Private Windows cache                       | Unsupported                                                                              |
+| Saved-machine catalog storage                                                  | Private Windows cache                       | Unsupported                                                                              |
+| Remembered Workspace and Tab position storage                                  | Private record in the Session folder        | macOS: same as Windows; Linux: unsupported                                               |
 | Local directory entry                                                          | Existing Windows adapter                    | Unsupported                                                                              |
 | Agent launch and provider probing                                              | Existing Windows adapters                   | macOS: managed zsh and bash, login-shell probe; Linux: unsupported                       |
-| Legacy TOML configuration and plugin registry persistence                      | Existing Windows adapters                   | Unsupported                                                                              |
+| `config.toml` location, `config default` and the `user-config` check           | Existing Windows adapters                   | macOS: same as Windows; Linux: unsupported                                               |
+| Plugin registry persistence                                                    | Existing Windows adapters                   | Unsupported                                                                              |
 | Host window title                                                              | Console title, original restored on exit    | OSC 0, original restored from the terminal's title stack on exit                         |
 | Terminal notification transport                                                | Ghostty/iTerm/WezTerm OSC 9 or Kitty OSC 99 | Same as Windows                                                                          |
 | System notification transport                                                  | Notification-area balloon                   | Terminal sequence, `osascript` or `notify-send`, by session route                        |
@@ -69,8 +71,9 @@ adapter does not disable the local Workspace/Agent sidebar or repeatedly retire 
 A local Client on Unix does not read the Windows catalog or invent an empty persisted catalog.
 Settings drafts and edits use the Server's settings snapshots on every platform.
 Local activation retains the admitted runtime directory on every platform. Remembered-position
-storage derives its cache path only inside the Windows adapter; the Unix adapter returns the
-typed `PositionStorage` refusal without reading Windows environment variables or inventing a path.
+storage derives its record path only inside the Windows and macOS adapter, from the data root and
+the Session the runtime directory is named after; the Linux adapter returns the typed
+`PositionStorage` refusal without reading environment variables or inventing a path.
 [Directory startup](native-directory-startup.md) takes the launch directory from the operating
 system rather than from the directory-entry adapter, so an empty Session creates its first
 Workspace there on every platform; interactive directory entry and quick creation still need it.

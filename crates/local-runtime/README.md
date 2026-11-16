@@ -331,8 +331,8 @@ Desktop Main backs its window state record up into the same folders; search for
 `upgrade-backup-folders` before changing the naming, the copies, or retention. A failed step, backup,
 or replacement leaves the record byte-identical, and the store treats it as not updated: the notice
 is reported, and the process keeps treating that record so until it ends, so its readers and writers
-agree. The folder's date is the local date on Windows and the UTC date on macOS and Linux, where
-the crate reads no time zone.
+agree. The folder's date is the [local date](#local-clock), or the UTC date on a host without a
+local clock.
 
 | Record                            | Version and extension object | While its version is one this build cannot use                                                          |
 | --------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -616,6 +616,16 @@ atomic replacement do not prove power-loss or hardware durability.
 The store does not interpret JSON, select a default data directory, relaunch a process, replay an
 operation or grant Session restart authority. The Server owns startup/stop use of this primitive;
 native process-crash/restart and machine-restart witnesses remain separate evidence obligations.
+
+## Local clock
+
+`local_clock` converts an instant to the local date and minute for display, with the system time
+zone's rules in force at that instant; daily log and backup folder names and displayed times use
+it. Windows asks the system. macOS and Linux parse the TZif file `/etc/localtime` links to, with
+its POSIX `TZ` footer rule past the last transition, and keep the parsed zone until that file's
+identity changes; like Windows they ignore `TZ`. A missing or malformed zone file offers no local
+clock rather than a guessed offset, and leap-second records are skipped. The parser's evidence is
+its own tests against published zone rules; reading the system zone needs a native run.
 
 ## Windows diagnostic log
 
@@ -1013,7 +1023,7 @@ stop processes, acquire lifecycle authority, or perform automatic recovery.
 
 ## Directory observations and Windows directory primitives
 
-`reported_directory` decodes a terminal-reported directory, an OSC 7 report or a sampled process directory, by this machine's rules, since a Server and its Terminal Host share a machine; every Server, Client and CLI reader of such a report uses it. On Windows it is the shared pure `windows_reported_directory` decoder, which preserves valid terminal-reported drive/UNC observations. On POSIX it is the pure `posix_reported_directory` decoder: an absolute path stays as spelled, and a `file://` URI counts only when its host is empty, `localhost` or this machine's name, ignoring ASCII case, because a shell reached over SSH reports a directory of another machine. Its path is percent-decoded once and must be absolute; a query, fragment, control character or invalid UTF-8 refuses the value. Linux reads the machine's name from `/proc/sys/kernel/hostname` only when a URI names some other host; other POSIX builds read none, so there only an empty or `localhost` host counts. Callers separately enforce narrower launch path bounds. `directory/windows/initialization.ps1` synchronizes PowerShell process cwd after the original prompt, preserving status and leaving non-filesystem providers unchanged. Its first prompt clears the startup pipeline's own session-history entry by that pipeline's history ID, so `Get-History` in a `-NoExit -Command` shell lists only the user's commands; PSReadLine never reads the startup text. After a line submitted with the `<#orchbee-run:<id>#> ` prefix, the prompt also removes that command's session-history entry. Ordinary Worker shells use this single hook and child-local UTF-8 native-output decoding and outgoing pipeline encoding.
+`reported_directory` decodes a terminal-reported directory, an OSC 7 report or a sampled process directory, by this machine's rules, since a Server and its Terminal Host share a machine; every Server, Client and CLI reader of such a report uses it. On Windows it is the shared pure `windows_reported_directory` decoder, which preserves valid terminal-reported drive/UNC observations. On POSIX it is the pure `posix_reported_directory` decoder: an absolute path stays as spelled, and a `file://` URI counts only when its host is empty, `localhost` or this machine's name, ignoring ASCII case, because a shell reached over SSH reports a directory of another machine. Its path is percent-decoded once and must be absolute; a query, fragment, control character or invalid UTF-8 refuses the value. Only when a URI names some other host does it read this machine's name, the `local_host_name` that `gethostname` reports and zsh, bash and fish write into OSC 7; when that read fails only an empty or `localhost` host counts. Callers separately enforce narrower launch path bounds. `directory/windows/initialization.ps1` synchronizes PowerShell process cwd after the original prompt, preserving status and leaving non-filesystem providers unchanged. Its first prompt clears the startup pipeline's own session-history entry by that pipeline's history ID, so `Get-History` in a `-NoExit -Command` shell lists only the user's commands; PSReadLine never reads the startup text. After a line submitted with the `<#orchbee-run:<id>#> ` prefix, the prompt also removes that command's session-history entry. Ordinary Worker shells use this single hook and child-local UTF-8 native-output decoding and outgoing pipeline encoding.
 
 `windows_interactive_powershell_initialization` concatenates that common asset with
 `directory/windows/reader.ps1`, which wraps the existing interactive reader with semantic

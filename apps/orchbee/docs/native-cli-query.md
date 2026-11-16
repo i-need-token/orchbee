@@ -938,7 +938,7 @@ orchbee operation resume <request-id> --generation <n> --confirm [--detach] [--t
 orchbee doctor
 orchbee config check
 orchbee completion bash|zsh|fish|powershell|elvish
-orchbee config default  # Windows
+orchbee config default  # Windows and macOS
 orchbee --skill
 orchbee help <recognized path>
 orchbee <recognized path> -h|--help
@@ -955,7 +955,7 @@ recognized options (`project get x --format json --help` describes `project get`
 It never applies those options or reads runtime state. Unknown options, missing values,
 duplicate options and unknown family verbs remain usage failures. Unlisted
 targets such as `help help`, `help version`, `help --version` are unknown paths → usage. Help,
-`-v`/`-V`/`--version`, `--skill`, `completion`, `api schema` without `--output`, and Windows `config default` never touch platform, runtime, cohort, or Session state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
+`-v`/`-V`/`--version`, `--skill`, `completion`, `api schema` without `--output`, and `config default` on Windows and macOS never touch platform, runtime, cohort, or Session state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
 Help has three information levels, in both `en-US` and `zh-CN`:
 
 - Root help introduces Orchbee, shows a small set of common examples, groups each admitted
@@ -984,7 +984,7 @@ examples without executing their effects. `cli_windows_server_stop` additionally
 binary's version aliases, nested help and missing stop confirmation with an unusable runtime base;
 the existing stop receipt witnesses retain the lifecycle safety checks.
 
-On Windows, `config default` takes no other argument and emits canonical UTF-8 TOML from the build without reading user configuration or runtime-selection environment.
+On Windows and macOS, `config default` takes no other argument and emits canonical UTF-8 TOML from the build without reading user configuration or runtime-selection environment.
 The shared process router preserves this path before locale selection. Its named native ports
 retain Windows Session selection and Unix rejection of unavailable runtime routes; offline
 discovery continues to ignore Session selection. Integration `--outdated-only` admission also
@@ -1022,7 +1022,7 @@ fails that requested test. It supplies a registration namespace to exercise the 
 without an editor. Windows ConPTY evidence separately checks real interactive registration and
 loading. This proves static completion, not runtime target discovery or other operating systems.
 
-`help`, `completion`, `tui`, `-v`/`-V`/`--version`, `--skill`, the bare invocation, and Windows `config default` are fixed text outputs that do
+`help`, `completion`, `tui`, `-v`/`-V`/`--version`, `--skill`, the bare invocation, and `config default` on Windows and macOS are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
 commands (`status`, all `list`/`get`, `operation status`,
@@ -2196,7 +2196,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | send source signal setup/read/restore failure                                                                                             | `internal-failure`                                                         | 1         | omitted                                                                                                 |
 | prepared output over 8 MiB                                                                                                                | `output-too-large`                                                         | 1         | `{limitBytes:8388608}`                                                                                  |
 | stdout write/flush failure                                                                                                                | `output-failed`                                                            | 1         | no second stdout document                                                                               |
-| `config check` finishes with failures                                                                                                     | success schema `ok:false`                                                  | 1         | five runtime checks preserved; Windows adds user-config; records last                                   |
+| `config check` finishes with failures                                                                                                     | success schema `ok:false`                                                  | 1         | five runtime checks preserved; Windows and macOS add user-config; records last                          |
 | Windows release `server stop`, `session stop` or `session delete` refused by the release confirmation                                     | `denied`                                                                   | 3         | `{stage:"confirmation",reason:"confirm-option"\|"not-interactive"\|"session-unknown"\|"name-mismatch"}` |
 | `server start` cohort `InvalidData`/`NotFound`/`PermissionDenied`/`TimedOut`/other io kind                                                | `incompatible`/`service-unavailable`/`denied`/`timeout`/`internal-failure` | 6/4/3/7/1 | `{stage:"cohort"}`                                                                                      |
 | `server start` socket path over the `sockaddr_un` budget                                                                                  | `service-unavailable`                                                      | 4         | `{stage:"runtime-directory",reason:"address-too-long"}`                                                 |
@@ -2294,7 +2294,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 ## Invariants
 
 - A syntactically invalid invocation never touches the filesystem, cohort, or socket.
-- Offline commands (`help`, `-v`/`-V`/`--version`, `--skill`, `completion`, `api schema`, and Windows `config default`) never perform platform,
+- Offline commands (`help`, `-v`/`-V`/`--version`, `--skill`, `completion`, `api schema`, and `config default` on Windows and macOS) never perform platform,
   runtime, cohort, or Session discovery.
 - A network query creates nothing: no directory, lock, marker, terminal, viewer, control grant,
   or second request — except `terminal read`/`terminal wait-output`, whose read-capability
@@ -2783,7 +2783,7 @@ Hermes adds Windows plugin activation and content-free session observation. Its 
 
 ## Windows persistent creation defaults
 
-[Windows CLI configuration](windows-cli-configuration.md) owns the bounded TOML reader, `ORCHBEE_CONFIG_FILE`, `[terminal] new_cwd`, `[worktrees] directory`, and precedence before any creation effect; creation takes those defaults from the Session's published configuration snapshot. Windows `config check` v1 preserves five runtime checks and adds `user-config`; every platform ends with `records`, which warns with each record whose version this build cannot use, as `{record, problem, version, path}`, and text output prints each record message with its path. Any other command whose stores met such a record ends its stderr with that record's message, once per process. `orchbee.cli.failure.configuration` v1 reports bounded preparation errors. The offline catalog lists the current documents and command paths.
+[Windows CLI configuration](windows-cli-configuration.md) owns the bounded TOML reader, `ORCHBEE_CONFIG_FILE`, `[terminal] new_cwd`, `[worktrees] directory`, and precedence before any creation effect; creation takes those defaults from the Session's published configuration snapshot. Windows and macOS `config check` v1 preserves five runtime checks and adds `user-config`; every platform ends with `records`, which warns with each record whose version this build cannot use, as `{record, problem, version, path}`, and text output prints each record message with its path. Any other command whose stores met such a record ends its stderr with that record's message, once per process. `orchbee.cli.failure.configuration` v1 reports bounded preparation errors. The offline catalog lists the current documents and command paths.
 
 The current Windows `config check` v1 keeps fatal file and environment admission as `fail`/exit 1 and reports admitted field fallbacks as `warning` with `ok:true`/exit 0. Its bounded `diagnostics` and exact `diagnosticsOmitted` count follow the current closed contract. `config reload` v1 carries the same admitted warning record in each successful snapshot. The embedded schema catalog is v1.
 

@@ -45,7 +45,7 @@ pub struct ActivationFailure {
 /// The raw cause behind an activation failure, kept for typed CLI
 /// classification only — the TUI adapter never reads it.
 pub enum ActivationCause {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     Configuration(orchbee_local_runtime::SettingsError),
     /// `Cohort::current_with_diagnostic` failure: its I/O kind selects
     /// the CLI exit class and its artifact-open evidence can identify one
@@ -323,7 +323,7 @@ fn connect_or_activate(
                 // Activation refuses only a location it cannot admit, and freezes it: a file that
                 // cannot be read still starts the Session, so the person has a terminal to repair
                 // it. The Server reads that location itself as the single configuration authority.
-                #[cfg(windows)]
+                #[cfg(any(windows, target_os = "macos"))]
                 let settings =
                     orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name))
                         .map_err(|error| {
@@ -361,17 +361,17 @@ fn connect_or_activate(
                 let arguments = [
                     std::ffi::OsStr::new("--runtime-directory"),
                     session.runtime_directory().as_os_str(),
-                    #[cfg(windows)]
+                    #[cfg(any(windows, target_os = "macos"))]
                     std::ffi::OsStr::new("--configuration-file"),
-                    #[cfg(windows)]
+                    #[cfg(any(windows, target_os = "macos"))]
                     settings
                         .path
                         .as_deref()
                         .map(std::path::Path::as_os_str)
                         .unwrap_or(std::ffi::OsStr::new("")),
-                    #[cfg(windows)]
+                    #[cfg(any(windows, target_os = "macos"))]
                     std::ffi::OsStr::new("--configuration-file-explicit"),
-                    #[cfg(windows)]
+                    #[cfg(any(windows, target_os = "macos"))]
                     std::ffi::OsStr::new(if settings.explicit { "true" } else { "false" }),
                 ];
                 #[cfg(windows)]

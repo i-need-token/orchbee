@@ -29,14 +29,14 @@ mod stop;
 pub(super) fn run(
     runtime: &Path,
     #[cfg(windows)] configuration: orchbee_local_runtime::UserSettingsLoad,
+    #[cfg(unix)] configuration: super::startup_configuration::Location,
 ) -> io::Result<()> {
     // First, so a stop signal that arrives during startup waits for the signal thread.
     #[cfg(unix)]
     let signals = signals::catch()?;
     // Only a location that cannot be admitted stops the Session; any file starts it.
     #[cfg(unix)]
-    let configuration = orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name))
-        .map_err(io::Error::other)?;
+    let configuration = super::read_configuration(configuration).map_err(io::Error::other)?;
     let deadline = Instant::now() + Duration::from_secs(20);
     let cohort = Cohort::current(deadline)?;
     let session = ModeCheckedLocalSessionRendezvous::from_runtime_directory(runtime)

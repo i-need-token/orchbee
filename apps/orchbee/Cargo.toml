@@ -84,6 +84,11 @@ toml_edit.workspace = true
 # limits Win32-OpenSSH gives each connection.
 process-wrap.workspace = true
 
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+# macOS prints the default configuration too, and its tests parse it as on Windows.
+toml.workspace = true
+toml_edit.workspace = true
+
 [lints]
 workspace = true
 [target.'cfg(target_os = "linux")'.dev-dependencies]

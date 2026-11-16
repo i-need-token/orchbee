@@ -49,11 +49,11 @@ impl Capability {
             }
             // macOS shells get the same managed prompt and run prefix as Windows PowerShell.
             Self::AgentLaunch => cfg!(any(windows, target_os = "macos")),
-            Self::SavedMachines
-            | Self::DirectoryInput
-            | Self::PositionStorage
-            | Self::ConfigurationFile
-            | Self::Graphics => cfg!(windows),
+            // macOS keeps the position record and `config.toml` under its data root, as Windows.
+            Self::PositionStorage | Self::ConfigurationFile => {
+                cfg!(any(windows, target_os = "macos"))
+            }
+            Self::SavedMachines | Self::DirectoryInput | Self::Graphics => cfg!(windows),
         }
     }
 

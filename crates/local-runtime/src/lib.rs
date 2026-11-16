@@ -25,6 +25,10 @@ pub use host_appearance::read_windows_apps_use_light_theme;
 pub use host_system::WindowsVersion;
 #[cfg(windows)]
 pub use host_system::read_windows_version;
+#[cfg(unix)]
+mod host_name;
+#[cfg(unix)]
+pub use host_name::local_host_name;
 mod local_clock;
 pub use local_clock::{LocalClock, local_clock};
 mod private_cache;
