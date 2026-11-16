@@ -109,9 +109,7 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
                 orchbee_workbench_protocol::UserLaunchProfile {
                     id: "system-default".into(),
                     name: None,
-                    command: orchbee_workbench_protocol::UserLaunchCommand::SystemShell {
-                        login: false,
-                    },
+                    command: orchbee_workbench_protocol::UserLaunchCommand::BUILT_IN,
                 }
             ))
         ]
