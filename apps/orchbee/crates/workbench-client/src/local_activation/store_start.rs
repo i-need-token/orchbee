@@ -133,17 +133,14 @@ pub(super) fn decide(
 /// Before this Client's own activation: when the selected Session's Client endpoint is absent and
 /// the rule chooses the store, runs the store's Client and waits for it until `deadline`. Answers
 /// whether that Client reports it started the Session. At the deadline the answer is `TimedOut` and
-/// the store's Client keeps running. macOS serves only the default Session, so there the store's
-/// Client is never given a Session name.
+/// the store's Client keeps running.
 pub(super) fn start_if_absent(
     base: &Path,
     scope: &str,
-    #[cfg(windows)] explicit: Option<&str>,
+    explicit: Option<&str>,
     own_client: &Path,
     deadline: Instant,
 ) -> Result<bool, ActivationFailure> {
-    #[cfg(target_os = "macos")]
-    let explicit = None;
     if !session_absent(base, scope) {
         return Ok(false);
     }

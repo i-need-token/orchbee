@@ -232,6 +232,12 @@ fn activate(
     let name = &selection.name;
     #[cfg(unix)]
     let name = &selected;
+    // The name given by `--session` or by the caller, which a store start passes on as on Windows.
+    #[cfg(target_os = "macos")]
+    let explicit = match named {
+        Some(name) => Some(name.as_str()),
+        None => selected_session_name(),
+    };
     let scope = SessionScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
@@ -243,7 +249,6 @@ fn activate(
         let started_by_store = store_start::start_if_absent(
             &base,
             &scope_text,
-            #[cfg(windows)]
             explicit,
             &cohort.executable(CohortArtifact::Client),
             deadline,
