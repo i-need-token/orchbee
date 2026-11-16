@@ -265,6 +265,8 @@ fn install(
     report: &mut WindowReport,
 ) -> Result<(), Error> {
     context.check()?;
+    #[cfg(target_os = "macos")]
+    platform::admit_bundle_folders();
     let desktop = root.join(FOLDER);
     // The store root's lock first, as every writer takes it, so one update runs at a time.
     let _root = acquire(root, context)?;

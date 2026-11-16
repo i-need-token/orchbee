@@ -61,6 +61,25 @@ pub(super) fn open_source_file(path: &Path) -> io::Result<File> {
     }
 }
 
+/// Raises this process's soft limit on open descriptors to its hard limit, at most `OPEN_MAX`
+/// (10 240), the highest soft limit macOS grants without a system setting. A stage holds every
+/// folder it creates open until it publishes, and its cleanup opens the whole stage at once; a
+/// window version's application bundle holds hundreds of folders, more than the 256 a Terminal
+/// shell or install.sh starts with. Only the window install calls it, and it starts no Session
+/// afterwards, so no terminal inherits the raised limit.
+#[cfg(target_os = "macos")]
+pub(super) fn admit_bundle_folders() {
+    use nix::sys::resource::{Resource, getrlimit, rlim_t, setrlimit};
+    const OPEN_MAX: rlim_t = 10_240;
+    if let Ok((soft, hard)) = getrlimit(Resource::RLIMIT_NOFILE) {
+        let wanted = hard.min(OPEN_MAX);
+        if soft < wanted {
+            // A limit that cannot rise stays, and the install fails at its first refused open.
+            let _raised = setrlimit(Resource::RLIMIT_NOFILE, wanted, hard);
+        }
+    }
+}
+
 /// Opens `path` for reading; a link at its last component refuses, and a FIFO never blocks the open.
 fn open_no_follow(path: &Path) -> io::Result<File> {
     use nix::fcntl::OFlag;
