@@ -46,6 +46,8 @@ pub(super) enum Capability {
     ChannelPreference,
     Events,
     SchemaPublication,
+    /// `diagnostics create`: the diagnostic bundle, written where the person chooses.
+    DiagnosticBundle,
 }
 
 pub(super) struct Unsupported(Capability);
@@ -95,7 +97,8 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::TerminalClear
         | Capability::ChannelPreference
         | Capability::Events
-        | Capability::SchemaPublication => Failure::new(FailureKind::ServiceUnavailable)
+        | Capability::SchemaPublication
+        | Capability::DiagnosticBundle => Failure::new(FailureKind::ServiceUnavailable)
             .details(stage_reason_details("platform", "unsupported-platform")),
     })
 }

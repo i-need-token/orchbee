@@ -96,7 +96,7 @@ orchbee server stop --confirm      # stop the Windows Session (release: type its
 orchbee doctor                   # check whether Orchbee works here
 orchbee operation status <id>    # inspect a retained operation by its request ID
 orchbee config check             # local runtime inspection
-orchbee diagnostics create --output <path>  # Windows diagnostic bundle to send for help
+orchbee diagnostics create --output <path>  # diagnostic bundle to send for help (Windows, macOS)
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish|powershell|elvish
 orchbee --help | --version
@@ -734,7 +734,7 @@ Callers keep their external classification — `protocol-invalid` for CLI reads 
 carrier failure for the Workbench Client — and print none of it, because the Client's standard
 error and machine documents are product surfaces. The Workbench Client's only diagnostic exit is
 the `client-retired` record of the daily log described under the
-[diagnostic bundle](#windows-diagnostic-bundle).
+[diagnostic bundle](#diagnostic-bundle).
 
 [Workbench Client lifecycle regressions](crates/workbench-client/src/workbench_client/tests.rs) cover interrupted Drop/join,
 unknown-input retirement and read-only input refusal. [Native transport regressions](crates/workbench-client/src/workbench_client/connection/native/tests.rs)
@@ -1022,15 +1022,17 @@ Windows process tests execute the emitted completion in Git for Windows Bash, fo
 
 `api schema [<schema-id>] --output <path>` exports the embedded JSON document offline and also emits it on stdout. The destination parent must exist; a complete sibling file replaces an existing regular target. The [export contract](docs/native-cli-query.md#windows-offline-schema-export) owns failure stages, temporary cleanup and post-publication stdout failures. Catalog v68 contains 76 documents, including `orchbee.cli.failure.schema-export` v1.
 
-## Windows diagnostic bundle
+## Diagnostic bundle
 
 `diagnostics create --output <path> [--format text|json]` writes one stored ZIP archive to a literal
 path the person chooses and creates nothing in the data root; nothing is uploaded. It runs offline,
-never starts a Session, is not release-withheld, and answers the typed unsupported-platform failure
-outside Windows until ORC-328. Publication shares the
+never starts a Session, is not release-withheld, and runs on Windows and macOS; Linux answers the
+typed unsupported-platform failure. Publication shares the
 [schema export](docs/native-cli-query.md#windows-offline-schema-export) steps with a
 `.orchbee-diagnostics-<nonce>.tmp` sibling: the parent must exist and only a regular file is
-replaced. A write failure exits `1` with `orchbee.cli.failure.diagnostics` (`write-failed`, its
+replaced. On macOS the bundle is created private to the user (mode `0600`). Until named Sessions
+run on macOS, its `sessions.json` carries the unsupported-platform answer of `session list`, and
+`versions.json` names the default Session from its Server's status query. A write failure exits `1` with `orchbee.cli.failure.diagnostics` (`write-failed`, its
 stage, the path and any temporary file left); success answers `orchbee.diagnostics.create` with the
 path, size, entries and section states.
 
@@ -1038,7 +1040,7 @@ path, size, entries and section states.
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `manifest.json`           | `orchbee.diagnostics.bundle` v1, creation time, each section's `included`, `absent` or `unavailable` state, omitted log lines    |
 | `versions.json`           | Product version, environment stem, release flag, cohort identity and artifact digests, and whether each Session runs this Server |
-| `system.json`             | Operating system, architecture, Windows product and build, locale and the variable it came from, and a closed terminal token     |
+| `system.json`             | Operating system, architecture, Windows product and build or macOS version, locale and its variable, and a closed terminal token |
 | `config-check.json`       | The `config check` document                                                                                                      |
 | `sessions.json`           | The `session list` document with states                                                                                          |
 | `integrations.json`       | `never-enabled` without a Capsule folder, else `agent integration list` from a running default Session or `session-not-running`  |

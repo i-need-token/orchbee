@@ -128,7 +128,7 @@ commands! {
     ConfigCheck => ["config", "check"], 0, Operand, Portable, true, false, false;
     ConfigDefault => ["config", "default"], 0, Operand, Portable, false, false, false;
     ConfigReload => ["config", "reload"], 0, Operand, Portable, true, true, false;
-    DiagnosticsCreate => ["diagnostics", "create"], 0, Operand, Windows, true, false, false;
+    DiagnosticsCreate => ["diagnostics", "create"], 0, Operand, Portable, true, false, false;
     ServerStart => ["server", "start"], 0, Operand, Portable, true, false, false;
     ServerConnect => ["server", "connect"], 0, Operand, Portable, false, false, false;
     SessionList => ["session", "list"], 0, Operand, Windows, true, false, false;

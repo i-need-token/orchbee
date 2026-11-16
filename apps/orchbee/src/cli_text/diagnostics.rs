@@ -5,13 +5,13 @@ use crate::cli_text::escape::diagnostic_token;
 pub(super) const HELP_DIAGNOSTICS_CREATE_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee diagnostics create --output <path> [--format text|json]",
-        "Write one diagnostic bundle, a ZIP file, to <path> so you can send it yourself to\nwhoever helps you. Nothing is uploaded, and nothing stays in the data folder.\nThe bundle holds product and build versions with the running Sessions, the\noperating system, architecture, locale and terminal, config check output,\nconfig.toml and preferences with every command, argument, environment value,\nhome path and URL credential replaced by a placeholder, the Session list with\nstates, Agent integration status when the default Session is running, and the\nlogs of the last 7 days. It never holds terminal output, typed input,\ncheckpoints, layouts, plugin data or saved machines.\nThe parent folder must exist; an existing regular file is replaced only after\nthe bundle is complete. Windows only. Exit 0 on success, 1 when the file cannot\nbe written, 2 on usage error.",
+        "Write one diagnostic bundle, a ZIP file, to <path> so you can send it yourself to\nwhoever helps you. Nothing is uploaded, and nothing stays in the data folder.\nThe bundle holds product and build versions with the running Sessions, the\noperating system, architecture, locale and terminal, config check output,\nconfig.toml and preferences with every command, argument, environment value,\nhome path and URL credential replaced by a placeholder, the Session list with\nstates, Agent integration status when the default Session is running, and the\nlogs of the last 7 days. It never holds terminal output, typed input,\ncheckpoints, layouts, plugin data or saved machines.\nThe parent folder must exist; an existing regular file is replaced only after\nthe bundle is complete. Windows and macOS only. Exit 0 on success, 1 when the file cannot\nbe written, 2 on usage error.",
     );
 
 pub(super) const HELP_DIAGNOSTICS_CREATE_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee diagnostics create --output <path> [--format text|json]",
-        "将一个诊断包（ZIP 文件）写入 <path>，由你自己发给提供帮助的人。不会上传任何内容，数据文件夹中也不会留下文件。\n诊断包包含产品与构建版本及正在运行的会话、操作系统、架构、语言和终端、config check 输出、config.toml 与偏好设置（其中所有命令、参数、环境变量值、主目录路径和 URL 凭据都替换为占位符）、会话列表及其状态、默认会话运行时的 Agent 集成状态，以及最近 7 天的日志。不包含终端输出、键入内容、检查点、布局、插件数据或已保存的机器。\n父目录必须存在；诊断包完整生成后才会替换已有普通文件。仅限 Windows。成功退出 0，无法写入文件退出 1，用法错误退出 2。",
+        "将一个诊断包（ZIP 文件）写入 <path>，由你自己发给提供帮助的人。不会上传任何内容，数据文件夹中也不会留下文件。\n诊断包包含产品与构建版本及正在运行的会话、操作系统、架构、语言和终端、config check 输出、config.toml 与偏好设置（其中所有命令、参数、环境变量值、主目录路径和 URL 凭据都替换为占位符）、会话列表及其状态、默认会话运行时的 Agent 集成状态，以及最近 7 天的日志。不包含终端输出、键入内容、检查点、布局、插件数据或已保存的机器。\n父目录必须存在；诊断包完整生成后才会替换已有普通文件。仅限 Windows 和 macOS。成功退出 0，无法写入文件退出 1，用法错误退出 2。",
     );
 
 impl super::CliText {

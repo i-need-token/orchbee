@@ -712,7 +712,7 @@ covers with `<unrecognized>`. `DiagnosticRedactor` then scrubs every remaining s
 the home folder becomes `<home>`, the value of an `ORCHBEE_*`, `APPDATA`, `LOCALAPPDATA`, `TEMP` or
 `TMP` variable becomes `<env:NAME>`, URL user information becomes `<credential>`, and a URL query
 becomes `?<query>`. `diagnostic_archive` writes the entries as one stored ZIP archive. The
-[CLI command](../../apps/orchbee/README.md#windows-diagnostic-bundle) chooses what a bundle
+[CLI command](../../apps/orchbee/README.md#diagnostic-bundle) chooses what a bundle
 holds.
 
 ## Destructive request log
