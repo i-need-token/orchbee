@@ -980,21 +980,17 @@ fn list_inherited_blocked_sigterm_is_not_captured() -> TestResult {
     // Block SIGTERM on this test thread around the spawn: the mask survives
     // fork and exec, so the child exec's with SIGTERM already blocked — the
     // armed guard evaluates an inherited-blocked member without any unsafe.
+    // The thread mask, never `sigprocmask`, which on macOS blocks every
+    // thread and would hand SIGTERM blocked to a parallel test's child.
     let mut inherited = nix::sys::signal::SigSet::empty();
     inherited.add(nix::sys::signal::Signal::SIGTERM);
-    nix::sys::signal::sigprocmask(
-        nix::sys::signal::SigmaskHow::SIG_BLOCK,
-        Some(&inherited),
-        None,
-    )
-    .expect("block SIGTERM for the spawn");
+    inherited
+        .thread_block()
+        .expect("block SIGTERM for the spawn");
     let child = spawn_cli(&base, &["agent", "list", "--format", "json"]);
-    nix::sys::signal::sigprocmask(
-        nix::sys::signal::SigmaskHow::SIG_UNBLOCK,
-        Some(&inherited),
-        None,
-    )
-    .expect("restore the test thread mask");
+    inherited
+        .thread_unblock()
+        .expect("restore the test thread mask");
     ready
         .recv_timeout(Duration::from_secs(15))
         .expect("the request reached the held peer");
