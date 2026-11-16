@@ -105,6 +105,11 @@ is shown, through the same flushed atomic replacement as the window state record
 unreadable, or malformed record shows the notice again; a newer `version` means a newer Orchbee
 showed it, so the notice stays hidden and the record is never rewritten.
 
+Each record keeps a stored sample of its current format beside its reader's tests, named
+`desktop-window-v1.json` or `desktop-tray-v1.json` in a `record-samples/` folder. The sample must
+keep opening through the current reader, and a format change adds a migration step instead of
+editing the sample.
+
 ## Invariants
 
 - Dev, Test, and Release roots are pairwise distinct.

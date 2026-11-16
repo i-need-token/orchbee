@@ -117,6 +117,24 @@ describe('FileDesktopWindowStateStore', () => {
 		);
 		expect(await store.load()).toEqual({ kind: 'available', state: initial });
 	});
+
+	it('opens the stored sample of the current record format', async () => {
+		const directory = await createTemporaryDirectory();
+		const filePath = path.join(directory, 'desktop-window.json');
+		const sample = await readFile(
+			new URL('./record-samples/desktop-window-v1.json', import.meta.url),
+		);
+		await writeFile(filePath, sample);
+
+		expect(await createStore(directory, filePath).load()).toEqual({
+			kind: 'available',
+			state: {
+				bounds: { height: 800, width: 1_200, x: 120, y: 80 },
+				maximized: false,
+				version: 1,
+			},
+		});
+	});
 });
 
 describe('FileDesktopWindowStateStore migration', () => {
