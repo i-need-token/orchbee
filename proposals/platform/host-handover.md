@@ -107,8 +107,9 @@ reads and writes its terminals directly.
   OpenConsole process handles, the signal and reference handles, and both pipe ends.
 - **macOS and Linux.** The Keeper starts each program: the Host prepares the PTY and the launch; the
   Keeper forks, runs the child steps the Host runs today, and keeps a duplicate of the master. It
-  reports the leader's exit status without reaping it, and reaps when the Host asks after
-  containment. FreeBSD moves the reaper role, with `PROC_REAP_KILL`, into the Keeper.
+  reports the leader's exit status without reaping it, read with `waitid` and `WNOWAIT` as
+  [prototype 4](#prototype-4-result) measured, and reaps when the Host asks after containment.
+  FreeBSD moves the reaper role, with `PROC_REAP_KILL`, into the Keeper.
 - **Ownership.** The Keeper records the one Host that owns each terminal and arbitrates every change
   of owner, as [how a terminal moves](#how-a-terminal-moves) describes.
 - **Release first.** Rule: a Host that ends a terminal has each Keeper holding it close its
@@ -164,8 +165,9 @@ executable, before it moves any terminal. Until then a running Keeper stays, and
   not marked close-on-exec. The Keeper writes its state, each terminal's owner, leader process id,
   and master descriptor, to an unlinked file; clears close-on-exec on that file, the masters, and its
   listening endpoint; and executes the new version's binary in Keeper mode. A child that ends
-  meanwhile stays unreaped, so the new image finds its exit status. The Hosts and the Worker
-  reconnect at once, as the sockets systemd listens on stay reachable while it re-executes.
+  meanwhile stays unreaped, so the new image finds its exit status, as prototype 4 measured. The
+  Hosts and the Worker reconnect at once, as the sockets systemd listens on stay reachable while it
+  re-executes; prototype 4 connected during every `execve` and got an answer within 8 ms.
 - **A way back on macOS and Linux.** systemd discards its manager before it re-executes, so a failed
   start leaves PID 1 to a fallback shell or a freeze. The Keeper keeps its way back:
   - before anything else it runs the new binary as a child in a check mode that reads a copy of the
@@ -176,8 +178,11 @@ executable, before it moves any terminal. Until then a running Keeper stays, and
   - only a crash of the new image right after `execve`, or a kernel failure past `execve`'s point of
     no return, ends the Keeper. Programs then keep running, because each Host holds its masters, and
     lose their exit codes, as after a Keeper crash.
-- Moves and recoveries wait for a Keeper update to end; the programs stay held meanwhile. A Keeper
-  that has not answered 10 seconds into its update counts as one that stopped answering.
+- Moves and recoveries wait for a Keeper update to end; the programs stay held meanwhile. Rule: on
+  macOS and Linux a Keeper update also waits until a live Host holds the master of every terminal,
+  so it waits for a pending recovery, because a program whose master only the Keeper holds gets
+  `SIGHUP` and ends if the new image crashes, as prototype 4 measured. A Keeper that has not
+  answered 10 seconds into its update counts as one that stopped answering.
 
 ## How a terminal moves
 
@@ -397,6 +402,11 @@ Docker it keeps a small holder apart, and unlike Docker it replaces that holder 
 - Prototype 3 has run on Windows: a quiesce loses and repeats no bytes, and a cancelled read never
   consumes bytes it does not return. The quiesce waits for the reader to stop, not for
   `abortRead`, and the claiming Host reads only after that stop.
+- Prototype 4 has run on macOS: a program the Keeper forks keeps its controlling terminal and gets
+  no `SIGHUP` while its master moves between Hosts; the Keeper reads exit statuses without reaping
+  and keeps its children, masters, and their statuses across a re-execution in place; a Keeper
+  killed right after `execve` leaves every program whose master a Host holds running; and the POSIX
+  quiesce loses and repeats no bytes.
 
 ### Prototype 1 result
 
@@ -508,13 +518,57 @@ unless it says inferred.
 - Recovery on Windows: a hung Host with a blocked read keeps taking output until it ends, so the
   Worker ends it before the new Host reads, and bytes it read but never applied are lost, as
   recovery already accepts (inferred).
-- POSIX, from the code; prototype 4 and H5 test it. `PosixPty.read` polls the master and an abort
-  pipe, returns before reading once the abort is set, and reads the master only after poll reports
-  data, so nothing cancels a read in progress. A stop takes effect between reads, and a poll that
-  reports both the abort and data leaves the data in the PTY buffer for the next reader, so a read
-  that completes as it is cancelled cannot occur. The abort marker is never drained and
-  `read_aborted` stays set, so the stop must become undoable there too, and two readers of one
-  master would split its output, so the one-reader rule holds on POSIX as well (inferred).
+- POSIX, from the code, and [prototype 4](#prototype-4-result) measured it on macOS.
+  `PosixPty.read` polls the master and an abort pipe, returns before reading once the abort is set,
+  and reads the master only after poll reports data, so nothing cancels a read in progress. A stop
+  takes effect between reads, and a poll that reports both the abort and data leaves the data in
+  the PTY buffer for the next reader, so a read that completes as it is cancelled cannot occur. The
+  abort marker is never drained and `read_aborted` stays set, so the stop must become undoable there
+  too. Two readers of one master would split its output, so the one-reader rule holds on POSIX as
+  well (inferred).
+
+### Prototype 4 result
+
+Run on 2026-11-16 on macOS 14.8.7 on an M1 MacBook Air, beside another agent's test runs, with
+probes in C built by `zig cc`. A Keeper process forked each program onto a PTY with the child steps
+of `PosixPty.childSetup` (`setsid`, `TIOCSCTTY`, the standard streams, default signal dispositions)
+and kept the master, and stand-in Host processes took masters from it by `SCM_RIGHTS`. The programs
+were a witness and an interactive `zsh -f`, which ends on `SIGHUP`. The witness logs every signal
+it receives and reports, every 2 ms or on request, its parent, whether `/dev/tty` opens, whether the
+PTY is its session's controlling terminal, and whether its group is in the foreground. Every result
+is measured unless it says inferred.
+
+| Question                   | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Handover                   | 1,000 handovers of the witness and 200 of zsh, a quarter each with the old Host exiting before the claim, exiting right after it, killed as the new Host claimed, or with no Keeper copy, so that for 30 ms after the old Host exited the master existed only in an unreceived message. No program got `SIGHUP` or lost its controlling terminal or foreground group, the witness's numbered lines ran on from each Host to the next with none lost or repeated, and zsh answered every Host. Closing the last copy at the end delivered `SIGHUP` and ended both, so the probe sees a hangup when one happens |
+| Status without reaping     | 3,000 children ended by the exit codes 0, 1, 7, 42, and 255 and by `SIGTERM`, `SIGKILL`, `SIGHUP`, `SIGINT`, and `SIGUSR1`, half of them session leaders on a PTY. `waitid(P_PID, pid, WEXITED \| WNOWAIT)` returned the right status every time and again 1 ms later, the zombie stayed, and the later `waitpid` reaped the same status. A kqueue `EVFILT_PROC` filter registered before the exit returned the same status with `NOTE_EXITSTATUS` in all 2,000 cases; registered after the exit, it failed with `ESRCH` in all 1,000                                                                         |
+| Wait hazards               | `waitid(P_ALL, …, WNOWAIT)` returned the same zombie on every call, so it cannot walk several ended children. With `SIGCHLD` ignored the kernel reaped at once, and `waitid` answered `ECHILD`                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Re-execution               | A Keeper re-executed itself 1,000 times in a chain, holding two witnesses and zsh. In every generation the new image found all three as its running children with the same masters by `ptsname`, the witnesses named it as their parent and kept their controlling terminal with no `SIGHUP`, zsh answered through its master, the open descriptors stayed at 9, and the last image reaped all three. From `execve` to the new image's `main` took a median 0.94 ms, a 99th percentile of 1.9 ms, and at most 6.4 ms                                                                                          |
+| A child ending in `execve` | Each generation released a child to end just before `execve`. 593 ended between the call and the new `main`, 574 of them already zombies when it started; 157 ended after it; and 250 were killed with `SIGKILL` just before the call. The new image found and reaped the right status in all 1,000                                                                                                                                                                                                                                                                                                           |
+| Reconnect                  | A Host connecting to the Keeper's listening socket as soon as `execve` began connected all 1,000 times, and the new image answered it in a median 1.2 ms and at most 8 ms                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Failed `execve`            | A missing binary returned `ENOENT` and a non-executable file `EACCES`, and the old image kept running with its children and masters                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Keeper killed              | In 300 runs a Host held the masters while the new image killed itself as its first instruction, or was killed with `SIGKILL` as `execve` began or once its `main` ran. All 900 programs kept running with parent 1, their controlling terminal, their foreground group, and no `SIGHUP`, and zsh answered through the Host's master. With no Host holding the masters, every witness in 10 runs got `SIGHUP` and ended                                                                                                                                                                                        |
+| Quiesce                    | Two Host processes took turns reading one master as `PosixPty.read` does, stopped by the abort pipe, drained it to resume, and claimed the master again by `SCM_RIGHTS` every turn. In 22,000 turns of numbered lines every 1 ms or 100 µs or flooding through the line discipline, and of a raw counter stream in chunks every 20 µs or flooding, the joined turns held 16.4 million lines and 59.5 million counters, 673 MB, with no byte lost, repeated, or changed. In 4,559 stops poll reported the abort and data together, and the next Host got that data intact                                      |
+| Stop time                  | From the abort to the reader stopped with its last batch applied, the run medians were 2 to 13 µs, the 99th percentiles 6 to 25 µs, and the maximum 59 µs. The probe applied a batch by checking it, not by parsing it with Ghostty                                                                                                                                                                                                                                                                                                                                                                           |
+| Descriptors per message    | One message carried 64 distinct masters, received in order, and up to 254 descriptors; 255 or more failed `sendmsg` with `EINVAL`. A receiver short of free descriptor slots got `EMFILE`, and a retry with free slots received the message's bytes without any descriptors: they were lost                                                                                                                                                                                                                                                                                                                   |
+
+- The Keeper design holds on macOS as written: the Keeper forks and parents the programs.
+- Rule: the Keeper reads each leader's status with `waitid(P_PID, …, WEXITED | WNOWAIT)`, never with
+  `P_ALL` or `waitpid(-1)`. A kqueue filter only wakes it, and a registration that fails with
+  `ESRCH` means the leader has already ended. It sets `SIGCHLD` to its default action when it
+  starts, because an ignored `SIGCHLD` reaps at once and loses every status.
+- A Keeper killed after `execve` leaves running only the programs whose master a Host holds, so a
+  Keeper update waits for pending recoveries, as [updating the Keeper](#updating-the-keeper) now
+  says. Their exit codes go to `launchd`, which reaps them (inferred).
+- Rule: a claim counts the descriptors it receives against the record, and a short count fails the
+  claim and leaves the terminal with its old Host. A Host claims only with free slots for every
+  descriptor of the message. H5 keeps 64 descriptors per message, under the macOS limit of 254.
+- The POSIX quiesce needs only the undoable stop that prototype 3 named: drain the abort pipe and
+  clear `read_aborted`. A stop took at most 59 µs, against 5.9 ms on Windows.
+- Not covered, and left to H5: Linux and FreeBSD, the product's Host and Keeper code, the check
+  mode, bash, and a Keeper killed while a job in the shell is stopped. The leader's process group is
+  orphaned from the start, because the Keeper is in another session, so the Keeper's death orphans
+  no new group and sends no `SIGHUP` or `SIGCONT` (inferred).
 
 ## Phases
 
@@ -525,7 +579,7 @@ unless it says inferred.
 | H2    | Recovery: the Worker replaces a Host that crashed or hung, and the new Host takes its terminals from the Keeper; a Keeper that crashed or stopped answering is replaced, and the Hosts deposit again                                                                                                                                                                    | 1.5–2 weeks                                          | After H1; on as soon as it passes                                                                                                           |
 | H3    | Moves across versions by the Worker: timing, the hold, rebinding, the Server's binding record, P1a's import for a terminal seen in two Hosts, the image section, and diagnostics                                                                                                                                                                                        | 2.5–3 weeks after its decision run                   | After H1 and P1c                                                                                                                            |
 | H4    | Moves in updates: the [Keeper update](#updating-the-keeper) on Windows, the release gate's checks of both, the confirmation reduced to terminals that cannot move, status, and the switch turned on                                                                                                                                                                     | About 1.5 weeks                                      | After H2, H3, and P2                                                                                                                        |
-| H5    | macOS: the Keeper as parent and its re-execution in place, claims by `SCM_RIGHTS` 64 descriptors per message, the quiesce, recovery, and the gate on macOS                                                                                                                                                                                                              | 3–4 weeks                                            | After the first macOS package, before macOS automatic updates                                                                               |
+| H5    | macOS: the Keeper as parent and its re-execution in place, claims by `SCM_RIGHTS` 64 descriptors per message with a short count failing the claim, the quiesce, recovery, and the gate on macOS                                                                                                                                                                         | 3–4 weeks                                            | After the first macOS package, before macOS automatic updates                                                                               |
 | B1    | [Background programs in the Host](#background-programs-the-worker-runs)                                                                                                                                                                                                                                                                                                 | 1.5–2 weeks                                          | Right after P1b                                                                                                                             |
 
 - H1 ships as early as possible, because a Host released before it can never hand over its
