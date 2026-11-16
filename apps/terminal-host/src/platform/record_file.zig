@@ -10,6 +10,9 @@ extern fn ob_host_record_write(
     append: c_int,
     maximum_bytes: u32,
 ) c_int;
+extern fn ob_host_record_move(from: *const anyopaque, to: *const anyopaque) c_int;
+extern fn ob_host_record_watchdog_start(milliseconds: u32) c_int;
+extern fn ob_host_record_watchdog_trigger(code: u32) void;
 extern fn ob_host_record_capture_executable(base: *usize, end: *usize) void;
 extern fn ob_host_record_unix_milliseconds() u64;
 extern fn ob_host_record_process_id() u32;
@@ -65,7 +68,24 @@ pub const Path = struct {
             .append_bounded => |maximum| ob_host_record_write(&self.units, bytes.ptr, length, 1, maximum) == 1,
         };
     }
+
+    /// Best effort: whether the file at this path moved to `target`, replacing any file there.
+    pub fn moveTo(self: *const Path, target: *const Path) bool {
+        return ob_host_record_move(&self.units, &target.units) == 1;
+    }
 };
+
+/// Starts, once, the thread that ends the process `milliseconds` after `triggerWatchdog`. Best
+/// effort: whether that thread runs.
+pub fn startWatchdog(milliseconds: u32) bool {
+    return ob_host_record_watchdog_start(milliseconds) == 1;
+}
+
+/// Makes the watchdog end the process with `code` once its time has passed, if nothing ends it
+/// sooner. Without a watchdog it does nothing.
+pub fn triggerWatchdog(code: u8) void {
+    ob_host_record_watchdog_trigger(code);
+}
 
 /// The address range this executable's image occupies; empty when it could not be found.
 pub const ExecutableRange = struct {

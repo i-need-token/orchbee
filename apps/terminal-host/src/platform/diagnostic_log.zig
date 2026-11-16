@@ -14,8 +14,8 @@ pub const file_name = "host-diagnostics.jsonl";
 pub const max_file_bytes: u32 = 256 * 1024;
 /// A dispatch turn longer than this is recorded.
 pub const slow_turn_threshold_ns: u64 = 250 * std.time.ns_per_ms;
-/// Each slow-turn kind, the dropped-reply count, accept failures, and refused runtime observations
-/// are recorded at most once per window.
+/// Each slow-turn kind, the dropped-reply count, accept failures, refused runtime observations,
+/// and deferred event-delivery passes are recorded at most once per window.
 pub const rate_window_ns: u64 = 60 * std.time.ns_per_s;
 const max_line_bytes = 320;
 const rate_slots = 32;
@@ -67,6 +67,7 @@ var recorded_dropped_replies: u64 = 0;
 var dropped_recorded_at_ns: ?u64 = null;
 var accept_failures: Windowed = .{};
 var observation_refusals: Windowed = .{};
+var deferred_event_passes: Windowed = .{};
 
 /// Arms the log in `runtime_directory`, which this Host must already hold exclusively.
 pub fn arm(runtime_directory: []const u8) void {
@@ -142,6 +143,26 @@ pub fn observationRefused(error_name: []const u8, phase: []const u8) void {
         },
     ) catch return;
     observation_refusals.recorded(now);
+    writeLine(line);
+}
+
+/// Records an event-delivery pass that failed and left its events for the next pass, at most once
+/// per window. `error` is the Host's own error name.
+pub fn eventsDeferred(error_name: []const u8) void {
+    if (path == null) return;
+    const now = nowNs();
+    if (!deferred_event_passes.allows(now)) return;
+    var buffer: [max_line_bytes]u8 = undefined;
+    const line = std.fmt.bufPrint(
+        &buffer,
+        "{{\"time_unix_ms\":{d},\"event\":\"events-deferred\",\"error\":\"{s}\",\"suppressed\":{d}}}\n",
+        .{
+            record_file.unixMilliseconds(),
+            identifierOrUnnamed(error_name),
+            deferred_event_passes.suppressed,
+        },
+    ) catch return;
+    deferred_event_passes.recorded(now);
     writeLine(line);
 }
 

@@ -10,10 +10,16 @@
 //! with that code but leaves no record, because no runtime directory is known to belong to this
 //! Host yet. Only the faults these handlers receive are recorded: a fail-fast exit, an exception
 //! the standard handler passes on, `abort`, or an external kill leaves no record.
+//!
+//! `arm` moves a record an earlier Host left in the same directory to `previous_file_name`, so
+//! `file_name` only ever holds this Host's own record. It also starts a watchdog: once a fault is
+//! being handled, the process ends within `fault_handling_budget_ms` even if the record write or
+//! the console report blocks.
 const std = @import("std");
 const record_file = @import("record_file.zig");
 
 pub const file_name = "host-fatal.json";
+pub const previous_file_name = "host-fatal.previous.json";
 /// The exit code of a Host that panicked or took a processor exception.
 pub const exit_code: u8 = 16;
 pub const format_version = 1;
@@ -21,6 +27,10 @@ pub const max_record_bytes = 512;
 /// How long a second faulting thread waits for the first to finish the record before it ends
 /// the process itself.
 const concurrent_fault_grace_ms = 2000;
+/// How long the faulting thread may spend on the record and the console report before the
+/// watchdog ends the process without them. A developer's stack trace loads debug information, so
+/// this is a bound, not a target.
+pub const fault_handling_budget_ms = 10_000;
 const max_error_name_bytes = 64;
 
 /// The thread a fault happened on. A thread names its kind when it starts; any thread that does
@@ -160,7 +170,13 @@ pub fn markThread(kind: ThreadKind) void {
 pub fn arm(runtime_directory: []const u8) void {
     if (armed.load(.acquire)) return;
     armed_path = record_file.Path.init(runtime_directory, file_name) orelse return;
+    // An earlier Host's record is kept for diagnosis, but never under this Host's name. A record
+    // that cannot move still names its own process ID.
+    if (record_file.Path.init(runtime_directory, previous_file_name)) |previous| {
+        _ = armed_path.moveTo(&previous);
+    }
     executable = record_file.ExecutableRange.capture();
+    _ = record_file.startWatchdog(fault_handling_budget_ms);
     armed.store(true, .release);
 }
 
@@ -205,6 +221,7 @@ fn fail(
         if (!exit_recorded.load(.acquire)) record_file.waitMilliseconds(concurrent_fault_grace_ms);
         record_file.exitNow(kept_exit_code.load(.acquire));
     }
+    record_file.triggerWatchdog(exit_code);
     writeRecord(kind, reason, error_name, address);
     if (record_file.stderrAttached()) reportToStderr(kind, reason, address, context);
     record_file.exitNow(exit_code);

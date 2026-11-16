@@ -1,8 +1,9 @@
 /* The operating-system half of the Host's fatal record and diagnostic log. The functions that run
- * after a fault (write, clock, process id, stderr, wait, exit) call no Zig code and allocate
- * nothing of their own. The system calls under them may: on Windows, CreateFileW takes the process
- * heap lock and allocates, so a fault that corrupted the heap or holds that lock can stop the
- * record from being written. */
+ * after a fault (write, clock, process id, stderr, wait, watchdog trigger, exit) call no Zig code
+ * and allocate nothing of their own. The system calls under them may: on Windows, CreateFileW
+ * takes the process heap lock and allocates, so a fault that corrupted the heap or holds that lock
+ * can stop the record from being written. The watchdog, started before any fault, ends the process
+ * even then. */
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -10,7 +11,10 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
+#include <signal.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -31,6 +35,9 @@ int ob_host_record_write(
     int append,
     uint32_t maximum_bytes
 );
+int ob_host_record_move(const void *from, const void *to);
+int ob_host_record_watchdog_start(uint32_t milliseconds);
+void ob_host_record_watchdog_trigger(uint32_t code);
 void ob_host_record_capture_executable(uintptr_t *base, uintptr_t *end);
 uint64_t ob_host_record_unix_milliseconds(void);
 uint32_t ob_host_record_process_id(void);
@@ -109,6 +116,117 @@ int ob_host_record_write(
     }
     close(file);
     return offset == length ? 1 : 0;
+#endif
+}
+
+/* Moves the file at `from` to `to`, replacing a file there; both are paths as for
+ * `ob_host_record_write`. Returns 1 when it moved. */
+int ob_host_record_move(const void *from, const void *to) {
+#if defined(_WIN32)
+    return MoveFileExW(from, to, MOVEFILE_REPLACE_EXISTING) ? 1 : 0;
+#else
+    return rename((const char *)from, (const char *)to) == 0 ? 1 : 0;
+#endif
+}
+
+/* The watchdog: a thread started before any fault that waits for a trigger, then for its time,
+ * then ends the process with the triggered code. A fault handler whose record write or console
+ * report blocks therefore still ends the Host. */
+static uint32_t ob_watchdog_milliseconds = 0;
+static uint32_t ob_watchdog_code = 0;
+#if defined(_WIN32)
+static HANDLE ob_watchdog_event = NULL;
+
+static DWORD WINAPI ob_watchdog(LPVOID unused) {
+    (void)unused;
+    if (WaitForSingleObject(ob_watchdog_event, INFINITE) != WAIT_OBJECT_0) return 0;
+    ob_host_record_wait_milliseconds(ob_watchdog_milliseconds);
+    ob_host_record_exit(__atomic_load_n(&ob_watchdog_code, __ATOMIC_SEQ_CST));
+    return 0;
+}
+#else
+static int ob_watchdog_pipe[2] = {-1, -1};
+
+static void *ob_watchdog(void *unused) {
+    (void)unused;
+    unsigned char byte = 0;
+    for (;;) {
+        const ssize_t got = read(ob_watchdog_pipe[0], &byte, 1);
+        if (got == 1) break;
+        if (got < 0 && errno == EINTR) continue;
+        return NULL;
+    }
+    ob_host_record_wait_milliseconds(ob_watchdog_milliseconds);
+    ob_host_record_exit(__atomic_load_n(&ob_watchdog_code, __ATOMIC_SEQ_CST));
+    return NULL;
+}
+#endif
+
+/* Starts the watchdog once. Called before the Host starts other threads. Returns 1 when it runs. */
+int ob_host_record_watchdog_start(uint32_t milliseconds) {
+#if defined(_WIN32)
+    if (ob_watchdog_event != NULL) return 1;
+    ob_watchdog_milliseconds = milliseconds;
+    HANDLE event = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (event == NULL) return 0;
+    ob_watchdog_event = event;
+    HANDLE thread =
+        CreateThread(NULL, 64 * 1024, ob_watchdog, NULL, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
+    if (thread == NULL) {
+        ob_watchdog_event = NULL;
+        CloseHandle(event);
+        return 0;
+    }
+    CloseHandle(thread);
+    return 1;
+#else
+    if (ob_watchdog_pipe[1] >= 0) return 1;
+    ob_watchdog_milliseconds = milliseconds;
+    int ends[2];
+    if (pipe(ends) != 0) return 0;
+    if (fcntl(ends[0], F_SETFD, FD_CLOEXEC) != 0 || fcntl(ends[1], F_SETFD, FD_CLOEXEC) != 0) {
+        close(ends[0]);
+        close(ends[1]);
+        return 0;
+    }
+    ob_watchdog_pipe[0] = ends[0];
+    /* The thread inherits a mask that blocks every signal, so no signal meant for the Host runs on
+     * it. */
+    sigset_t all;
+    sigset_t previous;
+    sigfillset(&all);
+    pthread_sigmask(SIG_SETMASK, &all, &previous);
+    pthread_attr_t attributes;
+    int created = pthread_attr_init(&attributes);
+    if (created == 0) {
+        (void)pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
+        (void)pthread_attr_setstacksize(&attributes, 64 * 1024);
+        pthread_t thread;
+        created = pthread_create(&thread, &attributes, ob_watchdog, NULL);
+        pthread_attr_destroy(&attributes);
+    }
+    pthread_sigmask(SIG_SETMASK, &previous, NULL);
+    if (created != 0) {
+        ob_watchdog_pipe[0] = -1;
+        close(ends[0]);
+        close(ends[1]);
+        return 0;
+    }
+    ob_watchdog_pipe[1] = ends[1];
+    return 1;
+#endif
+}
+
+/* Asks the watchdog to end the process with `code` once its time has passed. Safe in a signal
+ * handler; without a watchdog it does nothing. */
+void ob_host_record_watchdog_trigger(uint32_t code) {
+    __atomic_store_n(&ob_watchdog_code, code, __ATOMIC_SEQ_CST);
+#if defined(_WIN32)
+    if (ob_watchdog_event != NULL) (void)SetEvent(ob_watchdog_event);
+#else
+    if (ob_watchdog_pipe[1] < 0) return;
+    const unsigned char byte = 1;
+    while (write(ob_watchdog_pipe[1], &byte, 1) < 0 && errno == EINTR) {}
 #endif
 }
 

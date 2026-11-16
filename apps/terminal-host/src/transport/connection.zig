@@ -163,10 +163,20 @@ fn serveSession(
         var events = events: {
             var turn = TurnClock.start();
             defer turn.finish(.events);
-            break :events try service.pollEvents(&connection);
+            break :events service.pollEvents(&connection) catch |err| switch (err) {
+                error.ServiceShuttingDown => return err,
+                // A pass commits nothing until its whole batch exists, so a failed one leaves
+                // every event for the next pass, and the session and its terminals carry on.
+                else => {
+                    diagnostic_log.eventsDeferred(@errorName(err));
+                    break :events null;
+                },
+            };
         };
-        defer events.deinit();
-        try writeSession(transport, events.records(), service, lanes);
+        if (events) |*batch| {
+            defer batch.deinit();
+            try writeSession(transport, batch.records(), service, lanes);
+        }
 
         if (!service.acceptsRequests()) {
             // The held-request limit is reached: read nothing more until the creation they wait

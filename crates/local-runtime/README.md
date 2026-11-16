@@ -627,7 +627,8 @@ admitted stopped receipt (or never-activated runtime), free lifetime, checkpoint
 locks, and absent endpoints are required before publishing the durable Deleting record, which fences
 activation and survives partial cleanup. The owner removes only known Session and runtime files,
 including `terminal-output/` entries, a `layouts/` folder an earlier build kept, and the Terminal
-Host's `host-fatal.json` and `host-diagnostics.jsonl` records in the `host` folder, plus on POSIX
+Host's `host-fatal.json`, `host-fatal.previous.json` and `host-diagnostics.jsonl` records in the
+`host` folder, plus on POSIX
 the `<endpoint-id>.l` lock file an exited Host leaves there, whose free lock absent endpoints
 already proved, releases their
 exact handles before removal, retains ancestor pins and removes the record and the emptied Session

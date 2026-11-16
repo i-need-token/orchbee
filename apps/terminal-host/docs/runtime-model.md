@@ -1121,8 +1121,11 @@ timeout, or transient system failure ends it (`TH-027`).
   and discarded first, so framing is kept. Any other escaped error answers `internal-error`, not
   retryable. The commit discipline
   guarantees that such an error escaped before the commit. A request without a correlation id, or
-  a failure while the connection is not active, still closes the connection, as does an
-  event-delivery error.
+  a failure while the connection is not active, still closes the connection.
+- **Event-delivery failures**: a pass commits nothing until its whole outgoing batch exists, so a
+  pass that fails, such as on `OutOfMemory`, leaves every event for the next pass and the session
+  serves on; it is recorded as `events-deferred`, at most once a minute. Only a Host that is
+  shutting down ends the session there.
 - **Slow dispatch turns**: a Worker request or an event-delivery pass that holds the dispatch thread
   longer than 250 ms is recorded with its message kind, at most once per kind per minute.
 - **Slow terminal starts**: a spawn builds on the creator thread of the
@@ -1142,8 +1145,10 @@ environment, or peer bytes; panic messages are dropped because they may be forma
 those.
 
 The fatal record is `<runtime_directory>/host-fatal.json`. It is armed once the Host holds its
-endpoint and runtime directory, and each fatal exit replaces it with one JSON object written as a
-single line, shown formatted here:
+endpoint and runtime directory. Arming moves a record an earlier Host left there to
+`host-fatal.previous.json`, replacing any older one, so `host-fatal.json` only ever holds this
+Host's record; a record that cannot be moved still names its own `process_id`. Each fatal exit
+replaces the record with one JSON object written as a single line, shown formatted here:
 
 ```json
 {
@@ -1178,8 +1183,10 @@ code `16`; an `exit` record keeps the Host's own failure code, and a fault in th
 follows it exits with that recorded code rather than `16`. A fault before the record is armed
 exits with `16` and leaves no record. A Host whose standard error leads somewhere, such as one
 started from a console, also writes the class and a stack trace there; a Worker-started Host has
-no standard error on Windows and `/dev/null` elsewhere, and skips it. Neither the record write
-nor the stack trace on the faulting thread is bounded in time.
+no standard error on Windows and `/dev/null` elsewhere, and skips it. Arming also starts a
+watchdog thread: once a fault claims the record, the process ends with `16` within 10 s even if
+the record write or the stack trace blocks, so a fault that leaves a filesystem or console call
+stuck still ends the Host and its programs. A fault before arming is not bounded.
 
 The diagnostic log is `<runtime_directory>/host-diagnostics.jsonl`, one JSON line per event,
 starting over when it would pass 256 KiB:
@@ -1196,10 +1203,14 @@ starting over when it would pass 256 KiB:
   Engine-classified failure, a refused observation, a failed resize, or unconfirmed cleanup.
 - `observation-refused`: `error` (Core's refusal), `phase` (the terminal's lifecycle phase), and
   `suppressed` (the refusals since the previous line that were not written), at most once a minute.
+- `events-deferred`: `error` (the Host's own error name) and `suppressed` (the failed passes since
+  the previous line that were not written), when an event-delivery pass fails and leaves its events
+  for the next pass, at most once a minute.
 
 Every line also carries `time_unix_ms` and `event`. Only the dispatch thread writes; other threads
-count dropped replies atomically. Both files stay after the Host exits, for diagnosis, and named
-Session deletion removes them with the rest of the Session's runtime folder.
+count dropped replies atomically. These files, with an earlier Host's record, stay after the Host
+exits, for diagnosis, and named Session deletion removes them with the rest of the Session's
+runtime folder.
 
 ### Attachment delivery
 

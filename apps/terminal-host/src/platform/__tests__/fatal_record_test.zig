@@ -57,6 +57,9 @@ test "a panic leaves one closed fatal record without its message and exits with 
     defer tmp.cleanup();
     const directory = try tmp.dir.realPathFileAlloc(io, ".", allocator);
     defer allocator.free(directory);
+    // A record an earlier Host left here is kept, but never read as this Host's.
+    const earlier = "earlier Host\n";
+    try tmp.dir.writeFile(io, .{ .sub_path = fatal_record.file_name, .data = earlier });
 
     var child = try std.process.spawn(io, .{
         .argv = &.{ test_options.fatal_record_fixture, directory, "secret-title" },
@@ -82,4 +85,13 @@ test "a panic leaves one closed fatal record without its message and exits with 
     try std.testing.expectEqualStrings("explicit-panic", object.get("reason").?.string);
     try std.testing.expectEqualStrings("dispatch", object.get("thread").?.string);
     try std.testing.expect(object.get("module_offset").? == .integer);
+
+    const previous = try tmp.dir.readFileAlloc(
+        io,
+        fatal_record.previous_file_name,
+        allocator,
+        .limited(fatal_record.max_record_bytes + 1),
+    );
+    defer allocator.free(previous);
+    try std.testing.expectEqualStrings(earlier, previous);
 }

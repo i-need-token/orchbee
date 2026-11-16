@@ -226,10 +226,12 @@ did not crash.
 Once it holds its endpoint, the Host writes two files in the runtime directory. `host-fatal.json`
 is the one closed record a panic, a routed exception, or a failed serve loop leaves: role, kind,
 reason class, error name, thread kind, module offset, process ID, and time, never program output,
-titles, paths, or peer bytes.
+titles, paths, or peer bytes. A record an earlier Host left is moved to
+`host-fatal.previous.json` when the next Host starts.
 `host-diagnostics.jsonl` records the faults the Host survives: accept failures with their system
 codes, dispatch turns over 250 ms, dropped terminal replies, terminals failed alone with their
-failure class, and refused Engine observations, bounded at 256 KiB. The
+failure class, refused Engine observations, and event-delivery passes left for the next pass,
+bounded at 256 KiB. The
 [runtime model](docs/runtime-model.md#fatal-record-and-diagnostic-log) owns both formats.
 
 `--scrollback-bytes` sets the startup default for newly created terminals. The current default is 10,000,000 decimal bytes; accepted values range from `0` through `1,000,000,000`. A broker may replace the process default for later terminals or supply an explicit configuration when creating one. Zero disables retained scrollback.
