@@ -75,6 +75,10 @@ impl super::CliText {
                 "A newer version is active, so this older release was not activated. Pass --allow-downgrade to orchbee install to allow it.",
                 "当前启用的是更新的版本，因此未启用这个旧版本。如需安装旧版本，请给 orchbee install 加 --allow-downgrade。",
             ),
+            "version-held" => (
+                "This version failed after it became active and Orchbee went back to the version before it, so it is not activated again until a newer version is active. Nothing was changed.",
+                "此版本启用后运行失败，Orchbee 已退回到之前的版本，因此在更新的版本启用之前不会再启用它，未做任何改动。",
+            ),
             "other-architecture" => (
                 "The installation holds Orchbee for another processor architecture. Nothing was changed.",
                 "安装目录中是另一种处理器架构的 Orchbee，未做任何改动。",

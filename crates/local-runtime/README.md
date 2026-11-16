@@ -1352,6 +1352,40 @@ start read the store through these, and the CLI's `release_store` writer takes t
 pointer names and the bound from here. Reading takes no lock, creates nothing and starts no
 process.
 
+### Fallback after a failed move
+
+Beside the read side, `release_store::fallback` owns the one pointer write besides the Client's
+release store: the `fallback` member of the pointer's `extensions`, whose format
+`orchbee-release-records` owns. Each write takes `install.lock`, reads `active.json`, applies one
+transition and replaces the file through the store's flushed rename, so no two writes interleave
+and a crash leaves the old file or the new one; readers still take no lock. All of it runs only
+where the [automatic-update switch](#automatic-update-switch) is on. A build where it is off
+records nothing and keeps `extensions` verbatim, so a move it makes leaves a record whose move no
+longer counts.
+
+- `complete_move` is the completion of a build whose switch is on. It refuses a held target with
+  `VersionHeld`; otherwise it moves the pointer as `Pointer::activate` does and drops held versions
+  at or below the target. A real move writes a fresh move whose `back` is true only when the
+  record's move counted for the replaced entry, which proves that the replaced version records,
+  and the caller accepts that entry: its `release.json` still hashes to its manifest, and it meets
+  every component `securityFloor` of the target's own verified manifest. Activating the active
+  entry again keeps the record as it is.
+- `FallbackRecorder` writes only the store its executable runs from. It decides from a read
+  without the lock, so a start long after a move never takes the lock, then tries the lock every
+  50 ms for at most 2 s and decides again from the pointer read under it; a record it cannot write
+  is dropped and logged as `fallback-record-dropped`. `record_event` is that decision: only a
+  counting move whose `back` is true records; each role's window opens with its first record and
+  lasts 600 000 ms, and a record dated before it counts nothing; a TUI or Session start needs the
+  recorder's own version to be the moved one; a Client failure counts only for the moved version;
+  a Session failure counts once, for a generation in `starts`.
+- A role's third failure inside its window falls back when the version folder `previous` names
+  exists: `previous` becomes active and is removed, the failed version joins `held`, and a fresh
+  move with `back` false and `restore` true keeps that version from falling back further. The
+  committing process logs `fallback` with both versions. Without that folder the failure is
+  recorded, nothing falls back, and the role records nothing more for the move.
+- `held_versions` lists the held versions above the active one. Nothing makes them active until a
+  higher version has been, which drops them.
+
 ## Update channel writes
 
 `set_update_channel` saves the channel through the [settings editor](#editing), so it shares its lock, validation, digest check and atomic replacement, and may create the absent file. It never downloads, and never rolls back the saved channel after a caller's update failure.

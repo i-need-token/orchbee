@@ -4,6 +4,8 @@
 #[cfg(windows)]
 mod channel_persistence;
 mod feed_admission;
+#[cfg(windows)]
+mod held_version;
 mod install_fixture;
 mod manifest_admission;
 #[cfg(windows)]

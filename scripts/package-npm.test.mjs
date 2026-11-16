@@ -15,6 +15,7 @@ import test from 'node:test';
 import {
 	compareVersions,
 	judgeClientExit,
+	heldVersions,
 	nextStart,
 	parsePointer,
 	storeRoot,
@@ -243,6 +244,40 @@ test('the launcher reads only a format-1 pointer as an active version', () => {
 		JSON.stringify({ version: 1, active: entry('0.1.0'), extensions: [] }),
 	])
 		assert.equal(parsePointer(other), null, other);
+});
+
+test('the launcher holds only the versions a well-formed fallback record holds above the active one', () => {
+	const digest = 'a'.repeat(64);
+	const entry = (product) => ({ product, manifest: digest });
+	const pointer = (fallback) =>
+		JSON.stringify({ version: 1, active: entry('0.2.0'), extensions: { fallback, other: 1 } });
+	const fallback = {
+		held: ['0.3.0', '0.2.0', '0.1.0'],
+		move: {
+			entry: entry('0.2.0'),
+			back: false,
+			restore: true,
+			client: { since: 1, failures: 3 },
+			session: { since: 1, starts: ['b'.repeat(32), 'c'.repeat(32)], failed: ['b'.repeat(32)] },
+		},
+	};
+	assert.deepEqual(heldVersions(pointer(fallback)), ['0.3.0']);
+	assert.equal(parsePointer(pointer(fallback)), '0.2.0');
+	for (const other of [
+		{ ...fallback, extra: true },
+		{ ...fallback, held: ['0.3.0', '0.3.0'] },
+		{ ...fallback, move: { ...fallback.move, restore: false } },
+		{ ...fallback, move: { ...fallback.move, client: { since: 1, failures: 4 } } },
+		{
+			...fallback,
+			move: {
+				...fallback.move,
+				session: { since: 1, starts: ['b'.repeat(32)], failed: ['c'.repeat(32)] },
+			},
+		},
+	])
+		assert.deepEqual(heldVersions(pointer(other)), [], JSON.stringify(other));
+	assert.deepEqual(heldVersions('{}'), []);
 });
 
 test('the launcher reads the store root the install command writes', () => {

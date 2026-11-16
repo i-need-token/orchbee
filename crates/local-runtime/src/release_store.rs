@@ -2,7 +2,16 @@
 //! names active, and whether a folder is one of its version folders. The Client's install, update
 //! and uninstall commands and its Session start read the store through this owner, so the root rule
 //! and the pointer's file name and bound exist once. Reading takes no lock, creates nothing and
-//! starts no process; the Client's release store owns every write.
+//! starts no process. The Client's release store owns every write but one: beside this read side,
+//! [`fallback`] owns the transitions of the pointer's fallback record and the recorder that the
+//! processes running from a store version share, which writes the pointer under the same
+//! `install.lock`.
+mod fallback;
+pub use fallback::{
+    FallbackEvent, FallbackOutcome, FallbackRecorder, Recorded, VersionHeld, complete_move,
+    held_versions, record_event,
+};
+
 use crate::PrivateCache;
 use std::{
     ffi::OsString,

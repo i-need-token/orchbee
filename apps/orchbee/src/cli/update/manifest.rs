@@ -43,6 +43,15 @@ pub(super) struct Release {
     pub files: Vec<Artifact>,
     /// The `client-server` generations the `client` component lists, when it lists that kind.
     pub client_server: Option<GenerationRange>,
+    /// Every component this updater reads, with its version and security floor.
+    pub components: Vec<Component>,
+}
+/// One known component of a release.
+pub(super) struct Component {
+    pub id: String,
+    pub version: String,
+    /// The lowest version of this component that has no known security defect, when stated.
+    pub security_floor: Option<String>,
 }
 pub(super) struct Artifact {
     pub path: String,
@@ -83,7 +92,7 @@ impl Release {
         let version = semantic_version(object.get("version")?)?;
         let build_id = label(object.get("buildId")?)?;
         let files = files(object.get("files")?)?;
-        let client_server = components(object.get("components")?, &files)?;
+        let (client_server, components) = components(object.get("components")?, &files)?;
         Some(Self {
             encoded: bytes.to_vec(),
             channel,
@@ -92,6 +101,7 @@ impl Release {
             build_id,
             files,
             client_server,
+            components,
         })
     }
 }
@@ -156,43 +166,58 @@ fn files(value: &Value) -> Option<Vec<Artifact>> {
 }
 
 /// Checks every known component strictly and skips unknown ones. A missing entry imposes nothing.
-/// Answers the `client` component's `client-server` generations, when it lists them.
-fn components(value: &Value, files: &[Artifact]) -> Option<Option<GenerationRange>> {
+/// Answers the `client` component's `client-server` generations, when it lists them, and every
+/// known component.
+fn components(
+    value: &Value,
+    files: &[Artifact],
+) -> Option<(Option<GenerationRange>, Vec<Component>)> {
     let array = value.as_array()?;
     if array.len() > COMPONENT_LIMIT {
         return None;
     }
     let mut ids = BTreeSet::new();
     let mut client_server = None;
+    let mut known = Vec::new();
     for value in array {
         let id = token(value.as_object()?.get("id")?, 64, false)?;
         if !ids.insert(id) {
             return None;
         }
         if KNOWN_COMPONENTS.contains(&id) {
-            let connections = component(value, files)?;
+            let (connections, version, security_floor) = component(value, files)?;
             if id == "client" {
                 client_server = connections;
             }
+            known.push(Component {
+                id: id.to_owned(),
+                version,
+                security_floor,
+            });
         }
     }
-    Some(client_server)
+    Some((client_server, known))
 }
 
-/// Answers the component's `client-server` generations, when it lists that kind.
-fn component(value: &Value, files: &[Artifact]) -> Option<Option<GenerationRange>> {
+/// Answers the component's `client-server` generations, when it lists that kind, its version and
+/// its security floor.
+fn component(
+    value: &Value,
+    files: &[Artifact],
+) -> Option<(Option<GenerationRange>, String, Option<String>)> {
     let object = closed_object(
         value,
         &["id", "version", "files", "connections"],
         &["securityFloor", "recommendedFloor", "extensions"],
     )?;
     check_extensions(object)?;
-    semantic_version(object.get("version")?)?;
+    let version = semantic_version(object.get("version")?)?;
     for floor in ["securityFloor", "recommendedFloor"] {
         if let Some(value) = object.get(floor) {
             semantic_version(value)?;
         }
     }
+    let security_floor = object.get("securityFloor").and_then(semantic_version);
     let listed = object.get("files")?.as_array()?;
     if listed.is_empty() || listed.len() > FILE_COUNT_LIMIT {
         return None;
@@ -204,7 +229,8 @@ fn component(value: &Value, files: &[Artifact]) -> Option<Option<GenerationRange
             return None;
         }
     }
-    connections(object.get("connections")?.as_object()?)
+    let connections = connections(object.get("connections")?.as_object()?)?;
+    Some((connections, version, security_floor))
 }
 
 /// Each connection kind with its generation range. Kinds this build does not know are validated

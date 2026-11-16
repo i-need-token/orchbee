@@ -9,7 +9,10 @@ use super::{
     signature::{DOCUMENT_LIMIT, MANIFEST_LIMIT},
 };
 use crate::release_store::{ReleaseStore, open_release_file, read_pointer};
-use orchbee_local_runtime::{Cohort, CohortArtifact, CommandFailure, compare_product_versions};
+use orchbee_local_runtime::{
+    Cohort, CohortArtifact, CommandFailure, automatic_updates_live, compare_product_versions,
+    held_versions,
+};
 use orchbee_release_records::{Entry, Pointer};
 use sha2::{Digest, Sha256};
 use std::{
@@ -60,11 +63,12 @@ pub(super) fn version_probe(client: &Path) -> Command {
 /// The most of a failed helper's first standard-error line kept for the person.
 const DIAGNOSTIC_LIMIT: usize = 1024;
 
-/// Runs the published copy's completion helper; its exit status `3` is the lower-version refusal.
-/// Any other failure keeps the helper's first standard-error line, which names the cause, such as
-/// a PATH step that could not finish.
+/// Runs the published copy's completion helper; its exit status `3` is the lower-version refusal,
+/// or `version-held` when the pointer, read again, holds the version. Any other failure keeps the
+/// helper's first standard-error line, which names the cause, such as a PATH step that could not
+/// finish.
 pub(super) fn run_completion(
-    _root: &Path,
+    root: &Path,
     version: &Path,
     completion: Completion,
     context: &mut Context,
@@ -84,7 +88,15 @@ pub(super) fn run_completion(
         Some(CommandFailure::Timeout) => Err(Error::Timeout),
         Some(CommandFailure::PhysicalUnknown) => Err(Error::ActivationUnknown),
         Some(CommandFailure::ExitFailure) if result.exit_code == Some(3) => {
-            Err(Error::DowngradeRefused)
+            let held = version
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| held(root, name));
+            Err(if held {
+                Error::VersionHeld
+            } else {
+                Error::DowngradeRefused
+            })
         }
         Some(_) => {
             let stderr = String::from_utf8_lossy(&result.stderr);
@@ -103,14 +115,21 @@ pub(super) fn run_completion(
     }
 }
 
-/// The active entry a store's pointer names, read without the writer lock; a missing root or an
-/// unreadable pointer names none.
-fn active_entry(root: &Path) -> Option<Entry> {
+/// The store's pointer, read without the writer lock; a missing root or an unreadable pointer is
+/// none.
+fn current_pointer(root: &Path) -> Option<Pointer> {
     read_pointer(root)
         .ok()
         .flatten()
         .and_then(|bytes| Pointer::parse(&bytes))
-        .map(|pointer| pointer.active)
+}
+
+/// Whether the store holds `version` after a failed move, read without the writer lock. Only where
+/// automatic updates run does any version count as held.
+pub(super) fn held(root: &Path, version: &str) -> bool {
+    automatic_updates_live()
+        && current_pointer(root)
+            .is_some_and(|pointer| held_versions(&pointer).iter().any(|held| held == version))
 }
 
 /// Where a release stands against the store's active version.
@@ -122,24 +141,32 @@ pub(super) enum Standing {
     Active,
     /// The active version orders above the release.
     Lower,
+    /// The release's version fell back after a failed move and is held until a higher version is
+    /// active, so nothing makes it active.
+    Held,
 }
 
 /// Refuses the release `version`, whose `release.json` has the SHA-256 `identity`, before anything
 /// is written when the store's active version is for another platform, because the store holds one
-/// architecture; otherwise says where the release stands against the active version. Records the
-/// active version it compared with. Reading and hashing the stored manifest is the only file
-/// access, so an update decides from its signed feed alone.
+/// architecture; otherwise says where the release stands against the active version and whether
+/// the store holds it. Records the active version it compared with. Reading the pointer and hashing
+/// the stored manifest is the only file access, so an update decides from its signed feed alone.
 pub(super) fn admit_store(
     root: &Path,
     version: &str,
     identity: &str,
     report: &mut Report,
 ) -> Result<Standing, Error> {
-    let active = active_entry(root);
-    report.active_before = active.as_ref().map(|entry| entry.product.clone());
-    let Some(active) = active else {
+    let pointer = current_pointer(root);
+    report.active_before = pointer
+        .as_ref()
+        .map(|pointer| pointer.active.product.clone());
+    let Some(pointer) = pointer else {
         return Ok(Standing::Admitted);
     };
+    let held =
+        automatic_updates_live() && held_versions(&pointer).iter().any(|held| held == version);
+    let active = pointer.active;
     let stored = stored_manifest(root, &active.product);
     let platform = stored
         .as_deref()
@@ -154,6 +181,8 @@ pub(super) fn admit_store(
             && stored.as_deref().map(sha256).as_deref() == Some(identity)
         {
             Standing::Active
+        } else if held {
+            Standing::Held
         } else if compare_product_versions(&active.product, version) == Ordering::Greater {
             Standing::Lower
         } else {

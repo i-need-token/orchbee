@@ -2,8 +2,9 @@
 // sub-package; on each start this finds it, installs it into the per-user store through the carried
 // program's own `install --no-path` when the store has no active version or a lower one, and then runs
 // the store's active program in place of itself. The store's pointer `active.json` alone names the
-// active version. On Windows, where automatic updates run, it follows the relaunch protocol of
-// `apps/orchbee-launcher` with the same rule. Nothing runs at install time.
+// active version; a carried version the pointer holds after a failed move is never installed, and the
+// active one runs instead. On Windows, where automatic updates run, it follows the relaunch protocol
+// of `apps/orchbee-launcher` with the same rule. Nothing runs at install time.
 //
 // The launcher is plain JavaScript that runs on the person's own Node, so it uses only Node built-ins
 // available since Node 18 and reads nothing beyond its own package, the sub-package, and the pointer.
@@ -20,6 +21,7 @@ const semanticVersion = new RegExp(
 	'u',
 );
 const manifestDigest = /^[0-9a-f]{64}$/u;
+const activationIdentifier = /^[0-9a-f]{32}$/u;
 // The pointer is a few hundred bytes; anything far larger is not one.
 const maximumPointer = 64 * 1024;
 // A concurrent start holds `install.lock` for one install; the install's own deadline is 600 s.
@@ -147,11 +149,65 @@ function validEntry(value) {
 	);
 }
 
+/** An array of at most `limit` distinct strings that each pass `valid`. */
+function distinctList(value, limit, valid) {
+	return (
+		Array.isArray(value) &&
+		value.length <= limit &&
+		value.every(valid) &&
+		new Set(value).size === value.length
+	);
+}
+
+function validWindowStart(value) {
+	return Number.isSafeInteger(value) && value >= 0;
+}
+
 /**
- * The active product version a format-1 pointer names, or null for any other bytes: a missing or
- * unreadable pointer means no active version, which an install repairs.
+ * Whether `value` is the pointer's fallback record, `extensions.fallback`, in the closed shape of
+ * `crates/release-records/src/fallback.rs`; a member of any other shape counts as absent.
  */
-export function parsePointer(text) {
+function validFallback(value) {
+	if (!closedObject(value, ['held', 'move'], []) || !distinctList(value.held, 8, validVersion))
+		return false;
+	const move = value.move;
+	if (
+		!closedObject(move, ['entry', 'back'], ['restore', 'client', 'session']) ||
+		!validEntry(move.entry) ||
+		typeof move.back !== 'boolean' ||
+		(move.restore !== undefined && move.restore !== true)
+	)
+		return false;
+	const client = move.client;
+	if (
+		client !== undefined &&
+		!(
+			closedObject(client, ['since', 'failures'], []) &&
+			validWindowStart(client.since) &&
+			Number.isInteger(client.failures) &&
+			client.failures >= 0 &&
+			client.failures <= 3
+		)
+	)
+		return false;
+	const session = move.session;
+	const activation = (id) => typeof id === 'string' && activationIdentifier.test(id);
+	return (
+		session === undefined ||
+		(closedObject(session, ['since', 'starts', 'failed'], []) &&
+			validWindowStart(session.since) &&
+			distinctList(session.starts, 8, activation) &&
+			distinctList(session.failed, 3, activation) &&
+			session.failed.every((id) => session.starts.includes(id)))
+	);
+}
+
+/**
+ * The active version a format-1 pointer names, with the versions its fallback record holds above
+ * it, or null for any other bytes: a missing or unreadable pointer means no active version, which an
+ * install repairs.
+ */
+function pointerRecord(text) {
 	let value;
 	try {
 		value = JSON.parse(text);
@@ -166,7 +222,25 @@ export function parsePointer(text) {
 		(value.extensions !== undefined && !plainObject(value.extensions))
 	)
 		return null;
-	return value.active.product;
+	const active = value.active.product;
+	const fallback = value.extensions?.fallback;
+	const held = validFallback(fallback)
+		? fallback.held.filter((version) => compareVersions(version, active) > 0)
+		: [];
+	return { active, held };
+}
+
+/** The active product version a format-1 pointer names, or null for any other bytes. */
+export function parsePointer(text) {
+	return pointerRecord(text)?.active ?? null;
+}
+
+/**
+ * The versions a format-1 pointer holds after a failed move, which nothing makes active until a
+ * higher version is: those its fallback record lists above the active version.
+ */
+export function heldVersions(text) {
+	return pointerRecord(text)?.held ?? [];
 }
 
 /**
@@ -193,7 +267,7 @@ function readPointer(root) {
 	const file = path.join(root, 'active.json');
 	try {
 		if (statSync(file).size > maximumPointer) return null;
-		return parsePointer(readFileSync(file, 'utf8'));
+		return pointerRecord(readFileSync(file, 'utf8'));
 	} catch {
 		return null;
 	}
@@ -241,16 +315,28 @@ function install(program) {
 	};
 }
 
-/** The installed program to run: the active one, after installing the carried version if needed. */
+/**
+ * The installed program to run: the active one, after installing the carried version if needed. A
+ * carried version the store holds after a failed move is not installed, and the active one runs.
+ */
 function resolveProgram({ root, programName, carriedProgram, carriedVersion, text }) {
 	const deadline = Date.now() + busyWaitMilliseconds;
 	let installed = false;
+	let held = false;
 	let announced = false;
 	for (;;) {
-		const active = readPointer(root);
-		if (active !== null && (installed || compareVersions(carriedVersion, active) <= 0))
+		const pointer = readPointer(root);
+		const active = pointer?.active ?? null;
+		if (
+			active !== null &&
+			(installed ||
+				held ||
+				pointer.held.includes(carriedVersion) ||
+				compareVersions(carriedVersion, active) <= 0)
+		)
 			return path.join(root, 'versions', active, programName);
 		if (installed) fail(text.installFailed(carriedVersion, 'activation'));
+		if (held) fail(text.installFailed(carriedVersion, 'version-held'));
 		if (!announced) {
 			process.stderr.write(text.installing(carriedVersion) + '\n');
 			announced = true;
@@ -263,6 +349,11 @@ function resolveProgram({ root, programName, carriedProgram, carriedVersion, tex
 			if (expected === null || !samePath(outcome.releasePath, expected))
 				fail(text.storeMismatch(path.dirname(path.dirname(outcome.releasePath)), root ?? '-'));
 			installed = true;
+			continue;
+		}
+		// A fallback held the carried version after the pointer was read: run the active one.
+		if (outcome.error === 'version-held') {
+			held = true;
 			continue;
 		}
 		// Another start holds `install.lock`: wait for it, then read the pointer again.
@@ -361,7 +452,7 @@ function runWithRelaunch(program, root, programName, text) {
 		if (relaunches.length === relaunchLimit) relaunches.shift();
 		relaunches.push(now);
 		replaced = current;
-		const active = readPointer(root);
+		const active = readPointer(root)?.active ?? null;
 		startClient(
 			active === null ? null : path.join(root, 'versions', active, programName),
 			'relaunch',

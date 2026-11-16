@@ -16,6 +16,12 @@ has one parser.
 - `Pointer` is the store's `active.json`: format `1`, the `active` entry, the optional `previous`
   rollback target, and `extensions`, which every rewrite keeps. Bytes that are not such a record
   parse to `None`, which means no active version.
+- `Fallback` is the pointer's `extensions.fallback` member: the held versions, at most eight, and
+  the `Move` that made an entry active, with `back`, `restore` and the bounded Client and Session
+  windows. Every object is closed and every value bounded; a member of any other shape reads as
+  absent. `counting_move` returns the move only while its entry is the active one. This crate owns
+  the format alone; the local runtime's
+  [release store](../local-runtime/README.md#fallback-after-a-failed-move) owns its transitions.
 
 The record layouts are owned by
 [Release distribution](../../proposals/platform/release-distribution.md#runtime-store). This crate

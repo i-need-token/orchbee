@@ -37,8 +37,9 @@ mod private_cache;
 pub use private_cache::PrivateCache;
 mod release_store;
 pub use release_store::{
-    ActiveRelease, RELEASE_POINTER, RELEASE_POINTER_LIMIT, RELEASE_VERSIONS, active_release,
-    is_release_version_directory, release_store_root,
+    ActiveRelease, FallbackEvent, FallbackOutcome, FallbackRecorder, RELEASE_POINTER,
+    RELEASE_POINTER_LIMIT, RELEASE_VERSIONS, Recorded, VersionHeld, active_release, complete_move,
+    held_versions, is_release_version_directory, record_event, release_store_root,
 };
 mod automatic_updates;
 pub use automatic_updates::{

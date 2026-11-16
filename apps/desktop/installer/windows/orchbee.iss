@@ -253,7 +253,8 @@ begin
 end;
 
 // The bundled Client publishes its signed release directory into the store and activates it; a
-// higher version already active stays active.
+// higher version already active stays active, and so does the active one when the bundled version
+// is held after a failed move.
 procedure InstallCommand;
 var
   Code: Integer;
@@ -266,6 +267,11 @@ begin
   if (Code = 3) and (Pos('downgrade-refused', StdOut) > 0) then
   begin
     Log('A higher version is active and stays active.');
+    Exit;
+  end;
+  if (Code = 3) and (Pos('version-held', StdOut) > 0) then
+  begin
+    Log('This version fell back after a failed move and stays held; the active version stays active.');
     Exit;
   end;
   CommandFailed := True;

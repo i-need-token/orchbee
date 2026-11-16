@@ -1,6 +1,7 @@
 //! The active-version pointer `active.json`: closed JSON naming the active version directory and,
 //! optionally, the rollback target, each bound to the lowercase SHA-256 of its `release.json`.
-//! `version` is the record's format and `extensions` the only open slot, which every rewrite keeps.
+//! `version` is the record's format and `extensions` the only open slot, which every rewrite keeps;
+//! its `fallback` member is the [fallback record](crate::Fallback).
 //! Bytes that are not such a record mean no active version. The window pointer
 //! `desktop\active.json` has the same grammar: there `product` names a window version directory and
 //! `manifest` binds the SHA-256 of its `desktop-files.json`.
@@ -18,7 +19,7 @@ pub struct Entry {
 }
 
 impl Entry {
-    fn parse(value: &Value) -> Option<Self> {
+    pub(crate) fn parse(value: &Value) -> Option<Self> {
         let object = closed_object(value, &["product", "manifest"], &[])?;
         let product = object.get("product")?.as_str()?;
         let manifest = object.get("manifest")?.as_str()?;
@@ -26,6 +27,13 @@ impl Entry {
             product: product.to_owned(),
             manifest: manifest.to_owned(),
         })
+    }
+
+    pub(crate) fn to_value(&self) -> Value {
+        let mut object = Map::new();
+        object.insert("product".into(), Value::String(self.product.clone()));
+        object.insert("manifest".into(), Value::String(self.manifest.clone()));
+        Value::Object(object)
     }
 
     /// Both members are validated tokens, so neither needs escaping.
@@ -83,6 +91,18 @@ impl Pointer {
                 extensions: current.extensions,
             },
         }
+    }
+
+    /// The `extensions` member `name`, when present.
+    pub(crate) fn extension(&self, name: &str) -> Option<&Value> {
+        self.extensions.as_ref()?.get(name)
+    }
+
+    /// Sets the `extensions` member `name`, keeping every other member.
+    pub(crate) fn set_extension(&mut self, name: &str, value: Value) {
+        self.extensions
+            .get_or_insert_with(Map::new)
+            .insert(name.to_owned(), value);
     }
 
     /// Whether `entry` is the active version or the rollback target.

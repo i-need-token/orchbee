@@ -457,7 +457,10 @@ to upgrade" and keeps `update` withheld.
    choice lifts it: `install --allow-downgrade`, or a channel switch. The proposed
    [fallback after a failed move](automatic-updates.md#falling-back-after-a-failed-move) is no
    exception: it installs nothing and only returns the pointer to the version that ran before,
-   inside its bound. An `update` whose manifest is the one the pointer already names finishes as up
+   inside its bound. The version it leaves is held: `install` refuses it with `version-held`, exit
+   `3`, before anything is copied, even with `--allow-downgrade`, `update` finishes as up to date,
+   and the completing Client refuses it too, until a higher version has become active. An
+   `update` whose manifest is the one the pointer already names finishes as up
    to date without hashing or completing anything; `install` run from a version directory verifies
    and activates it again. Built on Windows.
 7. **Desktop identity.** The identities of [Locations and identity](#locations-and-identity), so a

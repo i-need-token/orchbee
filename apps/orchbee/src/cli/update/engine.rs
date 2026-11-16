@@ -193,7 +193,7 @@ pub(super) fn run(
         if matches!(inputs.path, PathPolicy::LauncherIfPresent) {
             path_step::refresh_launcher(&root, &release.version)?;
         }
-        install::activate(
+        match install::activate(
             &root,
             &path,
             &release,
@@ -201,7 +201,11 @@ pub(super) fn run(
             completion,
             context,
             report,
-        )?;
+        ) {
+            // A fallback held the version after `decide` read the pointer: nothing to do.
+            Err(Error::VersionHeld) => report.up_to_date = true,
+            result => result?,
+        }
         report.phase = "complete";
         Ok(())
     })();
@@ -210,9 +214,10 @@ pub(super) fn run(
 }
 
 /// Decides from the verified feed and the store alone, in this order: the offered release is
-/// active (up to date); it is lower than the active one without a channel switch (up to date);
-/// its version is stored with another manifest (`version-conflict`); it is stored but not active;
-/// otherwise it must be downloaded. Nothing is requested or written.
+/// active (up to date); it is held after a failed move (up to date, even on a channel switch); it
+/// is lower than the active one without a channel switch (up to date); its version is stored with
+/// another manifest (`version-conflict`); it is stored but not active; otherwise it must be
+/// downloaded. Nothing is requested or written.
 fn decide(
     root: &std::path::Path,
     feed: &Feed,
@@ -225,6 +230,11 @@ fn decide(
             report.published = Some(root.join("versions").join(&feed.version));
             report.reused = true;
             report.activated = true;
+            report.up_to_date = true;
+            report.phase = "complete";
+            return Ok(Next::Done);
+        }
+        Standing::Held => {
             report.up_to_date = true;
             report.phase = "complete";
             return Ok(Next::Done);
@@ -250,7 +260,8 @@ fn decide(
 }
 
 /// Admits, verifies, publishes and activates the signed release directory the running Client sits
-/// in, of whichever channel it names. The lower-version refusal runs before anything is copied.
+/// in, of whichever channel it names. The held-version and lower-version refusals run before
+/// anything is copied.
 ///
 /// # Errors
 /// Returns the first refusal or failure; `report` keeps the phase and every committed effect.
@@ -277,10 +288,12 @@ pub(super) fn install(
     report.build_id = Some(release.build_id.clone());
     let root = inputs.install_root.clone()?;
     // Run from a version directory of the store, install verifies and activates that version again.
-    if install::admit_store(&root, &release.version, &release.identity, report)? == Standing::Lower
-        && !inputs.completion.allow_downgrade
-    {
-        return Err(Error::DowngradeRefused);
+    match install::admit_store(&root, &release.version, &release.identity, report)? {
+        Standing::Held => return Err(Error::VersionHeld),
+        Standing::Lower if !inputs.completion.allow_downgrade => {
+            return Err(Error::DowngradeRefused);
+        }
+        Standing::Admitted | Standing::Active | Standing::Lower => {}
     }
     report.phase = "copy";
     let path = install::publish(

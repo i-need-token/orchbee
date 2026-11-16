@@ -86,6 +86,8 @@ enum Error {
     CohortInvalid,
     VersionConflict,
     DowngradeRefused,
+    /// The version fell back after a failed move and stays held until a higher one is active.
+    VersionHeld,
     OtherArchitecture,
     SmokeFailed,
     /// The completing Client could not place `bin\<stem>.exe`, or `~/.local/bin/<stem>` on macOS and
@@ -126,6 +128,7 @@ impl Error {
             Self::CohortInvalid => "cohort-invalid",
             Self::VersionConflict => "version-conflict",
             Self::DowngradeRefused => "downgrade-refused",
+            Self::VersionHeld => "version-held",
             Self::OtherArchitecture => "other-architecture",
             Self::SmokeFailed => "smoke-failed",
             Self::PathLauncher => "path-launcher",
@@ -143,7 +146,10 @@ impl Error {
             Self::Cancelled => 130,
             Self::Timeout => 7,
             Self::PhysicalUnknown | Self::ActivationUnknown => 8,
-            Self::VersionConflict | Self::DowngradeRefused | Self::OtherArchitecture => 3,
+            Self::VersionConflict
+            | Self::DowngradeRefused
+            | Self::VersionHeld
+            | Self::OtherArchitecture => 3,
             Self::DevelopmentBuild | Self::NotReleaseDirectory => 4,
             _ => 1,
         }
