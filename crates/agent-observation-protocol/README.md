@@ -193,7 +193,9 @@ reuse it rather than keeping their own tables.
 arguments, unreadable command line, or detached console), or why no anchor can be named. It rejects
 cycles, reused-parent creation order, and ambiguous siblings; opaque and unresolved rows outside the
 anchor's subtree, and a sample at the row limit, leave it unresolved; rows inside the subtree never
-hold an outer Agent. The Server identity state settles verdicts into runs and results; native
+hold an outer Agent, and neither does an ancestor whose only doubt is an unverified name for the
+anchor's own provider, such as a version manager's `pi.exe` shim or the `cmd /c pi.cmd` it starts,
+since it launched that Agent. The Server identity state settles verdicts into runs and results; native
 Clients classify each sampled process for diagnostics with the existing OS parser, but read that
 result and its run anchor rather than selecting from their own samples. Only the Server adapter admits proven Host samples under its identity and timing fences. Table-driven fixtures cover every Windows support matrix row and counterexample in
 the [process identity proposal](../../proposals/agent/agent-process-identity.md); the Host sampler

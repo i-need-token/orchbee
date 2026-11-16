@@ -242,7 +242,8 @@ anchor can be named. The state turns verdicts into one result: `agent` with grad
   nearest departed ancestor is that anchor, the run moves to it.
 - Ambiguity: while the anchor lives, a sibling candidate or an unresolved row outside the anchor's
   subtree yields `unknown` with its reason and keeps the run; rows inside the subtree never hold an
-  outer Agent. Before a run exists, they prevent settling.
+  outer Agent, and neither does an ancestor that launched the anchor under an unverified name for
+  its provider, such as a version manager's shim. Before a run exists, they prevent settling.
 - Staleness: failed samples never end a run; they keep the last result for at most two seconds and
   then yield `unknown` with `sample-failed`.
 - Grade: a run is `confirmed` only while the typed command that started it stays open, and only when

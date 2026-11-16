@@ -124,7 +124,8 @@ impl AgentProcessRow {
 
 /// Evaluates one complete sample; `at_limit` means the Host may have omitted members.
 /// The anchor is the candidate every other candidate descends from; rows inside its subtree
-/// never hold an outer Agent, while unresolved rows elsewhere leave the sample unresolved.
+/// never hold an outer Agent, and neither does an ancestor whose only doubt is an unproven name
+/// for the anchor's provider, while unresolved rows elsewhere leave the sample unresolved.
 pub fn evaluate_agent_sample(rows: &[AgentProcessRow], at_limit: bool) -> AgentSampleVerdict {
     let unresolved = |anchor, reason| AgentSampleVerdict::Unresolved { anchor, reason };
     if rows.iter().enumerate().any(|(i, p)| {
@@ -156,7 +157,25 @@ pub fn evaluate_agent_sample(rows: &[AgentProcessRow], at_limit: bool) -> AgentS
     let outside = |row: &&AgentProcessRow| {
         anchor.is_none_or(|a| !descends_from(rows, row.pid, a.pid).unwrap_or(false))
     };
-    if let Some(reason) = rows.iter().filter(outside).find_map(|row| row.blocker()) {
+    // A row above the anchor that only its unproven name ties to the anchor's provider, such as a
+    // version manager's `pi.exe` shim or `cmd /c pi.cmd`, is the launcher of that Agent.
+    let launcher = |row: &&AgentProcessRow| {
+        anchor.is_some_and(|a| {
+            !row.opaque
+                && row.recognition
+                    == (AgentProcessRecognition::Unresolved {
+                        provider: Some(a.provider),
+                        reason: AgentUnresolvedProcess::UnverifiedProvenance,
+                    })
+                && descends_from(rows, a.pid, row.pid).unwrap_or(false)
+        })
+    };
+    if let Some(reason) = rows
+        .iter()
+        .filter(outside)
+        .filter(|row| !launcher(row))
+        .find_map(|row| row.blocker())
+    {
         return unresolved(anchor, reason);
     }
     if at_limit {

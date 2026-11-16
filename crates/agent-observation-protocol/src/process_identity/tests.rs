@@ -126,6 +126,72 @@ fn sample_verdict_requires_one_outer_chain_and_no_unresolved_row_outside_it() {
         AgentSampleVerdict::Remote
     );
 }
+/// A version manager's shim launches the Agent its shared name stands for, so the shim's unproven
+/// name never hides the proven Agent below it: the chain mise's `pi.exe` starts from `cmd.exe`.
+#[test]
+fn an_unproven_launcher_above_the_agent_it_names_never_hides_that_agent() {
+    let node = format!(r"{HOME}\AppData\Local\mise\installs\node\22.23.3");
+    let classified = |pid, parent, image: &str, argv: &[&str]| {
+        let argv: Vec<String> = argv.iter().map(|arg| (*arg).to_owned()).collect();
+        row(
+            pid,
+            parent,
+            classify_agent_process(Some(image), Some(&argv[..])),
+        )
+    };
+    let shim = format!(r"{HOME}\AppData\Local\mise\shims\pi.exe");
+    let mise = format!(r"{HOME}\AppData\Local\Programs\mise\mise\bin\mise.exe");
+    let script = format!(r"{node}\pi.cmd");
+    let cli = format!(r"{node}\\node_modules\@earendil-works\pi-coding-agent\dist\bundle\cli.js");
+    let mut rows = vec![
+        classified(
+            1,
+            None,
+            r"C:\Windows\System32\cmd.exe",
+            &[r"C:\Windows\System32\cmd.exe"],
+        ),
+        classified(2, Some(1), &shim, &["pi"]),
+        classified(3, Some(2), &mise, &["mise", "x", "--", "pi"]),
+        classified(
+            4,
+            Some(3),
+            r"C:\Windows\System32\cmd.exe",
+            &["cmd.exe", "/e:ON", "/v:OFF", "/d", "/c", &script],
+        ),
+        classified(
+            5,
+            Some(4),
+            &format!(r"{node}\node.exe"),
+            &[&format!(r"{node}\\node.exe"), &cli],
+        ),
+    ];
+    assert_eq!(
+        rows[1].recognition,
+        unresolved(Some(P::Pi), U::UnverifiedProvenance)
+    );
+    let verdict = evaluate_agent_sample(&rows, false);
+    assert!(
+        matches!(verdict, AgentSampleVerdict::Anchor(a) if a.provider == P::Pi),
+        "{verdict:?} from {rows:?}"
+    );
+    // A shim naming another provider, or one beside the Agent rather than above it, still might
+    // hold an Agent of its own.
+    rows[1].recognition = unresolved(Some(P::Amp), U::UnverifiedProvenance);
+    assert!(matches!(
+        evaluate_agent_sample(&rows, false),
+        AgentSampleVerdict::Unresolved { .. }
+    ));
+    rows[1].recognition = unresolved(Some(P::Pi), U::UnverifiedProvenance);
+    rows.push(row(
+        6,
+        Some(1),
+        unresolved(Some(P::Pi), U::UnverifiedProvenance),
+    ));
+    assert!(matches!(
+        evaluate_agent_sample(&rows, false),
+        AgentSampleVerdict::Unresolved { .. }
+    ));
+}
 fn interactive(provider: P, shape: S) -> AgentProcessRecognition {
     AgentProcessRecognition::Interactive { provider, shape }
 }
