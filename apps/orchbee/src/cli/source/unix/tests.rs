@@ -3,7 +3,10 @@ use std::{
     os::{fd::BorrowedFd, unix::process::ExitStatusExt},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::atomic::{AtomicU32, Ordering},
+    sync::{
+        Mutex, MutexGuard, PoisonError,
+        atomic::{AtomicU32, Ordering},
+    },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -147,6 +150,14 @@ fn materialized_bytes(input: &TerminalSendInput, signals: &mut dyn SignalWatch) 
         TerminalSendInput::Paste { content, enter } => (content, enter),
         other => panic!("materialization did not produce content: {other:?}"),
     }
+}
+
+/// macOS's `sigwait` takes a pending signal from any thread of the process, so two tests arming
+/// at once could dequeue each other's probes or inherited pending signals. Every test that arms
+/// the real owner or raises a signal holds this lock for its whole body.
+fn real_signals() -> MutexGuard<'static, ()> {
+    static OWNER: Mutex<()> = Mutex::new(());
+    OWNER.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The first guarded signal neither inherited-blocked nor inherited-
@@ -361,6 +372,7 @@ fn mid_read_signal_selects_typed_cancellation() {
 
 #[test]
 fn armed_capture_and_finalization_restore_exact_mask() {
+    let _signals = real_signals();
     let before = SigSet::thread_get_mask().expect("thread mask");
     let Some(signal) = first_eligible() else {
         // The whole set excluded: an empty eligible set is still a real
@@ -386,6 +398,7 @@ fn armed_capture_and_finalization_restore_exact_mask() {
 
 #[test]
 fn inherited_blocked_signal_excluded_and_pending_preserved() {
+    let _signals = real_signals();
     // SIGINT blocked before arm: excluded from the captured set, and its
     // blocked+pending state must survive arm/finish untouched.
     let mut blocked = SigSet::empty();
@@ -420,6 +433,7 @@ fn inherited_blocked_signal_excluded_and_pending_preserved() {
 /// the membership differs.
 #[test]
 fn interrupts_capture_and_release_restore_exact_mask() {
+    let _signals = real_signals();
     let before = SigSet::thread_get_mask().expect("thread mask");
     let Some(signal) = native::eligible_now(&INTERRUPTS).into_iter().next() else {
         // Both interruptions excluded: still a real armed policy — arm,
@@ -448,6 +462,7 @@ fn interrupts_capture_and_release_restore_exact_mask() {
 /// captured, and finish restores the exact inherited mask.
 #[test]
 fn interrupts_never_mask_or_capture_hup_or_quit() {
+    let _signals = real_signals();
     let before = SigSet::thread_get_mask().expect("thread mask");
     let mut armed = ArmedSignals::arm_interrupts().expect("arm interruptions");
     let masked = SigSet::thread_get_mask().expect("armed thread mask");
@@ -473,6 +488,7 @@ fn interrupts_never_mask_or_capture_hup_or_quit() {
 /// pending signal survives arm/finish untouched.
 #[test]
 fn interrupts_inherited_blocked_int_excluded_and_pending_preserved() {
+    let _signals = real_signals();
     let mut blocked = SigSet::empty();
     blocked.add(Signal::SIGINT);
     blocked.thread_block().expect("block SIGINT");
@@ -503,6 +519,7 @@ fn interrupts_inherited_blocked_int_excluded_and_pending_preserved() {
 /// never swallowed.
 #[test]
 fn interrupts_inherited_blocked_quit_pending_preserved() {
+    let _signals = real_signals();
     let mut blocked = SigSet::empty();
     blocked.add(Signal::SIGQUIT);
     blocked.thread_block().expect("block SIGQUIT");
@@ -533,6 +550,7 @@ fn interrupts_inherited_blocked_quit_pending_preserved() {
 /// mask — the same output-window contract `arm` gives the source stage.
 #[test]
 fn interrupts_finish_captured_signal_holds_mask_until_release() {
+    let _signals = real_signals();
     let before = SigSet::thread_get_mask().expect("thread mask");
     let Some(signal) = native::eligible_now(&INTERRUPTS).into_iter().next() else {
         return;
@@ -558,6 +576,7 @@ fn interrupts_finish_captured_signal_holds_mask_until_release() {
 
 #[test]
 fn finish_read_error_restores_mask_then_reports() {
+    let _signals = real_signals();
     // Mock evidence: a capture read error at the arbitration point
     // still attempts the owed restore before reporting the error.
     let before = SigSet::thread_get_mask().expect("thread mask");
@@ -571,6 +590,7 @@ fn finish_read_error_restores_mask_then_reports() {
 
 #[test]
 fn finish_captured_signal_holds_mask_until_release() {
+    let _signals = real_signals();
     // A captured signal at the finish boundary keeps the eligible mask
     // blocked; the exact inherited mask is restored only by the token.
     let Some(signal) = first_eligible() else {

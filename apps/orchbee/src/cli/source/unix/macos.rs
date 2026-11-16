@@ -15,6 +15,11 @@
 //! watched signal has a lower number. A returned member leaves the sentinel pending, and a second
 //! `sigwait` consumes it. A `SIGCONT` already pending under an inherited block merges with the
 //! sentinel and is consumed with it; its continue action happened when it was sent.
+//!
+//! XNU's `sigwait` takes a pending signal from any thread of the process, scanning from the first.
+//! The capture therefore keeps the single-owner model Linux states: no other thread holds a
+//! pending watched signal, and a process-directed signal that every thread blocks lands on the
+//! first thread, the owner's.
 
 use std::os::fd::{AsFd, BorrowedFd};
 
