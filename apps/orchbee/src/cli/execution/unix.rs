@@ -14,7 +14,9 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
     match capability {
         // The release store and its PATH step need no download, which stays Windows-only.
         Capability::ReleaseInstall => Ok(()),
-        Capability::ServerStop | Capability::WorktreeOperation | Capability::WorkspaceGroupClose
+        Capability::ServerStop
+        | Capability::WorktreeOperation
+        | Capability::WorkspaceGroupClose
             if cfg!(target_os = "macos") =>
         {
             Ok(())
