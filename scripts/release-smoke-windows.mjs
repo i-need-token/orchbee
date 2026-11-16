@@ -10,6 +10,8 @@
 //   node scripts/release-smoke-windows.mjs leftovers <artifacts>
 //   node scripts/release-smoke-windows.mjs update    v<version> --release <assets address>
 //     --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]
+//   node scripts/release-smoke-windows.mjs gate      v<older version> --release <assets address>
+//     --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]
 //
 // <artifacts> is a directory `node scripts/release-artifacts.mjs collect` wrote; its release directory
 // names the version and the program stem, so the same lines serve the test and the release identity.
@@ -44,6 +46,23 @@
 //   HTTPS; only a test build's stem admits `http://127.0.0.1:<port>/…/`, a loopback server standing
 //   in for it, together with feeds that name their archive by a path relative to that address. A
 //   failure names the stage and tells the owner not to move the update channel.
+// - gate: one path of the release gate (proposals/platform/automatic-updates.md#the-release-gate),
+//   from an older published release to the release being made, before Publish. `--release` is the
+//   older release's assets address, read as `update` reads one; `--feed` is the new release's signed
+//   gate copy `<stem>-<version>-windows-x86_64.gate.feed.json`, its archive beside it. The older
+//   release's archive, checked against its verified feed, is installed by its own `install` into a
+//   fresh store root and data root (`ORCHBEE_INSTALL_DIR`, `ORCHBEE_HOME`, or the defaults). Its
+//   Client starts the Session with `ORCHBEE_UPDATE_FEED` naming the gate copy and opens a Workspace
+//   whose cmd.exe runs the probe: a PowerShell script that prints `probe-<process id>-<n>` every
+//   100 ms and appends `<process id> <n>` to a record file in the work directory. The older Server's
+//   own automatic helper must activate the new release; the new release's Client must then reach the
+//   same Server and read the probe's lines. The probe is told to end, cmd exits 0 and the Session
+//   closes its Panel; once the Server counts no terminal, the gate notes the layout and connects no
+//   Client while the idle move ends the older Server. The new Client then starts the Session, whose
+//   Server must run the new release with the same Workspaces and Tabs. The record must hold one
+//   process id and the numbers from 1 without a gap. A failure names the stage, prints the probe
+//   record's last line and the diagnostic log's tail, and says not to publish. A test build's
+//   Session is stopped at the end; a release build's stays for the discarded runner.
 //
 // When an install, command, uninstall or npm step fails, it also prints whether this process runs
 // elevated and the owner and access list of the store root and its parent; the program's own
@@ -58,12 +77,19 @@
 //
 // Exit codes: 0 the step passed; 1 it failed; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { readRelease } from './package-npm.mjs';
-import { absoluteArchive, FEED_LIMIT, feedName, readFeed, validVersion } from './release-feed.mjs';
+import {
+	absoluteArchive,
+	FEED_LIMIT,
+	feedName,
+	GATE_FEED_SUFFIX,
+	readFeed,
+	validVersion,
+} from './release-feed.mjs';
 import { FEED_DOMAIN, keyTable, verifySignature } from './sign-release-manifest.mjs';
 import { curl, fileFacts } from './website-release.mjs';
 
@@ -71,7 +97,8 @@ const usage =
 	'Usage: node scripts/release-smoke-windows.mjs <install|uninstall> <artifacts> --logs <absolute directory>\n' +
 	'       node scripts/release-smoke-windows.mjs <command|leftovers> <artifacts>\n' +
 	'       node scripts/release-smoke-windows.mjs npm <artifacts> --prefix <absolute new directory>\n' +
-	'       node scripts/release-smoke-windows.mjs update v<version> --release <assets address> --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]';
+	'       node scripts/release-smoke-windows.mjs update v<version> --release <assets address> --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]\n' +
+	'       node scripts/release-smoke-windows.mjs gate v<older version> --release <assets address> --feed <absolute gate feed> --work <absolute new directory> [--stem <stem>]';
 // Each command a person runs gets this long; an install or a removal gets longer.
 const commandDeadline = 120_000;
 // A new terminal's first shell on a fresh machine gets this long to appear, and then to answer.
@@ -811,25 +838,35 @@ function installRelease(release, storeRoot, env) {
 	expectActive(storeRoot, release.stem, release.manifest.version, env);
 }
 
-/** The feed of the tracked update pair in `folder`, verified, or undefined when none is tracked. */
-function trackedFeed(folder, stem) {
-	const feedFile = path.join(folder, 'feed.json.signed');
-	if (!existsSync(feedFile)) return undefined;
-	const feed = readFileSync(feedFile);
-	const signature = readFileSync(path.join(folder, 'feed.json.sig'));
+/**
+ * The feed document `feed` with its signature `signature`, verified with the key table of `stem`'s
+ * build and read; `what` names the pair in a failure.
+ */
+function verifiedFeed(feed, signature, stem, what) {
 	if (feed.length > FEED_LIMIT || signature.length > signatureLimit)
-		throw new StepFailure(`The tracked update pair in ${folder} exceeds the updater's bounds`);
+		throw new StepFailure(`${what} exceeds the updater's bounds`);
 	const table = keyTable(
 		readFileSync(signatureSource, 'utf8'),
 		stem === 'orchbee' ? 'RELEASE_KEYS' : 'TEST_KEYS',
 	);
 	const { outcome: verified } = verifySignature(feed, signature, table ?? [], FEED_DOMAIN);
-	if (verified !== 'trusted')
-		throw new StepFailure(`The tracked update pair in ${folder} does not verify (${verified})`);
+	if (verified !== 'trusted') throw new StepFailure(`${what} does not verify (${verified})`);
 	const admitted = readFeed(feed, { platform: updatePlatform });
 	if (admitted.problems.length > 0)
-		throw new StepFailure(`The tracked update pair in ${folder}: ${admitted.problems.join('; ')}`);
+		throw new StepFailure(`${what}: ${admitted.problems.join('; ')}`);
 	return admitted.feed;
+}
+
+/** The feed of the tracked update pair in `folder`, verified, or undefined when none is tracked. */
+function trackedFeed(folder, stem) {
+	const feedFile = path.join(folder, 'feed.json.signed');
+	if (!existsSync(feedFile)) return undefined;
+	return verifiedFeed(
+		readFileSync(feedFile),
+		readFileSync(path.join(folder, 'feed.json.sig')),
+		stem,
+		`The tracked update pair in ${folder}`,
+	);
 }
 
 /** The update check after publication; `progress.stage` names what a failed step was doing. */
@@ -909,6 +946,405 @@ function updateCheck(options, progress) {
 	log(`${version} can be updated to. Move the update channel: pnpm website:release ${version}`);
 }
 
+/** A Client run by its path with `--format json`; `document` is the parsed output, or null. */
+function clientDocument(program, argv, env, quiet = false) {
+	if (!quiet) log(`> ${program} ${argv.join(' ')} --format json`);
+	const result = run(program, [...argv, '--format', 'json'], { env, quiet });
+	try {
+		return { ...result, document: JSON.parse(result.stdout) };
+	} catch {
+		return { ...result, document: null };
+	}
+}
+
+/** The Session Server's process row as `status server` reports it, or undefined. */
+function sessionServer(program, env) {
+	const status = clientDocument(program, ['status', 'server'], env, true);
+	const server = (status.document?.result?.server?.processes ?? []).find(
+		(each) => each.role === 'server',
+	);
+	return status.status === 0 ? server : undefined;
+}
+
+/** The version `active.json` in `storeRoot` names, or undefined while it cannot be read. */
+function activeVersion(storeRoot) {
+	try {
+		return JSON.parse(readFileSync(path.join(storeRoot, 'active.json'), 'utf8'))?.active?.product;
+	} catch {
+		return undefined;
+	}
+}
+
+/** Whether process `pid` still exists; signal 0 only asks. */
+function processExists(pid) {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return error.code === 'EPERM';
+	}
+}
+
+/** The Workbench layout a Client reports: each Workspace and Tab by identity and label, in order. */
+function layoutOf(program, env) {
+	const workspaces = clientDocument(program, ['workspace', 'list'], env);
+	const tabs = clientDocument(program, ['tab', 'list'], env);
+	expectStatus(workspaces, 0, 'workspace list');
+	expectStatus(tabs, 0, 'tab list');
+	return JSON.stringify({
+		workspaces: (workspaces.document?.result?.workspaces ?? []).map(({ workspaceId, label }) => ({
+			workspaceId,
+			label,
+		})),
+		tabs: (tabs.document?.result?.tabs ?? []).map(({ tabId, workspaceId, label }) => ({
+			tabId,
+			workspaceId,
+			label,
+		})),
+	});
+}
+
+/** The diagnostic records of the newest log in `dataRoot` whose event is one of `events`. */
+function diagnosticRecords(dataRoot, events) {
+	const file = newestDiagnosticLog({ dataRoot });
+	if (file === undefined) return [];
+	const records = [];
+	for (const line of readFileSync(file, 'utf8').split(/\r?\n/u)) {
+		if (!events.some((event) => line.includes(`"event":"${event}"`))) continue;
+		try {
+			records.push(JSON.parse(line));
+		} catch {
+			// A line still being written is read again at the next poll.
+		}
+	}
+	return records;
+}
+
+/** Why the older Server's schedule or helper cannot activate the new release, or undefined. */
+function helperFailure(dataRoot) {
+	for (const { event, fields = {} } of diagnosticRecords(dataRoot, [
+		'automatic-update-schedule',
+		'automatic-update',
+	])) {
+		if (event === 'automatic-update-schedule' && fields.scheduled === false)
+			return `the older Server scheduled no automatic update (${fields.reason ?? 'no reason'})`;
+		if (
+			event === 'automatic-update' &&
+			(fields.run !== 'answered' || fields.error !== 'none' || fields.upToDate === true)
+		)
+			return `its automatic helper ended without activating it: ${JSON.stringify(fields)}`;
+	}
+	return undefined;
+}
+
+// The probe the gate's terminal runs: a numbered line every 100 ms on the terminal and, with its
+// process id, in the record file, until the stop file appears or the bound passes.
+const probeScript = `param([string]$Record, [string]$Stop, [int]$Limit)
+$n = 0
+while ($n -lt $Limit -and -not [IO.File]::Exists($Stop)) {
+	$n++
+	for ($try = 0; ; $try++) {
+		try { [IO.File]::AppendAllText($Record, "$PID $n\`n"); break }
+		catch { if ($try -ge 50) { throw }; Start-Sleep -Milliseconds 10 }
+	}
+	[Console]::Out.WriteLine("probe-$PID-$n")
+	Start-Sleep -Milliseconds 100
+}
+`;
+// The probe ends itself after 30 minutes of lines, should the gate stop without ending it.
+const probeLimit = 18_000;
+const probeLine = /probe-(\d+)-(\d+)/gu;
+// The older Server runs its helper a minute after its Session admits Clients; the helper then
+// installs the new release. The idle move waits one quiet minute, closes its checks and stops.
+const activationDeadline = 900_000;
+const idleMoveDeadline = 600_000;
+const gatePoll = 2_000;
+
+/** The probe's complete record lines so far, each its process id and number. */
+function probeRecord(file) {
+	if (!existsSync(file)) return [];
+	// The last piece is empty, or a line still being written.
+	return readFileSync(file, 'utf8')
+		.split('\n')
+		.slice(0, -1)
+		.map((line) => {
+			const match = /^(\d+) (\d+)$/u.exec(line);
+			return match === null ? { line } : { pid: Number(match[1]), number: Number(match[2]) };
+		});
+}
+
+/** The probe's one process id and last number; a second process id or a gap fails. */
+function probeFacts(entries) {
+	const malformed = entries.find((entry) => entry.pid === undefined);
+	if (malformed !== undefined)
+		throw new StepFailure(`The probe record holds ${JSON.stringify(malformed.line)}`);
+	const pids = [...new Set(entries.map((entry) => entry.pid))];
+	if (pids.length !== 1)
+		throw new StepFailure(`The probe ran as processes ${pids.join(', ') || 'none'}`);
+	entries.forEach((entry, index) => {
+		if (entry.number !== index + 1)
+			throw new StepFailure(
+				`The probe's numbers jump from ${index} to ${entry.number}: its output had a gap`,
+			);
+	});
+	return { pid: pids[0], last: entries.length };
+}
+
+/**
+ * One release gate path: the older release, installed from its published archive into a scratch
+ * store, updates itself to the release the gate feed names while its Session keeps a terminal
+ * running; `progress.stage` names what a failed step was doing.
+ */
+function gatePath(options, progress) {
+	const { older, stem, work } = options;
+	const source = assetsSource(options.release, stem);
+	if (existsSync(work)) throw new StepFailure(`Refusing to work in an existing ${work}`);
+
+	progress.stage = 'reading the gate feed';
+	const expected = path.basename(options.feed);
+	const gateBytes = readFileSync(options.feed);
+	const offered = verifiedFeed(
+		gateBytes,
+		readFileSync(`${options.feed}.sig`),
+		stem,
+		`The gate feed ${options.feed}`,
+	);
+	const version = offered.version;
+	if (
+		expected !==
+		`${feedName(stem, version, updatePlatform).slice(0, -'.feed.json'.length)}${GATE_FEED_SUFFIX}`
+	)
+		throw new StepFailure(`${options.feed} is not the gate copy of ${stem} ${version}`);
+	if (version === older)
+		throw new StepFailure(`The gate feed names ${older}, the older release itself`);
+	if (absoluteArchive(offered.archive.url) || offered.archive.url.includes('/'))
+		throw new StepFailure(
+			`The gate feed names its archive by ${offered.archive.url}, not a bare file name`,
+		);
+	const beside = path.join(path.dirname(options.feed), offered.archive.url);
+	const facts = existsSync(beside) ? fileFacts(beside) : undefined;
+	if (facts?.size !== offered.archive.size || facts?.sha256 !== offered.archive.sha256)
+		throw new StepFailure(`${beside} is not the archive the gate feed signs`);
+	options.version = version;
+
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([variable]) => variable !== 'ORCHBEE_UPDATE_FEED'),
+	);
+	const storeRoot = storeRootOf(stem, env);
+	const dataRoot = env.ORCHBEE_HOME ?? path.join(env.USERPROFILE ?? '', `.${stem}`);
+	if (existsSync(dataRoot))
+		throw new StepFailure(`Refusing to start a Session in an existing data root ${dataRoot}`);
+	mkdirSync(work, { recursive: true });
+	// The older Session's Server passes the feed to its helper.
+	const olderEnv = { ...env, ORCHBEE_UPDATE_FEED: options.feed };
+	const olderClient = path.join(storeRoot, 'versions', older, `${stem}.exe`);
+	const newClient = path.join(storeRoot, 'versions', version, `${stem}.exe`);
+	const record = path.join(work, 'probe.txt');
+	const stop = path.join(work, 'probe.stop');
+	let sessionStarted = false;
+
+	try {
+		progress.stage = `installing ${older} from its published archive`;
+		const name = feedName(stem, older, updatePlatform);
+		const feedAddress = new URL(name, source.base).href;
+		const feedFile = path.join(work, name);
+		fetchAsset(
+			source,
+			feedAddress,
+			feedFile,
+			FEED_LIMIT,
+			`${name} is not public at ${feedAddress}`,
+		);
+		fetchAsset(
+			source,
+			`${feedAddress}.sig`,
+			`${feedFile}.sig`,
+			signatureLimit,
+			`${name}.sig is not public at ${feedAddress}.sig`,
+		);
+		const olderFeed = verifiedFeed(
+			readFileSync(feedFile),
+			readFileSync(`${feedFile}.sig`),
+			stem,
+			`The feed of ${older} at ${feedAddress}`,
+		);
+		if (olderFeed.version !== older)
+			throw new StepFailure(`${feedAddress} names ${olderFeed.version}, not ${older}`);
+		const archive = fetchArchive(source, olderFeed, work, 'older');
+		installRelease(unpackRelease(archive, work, 'older', older), storeRoot, env);
+
+		progress.stage = `starting the Session of ${older}`;
+		sessionStarted = true;
+		expectStatus(clientDocument(olderClient, ['server', 'start'], olderEnv), 0, 'server start');
+		const server = sessionServer(olderClient, olderEnv);
+		if (server?.version !== older || typeof server?.processId !== 'number')
+			throw new StepFailure(`The Session's Server reports ${JSON.stringify(server)}, not ${older}`);
+		log(`The Session of ${older} runs; its Server is process ${server.processId}.`);
+
+		progress.stage = 'opening a terminal that runs the probe';
+		writeFileSync(path.join(work, 'probe.ps1'), probeScript, { flag: 'wx' });
+		const created = clientDocument(
+			olderClient,
+			['workspace', 'create', '--exec', system32('cmd.exe'), '--arg', '/D', '--cwd', work],
+			olderEnv,
+		);
+		const workspace = created.document?.result?.workspace?.result;
+		if (created.status !== 0 || typeof workspace?.panelId !== 'string')
+			throw new StepFailure(`workspace create exited ${created.status}`);
+		let terminal;
+		for (const opened = Date.now(); terminal === undefined; sleep(terminalPoll)) {
+			const listed = clientDocument(olderClient, ['terminal', 'list'], olderEnv, true);
+			terminal = (listed.document?.result?.terminals ?? []).find(
+				(each) => each.boundTo?.panelId === workspace.panelId,
+			)?.terminalId;
+			if (terminal === undefined && Date.now() - opened >= terminalDeadline)
+				throw new StepFailure(
+					`Panel ${workspace.panelId} has no terminal after ${terminalDeadline} ms`,
+				);
+		}
+		const send = (argv, what) =>
+			expectStatus(clientDocument(olderClient, ['terminal', ...argv], olderEnv), 0, what);
+		send(
+			['wait-output', terminal, '--regex', '\\S', '--timeout', String(terminalDeadline)],
+			'terminal wait-output for the shell',
+		);
+		// cmd keeps no command history, and exit code 0 lets the Session close the probe's Panel.
+		const powershell = system32(path.join('WindowsPowerShell', 'v1.0', 'powershell.exe'));
+		const line = `"${powershell}" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${path.join(work, 'probe.ps1')}" "${record}" "${stop}" ${probeLimit} & exit 0`;
+		send(['send', terminal, '--text', line, '--enter'], 'terminal send');
+		const started = Date.now();
+		while (probeRecord(record).length < 10) {
+			if (Date.now() - started >= terminalDeadline)
+				throw new StepFailure(`The probe wrote no record within ${terminalDeadline} ms`);
+			sleep(terminalPoll);
+		}
+		const { pid } = probeFacts(probeRecord(record));
+		log(`The probe runs as process ${pid} in terminal ${terminal}.`);
+
+		progress.stage = `waiting for the helper of ${older} to activate ${version}`;
+		const until = Date.now() + activationDeadline;
+		while (activeVersion(storeRoot) !== version) {
+			const failure = helperFailure(dataRoot);
+			if (failure !== undefined) throw new StepFailure(`${version} is not active: ${failure}`);
+			if (Date.now() >= until)
+				throw new StepFailure(
+					`${version} is not active ${activationDeadline} ms after the Session started`,
+				);
+			sleep(gatePoll);
+		}
+		log(`The helper of ${older} activated ${version}.`);
+
+		progress.stage = `joining the Session with the Client of ${version}`;
+		expectVersion({ version }, run(newClient, ['--version'], { env }), `${version} --version`);
+		const joined = sessionServer(newClient, env);
+		if (joined?.processId !== server.processId)
+			throw new StepFailure(
+				`The Client of ${version} reaches ${JSON.stringify(joined)}, not the running Session`,
+			);
+		const read = clientDocument(
+			newClient,
+			['terminal', 'read', terminal, '--source', 'recent', '--lines', '50'],
+			env,
+			true,
+		);
+		expectStatus(read, 0, `terminal read by the Client of ${version}`);
+		const shown = [...String(read.document?.result?.content?.text ?? '').matchAll(probeLine)];
+		if (shown.length === 0 || shown.some((match) => Number(match[1]) !== pid))
+			throw new StepFailure(
+				`The Client of ${version} does not read the probe's lines from process ${pid}`,
+			);
+		log(`The Client of ${version} joined and reads probe line ${shown.at(-1)[2]}.`);
+
+		progress.stage = 'ending the probe';
+		writeFileSync(stop, '', { flag: 'wx' });
+		const ended = Date.now();
+		for (;;) {
+			const row = sessionServer(newClient, env);
+			if (row?.terminals === 0) break;
+			if (Date.now() - ended >= terminalDeadline)
+				throw new StepFailure(
+					`The Server still counts ${row?.terminals ?? 'unknown'} terminals ${terminalDeadline} ms after the probe was told to end`,
+				);
+			sleep(terminalPoll);
+		}
+		const { last } = probeFacts(probeRecord(record));
+		log(`The probe printed lines 1 to ${last} as process ${pid}, without a gap, and ended.`);
+		const layout = layoutOf(newClient, env);
+
+		progress.stage = `waiting for the idle move of ${older}`;
+		// No Client connects now: a connection would start the Session's quiet minute again.
+		const idleSince = Date.now();
+		while (processExists(server.processId)) {
+			if (Date.now() - idleSince >= idleMoveDeadline)
+				throw new StepFailure(
+					`The Server of ${older} still runs ${idleMoveDeadline} ms after the Session went idle`,
+				);
+			sleep(gatePoll);
+		}
+		log(`The Server of ${older} ended ${Date.now() - idleSince} ms after the Session went idle.`);
+
+		progress.stage = `starting the Session on ${version}`;
+		expectStatus(clientDocument(newClient, ['server', 'start'], env), 0, 'server start');
+		const moved = sessionServer(newClient, env);
+		if (moved?.version !== version)
+			throw new StepFailure(
+				`The Session's Server reports ${JSON.stringify(moved)}, not ${version}`,
+			);
+		const after = layoutOf(newClient, env);
+		if (after !== layout)
+			throw new StepFailure(
+				`The layout changed across the move:\n  before ${layout}\n  after  ${after}`,
+			);
+		log(`The Session runs on ${version} with its layout unchanged. The path from ${older} passes.`);
+	} catch (error) {
+		if (error instanceof StepFailure) {
+			const entries = probeRecord(record);
+			if (entries.length > 0)
+				log(`Probe record: ${entries.length} lines, the last ${JSON.stringify(entries.at(-1))}`);
+			log(`Diagnostic log:\n${diagnosticLogTail({ dataRoot })}`);
+		}
+		throw error;
+	} finally {
+		// A test build's Session ends here; a release build asks a person to type its name, and the
+		// gate's runner is discarded after the path.
+		if (sessionStarted && stem !== 'orchbee') {
+			const client = existsSync(newClient) ? newClient : olderClient;
+			run(client, ['server', 'stop', '--confirm'], { env: olderEnv, quiet: true });
+		}
+	}
+}
+
+function parseGateArguments(argv) {
+	const [tag, ...rest] = argv;
+	const options = {};
+	for (let index = 0; index < rest.length; index += 2) {
+		const [option, value] = [rest[index], rest[index + 1]];
+		if (!['--release', '--feed', '--work', '--stem'].includes(option) || value === undefined)
+			throw new UsageError(usage);
+		options[option.slice(2)] = value;
+	}
+	const older = tag?.startsWith('v') ? tag.slice(1) : undefined;
+	const stem = options.stem ?? 'orchbee';
+	if (
+		!validVersion(older) ||
+		options.release === undefined ||
+		options.feed === undefined ||
+		!path.isAbsolute(options.feed) ||
+		options.work === undefined ||
+		!path.isAbsolute(options.work) ||
+		!updateStem.test(stem)
+	)
+		throw new UsageError(usage);
+	return {
+		step: 'gate',
+		older,
+		stem,
+		release: options.release,
+		feed: options.feed,
+		work: options.work,
+	};
+}
+
 function parseUpdateArguments(argv) {
 	const [tag, ...rest] = argv;
 	const options = {};
@@ -942,6 +1378,7 @@ function parseUpdateArguments(argv) {
 function parseArguments(argv) {
 	const [step, artifacts, ...rest] = argv;
 	if (step === 'update') return parseUpdateArguments(argv.slice(1));
+	if (step === 'gate') return parseGateArguments(argv.slice(1));
 	const options = {};
 	for (let index = 0; index < rest.length; index += 2) {
 		const [option, value] = [rest[index], rest[index + 1]];
@@ -977,6 +1414,8 @@ if (
 		options = parseArguments(process.argv.slice(2));
 		if (options.step === 'update') {
 			updateCheck(options, progress);
+		} else if (options.step === 'gate') {
+			gatePath(options, progress);
 		} else {
 			identity = readIdentity(options.artifacts);
 			const steps = {
@@ -995,6 +1434,11 @@ if (
 		if (options?.step === 'update' && !(error instanceof UsageError))
 			process.stderr.write(
 				`The update check of ${options.version} failed while ${progress.stage}. Do not run pnpm website:release ${options.version}. If a download failed for a passing reason, run this check again; otherwise leave the update channel where it is and release the next version.\n`,
+			);
+		// A failing path stops the release before Publish.
+		if (options?.step === 'gate' && !(error instanceof UsageError))
+			process.stderr.write(
+				`The release gate path from ${options.older}${options.version === undefined ? '' : ` to ${options.version}`} failed while ${progress.stage}. Do not publish this release.\n`,
 			);
 		if (
 			error instanceof StepFailure &&
