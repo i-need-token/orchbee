@@ -73,6 +73,11 @@ mod worktree_list;
 mod worktree_operation;
 mod worktree_query;
 
+/// Whether this host's Server serves Worktree source queries, Worktree operations and Project
+/// close-all. Windows and macOS do; Linux refuses them before any effect until its behavior is
+/// decided. A policy constant rather than a `cfg`, so every branch compiles everywhere.
+const SERVES_WORKTREES: bool = cfg!(any(windows, target_os = "macos"));
+
 // One queued plus one in-flight exchange, each with a two-second write and twenty-second read.
 const LEASE_LIFETIME_MILLISECONDS: u64 = 46_000;
 

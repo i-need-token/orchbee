@@ -52,12 +52,13 @@ impl Capability {
             // macOS shells get the same managed prompt and run prefix as Windows PowerShell.
             Self::AgentLaunch => cfg!(any(windows, target_os = "macos")),
             // macOS keeps the position record and `config.toml` under its data root, as Windows,
-            // and resolves a typed folder in the POSIX grammar, from its launch folder.
-            Self::PositionStorage | Self::ConfigurationFile | Self::DirectoryInput => {
-                cfg!(any(windows, target_os = "macos"))
-            }
-            // The macOS Server does not serve Worktree operations yet.
-            Self::SavedMachines | Self::Worktrees | Self::Graphics => cfg!(windows),
+            // resolves a typed folder in the POSIX grammar, from its launch folder, and its Server
+            // serves Worktree operations.
+            Self::PositionStorage
+            | Self::ConfigurationFile
+            | Self::DirectoryInput
+            | Self::Worktrees => cfg!(any(windows, target_os = "macos")),
+            Self::SavedMachines | Self::Graphics => cfg!(windows),
         }
     }
 

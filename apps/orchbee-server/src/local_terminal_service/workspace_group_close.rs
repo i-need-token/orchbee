@@ -1,4 +1,4 @@
-//! Windows group Close transport and retained continuation; reads never start maintenance.
+//! Group Close transport and retained continuation; reads never start maintenance.
 use super::{LocalTerminalService, worker_identity};
 use orchbee_server::WorkbenchGrant;
 use orchbee_workbench_protocol::{
@@ -30,7 +30,7 @@ impl LocalTerminalService {
             }
         }
         let mutating = !matches!(request.action, Action::Read { .. });
-        if mutating && !cfg!(windows) {
+        if mutating && !super::SERVES_WORKTREES {
             return response(Outcome::Unavailable {
                 reason: Unavailable::Unsupported,
             });

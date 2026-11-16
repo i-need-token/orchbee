@@ -16,6 +16,7 @@ fn command(words: &[&str]) -> WorktreeCommand {
     command
         .into_resolved(
             OutputFormat::Text,
+            orchbee_local_runtime::UserPathGrammar::Windows,
             |_| panic!("absolute test operand"),
             || panic!("absolute test operand"),
         )

@@ -53,7 +53,7 @@ impl LocalTerminalService {
         request: &WorkbenchWorktreeQuery,
         deadline: Instant,
     ) -> Result<Outcome, Failure> {
-        if !cfg!(windows) {
+        if !super::SERVES_WORKTREES {
             return Err(Failure::Unsupported {});
         }
         let (target, handle, base) = {

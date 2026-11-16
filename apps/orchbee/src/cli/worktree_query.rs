@@ -16,11 +16,15 @@ pub(crate) fn run(
     if let Err(failure) = super::execution::admit(super::execution::Capability::WorktreeOperation) {
         return failure_output(failure, Some(format), locale);
     }
-    let command =
-        match command.into_resolved(format, |name| std::env::var_os(name), std::env::current_dir) {
-            Ok(command) => command,
-            Err(failure) => return super::parse_failure(failure, locale),
-        };
+    let command = match command.into_resolved(
+        format,
+        crate::invocation::user_path::HOST_GRAMMAR,
+        |name| std::env::var_os(name),
+        std::env::current_dir,
+    ) {
+        Ok(command) => command,
+        Err(failure) => return super::parse_failure(failure, locale),
+    };
     workflow::run(&command, format, locale)
 }
 

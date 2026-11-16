@@ -2,7 +2,7 @@
 
 ## Interaction and scope
 
-On Windows, New Worktree… and `Ctrl+b Shift+W` open the New Worktree form after read-only source
+On Windows and macOS, New Worktree… and `Ctrl+b Shift+W` open the New Worktree form after read-only source
 discovery, with Branch blank (a generated branch) and Base `HEAD`. Nothing is created until its
 Create or Enter; Esc or Cancel creates nothing. No Project chooser blocks this intent. Use the CLI
 for an explicit destination. `Ctrl+b Shift+O` opens an exact checkout
@@ -115,7 +115,7 @@ Server operation. Addressed Workspace, directory, terminal scope, Worker and che
 revalidated before Start. The Server retains dirty/untracked-file, main/bare-checkout and other
 Workspace-association guards, terminal disposal, publication hold, Git deletion and shell recovery.
 Successful removal closes the Workspace and preserves the branch. Ordinary Workspace Close keeps
-its existing independent meaning and never deletes a checkout. This native Windows TUI addition
+its existing independent meaning and never deletes a checkout. This native TUI addition
 uses the same domain operation as the CLI, and so does the Web and Desktop window's Remove
 Worktree…, under the same offer proof but without the Windows check for a Client standing in the
 checkout.

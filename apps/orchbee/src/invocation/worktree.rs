@@ -10,7 +10,7 @@ use super::{
 };
 use orchbee_workbench_protocol::{WorkbenchClientId, WorktreeReference};
 
-mod windows;
+mod resolution;
 
 type ParsedWorktreePath = super::user_path::ParsedUserPath;
 pub(crate) type ParsedWorktreeCommand = WorktreeCommand<ParsedWorktreePath>;

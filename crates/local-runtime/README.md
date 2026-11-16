@@ -428,7 +428,7 @@ stop completes, and only a held Host lock refuses recovery, activation and delet
 
 The portable grammar preserves Windows verbatim drive prefixes, including their implicit root. Resolution joins an ordinary relative operand to the supplied context before lexical reconstruction: a slash within an existing verbatim context component stays part of that component during parent traversal. Home suffixes append one component at a time. These rules preserve existing Windows admission and normalization on every host; they do not resolve or probe a Windows path on Unix.
 
-`normalize_posix_user_path` is the POSIX grammar with the same signature and errors: an absolute path as written, `~` or `~/...` under a nonempty absolute `HOME`, or a path relative to the supplied current directory, resolved lexically like a shell's logical `cd`. `~name` is an ordinary relative name, and a drive or `\` spelling is `Input`. It runs on every host, reads no process context and never probes the filesystem. The settings reader's POSIX path keys and the macOS TUI's typed folders use it. `UserPathGrammar` names either grammar as data.
+`normalize_posix_user_path` is the POSIX grammar with the same signature and errors: an absolute path as written, `~` or `~/...` under a nonempty absolute `HOME`, or a path relative to the supplied current directory, resolved lexically like a shell's logical `cd`. `~name` is an ordinary relative name, and a drive or `\` spelling is `Input`. It runs on every host, reads no process context and never probes the filesystem. The settings reader's POSIX path keys, the macOS TUI's typed folders and the macOS CLI's Worktree path operands use it. `UserPathGrammar` names either grammar as data.
 
 ## Windows named runtime identity
 

@@ -1773,29 +1773,14 @@ fn empty_lists_say_how_to_create_their_first_entry() {
 #[cfg(not(windows))]
 #[test]
 fn unsupported_commands_share_the_platform_failure_contract() {
-    use crate::invocation::{
-        ClientCommand, ManifestCommand, WorkspaceGroupCloseCommand, WorktreeCommand,
-    };
+    use crate::invocation::{ClientCommand, ManifestCommand};
     use orchbee_workbench_protocol::WorkbenchRequestId;
     let schema: Value =
         serde_json::from_str(include_str!("schemas/orchbee.cli.failure.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for format in [OutputFormat::Json, OutputFormat::Text] {
-            let operation_id = WorkbenchRequestId::parse(ID).unwrap();
             for output in [
-                super::worktree_operation::run(
-                    WorktreeCommand::Status {
-                        operation_id: operation_id.clone(),
-                    },
-                    format,
-                    locale,
-                ),
-                super::workspace_group_close::run(
-                    &WorkspaceGroupCloseCommand::Status { operation_id },
-                    format,
-                    locale,
-                ),
                 // Linux reads Client views, but Client control stays Windows-only.
                 super::client_control::run(
                     &ClientCommand::ControlStatus(WorkbenchRequestId::parse(ID).unwrap()),

@@ -5,7 +5,8 @@
 //! These commands borrow the interrupt-pair port, which captures `SIGINT` and `SIGTERM` on both,
 //! and both admit a declared `terminal send` input source under its own signal watch.
 //! macOS and Linux admit release installation and uninstallation, but not the update download.
-//! macOS admits `server stop`, which its managed Session serves.
+//! macOS admits `server stop`, Worktree operations and source queries, and `project close-all`,
+//! which its managed Session serves.
 //! Admission itself does not inspect environment or native state.
 use super::{Capability, Unsupported};
 
@@ -13,7 +14,11 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
     match capability {
         // The release store and its PATH step need no download, which stays Windows-only.
         Capability::ReleaseInstall => Ok(()),
-        Capability::ServerStop if cfg!(target_os = "macos") => Ok(()),
+        Capability::ServerStop | Capability::WorktreeOperation | Capability::WorkspaceGroupClose
+            if cfg!(target_os = "macos") =>
+        {
+            Ok(())
+        }
         Capability::WorkbenchMutation
         | Capability::CanonicalPanelProcess
         | Capability::CanonicalAgentRead

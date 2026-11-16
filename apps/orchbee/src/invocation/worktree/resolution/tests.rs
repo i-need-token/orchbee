@@ -45,14 +45,24 @@ fn all_four_path_slots_retain_spelling_and_resolve_only_needed_execution_context
                 Request::WorktreeQuery { command, format } => {
                     assert_eq!(command.cwd.as_ref().unwrap().as_str(), operand);
                     let resolved = command
-                        .into_resolved(format, environment, current_directory)
+                        .into_resolved(
+                            format,
+                            UserPathGrammar::Windows,
+                            environment,
+                            current_directory,
+                        )
                         .unwrap();
                     assert_eq!(resolved.cwd.unwrap().as_str(), expected);
                 }
                 Request::Worktree { command, format } => {
                     assert_eq!(start_operand(&command, option == "--cwd").as_str(), operand);
                     let resolved = command
-                        .into_resolved(format, environment, current_directory)
+                        .into_resolved(
+                            format,
+                            UserPathGrammar::Windows,
+                            environment,
+                            current_directory,
+                        )
                         .unwrap();
                     assert_eq!(
                         start_operand(&resolved, option == "--cwd").as_str(),
@@ -94,6 +104,7 @@ fn resolution_preserves_launch_selection_identity_geometry_and_wait_policy() {
     let resolved = command
         .into_resolved(
             format,
+            UserPathGrammar::Windows,
             |_| Some(OsString::from(r"E:\home")),
             || Ok(PathBuf::from(r"D:\executor")),
         )
@@ -140,6 +151,7 @@ fn commands_without_explicit_paths_never_read_path_context() {
         let resolved = command
             .into_resolved(
                 format,
+                UserPathGrammar::Windows,
                 |_| panic!("no home operand"),
                 || panic!("no relative operand"),
             )
@@ -159,6 +171,7 @@ fn commands_without_explicit_paths_never_read_path_context() {
     let resolved = command
         .into_resolved(
             format,
+            UserPathGrammar::Windows,
             |_| panic!("no home operand"),
             || panic!("no relative operand"),
         )
@@ -180,6 +193,7 @@ fn target_context_failure_precedes_source_context_and_redacts_environment() {
         let failure = command
             .into_resolved(
                 OutputFormat::Json,
+                UserPathGrammar::Windows,
                 |_| {
                     assert_eq!(target, "~");
                     Some(OsString::from("private-invalid-home"))
@@ -214,12 +228,12 @@ fn every_path_slot_preserves_usage_context_format_and_input_vs_context_failure()
                     words.push("--branch=main");
                 }
                 let failure = match parse(&words) {
-                    Request::Worktree { command, .. } => {
-                        command.into_resolved(format, environment, cwd).unwrap_err()
-                    }
-                    Request::WorktreeQuery { command, .. } => {
-                        command.into_resolved(format, environment, cwd).unwrap_err()
-                    }
+                    Request::Worktree { command, .. } => command
+                        .into_resolved(format, UserPathGrammar::Windows, environment, cwd)
+                        .unwrap_err(),
+                    Request::WorktreeQuery { command, .. } => command
+                        .into_resolved(format, UserPathGrammar::Windows, environment, cwd)
+                        .unwrap_err(),
                     _ => panic!("Worktree request"),
                 };
                 assert_eq!(failure.kind, ParseFailureKind::InvalidUsage);

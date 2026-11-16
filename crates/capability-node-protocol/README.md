@@ -644,7 +644,7 @@ Viewer action tag 12 is `ReadProcessInfo`, with no bytes after the tag; it uses 
 ## Worktree mutation job contract
 
 This private contract defines the boundary for the Worker Git owner
-and Server Worktree continuation. Worker dispatch implements this boundary on Windows, Linux and macOS; the Server continuation runs on Windows. The representation alone does not establish end-to-end CLI correctness. Server owns Workspace association; Worker owns Git
+and Server Worktree continuation. Worker dispatch implements this boundary on Windows, Linux and macOS; the Server continuation runs on Windows and macOS. The representation alone does not establish end-to-end CLI correctness. Server owns Workspace association; Worker owns Git
 checkout observations and effects.
 
 The request carries one nonzero operation ID, Worker ID and positive generation.

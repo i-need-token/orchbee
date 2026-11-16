@@ -104,7 +104,7 @@ orchbee --help | --version
 
 Query families are `client`, `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`,
 `launch-profile`, and
-`agent` (`list`/`get`, plus `terminal read`/`wait-output`; Windows `worktree list` accepts
+`agent` (`list`/`get`, plus `terminal read`/`wait-output`; Windows and macOS `worktree list` accept
 `--workspace <target>` or `--cwd <path>` with optional command-local trust,
 or retains the strict `--directory <directory-id>` form; `launch-profile` offers `list`
 and `get <selector>` — a typed read of the running Session's launch profile catalog, resolved
@@ -998,11 +998,11 @@ lines. Unit tests describe the development grammar on every host. The Desktop an
 withhold their Search too and keep the Actions-only palette, as the TUI keeps its action
 menu; see the [Web Workbench](../web/docs/workbench.md#release-withheld-search).
 
-## Windows Worktree operations
+## Windows and macOS Worktree operations
 
-`worktree create/open/remove/status/resume` now uses retained Server operations and Windows Worker Git execution. The [Worktree contract](docs/windows-worktrees.md) owns source selection, defaults, confirmation, partial outcomes and recovery. These commands do not activate a Session. Create/Open accept optional `--focus` and exact `--client`; default `--no-focus` keeps the view. List/Create/Open follow the validated caller or selected TUI context when source is omitted.
+`worktree create/open/remove/status/resume` now uses retained Server operations and Worker Git execution on Windows and macOS. The [Worktree contract](docs/windows-worktrees.md) owns source selection, defaults, confirmation, partial outcomes and recovery. These commands do not activate a Session. Create/Open accept optional `--focus` and exact `--client`; default `--no-focus` keeps the view. List/Create/Open follow the validated caller or selected TUI context when source is omitted.
 
-## Windows Workspace group Close
+## Windows and macOS Workspace group Close
 
 `project close-all <target> --confirm` closes the captured Workspaces in that Project while retaining the Project record and Git checkouts. Ordinary `workspace close` always closes only its target. Use `operation status <operation-id>` after members disappear, and `operation resume <operation-id> --generation <attempt> --confirm` only for a declared resumable failure. Project closure supports detached/bounded waiting and reports each child Close identity and observed state. See the [Project close-all contract](docs/windows-worktrees.md#project-close-all).
 

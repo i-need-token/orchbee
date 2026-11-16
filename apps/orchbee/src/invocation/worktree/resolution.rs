@@ -1,13 +1,12 @@
-//! Resolve admitted literal operands only in the CLI that executes the Worktree request.
+//! Resolve admitted literal operands only in the CLI that executes the Worktree request, in the
+//! path grammar that CLI supplies: its host's, in production.
 use super::{
     ExpectedValue, OutputFormat, ParseFailure, ParsedWorktreeCommand, ParsedWorktreeQueryCommand,
     UsageContext, WorktreeCommand, WorktreeOpenSelector, WorktreeQueryCommand,
     WorktreeStartCommand, WorktreeStartKind, invalid,
 };
-use crate::invocation::{
-    selection_envelope,
-    user_path_windows::{PathFailure, normalize},
-};
+use crate::invocation::{selection_envelope, user_path::resolve};
+use orchbee_local_runtime::{UserPathError as PathFailure, UserPathGrammar};
 use std::{ffi::OsString, path::PathBuf};
 
 impl ParsedWorktreeCommand {
@@ -18,6 +17,7 @@ impl ParsedWorktreeCommand {
     pub(crate) fn into_resolved(
         self,
         format: OutputFormat,
+        grammar: UserPathGrammar,
         mut environment: impl FnMut(&str) -> Option<OsString>,
         mut cwd: impl FnMut() -> std::io::Result<PathBuf>,
     ) -> Result<WorktreeCommand, ParseFailure> {
@@ -30,9 +30,9 @@ impl ParsedWorktreeCommand {
                     WorktreeStartKind::Remove { .. } => "worktree remove",
                 });
                 let mut resolve_path = |operand: super::ParsedWorktreePath, option| {
-                    normalize(operand.as_str(), &mut environment, &mut cwd).map_err(|failure| {
-                        path_failure(operand.as_str(), failure, context, option, format)
-                    })
+                    resolve(operand.as_str(), grammar, &mut environment, &mut cwd).map_err(
+                        |failure| path_failure(operand.as_str(), failure, context, option, format),
+                    )
                 };
                 // Preserve target-before-source precedence when both contexts are invalid.
                 let kind = match command.kind {
@@ -95,13 +95,14 @@ impl ParsedWorktreeQueryCommand {
     pub(crate) fn into_resolved(
         self,
         format: OutputFormat,
+        grammar: UserPathGrammar,
         environment: impl FnMut(&str) -> Option<OsString>,
         cwd: impl FnMut() -> std::io::Result<PathBuf>,
     ) -> Result<WorktreeQueryCommand, ParseFailure> {
         let cwd = self
             .cwd
             .map(|operand| {
-                normalize(operand.as_str(), environment, cwd).map_err(|failure| {
+                resolve(operand.as_str(), grammar, environment, cwd).map_err(|failure| {
                     path_failure(
                         operand.as_str(),
                         failure,
