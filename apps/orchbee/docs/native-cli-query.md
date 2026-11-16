@@ -14,7 +14,7 @@ Agent projection reads, exact terminal metadata, Client attention interpretation
 
 Workspace-group closure, Worktree operations and source queries keep request preparation, retained observation and post-open focus receipts in shared workflows. Their capability admission runs before literal-path resolution or operation ID generation. The executing CLI resolves literal path operands in its host's grammar, the Windows drive grammar on Windows and the POSIX grammar on macOS and Linux, without touching the filesystem; compiling a decoder on another host does not enable filesystem or Git operations there. A completed canonical operation is not erased by a failed or cancelled Client-focus observation. Canonical terminal reads/waits, launch-profile catalog and close status classification also compile in shared owners; Linux and Windows keep their existing query paths, while macOS refuses before discovery or signal registration. Worktree listing compiles in the same shared owner and runs on Windows and macOS.
 
-Client navigation/swap, reusable layouts and direct terminal-member creation share selection, protocol exchanges, recovery and receipt presentation. Native document input and executable lookup stay behind their Windows ports, with unavailable commands rejected before preparation effects. The existing Linux Workbench mutation route remains admitted; sharing its receipt engine does not admit that route on macOS.
+Client navigation/swap, reusable layouts and direct terminal-member creation share selection, protocol exchanges, recovery and receipt presentation. macOS admits Client navigation/swap and direct terminal-member creation, which borrow the CLI interrupt-pair port. Native document input and executable lookup stay behind their Windows ports, with unavailable commands rejected before preparation effects. The existing Linux Workbench mutation route remains admitted; sharing its receipt engine does not admit that route on macOS.
 
 Workbench and terminal-list enrichment share bounded canonical/physical reads, passive Client observations and their human renderers. Their Windows capability is checked before discovery. Existing Unix lists, current-Panel selection and process queries retain their original paths and outputs; optional Client-specific queries still refuse before signals or connection setup.
 
@@ -132,7 +132,7 @@ and `src/cli/**`. Prose and implementation must converge in the same change.
 
 ## Clear terminal output
 
-Windows `terminal clear <terminal>` clears one exact bound primary or child terminal
+Windows and macOS `terminal clear <terminal>` clears one exact bound primary or child terminal
 in an existing Session. It removes preceding history and other output, clears selection
 and returns the viewport to the active screen. It keeps only the row the cursor is on, so a
 prompt that wraps keeps its last row; the bundled ConPTY keeps that row at the top of its own

@@ -401,7 +401,7 @@
 					"maximum": 2147483647
 				},
 				"statusKind": {
-					"const": "powershell-success"
+					"enum": ["powershell-success", "shell-exit-status"]
 				},
 				"outputRange": {
 					"type": "object",

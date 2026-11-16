@@ -1,7 +1,8 @@
 //! Existing-Session, exact-target, one-shot clear; submitted uncertainty is never replayed.
 use super::{
     Failure, FailureKind, Output,
-    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    command_interrupt::{ArmedSignals, Finish},
+    console_interrupt::SignalWatch,
     failure_output, output, query, results,
 };
 use crate::cli_text::CliText;

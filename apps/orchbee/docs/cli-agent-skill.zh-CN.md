@@ -156,7 +156,7 @@ channel 选择也可通过帮助发现。`channel set` 保存选择并发起更�
 
 ## 等待 Shell 命令或新输出
 
-在新初始化的受管 PowerShell 终端中，确认命令行空闲且为空后，使用 `terminal run <target> <command> --wait --timeout 30000 --format json`。它只提交一次，并等待本次调用的 Shell 标记。分别检查 `submission`、`completion`、`failure` 和 `cleanup`。`powershell-success` 表示 Shell 成功状态（0/1），不是原生进程的数值退出码。超时／取消不会撤回已接受输入，不要重放。
+在新初始化的受管 Shell 终端中（Windows 上为 PowerShell，macOS 上为 zsh 或 bash），确认命令行空闲且为空后，使用 `terminal run <target> <command> --wait --timeout 30000 --format json`。它只提交一次，并等待本次调用的 Shell 标记。分别检查 `submission`、`completion`、`failure` 和 `cleanup`。`statusKind: powershell-success` 表示 PowerShell 成功状态（0/1），不是原生进程的数值退出码；`shell-exit-status` 表示 zsh 或 bash 的退出状态（`$?`）。超时／取消不会撤回已接受输入，不要重放。
 
 要排除保留输出，保存 `terminal read --format json` 的 `result.cursor`，向 `terminal wait-output` 传入 `--after <cursor>`，或在新工作前使用 `--after now`。只匹配后续物理输出行，排除当前行和提示符／输入行。重置、淘汰和窗口间隙会明确拒绝游标；提前增大 `--lines`，自动化使用有限 `--timeout`。参见[命令提交](native-terminal-run.md)。
 

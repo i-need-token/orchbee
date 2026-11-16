@@ -191,7 +191,7 @@ fn execute(
         attempt.cursor = crate::cli::terminal_output::capture_cursor(&terminal.terminal_id, frame)
             .map(|cursor| cursor.encode());
         // Only an explicitly advertised integration strips this exact prefix.
-        let input = format!("<#orchbee-run:{}#> {command}", attempt.run_id);
+        let input = submitted_line(&attempt.run_id, command);
         check(signals, deadline)?;
         attempt.receipt = Some(send::submit_prompt_on_session_cancellable(
             &mut client,
@@ -226,7 +226,7 @@ fn execute(
             if let Some(command) = completed(frame, &attempt.run_id) {
                 attempt.completion = Some(json!({
                     "exitCode": command.exit_code,
-                    "statusKind": "powershell-success",
+                    "statusKind": STATUS_KIND,
                     "outputRange": {
                         "generation": command.generation.get().to_string(),
                         "outputEpoch": command.output_epoch.get().to_string(),
@@ -264,6 +264,25 @@ fn execute(
     check(signals, deadline)?;
     cleanup
 }
+
+/// The shells that advertise readiness on this host strip this run prefix: on Windows only managed
+/// PowerShell does, which reads `<#orchbee-run:<id>#> ` as its comment form; on macOS and Linux only
+/// the managed zsh and bash do, which take the `: orchbee-run:<id>; ` no-op form.
+fn submitted_line(run_id: &str, command: &str) -> String {
+    if cfg!(windows) {
+        format!("<#orchbee-run:{run_id}#> {command}")
+    } else {
+        format!(": orchbee-run:{run_id}; {command}")
+    }
+}
+
+/// What `exitCode` means: managed PowerShell reports `$?` as 0 or 1, and managed zsh and bash
+/// report `$?`, the last command's exit status.
+const STATUS_KIND: &str = if cfg!(windows) {
+    "powershell-success"
+} else {
+    "shell-exit-status"
+};
 
 fn completed(frame: &TerminalTextFrame, run_id: &str) -> Option<TerminalObservedCommand> {
     let command = frame.command_observation?.command?;

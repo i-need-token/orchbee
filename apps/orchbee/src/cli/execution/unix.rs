@@ -10,8 +10,9 @@
 //! attention, Client control, configured commands, Panel graphics, the runtime status reads
 //! with the processes its managed Session reports, the diagnostic bundle, schema export, the
 //! Agent detection rule commands, the outdated integration filter, the Panel, Workspace,
-//! notification, title and configuration reports, the extended creation and move options, and
-//! the enriched Workbench inspection.
+//! notification, title and configuration reports, the extended creation and move options, the
+//! enriched Workbench inspection, `terminal run` with its managed-shell wait, `terminal clear`
+//! and `panel create-terminal`.
 //! Admission itself does not inspect environment or native state.
 use super::{Capability, Unsupported};
 
@@ -36,6 +37,9 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::ExtendedCreation
         | Capability::ExtendedWorkbenchMutation
         | Capability::WorkbenchInspection
+        | Capability::TerminalRun
+        | Capability::TerminalClear
+        | Capability::TerminalCreation
             if cfg!(target_os = "macos") =>
         {
             Ok(())

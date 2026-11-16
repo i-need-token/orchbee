@@ -5,7 +5,8 @@ use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
     client_control::{exchange::exchange, selection},
-    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    command_interrupt::{ArmedSignals, Finish},
+    console_interrupt::SignalWatch,
     creation::directory,
     failure_output, query,
 };

@@ -104,14 +104,14 @@ commands! {
     PanelCurrent => ["panel", "current"], 1, Panel, Portable, true, true, false;
     PanelGet => ["panel", "get"], 1, Panel, Portable, true, true, false;
     PanelProcessInfo => ["panel", "process-info"], 1, Panel, Portable, true, true, false;
-    PanelCreateTerminal => ["panel", "create-terminal"], 1, Panel, Windows, true, true, true;
+    PanelCreateTerminal => ["panel", "create-terminal"], 1, Panel, Portable, true, true, true;
     PanelSplit => ["panel", "split"], 1, Panel, Portable, true, true, true;
     PanelClose => ["panel", "close"], 1, Panel, Portable, true, true, false;
     PanelMove => ["panel", "move"], 1, Panel, Portable, true, true, false;
     TerminalList => ["terminal", "list"], 0, Operand, Portable, true, true, false;
     TerminalGet => ["terminal", "get"], 1, Operand, Portable, true, true, false;
     TerminalRead => ["terminal", "read"], 1, TerminalOrPanel, Portable, true, true, false;
-    TerminalClear => ["terminal", "clear"], 1, Operand, Windows, true, true, false;
+    TerminalClear => ["terminal", "clear"], 1, Operand, Portable, true, true, false;
     TerminalWaitOutput => ["terminal", "wait-output"], 1, TerminalOrPanel, Portable, true, true, false;
     TerminalSend => ["terminal", "send"], 1, TerminalOrPanel, Portable, true, true, false;
     TerminalRun => ["terminal", "run"], 2, TerminalOrPanel, Portable, true, true, false;

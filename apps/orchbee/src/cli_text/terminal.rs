@@ -41,13 +41,13 @@ pub(super) const HELP_TERMINAL_GET_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_TERMINAL_RUN_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal run (<target>|--panel <panel>) <command> [--wait] [--timeout <ms>] [--format text|json]",
-        "Targets: terminal ID / @terminal:, or Panel ID / @panel: / --panel. Panels select the primary terminal; children require a terminal identity. Bare IDs that name different resources refuse; use a typed handle.\nSubmit one quoted command as paste followed by Enter in one request. Target: exact ID or @terminal:0x<hex>. Whitespace and newlines are preserved. Use -- before operands resembling options. Empty/extra command operands are rejected; total argv is at most 64 KiB.\nWithout --wait, the five-second send budget and orchbee.terminal.send receipt report input only.\nWindows --wait requires an idle managed PowerShell integration and an empty input line. It checks readiness before submitting once and waits for this invocation's correlated completion. The total timeout defaults to 30000 ms. JSON orchbee.terminal.run v1 keeps submission, completion, failure and viewer cleanup separately. powershell-success is 0/1 Shell status, not a native process exit code. Use JSON before submitting scripts that need recovery evidence. Cancellation does not stop the command. Never replay accepted, partial or unknown input. No controller, resize or focus is acquired.",
+        "Targets: terminal ID / @terminal:, or Panel ID / @panel: / --panel. Panels select the primary terminal; children require a terminal identity. Bare IDs that name different resources refuse; use a typed handle.\nSubmit one quoted command as paste followed by Enter in one request. Target: exact ID or @terminal:0x<hex>. Whitespace and newlines are preserved. Use -- before operands resembling options. Empty/extra command operands are rejected; total argv is at most 64 KiB.\nWithout --wait, the five-second send budget and orchbee.terminal.send receipt report input only.\n--wait requires an idle managed shell and an empty input line: managed PowerShell on Windows, managed zsh or bash on macOS. It checks readiness before submitting once and waits for this invocation's correlated completion. The total timeout defaults to 30000 ms. JSON orchbee.terminal.run v1 keeps submission, completion, failure and viewer cleanup separately. statusKind powershell-success is PowerShell's 0/1 status, not a native process exit code; shell-exit-status is the zsh or bash exit status ($?). Use JSON before submitting scripts that need recovery evidence. Cancellation does not stop the command. Never replay accepted, partial or unknown input. No controller, resize or focus is acquired.",
     );
 
 pub(super) const HELP_TERMINAL_RUN_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal run (<target>|--panel <panel>) <command> [--wait] [--timeout <ms>] [--format text|json]",
-        "目标：终端 ID／@terminal:，或面板 ID／@panel:／--panel。面板选择主终端，子终端需终端身份。裸 ID 指向不同资源时拒绝，请使用带类型的句柄。\n一次请求发送带引号命令的 paste 和 Enter。目标为完整 ID 或 @terminal:0x<hex>，保留空白和换行。操作数类似选项时使用 --。拒绝空命令和多余命令操作数，参数包最多 64 KiB。\n未加 --wait 时，五秒发送预算和 orchbee.terminal.send 回执只说明输入进度。\nWindows --wait 需要空闲的受管 PowerShell 集成及空输入行。发送前检查就绪，只提交一次并等待本次调用的关联完成。总期限默认 30000 毫秒。JSON orchbee.terminal.run v1 分别保留 submission、completion、failure 和 viewer 清理。powershell-success 是 0/1 Shell 状态，不是原生进程退出码。需要恢复证据的脚本应在提交前选择 JSON。取消不会停止命令。不要重放已接受、部分或未知输入。不取得 controller、resize 或焦点。",
+        "目标：终端 ID／@terminal:，或面板 ID／@panel:／--panel。面板选择主终端，子终端需终端身份。裸 ID 指向不同资源时拒绝，请使用带类型的句柄。\n一次请求发送带引号命令的 paste 和 Enter。目标为完整 ID 或 @terminal:0x<hex>，保留空白和换行。操作数类似选项时使用 --。拒绝空命令和多余命令操作数，参数包最多 64 KiB。\n未加 --wait 时，五秒发送预算和 orchbee.terminal.send 回执只说明输入进度。\n--wait 需要空闲的受管 Shell 及空输入行：Windows 上为受管 PowerShell，macOS 上为受管 zsh 或 bash。发送前检查就绪，只提交一次并等待本次调用的关联完成。总期限默认 30000 毫秒。JSON orchbee.terminal.run v1 分别保留 submission、completion、failure 和 viewer 清理。statusKind 为 powershell-success 时是 PowerShell 的 0/1 状态，不是原生进程退出码；为 shell-exit-status 时是 zsh 或 bash 的退出状态（$?）。需要恢复证据的脚本应在提交前选择 JSON。取消不会停止命令。不要重放已接受、部分或未知输入。不取得 controller、resize 或焦点。",
     );
 
 pub(super) const HELP_TERMINAL_SEND_EN: crate::cli_text::HelpDetails =
@@ -112,16 +112,22 @@ pub(super) const HELP_TERMINAL_WAIT_OUTPUT_ZH: crate::cli_text::HelpDetails =
 
 impl super::CliText {
     pub(crate) fn cli_terminal_run_result(self, terminal: &str, completed: bool) -> String {
+        // The managed shells that advertise readiness on this host.
+        let (shell_en, shell_zh) = if cfg!(windows) {
+            ("PowerShell", "PowerShell")
+        } else {
+            ("zsh or bash", "zsh 或 bash")
+        };
         match (self.locale, completed) {
             (Locale::EnUs, true) => {
                 format!("Command completed successfully in terminal {terminal}.\n")
             }
             (Locale::ZhCn, true) => format!("终端 {terminal} 中的命令已成功完成。\n"),
             (Locale::EnUs, false) => format!(
-                "Command did not complete successfully in terminal {terminal}. Submission and completion evidence requires selecting --format json before the original invocation. Never replay accepted or unknown input. Waiting requires an idle managed PowerShell shell.\n"
+                "Command did not complete successfully in terminal {terminal}. Submission and completion evidence requires selecting --format json before the original invocation. Never replay accepted or unknown input. Waiting requires an idle managed {shell_en} shell.\n"
             ),
             (Locale::ZhCn, false) => format!(
-                "终端 {terminal} 中的命令未成功完成。提交和完成证据须在原调用前选择 --format json；不要重放已接受或结果未知的输入。等待功能需要处于空闲状态的受管 PowerShell。\n"
+                "终端 {terminal} 中的命令未成功完成。提交和完成证据须在原调用前选择 --format json；不要重放已接受或结果未知的输入。等待功能需要处于空闲状态的受管 {shell_zh}。\n"
             ),
         }
     }

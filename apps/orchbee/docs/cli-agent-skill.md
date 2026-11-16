@@ -156,7 +156,7 @@ Detailed behavior and maintenance contracts are indexed in [the native CLI refer
 
 ## Wait for a shell command or new output
 
-For an idle, empty command line in a newly initialized managed PowerShell terminal, use `terminal run <target> <command> --wait --timeout 30000 --format json`. It submits once and waits for that invocation's shell markers. Inspect `submission`, `completion`, `failure` and `cleanup` separately. `powershell-success` reports Shell success (0/1), not a native process's numeric exit code. Timeout/cancellation never retracts accepted input; do not replay it.
+For an idle, empty command line in a newly initialized managed shell terminal (PowerShell on Windows, zsh or bash on macOS), use `terminal run <target> <command> --wait --timeout 30000 --format json`. It submits once and waits for that invocation's shell markers. Inspect `submission`, `completion`, `failure` and `cleanup` separately. `statusKind: powershell-success` reports PowerShell success (0/1), not a native process's numeric exit code; `shell-exit-status` reports the zsh or bash exit status (`$?`). Timeout/cancellation never retracts accepted input; do not replay it.
 
 To exclude retained output, save `terminal read --format json`'s `result.cursor` and pass `--after <cursor>` to `terminal wait-output`, or use `--after now` before new work. Only later physical output rows match. The current row and prompt/input rows are excluded. Reset/eviction/window gaps reject the cursor explicitly; increase `--lines` in advance and use a finite `--timeout` for automation. See [command submission](native-terminal-run.md).
 

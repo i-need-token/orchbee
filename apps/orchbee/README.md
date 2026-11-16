@@ -121,7 +121,7 @@ get read on the same admission and five-second CLI budget; text output skips it.
 context changes refuse without retry. No input, controller acquisition or focus action is performed.
 Windows startup selects local overrides, eligible cached remote rules, then bundled rules; cached remote rules take part only while `ORCHBEE_AGENT_DETECTION_CATALOG_URL` names a valid catalog, and Orchbee ships no default catalog. Physical diagnostics include actual path, cached version, shadowing and typed warnings. Windows `server agent-manifests`, `server reload-agent-manifests` expose the installed snapshot and live reload; `operation status <id>` reads a retained reload receipt. Explicit `server update-agent-manifests` downloads and activates validated cached rules, with separate per-provider cache and activation receipts. With a catalog, managed release Sessions check automatically at startup and every thirty minutes; without one, no check runs and Update is unavailable; debug/test and standalone execution do not schedule checks. See the [screen model](../orchbee-server/docs/agent-screen-model.md).
 
-Windows `panel create-terminal` starts an unbound primary or exact member, or appends a child
+Windows and macOS `panel create-terminal` starts an unbound primary or exact member, or appends a child
 without splitting the Panel. It preserves literal launch options, returns retained pending/final
 receipts and never changes Client focus. See [Panel terminal creation](docs/windows-panel-terminals.md).
 

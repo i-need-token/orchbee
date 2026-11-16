@@ -3,7 +3,8 @@
 `orchbee panel create-terminal [<panel>|--panel <target>|--current] [--client <id>]
 [--child|--presentation <id>] [--label <label>] [--exec <path|name> --arg <value>...|--profile <selector>]
 [--cwd follow|home|current|workspace|<absolute-path>] [--env NAME=VALUE] [--timeout <ms>]`
-creates a terminal inside an existing Panel without splitting its geometry. It is Windows-only.
+creates a terminal inside an existing Panel without splitting its geometry. It runs on Windows and
+macOS; Linux answers unsupported-platform.
 Omitted member selection binds the unbound primary; `--presentation` selects an exact unbound
 primary or child in that Panel; `--child` appends a fresh child, up to 16. A bound target is refused,
 and a Presentation in another Panel is never selected. `--label` is child-only; its default is the
