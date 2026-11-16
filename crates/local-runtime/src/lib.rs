@@ -212,9 +212,9 @@ mod session_path;
 pub use session_path::spawn_session_server;
 
 mod command_child;
-#[cfg(unix)]
-pub use command_child::run_unix_command;
 pub use command_child::{CommandChild, CommandSpawnFailure};
+#[cfg(unix)]
+pub use command_child::{SpawnEnvironment, run_unix_command, run_unmasked_unix_command};
 #[cfg(windows)]
 pub use command_child::{
     resolve_windows_program, run_background_command_exchange, run_contained_command_exchange,

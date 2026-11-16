@@ -91,3 +91,64 @@ fn missing_program_reports_that_no_process_was_created() {
     assert!(!failure.created);
     assert_eq!(failure.error.kind(), io::ErrorKind::NotFound);
 }
+
+/// A command started for a thread that blocks `SIGINT` and `SIGTERM`, as the CLI's signal owner
+/// does, still receives them: a shell that signals itself ends by `SIGTERM` instead of running on.
+#[test]
+fn an_unmasked_command_receives_the_interrupts_its_spawning_thread_blocks() {
+    use nix::sys::signal::{SigSet, SigmaskHow, Signal};
+    let mut interrupts = SigSet::empty();
+    interrupts.add(Signal::SIGINT);
+    interrupts.add(Signal::SIGTERM);
+    let previous = interrupts.thread_swap_mask(SigmaskHow::SIG_BLOCK).unwrap();
+    let mut command = Command::new("/bin/sh");
+    command.args(["-c", "kill -TERM $$; echo survived"]);
+    let result =
+        run_unmasked_unix_command(command, SpawnEnvironment::Inherited, 1024, None, || {
+            Ok(false)
+        });
+    previous.thread_set_mask().unwrap();
+    assert!(
+        result.stdout.is_empty(),
+        "{:?}",
+        String::from_utf8_lossy(&result.stdout)
+    );
+    assert_eq!(result.exit_code, None);
+}
+
+/// A cleared launch passes exactly the variables the command sets; an inherited one passes this
+/// process's environment with the command's changes.
+#[test]
+fn an_unmasked_command_receives_exactly_the_environment_it_states() {
+    let mut command = Command::new("/usr/bin/env");
+    command.env_clear().env("ORCHBEE_SPAWN_PROBE", "1");
+    let cleared =
+        run_unmasked_unix_command(command, SpawnEnvironment::Cleared, 64 * 1024, None, || {
+            Ok(false)
+        });
+    assert_eq!(cleared.stdout, b"ORCHBEE_SPAWN_PROBE=1\n");
+
+    let mut command = Command::new("/usr/bin/env");
+    command.env("ORCHBEE_SPAWN_PROBE", "2").env_remove("PATH");
+    let inherited = run_unmasked_unix_command(
+        command,
+        SpawnEnvironment::Inherited,
+        64 * 1024,
+        None,
+        || Ok(false),
+    );
+    let text = String::from_utf8(inherited.stdout).unwrap();
+    assert!(
+        text.lines().any(|line| line == "ORCHBEE_SPAWN_PROBE=2"),
+        "{text}"
+    );
+    assert!(
+        !text.lines().any(|line| line.starts_with("PATH=")),
+        "{text}"
+    );
+    assert_eq!(
+        text.lines().any(|line| line.starts_with("HOME=")),
+        std::env::var_os("HOME").is_some(),
+        "{text}"
+    );
+}

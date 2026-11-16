@@ -4,9 +4,13 @@
 //! with it. The root is observed with `WNOWAIT` and reaped only after the group's last signal: its
 //! unreaped entry keeps its process ID, and with it the group ID, from being given to another
 //! process while the group is still being signalled.
+//!
+//! A root started by the standard library is reaped through its `Child`; one started by the
+//! `posix_spawn` launch in `spawn.rs`, which clears the signal mask the standard library passes on,
+//! is reaped by its process ID.
 use std::{
     io,
-    os::unix::process::CommandExt,
+    os::unix::process::{CommandExt, ExitStatusExt},
     process::{Child, Command, ExitStatus},
     thread,
     time::{Duration, Instant},
@@ -23,7 +27,9 @@ use rustix::{
 use super::CommandSpawnFailure;
 
 mod capture;
-pub use capture::run_unix_command;
+mod spawn;
+pub use capture::{run_unix_command, run_unmasked_unix_command};
+pub use spawn::SpawnEnvironment;
 
 /// The cleanup budget the Windows Job owner also applies, counted from the first settle.
 const SETTLE_BUDGET: Duration = Duration::from_secs(5);
@@ -39,7 +45,8 @@ enum Settlement {
 }
 
 pub struct CommandChild {
-    child: Child,
+    /// The standard library's handle of the root; none for a root the `posix_spawn` launch started.
+    child: Option<Child>,
     group: Pid,
     reaped: bool,
     settlement: Settlement,
@@ -59,14 +66,24 @@ impl CommandChild {
         drop(command);
         Ok(Self {
             group: Pid::from_child(&child),
-            child,
+            child: Some(child),
             reaped: false,
             settlement: Settlement::Running,
         })
     }
 
+    /// The owner of a root the `posix_spawn` launch started as the leader of its own group.
+    fn spawned(root: Pid) -> Self {
+        Self {
+            child: None,
+            group: root,
+            reaped: false,
+            settlement: Settlement::Running,
+        }
+    }
+
     pub fn id(&self) -> u32 {
-        self.child.id()
+        self.group.as_raw_nonzero().get().cast_unsigned()
     }
 
     /// Runs only on the retained command owner thread. A root exit is not completion until the
@@ -128,7 +145,12 @@ impl CommandChild {
 
     fn reap(&mut self, deadline: Instant) -> io::Result<ExitStatus> {
         loop {
-            if let Some(status) = self.child.try_wait()? {
+            let status = match self.child.as_mut() {
+                Some(child) => child.try_wait()?,
+                None => waitpid(Some(self.group), WaitOptions::NOHANG)?
+                    .map(|(_, status)| ExitStatus::from_raw(status.as_raw())),
+            };
+            if let Some(status) = status {
                 self.reaped = true;
                 return Ok(status);
             }

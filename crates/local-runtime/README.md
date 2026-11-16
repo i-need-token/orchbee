@@ -116,8 +116,16 @@ On macOS and Linux, `run_unix_command` runs one command to its end, the Unix cou
 `run_windows_command`: standard input is null, both outputs are drained on their own threads to
 the caller's bound, and the owner is polled every 10 ms until the command ends, the deadline passes
 or the caller's interruption check answers true, which settles the whole group before the result.
-The Client's install runs the staged Client's version check and the published copy's completion
-through it.
+`run_unmasked_unix_command` runs the same loop for a caller whose thread blocks signals, such as
+the Client's release commands on macOS, which capture `SIGINT` and `SIGTERM` to settle their
+children: the command starts through nix's safe `posix_spawn` wrapper with an empty signal mask,
+`SIGPIPE` at its default action, standard input from `/dev/null` and its outputs duplicated onto
+the drained pipes, as the leader of its own process group. The standard library's spawn would pass
+the blocked mask on, so the group's `SIGTERM` could not end it before the grace. The caller states
+whether the environment is inherited or cleared, since `Command` does not report `env_clear`, and
+a command that sets a working directory is refused. The Client's install, update and automatic
+helper run the staged Client's version check, the published copy's completion, `curl` and `tar`
+through it on macOS.
 
 On Windows, a program Orchbee itself chooses from the system folder, such as `cmd.exe` or Windows
 PowerShell, is named by its full path from `windows_system_program`, which reads the folder from
@@ -203,8 +211,8 @@ environment without the relaunch protocol's variable (and with the given `PATH`)
 mask and `SIGPIPE` at its default action, so a signal the spawning thread blocks still reaches the
 child. The executable must be an absolute path. Linux
 creates these descriptors close-on-exec atomically and keeps the standard library's spawn; Windows
-is unchanged. Short-lived commands, such as Git or `run_unix_command`, keep the standard library's
-spawn too, because they end before any caller waits on a peer end they might hold.
+is unchanged. Short-lived commands, such as Git, `run_unix_command` and
+`run_unmasked_unix_command`, keep the standard library's spawn or the safe wrapper too, because they end before any caller waits on a peer end they might hold.
 
 - **Strings.** The executable, each argument and each `NAME=value` entry become owned NUL-terminated
   strings, refused with `InvalidInput` when one holds a NUL byte; the argument and environment

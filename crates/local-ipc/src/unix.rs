@@ -3,7 +3,7 @@
 //! capture loop serves both platforms.
 use std::{
     io::{self, PipeReader, Read},
-    os::fd::{AsFd, BorrowedFd},
+    os::fd::{AsFd, BorrowedFd, OwnedFd},
     process::Stdio,
 };
 
@@ -18,9 +18,15 @@ impl ChildOutputReader {
     /// The two ends are separate open files, so the reader's flag never reaches the writer. Both
     /// ends are close-on-exec; spawning duplicates the writer onto the child's descriptor.
     pub fn pipe() -> io::Result<(Self, Stdio)> {
+        Self::pipe_descriptor().map(|(reader, writer)| (reader, Stdio::from(writer)))
+    }
+
+    /// [`Self::pipe`] with the writer as a descriptor, for a launch that duplicates it onto the
+    /// child's standard output or error itself.
+    pub fn pipe_descriptor() -> io::Result<(Self, OwnedFd)> {
         let (reader, writer) = io::pipe()?;
         rustix::io::ioctl_fionbio(&reader, true)?;
-        Ok((Self(reader), Stdio::from(writer)))
+        Ok((Self(reader), OwnedFd::from(writer)))
     }
 }
 

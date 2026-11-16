@@ -1,11 +1,12 @@
 //! Bounded, nonblocking capture of one Unix command, whose whole process group settles before a
 //! known result.
 use super::super::output_drain::{drain, drain_tail};
-use super::CommandChild;
-use crate::{CommandFailure, CommandOutput};
+use super::{CommandChild, SpawnEnvironment};
+use crate::{CommandFailure, CommandOutput, CommandSpawnFailure};
 use orchbee_local_ipc::ChildOutputReader;
 use std::{
     io,
+    os::fd::OwnedFd,
     process::{Command, Stdio},
     thread,
     time::{Duration, Instant},
@@ -15,10 +16,55 @@ use std::{
 /// reads no input; its process group settles before a known result, and each output keeps at most
 /// `output_limit` bytes.
 pub fn run_unix_command(
-    mut command: Command,
+    command: Command,
+    output_limit: usize,
+    deadline: Option<Instant>,
+    interrupted: impl FnMut() -> io::Result<bool>,
+) -> CommandOutput {
+    run(
+        output_limit,
+        deadline,
+        interrupted,
+        move |stdout, stderr| {
+            let mut command = command;
+            command
+                .stdin(Stdio::null())
+                .stdout(Stdio::from(stdout))
+                .stderr(Stdio::from(stderr));
+            CommandChild::spawn(command)
+        },
+    )
+}
+
+/// [`run_unix_command`] for a caller whose thread blocks signals, such as one that captures
+/// `SIGINT` and `SIGTERM` to settle its children: the command starts through `posix_spawn` with an
+/// empty signal mask, `SIGPIPE` at its default action and the `environment` it states, and takes no
+/// working directory.
+pub fn run_unmasked_unix_command(
+    command: Command,
+    environment: SpawnEnvironment,
+    output_limit: usize,
+    deadline: Option<Instant>,
+    interrupted: impl FnMut() -> io::Result<bool>,
+) -> CommandOutput {
+    run(
+        output_limit,
+        deadline,
+        interrupted,
+        move |stdout, stderr| {
+            // The parent's copies of the output writers close when this returns, before the drain.
+            super::spawn::spawn(&command, environment, &stdout, &stderr)
+        },
+    )
+}
+
+/// Starts the command with `start`, which receives the output writers, and drains both outputs
+/// until its group settles.
+fn run(
     output_limit: usize,
     deadline: Option<Instant>,
     mut interrupted: impl FnMut() -> io::Result<bool>,
+    start: impl FnOnce(OwnedFd, OwnedFd) -> Result<CommandChild, CommandSpawnFailure>,
 ) -> CommandOutput {
     use CommandFailure as Failure;
     let result = CommandOutput::empty();
@@ -31,14 +77,13 @@ pub fn run_unix_command(
     if let Some(reason) = stop() {
         return result.failed(reason);
     }
-    let Ok((out, stdout)) = ChildOutputReader::pipe() else {
+    let Ok((out, stdout)) = ChildOutputReader::pipe_descriptor() else {
         return result.failed(Failure::Io);
     };
-    let Ok((err, stderr)) = ChildOutputReader::pipe() else {
+    let Ok((err, stderr)) = ChildOutputReader::pipe_descriptor() else {
         return result.failed(Failure::Io);
     };
-    command.stdin(Stdio::null()).stdout(stdout).stderr(stderr);
-    let mut child = match CommandChild::spawn(command) {
+    let mut child = match start(stdout, stderr) {
         Ok(child) => child,
         Err(failure) => {
             return result.failed(if failure.created {
