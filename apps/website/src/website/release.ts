@@ -40,9 +40,9 @@ export type Release =
 
 export const release: Release = {
 	published: true,
-	version: '0.1.0-beta.11',
+	version: '0.1.0-beta.12',
 	downloads: {
-		'windows-x86_64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.11/Orchbee-0.1.0-beta.11-windows-x86_64-setup.exe`,
+		'windows-x86_64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.12/Orchbee-0.1.0-beta.12-windows-x86_64-setup.exe`,
 	},
 };
 
