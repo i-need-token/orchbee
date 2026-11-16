@@ -188,6 +188,17 @@ fn samples() -> PathBuf {
         .join("src/local_worker_service/managed/checkpoint/tests/record-samples")
 }
 
+/// Places a stored file as the session store leaves it: readable by its owner alone, which the
+/// loader requires on POSIX.
+fn write_private(path: &Path, bytes: &[u8]) {
+    fs::write(path, bytes).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+    }
+}
+
 /// Records follow the window: `tests/record-samples/` keeps, for every format a release shipped, a
 /// stored checkpoint slot `checkpoint-v<version>.bin` and the kept terminal output it names,
 /// `terminal-output-v<version>.bin`, as the local runtime's record samples describe. Each slot
@@ -218,11 +229,10 @@ fn every_stored_sample_restores_its_checkpoint_and_kept_output() {
         let fixture = Fixture::new();
         let session = fixture.start();
         let state = fixture.state(&session);
-        fs::write(
-            state.join("checkpoint.json"),
-            fs::read(samples().join(name)).unwrap(),
-        )
-        .unwrap();
+        write_private(
+            &state.join("checkpoint.json"),
+            &fs::read(samples().join(name)).unwrap(),
+        );
         let (store, checkpoint, _record, _) = load_from(&fixture.root(), &session).unwrap();
         let checkpoint = checkpoint.unwrap_or_else(|| panic!("{name} restores"));
         assert_eq!(
@@ -243,11 +253,10 @@ fn every_stored_sample_restores_its_checkpoint_and_kept_output() {
         let mut replayed = 0;
         for target in authority.restoration_targets(&worker).unwrap() {
             if let Some(token) = target.restored_output() {
-                fs::write(
-                    state.join("terminal-output").join(format!("{token}.bin")),
-                    fs::read(samples().join(&output_name)).unwrap(),
-                )
-                .unwrap();
+                write_private(
+                    &state.join("terminal-output").join(format!("{token}.bin")),
+                    &fs::read(samples().join(&output_name)).unwrap(),
+                );
                 assert!(
                     output.restored(target.presentation_id(), token).is_some(),
                     "{output_name}"

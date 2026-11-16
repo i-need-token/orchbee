@@ -293,7 +293,8 @@ save.
   that same Presentation; a damaged file or one owned by another Presentation is deleted and never
   replayed. The seed is the kept output, a line break and one dim divider line,
   `Output before restart (<local time>)` in en-US and its zh-CN counterpart, rendered in the
-  configured language with the time the output was kept. It travels with the launch to the Worker,
+  configured language with the time the output was kept. A host whose local runtime offers no
+  local clock, macOS today, shows the line without the time. It travels with the launch to the Worker,
   which stages it in the Host before the creation; the Host draws it into the new screen as output
   before the program's first byte and pushes it into history, so it is never typed into the PTY.
   Agent resume is unchanged.
