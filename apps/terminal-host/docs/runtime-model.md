@@ -184,7 +184,9 @@ containment, or process ownership.
 
 A Host with retained terminals remains available without a broker. A Host with neither a broker
 nor a retained terminal may exit. The `drain` and `exit` control requests end it earlier, as
-[Host lifecycle](#host-lifecycle) describes. A wire `ClientId` is diagnostic metadata, not connection
+[Host lifecycle](#host-lifecycle) describes. On Linux and macOS a managed Server sends `exit` to the
+Host its exited Worker left, when a Session stop or `exit` must end that Host's terminals; Windows
+leaves such a Host running. A wire `ClientId` is diagnostic metadata, not connection
 authority; only the current physical broker session grants attachment capabilities.
 
 The protocol is experimental and negotiated as one exact compatible version. The Host does not

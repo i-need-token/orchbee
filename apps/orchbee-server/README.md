@@ -224,10 +224,12 @@ record remains a positive receipt. macOS runs this owner with the checkpoint sav
 capture, and Linux without them; [their startup](#managed-linux-and-macos-session-startup)
 describes what differs.
 
-A Worker that already exited can neither sample a directory nor stop its Host. A stop then
-continues only once the retained record observes that Worker's Host gone, or never started, and its
-final capture keeps each terminal's last cached directory. While that Host runs, the attempt fails
-in its host-exit phase as refused: nothing here may end the Host, which waits for Host adoption.
+A Worker that already exited can neither sample a directory nor stop its Host, and the final
+capture keeps each terminal's last cached directory. On Windows the stop then continues only once
+the retained record observes that Worker's Host gone, or never started. While that Host runs, the
+attempt fails in its host-exit phase as refused: nothing here may end the Host, which waits for Host
+adoption. Linux and macOS, where no later Server adopts a Host, end it instead, as their
+[stop](#managed-linux-and-macos-session-startup) describes.
 The managed Session never enrolls a replacement Worker, so a Server whose Worker exited and whose
 Host is gone, with no stop admitted, begins its own stop under a fresh identity, checking once a
 second. It publishes the same Stopped record, and a later start restores from its final capture.
@@ -391,10 +393,15 @@ final capture in its saved directory, showing its kept output first while `termi
 is on, and resumes each retained Agent conversation in its managed zsh or bash under the
 [Agent session resume contract](docs/agent-session-resume.md).
 Every stop the Server begins itself, on a signal or once its Worker exited and its Host is gone,
-uses one identity, and a later signal or loss check retries that identity once its attempt failed.
-After its Worker exited, a stop fails while that Worker's Host still runs, since nothing here may
-end it, and the loss check completes the stop once the Host is gone. An `exit` request also disposes the terminals: no later Linux or macOS Server can adopt a Host
-that keeps them, and that Host's lock would refuse every recovery while it runs. On macOS its final
+uses one identity, and a later loss check retries that identity once its attempt failed. A later
+signal retries the recorded stop once its attempt failed, a Client's stop included. After its
+Worker exited, a stop, like an `exit`, publishes the final capture and then ends that Worker's Host
+with the Host's `exit` control request, which ends every terminal the Worker would have disposed,
+and continues once the Host's lock is free, within 45 seconds. A stop attempt that fails after a
+signal, with no Worker left, ends the process without the Stopped record, so a signal always ends
+the Server within one attempt; the next start then recovers the Session as after a crash. An
+`exit` request also disposes the terminals: no later Linux or macOS Server can adopt a Host that
+keeps them, and that Host's lock would refuse every recovery while it runs. On macOS its final
 capture relaunches them at the next start.
 
 A Server ended by `SIGKILL` or a crash leaves an Active record and stale socket files. The next

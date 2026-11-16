@@ -34,7 +34,8 @@ pub(super) fn catch() -> io::Result<Caught> {
 
 impl Caught {
     /// Starts the one thread that reads the caught signals. Each `SIGTERM` or `SIGINT` begins the
-    /// stop under `own`, or queues its next attempt once one failed.
+    /// stop under `own`, or queues the next attempt of the recorded stop, a Client's included,
+    /// once one failed.
     pub(super) fn forward(self, shutdown: Arc<SessionShutdown>, own: StopId) -> io::Result<()> {
         let Self(mut caught) = self;
         thread::Builder::new()
@@ -44,7 +45,7 @@ impl Caught {
                 loop {
                     match caught.read(&mut byte) {
                         Ok(0) => return,
-                        Ok(_) => super::stop::begin_own(&shutdown, own),
+                        Ok(_) => shutdown.signal(own),
                         Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
                         // The registrations keep the write side open, so a read fails only for a
                         // socket that would fail again at once.

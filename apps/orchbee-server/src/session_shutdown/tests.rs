@@ -169,6 +169,28 @@ fn the_process_ends_only_after_each_exit_requester_replies() {
 }
 
 #[test]
+fn a_signal_begins_the_own_stop_or_retries_the_failed_one_whoever_recorded_it() {
+    let own = StopId::new([7; 16]).unwrap();
+    let state = SessionShutdown::default();
+    assert!(!state.signalled());
+    state.signal(own);
+    assert!(state.signalled());
+    assert_eq!(attempt(&state).id, own);
+
+    // A Client's failed stop is retried under the Client's identity; a running one is left alone.
+    let state = SessionShutdown::default();
+    state.request(&request(1, StopAction::Start));
+    let first = attempt(&state);
+    state.signal(own);
+    assert_eq!(state.take_within(Duration::ZERO), None);
+    state.fail(first, StopPhase::HostExit, StopFailure::Refused, 0);
+    state.signal(own);
+    let retried = attempt(&state);
+    assert_eq!(retried.id, first.id);
+    assert_eq!(retried.number.get(), 2);
+}
+
+#[test]
 fn an_idle_stop_begins_only_with_nothing_admitted() {
     let id = StopId::new([9; 16]).unwrap();
     // An admitted record, a Client the check sees, or a drain each refuse the idle stop.

@@ -135,6 +135,10 @@ pub(super) fn run(
         );
         if let Err(error) = result {
             shutdown.fail(attempt, error.phase, error.failure, error.disposed);
+            #[cfg(unix)]
+            if shutdown.signalled() && matches!(owners.worker.try_wait(), Ok(Some(_))) {
+                return leave(clients, &shutdown, error);
+            }
             continue;
         }
         // Hold activation through listener closure, receipt publication and lifetime release.
@@ -269,7 +273,7 @@ fn settle(
         })?
         .is_some();
     if !*worker_completed && worker_exited {
-        settle_without_worker(owners, deadline)?;
+        settle_without_worker(owners, shutdown, attempt, deadline)?;
         *worker_completed = true;
     }
     if !*worker_completed {
@@ -426,11 +430,9 @@ fn next_work(
     }
 }
 
-/// [`next_work`] as on Windows, except that a failed stop this Server began, on a signal or after
-/// losing its Worker and Host, is tried again once that Worker and Host are gone. A logout or
-/// shutdown signals the Worker and Host too, so a first attempt can find the Host still exiting.
-/// Every stop this Server begins uses `own`, the identity its signal handler uses too. On macOS each
-/// tick also feeds the idle move.
+/// [`next_work`] as on Windows, except that a failed stop this Server began after losing its Worker
+/// and Host is tried again once that Worker and Host are gone. Every stop this Server begins uses
+/// `own`, the identity its signal handler uses too. On macOS each tick also feeds the idle move.
 #[cfg(unix)]
 fn next_work(
     owners: &mut Owners,
@@ -457,9 +459,9 @@ fn next_work(
 }
 
 /// Begins the stop this Server owns under `own`, or queues its next attempt once one failed. A
-/// stop a Client recorded stays that Client's to retry.
+/// stop a Client recorded stays that Client's to retry; only a signal retries it.
 #[cfg(unix)]
-pub(super) fn begin_own(shutdown: &SessionShutdown, own: StopId) {
+fn begin_own(shutdown: &SessionShutdown, own: StopId) {
     if !shutdown.begin(own) {
         shutdown.request(&orchbee_local_client_protocol::SessionStopRequest {
             id: own,
@@ -468,12 +470,20 @@ pub(super) fn begin_own(shutdown: &SessionShutdown, own: StopId) {
     }
 }
 
-/// After its Worker exited, nothing can sample a terminal's directory or stop its Host. The stop
-/// finishes only when that Host is gone too, keeping each terminal's last sampled directory; a live
-/// Host is refused, because nothing here may end it.
-fn settle_without_worker(owners: &Owners, deadline: Instant) -> Result<(), Failure> {
+/// After its Worker exited, nothing can sample a terminal's directory, and the final capture keeps
+/// each terminal's last sampled directory. On Windows the stop finishes only when that Worker's Host
+/// is gone too; a live Host is refused, because nothing here may end it while it waits for Host
+/// adoption. No later POSIX Server adopts a Host, so there the stop ends that Host after the final
+/// capture, as the Worker's own disposal would have.
+fn settle_without_worker(
+    owners: &Owners,
+    #[cfg_attr(windows, allow(unused_variables))] shutdown: &SessionShutdown,
+    #[cfg_attr(windows, allow(unused_variables))] attempt: Attempt,
+    deadline: Instant,
+) -> Result<(), Failure> {
     let worker = checkpoint_worker(&owners.handle)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    #[cfg(windows)]
     if !host_absent(owners) {
         return Err(Failure {
             phase: StopPhase::HostExit,
@@ -499,8 +509,85 @@ fn settle_without_worker(owners: &Owners, deadline: Instant) -> Result<(), Failu
         kept.publish_final(&owners.terminals, &bytes)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     }
+    #[cfg(unix)]
+    {
+        shutdown.phase(attempt, StopPhase::HostExit);
+        end_orphaned_host(owners, deadline).map_err(|error| failure(StopPhase::HostExit, error))?;
+    }
     Ok(())
 }
+
+/// The longest a POSIX stop or `exit` waits for an orphaned Host to end every terminal and exit.
+#[cfg(unix)]
+const ORPHANED_HOST_BUDGET: Duration = WORKER_STOP_BUDGET;
+
+/// Ends the Host a POSIX Worker left behind, the only way left to end its terminals: the Host's
+/// `exit` control request ends every retained terminal through the Host's ordinary teardown and
+/// then the Host. It returns once no process holds the Host's lock, which [`host_absent`] observes,
+/// and fails at `deadline` or [`ORPHANED_HOST_BUDGET`], whichever comes first. A Host that is
+/// already gone, or that ends while the request is lost, counts as ended.
+#[cfg(unix)]
+fn end_orphaned_host(owners: &Owners, deadline: Instant) -> io::Result<()> {
+    if host_absent(owners) {
+        return Ok(());
+    }
+    let deadline = deadline.min(Instant::now() + ORPHANED_HOST_BUDGET);
+    let endpoint =
+        ModeCheckedLocalSessionRendezvous::host_endpoint_path(owners.session.runtime_directory());
+    let environment = orchbee_connection_handshake::EnvironmentName::new(
+        orchbee_local_runtime::environment_stem(),
+    )
+    .map_err(io::Error::other)?;
+    let reply =
+        orchbee_local_client_protocol::exchange_exit_before(&endpoint, environment, deadline, None);
+    let submitted = match reply {
+        Ok(orchbee_local_client_protocol::ExitReply::Ending) => true,
+        Ok(orchbee_local_client_protocol::ExitReply::Unsupported) => {
+            return Err(io::ErrorKind::Unsupported.into());
+        }
+        Err(error) => error.submitted,
+    };
+    loop {
+        if host_absent(owners) {
+            return Ok(());
+        }
+        // A request that never reached the Host leaves it running.
+        if !submitted {
+            return Err(io::ErrorKind::NotConnected.into());
+        }
+        if Instant::now() >= deadline {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// After a stop signal, a failed attempt with no Worker left ends the process, so a signal always
+/// ends the Server within one attempt's budget: nothing here can still change a terminal, and a
+/// logout or a shutdown would end the process anyway. No receipt is published, so the next start
+/// recovers the Session as after a crash once the Host's lock is free, and refuses while a Host
+/// that could not be ended still runs.
+#[cfg(unix)]
+fn leave(
+    mut clients: local_client_service::ManagedClients,
+    shutdown: &SessionShutdown,
+    failed: Failure,
+) -> io::Result<()> {
+    eprintln!(
+        "orchbee-server diagnostic component=lifecycle operation=stop stage=leave phase={:?} failure={:?}",
+        failed.phase, failed.failure
+    );
+    let deadline = Instant::now() + LEAVE_BUDGET;
+    shutdown.end(deadline);
+    clients.stop_before(deadline)?;
+    Err(io::Error::other(
+        "Session stop failed after its Worker exited",
+    ))
+}
+
+/// How long [`leave`] gives the Client listeners to close.
+#[cfg(unix)]
+const LEAVE_BUDGET: Duration = Duration::from_secs(5);
 
 /// Stops every Server background job that could start new work through the Worker. Hooks submit
 /// Worker jobs, so dispatch stops before any Worker owner; admitted hook jobs end with the Worker.
@@ -548,7 +635,8 @@ const EXIT_TERMINALS: ShutdownTerminals = ShutdownTerminals::Dispose;
 
 /// Ends this Server and its Worker for an `exit`. On Windows the Host and every terminal keep
 /// running; a POSIX Worker cannot leave its Host to a later Server, so it disposes them and stops
-/// the Host, and a Session that keeps a checkpoint relaunches them on its next start. In-flight
+/// the Host, or, once that Worker exited, the Server ends its Host, and a Session that keeps a
+/// checkpoint relaunches them on its next start. In-flight
 /// records and background jobs settle and the final checkpoint is published first; a settling
 /// failure is reported and the process still ends. No receipt is published, so until P1 records
 /// this end the next activation recovers the Session as an unclean end.
@@ -586,6 +674,9 @@ fn settle_for_exit(
             let bytes = owners.terminals.checkpoint_without_worker(&worker)?;
             kept.publish_final(&owners.terminals, &bytes)?;
         }
+        // A POSIX `exit` disposes the terminals, which only the Worker's Host can still end.
+        #[cfg(unix)]
+        end_orphaned_host(owners, deadline)?;
     } else {
         if let Some(kept) = &owners.checkpoint {
             let bytes = owners.terminals.checkpoint(&worker, deadline)?;

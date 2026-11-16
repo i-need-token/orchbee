@@ -50,6 +50,9 @@ struct State {
     records: usize,
     /// `exit` requesters that have not yet written their reply.
     exit_replies: usize,
+    /// Whether a stop signal arrived; it stays set until the process ends.
+    #[cfg(any(unix, test))]
+    signalled: bool,
 }
 
 /// The lifecycle owner's next work: one Session stop attempt, or the requested `exit`.
@@ -83,13 +86,8 @@ impl SessionShutdown {
                     },
                 };
             }
-            if request.action == StopAction::Retry
-                && matches!(entry.progress, Progress::Failed { .. })
-                && let Ok(number) = StopAttempt::new(entry.attempt.number.get() + 1)
-            {
-                entry.attempt.number = number;
-                entry.progress = Progress::Queued;
-                self.changed.notify_all();
+            if request.action == StopAction::Retry {
+                self.requeue(entry);
             }
         } else if request.action == StopAction::Start {
             state.entry = Some(Entry {
@@ -213,6 +211,40 @@ impl SessionShutdown {
         }
         self.record_own(&mut state, id);
         true
+    }
+
+    /// Admits a stop signal: it begins the lifecycle owner's own stop under `own` when no stop is
+    /// recorded, and otherwise queues the next attempt of the recorded stop once its attempt
+    /// failed, whoever recorded it, since a signal outranks the Client that began it. The signal
+    /// stays recorded, so the owner can tell that the process must end.
+    #[cfg(any(unix, test))]
+    pub(crate) fn signal(&self, own: StopId) {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        state.signalled = true;
+        match state.entry.as_mut() {
+            None => self.record_own(&mut state, own),
+            Some(entry) => self.requeue(entry),
+        }
+    }
+
+    /// Queues the next attempt of a failed stop; a queued or running attempt stays as it is.
+    fn requeue(&self, entry: &mut Entry) {
+        if matches!(entry.progress, Progress::Failed { .. })
+            && let Ok(number) = StopAttempt::new(entry.attempt.number.get() + 1)
+        {
+            entry.attempt.number = number;
+            entry.progress = Progress::Queued;
+            self.changed.notify_all();
+        }
+    }
+
+    /// Whether a stop signal arrived.
+    #[cfg(any(unix, test))]
+    pub(crate) fn signalled(&self) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .signalled
     }
 
     /// Admits the idle move's stop under `id` only while nothing is admitted at this moment: no
