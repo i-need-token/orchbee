@@ -8,7 +8,6 @@ export const enUSAgentIntegrationMessages = {
 	'agent.integrations.consent.detail':
 		'This check starts {agent} to read its plugins, and {agent} may create its own files when it starts. Orchbee changes nothing. Choose Explain to start the check.',
 	'agent.integrations.consent.title': 'Check {agent}?',
-	'agent.integrations.diagnosis.close': 'Close',
 	'agent.integrations.diagnosis.details': 'Details',
 	'agent.integrations.diagnosis.pending': 'Checking this integration on this device…',
 	'agent.integrations.diagnosis.readOnly':

@@ -4,6 +4,8 @@ import * as React from 'react';
 
 import type { TerminalLaunchProfileControl } from '../../../terminal-launch-profile-control';
 import { matchesSettingsQuery } from '../../utils/matchesSettingsQuery';
+import { SettingFailure } from '../setting-failure/SettingFailure';
+import { SettingsChildPage } from '../settings-child-page/SettingsChildPage';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SETTINGS_LIST_FILTER_THRESHOLD } from '../../constants/settings-list-filter';
 import { SettingsListFilter } from '../settings-list-filter/SettingsListFilter';
@@ -20,7 +22,7 @@ interface TerminalLaunchProfileSettingsProps {
 
 /**
  * Launch profiles as one list card: each profile on its own line with its default state and an
- * Edit action that opens its editor under the line; Done saves and closes it.
+ * Edit action that opens its editor on a child page; Done or Back saves and returns to the list.
  */
 export function TerminalLaunchProfileSettings({
 	client,
@@ -28,7 +30,7 @@ export function TerminalLaunchProfileSettings({
 }: TerminalLaunchProfileSettingsProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const view = useTerminalLaunchProfileSettings(client);
-	const [editing, setEditing] = React.useState(false);
+	const [editingId, setEditingId] = React.useState<string | null>(null);
 	const [adding, setAdding] = React.useState(false);
 	const [filter, setFilter] = React.useState('');
 	const searching = query.trim() !== '';
@@ -38,46 +40,52 @@ export function TerminalLaunchProfileSettings({
 				matchesSettingsQuery(filter, [profile.label, profile.detail ?? ''], intl.locale),
 			)
 		: view.profiles;
+	// The editor follows the selected profile, so a deleted or reset profile closes its page.
+	const edited = searching
+		? undefined
+		: view.profiles.find((profile) => profile.id === editingId && profile.selected);
 	const done = async (): Promise<void> => {
-		if (await view.saveAction.onClick()) setEditing(false);
+		if (await view.saveAction.onClick()) setEditingId(null);
+	};
+	const back = (): void => {
+		if (view.saveAction.disabled) setEditingId(null);
+		else void done();
 	};
 
 	return (
 		<SettingsGroup
+			action={
+				view.resetAction.kind === 'confirm' ? (
+					<span className={styles['resetConfirm']}>
+						<Button
+							disabled={view.resetAction.disabled}
+							size='xs'
+							type='button'
+							variant='ghost'
+							onClick={view.resetAction.onCancel}
+						>
+							{view.resetAction.cancelLabel}
+						</Button>
+						<Button
+							data-slot='terminal-launch-profile-reset'
+							disabled={view.resetAction.disabled}
+							size='xs'
+							type='button'
+							variant='destructive'
+							onClick={view.resetAction.onConfirm}
+						>
+							{view.resetAction.confirmLabel}
+						</Button>
+					</span>
+				) : undefined
+			}
 			description={intl.formatMessage(terminalSettingsMessages.pageGroupLaunchProfilesDescription)}
 			effect='new-terminals'
 			label={intl.formatMessage(terminalSettingsMessages.pageGroupLaunchProfiles)}
 			modified={view.modified}
 			onRestore={view.resetAction.kind === 'request' ? view.resetAction.onRequest : undefined}
 		>
-			{searching || view.warning === null ? null : (
-				<div className={styles['warning']} data-settings-row role='alert'>
-					{view.warning}
-				</div>
-			)}
-			{view.resetAction.kind === 'confirm' ? (
-				<SettingsRow label={view.sectionLabel} query=''>
-					<Button
-						disabled={view.resetAction.disabled}
-						size='sm'
-						type='button'
-						variant='ghost'
-						onClick={view.resetAction.onCancel}
-					>
-						{view.resetAction.cancelLabel}
-					</Button>
-					<Button
-						data-slot='terminal-launch-profile-reset'
-						disabled={view.resetAction.disabled}
-						size='sm'
-						type='button'
-						variant='destructive'
-						onClick={view.resetAction.onConfirm}
-					>
-						{view.resetAction.confirmLabel}
-					</Button>
-				</SettingsRow>
-			) : null}
+			{searching ? null : <SettingFailure message={view.warning} />}
 			{filterVisible ? (
 				<SettingsListFilter
 					placeholder={intl.formatMessage(terminalSettingsMessages.pageFilterProfiles)}
@@ -88,67 +96,55 @@ export function TerminalLaunchProfileSettings({
 				/>
 			) : null}
 			{filterVisible && profiles.length === 0 ? <SettingsListFilterEmpty /> : null}
-			{profiles.map((profile) => {
-				const open = editing && profile.selected;
-				return (
-					<React.Fragment key={profile.id}>
-						<SettingsRow
-							detail={profile.detail}
-							label={profile.label}
-							query={query}
-							settingId={`profiles.${profile.id}`}
+			{profiles.map((profile) => (
+				<SettingsRow
+					key={profile.id}
+					detail={profile.detail}
+					label={profile.label}
+					query={query}
+					settingId={`profiles.${profile.id}`}
+				>
+					{profile.isDefault ? (
+						<span className={styles['defaultLabel']}>{profile.defaultLabel}</span>
+					) : (
+						<Button
+							data-slot='terminal-launch-profile-make-default'
+							disabled={view.makeDefaultAction.disabled && profile.selected}
+							size='sm'
+							type='button'
+							variant='link'
+							onClick={profile.onMakeDefault}
 						>
-							{profile.isDefault ? (
-								<span className={styles['defaultLabel']}>{profile.defaultLabel}</span>
-							) : (
-								<Button
-									data-slot='terminal-launch-profile-make-default'
-									disabled={view.makeDefaultAction.disabled && profile.selected}
-									size='sm'
-									type='button'
-									variant='link'
-									onClick={profile.onMakeDefault}
-								>
-									{intl.formatMessage(terminalSettingsMessages.pageProfilesUseAsDefault)}
-								</Button>
-							)}
-							{open ? (
-								<Button
-									data-slot='terminal-launch-profile-save'
-									disabled={view.saveAction.disabled}
-									size='sm'
-									type='button'
-									onClick={() => void done()}
-								>
-									{intl.formatMessage(terminalSettingsMessages.pageProfilesDone)}
-								</Button>
-							) : (
-								<Button
-									aria-label={`${intl.formatMessage(terminalSettingsMessages.pageProfilesEdit)}: ${profile.label}`}
-									data-slot='terminal-launch-profile-option'
-									size='sm'
-									type='button'
-									variant='outline'
-									onClick={() => {
-										profile.onSelect();
-										setEditing(true);
-									}}
-								>
-									{intl.formatMessage(terminalSettingsMessages.pageProfilesEdit)}
-								</Button>
-							)}
-						</SettingsRow>
-						{open ? <ProfileEditor view={view} onDone={done} /> : null}
-					</React.Fragment>
-				);
-			})}
+							{intl.formatMessage(terminalSettingsMessages.pageProfilesUseAsDefault)}
+						</Button>
+					)}
+					<Button
+						aria-label={`${intl.formatMessage(terminalSettingsMessages.pageProfilesEdit)}: ${profile.label}`}
+						data-slot='terminal-launch-profile-option'
+						size='sm'
+						type='button'
+						variant='outline'
+						onClick={() => {
+							profile.onSelect();
+							setEditingId(profile.id);
+						}}
+					>
+						{intl.formatMessage(terminalSettingsMessages.pageProfilesEdit)}
+					</Button>
+				</SettingsRow>
+			))}
 			{searching ? null : (
 				<AddProfileRow
 					adding={adding}
 					view={view}
 					onAddingChange={setAdding}
-					onSubmitted={() => setEditing(false)}
+					onSubmitted={() => setEditingId(null)}
 				/>
+			)}
+			{edited === undefined ? null : (
+				<SettingsChildPage title={edited.label} onBack={back}>
+					<ProfileEditor view={view} onDone={done} />
+				</SettingsChildPage>
 			)}
 		</SettingsGroup>
 	);
@@ -232,6 +228,7 @@ function ProfileEditor({
 	readonly onDone: () => Promise<void>;
 	readonly view: ReturnType<typeof useTerminalLaunchProfileSettings>;
 }): React.ReactNode {
+	const intl = useOrchbeeIntl();
 	const { commandEditor, deleteAction, nameEditor } = view;
 	return (
 		<form
@@ -364,39 +361,50 @@ function ProfileEditor({
 				</>
 			)}
 			<div className={styles['actions']}>
-				{deleteAction.kind === 'confirm' ? (
-					<>
+				<div className={styles['deleteActions']}>
+					{deleteAction.kind === 'confirm' ? (
+						<>
+							<Button
+								disabled={deleteAction.disabled}
+								size='sm'
+								type='button'
+								variant='destructive'
+								onClick={deleteAction.onConfirm}
+							>
+								{deleteAction.confirmLabel}
+							</Button>
+							<Button
+								disabled={deleteAction.disabled}
+								size='sm'
+								type='button'
+								variant='ghost'
+								onClick={deleteAction.onCancel}
+							>
+								{deleteAction.cancelLabel}
+							</Button>
+						</>
+					) : (
 						<Button
+							className={styles['deleteRequest']}
 							disabled={deleteAction.disabled}
 							size='sm'
 							type='button'
 							variant='ghost'
-							onClick={deleteAction.onCancel}
+							onClick={deleteAction.onRequest}
 						>
-							{deleteAction.cancelLabel}
+							<ProductIcon name='trash' />
+							{deleteAction.label}
 						</Button>
-						<Button
-							disabled={deleteAction.disabled}
-							size='sm'
-							type='button'
-							variant='destructive'
-							onClick={deleteAction.onConfirm}
-						>
-							{deleteAction.confirmLabel}
-						</Button>
-					</>
-				) : (
-					<Button
-						disabled={deleteAction.disabled}
-						size='sm'
-						type='button'
-						variant='ghost'
-						onClick={deleteAction.onRequest}
-					>
-						<ProductIcon name='trash' />
-						{deleteAction.label}
-					</Button>
-				)}
+					)}
+				</div>
+				<Button
+					data-slot='terminal-launch-profile-save'
+					disabled={view.saveAction.disabled}
+					size='sm'
+					type='submit'
+				>
+					{intl.formatMessage(terminalSettingsMessages.pageProfilesDone)}
+				</Button>
 			</div>
 		</form>
 	);

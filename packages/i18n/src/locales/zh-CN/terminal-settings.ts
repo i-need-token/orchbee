@@ -77,7 +77,6 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.profiles.login.unsupported': '当前操作系统不支持登录 Shell 模式。',
 	'terminal.settings.profiles.name.invalid': '请输入 Profile 名称。',
 	'terminal.settings.profiles.name.label': 'Profile 名称',
-	'terminal.settings.profiles.section': '启动配置',
 	'terminal.settings.profiles.systemShell': '系统 Shell',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
 		'Desktop 控制连接恢复前，无法更改回滚缓冲区设置。',
@@ -95,6 +94,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.effect.newTerminals': '新终端生效',
 	'terminal.settings.page.effect.nextRestart': '下次重启生效',
 	'terminal.settings.page.dismiss': '关闭提示',
+	'terminal.settings.page.back': '返回',
 	'terminal.settings.page.selected': '已选',
 	'terminal.settings.page.configFile.label': '更多选项在 config.toml 中',
 	'terminal.settings.page.configFile.copy': '复制路径',

@@ -47,13 +47,18 @@ interface KeyboardShortcutSettingsView {
 	readonly changeLabel: (action: string) => string;
 	readonly noResults: string;
 	readonly persistenceWarning: string | null;
+	/** The full recording instruction, spoken while a line records. */
 	readonly recordingInstruction: string;
+	/** The few words a recording line shows in place of its chord. */
+	readonly recordingPrompt: string;
 	readonly rows: readonly KeyboardShortcutSettingsRowView[];
 	readonly search: KeyboardShortcutSearchView;
 }
 
 interface KeyboardShortcutSearchView {
 	readonly clearLabel: string;
+	/** Why the last recorded chord was refused, shown on the dialog's notice line. */
+	readonly failure: string | null;
 	readonly inputReference: React.RefObject<HTMLInputElement | null>;
 	readonly label: string;
 	readonly onChange: React.ChangeEventHandler<HTMLInputElement>;
@@ -64,7 +69,8 @@ interface KeyboardShortcutSearchView {
 	readonly query: string;
 	readonly recording: boolean;
 	readonly recordingToggleLabel: string;
-	readonly status: string | null;
+	/** What the filter's live region speaks: recording and the match count, or nothing. */
+	readonly status: string;
 }
 
 interface UseKeyboardShortcutSettingsViewOptions {
@@ -277,18 +283,14 @@ export function useKeyboardShortcutSettingsView({
 	const searchResultCount = intl.formatMessage(keyboardShortcutMessages.searchResultCount, {
 		count: searchResult.matchingShortcutIds.length,
 	});
-	let searchStatus: string | null = hasSearchQuery ? searchResultCount : null;
-	if (searchState.mode === 'recording') {
-		searchStatus = [
-			intl.formatMessage(keyboardShortcutMessages.searchRecording),
-			hasSearchQuery ? searchResultCount : null,
-		]
-			.filter((part): part is string => part !== null)
-			.join(' ');
-	}
-	if (searchState.recordingIssue === 'invalid-chord') {
-		searchStatus = intl.formatMessage(keyboardShortcutMessages.invalid);
-	}
+	const searchStatus = [
+		searchState.mode === 'recording'
+			? intl.formatMessage(keyboardShortcutMessages.searchRecording)
+			: null,
+		hasSearchQuery ? searchResultCount : null,
+	]
+		.filter((part): part is string => part !== null)
+		.join(' ');
 
 	let persistenceWarning: string | null = null;
 	switch (snapshot.persistenceIssue) {
@@ -309,9 +311,14 @@ export function useKeyboardShortcutSettingsView({
 		noResults: intl.formatMessage(keyboardShortcutMessages.noResults),
 		persistenceWarning,
 		recordingInstruction: intl.formatMessage(keyboardShortcutMessages.recording),
+		recordingPrompt: intl.formatMessage(keyboardShortcutMessages.recordingPrompt),
 		rows,
 		search: {
 			clearLabel: intl.formatMessage(keyboardShortcutMessages.searchClear),
+			failure:
+				searchState.recordingIssue === 'invalid-chord'
+					? intl.formatMessage(keyboardShortcutMessages.invalid)
+					: null,
 			inputReference: searchInputReference,
 			label: intl.formatMessage(keyboardShortcutMessages.searchPlaceholder),
 			onChange: (event): void => {

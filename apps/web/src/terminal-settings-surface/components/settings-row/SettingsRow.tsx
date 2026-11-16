@@ -23,11 +23,18 @@ interface SettingsRowProps {
 	/** Extra words that find this row, such as a shortcut chord. */
 	readonly searchTerms?: readonly string[] | undefined;
 	readonly settingId?: string | undefined;
-	/** Messages under the description: validation, progress, or a refused change. */
+	/**
+	 * The row's notices: a `SettingFailure` shows on the dialog's notice line, so an action never
+	 * changes the row's height. Only a note that follows the chosen value may stand inline.
+	 */
 	readonly status?: React.ReactNode;
 }
 
-/** One setting or list entry: name, an always-visible description, and one trailing control. */
+/**
+ * One setting or list entry: name, an always-visible description, and one trailing control. A
+ * restorable row keeps Restore's place whether or not its value is changed, so the control never
+ * shifts.
+ */
 export function SettingsRow({
 	children,
 	description,
@@ -47,6 +54,22 @@ export function SettingsRow({
 		return null;
 	}
 	const restoreLabel = intl.formatMessage(terminalSettingsMessages.pageRestoreDefault);
+	let restore: React.ReactNode = null;
+	if (onRestore !== undefined) {
+		restore = modified ? (
+			<button
+				aria-label={`${restoreLabel}: ${label}`}
+				className={styles['restore']}
+				title={restoreLabel}
+				type='button'
+				onClick={onRestore}
+			>
+				<ProductIcon name='restore' />
+			</button>
+		) : (
+			<span aria-hidden='true' className={styles['restoreSlot']} />
+		);
+	}
 	return (
 		<div
 			className={styles['root']}
@@ -88,17 +111,7 @@ export function SettingsRow({
 				{status}
 			</div>
 			<div className={styles['control']}>
-				{modified && onRestore !== undefined ? (
-					<button
-						aria-label={`${restoreLabel}: ${label}`}
-						className={styles['restore']}
-						title={restoreLabel}
-						type='button'
-						onClick={onRestore}
-					>
-						<ProductIcon name='restore' />
-					</button>
-				) : null}
+				{restore}
 				{children}
 			</div>
 		</div>

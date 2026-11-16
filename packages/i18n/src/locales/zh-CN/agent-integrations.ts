@@ -9,7 +9,6 @@ export const zhCNAgentIntegrationMessages = {
 	'agent.integrations.consent.detail':
 		'此检查会启动 {agent} 读取其插件，{agent} 启动时可能会创建自己的文件。Orchbee 不做任何更改。选择“诊断”开始检查。',
 	'agent.integrations.consent.title': '检查 {agent}？',
-	'agent.integrations.diagnosis.close': '关闭',
 	'agent.integrations.diagnosis.details': '详情',
 	'agent.integrations.diagnosis.pending': '正在检查本设备上的此集成…',
 	'agent.integrations.diagnosis.readOnly': '只读检查：未做任何更改，也未启动任何智能体程序。',

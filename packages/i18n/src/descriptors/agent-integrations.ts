@@ -19,7 +19,6 @@ export const agentIntegrationMessages = defineMessages({
 		"Heading of the question before a check that starts an Agent's own program. agent is a curated product name.",
 	),
 	description: message('agent.integrations.description'),
-	diagnosisClose: message('agent.integrations.diagnosis.close'),
 	diagnosisDetails: message(
 		'agent.integrations.diagnosis.details',
 		'Label of the closed disclosure under the one-sentence check result that holds its facts.',

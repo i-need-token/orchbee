@@ -1,0 +1,19 @@
+.root {
+	display: flex;
+	flex-direction: column;
+}
+
+/* Back sits on its own line above the title, its arrow on the title's start edge. */
+.root .back {
+	align-self: flex-start;
+	margin-block: calc(-1 * var(--ob-ref-space-2)) var(--ob-ref-space-2);
+	margin-inline-start: calc(-1 * var(--ob-ref-space-2-5));
+	color: var(--ob-sys-color-text-secondary);
+}
+
+.title {
+	margin: var(--ob-ref-space-0) var(--ob-ref-space-0) var(--ob-ref-space-5);
+	color: var(--ob-sys-color-text-heading);
+	font: var(--ob-sys-typography-heading-sm);
+	outline: none;
+}

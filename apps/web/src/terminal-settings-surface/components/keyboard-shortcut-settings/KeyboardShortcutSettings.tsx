@@ -12,6 +12,7 @@ import {
 import * as React from 'react';
 
 import type { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
+import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SETTINGS_LIST_FILTER_THRESHOLD } from '../../constants/settings-list-filter';
 import { SettingsListFilterEmpty } from '../settings-list-filter-empty/SettingsListFilterEmpty';
@@ -58,9 +59,7 @@ export function KeyboardShortcutSettings({
 							</InputGroupAddon>
 							<InputGroupInput
 								ref={view.search.inputReference}
-								aria-describedby={
-									view.search.status === null ? undefined : 'keyboard-shortcut-search-status'
-								}
+								aria-describedby='keyboard-shortcut-search-status'
 								aria-label={view.search.label}
 								autoComplete='off'
 								placeholder={view.search.placeholder}
@@ -98,16 +97,16 @@ export function KeyboardShortcutSettings({
 							})}
 						</span>
 					</div>
-					{view.search.status === null ? null : (
-						<p
-							aria-live='polite'
-							className={styles['filterStatus']}
-							id='keyboard-shortcut-search-status'
-							role='status'
-						>
-							{view.search.status}
-						</p>
-					)}
+					{/* The count and the placeholder show the same facts; this line only speaks them. */}
+					<p
+						aria-live='polite'
+						className={styles['liveRegion']}
+						id='keyboard-shortcut-search-status'
+						role='status'
+					>
+						{view.search.status}
+					</p>
+					<SettingFailure message={view.search.failure} />
 				</div>
 			) : null}
 			{filterVisible && view.rows.length === 0 ? (
@@ -115,6 +114,11 @@ export function KeyboardShortcutSettings({
 			) : null}
 			{view.rows.map((row) => {
 				const noteId = `keyboard-shortcuts.${row.shortcutId}.configured-command`;
+				const instructionId = `keyboard-shortcuts.${row.shortcutId}.recording`;
+				const describedBy = [
+					row.configuredCommandNote === null ? null : noteId,
+					row.recording ? instructionId : null,
+				].filter((id): id is string => id !== null);
 				return (
 					<SettingsRow
 						key={row.shortcutId}
@@ -126,26 +130,24 @@ export function KeyboardShortcutSettings({
 						status={
 							<>
 								{row.configuredCommandNote === null ? null : (
-									<div className={styles['error']} id={noteId}>
+									<div className={styles['note']} id={noteId}>
 										{row.configuredCommandNote}
 									</div>
 								)}
+								{/* The recorder shows a short prompt; the full instruction is spoken only. */}
 								{row.recording ? (
-									<div className={styles['recording']} role='status'>
+									<span className={styles['liveRegion']} id={instructionId} role='status'>
 										{view.recordingInstruction}
-									</div>
+									</span>
 								) : null}
-								{row.error === null ? null : (
-									<div className={styles['error']} role='alert'>
-										{row.error}
-									</div>
-								)}
+								<SettingFailure message={row.error} />
 							</>
 						}
 						onRestore={row.onReset}
 					>
 						<button
-							aria-describedby={row.configuredCommandNote === null ? undefined : noteId}
+							aria-describedby={describedBy.length === 0 ? undefined : describedBy.join(' ')}
+							aria-invalid={row.error === null ? undefined : true}
 							aria-label={view.changeLabel(row.actionName)}
 							aria-pressed={row.recording}
 							className={styles['recorder']}
@@ -156,7 +158,11 @@ export function KeyboardShortcutSettings({
 							onClick={row.onChangeClick}
 							onKeyDown={row.onKeyDown}
 						>
-							<Kbd>{row.chord}</Kbd>
+							{row.recording ? (
+								<span className={styles['prompt']}>{view.recordingPrompt}</span>
+							) : (
+								<Kbd>{row.chord}</Kbd>
+							)}
 						</button>
 					</SettingsRow>
 				);

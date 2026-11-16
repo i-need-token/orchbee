@@ -219,6 +219,29 @@
 	flex-direction: column;
 }
 
+/* A child page covers the category, which stays mounted so Back finds it as it was. */
+.page[hidden] {
+	display: none;
+}
+
+/*
+ * The dialog's notice line: a zero-height strip that sticks to the content's foot on the column's
+ * width, its notices stacking upward over the rows, so a refused change never adds a line to its row.
+ */
+.notices {
+	position: sticky;
+	z-index: var(--ob-ref-layer-raised);
+	inset-block-end: var(--ob-ref-space-4);
+	display: flex;
+	width: min(calc(100% - var(--ob-ref-space-12)), var(--ob-ref-container-2xl));
+	height: var(--ob-ref-space-0);
+	flex-direction: column;
+	justify-content: flex-end;
+	gap: var(--ob-ref-space-2);
+	margin-inline: auto;
+	pointer-events: none;
+}
+
 .searchPage {
 	display: flex;
 	flex-direction: column;
@@ -292,5 +315,9 @@
 	.column {
 		width: calc(100% - var(--ob-ref-space-8));
 		padding-block-start: var(--ob-ref-space-6);
+	}
+
+	.notices {
+		width: calc(100% - var(--ob-ref-space-8));
 	}
 }

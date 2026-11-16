@@ -140,7 +140,6 @@ interface TerminalLaunchProfileSettingsView {
 	readonly profiles: readonly ProfileListItemView[];
 	readonly resetAction: ConfirmableActionView;
 	readonly saveAction: SaveActionView;
-	readonly sectionLabel: string;
 	readonly warning: string | null;
 }
 
@@ -265,7 +264,6 @@ export function useTerminalLaunchProfileSettings(
 		nameLabel: intl.formatMessage(terminalSettingsMessages.profilesNameLabel),
 		reset: intl.formatMessage(terminalSettingsMessages.profilesReset),
 		save: intl.formatMessage(terminalSettingsMessages.profilesSave),
-		section: intl.formatMessage(terminalSettingsMessages.profilesSection),
 		systemShell: intl.formatMessage(terminalSettingsMessages.profilesSystemShell),
 	};
 	const profileLabel = (profile: UserLaunchProfile): string =>
@@ -527,7 +525,6 @@ export function useTerminalLaunchProfileSettings(
 			label: messages.save,
 			onClick: saveProfile,
 		},
-		sectionLabel: messages.section,
 		warning: localError ?? operationWarning,
 	};
 }

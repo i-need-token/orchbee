@@ -86,6 +86,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.persistence.writeWarning':
 		"Couldn't save your keyboard shortcut changes; they apply only for now.",
 	'keyboard.shortcuts.recording': 'Press a shortcut. Escape or moving focus away cancels.',
+	'keyboard.shortcuts.recordingPrompt': 'Press a shortcut',
 	'keyboard.shortcuts.search.clear': 'Clear shortcut search',
 	'keyboard.shortcuts.search.placeholder': 'Search actions or shortcuts',
 	'keyboard.shortcuts.search.recordKeys': 'Record keys',

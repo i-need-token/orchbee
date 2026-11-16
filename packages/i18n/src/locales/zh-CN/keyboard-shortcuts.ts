@@ -84,6 +84,7 @@ export const zhCNKeyboardShortcutMessages = {
 		'没能读取已保存的键盘快捷键，当前正在使用平台默认值。',
 	'keyboard.shortcuts.persistence.writeWarning': '没能保存快捷键更改，它们只在本次生效。',
 	'keyboard.shortcuts.recording': '请按下快捷键；按 Escape 或移开焦点可取消。',
+	'keyboard.shortcuts.recordingPrompt': '请按快捷键',
 	'keyboard.shortcuts.search.clear': '清除快捷键搜索',
 	'keyboard.shortcuts.search.placeholder': '搜索操作或快捷键',
 	'keyboard.shortcuts.search.recordKeys': '录制按键',

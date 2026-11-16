@@ -129,6 +129,9 @@ is the decision context, not an explanation of a control.
 | Resource collection or credential             | Summary plus a named action into its dedicated owned workflow                                    |
 | Reset or destructive operation                | Named action with the applicable confirmation and effect contract                                |
 
+- No action adds or removes lines in the list, matching the Desktop page: a confirmation takes the
+  row's detail line, a refusal or failure takes the status line, and an editor or an explanation
+  opens as a child task. Only a dependent setting revealed by its controlling value adds rows.
 - Use the whole admitted control geometry for hover, focus, and activation; do not add unlabeled cell
   targets. Keyboard and pointer routes produce the same typed edit or action.
 - Focus, hover, current effective value, provisional choice, changed row, locked state, validation,

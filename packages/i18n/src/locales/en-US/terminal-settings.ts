@@ -82,7 +82,6 @@ export const enUSTerminalSettingsMessages = {
 		'Login-shell mode is unavailable on this operating system.',
 	'terminal.settings.profiles.name.invalid': 'Enter a profile name.',
 	'terminal.settings.profiles.name.label': 'Profile name',
-	'terminal.settings.profiles.section': 'Launch profiles',
 	'terminal.settings.profiles.systemShell': 'System shell',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
 		'Scrollback settings are unavailable until the Desktop control connection is restored.',
@@ -101,6 +100,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.effect.newTerminals': 'new terminals',
 	'terminal.settings.page.effect.nextRestart': 'next restart',
 	'terminal.settings.page.dismiss': 'Dismiss',
+	'terminal.settings.page.back': 'Back',
 	'terminal.settings.page.selected': 'Selected',
 	'terminal.settings.page.configFile.label': 'More options in config.toml',
 	'terminal.settings.page.configFile.copy': 'Copy path',

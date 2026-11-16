@@ -16,10 +16,11 @@
 	margin-block-start: var(--ob-ref-space-8);
 }
 
+/* As tall as its actions, so Restore or a confirmation appearing never moves the card. */
 .heading {
 	position: relative;
 	display: flex;
-	min-height: calc(var(--ob-ref-space-5) + var(--ob-ref-space-0-5));
+	min-height: var(--ob-ref-size-control-xs);
 	align-items: center;
 	gap: var(--ob-ref-space-2);
 	margin-block-end: var(--ob-ref-space-2);

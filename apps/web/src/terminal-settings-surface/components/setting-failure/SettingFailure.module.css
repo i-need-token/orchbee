@@ -1,4 +1,45 @@
+/* One notice on the dialog's notice line: a transient anchored surface over the content's foot. */
 .root {
+	display: flex;
+	min-height: var(--ob-ref-size-control-md);
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	padding-block: var(--ob-ref-space-1);
+	padding-inline: var(--ob-ref-space-3) var(--ob-ref-space-1);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-danger-border);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	pointer-events: auto;
+}
+
+.message {
+	min-width: var(--ob-ref-space-0);
+	flex: 1;
 	color: var(--ob-sys-color-status-danger-text);
-	font: var(--ob-sys-typography-label-sm);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.dismiss {
+	display: inline-flex;
+	width: var(--ob-ref-size-control-xs);
+	height: var(--ob-ref-size-control-xs);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	padding: var(--ob-ref-space-0);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	outline: none;
+	background: transparent;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.dismiss:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.dismiss:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }

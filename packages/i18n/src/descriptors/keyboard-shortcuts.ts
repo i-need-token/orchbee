@@ -100,6 +100,7 @@ export const keyboardShortcutMessages = defineMessages({
 	persistenceReadWarning: message('keyboard.shortcuts.persistence.readWarning'),
 	persistenceWriteWarning: message('keyboard.shortcuts.persistence.writeWarning'),
 	recording: message('keyboard.shortcuts.recording'),
+	recordingPrompt: message('keyboard.shortcuts.recordingPrompt'),
 	searchClear: message('keyboard.shortcuts.search.clear'),
 	searchPlaceholder: message('keyboard.shortcuts.search.placeholder'),
 	searchRecordKeys: message('keyboard.shortcuts.search.recordKeys'),

@@ -1,9 +1,3 @@
-.warning {
-	padding: var(--ob-ref-space-2-5) var(--ob-ref-space-3);
-	color: var(--ob-sys-color-status-warning-text);
-	font: var(--ob-sys-typography-body-sm);
-}
-
 .defaultLabel {
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-sm);
@@ -12,9 +6,7 @@
 .editor {
 	display: flex;
 	flex-direction: column;
-	gap: var(--ob-ref-space-3);
-	padding: var(--ob-ref-space-3) var(--ob-ref-space-3) var(--ob-ref-space-3) var(--ob-ref-space-6);
-	background: var(--ob-sys-color-surface-raised);
+	gap: var(--ob-ref-space-4);
 }
 
 .field {
@@ -59,15 +51,39 @@
 
 .actions {
 	display: flex;
-	justify-content: flex-end;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ob-ref-space-2);
+	margin-block-start: var(--ob-ref-space-2);
+}
+
+.deleteActions {
+	display: flex;
 	gap: var(--ob-ref-space-2);
 }
 
+/* The ghost action's icon lines up with the fields' start edge, as Back does with the title. */
+.deleteRequest {
+	margin-inline-start: calc(-1 * var(--ob-ref-space-2-5));
+}
+
+/*
+ * The filled confirmation lines up with the rows' end controls, which sit one step further in than
+ * the group heading's end.
+ */
+.resetConfirm {
+	display: flex;
+	gap: var(--ob-ref-space-1);
+	margin-inline-end: var(--ob-ref-space-1);
+}
+
+/* The name box opens in the Add profile line's place at the same height. */
 .addProfile {
 	display: flex;
+	min-height: calc(var(--ob-ref-space-10) + var(--ob-ref-space-1));
 	align-items: center;
 	gap: var(--ob-ref-space-2);
-	padding: var(--ob-ref-space-2) var(--ob-ref-space-3);
+	padding: var(--ob-ref-space-0) var(--ob-ref-space-3);
 }
 
 .addInput {

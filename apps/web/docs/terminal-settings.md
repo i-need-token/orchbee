@@ -28,7 +28,7 @@ declared locale inputs. Confirmed Desktop snapshots update document lang/dir and
 without reload. User data, paths, commands and shared content are never translated.
 
 The locale is the `general.language` key. A selection is one edit and applies when its snapshot
-arrives; a refusal shows under the row. No browser record holds the locale.
+arrives; a refusal shows on the notice line. No browser record holds the locale.
 
 ## Appearance and interaction preferences
 
@@ -144,7 +144,7 @@ The Desktop renderer on macOS reads `terminal.macos_option_as_alt`: `off`, `left
 `both`, with `off` as the product default. Windows and Linux compositions do not expose the
 Option-as-Alt row and retain the default; on macOS the row sits in the Terminal category's
 Selection and keys group. A change is one edit; a refusal keeps the file's value and shows the
-reason under the row.
+reason on the notice line.
 
 The client tracks physical `AltLeft` and `AltRight` ownership and resolves the selected side for
 each admitted key event. It does not rewrite committed text or guess from the character produced by
@@ -172,11 +172,14 @@ Each profile has a stable identity, a user-visible name, and exactly one command
 The stable built-in profile uses a localized display label rather than persisted product copy. User
 names remain exact user data and duplicate names do not merge identities. The Launch profiles card
 shows one profile per line with its Default label or a Use as default action, and an Edit action
-that opens the profile's editor under its line; Done saves the draft. Add profile, the card's last
-line, adds a new system-shell profile, without login mode, at the end of the list, as the TUI does;
+that opens the profile's editor on a child page named after it; Done or Back saves the draft and
+returns to the list, and a draft that cannot be saved keeps the page open with its notice. Add
+profile, the card's last line, opens a name box at the same height in its place and
+adds a new system-shell profile, without login mode, at the end of the list, as the TUI does;
 it never copies the profile last selected or edited. The editor can rename a profile,
 change its command and arguments, or delete a non-default profile after confirmation. The default
-and final profile cannot be deleted. The group's Restore default requires confirmation and replaces
+and final profile cannot be deleted. The group's Restore default asks for confirmation in the
+group heading and replaces
 the complete catalog with the built-in default only after the Server commits it. Pending operations disable competing
 mutations and surface bounded localized failures; invalid drafts never send a mutation. A failed
 commit retains the user's draft so they can correct or retry it instead of reconstructing their
@@ -349,7 +352,8 @@ and focuses Settings search. Repeated open does not replace that return target.
 
 The navigation column holds search and the categories; the close button sits in the dialog's
 top-end corner. The close button, a press on the scrim, and Escape when no control consumes it return
-exactly where the user was; Escape first clears a non-empty search. Closing restores a connected
+exactly where the user was; Escape first leaves an open child page, then clears a non-empty search.
+Closing restores a connected
 invoker or safe fallback. The scrim's top band still drags a Desktop window. Below `48rem` the
 navigation stacks above the content and the dialog keeps a narrower margin from the window's edges.
 
@@ -359,7 +363,15 @@ separated by hairlines. A category with three or fewer settings may use one unna
 has a name, an always-visible description of at most two lines, and exactly one control at the
 row's end. A changed setting shows a small accent dot after the row's name and its effect note,
 centered on that line, and a Restore default action beside its control while the row is hovered or
-focused; a theme list that is one setting carries the dot after its heading. Every finite choice is
+focused; an unchanged row keeps that action's place empty, so a change never moves its control. A
+theme list that is one setting carries the dot after its heading.
+
+No action changes a row's height. A refusal, a failed save, or an invalid shortcut appears on the
+notice line, a dismissible line that floats at the content column's foot and stays in view while the
+page scrolls; it is the Desktop counterpart of the TUI's Settings status line. A launch profile's
+editor and an Agent's diagnosis open as a child page that replaces the category's content under a
+Back action; Escape goes back first, and going back restores the list's scroll offset and focus.
+Every finite choice is
 the shared Select from `@orchbee/ui`: a filled trigger whose list opens below it, end-aligned, with a
 check on the chosen entry. Every change applies at once; the
 page has no Save, Discard, or footer. Shell-profile edits save on the editor's Done, because the
@@ -436,10 +448,10 @@ switch stays disabled until Explain checks it; a change the window could not fol
 Unknown.
 
 Each row's Explain button runs one `explain` job for that Agent, under the same one-job rule, and
-opens its diagnosis beneath the row until Close. For an Agent read only through its own program,
-the first Explain only opens the question "Check <Agent>?" beneath the row: the check starts that
-program, which may create its own files, and Orchbee changes nothing. Explain again runs it, and
-Explain on an open diagnosis reruns it. A result is one sentence first, such as "Claude Code isn't
+opens its diagnosis on a child page until Back. For an Agent read only through its own program,
+the first Explain only opens the question "Check <Agent>?" on that page: the check starts that
+program, which may create its own files, and Orchbee changes nothing. Explain on the page runs it,
+and Explain on an open diagnosis reruns it. A result is one sentence first, such as "Claude Code isn't
 installed." or "The integration is off.", and a definite finding (on, manual setup, the Agent or the
 plugin not installed, off, an update needed, a conflict) stays apart from "Couldn't read the
 plugin's state.", which a timed-out, unreadable or undetermined inspection and an unfinished job
@@ -452,7 +464,7 @@ adapter, the provider's marketplace and plugin or guarded entry and adapter sour
 turning it on would do: consecutive commands of one program name its executable file name once and
 list what they do. The control drops paths
 and command arguments before publishing the diagnosis; a report also refreshes that Agent's row,
-and an explain failure stays in the diagnosis rather than the page alert. The TUI's
+and an explain failure stays in the diagnosis rather than the notice line. The TUI's
 [Agent integrations page](../../orchbee/docs/native-settings.md#agent-integrations) offers the same
 operations and copy.
 

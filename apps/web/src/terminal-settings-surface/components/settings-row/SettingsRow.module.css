@@ -99,6 +99,13 @@
 	gap: var(--ob-ref-space-2);
 }
 
+/* Restore's place, held while the value is the default so the control keeps its column. */
+.restoreSlot {
+	width: var(--ob-ref-size-control-xs);
+	height: var(--ob-ref-size-control-xs);
+	flex: none;
+}
+
 .restore {
 	display: inline-flex;
 	width: var(--ob-ref-size-control-xs);

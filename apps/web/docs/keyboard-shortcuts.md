@@ -441,8 +441,8 @@ identity come from the same normalized chord.
 
 All catalog declarations can overlap: a Workbench shortcut and the shortcut for its focused
 terminal can both be applicable. Their effective chords must therefore be globally unique. A
-conflicting edit changes neither memory nor storage and identifies the conflicting Action, scope,
-binding source, and availability condition. During dispatch, the owning Action adapter resolves
+conflicting edit changes neither memory nor storage and identifies, on the Settings notice line, the
+conflicting Action, scope, binding source, and availability condition. During dispatch, the owning Action adapter resolves
 current availability before execution or `preventDefault()`; an unavailable binding falls through
 to the terminal or browser.
 
@@ -450,7 +450,7 @@ A configured command's direct key sits outside this catalog and is not a conflic
 a default's chord and yields to one the person set (see [Workbench](workbench.md)). Web resolves that
 once, from the claims `keyboardShortcutClaims` projects, and hands the one result to both the
 Workbench and Settings. A Settings row whose default a configured command holds keeps its chord and
-recorder and says which command uses that chord, in the inline conflict text; recording an override
+recorder and says which command uses that chord, in a note under its name; recording an override
 gives the person's chord back to the shortcut and removes the note, and Reset brings the note back.
 
 Workbench owns formatting for its bindings. Projected-terminal owns its binding defaults and

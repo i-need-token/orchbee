@@ -4,6 +4,8 @@ import * as React from 'react';
 
 import type { AgentIntegrationManagementControl } from '../../../agent-integration-management';
 import { matchesSettingsQuery } from '../../utils/matchesSettingsQuery';
+import { SettingFailure } from '../setting-failure/SettingFailure';
+import { SettingsChildPage } from '../settings-child-page/SettingsChildPage';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SETTINGS_LIST_FILTER_THRESHOLD } from '../../constants/settings-list-filter';
 import { SettingsListFilter } from '../settings-list-filter/SettingsListFilter';
@@ -37,6 +39,8 @@ export function AgentIntegrationSettings({
 				matchesSettingsQuery(filter, [row.agentName, row.status], intl.locale),
 			)
 		: view.rows;
+	// A search lists matches only; a diagnosis opens from the category's own list.
+	const diagnosed = searching ? undefined : view.rows.find((row) => row.diagnosis !== null);
 	return (
 		<SettingsGroup
 			action={
@@ -55,11 +59,7 @@ export function AgentIntegrationSettings({
 			)}
 			label={intl.formatMessage(terminalSettingsMessages.pageGroupAgentIntegrations)}
 		>
-			{searching || view.failure === null ? null : (
-				<p className={styles['failure']} data-settings-row role='alert'>
-					{view.failure}
-				</p>
-			)}
+			{searching ? null : <SettingFailure message={view.failure} />}
 			{filterVisible ? (
 				<SettingsListFilter
 					placeholder={intl.formatMessage(terminalSettingsMessages.pageFilterAgents)}
@@ -71,37 +71,36 @@ export function AgentIntegrationSettings({
 			) : null}
 			{filterVisible && rows.length === 0 ? <SettingsListFilterEmpty /> : null}
 			{rows.map((row) => (
-				<React.Fragment key={row.integrationId}>
-					<SettingsRow
-						description={row.status}
-						descriptionTone={row.statusTone}
-						label={row.agentName}
-						query={query}
-						searchTerms={[row.description]}
-						settingId={row.settingId}
+				<SettingsRow
+					key={row.integrationId}
+					description={row.status}
+					descriptionTone={row.statusTone}
+					label={row.agentName}
+					query={query}
+					searchTerms={[row.description]}
+					settingId={row.settingId}
+				>
+					<Button
+						aria-label={row.explainLabel}
+						className={styles['explain']}
+						disabled={row.explainDisabled}
+						size='xs'
+						type='button'
+						variant='ghost'
+						onClick={row.onExplain}
 					>
-						<Button
-							aria-label={row.explainLabel}
-							className={styles['explain']}
-							disabled={row.explainDisabled}
-							size='xs'
-							type='button'
-							variant='ghost'
-							onClick={row.onExplain}
-						>
-							{view.explainText}
-						</Button>
-						<Switch
-							aria-busy={row.pending || undefined}
-							aria-label={row.toggleLabel}
-							checked={row.checked}
-							disabled={row.disabled}
-							onCheckedChange={row.onCheckedChange}
-						/>
-					</SettingsRow>
-					{row.diagnosis === null ? null : <AgentIntegrationDiagnosis row={row} view={view} />}
-				</React.Fragment>
+						{view.explainText}
+					</Button>
+					<Switch
+						aria-busy={row.pending || undefined}
+						aria-label={row.toggleLabel}
+						checked={row.checked}
+						disabled={row.disabled}
+						onCheckedChange={row.onCheckedChange}
+					/>
+				</SettingsRow>
 			))}
+			{diagnosed === undefined ? null : <AgentIntegrationDiagnosis row={diagnosed} view={view} />}
 		</SettingsGroup>
 	);
 }
@@ -111,35 +110,45 @@ interface AgentIntegrationDiagnosisProps {
 	readonly view: AgentIntegrationSettingsView;
 }
 
-/** The read-only diagnosis of one Agent, shown under its line until closed. */
+/**
+ * One Agent's read-only diagnosis, or the question before a check that starts its program, on a
+ * child page in place of the list; Explain there runs or repeats the check.
+ */
 function AgentIntegrationDiagnosis({ row, view }: AgentIntegrationDiagnosisProps): React.ReactNode {
 	const { diagnosis } = row;
 	if (diagnosis === null) return null;
 	return (
-		<section
-			aria-busy={diagnosis.pending || undefined}
-			aria-label={row.diagnosisTitle}
-			className={styles['diagnosis']}
-			data-slot='agent-integration-diagnosis'
-		>
-			<div className={styles['diagnosisHeader']}>
-				<h3 className={styles['diagnosisTitle']}>{row.diagnosisTitle}</h3>
-				<Button size='xs' type='button' variant='ghost' onClick={view.onCloseDiagnosis}>
-					{view.closeDiagnosisLabel}
-				</Button>
-			</div>
-			<p aria-live='polite' className={styles['status']} data-tone={diagnosis.tone}>
-				{diagnosis.headline}
-			</p>
-			{diagnosis.disclosed ? (
-				<details>
-					<summary className={styles['detailsSummary']}>{view.detailsLabel}</summary>
+		<SettingsChildPage title={row.diagnosisTitle} onBack={view.onCloseDiagnosis}>
+			<div
+				aria-busy={diagnosis.pending || undefined}
+				className={styles['diagnosis']}
+				data-slot='agent-integration-diagnosis'
+			>
+				<p aria-live='polite' className={styles['status']} data-tone={diagnosis.tone}>
+					{diagnosis.headline}
+				</p>
+				{diagnosis.disclosed ? (
+					<details>
+						<summary className={styles['detailsSummary']}>{view.detailsLabel}</summary>
+						<AgentIntegrationDiagnosisBody diagnosis={diagnosis} />
+					</details>
+				) : (
 					<AgentIntegrationDiagnosisBody diagnosis={diagnosis} />
-				</details>
-			) : (
-				<AgentIntegrationDiagnosisBody diagnosis={diagnosis} />
-			)}
-		</section>
+				)}
+				<div className={styles['diagnosisActions']}>
+					<Button
+						aria-label={row.explainLabel}
+						disabled={row.explainDisabled}
+						size='sm'
+						type='button'
+						variant='outline'
+						onClick={row.onExplain}
+					>
+						{view.explainText}
+					</Button>
+				</div>
+			</div>
+		</SettingsChildPage>
 	);
 }
 

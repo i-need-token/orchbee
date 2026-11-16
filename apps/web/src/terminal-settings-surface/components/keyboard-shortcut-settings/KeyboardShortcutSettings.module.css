@@ -24,20 +24,30 @@
 	text-align: end;
 }
 
-.filterStatus {
+/* Spoken status that the count, the placeholder, or the recorder's prompt already shows. */
+.liveRegion {
+	position: absolute;
+	width: var(--ob-ref-border-width-default);
+	height: var(--ob-ref-border-width-default);
+	padding: var(--ob-ref-space-0);
 	margin: var(--ob-ref-space-0);
-	color: var(--ob-sys-color-text-secondary);
-	font: var(--ob-sys-typography-label-sm);
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
 }
 
-.recording {
-	color: var(--ob-sys-color-text-secondary);
-	font: var(--ob-sys-typography-label-sm);
-}
-
-.error {
+.note {
 	color: var(--ob-sys-color-status-danger-text);
 	font: var(--ob-sys-typography-label-sm);
+}
+
+.prompt {
+	position: relative;
+	z-index: var(--ob-ref-layer-raised);
+	padding-inline: var(--ob-ref-space-1-5);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-sm);
+	white-space: nowrap;
 }
 
 .recorder {
@@ -85,4 +95,9 @@
 .recorder[data-recording='true']::before {
 	border-color: var(--ob-sys-color-border-focus);
 	box-shadow: 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+/* A refused chord keeps its recorder outlined in the danger role while its notice shows. */
+.recorder[aria-invalid='true']::before {
+	border-color: var(--ob-sys-color-status-danger-border);
 }

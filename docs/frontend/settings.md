@@ -121,21 +121,32 @@ implemented with Orchbee's semantic tokens and shared primitives.
   compact category heading, then groups. Do not add a hero, dashboard chrome, or decorative
   illustration.
 - Every row carries a name, an always-visible one-line description that wraps to two lines at most,
-  and exactly one control aligned to a consistent trailing column. Let exceptional status or
-  recovery expand the owning row, and avoid floating explanatory panels that obscure other settings.
+  and exactly one control aligned to a consistent trailing column. Avoid floating explanatory panels
+  that obscure other settings.
+- No action changes a row's or a group heading's height, so the page never jumps under the pointer.
+  An action that appears on hover or only after a change, such as Restore default, keeps its place
+  reserved while hidden; a confirmation replaces the action in place; an editor or a longer
+  explanation opens on a child page instead of expanding the list. Only a fact that follows the
+  chosen value, such as a dependent setting or a note that a default shortcut is held by a
+  configured command, may add or remove lines.
 - Every change applies at once; the page has no Save, Discard, or footer.
 - A long list is one card with one entry per line. When it holds more than eight entries, its first
   line is a filter box with the shown count.
 - A page-wide notice, such as a persistence failure or a missing permission, is a dismissible banner
-  above the category heading. A notice about one setting stays in that setting's row.
+  above the category heading when it holds from the moment the page opens. A notice that an action
+  causes, such as a refused value or a failed save, is a dismissible line that floats at the content
+  pane's foot, in the place of the terminal interface's Settings status line; it never pushes rows
+  down.
 - A setting that only matters under another setting's value, such as custom colors under a Custom
   color mode, appears only while that value is chosen.
 - Group cards take a moderate surface radius; shadow stays reserved for transient anchored surfaces.
   Accent color identifies interaction or selection, not decoration.
 - Keep the navigation column stable while the content pane scrolls. The navigation column scrolls
   independently only when its categories overflow; avoid nested content scrollers.
-- Open a complex management destination inside the same page with an explicit back path, or edit
-  one entry inline under its line. Do not stack another catalog-sized modal over Settings.
+- Open a complex management destination, one entry's editor, or a diagnosis as a child page in the
+  content pane with a Back action above its title. The child page replaces the category's content,
+  Escape goes back before it clears search or closes Settings, and going back restores the list's
+  scroll offset and focus. Do not stack another catalog-sized modal over Settings.
 - At narrow widths, stack the navigation above the content instead of squeezing two columns, and
   preserve the same hierarchy and back path.
 

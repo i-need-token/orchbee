@@ -484,10 +484,7 @@ describe('TerminalSettingsSurface', () => {
 		);
 		await commitInput(fontSize, '15');
 		await vi.waitFor(() => expect(fontSize.value).toBe('13'));
-		const row = requiredElement(
-			container.querySelector('[data-setting-id="appearance.font-size"]'),
-		);
-		expect(row.querySelector('[role="alert"]')?.textContent).toBe(
+		expect(container.querySelector('[data-slot="settings-notice"]')?.textContent).toBe(
 			"Couldn't save the change: the settings file is read-only.",
 		);
 		expect(settings.getSnapshot().snapshot?.values['terminal.font_size']).toBe(13);
@@ -502,11 +499,8 @@ describe('TerminalSettingsSurface', () => {
 			container.querySelector("input[aria-label='Font size']"),
 		);
 		await commitInput(fontSize, '15');
-		const row = requiredElement(
-			container.querySelector('[data-setting-id="appearance.font-size"]'),
-		);
 		await vi.waitFor(() =>
-			expect(row.querySelector('[role="alert"]')?.textContent).toBe(
+			expect(container.querySelector('[data-slot="settings-notice"]')?.textContent).toBe(
 				"Couldn't save the change: the settings file can't be read.",
 			),
 		);

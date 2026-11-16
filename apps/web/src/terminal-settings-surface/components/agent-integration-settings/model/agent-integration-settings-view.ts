@@ -19,7 +19,7 @@ export interface AgentIntegrationSettingsRowView {
 	readonly agentName: string;
 	readonly checked: boolean;
 	readonly description: string;
-	/** The diagnosis shown under this row, or null while it is not open. */
+	/** The diagnosis on this Agent's child page, or null while it is not open. */
 	readonly diagnosis: AgentIntegrationDiagnosisView | null;
 	readonly diagnosisTitle: string;
 	readonly disabled: boolean;
@@ -36,7 +36,6 @@ export interface AgentIntegrationSettingsRowView {
 }
 
 export interface AgentIntegrationSettingsView {
-	readonly closeDiagnosisLabel: string;
 	readonly detailsLabel: string;
 	readonly disclosure: string;
 	readonly explainText: string;
