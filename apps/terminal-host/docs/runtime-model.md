@@ -1387,13 +1387,22 @@ the medium through Ghostty's own loader, which keeps its path, blocklist, and te
 checks, and decodes it, while the reader waits without any terminal lock for at most 2 s. The next
 commit hands Ghostty the decoded pixels as a direct transmission of the same command, so storage,
 replies, the quiet setting, and identifiers stay Ghostty's, and the rest of the batch follows it.
-Before Ghostty opens a file or temporary file, it must be a regular file whose requested bytes fit
-32 MiB, and exactly that many bytes are read; one read holds at most 96 MiB of medium, decoded
-pixels, and copies. A read that fails, exceeds a bound, or misses the deadline drops the image as a
-failed load does: Ghostty runs the command without data, answers with its error unless quieted,
-and a warning names the medium and the reason, never the path. A read still blocked at the
-deadline finishes alone, holding nothing of the terminal; until it does, that terminal drops each
-further medium at once. Animation frames and the first chunk of a chunked file transmission are
+Before Ghostty opens a file or temporary file, it must be a regular file whose requested bytes are
+at least one and fit 32 MiB, and exactly that many bytes are read; one read holds at most 96 MiB of
+medium, decoded pixels, and copies. Ghostty's path blocklist covers only POSIX paths, so on Windows
+a medium path must be absolute on a local drive (`X:\` or `X:/` followed by a name); a UNC, device,
+or drive-relative path, a reserved device name in any component, or a stream suffix drops the
+image before anything touches the path, including in output replayed at creation. A read that
+fails, exceeds a bound, or misses the deadline drops the image as a failed load does: Ghostty runs
+the command without data, answers with its error unless quieted, and a warning names the medium and
+the reason, never the path. A medium dropped before Ghostty's loader runs is removed as that loader
+would have removed it: a temporary file whose real path lies in a temporary directory and names
+`tty-graphics-protocol`, and a shared-memory object, which is unlinked without being opened; a
+dropped temporary file is removed on a thread of its own, at most four at once across the Host,
+and beyond that left in place with a warning. A read still blocked at the deadline finishes alone,
+holding nothing of the terminal; until it does, that terminal drops each further medium at once,
+and the next reader batch releases it once it has finished. Animation frames and the first chunk
+of a chunked file transmission are
 read off the lock but decode under it with the rest of their data, as direct ones do. A medium
 command opened by a C1 string introducer, which only follows another unfinished sequence, is taken
 the same way but may apply after the rest of its PTY read.

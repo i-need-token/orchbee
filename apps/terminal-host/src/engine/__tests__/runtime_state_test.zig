@@ -774,6 +774,34 @@ test "a stalled image read does not delay another terminal" {
     var placements = graphics.placements.iterator();
     try std.testing.expectEqual(@as(usize, 6), placements.next().?.value_ptr.location.pin.x);
 }
+// Ghostty's loader deletes a temporary file it opens even when the read fails, so a medium the Host
+// refuses before that loader runs must not stay behind.
+test "a temporary-file medium refused before it is read is removed" {
+    const directory = try platform_boundary.temp_directory.resolveOwned(std.testing.allocator);
+    defer std.testing.allocator.free(directory);
+    var name_buffer: [96]u8 = undefined;
+    const name = try std.fmt.bufPrint(&name_buffer, "tty-graphics-protocol-orchbee-test-{d}-{x}", .{
+        std.testing.random_seed,
+        @intFromPtr(&name_buffer),
+    });
+    const path = try std.fs.path.join(std.testing.allocator, &.{ directory, name });
+    defer std.testing.allocator.free(path);
+    try std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = path, .data = "\xff\x00\x00" });
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, path) catch {};
+    var encoded: [std.base64.standard.Encoder.calcSize(std.fs.max_path_bytes)]u8 = undefined;
+    // A declared size over the 32 MiB bound refuses the medium before it is opened.
+    const output = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "\x1b_Ga=t,t=t,f=24,s=1,v=1,S=33554433,i=9,q=2;{s}\x1b\\",
+        .{std.base64.standard.Encoder.encode(&encoded, path)},
+    );
+    defer std.testing.allocator.free(output);
+
+    const runtime = try createIdleRuntime(.{});
+    defer destroyRuntimeWithIdentityRetry(runtime);
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, output));
+    try std.testing.expectError(error.FileNotFound, std.Io.Dir.cwd().access(std.testing.io, path, .{}));
+}
 test "projection frames carry paired-zero pixel geometry and still validate" {
     const runtime = try createIdleRuntime(.{});
     defer destroyRuntimeWithIdentityRetry(runtime);

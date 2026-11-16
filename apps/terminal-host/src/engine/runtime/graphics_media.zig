@@ -11,7 +11,9 @@
 //! A read that fails, would exceed its bounds, or misses the deadline drops the image: Ghostty
 //! then runs the command with no data, which fails it as a failed load would, and the log keeps
 //! the reason. A read still blocked at the deadline is left to finish alone; it holds nothing of
-//! the terminal, and until it finishes that terminal drops each further medium at once.
+//! the terminal, and until it finishes that terminal drops each further medium at once. A path the
+//! Host does not admit is dropped before anything opens it, and a medium dropped unread is removed
+//! as Ghostty's loader would have removed it (`graphics_media_files.zig`).
 const std = @import("std");
 const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
@@ -21,6 +23,7 @@ const monotonic = platform.monotonic;
 const thread_sync = platform.thread_sync;
 const protocol = @import("terminal-protocol");
 const terminal_stream = @import("../terminal_stream.zig");
+const media_files = @import("graphics_media_files.zig");
 const state = @import("state.zig");
 const output_ops = @import("output.zig");
 const program_status_feed = @import("program_status_feed.zig");
@@ -31,8 +34,6 @@ const Transmission = @FieldType(Command.Control, "transmit");
 
 /// How long the reader waits for a medium before it drops the image and goes on.
 pub const read_deadline_ns: u64 = 2 * std.time.ns_per_s;
-/// The largest file or temporary file read, the terminal's whole image budget.
-pub const file_bytes_limit: u64 = protocol.Limits.terminal_graphics_resource_bytes;
 /// The most memory one read may hold at once: the medium, its decoded pixels, and a copy.
 pub const read_memory_limit: usize = 3 * protocol.Limits.terminal_graphics_resource_bytes;
 const wait_slice_ns: u64 = 20 * std.time.ns_per_ms;
@@ -46,10 +47,12 @@ pub const State = struct {
 
 /// Why an image was dropped; the log keeps it.
 const Reason = enum {
+    @"path not admitted",
     @"earlier read still running",
     @"read thread unavailable",
     @"not a regular file",
     @"larger than 32 MiB",
+    @"no bytes to read",
     @"memory bound exceeded",
     @"rejected by the loader",
     @"timed out",
@@ -127,11 +130,18 @@ pub const Loaded = struct {
 /// The terminal stream's Kitty graphics hook: takes a command whose medium Ghostty would read.
 pub fn takeEffect(handler: *terminal_stream.Handler, command: *Command) bool {
     const self = output_ops.runtimeFromHostHandler(handler);
+    if (!readsMedium(&self.terminal, command)) return false;
+    // The handler frees the command's own data after this hook.
+    var dropped = command.*;
+    // Refused before anything opens it, in output replayed at creation too.
+    if (!media_files.pathAdmitted(command.data)) {
+        drop(self, &dropped, .{ .reason = .@"path not admitted" });
+        return true;
+    }
     // Only a reader batch can stop at the command; earlier output replayed at creation runs inline.
-    if (!self.reader_commit_in_progress or !readsMedium(&self.terminal, command)) return false;
+    if (!self.reader_commit_in_progress) return false;
     if (self.graphics_media.pending != null or stalledReadRunning(self)) {
-        var dropped = command.*;
-        dropped.data = "";
+        media_files.removeUnread(command, imageLimits(self));
         drop(self, &dropped, .{ .reason = .@"earlier read still running" });
         return true;
     }
@@ -159,10 +169,19 @@ pub fn pending(self: *const state.State) bool {
     return self.graphics_media.pending != null;
 }
 
-/// Releases a taken command that a failed batch will not load.
+/// Releases a taken command that a failed batch will not load, and removes its medium.
 pub fn discardPending(self: *state.State) void {
-    if (self.graphics_media.pending) |command| command.deinit(self.allocator);
+    if (self.graphics_media.pending) |command| {
+        media_files.removeUnread(&command, imageLimits(self));
+        command.deinit(self.allocator);
+    }
     self.graphics_media.pending = null;
+}
+
+/// Releases a read that missed its deadline once it has finished; each reader batch starts here,
+/// so a finished read is released without waiting for a later medium.
+pub fn releaseFinishedRead(self: *state.State) void {
+    _ = stalledReadRunning(self);
 }
 
 /// Reads the taken command's medium on its own thread and waits for it, holding no terminal
@@ -344,15 +363,18 @@ const StartedRead = struct {
     thread: std.Thread,
 };
 
-/// Starts the read on its own thread; the read owns `taken` from here, even when this fails.
+/// Starts the read on its own thread; the read owns `taken` from here, even when this fails, and
+/// a read that cannot start removes its medium.
 fn startRead(self: *state.State, taken: Command) !StartedRead {
     const read = createRead(self, taken) catch |err| {
+        media_files.removeUnread(&taken, imageLimits(self));
         taken.deinit(self.allocator);
         return err;
     };
     // The read's thread takes the second reference.
     read.references.store(2, .release);
     const thread = std.Thread.spawn(.{}, readMedium, .{read}) catch |err| {
+        media_files.removeUnread(&read.command, read.limits);
         read.references.store(1, .release);
         read.release();
         return err;
@@ -360,8 +382,12 @@ fn startRead(self: *state.State, taken: Command) !StartedRead {
     return .{ .read = read, .thread = thread };
 }
 
+fn imageLimits(self: *const state.State) graphics.LoadingImage.Limits {
+    return self.terminal.screens.active.kitty_images.image_limits;
+}
+
 fn createRead(self: *state.State, taken: Command) !*Read {
-    const limits = self.terminal.screens.active.kitty_images.image_limits;
+    const limits = imageLimits(self);
     const temporary_directory: ?[]u8 = switch (limits.temporary_file) {
         .enabled => |value| try self.allocator.dupe(u8, value.directory),
         .disabled => null,
@@ -408,16 +434,11 @@ fn readResult(read: *Read) Result {
     var command = read.command;
     const transmission = transmissionOf(&command);
     switch (transmission.medium) {
-        .file, .temporary_file => {
-            // Measured before Ghostty opens it, so a FIFO or device is refused unopened and only
-            // the checked size is read, whatever the file becomes meanwhile.
-            const stat = std.Io.Dir.cwd().statFile(io, command.data, .{}) catch |err|
-                return failed(.@"rejected by the loader", err);
-            if (stat.kind != .file) return failed(.@"not a regular file", null);
-            const available = stat.size -| transmission.offset;
-            const wanted: u64 = if (transmission.size > 0) transmission.size else available;
-            if (wanted > file_bytes_limit) return failed(.@"larger than 32 MiB", null);
-            transmission.size = @intCast(wanted);
+        .file, .temporary_file => switch (media_files.precheck(io, &command, read.temporary_directory)) {
+            .read => |size| transmission.size = size,
+            .refused => |refused| return failed(switch (refused.refusal) {
+                inline else => |refusal| @field(Reason, @tagName(refusal)),
+            }, refused.cause),
         },
         .shared_memory => {},
         .direct => unreachable,

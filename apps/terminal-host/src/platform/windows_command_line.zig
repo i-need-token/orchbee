@@ -1,4 +1,5 @@
 const std = @import("std");
+const isDosDeviceName = @import("windows_path.zig").isDosDeviceName;
 
 pub fn executable(allocator: std.mem.Allocator, arguments: []const []const u8) ![:0]u8 {
     var output: std.Io.Writer.Allocating = .init(allocator);
@@ -92,19 +93,6 @@ pub fn ordinaryPath(allocator: std.mem.Allocator, path: []const u8) !?[]u8 {
             return null;
     }
     return if (unc) try std.fmt.allocPrint(allocator, "\\\\{s}", .{rest}) else try allocator.dupe(u8, rest);
-}
-
-/// Win32 maps these names to devices in any directory, with or without an extension.
-fn isDosDeviceName(component: []const u8) bool {
-    const stem = std.mem.trimEnd(u8, component[0 .. std.mem.indexOfScalar(u8, component, '.') orelse component.len], " ");
-    for ([_][]const u8{ "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$" }) |name| {
-        if (std.ascii.eqlIgnoreCase(stem, name)) return true;
-    }
-    if (stem.len < 4 or !(std.ascii.startsWithIgnoreCase(stem, "COM") or std.ascii.startsWithIgnoreCase(stem, "LPT")))
-        return false;
-    const suffix = stem[3..];
-    return (suffix.len == 1 and std.ascii.isDigit(suffix[0])) or
-        std.mem.eql(u8, suffix, "\u{00B9}") or std.mem.eql(u8, suffix, "\u{00B2}") or std.mem.eql(u8, suffix, "\u{00B3}");
 }
 
 fn appendBatchArgument(writer: *std.Io.Writer, argument: []const u8) !void {

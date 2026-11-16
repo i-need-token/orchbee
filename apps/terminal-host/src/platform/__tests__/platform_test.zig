@@ -2,6 +2,7 @@ comptime {
     _ = @import("fatal_record_test.zig");
     _ = @import("process_test.zig");
     _ = @import("windows_launch_test.zig");
+    _ = @import("windows_path_test.zig");
     _ = @import("windows_environment_test.zig");
     _ = @import("windows_environment_limits_test.zig");
     _ = @import("process_query_windows_test.zig");

@@ -19,6 +19,7 @@ const writer_ops = @import("writer.zig");
 const wait_thread_ops = @import("wait_thread.zig");
 const animation_ops = @import("animation.zig");
 const graphics_media = @import("graphics_media.zig");
+const terminal_geometry_effects = @import("terminal_geometry_effects.zig");
 const terminal_stream = @import("../terminal_stream.zig");
 
 const SystemThreadSpawner = struct {
@@ -140,7 +141,7 @@ pub fn createWithOptionsUsingSpawner(
     effects.title_changed = output_ops.metadataChangedEffect;
     effects.pwd_changed = output_ops.metadataChangedEffect;
     effects.xtversion = output_ops.versionEffect;
-    self.stream.handler.column_mode = output_ops.columnModeEffect;
+    self.stream.handler.column_mode = terminal_geometry_effects.columnModeEffect;
     self.stream.handler.mode_changed = output_ops.modeChangedEffect;
     self.stream.handler.full_reset = output_ops.fullResetEffect;
     self.stream.handler.clipboard_contents = feedback_ops.clipboardContentsEffect;

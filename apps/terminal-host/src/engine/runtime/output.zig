@@ -3,7 +3,6 @@ const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
 const fatal_record = @import("terminal-host-platform").fatal_record;
 const output_wake = @import("terminal-host-platform").output_wake;
-const terminal_geometry = @import("terminal-host-model").geometry;
 const terminal_stream = @import("../terminal_stream.zig");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
@@ -12,12 +11,11 @@ const failure_ops = @import("failure.zig");
 const feedback_ops = @import("feedback.zig");
 const graphics_media = @import("graphics_media.zig");
 const process_io_ops = @import("process_io.zig");
-const resize_ops = @import("resize.zig");
 const metadata_ops = @import("metadata.zig");
 const mode_effects = @import("mode_effects.zig");
 const program_status_feed = @import("program_status_feed.zig");
-const reflow_hyperlinks = @import("reflow_hyperlinks.zig");
 const scrollback_compression_ops = @import("scrollback_compression.zig");
+const terminal_geometry_effects = @import("terminal_geometry_effects.zig");
 const terminal_reply = @import("terminal_reply.zig");
 
 pub fn writePtyEffect(handler: *ghostty_vt.TerminalStream.Handler, bytes: []const u8) void {
@@ -78,7 +76,7 @@ pub fn modeChangedEffect(
     enabled: bool,
 ) bool {
     const self = runtimeFromHostHandler(handler);
-    if (mode == .enable_mode_3 and !restoreViewportGeometryEffect(handler)) {
+    if (mode == .enable_mode_3 and !terminal_geometry_effects.restoreViewportGeometryEffect(handler)) {
         return false;
     }
     mode_effects.streamModeChangedLocked(self, mode, enabled);
@@ -103,124 +101,6 @@ pub fn deviceAttributesEffect(handler: *ghostty_vt.TerminalStream.Handler) contr
 
 pub fn enquiryEffect(handler: *ghostty_vt.TerminalStream.Handler) []const u8 {
     return runtimeFromHandler(handler).profile.enquiry_response;
-}
-
-pub fn columnModeEffect(handler: *terminal_stream.Handler, enabled: bool) bool {
-    const self = runtimeFromHostHandler(handler);
-    std.debug.assert(self.reader_commit_in_progress);
-    const terminal = handler.terminal_handler.terminal;
-    const target_columns: u16 = if (enabled) 132 else 80;
-    const next_geometry: terminal_geometry.Geometry = .{
-        .cell_pixel_height = self.cell_pixel_height,
-        .cell_pixel_width = self.cell_pixel_width,
-        .columns = target_columns,
-        .rows = terminal.rows,
-    };
-    return terminalDrivenGeometryEffect(
-        self,
-        terminal,
-        next_geometry,
-        .{ .column_mode = enabled },
-    );
-}
-
-const TerminalGeometryMutation = union(enum) {
-    column_mode: bool,
-    viewport,
-};
-
-fn restoreViewportGeometryEffect(handler: *terminal_stream.Handler) bool {
-    const self = runtimeFromHostHandler(handler);
-    std.debug.assert(self.reader_commit_in_progress);
-    return terminalDrivenGeometryEffect(
-        self,
-        handler.terminal_handler.terminal,
-        self.viewport_geometry,
-        .viewport,
-    );
-}
-
-fn terminalDrivenGeometryEffect(
-    self: *state.State,
-    terminal: *ghostty_vt.Terminal,
-    next_geometry: terminal_geometry.Geometry,
-    mutation: TerminalGeometryMutation,
-) bool {
-    const previous_geometry: terminal_geometry.Geometry = .{
-        .cell_pixel_height = self.cell_pixel_height,
-        .cell_pixel_width = self.cell_pixel_width,
-        .columns = terminal.cols,
-        .rows = terminal.rows,
-    };
-    const geometry_changes = !terminal_geometry.eql(previous_geometry, next_geometry);
-
-    if (geometry_changes) {
-        std.debug.assert(!self.resize_effect_in_flight);
-        self.resize_effect_in_flight = true;
-        self.terminal_mutex.unlock();
-        const resize_result = resize_ops.resizePtyEffect(self, previous_geometry, next_geometry);
-        resize_ops.notifyResizeEffectReturned(self);
-        self.terminal_mutex.lock();
-        resize_result catch {
-            self.resize_fenced.store(true, .release);
-            self.terminal_resize_failure_pending = true;
-            resize_ops.finishResizeEffectLocked(self);
-            return false;
-        };
-    }
-
-    applyTerminalGeometryMutation(self, terminal, next_geometry, mutation) catch {
-        self.resize_fenced.store(true, .release);
-        if (geometry_changes) {
-            self.terminal_mutex.unlock();
-            resize_ops.restorePtyGeometry(self, next_geometry, previous_geometry) catch {};
-            self.terminal_mutex.lock();
-            resize_ops.finishResizeEffectLocked(self);
-        }
-        self.terminal_resize_failure_pending = true;
-        return false;
-    };
-
-    self.terminal_driven_resize_target = next_geometry;
-    if (geometry_changes) {
-        mode_effects.geometryCommittedLocked(self);
-        resize_ops.finishResizeEffectLocked(self);
-    }
-    return true;
-}
-
-fn applyTerminalGeometryMutation(
-    self: *state.State,
-    terminal: *ghostty_vt.Terminal,
-    next_geometry: terminal_geometry.Geometry,
-    mutation: TerminalGeometryMutation,
-) !void {
-    switch (mutation) {
-        .column_mode => |enabled| {
-            if (terminal.modes.get(.enable_mode_3)) reflow_hyperlinks.fitReflow(terminal, if (enabled) 132 else 80);
-            try terminal.deccolm(
-                terminal.screens.active.alloc,
-                if (enabled) .@"132_cols" else .@"80_cols",
-            );
-        },
-        .viewport => {
-            reflow_hyperlinks.fitReflow(terminal, next_geometry.columns);
-            try terminal.resize(
-                self.allocator,
-                .{
-                    .cell_size_px = .{
-                        .height = next_geometry.cell_pixel_height,
-                        .width = next_geometry.cell_pixel_width,
-                    },
-                    .cols = next_geometry.columns,
-                    .rows = next_geometry.rows,
-                },
-            );
-            self.cell_pixel_width = next_geometry.cell_pixel_width;
-            self.cell_pixel_height = next_geometry.cell_pixel_height;
-        },
-    }
-    self.stream.handler.resized();
 }
 
 pub fn sizeEffect(
@@ -287,6 +167,7 @@ fn commitObservedReaderBatch(
     self: *state.State,
     bytes: []const u8,
 ) contracts.ReaderBatchOutcome {
+    graphics_media.releaseFinishedRead(self);
     var rest = bytes;
     var media: ?graphics_media.Loaded = null;
     while (true) {
