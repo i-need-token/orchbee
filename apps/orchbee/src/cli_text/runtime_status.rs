@@ -5,19 +5,19 @@ pub(super) fn help(locale: Locale, server: bool) -> crate::cli_text::HelpDetails
     match (locale, server) {
         (Locale::EnUs, false) => crate::cli_text::HelpDetails::new(
             "orchbee status client [--format text|json]",
-            "Windows: inspect this executable's version, platform, architecture, path and\nvalidated installation files without contacting a Server. Missing or invalid\ninstallation files are reported explicitly; their I/O details appear in JSON.\nInstalled release identity is bound to its installation files; configured channel\npreference is independent. One five-second collection budget; creates and changes nothing.\nJSON schema: orchbee.status.client (v1).",
+            "Windows and macOS: inspect this executable's version, platform, architecture,\npath and validated installation files without contacting a Server. Missing or\ninvalid installation files are reported explicitly; their I/O details appear in\nJSON. Installed release identity is bound to its installation files; configured\nchannel preference is independent. One five-second collection budget; creates\nand changes nothing.\nJSON schema: orchbee.status.client (v1).",
         ),
         (Locale::ZhCn, false) => crate::cli_text::HelpDetails::new(
             "orchbee status client [--format text|json]",
-            "Windows：检查当前程序的版本、平台、架构、路径及已验证的安装文件，不联系 Server。明确报告缺失或无效的安装文件；JSON 会包含其 I/O 详情。已安装版本身份绑定对应安装文件，与配置的频道偏好相互独立。采集共用五秒时限，不创建或修改任何内容。\nJSON schema：orchbee.status.client（v1）。",
+            "Windows 和 macOS：检查当前程序的版本、平台、架构、路径及已验证的安装文件，不联系 Server。明确报告缺失或无效的安装文件；JSON 会包含其 I/O 详情。已安装版本身份绑定对应安装文件，与配置的频道偏好相互独立。采集共用五秒时限，不创建或修改任何内容。\nJSON schema：orchbee.status.client（v1）。",
         ),
         (Locale::EnUs, true) => crate::cli_text::HelpDetails::new(
             "orchbee status server [--format text|json]",
-            "Windows: list the selected local Session's processes (Server, its Worker, then\nthe Terminal Hosts connected to it) with each version, PID, state and terminal\ncount, and whether Restart Session keeps terminals. A Host that does not answer\nin time is left out. Uses one read-only request, never a Client Connection: does\nnot start a session or restart anything. One five-second collection budget. No\nServer at this scope exits 0; a Session too old to answer or from another\nenvironment is incompatible (exit 6), not absent.\nJSON schema: orchbee.status.server (v1).",
+            "Windows and macOS: list the selected local Session's processes (Server, its\nWorker, then the Terminal Hosts connected to it) with each version, PID, state\nand terminal count, and whether Restart Session keeps terminals. A Host that\ndoes not answer in time is left out. Uses one read-only request, never a Client\nConnection: does not start a session or restart anything. One five-second\ncollection budget. No Server at this scope exits 0; a Session too old to answer\nor from another environment is incompatible (exit 6), not absent.\nJSON schema: orchbee.status.server (v1).",
         ),
         (Locale::ZhCn, true) => crate::cli_text::HelpDetails::new(
             "orchbee status server [--format text|json]",
-            "Windows：列出选中本地会话的进程（Server、其 Worker，以及连接到该 Worker 的 Terminal Host），包括各自的版本、PID、状态和终端数，以及重启会话是否保留终端。未及时应答的 Terminal Host 不会列出。只发送一次只读请求，不建立客户端连接，不启动会话，也不重启任何内容。采集共用五秒时限。该作用域没有 Server 时退出 0；会话版本过旧无法应答或属于另一环境时报告不兼容（退出 6），不误报为不存在。\nJSON schema：orchbee.status.server（v1）。",
+            "Windows 和 macOS：列出选中本地会话的进程（Server、其 Worker，以及连接到该 Worker 的 Terminal Host），包括各自的版本、PID、状态和终端数，以及重启会话是否保留终端。未及时应答的 Terminal Host 不会列出。只发送一次只读请求，不建立客户端连接，不启动会话，也不重启任何内容。采集共用五秒时限。该作用域没有 Server 时退出 0；会话版本过旧无法应答或属于另一环境时报告不兼容（退出 6），不误报为不存在。\nJSON schema：orchbee.status.server（v1）。",
         ),
     }
 }
