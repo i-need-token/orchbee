@@ -241,7 +241,11 @@ pub(crate) fn directory(topic: HelpTopic, locale: Locale) -> Document {
                     .cli_help_text(HelpText::Examples)
                     .into(),
                 examples: vec![row(
-                    "orchbee completion powershell",
+                    if cfg!(windows) {
+                        "orchbee completion powershell"
+                    } else {
+                        "orchbee completion zsh"
+                    },
                     CliText::new(locale).cli_help_text(HelpText::CompletionExample),
                 )],
             },

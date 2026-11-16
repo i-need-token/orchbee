@@ -161,6 +161,10 @@ pub(super) fn usage_value(usage: &str, flag: &str) -> Option<String> {
     None
 }
 
+/// The line continuation of the shell the examples are written for: PowerShell's backtick on
+/// Windows, the backslash of zsh and bash elsewhere. Both shells read the single quotes alike.
+const CONTINUATION: char = if cfg!(windows) { '`' } else { '\\' };
+
 fn example(path: CommandPath) -> String {
     example_with_options(path, &[])
 }
@@ -177,7 +181,7 @@ fn example_with_options(path: CommandPath, options: &[&str]) -> String {
             words.push(format!("'{argument}'"));
         }
     }
-    let continuation = '`';
+    let continuation = CONTINUATION;
     let mut output = String::new();
     let mut line = String::new();
     // Reserve four indentation cells and two cells for the shell continuation.

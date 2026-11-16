@@ -75,13 +75,13 @@ pub(super) const HELP_PANEL_CURRENT_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_PANEL_PROCESS_INFO_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee panel process-info [<panel> | --current] [--client <id>] [--format text|json]",
-        "Read the primary Terminal's Windows Job process information. Complete Panel IDs\nand @panel:0x<hex> are accepted. Explicit Panel selectors are exclusive and conflict\nwith --client. Otherwise use validated caller context; only when both caller variables\nare absent, select the only current TUI Client. --client selects a Client and ignores\ncaller environment. Partial, invalid or stale caller metadata never falls back.\nThe Client must be ready or busy with a valid selected Panel. Each sample reports owned\nprocesses with PID, creation time, image, command line and cwd; unavailable optional\nfields are null. Five-second total deadline; Ctrl+C cancels. No focus or input changes.",
+        "Read the processes the primary Terminal owns: its Windows Job, or its own\nprocess session on macOS and Linux. Complete Panel IDs\nand @panel:0x<hex> are accepted. Explicit Panel selectors are exclusive and conflict\nwith --client. Otherwise use validated caller context; only when both caller variables\nare absent, select the only current TUI Client. --client selects a Client and ignores\ncaller environment. Partial, invalid or stale caller metadata never falls back.\nThe Client must be ready or busy with a valid selected Panel. Each sample reports owned\nprocesses with PID, creation time, image, command line and cwd; unavailable optional\nfields are null. Five-second total deadline; Ctrl+C cancels. No focus or input changes.",
     );
 
 pub(super) const HELP_PANEL_PROCESS_INFO_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee panel process-info [<panel> | --current] [--client <id>] [--format text|json]",
-        "读取主 Terminal 的 Windows Job 进程信息，接受完整面板 ID 或 @panel:0x<hex>。显式面板选择器互斥，也不能与 --client 同用。否则使用经校验的调用者上下文；仅当两个调用者变量均缺失时，选择唯一 current TUI 客户端。--client 指定客户端\n并忽略调用者环境。部分缺失、无效或过期的调用者信息绝不回退。客户端必须已就绪且所选面板仍有效。样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；不可用的可选字段为 null。总期限五秒；Ctrl+C 取消。不改变焦点或输入。",
+        "读取主 Terminal 拥有的进程：Windows 上为其 Windows Job，macOS 与 Linux 上为其独立进程会话。接受完整面板 ID 或 @panel:0x<hex>。显式面板选择器互斥，也不能与 --client 同用。否则使用经校验的调用者上下文；仅当两个调用者变量均缺失时，选择唯一 current TUI 客户端。--client 指定客户端\n并忽略调用者环境。部分缺失、无效或过期的调用者信息绝不回退。客户端必须已就绪且所选面板仍有效。样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；不可用的可选字段为 null。总期限五秒；Ctrl+C 取消。不改变焦点或输入。",
     );
 
 pub(super) const HELP_PANEL_SWAP_EN: crate::cli_text::HelpDetails =

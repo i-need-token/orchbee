@@ -724,7 +724,8 @@ impl super::CliText {
             HelpText::Options => ("Options", "选项"),
             HelpText::Arguments => ("Arguments", "参数"),
             HelpText::Notes => ("Details and constraints", "说明与限制"),
-            HelpText::Examples => ("Examples (PowerShell)", "示例（PowerShell）"),
+            HelpText::Examples if cfg!(windows) => ("Examples (PowerShell)", "示例（PowerShell）"),
+            HelpText::Examples => ("Examples (zsh, bash)", "示例（zsh、bash）"),
 
             HelpText::GlobalOptions => ("Global options", "全局选项"),
             HelpText::Terminals => ("Terminals and layout", "终端与布局"),
@@ -770,10 +771,13 @@ impl super::CliText {
                 "Print a shell completion script to stdout. Nothing is installed and no user files are changed.",
                 "向标准输出打印 Shell 补全脚本；不安装内容，不更改用户文件。",
             ),
-            HelpText::CompletionExample => (
+            HelpText::CompletionExample if cfg!(windows) => (
                 "Print the PowerShell completion script.",
                 "输出 PowerShell 补全脚本。",
             ),
+            HelpText::CompletionExample => {
+                ("Print the zsh completion script.", "输出 zsh 补全脚本。")
+            }
         };
         match self.locale {
             Locale::EnUs => english,

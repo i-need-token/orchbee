@@ -206,11 +206,17 @@ impl super::CliText {
             (Locale::ZhCn, Some("terminal-too-old"), ..) => {
                 "未输入任何内容：目标终端由旧版 Orchbee 启动。请新开一个终端。"
             }
-            (Locale::EnUs, _, "prompt-unconfirmed", "unmarked") => {
+            (Locale::EnUs, _, "prompt-unconfirmed", "unmarked") if cfg!(windows) => {
                 "Nothing was typed: the target terminal has not shown a marked prompt. Wait for the prompt, or use a PowerShell or cmd terminal started by Orchbee."
             }
-            (Locale::ZhCn, _, "prompt-unconfirmed", "unmarked") => {
+            (Locale::EnUs, _, "prompt-unconfirmed", "unmarked") => {
+                "Nothing was typed: the target terminal has not shown a marked prompt. Wait for the prompt, or use a zsh or bash terminal started by Orchbee."
+            }
+            (Locale::ZhCn, _, "prompt-unconfirmed", "unmarked") if cfg!(windows) => {
                 "未输入任何内容：目标终端还没有出现带标记的提示符。请等提示符出现，或改用 Orchbee 启动的 PowerShell 或 cmd 终端。"
+            }
+            (Locale::ZhCn, _, "prompt-unconfirmed", "unmarked") => {
+                "未输入任何内容：目标终端还没有出现带标记的提示符。请等提示符出现，或改用 Orchbee 启动的 zsh 或 bash 终端。"
             }
             (Locale::EnUs, _, "prompt-unconfirmed", _) => {
                 "Nothing was typed: the target shell is not waiting at an empty prompt. Finish the running program, or clear the input line and press Enter for a new prompt, then retry. If PROMPT was changed in that terminal, open a new one."
@@ -253,11 +259,17 @@ impl super::CliText {
 
     fn cli_agent_start_reason(self, locale: Locale, reason: &str) -> &'static str {
         match (locale, reason) {
-            (Locale::EnUs, "terminal-not-idle") => {
+            (Locale::EnUs, "terminal-not-idle") if cfg!(windows) => {
                 "The target must be an idle cmd, PowerShell or pwsh terminal with no other running command."
             }
-            (Locale::ZhCn, "terminal-not-idle") => {
+            (Locale::EnUs, "terminal-not-idle") => {
+                "The target must be an idle zsh or bash terminal with no other running command."
+            }
+            (Locale::ZhCn, "terminal-not-idle") if cfg!(windows) => {
                 "目标必须是空闲的 cmd、PowerShell 或 pwsh 终端，且没有其他命令正在运行。"
+            }
+            (Locale::ZhCn, "terminal-not-idle") => {
+                "目标必须是空闲的 zsh 或 bash 终端，且没有其他命令正在运行。"
             }
             (Locale::EnUs, "name-in-use" | "presentation-busy") => {
                 "The Agent name or terminal is already in use. Inspect `orchbee agent list`."
@@ -271,12 +283,16 @@ impl super::CliText {
             (Locale::ZhCn, "own-panel") => {
                 "--here 不能在运行本命令的面板中输入。请改用 --new-tab，或用 --panel <id> 指定另一个面板。"
             }
-            (Locale::EnUs, "command-too-long") => {
+            (Locale::EnUs, "command-too-long") if cfg!(windows) => {
                 "The encoded Windows launch command exceeds 8000 characters. Reduce the arguments."
             }
-            (Locale::ZhCn, "command-too-long") => {
+            (Locale::EnUs, "command-too-long") => {
+                "The launch command exceeds 8000 characters. Reduce the arguments."
+            }
+            (Locale::ZhCn, "command-too-long") if cfg!(windows) => {
                 "编码后的 Windows 启动命令超过 8000 个字符，请缩短参数。"
             }
+            (Locale::ZhCn, "command-too-long") => "启动命令超过 8000 个字符，请缩短参数。",
             (Locale::EnUs, "start-deadline") => {
                 "Agent startup did not finish before the deadline; its command may still be running. Inspect its terminal."
             }
@@ -297,11 +313,17 @@ impl super::CliText {
             (Locale::ZhCn, "command-not-found") => {
                 "找不到命令：shell 已回到提示符，且没有出现智能体进程。请检查其终端输出。"
             }
-            (Locale::EnUs, "launch-command-failed") => {
+            (Locale::EnUs, "launch-command-failed") if cfg!(windows) => {
                 "The launch command failed in PowerShell before the Agent started, for example because the provider was not found. Inspect its terminal output."
             }
-            (Locale::ZhCn, "launch-command-failed") => {
+            (Locale::EnUs, "launch-command-failed") => {
+                "The launch command failed in the shell before the Agent started, for example because the provider was not found. Inspect its terminal output."
+            }
+            (Locale::ZhCn, "launch-command-failed") if cfg!(windows) => {
                 "启动命令在 PowerShell 中执行失败，智能体未能启动，例如找不到提供方程序。请检查其终端输出。"
+            }
+            (Locale::ZhCn, "launch-command-failed") => {
+                "启动命令在 shell 中执行失败，智能体未能启动，例如找不到提供方程序。请检查其终端输出。"
             }
             (Locale::EnUs, "agent-provider-mismatch" | "agent-runtime-ambiguous") => {
                 "The running Agent does not uniquely match the requested provider."

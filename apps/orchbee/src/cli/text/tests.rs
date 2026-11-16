@@ -238,13 +238,13 @@ fn server_help_exposes_existing_stop_and_its_confirmation_boundary() {
 
 #[test]
 fn example_continuations_preserve_whole_quoted_operands() {
-    let marker = " `\n";
+    let marker = format!(" {}\n", super::CONTINUATION);
     for path in help_paths() {
         let HelpTopic::Command(command) = path.topic() else {
             continue;
         };
         let script = example(command);
-        let joined = script.replace(marker, " ");
+        let joined = script.replace(&marker, " ");
         assert!(!joined.contains('\n'), "{command:?}: {script}");
         assert!(
             script
