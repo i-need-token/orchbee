@@ -13,15 +13,7 @@
 const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 
-const saturated = ghostty_vt.page.Page.layout(.{
-    .cols = 1,
-    .rows = 1,
-    .hyperlink_bytes = std.math.maxInt(ghostty_vt.size.HyperlinkCountInt),
-});
-// Half of each saturated table stays below its maximum load factor (80% for the cell map and
-// 81.25% for the link set), so every copy fits after the increases the reflow already makes.
-const linked_cell_budget: usize = saturated.hyperlink_map_layout.capacity / 2;
-const link_budget: usize = saturated.hyperlink_set_layout.cap / 2;
+const hyperlink_budget = @import("../hyperlink_budget.zig");
 
 /// Drops hyperlinks from the oldest primary-screen rows when a resize to `columns` would reflow
 /// more of them than one page can hold. The caller holds the terminal mutex.
@@ -29,15 +21,14 @@ pub fn fitReflow(terminal: *ghostty_vt.Terminal, columns: u16) void {
     if (columns == terminal.cols or !terminal.modes.get(.wraparound)) return;
     const screen = terminal.screens.get(.primary) orelse return;
     // The reflow restores every compressed page it copies, so reading them first adds no work.
-    var linked_cells: usize = 0;
-    var links: usize = 0;
+    var usage: hyperlink_budget.Usage = .{};
     var node = screen.pages.pages.first;
     while (node) |current| : (node = current.next) {
         const page = current.page();
-        linked_cells += page.hyperlinkCount();
-        links += page.hyperlink_set.count();
+        usage.linked_cells += page.hyperlinkCount();
+        usage.links += page.hyperlink_set.count();
     }
-    if (linked_cells <= linked_cell_budget and links <= link_budget) return;
+    if (usage.fits()) return;
 
     // The totals shrink by what each row actually released, so they stay exact and never wrap.
     var dropped: usize = 0;
@@ -45,21 +36,12 @@ pub fn fitReflow(terminal: *ghostty_vt.Terminal, columns: u16) void {
     pages: while (node) |current| : (node = current.next) {
         const page = current.page();
         for (page.rows.ptr(page.memory)[0..page.size.rows]) |*row| {
-            if (linked_cells <= linked_cell_budget and links <= link_budget) break :pages;
+            if (usage.fits()) break :pages;
             if (!row.hyperlink) continue;
-            const cells_before = page.hyperlinkCount();
-            const links_before = page.hyperlink_set.count();
-            for (page.getCells(row)) |*cell| {
-                if (!cell.hyperlink) continue;
-                page.clearHyperlink(cell);
-                cell.hyperlink = false;
-            }
-            row.hyperlink = false;
-            row.dirty = true;
-            const released = cells_before - page.hyperlinkCount();
-            linked_cells -= released;
-            dropped += released;
-            links -= links_before - page.hyperlink_set.count();
+            const released = hyperlink_budget.dropRowLinks(page, row);
+            usage.linked_cells -= released.linked_cells;
+            usage.links -= released.links;
+            dropped += released.linked_cells;
         }
     }
     std.log.warn("dropped the hyperlinks of {d} older cells that a reflow could not hold", .{dropped});

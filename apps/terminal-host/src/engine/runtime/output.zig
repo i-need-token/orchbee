@@ -219,6 +219,7 @@ fn applyTerminalGeometryMutation(
             self.cell_pixel_height = next_geometry.cell_pixel_height;
         },
     }
+    self.stream.handler.resized();
 }
 
 pub fn sizeEffect(

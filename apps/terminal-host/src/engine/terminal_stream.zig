@@ -3,6 +3,8 @@ const builtin = @import("builtin");
 
 const ghostty_vt = @import("ghostty-vt");
 
+const hyperlink_budget = @import("hyperlink_budget.zig");
+
 /// Ghostty requires an allocator for OSC color operations and for a few OSC
 /// payloads that may exceed its fixed parser buffer. Keep those child-driven
 /// allocations bounded per terminal while admitting the allocation-backed
@@ -112,6 +114,7 @@ pub const Handler = struct {
     semantic_prompt: ?*const fn (*Handler, ghostty_vt.StreamAction.SemanticPrompt) void = null,
     metadata_reset: ?*const fn (*Handler) void = null,
     discard_actions: bool = false,
+    hyperlinks: hyperlink_budget.Admission = .{},
 
     pub fn init(terminal: *ghostty_vt.Terminal) Handler {
         restorePromptRedrawDefault(terminal);
@@ -132,13 +135,24 @@ pub const Handler = struct {
         self.discard_actions = false;
     }
 
+    /// Restores the hyperlink budget that row moves rely on; call after every terminal resize.
+    pub fn resized(self: *Handler) void {
+        hyperlink_budget.fitActive(self.terminal_handler.terminal);
+        self.hyperlinks.invalidate();
+    }
+
     pub fn vt(
         self: *Handler,
         comptime action: ghostty_vt.StreamAction.Tag,
         value: ghostty_vt.StreamAction.Value(action),
     ) void {
         if (self.discard_actions) return;
+        const screen = self.terminal_handler.terminal.screens.active;
         switch (action) {
+            .print => self.hyperlinks.admitPrint(screen, 1),
+            .print_slice => self.hyperlinks.admitPrint(screen, value.cps.len),
+            .print_repeat => self.hyperlinks.admitPrint(screen, value),
+            .start_hyperlink => if (!self.hyperlinks.admitLink(screen)) return,
             .set_mode => {
                 if (self.handleColumnMode(value, true)) return;
                 self.terminal_handler.vt(action, value);

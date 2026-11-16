@@ -611,3 +611,48 @@ test "program output fuzz: a reflow after a long hyperlinked listing keeps the t
     }
     try harness.subject.testing.checkInvariants(terminal.runtime);
 }
+
+// Found by seeds 1 and 2: a scroll that crosses a page boundary copies a hyperlinked row into the
+// page above, and Ghostty panics when that page's link map is already saturated. Linked rows fill
+// the first page, the active area straddles its end, and a scroll region pulls the next page's
+// rows up into it. Like the reflow case, it links tens of thousands of cells.
+test "program output fuzz: a region scroll across a page filled with links keeps the terminal and later links" {
+    if (builtin.mode == .Debug) return error.SkipZigTest;
+    var terminal: Terminal = .{};
+    try terminal.start();
+    defer terminal.stop();
+    const page_rows = page_rows: {
+        const state = harness.runtimeState(terminal.runtime);
+        state.terminal_mutex.lock();
+        defer state.terminal_mutex.unlock();
+        break :page_rows state.terminal.screens.active.pages.pages.first.?.capacity().rows;
+    };
+    var line: [128]u8 = undefined;
+    // Each line feeds one row; the active area's top 12 rows end the first page.
+    for (0..page_rows + 11) |number| {
+        var writer: std.Io.Writer = .fixed(&line);
+        try writer.print("\x1b]8;;f:{d}\x1b\\", .{number});
+        try writer.splatByteAll('f', 80);
+        try writer.writeAll("\x1b]8;;\x1b\\\r\n");
+        try std.testing.expectEqual(.committed, commitReaderBatch(terminal.runtime, writer.buffered()));
+    }
+
+    try std.testing.expectEqual(.committed, commitReaderBatch(terminal.runtime, "\x1b[2;24r\x1b[24;1H\n\n\n\n\x1b[r"));
+    try std.testing.expect(terminal.runtime.primaryFailure() == null);
+    // Once the full first page leaves the active area, new links fit again.
+    for (0..60) |number| {
+        var writer: std.Io.Writer = .fixed(&line);
+        try writer.print("\r\n\x1b]8;;g:{d}\x1b\\g\x1b]8;;\x1b\\", .{number});
+        try std.testing.expectEqual(.committed, commitReaderBatch(terminal.runtime, writer.buffered()));
+    }
+    try terminal.project();
+    {
+        const state = harness.runtimeState(terminal.runtime);
+        state.terminal_mutex.lock();
+        defer state.terminal_mutex.unlock();
+        const screen = state.terminal.screens.active;
+        const newest = screen.pages.pin(.{ .active = .{ .x = 0, .y = screen.cursor.y } }).?;
+        try std.testing.expect(newest.rowAndCell().cell.hyperlink);
+    }
+    try harness.subject.testing.checkInvariants(terminal.runtime);
+}

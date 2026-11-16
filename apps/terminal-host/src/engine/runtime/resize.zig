@@ -162,6 +162,7 @@ pub fn resizeGeometry(
             if (rollback_failed) return error.ResizeRollbackFailed;
             return err;
         };
+        self.stream.handler.resized();
     }
     self.cell_pixel_width = cell_pixel_width;
     self.cell_pixel_height = cell_pixel_height;
