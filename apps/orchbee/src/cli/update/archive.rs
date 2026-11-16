@@ -3,7 +3,8 @@
 //! feed, and unpacking. Nothing from the archive is unpacked before that check passes: unpacking
 //! takes a [`Verified`] archive, which only [`Download::fetch`] returns, and only after the check.
 //!
-//! The folder holds `download.lock`, `archive.zip` and `unpacked\`. Whoever holds the lock removes
+//! The folder holds `download.lock`, the archive (`archive.zip` on Windows, `archive.tar.gz` on
+//! macOS, the feed's format as its extension) and `unpacked\`. Whoever holds the lock removes
 //! the archive and the unpacked tree when it takes the lock and again when it finishes, so a run
 //! that crashed leaves at most one of each for the next run to remove. The folder and its lock file
 //! stay, like `install.lock`. The lock is always taken before `install.lock`, and `install` never
@@ -22,15 +23,18 @@ use std::{
 pub(super) const FOLDER: &str = ".download";
 /// The record name of the folder's lock, `download.lock`.
 const LOCK: &str = "download";
-const ARCHIVE: &str = "archive.zip";
+#[cfg(windows)]
+pub(super) const ARCHIVE: &str = "archive.zip";
+#[cfg(not(windows))]
+pub(super) const ARCHIVE: &str = "archive.tar.gz";
 const UNPACKED: &str = "unpacked";
 /// The only arguments `tar.exe` receives: fixed ASCII words naming the archive beside its working
 /// directory, `unpacked\`, so no path of the person's computer is an argument. The archive's one
 /// top-level folder is the signed release directory, so its files land directly in `unpacked\`.
+#[cfg(windows)]
 const UNPACK_ARGUMENTS: [&str; 5] = ["-x", "-f", r"..\archive.zip", "--strip-components", "1"];
 
-/// Unpacks the verified `..\archive.zip` into the empty private folder it receives, which is also
-/// its working directory.
+/// Unpacks the verified archive beside the empty private folder it receives into that folder.
 pub(super) type Unpack<'a> = &'a dyn Fn(&Path, &mut Context) -> Result<(), Error>;
 
 /// The held download folder of one update.
@@ -122,7 +126,7 @@ impl Download {
     ///
     /// # Errors
     /// `storage` when the folder cannot be created or the unpack failed; `download-unavailable`
-    /// without `tar.exe`; cancellation and the deadline as themselves.
+    /// without the system tar; cancellation and the deadline as themselves.
     pub fn unpack(
         &mut self,
         archive: Verified,
@@ -154,7 +158,7 @@ impl Download {
         }
     }
 
-    /// Removes `archive.zip` and `unpacked\` from the held folder, following no link: a link in
+    /// Removes the archive and `unpacked\` from the held folder, following no link: a link in
     /// their place is removed as a link.
     fn clean(&self) -> io::Result<()> {
         let absent = |removed: io::Result<()>| match removed {
@@ -168,18 +172,37 @@ impl Download {
 
 /// The system `tar.exe` command that unpacks `..\archive.zip` into `unpacked`, its working
 /// directory: an absolute program path, a cleared environment and fixed arguments.
+#[cfg(windows)]
 pub(super) fn unpack_command(unpacked: &Path) -> io::Result<Command> {
     let mut command = platform::tar_command()?;
     command.current_dir(unpacked).args(UNPACK_ARGUMENTS);
     Ok(command)
 }
 
-/// Unpacks with the system `tar.exe`, owned by the invocation's Job under its deadline and Ctrl+C.
-/// Nothing is executed from the unpacked folder afterwards; the install reads only the files the
-/// signed manifest lists.
+/// The system `tar` command that unpacks the archive beside `unpacked` into it: an absolute program
+/// path, an empty environment, and the two private paths as its only variable arguments, since the
+/// launch sets no working directory. Both are absolute below the admitted store root, which holds
+/// no `:`, quote or control character, so neither reads as an option or a remote archive.
+#[cfg(not(windows))]
+pub(super) fn unpack_command(unpacked: &Path) -> io::Result<Command> {
+    let folder = unpacked.parent().ok_or(io::ErrorKind::InvalidInput)?;
+    let mut command = platform::tar_command()?;
+    command
+        .arg("-x")
+        .arg("-f")
+        .arg(folder.join(ARCHIVE))
+        .arg("-C")
+        .arg(unpacked)
+        .args(["--strip-components", "1"]);
+    Ok(command)
+}
+
+/// Unpacks with the system tar under the invocation's deadline and Ctrl+C, owned by its Job on
+/// Windows and by its process group on macOS. Nothing is executed from the unpacked folder
+/// afterwards; the install reads only the files the signed manifest lists.
 ///
 /// # Errors
-/// `download-unavailable` without `tar.exe`, `storage` when it fails, and cancellation, the
+/// `download-unavailable` without the system tar, `storage` when it fails, and cancellation, the
 /// deadline and an unknown end as themselves.
 pub(super) fn system_unpack(unpacked: &Path, context: &mut Context) -> Result<(), Error> {
     context.check()?;
@@ -192,6 +215,6 @@ pub(super) fn system_unpack(unpacked: &Path, context: &mut Context) -> Result<()
         Some(CommandFailure::Timeout) => Err(Error::Timeout),
         Some(CommandFailure::PhysicalUnknown) => Err(Error::PhysicalUnknown),
         Some(CommandFailure::SpawnUnavailable) => Err(Error::DownloadUnavailable),
-        Some(_) => Err(context.storage(unpacked, &io::Error::other("tar.exe failed"))),
+        Some(_) => Err(context.storage(unpacked, &io::Error::other("tar failed"))),
     }
 }

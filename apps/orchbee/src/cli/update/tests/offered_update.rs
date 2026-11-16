@@ -1,35 +1,40 @@
 //! `update` through the engine on a local signed feed: the decision from the feed and the store
 //! before any archive request, then one archive checked against the feed's signed size and SHA-256,
-//! unpacked by a stand-in step that copies a prepared release directory (the system `tar.exe` has
-//! its own cases below), and installed by the verified install. After every failure the versions,
+//! unpacked by a stand-in step that copies a prepared release directory (the system tar has its
+//! own cases below), and installed by the verified install. After every failure the versions,
 //! the pointer and the download folder are as they were, save the folder's lock. The automatic
-//! helper's run of the same engine has its own case: no PATH step, the launcher refreshed only
-//! where it exists, `busy` under either held lock, and one document as its whole answer.
+//! helper's run of the same engine has its own Windows case: no PATH step, the launcher refreshed
+//! only where it exists, `busy` under either held lock, and one document as its whole answer.
+//! macOS runs every case but that one and the junction's, with its own system tar's probes.
 use super::super::{
     Context, Error, Report,
     archive::{self, Unpack},
-    automatic, document, engine,
+    document, engine,
     install::Completion,
-    settle,
+    manifest::own_platform,
     signature::TEST_TABLE,
 };
+#[cfg(windows)]
+use super::super::{automatic, settle};
 use super::install_fixture::{
     Fixture, context, copy_into, entry_for, in_process_completion, manifest, never_unpack, pointer,
     print_probe, publish_manifest, sha, stage_cohort,
 };
 use super::{sign, sign_feed};
+#[cfg(windows)]
 use crate::{
     invocation::{OutputFormat, Request, parse_selected_request},
     localization::Locale,
     release_store::ReleaseStore,
 };
-use orchbee_local_runtime::{
-    AUTOMATIC_UPDATE_HELPER, PrivateCache, UpdateChannel, environment_stem,
-};
+#[cfg(windows)]
+use orchbee_local_runtime::{AUTOMATIC_UPDATE_HELPER, environment_stem};
+use orchbee_local_runtime::{PrivateCache, UpdateChannel};
 use serde_json::{Value, json};
+#[cfg(windows)]
+use std::ffi::OsString;
 use std::{
     cell::Cell,
-    ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
 };
@@ -77,9 +82,10 @@ fn offer(
     let release: Value = serde_json::from_slice(manifest).unwrap();
     let mut feed = json!({
         "schemaVersion": 1, "product": "orchbee", "channel": "stable",
-        "platform": "windows-x86_64", "version": version, "buildId": release["buildId"],
+        "platform": own_platform(), "version": version, "buildId": release["buildId"],
         "manifest": {"sha256": sha(manifest)},
-        "archive": {"format": "zip", "url": ARCHIVE, "size": archive.len(), "sha256": sha(archive)},
+        "archive": {"format": if cfg!(windows) { "zip" } else { "tar.gz" }, "url": ARCHIVE,
+            "size": archive.len(), "sha256": sha(archive)},
     });
     change(&mut feed);
     let bytes = serde_json::to_vec(&feed).unwrap();
@@ -265,7 +271,7 @@ fn update_installs_one_verified_archive_and_leaves_only_the_lock() {
     // What a crashed run left, and a file the signed manifest does not list (rule U4).
     let folder = root.join(archive::FOLDER);
     fs::create_dir_all(folder.join("unpacked/orchbee-0.2.0")).unwrap();
-    fs::write(folder.join("archive.zip"), b"partial").unwrap();
+    fs::write(folder.join(archive::ARCHIVE), b"partial").unwrap();
     let tree = fixture.0.join("unpacked-tree");
     copy_into(&newer, &tree);
     fs::write(tree.join("unlisted.exe"), b"never published").unwrap();
@@ -308,6 +314,7 @@ fn update_installs_one_verified_archive_and_leaves_only_the_lock() {
 
 /// Cleanup is the updater's one destructive step: a junction left at `.download\unpacked` is removed
 /// as a link, and the folder it points at keeps its files.
+#[cfg(windows)]
 #[test]
 fn cleanup_removes_a_junction_in_the_download_folder_without_following_it() {
     use std::os::windows::process::CommandExt;
@@ -464,7 +471,7 @@ fn a_refused_archive_changes_no_version_and_leaves_only_the_lock() {
 fn the_system_tar_unpacks_the_one_top_folder_from_fixed_arguments_and_refuses_a_bad_archive() {
     let fixture = Fixture::new();
     // A store root with a space, a Chinese character and a character outside the system code page
-    // (rule U3): no part of it is ever an argument.
+    // (rule U3): on Windows no part of it is ever an argument; on macOS it unpacks as spelled.
     let folder = fixture.0.join("store 中 \u{1200}").join(archive::FOLDER);
     let unpacked = folder.join("unpacked");
     fs::create_dir_all(&unpacked).unwrap();
@@ -472,31 +479,61 @@ fn the_system_tar_unpacks_the_one_top_folder_from_fixed_arguments_and_refuses_a_
     let command = archive::unpack_command(&unpacked).unwrap();
     let program = Path::new(command.get_program());
     assert!(program.is_absolute(), "{program:?}");
-    assert!(
-        program.ends_with(r"System32\tar.exe") || program.ends_with(r"system32\tar.exe"),
-        "{program:?}"
-    );
-    let arguments: Vec<_> = command.get_args().collect();
-    assert_eq!(
-        arguments,
-        ["-x", "-f", r"..\archive.zip", "--strip-components", "1"]
-    );
-    let environment: Vec<_> = command.get_envs().map(|(name, _)| name).collect();
-    assert_eq!(environment, ["SystemRoot"]);
-    assert_eq!(command.get_current_dir(), Some(unpacked.as_path()));
+    #[cfg(windows)]
+    {
+        assert!(
+            program.ends_with(r"System32\tar.exe") || program.ends_with(r"system32\tar.exe"),
+            "{program:?}"
+        );
+        let arguments: Vec<_> = command.get_args().collect();
+        assert_eq!(
+            arguments,
+            ["-x", "-f", r"..\archive.zip", "--strip-components", "1"]
+        );
+        let environment: Vec<_> = command.get_envs().map(|(name, _)| name).collect();
+        assert_eq!(environment, ["SystemRoot"]);
+        assert_eq!(command.get_current_dir(), Some(unpacked.as_path()));
+    }
+    // The launch sets no working directory there, so the archive and the folder are the only
+    // paths, and the environment is empty.
+    #[cfg(target_os = "macos")]
+    {
+        use std::ffi::OsStr;
+        assert_eq!(program, Path::new("/usr/bin/tar"));
+        let arguments: Vec<&OsStr> = command.get_args().collect();
+        let archive_path = folder.join(archive::ARCHIVE);
+        let expected: [&OsStr; 7] = [
+            "-x".as_ref(),
+            "-f".as_ref(),
+            archive_path.as_os_str(),
+            "-C".as_ref(),
+            unpacked.as_os_str(),
+            "--strip-components".as_ref(),
+            "1".as_ref(),
+        ];
+        assert_eq!(arguments, expected);
+        assert_eq!(command.get_envs().count(), 0);
+        assert_eq!(command.get_current_dir(), None);
+    }
 
-    // A zip whose one top folder is the release directory unpacks into `unpacked` directly.
+    // An archive whose one top folder is the release directory unpacks into `unpacked` directly.
     let packed = fixture.0.join("pack");
     fs::create_dir_all(packed.join("orchbee-0.2.0/sub")).unwrap();
     fs::write(packed.join("orchbee-0.2.0/release.json"), b"{}").unwrap();
     fs::write(packed.join("orchbee-0.2.0/sub/file.txt"), b"inside").unwrap();
-    let zip = std::process::Command::new(command.get_program())
+    #[cfg(windows)]
+    let create = ["-a", "-c", "-f", archive::ARCHIVE, "orchbee-0.2.0"];
+    #[cfg(target_os = "macos")]
+    let create = ["-c", "-z", "-f", archive::ARCHIVE, "orchbee-0.2.0"];
+    let packing = std::process::Command::new(command.get_program())
         .current_dir(&packed)
-        .args(["-a", "-c", "-f", "archive.zip", "orchbee-0.2.0"])
+        .args(create)
+        // No AppleDouble entries for the macOS metadata of the files written above.
+        .env("COPYFILE_DISABLE", "1")
         .output()
         .unwrap();
-    assert!(zip.status.success(), "{zip:?}");
-    fs::copy(packed.join("archive.zip"), folder.join("archive.zip")).unwrap();
+    assert!(packing.status.success(), "{packing:?}");
+    fs::copy(packed.join(archive::ARCHIVE), folder.join(archive::ARCHIVE)).unwrap();
     let mut context = context();
     let unpack = archive::system_unpack(&unpacked, &mut context);
     assert_eq!(unpack.err().map(Error::code), None);
@@ -506,7 +543,7 @@ fn the_system_tar_unpacks_the_one_top_folder_from_fixed_arguments_and_refuses_a_
     // Bytes that are not an archive fail the unpack as storage (rule U5).
     fs::remove_dir_all(&unpacked).unwrap();
     fs::create_dir(&unpacked).unwrap();
-    fs::write(folder.join("archive.zip"), b"not an archive").unwrap();
+    fs::write(folder.join(archive::ARCHIVE), b"not an archive").unwrap();
     assert_eq!(
         archive::system_unpack(&unpacked, &mut context)
             .err()
@@ -515,12 +552,14 @@ fn the_system_tar_unpacks_the_one_top_folder_from_fixed_arguments_and_refuses_a_
     );
 }
 
+#[cfg(windows)]
 thread_local! {
     /// Whether the last in-process completion on this thread was asked for the PATH step.
     static PATH_STEP: Cell<Option<bool>> = const { Cell::new(None) };
 }
 
 /// The in-process completion, recording whether its caller asked for the PATH step.
+#[cfg(windows)]
 fn recording_completion(
     root: &Path,
     version: &Path,
@@ -532,11 +571,13 @@ fn recording_completion(
 }
 
 /// The name the launcher takes in the store's `bin` folder.
+#[cfg(windows)]
 fn launcher_name() -> String {
     format!("{}.exe", environment_stem())
 }
 
 /// A signed release directory `name` of `version` whose launcher holds `launcher`.
+#[cfg(windows)]
 fn release_with_launcher(
     fixture: &Fixture,
     name: &str,
@@ -555,6 +596,7 @@ fn release_with_launcher(
     (source, bytes)
 }
 
+#[cfg(windows)]
 struct Automatic {
     result: Result<(), Error>,
     /// Whether the completion was asked for the PATH step; none when no completion ran.
@@ -565,6 +607,7 @@ struct Automatic {
 
 /// One run of the automatic helper from the fixture's feed: the engine as the helper composes it,
 /// with the recording in-process completion, answered as the helper answers a settled run.
+#[cfg(windows)]
 fn automatic(fixture: &Fixture, unpack: Unpack<'_>) -> Automatic {
     let data = fixture.0.join("data");
     let state = move |name: &str| (name == "ORCHBEE_HOME").then(|| data.clone().into_os_string());
@@ -618,6 +661,7 @@ fn automatic(fixture: &Fixture, unpack: Unpack<'_>) -> Automatic {
     }
 }
 
+#[cfg(windows)]
 #[test]
 fn the_automatic_helper_skips_the_path_step_and_refreshes_only_a_launcher_that_exists() {
     // The helper's grammar is frozen: its one word alone, answered in JSON. Anything more is not

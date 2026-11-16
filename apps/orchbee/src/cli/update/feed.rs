@@ -115,8 +115,15 @@ impl Feed {
     }
 }
 
-/// The archive format a feed for `platform` names: `zip` for Windows. Other platforms have no
-/// format yet, so their feeds are refused.
+/// The archive format a feed for `platform` names, as the release tool writes it
+/// (`scripts/release-feed.mjs`): `zip` for Windows and `tar.gz` for macOS and Linux. Other
+/// platforms have no format, so their feeds are refused.
 fn archive_format(platform: &str) -> Option<&'static str> {
-    platform.starts_with("windows-").then_some("zip")
+    if platform.starts_with("windows-") {
+        Some("zip")
+    } else if platform.starts_with("macos-") || platform.starts_with("linux-") {
+        Some("tar.gz")
+    } else {
+        None
+    }
 }

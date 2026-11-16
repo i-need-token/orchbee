@@ -70,7 +70,7 @@ commands! {
     MachineDisconnect => ["machine", "disconnect"], 1, Operand, Windows, true, false, false;
     ChannelShow => ["channel", "show"], 0, Operand, Windows, true, false, false;
     ChannelSet => ["channel", "set"], 1, Operand, Windows, true, false, false;
-    Update => ["update"], 0, Operand, Windows, true, false, false;
+    Update => ["update"], 0, Operand, Portable, true, false, false;
     Install => ["install"], 0, Operand, Portable, true, false, false;
     Uninstall => ["uninstall"], 0, Operand, Portable, true, false, false;
     ProjectList => ["project", "list"], 0, Operand, Portable, true, true, false;

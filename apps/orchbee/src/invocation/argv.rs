@@ -48,8 +48,9 @@ pub(crate) fn parse_selected_request(
     }
     if let Some(request) = automatic_update(&tokens) {
         // Its only reader is the Server, so a refusal before the update is a JSON document too.
+        // Execution admission refuses it where `update` does not run.
         return Ok(SelectedRequest {
-            availability: super::grammar::Availability::Windows,
+            availability: super::grammar::Availability::Portable,
             format: Some(OutputFormat::Json),
             request,
             session: None,

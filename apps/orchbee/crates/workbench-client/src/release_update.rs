@@ -1,7 +1,8 @@
 //! The TUI's Update control under the automatic-update proposal: whether the release store names a
 //! version newer than this Client active, whether that version can join the running Session, and
 //! how the TUI leaves for it. The store is read on a background thread; the switch itself is the
-//! TUI's exit, and the launcher that started it starts the active version.
+//! TUI's exit: a launcher that announced the relaunch protocol starts the active version, and
+//! without one, as on macOS, the TUI names the command that opens it.
 
 use crate::background_thread::BackgroundThread;
 use crate::localization::Locale;
@@ -40,8 +41,8 @@ pub(crate) struct Build {
     /// The automatic-update switch, `automatic_updates_live`.
     pub(crate) live: bool,
     pub(crate) kind: EnvironmentKind,
-    /// Only Windows keeps a release store and a launcher.
-    pub(crate) windows: bool,
+    /// Whether `orchbee update` writes this platform's release store: Windows and macOS, not Linux.
+    pub(crate) store: bool,
 }
 
 impl Build {
@@ -49,14 +50,14 @@ impl Build {
         Self {
             live: orchbee_local_runtime::automatic_updates_live(),
             kind: orchbee_local_runtime::environment_kind(),
-            windows: cfg!(windows),
+            store: cfg!(any(windows, target_os = "macos")),
         }
     }
 
     /// Whether any store state could make the control Ready: never behind the switch, in a
-    /// development build, which has no store, or off Windows.
+    /// development build, which has no store, or where no update writes the store.
     const fn offers_updates(self) -> bool {
-        self.live && self.windows && !matches!(self.kind, EnvironmentKind::Development)
+        self.live && self.store && !matches!(self.kind, EnvironmentKind::Development)
     }
 }
 
@@ -167,7 +168,7 @@ impl Updater {
             build: Build {
                 live: true,
                 kind: EnvironmentKind::Test,
-                windows: true,
+                store: true,
             },
             watcher: None,
             active: None,

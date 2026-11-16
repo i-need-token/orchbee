@@ -182,8 +182,11 @@ fn listing() -> (Vec<Listed>, bool) {
         .args(["-axo", "pid=,ppid=,comm="])
         .env_clear()
         .env("LC_ALL", "C");
-    let result = orchbee_local_runtime::run_unix_command(
+    // Retention runs this inside an install or update, whose thread blocks the interrupts it
+    // captures, so `ps` starts with an empty signal mask.
+    let result = orchbee_local_runtime::run_unmasked_unix_command(
         command,
+        orchbee_local_runtime::SpawnEnvironment::Cleared,
         LISTING_LIMIT,
         Some(Instant::now() + Duration::from_secs(5)),
         || Ok(false),

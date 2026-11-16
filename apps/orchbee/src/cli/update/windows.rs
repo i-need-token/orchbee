@@ -17,31 +17,11 @@ use std::{
 };
 use winsafe::{self as w, co};
 
-/// The update feed a release build reads when `ORCHBEE_UPDATE_FEED` is unset, before `{channel}`
-/// expansion; `{platform}` is this updater's own platform. Its signature document is the same
-/// address with `.sig`. Frozen from the first version that carries it: what the address serves
-/// changes by a website deploy, and it may redirect up to five times to another HTTPS host.
-const RELEASE_FEED: &str = "https://orchbee.com/update/{channel}/{platform}/feed.json";
-/// The public variable that names another feed: an absolute local path or an HTTPS address without
-/// a query. Frozen with the address.
-const FEED_VARIABLE: &str = "ORCHBEE_UPDATE_FEED";
-
 /// The proxy variables curl reads for an HTTPS transfer, the only part of this process's
 /// environment it receives. Windows looks environment names up without regard to case, so each
 /// name also finds its lower-case spelling, which curl prefers on other systems (curl(1),
 /// "ENVIRONMENT").
 const PROXY_VARIABLES: [&str; 3] = ["HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"];
-
-/// [`FEED_VARIABLE`]; when it is unset or empty, [`RELEASE_FEED`] for a release build and nothing
-/// for a development or test build, so only a release build ever reads the public feed. A
-/// non-Unicode value leaves the source unconfigured.
-pub(super) fn feed_source() -> Option<String> {
-    match std::env::var_os(FEED_VARIABLE) {
-        Some(value) if !value.is_empty() => value.into_string().ok(),
-        _ => orchbee_local_runtime::is_release()
-            .then(|| RELEASE_FEED.replace("{platform}", &super::manifest::own_platform())),
-    }
-}
 
 /// `ORCHBEE_INSTALL_DIR`, or `%LOCALAPPDATA%\Programs\Orchbee` for release and
 /// `%LOCALAPPDATA%\Programs\<stem>` for a development or test build, so only release names the

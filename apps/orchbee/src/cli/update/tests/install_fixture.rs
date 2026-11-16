@@ -195,7 +195,7 @@ impl Drop for Fixture {
 pub(super) fn context() -> Context {
     let give_up = Instant::now() + Duration::from_secs(30);
     loop {
-        match ArmedSignals::arm_interrupts_or_inherit() {
+        match ArmedSignals::arm_interrupts_except_linux() {
             Ok(signals) => {
                 return Context {
                     signals,
@@ -253,7 +253,7 @@ pub(super) fn in_process_completion(
 }
 
 /// The unpack step of a run that must end before any archive is unpacked.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn never_unpack(_unpacked: &Path, _context: &mut Context) -> Result<(), Error> {
     unreachable!("this run never unpacks an archive")
 }

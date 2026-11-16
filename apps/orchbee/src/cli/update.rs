@@ -1,6 +1,7 @@
-//! Windows release installation: `install` from the signed release directory the running Client
-//! sits in, cohort updates, save-then-update channel changes, the automatic helper the Session
-//! Server runs, and the completion helper a published copy runs; none starts a Session. This entry
+//! Native release installation: `install` from the signed release directory the running Client
+//! sits in, cohort updates on Windows and macOS, save-then-update channel changes on Windows, the
+//! automatic helper the Session Server runs, and the completion helper a published copy runs; none
+//! starts a Session. This entry
 //! layer owns the build checks and reads the release environment; the engine below it receives
 //! every location, key and command as a value.
 use crate::cli_text::CliText;
@@ -62,6 +63,27 @@ const DEADLINE: Duration = Duration::from_secs(600);
 /// Whether `update` admits a loopback feed address, fixed at compile time: only a test build does,
 /// so a release or development build never reads plain HTTP.
 const LOOPBACK: bool = matches!(environment_kind(), EnvironmentKind::Test);
+/// The update feed a release build reads when `ORCHBEE_UPDATE_FEED` is unset, before `{channel}`
+/// expansion; `{platform}` is this updater's own platform. Its signature document is the same
+/// address with `.sig`. Frozen from the first version that carries it: what the address serves
+/// changes by a website deploy, and it may redirect up to five times to another HTTPS host. A
+/// platform or channel without a release answers 404 there, which the update reports as
+/// `no-release`.
+const RELEASE_FEED: &str = "https://orchbee.com/update/{channel}/{platform}/feed.json";
+/// The public variable that names another feed: an absolute local path or an HTTPS address without
+/// a query. Frozen with the address.
+const FEED_VARIABLE: &str = "ORCHBEE_UPDATE_FEED";
+
+/// [`FEED_VARIABLE`]; when it is unset or empty, [`RELEASE_FEED`] for a release build and nothing
+/// for a development or test build, so only a release build ever reads the public feed. A
+/// non-Unicode value leaves the source unconfigured.
+fn feed_source() -> Option<String> {
+    match std::env::var_os(FEED_VARIABLE) {
+        Some(value) if !value.is_empty() => value.into_string().ok(),
+        _ => orchbee_local_runtime::is_release()
+            .then(|| RELEASE_FEED.replace("{platform}", &manifest::own_platform())),
+    }
+}
 
 #[derive(Clone, Copy)]
 enum Error {
@@ -79,6 +101,9 @@ enum Error {
     /// A local feed, or a manifest of a local release directory, could not be read.
     LocalSourceRead,
     DownloadUnavailable,
+    /// The feed's address is unknown to its server: the public feed answers so for a platform or
+    /// channel without a release.
+    NoRelease,
     Checksum,
     Storage,
     InstallLocation,
@@ -121,6 +146,7 @@ impl Error {
             Self::ManifestInvalid => "manifest-invalid",
             Self::Download | Self::LocalSourceRead => "download",
             Self::DownloadUnavailable => "download-unavailable",
+            Self::NoRelease => "no-release",
             Self::Checksum => "checksum",
             Self::Storage => "storage",
             Self::InstallLocation => "install-location",
@@ -150,7 +176,7 @@ impl Error {
             | Self::DowngradeRefused
             | Self::VersionHeld
             | Self::OtherArchitecture => 3,
-            Self::DevelopmentBuild | Self::NotReleaseDirectory => 4,
+            Self::DevelopmentBuild | Self::NotReleaseDirectory | Self::NoRelease => 4,
             _ => 1,
         }
     }
@@ -405,8 +431,8 @@ struct Settled {
     finalization: Option<super::SourceFinalization>,
 }
 
-/// Arms the console interrupt, or keeps the inherited signal dispositions on macOS and Linux, and
-/// builds the run's context, or answers the failure.
+/// Arms the console interrupt, or keeps the inherited signal dispositions on Linux, and builds the
+/// run's context, or answers the failure.
 fn start(
     capability: super::execution::Capability,
     format: OutputFormat,
@@ -414,7 +440,7 @@ fn start(
 ) -> Result<Context, Box<Output>> {
     super::execution::admit(capability)
         .map_err(|failure| Box::new(failure_output(failure, Some(format), locale)))?;
-    let signals = ArmedSignals::arm_interrupts_or_inherit().map_err(|_| {
+    let signals = ArmedSignals::arm_interrupts_except_linux().map_err(|_| {
         Box::new(failure_output(
             Failure::new(FailureKind::InternalFailure),
             Some(format),
@@ -477,7 +503,7 @@ pub(in crate::cli) fn store_root() -> io::Result<PathBuf> {
     platform::install_root()
 }
 
-/// Persists an optional channel first, then attempts its complete Windows update.
+/// Persists an optional channel first, then attempts its complete update.
 pub(crate) fn run(
     channel: Option<UpdateChannel>,
     timeout_ms: u32,
@@ -529,10 +555,16 @@ pub(crate) fn run(
                     text.push('\n');
                 }
                 None => {
-                    text.push_str(
-                        CliText::new(locale)
-                            .cli_update_message(settled.error.map_or("complete", Error::message)),
-                    );
+                    match (settled.error, report.channel) {
+                        (Some(Error::NoRelease), Some(channel)) => text.push_str(
+                            &CliText::new(locale)
+                                .cli_update_no_release(channel.as_str(), &manifest::own_platform()),
+                        ),
+                        (error, _) => text.push_str(
+                            CliText::new(locale)
+                                .cli_update_message(error.map_or("complete", Error::message)),
+                        ),
+                    }
                     text.push('\n');
                     if let Some(cause) = completion_diagnostic.filter(|_| settled.error.is_some()) {
                         text.push_str(&cause);
@@ -582,7 +614,7 @@ fn update_release(
     let inputs = engine::Inputs {
         channel,
         state: &environment,
-        feed_source: platform::feed_source(),
+        feed_source: feed_source(),
         keys: signature::TRUSTED_KEYS,
         install_root: platform::install_root().map_err(|_| Error::InstallLocation),
         loopback: LOOPBACK,

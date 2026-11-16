@@ -123,6 +123,10 @@ impl super::CliText {
                 "Release acquisition failed; the installed version is unchanged.",
                 "无法获取发布文件；已安装版本未改变。",
             ),
+            "no-release" => (
+                "The update feed has no Orchbee release for this platform on the selected channel yet. Nothing was installed; the active version is unchanged.",
+                "更新源中还没有适用于此平台和所选频道的 Orchbee 发布版本。未安装任何内容，当前版本未改变。",
+            ),
             "download-unavailable" => (
                 "Updates need the system tar and, over HTTPS, system curl 8.4 or newer.",
                 "更新需要系统 tar；通过 HTTPS 更新还需要系统 curl 8.4 或更新版本。",
@@ -135,9 +139,13 @@ impl super::CliText {
                 "Cannot unpack, stage, or publish the release safely.",
                 "无法安全解包、暂存或发布此版本。",
             ),
-            "install-location" => (
+            "install-location" if cfg!(windows) => (
                 "Invalid ORCHBEE_INSTALL_DIR or LOCALAPPDATA installation location.",
                 "ORCHBEE_INSTALL_DIR 或 LOCALAPPDATA 安装位置无效。",
+            ),
+            "install-location" => (
+                "Invalid ORCHBEE_INSTALL_DIR or HOME installation location.",
+                "ORCHBEE_INSTALL_DIR 或 HOME 安装位置无效。",
             ),
             "busy" => (
                 "Another install or update owns this installation. Retry after it finishes.",
@@ -172,18 +180,31 @@ impl super::CliText {
                 "Staging cleanup requires recovery: ",
                 "暂存目录需恢复清理：",
             ),
-            "storage-owner" => (
+            "storage-owner" if cfg!(windows) => (
                 "its owner is an account other than you, SYSTEM or Administrators.",
                 "其所有者不是你、SYSTEM 或 Administrators。",
             ),
-            "storage-access" => (
+            "storage-owner" => (
+                "its owner is an account other than you.",
+                "其所有者不是你。",
+            ),
+            "storage-access" if cfg!(windows) => (
                 "its permissions let in an account other than you, SYSTEM or Administrators.",
                 "其权限允许你、SYSTEM 和 Administrators 以外的用户访问。",
             ),
-            "storage-link" => ("it is a link or junction.", "它是链接或联接点。"),
-            "storage-system" => (
+            "storage-access" => (
+                "its permissions or access list let in another account.",
+                "其权限或访问控制列表允许其他用户访问。",
+            ),
+            "storage-link" if cfg!(windows) => ("it is a link or junction.", "它是链接或联接点。"),
+            "storage-link" => ("it is a link.", "它是链接。"),
+            "storage-system" if cfg!(windows) => (
                 "Windows refused it with error ",
                 "Windows 拒绝了操作，错误代码 ",
+            ),
+            "storage-system" => (
+                "the system refused it with error ",
+                "系统拒绝了操作，错误代码 ",
             ),
             "storage-unknown" => ("it could not be used.", "无法使用它。"),
             _ => ("Could not finish.", "未能完成。"),
@@ -201,6 +222,19 @@ impl super::CliText {
         match self.locale {
             Locale::EnUs => format!("Downloading Orchbee {version} ({megabytes} MB)…\n"),
             Locale::ZhCn => format!("正在下载 Orchbee {version}（{megabytes} MB）…\n"),
+        }
+    }
+
+    /// The `no-release` diagnostic naming the channel and this updater's platform, such as
+    /// `macos-aarch64`, whose feed the server does not know.
+    pub(crate) fn cli_update_no_release(self, channel: &str, platform: &str) -> String {
+        match self.locale {
+            Locale::EnUs => format!(
+                "Orchbee has no {channel} release for {platform} yet. Nothing was installed; the active version is unchanged."
+            ),
+            Locale::ZhCn => format!(
+                "Orchbee 还没有适用于 {platform} 的 {channel} 频道发布版本。未安装任何内容，当前版本未改变。"
+            ),
         }
     }
 

@@ -177,16 +177,17 @@ publishes. The macOS rows build in rehearsals only: a macOS release adds the dis
   signed with a key every client still in use trusts; while rotating keys, sign with the old and
   the new one.
 - What `orchbee update` reports, for reading a person's report:
-  - A 404 for the feed or the archive: `download`.
+  - A 404 for the feed: `no-release`, exit 4, naming the channel and platform; a platform or
+    channel without a published feed answers this way. A 404 for the archive: `download`.
   - An archive longer or shorter than the feed's signed size, or other bytes: `checksum`. A body
     cut short while the server had sent its length: `download`. Either way nothing is installed.
   - Another update holding the download lock: `busy`, before any archive request.
-  - No `System32\tar.exe` or `System32\curl.exe`, or curl older than 8.4 for HTTPS:
-    `download-unavailable`.
+  - No `System32\tar.exe` or `System32\curl.exe` (`/usr/bin/tar` or `/usr/bin/curl` on macOS), or
+    curl older than 8.4 for HTTPS: `download-unavailable`.
   - An archive transfer below 4 KiB/s for 60 seconds, or past the signed size at that rate plus
     600 seconds (at most six hours): `timeout`. The rest of the run has its own 600 seconds.
-- `<store root>\.download\` is an entry of the store: `download.lock` always, and `archive.zip` and
-  `unpacked\` during an update. `orchbee uninstall` removes it with the store's other entries.
+- `<store root>\.download\` is an entry of the store: `download.lock` always, and `archive.zip`
+  (`archive.tar.gz` on macOS) and `unpacked\` during an update. `orchbee uninstall` removes it with the store's other entries.
 - Only a test build admits a loopback feed address, `http://127.0.0.1:<port>/…`, for rehearsals; a
   release build reads HTTPS or a local path.
 

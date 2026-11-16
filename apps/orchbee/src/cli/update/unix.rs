@@ -1,9 +1,11 @@
-//! macOS and Linux install effects: declared inputs, no-follow source admission, the owned
-//! execution of the staged Client's version check and of the published copy's completion, and the
-//! distribution capsule check. No download runs here: the feed, curl and tar ports refuse without
-//! observation, so `update` has nothing to fetch with.
+//! macOS and Linux update effects: declared inputs, no-follow source admission, the system `curl`
+//! and `tar` in `/usr/bin`, owned execution and the distribution capsule check. Every child starts
+//! through the local runtime's `posix_spawn` launch with an empty signal mask, since the update's
+//! signal owner blocks `SIGINT` and `SIGTERM` on the thread that starts it, in its own process
+//! group, which settles before the result. Only macOS admits `update`; Linux compiles these ports
+//! and refuses before them.
 use super::{Context, acquire::system_proxy::Settings};
-use orchbee_local_runtime::CommandOutput;
+use orchbee_local_runtime::{CommandOutput, SpawnEnvironment, run_unmasked_unix_command};
 use std::{
     fs::{File, OpenOptions},
     io,
@@ -16,10 +18,22 @@ use std::{
 /// The output a command's result keeps, as on Windows.
 const OUTPUT_LIMIT: usize = 64 * 1024;
 
-/// No feed is read here, since no download runs.
-pub(super) fn feed_source() -> Option<String> {
-    None
-}
+/// The system programs a download runs, by their full paths, so a same-named program earlier on
+/// `PATH`, such as one a package manager installed, never stands in for them.
+const CURL: &str = "/usr/bin/curl";
+const TAR: &str = "/usr/bin/tar";
+
+/// The proxy variables curl reads for an HTTPS transfer, under both spellings it looks up, and the
+/// only part of this process's environment it receives (curl(1), "ENVIRONMENT"). curl ignores an
+/// upper-case `HTTP_PROXY`, and an HTTPS transfer never reads `http_proxy`.
+const PROXY_VARIABLES: [&str; 6] = [
+    "https_proxy",
+    "HTTPS_PROXY",
+    "all_proxy",
+    "ALL_PROXY",
+    "no_proxy",
+    "NO_PROXY",
+];
 
 /// `ORCHBEE_INSTALL_DIR`, or `~/.local/share/orchbee` for release and `~/.local/share/<stem>` for a
 /// development or test build, so only release names the release store. Session start reads the
@@ -56,52 +70,87 @@ fn open_no_follow(path: &Path) -> io::Result<File> {
         .open(path)
 }
 
+/// The system curl with a cleared environment holding only the [`PROXY_VARIABLES`] this process
+/// sets, so no curlrc location (`HOME`, `CURL_HOME`), credential, `SSLKEYLOGFILE` or other TLS
+/// setting reaches it.
 pub(super) fn curl_command() -> io::Result<Command> {
-    Err(io::ErrorKind::Unsupported.into())
+    let mut command = Command::new(CURL);
+    command.env_clear();
+    for name in PROXY_VARIABLES {
+        if let Some(value) = std::env::var_os(name) {
+            command.env(name, value);
+        }
+    }
+    Ok(command)
 }
 
-/// No per-user system proxy is read here, where no download runs.
+/// No system proxy is read here: the proxy variables are curl's whole proxy configuration, as for
+/// any command-line program.
 pub(super) fn system_proxy() -> Option<Settings> {
     None
 }
 
+/// The system tar with an empty environment. Its arguments are the caller's; it receives no working
+/// directory, which the `posix_spawn` launch cannot set, so the caller names the folder with `-C`.
 pub(super) fn tar_command() -> io::Result<Command> {
-    Err(io::ErrorKind::Unsupported.into())
+    let mut command = Command::new(TAR);
+    command.env_clear();
+    Ok(command)
 }
 
 /// Runs a command of the install, the staged Client's version check or the published copy's
-/// completion, until it ends, the run's deadline passes or Ctrl+C arrives; its process group
-/// settles before the result.
+/// completion, with this process's environment and the command's changes to it, until it ends, the
+/// run's deadline passes or Ctrl+C arrives.
 pub(super) fn execute(command: Command, context: &mut Context) -> io::Result<CommandOutput> {
-    Ok(orchbee_local_runtime::run_unix_command(
+    Ok(run_unmasked_unix_command(
         command,
+        SpawnEnvironment::Inherited,
         OUTPUT_LIMIT,
         Some(context.deadline),
         || context.interrupted(),
     ))
 }
 
+/// Like [`execute`] for a download or unpack child (`curl`, `tar`), which receives exactly the
+/// environment its command sets. Unlike the Windows Job, nothing ends it when this Client is killed
+/// outright; it then ends at its own limit, and the next update writes a new archive and a new
+/// unpacked folder rather than the files it holds open.
 pub(super) fn execute_contained(
-    _command: Command,
-    _context: &mut Context,
+    command: Command,
+    context: &mut Context,
 ) -> io::Result<CommandOutput> {
-    Err(io::ErrorKind::Unsupported.into())
+    execute_capturing(command, OUTPUT_LIMIT, context)
 }
 
-pub(super) fn execute_transfer(
-    _command: Command,
-    _deadline: Instant,
-    _context: &mut Context,
-) -> io::Result<CommandOutput> {
-    Err(io::ErrorKind::Unsupported.into())
-}
-
+/// Like [`execute_contained`], but captures up to `limit` bytes of standard output.
 pub(super) fn execute_capturing(
-    _command: Command,
-    _limit: usize,
-    _context: &mut Context,
+    command: Command,
+    limit: usize,
+    context: &mut Context,
 ) -> io::Result<CommandOutput> {
-    Err(io::ErrorKind::Unsupported.into())
+    Ok(run_unmasked_unix_command(
+        command,
+        SpawnEnvironment::Cleared,
+        limit,
+        Some(context.deadline),
+        || context.interrupted(),
+    ))
+}
+
+/// Like [`execute_contained`] for the archive transfer, which ends at its own `deadline` rather
+/// than the command's; Ctrl+C still ends it at once.
+pub(super) fn execute_transfer(
+    command: Command,
+    deadline: Instant,
+    context: &mut Context,
+) -> io::Result<CommandOutput> {
+    Ok(run_unmasked_unix_command(
+        command,
+        SpawnEnvironment::Cleared,
+        OUTPUT_LIMIT,
+        Some(deadline),
+        || context.interrupted(),
+    ))
 }
 
 pub(super) fn verify_capsule(directory: &Path, expected: &str) -> io::Result<bool> {

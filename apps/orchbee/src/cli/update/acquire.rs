@@ -23,6 +23,17 @@ const CURL_FILESIZE_EXCEEDED: i32 = 63;
 /// curl's exit status when `--max-time`, `--connect-timeout` or the `--speed-limit` rule ends a
 /// transfer. <https://curl.se/libcurl/c/libcurl-errors.html#CURLEOPERATIONTIMEDOUT>
 const CURL_OPERATION_TIMEDOUT: i32 = 28;
+/// curl's exit status when `--fail` meets an HTTP status of 400 or more.
+/// <https://curl.se/libcurl/c/libcurl-errors.html#CURLEHTTPRETURNEDERROR>
+const CURL_HTTP_RETURNED_ERROR: i32 = 22;
+/// What a document transfer writes on standard error after it ends, failed or not: the status of
+/// the last response, `000` when none came, on a line of its own. A feed address the server does not
+/// know, such as the public feed of a platform or channel without a release, is told apart this way
+/// from a transfer that failed.
+const STATUS_WRITE_OUT: &str = "%{stderr}\norchbee-http-status %{http_code}\n";
+const STATUS_PREFIX: &str = "orchbee-http-status ";
+/// The status a server answers for an address it does not know.
+const HTTP_NOT_FOUND: u16 = 404;
 /// curl's own limit for a feed or signature document, which is small.
 const DOCUMENT_SECONDS: u64 = 600;
 /// The archive transfer's floor: one that averages below this many bytes per second over
@@ -123,15 +134,18 @@ impl Source {
             .map_err(|error| match error {
                 Fetch::Failed(error) => error,
                 Fetch::Absent => Error::LocalSourceRead,
+                Fetch::Unknown => Error::Download,
                 Fetch::Oversized => Error::ManifestInvalid,
             })
     }
-    /// Reads at most [`FEED_LIMIT`] feed bytes into memory; a longer feed is refused unread.
+    /// Reads at most [`FEED_LIMIT`] feed bytes into memory; a longer feed is refused unread. An
+    /// address the server does not know offers no release for this platform and channel.
     pub fn feed(&self, context: &mut Context) -> Result<Vec<u8>, Error> {
         self.read(None, FEED_LIMIT, context)
             .map_err(|error| match error {
                 Fetch::Failed(error) => error,
                 Fetch::Absent => Error::LocalSourceRead,
+                Fetch::Unknown => Error::NoRelease,
                 Fetch::Oversized => Error::ManifestInvalid,
             })
     }
@@ -141,6 +155,7 @@ impl Source {
         self.read(Some(SIGNATURE_SUFFIX), DOCUMENT_LIMIT, context)
             .map_err(|error| match error {
                 Fetch::Failed(error) => error,
+                Fetch::Unknown => Error::Download,
                 Fetch::Absent | Fetch::Oversized => Error::SignatureInvalid,
             })
     }
@@ -186,10 +201,15 @@ impl Source {
                 let url = format!("{url}{}", suffix.unwrap_or(""));
                 let mut command = curl(&url, limit as u64, self.loopback(), Transfer::Document)
                     .map_err(Fetch::Failed)?;
-                command.args(["--output", "-"]);
+                command.args(["--output", "-", "--write-out", STATUS_WRITE_OUT]);
                 // One captured byte beyond the bound proves an oversized document.
                 let result = platform::execute_capturing(command, limit + 1, context)
                     .map_err(|_| Fetch::Failed(Error::Download))?;
+                if result.exit_code == Some(CURL_HTTP_RETURNED_ERROR)
+                    && http_status(&result.stderr) == Some(HTTP_NOT_FOUND)
+                {
+                    return Err(Fetch::Unknown);
+                }
                 context.command_result(&result).map_err(Fetch::Failed)?;
                 if result.stdout_truncated || result.stdout.len() > limit {
                     return Err(Fetch::Oversized);
@@ -269,6 +289,8 @@ enum Fetch {
     Failed(Error),
     /// The local file does not exist.
     Absent,
+    /// The server answered that it does not know the address.
+    Unknown,
     /// The document exceeds its bound.
     Oversized,
 }
@@ -327,6 +349,15 @@ fn curl(url: &str, limit: u64, loopback: bool, transfer: Transfer) -> Result<Com
         .arg("--url")
         .arg(url);
     Ok(command)
+}
+
+/// The status [`STATUS_WRITE_OUT`] reported on curl's standard error, from its last such line.
+fn http_status(stderr: &[u8]) -> Option<u16> {
+    String::from_utf8_lossy(stderr)
+        .lines()
+        .rev()
+        .find_map(|line| line.strip_prefix(STATUS_PREFIX))
+        .and_then(|status| status.trim().parse().ok())
 }
 
 /// `http://127.0.0.1:<port>/<path>` with a port from 1 to 65535 and the literal-URL rules of an

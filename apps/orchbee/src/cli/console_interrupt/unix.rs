@@ -1,4 +1,5 @@
-//! The optional console-command capability refuses without installing a Unix signal policy.
+//! The optional console-command capability refuses without installing a Unix signal policy. The
+//! release commands on macOS borrow the source owner's interrupt pair instead, latched.
 
 use super::NativeSignals;
 use std::io;
@@ -42,6 +43,60 @@ impl NativeSignals for Inherited {
 
 pub(super) fn arm() -> io::Result<Box<dyn NativeSignals>> {
     Err(io::ErrorKind::Unsupported.into())
+}
+
+/// The source owner's interrupt pair, `SIGINT` and `SIGTERM`, blocked on this thread and captured.
+/// The first signal read latches: every later read answers it and settling owes the restore, as
+/// the Windows console guard answers a request until it ends, so a workflow that checks between
+/// its steps and the settle that ends it see the same interruption.
+#[cfg(target_os = "macos")]
+struct Latched {
+    signals: crate::cli::source::ArmedSignals,
+    signal: Option<i32>,
+}
+
+#[cfg(target_os = "macos")]
+pub(super) fn arm_latched() -> io::Result<Box<dyn NativeSignals>> {
+    crate::cli::source::ArmedSignals::arm_interrupts()
+        .map(|signals| {
+            Box::new(Latched {
+                signals,
+                signal: None,
+            }) as Box<dyn NativeSignals>
+        })
+        .map_err(|error| io::Error::other(error.to_string()))
+}
+
+#[cfg(target_os = "macos")]
+impl NativeSignals for Latched {
+    fn wake(&self) -> Option<orchbee_local_ipc::LocalIo<'_>> {
+        crate::cli::source::SignalWatch::poll_fd(&self.signals)
+    }
+    fn requested(&self) -> bool {
+        self.signal.is_some()
+    }
+    fn take(&mut self) -> io::Result<Option<i32>> {
+        if self.signal.is_none() {
+            self.signal = crate::cli::source::SignalWatch::take(&mut self.signals)?;
+        }
+        Ok(self.signal)
+    }
+    fn finish(self: Box<Self>) -> io::Result<Option<crate::cli::SourceFinalization>> {
+        use crate::cli::source::Finish;
+        if self.signal.is_some() {
+            return Ok(Some(self.signals.into_finalization()));
+        }
+        self.signals
+            .finish()
+            .map(|finish| match finish {
+                Finish::Clear => None,
+                Finish::Cancelled { finalization, .. } => Some(finalization),
+            })
+            .map_err(io::Error::from)
+    }
+    fn into_finalization(self: Box<Self>) -> crate::cli::SourceFinalization {
+        self.signals.into_finalization()
+    }
 }
 
 pub(super) fn acquire_document(

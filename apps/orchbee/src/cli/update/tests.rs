@@ -8,7 +8,7 @@ mod feed_admission;
 mod held_version;
 mod install_fixture;
 mod manifest_admission;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod offered_update;
 #[cfg(windows)]
 mod offline_install;

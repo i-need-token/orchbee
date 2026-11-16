@@ -5,7 +5,7 @@ use orchbee_local_runtime::EnvironmentKind;
 const RELEASE: Build = Build {
     live: true,
     kind: EnvironmentKind::Release,
-    windows: true,
+    store: true,
 };
 
 fn ready(version: &str) -> UpdateControl {
@@ -33,8 +33,8 @@ fn the_control_is_ready_only_for_a_newer_active_version() {
     }
 }
 
-/// Behind the dark-launch switch, in a development build and off Windows the control never shows,
-/// whatever the store says; a test build shows it as a release build does.
+/// Behind the dark-launch switch, in a development build and where no update writes the store the
+/// control never shows, whatever the store says; a test build shows it as a release build does.
 #[test]
 fn the_control_is_absent_where_the_build_offers_no_update() {
     for build in [
@@ -47,7 +47,7 @@ fn the_control_is_absent_where_the_build_offers_no_update() {
             ..RELEASE
         },
         Build {
-            windows: false,
+            store: false,
             ..RELEASE
         },
     ] {

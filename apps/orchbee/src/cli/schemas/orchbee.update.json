@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.update",
-	"title": "Windows native release update result",
+	"title": "Native release update result",
 	"type": "object",
 	"additionalProperties": false,
 	"required": ["schema", "version", "source", "result"],
@@ -111,7 +111,8 @@
 						"timeout",
 						"physical-unknown",
 						"internal",
-						"download-unavailable"
+						"download-unavailable",
+						"no-release"
 					]
 				},
 				"interrupted": {
