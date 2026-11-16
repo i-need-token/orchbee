@@ -159,11 +159,25 @@ impl Driver {
         (column, 1)
     }
 
-    /// Types a line into the focused terminal and waits for what it prints.
+    /// Types a line into the focused terminal and waits for what it prints: one more `printed` than
+    /// the screen held before, so the output of an earlier line never stands in for it.
     fn run_in_focus(&mut self, line: &str, printed: &str) {
+        let before = self.screen().matches(printed).count();
         self.control.input(line.as_bytes());
         self.control.input(b"\r");
-        self.await_screen(printed, |screen| screen.contains(printed));
+        self.await_screen(printed, |screen| screen.matches(printed).count() > before);
+    }
+
+    /// Interrupts the focused `ping -t` and waits for its shell's next prompt. PowerShell drops
+    /// what is typed between Ctrl+C and that prompt, also in a bare ConPTY with nothing between,
+    /// so a person types after it.
+    fn interrupt_ping(&mut self) {
+        self.control.input(b"\x03");
+        self.await_screen("the prompt after the interrupt", |screen| {
+            screen
+                .split_once("Control-C")
+                .is_some_and(|(_, after)| after.contains("PS "))
+        });
     }
 
     /// The close must end in `gone` without its confirmation ever being presented. A presented
@@ -536,10 +550,7 @@ fn a_shell_at_its_prompt_closes_from_every_tab_route_without_asking() {
     // A shell back at its prompt is as idle as a new one, after a program it interrupted, a program
     // that finished, a cmdlet and an empty line.
     driver.run_in_focus("ping -t 127.0.0.1", "Reply from");
-    driver.control.input(b"\x03");
-    driver.await_screen("the interrupted program's summary", |screen| {
-        screen.contains("Ping statistics")
-    });
+    driver.interrupt_ping();
     driver.run_in_focus("ping -n 1 127.0.0.1", "Lost = 0");
     driver.run_in_focus("Write-Output marker-$(1+1)", "marker-2");
     driver.control.input(b"\r");
@@ -566,10 +577,7 @@ fn a_program_running_in_the_shell_still_asks_from_every_tab_route() {
     driver.assert_asks_and_cancel("the [x] over a running program", TAB_DIALOG);
     driver.control.input(CLOSE_TAB);
     driver.assert_asks_and_cancel("the key over a running program", TAB_DIALOG);
-    driver.control.input(b"\x03");
-    driver.await_screen("the prompt after the interrupt", |screen| {
-        screen.lines().rev().any(|line| line.contains("PS ")) && screen.contains("Ping statistics")
-    });
+    driver.interrupt_ping();
 
     // A cmdlet that runs inside the shell, with no child process to sample.
     driver.run_in_focus(
