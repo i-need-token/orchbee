@@ -126,9 +126,10 @@ implemented with Orchbee's semantic tokens and shared primitives.
 - No action changes a row's or a group heading's height, so the page never jumps under the pointer.
   An action that appears on hover or only after a change, such as Restore default, keeps its place
   reserved while hidden; a confirmation replaces the action in place; an editor or a longer
-  explanation opens on a child page instead of expanding the list. Only a fact that follows the
-  chosen value, such as a dependent setting or a note that a default shortcut is held by a
-  configured command, may add or remove lines.
+  explanation opens on a child page instead of expanding the list. Only a dependent setting that
+  follows the chosen value may add or remove rows. A fact about one row, such as a default shortcut
+  that a configured command holds, is a marker beside the row's control with the detail in its
+  tooltip and accessible description, never an extra line.
 - Every change applies at once; the page has no Save, Discard, or footer.
 - A long list is one card with one entry per line. When it holds more than eight entries, its first
   line is a filter box with the shown count.

@@ -162,7 +162,16 @@ export const EnglishAppearance: Story = englishLight('appearance');
 export const EnglishThemes: Story = englishLight('themes');
 export const EnglishTerminal: Story = englishLight('terminal');
 export const EnglishNotifications: Story = englishLight('notifications');
-export const EnglishKeyboard: Story = englishLight('keyboard');
+export const EnglishKeyboard: Story = {
+	...englishLight('keyboard'),
+	args: {
+		...englishArgs,
+		initialCategory: 'keyboard',
+		keyboardShortcutsTakenByConfiguredCommands: new Map([
+			['workbench.search.actions.open', 'deploy'],
+		]),
+	},
+};
 export const EnglishAgents: Story = englishLight('agents');
 export const EnglishSettingsFileError: Story = {
 	...englishLight('appearance'),

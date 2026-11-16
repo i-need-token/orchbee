@@ -449,9 +449,10 @@ to the terminal or browser.
 A configured command's direct key sits outside this catalog and is not a conflicting edit: it takes
 a default's chord and yields to one the person set (see [Workbench](workbench.md)). Web resolves that
 once, from the claims `keyboardShortcutClaims` projects, and hands the one result to both the
-Workbench and Settings. A Settings row whose default a configured command holds keeps its chord and
-recorder and says which command uses that chord, in a note under its name; recording an override
-gives the person's chord back to the shortcut and removes the note, and Reset brings the note back.
+Workbench and Settings. A Settings row whose default a configured command holds keeps its chord,
+recorder and height: a warning marker before the chord, whose tooltip and accessible description
+say which command uses that chord. Recording an override gives the person's chord back to the
+shortcut and removes the marker, and Reset brings it back.
 
 Workbench owns formatting for its bindings. Projected-terminal owns its binding defaults and
 dispatch, while Web projects only its current action-to-label map through a read-only Workbench

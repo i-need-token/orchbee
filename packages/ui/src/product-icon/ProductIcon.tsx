@@ -39,7 +39,8 @@ export type ProductIconName =
 	| 'tabs'
 	| 'terminal'
 	| 'trash'
-	| 'ungroup';
+	| 'ungroup'
+	| 'warning';
 
 interface ProductIconProps {
 	readonly name: ProductIconName;
@@ -87,6 +88,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'terminal' && styles['terminal'],
 				name === 'trash' && styles['trash'],
 				name === 'ungroup' && styles['ungroup'],
+				name === 'warning' && styles['warning'],
 			)}
 			data-icon={name}
 			data-icon-size={size}

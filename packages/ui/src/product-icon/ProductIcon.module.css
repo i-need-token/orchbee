@@ -142,3 +142,7 @@
 .ungroup {
 	composes: codicon-ungroup-by-ref-type from global;
 }
+
+.warning {
+	composes: codicon-warning from global;
+}

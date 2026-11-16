@@ -24,7 +24,10 @@
 	text-align: end;
 }
 
-/* Spoken status that the count, the placeholder, or the recorder's prompt already shows. */
+/*
+ * Spoken status that the count, the placeholder, the recorder's prompt, or the conflict marker's
+ * tooltip already shows.
+ */
 .liveRegion {
 	position: absolute;
 	width: var(--ob-ref-border-width-default);
@@ -36,9 +39,16 @@
 	white-space: nowrap;
 }
 
-.note {
-	color: var(--ob-sys-color-status-danger-text);
-	font: var(--ob-sys-typography-label-sm);
+/*
+ * A default chord that a configured command holds keeps the row's one line: a warning marker before
+ * the key cap, with the command in the recorder's tooltip.
+ */
+.conflict {
+	position: relative;
+	z-index: var(--ob-ref-layer-raised);
+	display: inline-flex;
+	margin-inline-end: var(--ob-ref-space-1);
+	color: var(--ob-sys-color-status-warning-text);
 }
 
 .prompt {

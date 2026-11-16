@@ -14,6 +14,10 @@ function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
 	return <TooltipPrimitive.Trigger data-slot='tooltip-trigger' {...props} />;
 }
 
+/*
+ * Orchbee adaptation: the tooltip sits on the modal layer, because a control in a dialog explains
+ * itself above the dialog.
+ */
 function TooltipContent({
 	className,
 	side = 'top',
@@ -31,7 +35,7 @@ function TooltipContent({
 				alignOffset={alignOffset}
 				side={side}
 				sideOffset={sideOffset}
-				className='isolate z-50'
+				className='isolate z-(--ob-ref-layer-modal)'
 			>
 				<TooltipPrimitive.Popup
 					data-slot='tooltip-content'

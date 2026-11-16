@@ -8,6 +8,9 @@ import {
 	InputGroupInput,
 	Kbd,
 	ProductIcon,
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
@@ -113,12 +116,25 @@ export function KeyboardShortcutSettings({
 				<SettingsListFilterEmpty message={view.noResults} />
 			) : null}
 			{view.rows.map((row) => {
+				const note = row.configuredCommandNote;
 				const noteId = `keyboard-shortcuts.${row.shortcutId}.configured-command`;
 				const instructionId = `keyboard-shortcuts.${row.shortcutId}.recording`;
 				const describedBy = [
-					row.configuredCommandNote === null ? null : noteId,
+					note === null ? null : noteId,
 					row.recording ? instructionId : null,
 				].filter((id): id is string => id !== null);
+				const recorderContent = row.recording ? (
+					<span className={styles['prompt']}>{view.recordingPrompt}</span>
+				) : (
+					<>
+						{note === null ? null : (
+							<span aria-hidden='true' className={styles['conflict']}>
+								<ProductIcon name='warning' />
+							</span>
+						)}
+						<Kbd>{row.chord}</Kbd>
+					</>
+				);
 				return (
 					<SettingsRow
 						key={row.shortcutId}
@@ -129,10 +145,11 @@ export function KeyboardShortcutSettings({
 						settingId={`keyboard-shortcuts.${row.shortcutId}`}
 						status={
 							<>
-								{row.configuredCommandNote === null ? null : (
-									<div className={styles['note']} id={noteId}>
-										{row.configuredCommandNote}
-									</div>
+								{/* The marker and its tooltip show the conflict; this line only speaks it. */}
+								{note === null ? null : (
+									<span className={styles['liveRegion']} id={noteId}>
+										{note}
+									</span>
 								)}
 								{/* The recorder shows a short prompt; the full instruction is spoken only. */}
 								{row.recording ? (
@@ -145,25 +162,29 @@ export function KeyboardShortcutSettings({
 						}
 						onRestore={row.onReset}
 					>
-						<button
-							aria-describedby={describedBy.length === 0 ? undefined : describedBy.join(' ')}
-							aria-invalid={row.error === null ? undefined : true}
-							aria-label={view.changeLabel(row.actionName)}
-							aria-pressed={row.recording}
-							className={styles['recorder']}
-							data-recording={row.recording}
-							data-shortcut-id={row.shortcutId}
-							type='button'
-							onBlur={row.onBlur}
-							onClick={row.onChangeClick}
-							onKeyDown={row.onKeyDown}
-						>
-							{row.recording ? (
-								<span className={styles['prompt']}>{view.recordingPrompt}</span>
-							) : (
-								<Kbd>{row.chord}</Kbd>
-							)}
-						</button>
+						{/* A shortcut a configured command holds keeps its row's height: a marker, a tooltip. */}
+						<Tooltip disabled={note === null}>
+							<TooltipTrigger
+								render={
+									<button
+										aria-describedby={describedBy.length === 0 ? undefined : describedBy.join(' ')}
+										aria-invalid={row.error === null ? undefined : true}
+										aria-label={view.changeLabel(row.actionName)}
+										aria-pressed={row.recording}
+										className={styles['recorder']}
+										data-recording={row.recording}
+										data-shortcut-id={row.shortcutId}
+										type='button'
+										onBlur={row.onBlur}
+										onClick={row.onChangeClick}
+										onKeyDown={row.onKeyDown}
+									/>
+								}
+							>
+								{recorderContent}
+							</TooltipTrigger>
+							{note === null ? null : <TooltipContent side='top'>{note}</TooltipContent>}
+						</Tooltip>
 					</SettingsRow>
 				);
 			})}
