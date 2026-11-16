@@ -62,8 +62,19 @@ crossterm = { workspace = true, features = ["windows", "events"] }
 # Remembered login answers in Credential Manager generic credentials, named exactly by the
 # remembered-answer item names: the Credential Manager calls the safe-Rust workspace cannot make
 # without authored `unsafe`, on the `windows-sys` the lock already carries.
-keyring-core = { version = "1.0.1", default-features = false }
 windows-native-keyring-store = { version = "1.1.0", default-features = false }
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+# The one credential-store port the Windows and macOS adapters share.
+keyring-core = { version = "1.0.1", default-features = false }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Remembered login answers as generic passwords in the login Keychain, named exactly by the
+# remembered-answer item names: the Security.framework calls the safe-Rust workspace cannot make
+# without authored `unsafe`, through the same store family the Windows adapter uses.
+apple-native-keyring-store = { version = "1.0.2", default-features = false, features = [
+	"keychain",
+] }
 
 [dev-dependencies]
 # Bounded fake peers and controlled transport clocks for unit tests only.

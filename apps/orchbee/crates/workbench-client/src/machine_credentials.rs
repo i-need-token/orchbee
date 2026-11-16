@@ -8,6 +8,8 @@
 //! from the caller's buffer and leaves no copy behind. No failure carries the store's own error,
 //! which may hold an answer's bytes, and nothing here logs.
 
+#[cfg(target_os = "macos")]
+mod macos;
 #[cfg(windows)]
 mod windows;
 
@@ -76,8 +78,8 @@ impl Item {
         }
     }
 
-    /// The Windows Credential Manager target name:
-    /// `Orchbee/<environment>/machine/<machine id>/<kind>`.
+    /// The item's name in the store, the Credential Manager target name on Windows and the
+    /// Keychain service on macOS: `Orchbee/<environment>/machine/<machine id>/<kind>`.
     pub fn target_name(&self) -> String {
         format!(
             "Orchbee/{}/machine/{}/{}",
@@ -137,8 +139,8 @@ pub struct Secret(Vec<u8>);
 
 impl Secret {
     #[cfg_attr(
-        not(windows),
-        expect(dead_code, reason = "only Windows has an adapter yet")
+        not(any(windows, target_os = "macos")),
+        expect(dead_code, reason = "only Windows and macOS have an adapter yet")
     )]
     fn new(bytes: Vec<u8>) -> Self {
         Self(bytes)
@@ -188,9 +190,9 @@ impl fmt::Debug for Store {
 }
 
 impl Store {
-    /// The selection rule: Windows Credential Manager on Windows. macOS and Linux have no adapter
-    /// yet and answer unavailable; theirs join here (the login Keychain on macOS; on Linux the
-    /// Secret Service, otherwise the kernel's per-user keyring) without changing any caller.
+    /// The selection rule: Windows Credential Manager on Windows and the login Keychain on macOS.
+    /// Linux has no adapter yet and answers unavailable; its own joins here (the Secret Service,
+    /// otherwise the kernel's per-user keyring) without changing any caller.
     pub fn select() -> Self {
         #[cfg(windows)]
         {
@@ -198,7 +200,13 @@ impl Store {
                 adapter: Some(&windows::CredentialManager),
             }
         }
-        #[cfg(not(windows))]
+        #[cfg(target_os = "macos")]
+        {
+            Self {
+                adapter: Some(&macos::LoginKeychain),
+            }
+        }
+        #[cfg(not(any(windows, target_os = "macos")))]
         {
             Self::unavailable()
         }

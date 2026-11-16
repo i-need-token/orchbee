@@ -1093,10 +1093,16 @@ application calls no store.
   the workspace admits no authored `unsafe` for the Win32 calls. The store is never listed; each
   call names one item. A process makes one Credential Manager call at a time, a write's secret and
   label together: calls made at once, even on different items, were seen to bring back an item
-  already deleted. macOS and Linux answer "unavailable" in this build: a current limit, not
-  the design, which gives them the login Keychain and the Secret Service, otherwise the kernel's
-  per-user keyring, as adapters of the same port that change no caller. A store that cannot be
-  reached, such as Credential Manager in an SSH logon, also answers unavailable: the TUI shows
+  already deleted. macOS uses the login Keychain: a generic password whose service is the item's
+  name and whose account is `orchbee`, written through `keyring-core` and
+  `apple-native-keyring-store`, the same store family, for the same reason. That store writes no
+  label, so Keychain Access names the item by its service. The Keychain's access list trusts the
+  program that created an item by its code signature: an unsigned or ad-hoc-signed build gets a new
+  signature with every update, so after an update macOS asks once more before that build reads an
+  answer it remembered earlier. Linux answers "unavailable" in this build: a current limit, not the
+  design, which gives it the Secret Service, otherwise the kernel's per-user keyring, as adapters of
+  the same port that change no caller. A store that cannot be reached, such as Credential Manager
+  in an SSH logon or a Keychain this session cannot reach, also answers unavailable: the TUI shows
   "Passwords can't be remembered in this kind of login." in place of the box. The TUI asks the
   store, and the `ssh` release below, on a thread of its own when the first password or passphrase
   question arrives or a remote row is first selected, and shows the box once they answered. A
@@ -1473,7 +1479,11 @@ connection, so nothing changed for the link.
 - **Two processes' store calls can meet.** Each process makes one Credential Manager call at a
   time, but the hub and a TUI, or two clients, calling at the same instant can still fail a write
   or leave a deleted answer behind, as two test processes did; nothing orders calls across
-  processes.
+  processes. The macOS adapter does not serialize its calls within a process either.
+- **An unsigned macOS build is asked about again after each update.** The Keychain trusts the
+  program that saved an answer by its code signature, so until the macOS release is signed with a
+  stable identity, every update brings one more access request before a remembered answer is used;
+  a request declined, or made where no dialog can be shown, reads as no answer and `ssh` asks.
 - **A killed hub leaves a draft's remembered answer.** A draft's answer is forgotten when the hub
   drops the draft; a hub that is killed rather than closed while a draft holds one leaves it in the
   store under an ID no record names, and nothing sweeps such items.
