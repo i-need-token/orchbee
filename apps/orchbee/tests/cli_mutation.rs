@@ -277,11 +277,62 @@ fn admit_and_serve_snapshot(stream: &UnixStream) -> orchbee_workbench_protocol::
     request_id
 }
 
+/// Reads the command. macOS runs the extended `tab create` and `panel split`, which first read the
+/// Session's configuration for an omitted directory; Linux's canonical creation does not. That
+/// read is answered with `terminal.new_cwd = "workspace"`, so creation reads nothing more.
 fn read_command(stream: &UnixStream) -> WorkbenchCommand {
-    match read_workbench_request(&mut &*stream) {
-        Ok(WorkbenchRequest::Command(command)) => command,
-        other => panic!("peer expected workbench.command, got {other:?}"),
+    loop {
+        match read_workbench_request(&mut &*stream) {
+            Ok(WorkbenchRequest::Command(command)) => return command,
+            Ok(WorkbenchRequest::Configuration(request)) if cfg!(target_os = "macos") => {
+                configuration_response(stream, request);
+            }
+            other => panic!("peer expected workbench.command, got {other:?}"),
+        }
     }
+}
+
+/// The schema a creation receipt names: macOS runs the extended creation, whose receipt adds the
+/// resolved directory and focus as `orchbee.creation.result`.
+fn creation_schema() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "orchbee.creation.result"
+    } else {
+        "orchbee.mutation.result"
+    }
+}
+
+fn configuration_response(
+    stream: &UnixStream,
+    request: orchbee_workbench_protocol::ConfigurationRequest,
+) {
+    use orchbee_workbench_protocol::{
+        ConfigurationAction, ConfigurationDiagnostics, ConfigurationOutcome, ConfigurationResult,
+        ConfigurationSnapshot,
+    };
+    assert_eq!(request.action, ConfigurationAction::Current);
+    write_workbench_response(
+        &mut &*stream,
+        &WorkbenchResponse::Configuration(ConfigurationResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            session_id: request.session_id,
+            outcome: ConfigurationOutcome::Current {
+                snapshot: ConfigurationSnapshot {
+                    revision: revision(0),
+                    diagnostics: ConfigurationDiagnostics::default(),
+                    keys_profile: "[keys]".into(),
+                    window_title: String::new(),
+                    notification_profile: "[notifications]\ncli_delivery='off'\n".into(),
+                    agent_sidebar_profile: "{}".into(),
+                    spaces_sidebar_profile: "{}".into(),
+                    worktrees_directory: None,
+                    new_cwd: "workspace".into(),
+                },
+            },
+        }),
+    )
+    .expect("peer writes the configuration");
 }
 
 fn command_response(
@@ -536,6 +587,10 @@ fn project_create_commits_under_a_fresh_request() -> TestResult {
     Ok(())
 }
 
+/// Linux's canonical `workspace create`. macOS runs the extended creation, which resolves the new
+/// Workspace's directory and answers `orchbee.workspace.creation`, as the Windows Workspace creation
+/// suite witnesses.
+#[cfg(target_os = "linux")]
 #[test]
 fn workspace_create_commits_under_a_fresh_request() -> TestResult {
     let base = base_dir("ws-create");
@@ -778,7 +833,7 @@ fn tab_create_against_standalone_context_reports_terminal() -> TestResult {
     assert_eq!(document["result"]["terminal"]["outcome"], "started");
     assert_eq!(document["result"]["terminal"]["geometry"]["columns"], 80);
     assert_eq!(document["result"]["terminal"]["geometry"]["rows"], 24);
-    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
+    assert!(compiled_schema(&base, creation_schema()).is_valid(&document));
     Ok(())
 }
 
@@ -925,7 +980,7 @@ fn tab_create_without_geometry_requests_the_default() -> TestResult {
         document["result"]["terminal"]["geometry"]["cellPixelHeight"],
         0
     );
-    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
+    assert!(compiled_schema(&base, creation_schema()).is_valid(&document));
     Ok(())
 }
 
@@ -1058,11 +1113,16 @@ fn tab_rename_move_and_close_each_submit_one_command() -> TestResult {
     Ok(())
 }
 
+/// Whether `panel move --into-tab` submits the canonical `panel.move`. macOS runs the extended
+/// move, which submits `panel.relocate` and answers `orchbee.panel.move`, as the Windows creation
+/// suite witnesses.
+const CANONICAL_PANEL_MOVE: bool = cfg!(target_os = "linux");
+
 #[test]
 fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
     let base = base_dir("panel-ops");
     let scope = stage_scope(&base);
-    let peer = spawn_peer_n(&scope, 3, |stream| {
+    let peer = spawn_peer_n(&scope, 2 + usize::from(CANONICAL_PANEL_MOVE), |stream| {
         admit_and_serve_snapshot(&stream);
         let command = read_command(&stream);
         let outcome = match &command.action {
@@ -1204,7 +1264,7 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
     assert_eq!(document["result"]["presentationId"], id(0x75));
     assert_eq!(document["result"]["direction"], "right");
     assert_eq!(document["result"]["terminal"]["outcome"], "started");
-    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
+    assert!(compiled_schema(&base, creation_schema()).is_valid(&document));
 
     let closed = run(
         &base,
@@ -1218,28 +1278,30 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
     assert_eq!(document["result"]["closeRequestId"], id(0x76));
     assert_eq!(document["result"]["panelId"], RIGHT_PANEL);
 
-    let moved = run(
-        &base,
-        &[
-            "panel",
-            "move",
-            LEFT_PANEL,
-            "--into-tab",
-            LOGS_TAB,
-            "--target-panel",
-            RIGHT_PANEL,
-            "--direction",
-            "down",
-            "--format=json",
-        ],
-    );
-    assert_eq!(moved.status.code(), Some(0));
-    let document = envelope(&moved);
-    assert_eq!(document["result"]["action"], "panel.move");
-    assert_eq!(document["result"]["outcome"], "committed");
-    assert_eq!(document["result"]["direction"], "below");
-    assert_eq!(document["result"]["panelId"], LEFT_PANEL);
-    assert_eq!(document["result"]["targetPanelId"], RIGHT_PANEL);
+    if CANONICAL_PANEL_MOVE {
+        let moved = run(
+            &base,
+            &[
+                "panel",
+                "move",
+                LEFT_PANEL,
+                "--into-tab",
+                LOGS_TAB,
+                "--target-panel",
+                RIGHT_PANEL,
+                "--direction",
+                "down",
+                "--format=json",
+            ],
+        );
+        assert_eq!(moved.status.code(), Some(0));
+        let document = envelope(&moved);
+        assert_eq!(document["result"]["action"], "panel.move");
+        assert_eq!(document["result"]["outcome"], "committed");
+        assert_eq!(document["result"]["direction"], "below");
+        assert_eq!(document["result"]["panelId"], LEFT_PANEL);
+        assert_eq!(document["result"]["targetPanelId"], RIGHT_PANEL);
+    }
     peer.join().expect("peer finished");
     Ok(())
 }
@@ -1251,7 +1313,7 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
 fn tab_and_panel_move_report_unchanged() -> TestResult {
     let base = base_dir("move-unchanged");
     let scope = stage_scope(&base);
-    let peer = spawn_peer_n(&scope, 2, |stream| {
+    let peer = spawn_peer_n(&scope, 1 + usize::from(CANONICAL_PANEL_MOVE), |stream| {
         admit_and_serve_snapshot(&stream);
         let command = read_command(&stream);
         match &command.action {
@@ -1287,27 +1349,29 @@ fn tab_and_panel_move_report_unchanged() -> TestResult {
     assert_eq!(document["result"]["tabId"], OPS_TAB);
     assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
 
-    let panel_moved = run(
-        &base,
-        &[
-            "panel",
-            "move",
-            LEFT_PANEL,
-            "--into-tab",
-            LOGS_TAB,
-            "--target-panel",
-            RIGHT_PANEL,
-            "--direction",
-            "up",
-            "--format=json",
-        ],
-    );
-    assert_eq!(panel_moved.status.code(), Some(0));
-    let document = envelope(&panel_moved);
-    assert_eq!(document["result"]["action"], "panel.move");
-    assert_eq!(document["result"]["outcome"], "unchanged");
-    assert_eq!(document["result"]["revision"], "7");
-    assert_eq!(document["result"]["direction"], "above");
+    if CANONICAL_PANEL_MOVE {
+        let panel_moved = run(
+            &base,
+            &[
+                "panel",
+                "move",
+                LEFT_PANEL,
+                "--into-tab",
+                LOGS_TAB,
+                "--target-panel",
+                RIGHT_PANEL,
+                "--direction",
+                "up",
+                "--format=json",
+            ],
+        );
+        assert_eq!(panel_moved.status.code(), Some(0));
+        let document = envelope(&panel_moved);
+        assert_eq!(document["result"]["action"], "panel.move");
+        assert_eq!(document["result"]["outcome"], "unchanged");
+        assert_eq!(document["result"]["revision"], "7");
+        assert_eq!(document["result"]["direction"], "above");
+    }
     peer.join().expect("peer finished");
     Ok(())
 }

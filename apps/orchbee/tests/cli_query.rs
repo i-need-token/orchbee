@@ -784,14 +784,28 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         (&["status", "--format", "json"], "orchbee.status"),
         (&["api", "snapshot"], "orchbee.api.snapshot"),
     ];
+    // macOS enriches the Workspace, Tab and Panel lists and gets and the Terminal list with the
+    // Windows Client, Agent and process reads, which this snapshot-only peer does not fake; the
+    // Windows Agent focus suite witnesses those documents. Each keeps its place, empty.
+    let enriched = |arguments: &[&str]| {
+        cfg!(target_os = "macos")
+            && matches!(
+                arguments,
+                ["workspace" | "tab" | "panel", "list" | "get", ..] | ["terminal", "list", ..]
+            )
+    };
+    let derived = queries
+        .iter()
+        .filter(|(arguments, _)| !enriched(arguments))
+        .collect::<Vec<_>>();
     // macOS `status` also asks the Session for its processes, on the connection after its own.
     let asks_processes = cfg!(target_os = "macos");
-    let query_connection = 1 + queries
+    let query_connection = 1 + derived
         .iter()
         .position(|(arguments, _)| arguments.first() == Some(&"status"))
         .expect("the queries run status");
     let connection = std::sync::atomic::AtomicUsize::new(0);
-    let connections = queries.len() + usize::from(asks_processes);
+    let connections = derived.len() + usize::from(asks_processes);
     let peer = spawn_peer_n(&scope, connections, move |stream| {
         if asks_processes
             && connection.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == query_connection
@@ -823,6 +837,10 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
 
     let mut documents = Vec::new();
     for (arguments, schema_id) in queries {
+        if enriched(arguments) {
+            documents.push(serde_json::Value::Null);
+            continue;
+        }
         let output = run(&base, arguments);
         assert_eq!(
             output.status.code(),
@@ -865,106 +883,110 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         serde_json::json!([{"workspaceId": id(0x12), "label": "ws"}])
     );
 
-    let workspaces = documents[2]["result"]["workspaces"].as_array().unwrap();
-    assert_eq!(workspaces.len(), 2);
-    assert_eq!(workspaces[0]["workspaceId"], id(1));
-    assert_eq!(workspaces[1]["workspaceId"], id(0x12));
-    assert_eq!(workspaces[1]["projectId"], id(0x10));
-    assert_eq!(workspaces[1]["primaryDirectoryId"], id(0x11));
-    assert_eq!(workspaces[1]["terminalContextId"], id(0x20));
+    if !cfg!(target_os = "macos") {
+        let workspaces = documents[2]["result"]["workspaces"].as_array().unwrap();
+        assert_eq!(workspaces.len(), 2);
+        assert_eq!(workspaces[0]["workspaceId"], id(1));
+        assert_eq!(workspaces[1]["workspaceId"], id(0x12));
+        assert_eq!(workspaces[1]["projectId"], id(0x10));
+        assert_eq!(workspaces[1]["primaryDirectoryId"], id(0x11));
+        assert_eq!(workspaces[1]["terminalContextId"], id(0x20));
 
-    let workspace = &documents[3]["result"]["workspace"];
-    assert_eq!(workspace["workspaceId"], id(0x12));
-    assert_eq!(
-        workspace["tabs"],
-        serde_json::json!([{"tabId": id(0x21), "label": "ws-main"}])
-    );
+        let workspace = &documents[3]["result"]["workspace"];
+        assert_eq!(workspace["workspaceId"], id(0x12));
+        assert_eq!(
+            workspace["tabs"],
+            serde_json::json!([{"tabId": id(0x21), "label": "ws-main"}])
+        );
 
-    // Every tab row carries its real Workspace owner, including ungrouped Workspaces.
-    let tabs = documents[4]["result"]["tabs"].as_array().unwrap();
-    assert_eq!(tabs.len(), 3);
-    let ws_row = tabs
-        .iter()
-        .find(|row| row["tabId"] == id(0x21))
-        .expect("workspace tab row");
-    assert_eq!(
-        ws_row["context"],
-        serde_json::json!({
-            "kind": "workspace",
-            "terminalContextId": id(0x20),
-            "workspaceId": id(0x12),
-        })
-    );
-    for row in tabs.iter().filter(|row| row["tabId"] != id(0x21)) {
-        assert_eq!(row["context"]["kind"], "workspace", "{row}");
-        assert_eq!(row["context"]["workspaceId"], id(1), "{row}");
+        // Every tab row carries its real Workspace owner, including ungrouped Workspaces.
+        let tabs = documents[4]["result"]["tabs"].as_array().unwrap();
+        assert_eq!(tabs.len(), 3);
+        let ws_row = tabs
+            .iter()
+            .find(|row| row["tabId"] == id(0x21))
+            .expect("workspace tab row");
+        assert_eq!(
+            ws_row["context"],
+            serde_json::json!({
+                "kind": "workspace",
+                "terminalContextId": id(0x20),
+                "workspaceId": id(0x12),
+            })
+        );
+        for row in tabs.iter().filter(|row| row["tabId"] != id(0x21)) {
+            assert_eq!(row["context"]["kind"], "workspace", "{row}");
+            assert_eq!(row["context"]["workspaceId"], id(1), "{row}");
+        }
+
+        // `--workspace` by label resolves to exactly the workspace context's tab.
+        let filtered = documents[5]["result"]["tabs"].as_array().unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0]["tabId"], id(0x21));
+
+        // `tab get` re-encodes the split PanelNode subtree without semantic loss.
+        let root = &documents[6]["result"]["tab"]["root"];
+        assert_eq!(root["kind"], "split");
+        assert_eq!(root["splitId"], id(0x22));
+        assert_eq!(root["children"].as_array().unwrap().len(), 2);
+
+        // Panels flatten across contexts; the filter keeps only the resolved tab.
+        let panels = documents[7]["result"]["panels"].as_array().unwrap();
+        assert_eq!(panels.len(), 4);
+        let scoped = documents[8]["result"]["panels"].as_array().unwrap();
+        assert_eq!(
+            scoped
+                .iter()
+                .map(|row| row["panelId"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>(),
+            vec![id(0x24), id(0x27)],
+        );
+        assert!(scoped.iter().all(|row| row["tabId"] == id(0x21)));
+
+        // `panel get` walks the split: slotPath is the slot ids root→leaf and the
+        // context pins the owning workspace.
+        let left = &documents[9]["result"]["panel"];
+        assert_eq!(left["panelId"], id(0x24));
+        assert_eq!(left["slotPath"], serde_json::json!([id(0x23)]));
+        assert_eq!(
+            left["context"],
+            serde_json::json!({
+                "kind": "workspace",
+                "terminalContextId": id(0x20),
+                "workspaceId": id(0x12),
+            })
+        );
+        assert_eq!(left["primaryPresentation"]["presentationId"], id(0x25));
+        assert_eq!(
+            left["primaryPresentation"]["binding"],
+            serde_json::Value::Null
+        );
+        assert_eq!(left["childPresentations"], serde_json::json!([]));
+        let right = &documents[10]["result"]["panel"];
+        assert_eq!(right["panelId"], id(0x27));
+        assert_eq!(right["slotPath"], serde_json::json!([id(0x26)]));
+        assert_eq!(
+            right["primaryPresentation"]["binding"]["terminalId"],
+            id(0x30)
+        );
+        assert_eq!(
+            right["childPresentations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| row["presentationId"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>(),
+            vec![id(0x29)],
+        );
     }
-
-    // `--workspace` by label resolves to exactly the workspace context's tab.
-    let filtered = documents[5]["result"]["tabs"].as_array().unwrap();
-    assert_eq!(filtered.len(), 1);
-    assert_eq!(filtered[0]["tabId"], id(0x21));
-
-    // `tab get` re-encodes the split PanelNode subtree without semantic loss.
-    let root = &documents[6]["result"]["tab"]["root"];
-    assert_eq!(root["kind"], "split");
-    assert_eq!(root["splitId"], id(0x22));
-    assert_eq!(root["children"].as_array().unwrap().len(), 2);
-
-    // Panels flatten across contexts; the filter keeps only the resolved tab.
-    let panels = documents[7]["result"]["panels"].as_array().unwrap();
-    assert_eq!(panels.len(), 4);
-    let scoped = documents[8]["result"]["panels"].as_array().unwrap();
-    assert_eq!(
-        scoped
-            .iter()
-            .map(|row| row["panelId"].as_str().unwrap().to_owned())
-            .collect::<Vec<_>>(),
-        vec![id(0x24), id(0x27)],
-    );
-    assert!(scoped.iter().all(|row| row["tabId"] == id(0x21)));
-
-    // `panel get` walks the split: slotPath is the slot ids root→leaf and the
-    // context pins the owning workspace.
-    let left = &documents[9]["result"]["panel"];
-    assert_eq!(left["panelId"], id(0x24));
-    assert_eq!(left["slotPath"], serde_json::json!([id(0x23)]));
-    assert_eq!(
-        left["context"],
-        serde_json::json!({
-            "kind": "workspace",
-            "terminalContextId": id(0x20),
-            "workspaceId": id(0x12),
-        })
-    );
-    assert_eq!(left["primaryPresentation"]["presentationId"], id(0x25));
-    assert_eq!(
-        left["primaryPresentation"]["binding"],
-        serde_json::Value::Null
-    );
-    assert_eq!(left["childPresentations"], serde_json::json!([]));
-    let right = &documents[10]["result"]["panel"];
-    assert_eq!(right["panelId"], id(0x27));
-    assert_eq!(right["slotPath"], serde_json::json!([id(0x26)]));
-    assert_eq!(
-        right["primaryPresentation"]["binding"]["terminalId"],
-        id(0x30)
-    );
-    assert_eq!(
-        right["childPresentations"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|row| row["presentationId"].as_str().unwrap().to_owned())
-            .collect::<Vec<_>>(),
-        vec![id(0x29)],
-    );
 
     // Terminals: both bound ids are listed; `terminal get` answers the
     // Server's launch-read join — version 4 envelope, its own source kind,
     // the same routing, and the retained launch fact.
-    let terminals = documents[11]["result"]["terminals"].as_array().unwrap();
-    assert_eq!(terminals.len(), 2);
+    if !cfg!(target_os = "macos") {
+        let terminals = documents[11]["result"]["terminals"].as_array().unwrap();
+        assert_eq!(terminals.len(), 2);
+    }
     let get = &documents[12];
     assert_eq!(get["version"], 1);
     assert_eq!(
@@ -1001,11 +1023,13 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     assert_eq!(launch["workerGeneration"], "1");
     assert_eq!(launch["createOutcome"]["kind"], "accepted");
     assert_eq!(launch["geometry"]["columns"], 120);
-    assert!(
-        documents[11]["result"]["terminals"][0]
-            .get("launch")
-            .is_none()
-    );
+    if !cfg!(target_os = "macos") {
+        assert!(
+            documents[11]["result"]["terminals"][0]
+                .get("launch")
+                .is_none()
+        );
+    }
 
     // `status` reports the same snapshot's real counts; `api snapshot`
     // re-encodes the document itself.

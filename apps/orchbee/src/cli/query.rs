@@ -674,8 +674,10 @@ pub(crate) fn stream_snapshot(
     match outcome {
         WorkbenchSnapshotOutcome::Available { snapshot } => Ok((client, snapshot)),
         WorkbenchSnapshotOutcome::Denied {} => Err(Failure::new(FailureKind::Denied)),
+        // The stage names the refused read, as `admit_snapshot` and this read's transport
+        // failures do.
         WorkbenchSnapshotOutcome::Unavailable { .. } => {
-            Err(Failure::new(FailureKind::ServiceUnavailable))
+            Err(Failure::new(FailureKind::ServiceUnavailable).details(stage_details("snapshot")))
         }
     }
 }
