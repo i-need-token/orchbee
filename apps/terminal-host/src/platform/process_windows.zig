@@ -199,7 +199,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         else
             null;
 
-        var pty = try pty_module.Pty.open(.{
+        var pty = try pty_module.Pty.open(allocator, .{
             .columns = launch.columns,
             .pixel_height = try process_common.pixelExtent(launch.rows, launch.cell_pixel_height),
             .pixel_width = try process_common.pixelExtent(launch.columns, launch.cell_pixel_width),
@@ -224,7 +224,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
             attribute_list.ptr,
             0,
             windows_api.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
-            pty.pseudo_console,
+            pty.pseudoConsole(),
             @sizeOf(windows_api.HPCON),
             null,
             null,

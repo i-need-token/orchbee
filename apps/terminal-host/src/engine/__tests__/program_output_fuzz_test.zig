@@ -35,7 +35,7 @@ const tiny_png_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 
 /// Discards everything the real reader reads, so only this harness commits output and the run
 /// stays seeded. The reader still drains the PTY: the child echoes the replies the terminal
-/// writes and ConPTY repaints on each resize, and an undrained pipe blocks a later ConPTY resize.
+/// writes and ConPTY repaints on each resize, and an undrained pipe stops the console.
 const DrainingProbe = struct {
     ready: harness.TestGate = .{},
     runtime: *TerminalRuntime = undefined,

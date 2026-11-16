@@ -15,14 +15,14 @@ extern "kernel32" fn CreatePipe(
 ) callconv(.winapi) std.os.windows.BOOL;
 
 test "PTY opens with bounded dimensions and resizes" {
-    var instance = try Pty.open(.{ .rows = 24, .columns = 80 });
+    var instance = try Pty.open(std.testing.allocator, .{ .rows = 24, .columns = 80 });
     defer instance.deinit();
     try instance.setSize(.{ .rows = 40, .columns = 120 });
 }
 
 test "Windows PTY rejects resize after pseudoconsole close" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var instance = try Pty.open(.{ .rows = 24, .columns = 80 });
+    var instance = try Pty.open(std.testing.allocator, .{ .rows = 24, .columns = 80 });
     defer instance.deinit();
     instance.closeConsole();
     try std.testing.expectError(
@@ -34,7 +34,7 @@ test "Windows PTY rejects resize after pseudoconsole close" {
 test "Windows PTY maps a pipe without readers to BrokenPipe" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     const windows = std.os.windows;
-    var instance = try Pty.open(.{ .rows = 24, .columns = 80 });
+    var instance = try Pty.open(std.testing.allocator, .{ .rows = 24, .columns = 80 });
     defer instance.deinit();
     var read_pipe: windows.HANDLE = undefined;
     var write_pipe: windows.HANDLE = undefined;
@@ -61,7 +61,7 @@ test "POSIX child setup preserves standard streams when openpty reuses low descr
         _ = posix.system.close(posix.STDIN_FILENO);
         _ = posix.system.close(posix.STDOUT_FILENO);
         _ = posix.system.close(posix.STDERR_FILENO);
-        const instance = Pty.open(.{ .rows = 24, .columns = 80 }) catch {
+        const instance = Pty.open(std.testing.allocator, .{ .rows = 24, .columns = 80 }) catch {
             _ = posix_compat.write(report[1], &.{0}) catch 0;
             posix_compat.exit(1);
         };
@@ -120,7 +120,7 @@ test "PTY abort wakes a reader blocked without child output" {
         }
     };
 
-    var instance = try Pty.open(.{ .rows = 24, .columns = 80 });
+    var instance = try Pty.open(std.testing.allocator, .{ .rows = 24, .columns = 80 });
     defer instance.deinit();
     var reader: Reader = .{ .pty = &instance };
     var thread = try std.Thread.spawn(.{}, Reader.run, .{&reader});

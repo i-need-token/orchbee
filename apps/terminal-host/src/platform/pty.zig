@@ -5,6 +5,7 @@ const posix_compat = @import("posix_compat.zig");
 const thread_sync = @import("thread_sync.zig");
 const windows_api = @import("windows_api.zig");
 const windows_conpty = @import("conpty_windows.zig");
+const conpty_signals = @import("conpty_signals_windows.zig");
 
 extern "c" fn tcgetpgrp(handle: c_int) c_int;
 
@@ -31,7 +32,7 @@ const PosixPty = if (builtin.os.tag == .windows) void else struct {
     read_aborted: std.atomic.Value(bool) = .init(false),
     slave: ?posix.fd_t,
 
-    pub fn open(size: Size) !PosixPty {
+    pub fn open(_: std.mem.Allocator, size: Size) !PosixPty {
         var native_size = nativeSize(size);
         var master: posix.fd_t = undefined;
         var slave: posix.fd_t = undefined;
@@ -173,18 +174,22 @@ const PosixPty = if (builtin.os.tag == .windows) void else struct {
 const WindowsPty = if (builtin.os.tag != .windows) void else struct {
     const windows = std.os.windows;
 
-    console_closed: bool = false,
+    allocator: std.mem.Allocator,
     conpty: windows_conpty.Api,
     input: windows.HANDLE,
-    lifecycle_mutex: thread_sync.Mutex = .{},
     output: windows.HANDLE,
-    pseudo_console: windows_api.HPCON,
+    /// The reader's lock, guarding the read fields below. It is held only for bookkeeping: no
+    /// ConPTY call runs under it, because a resize, clear or close can wait for the very output
+    /// this reader has not read yet.
+    read_mutex: thread_sync.Mutex = .{},
     read_abort_requested: bool = false,
     read_active: bool = false,
     read_condition: thread_sync.Condition = .{},
     reader_thread: ?std.Thread.Handle = null,
+    /// Owns the pseudoconsole: every resize, clear and close goes through its sender.
+    signals: *conpty_signals.Signals,
 
-    pub fn open(size: Size) !WindowsPty {
+    pub fn open(allocator: std.mem.Allocator, size: Size) !WindowsPty {
         const columns = try checkedCoordinate(size.columns);
         const rows = try checkedCoordinate(size.rows);
         var conpty = try windows_conpty.Api.init();
@@ -223,18 +228,22 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
             &pseudo_console,
         );
         if (result != windows_api.S_OK) return error.OpenPtyFailed;
+        errdefer conpty.close(pseudo_console);
+        const signals = try conpty_signals.Signals.start(allocator, &conpty, pseudo_console);
         _ = windows.CloseHandle(input_console);
         _ = windows.CloseHandle(output_console);
         return .{
+            .allocator = allocator,
             .conpty = conpty,
             .input = input,
             .output = output,
-            .pseudo_console = pseudo_console,
+            .signals = signals,
         };
     }
 
     pub fn deinit(self: *WindowsPty) void {
         self.closeConsole();
+        self.signals.destroy(self.allocator);
         _ = windows.CloseHandle(self.input);
         _ = windows.CloseHandle(self.output);
         self.conpty.deinit();
@@ -242,9 +251,9 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn abortRead(self: *WindowsPty) !void {
-        self.lifecycle_mutex.lock();
+        self.read_mutex.lock();
         if (self.read_abort_requested and !self.read_active) {
-            self.lifecycle_mutex.unlock();
+            self.read_mutex.unlock();
             return;
         }
         self.read_abort_requested = true;
@@ -252,14 +261,14 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
         var cancellation_requested = false;
         while (self.read_active) {
             if (cancellation_requested) {
-                self.read_condition.wait(&self.lifecycle_mutex);
+                self.read_condition.wait(&self.read_mutex);
                 continue;
             }
             const reader_thread = self.reader_thread orelse {
-                self.lifecycle_mutex.unlock();
+                self.read_mutex.unlock();
                 return error.MissingReaderThread;
             };
-            self.lifecycle_mutex.unlock();
+            self.read_mutex.unlock();
             if (windows_api.CancelSynchronousIo(reader_thread).toBool()) {
                 cancellation_requested = true;
             } else switch (windows.GetLastError()) {
@@ -269,57 +278,57 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
                 .NOT_FOUND => std.Thread.yield() catch {},
                 else => |err| return windows.unexpectedError(err),
             }
-            self.lifecycle_mutex.lock();
+            self.read_mutex.lock();
         }
-        self.lifecycle_mutex.unlock();
+        self.read_mutex.unlock();
     }
 
     pub fn registerReaderThread(self: *WindowsPty, thread: std.Thread.Handle) void {
-        self.lifecycle_mutex.lock();
-        defer self.lifecycle_mutex.unlock();
+        self.read_mutex.lock();
+        defer self.read_mutex.unlock();
         std.debug.assert(self.reader_thread == null);
         self.reader_thread = thread;
         self.read_condition.broadcast();
     }
 
+    /// Closes the pseudoconsole once, after its sender stops; a signal the console has not taken
+    /// is cancelled rather than waited for.
     pub fn closeConsole(self: *WindowsPty) void {
-        self.lifecycle_mutex.lock();
-        defer self.lifecycle_mutex.unlock();
-        if (self.console_closed) return;
-        self.conpty.close(self.pseudo_console);
-        self.console_closed = true;
+        self.signals.close();
     }
 
     pub fn closeSlave(_: *WindowsPty) void {}
 
+    /// The pseudoconsole a child launches into; valid until `closeConsole`.
+    pub fn pseudoConsole(self: *const WindowsPty) windows_api.HPCON {
+        return self.signals.pseudo_console;
+    }
+
     /// Asks ConPTY to clear its own buffer, keeping only the cursor row at the top with the
-    /// cursor's column. True when the signal was sent: ConPTY then places later output by
-    /// coordinates that count from that row, so the caller's screen must match.
+    /// cursor's column. True when the signal is queued: ConPTY then places later output by
+    /// coordinates that count from that row, so the caller's screen must match. It never waits
+    /// for the console.
     pub fn clearKeepingCursorRow(self: *WindowsPty) bool {
-        self.lifecycle_mutex.lock();
-        defer self.lifecycle_mutex.unlock();
-        const clear = self.conpty.clear orelse return false;
-        if (self.console_closed) return false;
-        return clear(self.pseudo_console, .TRUE) == windows_api.S_OK;
+        return self.signals.clearKeepingCursorRow();
     }
 
     pub fn read(self: *WindowsPty, buffer: []u8) !usize {
-        self.lifecycle_mutex.lock();
+        self.read_mutex.lock();
         while (self.reader_thread == null and !self.read_abort_requested) {
-            self.read_condition.wait(&self.lifecycle_mutex);
+            self.read_condition.wait(&self.read_mutex);
         }
         if (self.read_abort_requested) {
-            self.lifecycle_mutex.unlock();
+            self.read_mutex.unlock();
             return 0;
         }
         std.debug.assert(!self.read_active);
         self.read_active = true;
-        self.lifecycle_mutex.unlock();
+        self.read_mutex.unlock();
         defer {
-            self.lifecycle_mutex.lock();
+            self.read_mutex.lock();
             self.read_active = false;
             self.read_condition.broadcast();
-            self.lifecycle_mutex.unlock();
+            self.read_mutex.unlock();
         }
         var read_bytes: windows.DWORD = 0;
         if (!windows_api.ReadFile(
@@ -357,17 +366,12 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
         return written;
     }
 
+    /// Queues the size for the signal sender and returns without waiting for the console. A
+    /// closed console, or an earlier signal that failed, is the error.
     pub fn setSize(self: *WindowsPty, size: Size) !void {
         const columns = try checkedCoordinate(size.columns);
         const rows = try checkedCoordinate(size.rows);
-        self.lifecycle_mutex.lock();
-        defer self.lifecycle_mutex.unlock();
-        if (self.console_closed) return error.PtyClosed;
-        const result = self.conpty.resize(
-            self.pseudo_console,
-            .{ .X = columns, .Y = rows },
-        );
-        if (result != windows_api.S_OK) return error.ResizePtyFailed;
+        try self.signals.resize(.{ .X = columns, .Y = rows });
     }
 
     fn checkedCoordinate(value: u16) !i16 {

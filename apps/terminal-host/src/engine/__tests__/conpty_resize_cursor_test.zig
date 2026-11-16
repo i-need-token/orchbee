@@ -11,8 +11,10 @@ const capture_limit_bytes = 512 * 1024;
 const marker_timeout_ns = 20 * std.time.ns_per_s;
 
 test {
-    // The same real-shell prompt gate witness also runs on system ConHost in the engine suite.
+    // The same real-shell prompt gate witness and signal stall regression also run on system
+    // ConHost in the engine suite.
     _ = @import("prompt_gate_witness_test.zig");
+    _ = @import("conpty_signal_stall_test.zig");
 }
 
 test "bundled Windows ConPTY keeps Windows PowerShell input on its prompt line" {

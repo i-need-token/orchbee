@@ -66,7 +66,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         const environment_pointer = (try environment.createPosixBlock(arena, .{})).slice.ptr;
         const executable_candidates = try executableCandidates(arena, &environment, launch.executable);
 
-        var pty = try pty_module.Pty.open(.{
+        var pty = try pty_module.Pty.open(allocator, .{
             .columns = launch.columns,
             .pixel_height = try process_common.pixelExtent(launch.rows, launch.cell_pixel_height),
             .pixel_width = try process_common.pixelExtent(launch.columns, launch.cell_pixel_width),

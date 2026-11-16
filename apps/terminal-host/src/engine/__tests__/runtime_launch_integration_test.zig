@@ -359,7 +359,7 @@ test "POSIX PTY child reads TIOCGWINSZ matching the canonical launch geometry" {
     const plan = prepared.processLaunch(validated.launch.geometry.?);
 
     const posix = std.posix;
-    var pty = try platform_boundary.testing.pty.Pty.open(.{
+    var pty = try platform_boundary.testing.pty.Pty.open(std.testing.allocator, .{
         .columns = plan.columns,
         .pixel_height = plan.rows * plan.cell_pixel_height,
         .pixel_width = plan.columns * plan.cell_pixel_width,
@@ -462,7 +462,7 @@ test "POSIX PTY child reads TIOCGWINSZ with real cells and zero pixel extents" {
     try std.testing.expectEqual(@as(u16, 0), plan.cell_pixel_width);
 
     const posix = std.posix;
-    var pty = try platform_boundary.testing.pty.Pty.open(.{
+    var pty = try platform_boundary.testing.pty.Pty.open(std.testing.allocator, .{
         .columns = plan.columns,
         .pixel_height = plan.rows * plan.cell_pixel_height,
         .pixel_width = plan.columns * plan.cell_pixel_width,

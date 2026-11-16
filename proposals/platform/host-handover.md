@@ -82,7 +82,8 @@ Host. One is open: crafted output with 32 or more link URIs or styles whose hash
 Ghostty panic in `cloneRowGrowCapacity` in every build, and a bypass in the Host would have to copy
 Ghostty's hash and probe layout, as the
 [open record](../../apps/terminal-host/docs/runtime-model.md#pinned-ghostty-checks-that-program-output-reaches)
-says. A fuzz run also hung once, using no processor time, near a ConPTY resize.
+says. A fuzz run also hung once, using no processor time, near a ConPTY resize; a resize blocked
+under the reader's lock explains it, and the Host no longer signals under that lock.
 
 | Event                     | Without a split                                                                                                                                            | With the Keeper and recovery, from H2                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -219,10 +220,10 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
 - Nothing resizes a terminal that no Host reads. While output is unread, OpenConsole's signal
   thread waits for the console, and each resize queues 6 bytes in the 4 KiB signal pipe, so the
   684th resize blocks its caller until output is read, with OpenConsole using no processor time, as
-  prototype 1 measured. Today's Host resizes under the lock its reader takes around every read, so
-  a blocked resize would stop the reader for good; this likely explains the fuzz hang near a resize,
-  which H1 checks against the harness. Rule: a Host never resizes, clears, or signals under a lock
-  its reader needs.
+  prototype 1 measured. The Host used to resize under the lock its reader takes around every read,
+  so a blocked resize stopped the reader for good, the likely cause of the fuzz hang near a resize.
+  The rule that a Host never resizes, clears, or signals under a lock its reader takes is now in
+  the runtime model's [ConPTY signals](../../apps/terminal-host/docs/runtime-model.md#conpty-signals).
 - Neither the program nor OpenConsole notices a move: the console and the kernel PTY stay where they
   are, and the screen moves exactly, so nothing has to redraw.
 - When: once the Session runs the new pair, the Worker moves every terminal of an older Host, one at a
@@ -411,7 +412,8 @@ inferred.
 - Recovery on Windows gets no repaint from OpenConsole, as the
   [crash table](#what-a-crash-or-hang-costs) now says.
 - The unread-output resize block becomes the rule in [how a terminal moves](#how-a-terminal-moves)
-  and an H1 check of the fuzz hang.
+  and the Host's [ConPTY signals](../../apps/terminal-host/docs/runtime-model.md#conpty-signals)
+  rule.
 
 ### Prototype 2 result
 

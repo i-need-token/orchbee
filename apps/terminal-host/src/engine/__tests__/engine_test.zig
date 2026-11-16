@@ -1,4 +1,5 @@
 comptime {
+    _ = @import("conpty_signal_stall_test.zig");
     _ = @import("history_export_test.zig");
     _ = @import("history_rows_test.zig");
     _ = @import("history_selection_test.zig");
