@@ -162,9 +162,16 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.font.label': 'Font',
 	'terminal.settings.page.font.description':
 		'Font for terminal text; another font fills in when it is missing.',
+	'terminal.settings.page.font.builtIn': 'JetBrains Mono (built in)',
+	'terminal.settings.page.font.search': 'Search or type a font',
+	'terminal.settings.page.font.use': 'Use "{family}"',
+	'terminal.settings.page.font.showAll': 'Show all fonts',
+	'terminal.settings.page.font.group.fixedWidth': 'Fixed width',
+	'terminal.settings.page.font.group.other': 'Other fonts',
 	'terminal.settings.page.fontSize.label': 'Font size',
-	'terminal.settings.page.fontSize.description': 'Size of terminal text.',
-	'terminal.settings.page.unit.pixels': 'px',
+	'terminal.settings.page.fontSize.description': 'Size of terminal text, in pixels.',
+	'terminal.settings.page.fontSize.decrease': 'Decrease font size',
+	'terminal.settings.page.fontSize.increase': 'Increase font size',
 	'terminal.settings.page.unit.megabytes': 'MB',
 	'terminal.settings.page.copyOnSelect.label': 'Copy on select',
 	'terminal.settings.page.copyOnSelect.description':

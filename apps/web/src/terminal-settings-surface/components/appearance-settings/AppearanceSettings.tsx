@@ -5,6 +5,9 @@ import type * as React from 'react';
 import type { TerminalSettingsController } from '../../../terminal-settings';
 import { TERMINAL_FONT_SIZE_RANGE } from '../../constants/terminal-font-size-range';
 import { useSetting } from '../../hooks/useSetting';
+import type { TerminalSettingsFontCatalog } from '../../types/terminal-settings-surface';
+import { FontFamilyPicker } from '../font-family-picker/FontFamilyPicker';
+import { FontSizeStepper } from '../font-size-stepper/FontSizeStepper';
 import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
@@ -14,12 +17,14 @@ import styles from './AppearanceSettings.module.css';
 
 interface AppearanceSettingsProps {
 	readonly controller: TerminalSettingsController;
+	readonly fontCatalog: TerminalSettingsFontCatalog | undefined;
 	readonly query: string;
 }
 
 /** The app appearance, terminal colors, and terminal text. */
 export function AppearanceSettings({
 	controller,
+	fontCatalog,
 	query,
 }: AppearanceSettingsProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
@@ -131,16 +136,15 @@ export function AppearanceSettings({
 					status={<SettingFailure message={view.fontFamily.error} />}
 					onRestore={view.fontFamily.onRestore}
 				>
-					<Input
-						aria-invalid={view.fontFamily.error !== null}
-						aria-label={fontLabel}
-						className={styles['fontInput']}
+					<FontFamilyPicker
+						catalog={fontCatalog}
+						invalid={view.fontFamily.error !== null}
+						label={fontLabel}
+						modified={view.fontFamily.modified}
 						readOnly={view.fontFamily.readOnly}
-						spellCheck={false}
-						value={view.fontFamily.draft}
-						onBlur={view.fontFamily.onBlur}
-						onChange={view.fontFamily.onChange}
-						onKeyDown={view.fontFamily.onKeyDown}
+						value={view.fontFamily.value}
+						onChoose={view.fontFamily.onChoose}
+						onRestore={view.fontFamily.onChooseBuiltIn}
 					/>
 				</SettingsRow>
 				<SettingsRow
@@ -152,24 +156,19 @@ export function AppearanceSettings({
 					status={<SettingFailure message={view.fontSize.error} />}
 					onRestore={view.fontSize.onRestore}
 				>
-					<span className={styles['unitField']}>
-						<Input
-							aria-invalid={view.fontSize.error !== null}
-							aria-label={fontSizeLabel}
-							className={styles['numberInput']}
-							max={TERMINAL_FONT_SIZE_RANGE.maximum}
-							min={TERMINAL_FONT_SIZE_RANGE.minimum}
-							readOnly={view.fontSize.readOnly}
-							type='number'
-							value={view.fontSize.draft}
-							onBlur={view.fontSize.onBlur}
-							onChange={view.fontSize.onChange}
-							onKeyDown={view.fontSize.onKeyDown}
-						/>
-						<span className={styles['unit']}>
-							{intl.formatMessage(terminalSettingsMessages.pageUnitPixels)}
-						</span>
-					</span>
+					<FontSizeStepper
+						draft={view.fontSize.draft}
+						invalid={view.fontSize.error !== null}
+						label={fontSizeLabel}
+						maximum={TERMINAL_FONT_SIZE_RANGE.maximum}
+						minimum={TERMINAL_FONT_SIZE_RANGE.minimum}
+						readOnly={view.fontSize.readOnly}
+						value={view.fontSize.value}
+						onBlur={view.fontSize.onBlur}
+						onChange={view.fontSize.onChange}
+						onKeyDown={view.fontSize.onKeyDown}
+						onStep={view.fontSize.onStep}
+					/>
 				</SettingsRow>
 			</SettingsGroup>
 		</>

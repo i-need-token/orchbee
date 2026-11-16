@@ -33,6 +33,9 @@
 		"apps/web/src/terminal-settings-surface/components/config-file-row/ConfigFileRow.tsx",
 		"apps/web/src/terminal-settings-surface/components/general-settings/GeneralSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/appearance-settings/AppearanceSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/font-family-picker/FontFamilyPicker.tsx",
+		"apps/web/src/terminal-settings-surface/components/font-size-stepper/FontSizeStepper.tsx",
+		"apps/web/src/browser-local-fonts/createBrowserLocalFontCatalog.ts",
 		"apps/web/src/terminal-settings-surface/components/theme-settings/ThemeSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/terminal-behavior-settings/TerminalBehaviorSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/notification-settings/NotificationSettings.tsx",
@@ -77,7 +80,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-appearance",
 			"states": [
-				"Inspect the App appearance, Terminal colors and Terminal text groups. Choose Custom terminal colors to reveal the text and background color rows, and enter an out-of-range font size to see the row error while the applied size stays."
+				"Inspect the App appearance, Terminal colors and Terminal text groups. Choose Custom terminal colors to reveal the text and background color rows, and enter an out-of-range font size to see the row error while the applied size stays. Open the font list to see the fixed-width families in their own faces, switch on Show all fonts to see the other fonts with the picture fonts named in the normal face, and type a name the list lacks to see its Use entry; step the size with minus and plus."
 			]
 		},
 		{
@@ -208,6 +211,7 @@
 		"Application theme, terminal display theme, overlays, cursor presentation, and every mounted projected terminal publish through one exact Host-theme-revision barrier; data-theme changes only after all participants synchronously commit.",
 		"Each theme list holds the themes of its polarity, one per line with a swatch strip and a check on the slot's effective theme; the group in use carries an In use now tag and, when the app appearance is fixed, the other group carries a one-line note. Moving through a list previews the theme on the application and every mounted terminal without saving; Enter or a click commits it to its slot, also switching an Appearance fixed to the other polarity; Escape, leaving the list, closing Settings, or a refused save restores the committed theme.",
 		"Font family, size, and copy-on-select update mounted projected terminals without replacing their attachments.",
+		"The font row is a searchable list of installed families from the composition's font catalog, fixed-width families first and alone until Show all fonts is on, each named in its own face except picture fonts; a search looks through every family and also offers the typed text, and the built-in entry restores the default. Without a catalog the list holds the built-in entry and the typed text. Font size is a minus, value, plus stepper that applies each step at once.",
 		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed. Shortcut discovery filters localized visible text, stable identifiers and current chord aliases; Record keys compares one captured canonical chord exactly and never edits or persists a binding.",
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
 		"Option-as-Alt defaults to off, lives in the settings file, resolves the selected physical Option side per key event, and updates every mounted projected terminal without replacing its attachment.",

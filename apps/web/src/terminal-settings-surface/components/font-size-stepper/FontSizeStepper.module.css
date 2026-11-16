@@ -1,0 +1,9 @@
+.stepper {
+	width: calc(var(--ob-ref-space-16) + var(--ob-ref-space-12));
+	height: var(--ob-ref-size-control-sm);
+}
+
+.value {
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}

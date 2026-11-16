@@ -23,6 +23,7 @@ import * as React from 'react';
 
 import type { AgentIntegrationManagementControl } from '../agent-integration-management';
 import type { ApplicationLocaleController } from '../application-locale';
+import { createBrowserLocalFontCatalog } from '../browser-local-fonts';
 import {
 	keyboardShortcutClaims,
 	type KeyboardShortcutSettingsController,
@@ -43,6 +44,9 @@ import type { TerminalDefaultSettingsControl } from '../terminal-default-setting
 
 import { useWebApplication } from './hooks/useWebApplication';
 import styles from './WebApplication.module.css';
+
+/** Desktop and capable browsers list installed fonts the same way; others type a family. */
+const BROWSER_LOCAL_FONT_CATALOG = createBrowserLocalFontCatalog();
 
 export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
@@ -189,6 +193,7 @@ export function WebApplication({
 				applicationLocaleController={applicationLocaleController}
 				controller={terminalSettingsController}
 				folderPicker={projectFolderAcquisition}
+				fontCatalog={BROWSER_LOCAL_FONT_CATALOG}
 				terminalInteractionSettingsController={terminalInteractionSettingsController}
 				keyboardShortcutController={keyboardShortcutSettingsController}
 				keyboardShortcutsTakenByConfiguredCommands={configuredCommandKeys.takenBy}

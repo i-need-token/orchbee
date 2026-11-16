@@ -1,25 +1,3 @@
-.fontInput {
-	width: var(--ob-ref-container-3xs);
-	height: var(--ob-ref-size-control-sm);
-}
-
-.unitField {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--ob-ref-space-1-5);
-}
-
-.numberInput {
-	width: var(--ob-ref-space-16);
-	height: var(--ob-ref-size-control-sm);
-	font-variant-numeric: tabular-nums;
-}
-
-.unit {
-	color: var(--ob-sys-color-text-muted);
-	font: var(--ob-sys-typography-label-sm);
-}
-
 .colorField {
 	display: inline-flex;
 	align-items: center;

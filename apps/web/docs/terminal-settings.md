@@ -45,6 +45,18 @@ Both weights are integer hundreds from 100 through 900. Terminal padding is an i
 through 32 CSS pixels. Custom colors are exactly `#RRGGBB` and are normalized to lowercase.
 Background opacity is an integer percentage from 10 through 100.
 
+The Font row lists installed families through the composition's font catalog. The Web application
+supplies the browser's Local Font Access (`queryLocalFonts`) wherever the browser offers it; Desktop's
+Chromium offers it and its permission is granted, and a browser asks the person the first time the
+list opens, which is why the list asks only then. Fixed-width families come first and alone until
+Show all fonts is on; a search looks through every family. Each entry draws its name in its own
+face, except families that put pictures where letters belong. A picked family stores
+`"<family>", "Orchbee Symbols Nerd Font", monospace`, so prompt glyphs keep drawing where the family
+lacks them; the built-in entry restores the default; text the list lacks is stored as typed. Without
+Local Font Access, or after a refusal, the list holds the built-in entry and the typed text. Font
+size is a stepper of one pixel per press or Up and Down arrow; a typed size applies on Enter or when
+the field loses focus. The page has no Zoom row because the application has no window zoom command.
+
 Copy on select is the `terminal.copy_on_select` key. Its controller keeps its own subscription
 and publishes interaction configuration when a snapshot changes the value.
 

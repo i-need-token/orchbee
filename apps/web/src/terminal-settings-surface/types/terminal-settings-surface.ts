@@ -31,12 +31,20 @@ export interface TerminalSettingsFolderPicker {
 	selectExistingFolder(): Promise<TerminalSettingsFolderSelection>;
 }
 
+/** The device's installed font families; Desktop and capable browsers answer from Local Font Access. */
+export interface TerminalSettingsFontCatalog {
+	/** The families by name, or null when the listing was refused or failed. */
+	listFamilies(): Promise<readonly string[] | null>;
+}
+
 export interface TerminalSettingsSurfaceProps {
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
 	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly controller: TerminalSettingsController;
 	/** Custom folder… of the new terminal folder row asks it; without it the row takes a typed folder. */
 	readonly folderPicker?: TerminalSettingsFolderPicker | undefined;
+	/** The font row lists installed families from it; without it the row takes a typed family. */
+	readonly fontCatalog?: TerminalSettingsFontCatalog | undefined;
 	/** Opens Settings on this category instead of General; stories and tests use it. */
 	readonly initialCategory?: TerminalSettingsCategory | undefined;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;

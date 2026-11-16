@@ -30,6 +30,7 @@ export type ProductIconName =
 	| 'panels'
 	| 'pin'
 	| 'question'
+	| 'remove'
 	| 'restore'
 	| 'search'
 	| 'screen-full'
@@ -78,6 +79,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'panels' && styles['panels'],
 				name === 'pin' && styles['pin'],
 				name === 'question' && styles['question'],
+				name === 'remove' && styles['remove'],
 				name === 'restore' && styles['restore'],
 				name === 'search' && styles['search'],
 				name === 'screen-full' && styles['screenFull'],

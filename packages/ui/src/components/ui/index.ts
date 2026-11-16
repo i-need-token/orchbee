@@ -14,6 +14,19 @@ export { Button } from './button';
 export { Checkbox } from './checkbox';
 
 export {
+	Combobox,
+	ComboboxCollection,
+	ComboboxContent,
+	ComboboxGroup,
+	ComboboxItem,
+	ComboboxLabel,
+	ComboboxList,
+	ComboboxSearch,
+	ComboboxTrigger,
+	ComboboxValue,
+} from './combobox';
+
+export {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuGroup,

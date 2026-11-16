@@ -25,6 +25,26 @@ interface TextDraftView {
 	readonly readOnly: boolean;
 }
 
+interface FontFamilyView {
+	/** A typed list that was not admitted, or why the file did not take the last change. */
+	readonly error: string | null;
+	readonly modified: boolean;
+	readonly onChoose: (fontList: string) => void;
+	/** Choosing the built-in font restores the default. */
+	readonly onChooseBuiltIn: () => void;
+	/** Undefined while the file is read-only, which hides the row's Restore default. */
+	readonly onRestore: (() => void) | undefined;
+	readonly readOnly: boolean;
+	/** The stored CSS font list. */
+	readonly value: string;
+}
+
+interface FontSizeView extends TextDraftView {
+	readonly onStep: (size: number) => void;
+	/** The stored size, which the stepper's buttons move from. */
+	readonly value: number;
+}
+
 interface ColorDraftView extends TextDraftView {
 	/** The confirmed color, for the native color picker. */
 	readonly color: string;
@@ -36,14 +56,15 @@ type DraftSetting = Omit<SettingView<SettingKey>, 'set' | 'value'>;
 
 interface AppearanceSettingsView {
 	readonly background: ColorDraftView;
-	readonly fontFamily: TextDraftView;
-	readonly fontSize: TextDraftView;
+	readonly fontFamily: FontFamilyView;
+	readonly fontSize: FontSizeView;
 	readonly foreground: ColorDraftView;
 	readonly preferences: TerminalAppearancePreferences;
 }
 
 /**
- * Drafts for the typed appearance values. A draft commits on Enter or when its field loses focus;
+ * Drafts for the typed appearance values and the font family's choice. A draft commits on Enter or
+ * when its field loses focus, and a stepped size or a chosen family commits at once;
  * an invalid draft stays visible with its message and changes nothing, and a change the file refuses
  * puts the field back on the file's value with the reason.
  */
@@ -57,7 +78,6 @@ export function useAppearanceSettings(
 	const fontSize = useSetting(settings, 'terminal.font_size');
 	const foreground = useSetting(settings, 'appearance.custom_foreground');
 	const background = useSetting(settings, 'appearance.custom_background');
-	const fontFamilyDraft = useSettingDraft(preferences.fontFamily, fontFamily.failure);
 	const fontSizeDraft = useSettingDraft(String(preferences.fontSize), fontSize.failure);
 	const foregroundDraft = useSettingDraft(preferences.customForeground, foreground.failure);
 	const backgroundDraft = useSettingDraft(preferences.customBackground, background.failure);
@@ -113,6 +133,17 @@ export function useAppearanceSettings(
 		};
 	};
 
+	const fontSizeInvalid = intl.formatMessage(
+		terminalSettingsMessages.fontSizeRangeInvalid,
+		TERMINAL_FONT_SIZE_RANGE,
+	);
+	const commitFontSize = (draft: string): void => {
+		markInvalid(
+			'terminal.font_size',
+			controller.update({ fontSize: Number(draft) }).kind === 'invalid',
+		);
+	};
+
 	return {
 		background: colorDraft(
 			background,
@@ -120,30 +151,30 @@ export function useAppearanceSettings(
 			backgroundDraft,
 			intl.formatMessage(terminalSettingsMessages.backgroundInvalid),
 		),
-		fontFamily: textDraft(
-			fontFamily,
-			'terminal.font_family',
-			fontFamilyDraft,
-			intl.formatMessage(terminalSettingsMessages.fontFamilyInvalid),
-			(draft) => {
+		fontFamily: {
+			error: invalid.has('terminal.font_family')
+				? intl.formatMessage(terminalSettingsMessages.fontFamilyInvalid)
+				: fontFamily.failureMessage,
+			modified: fontFamily.modified,
+			onChoose: (fontList) => {
 				markInvalid(
 					'terminal.font_family',
-					controller.update({ fontFamily: draft }).kind === 'invalid',
+					controller.update({ fontFamily: fontList }).kind === 'invalid',
 				);
 			},
-		),
-		fontSize: textDraft(
-			fontSize,
-			'terminal.font_size',
-			fontSizeDraft,
-			intl.formatMessage(terminalSettingsMessages.fontSizeRangeInvalid, TERMINAL_FONT_SIZE_RANGE),
-			(draft) => {
-				markInvalid(
-					'terminal.font_size',
-					controller.update({ fontSize: Number(draft) }).kind === 'invalid',
-				);
+			onChooseBuiltIn: fontFamily.restore,
+			onRestore: fontFamily.readOnly ? undefined : fontFamily.restore,
+			readOnly: fontFamily.readOnly,
+			value: preferences.fontFamily,
+		},
+		fontSize: {
+			...textDraft(fontSize, 'terminal.font_size', fontSizeDraft, fontSizeInvalid, commitFontSize),
+			onStep: (size) => {
+				fontSizeDraft.change(String(size));
+				commitFontSize(String(size));
 			},
-		),
+			value: preferences.fontSize,
+		},
 		foreground: colorDraft(
 			foreground,
 			'customForeground',

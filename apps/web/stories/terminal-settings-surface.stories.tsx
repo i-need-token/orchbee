@@ -77,6 +77,27 @@ const brokenFileSettings = memoryUserSettings({
 });
 const brokenFileController = createStoryController(brokenFileSettings);
 
+/** The families a Windows device commonly lists, so the font list shows samples and symbol faces. */
+const storyFontCatalog = {
+	listFamilies: (): Promise<readonly string[]> =>
+		Promise.resolve([
+			'Arial',
+			'Cascadia Code',
+			'Cascadia Mono',
+			'Consolas',
+			'Courier New',
+			'Georgia',
+			'Lucida Console',
+			'Segoe UI',
+			'Tahoma',
+			'Times New Roman',
+			'Trebuchet MS',
+			'Verdana',
+			'Webdings',
+			'Wingdings',
+		]),
+};
+
 const meta = {
 	title: 'Terminal Settings Surface',
 	component: TerminalSettingsSurface,
@@ -94,6 +115,7 @@ const englishArgs = {
 	agentIntegrationManagementControl: englishAgentIntegrations,
 	applicationLocaleController: englishApplicationLocaleController,
 	controller: englishController,
+	fontCatalog: storyFontCatalog,
 	keyboardShortcutController: englishKeyboardController,
 	keyboardShortcutPlatform: 'apple',
 	macosTerminalInputSettingsController: englishMacosInputController,
@@ -108,6 +130,7 @@ const chineseArgs = {
 	agentIntegrationManagementControl: chineseAgentIntegrations,
 	applicationLocaleController: chineseApplicationLocaleController,
 	controller: chineseController,
+	fontCatalog: storyFontCatalog,
 	keyboardShortcutController: chineseKeyboardController,
 	keyboardShortcutPlatform: 'standard',
 	onRequestClose: () => chineseController.close(),

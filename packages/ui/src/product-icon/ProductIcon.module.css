@@ -103,6 +103,10 @@
 	composes: codicon-question from global;
 }
 
+.remove {
+	composes: codicon-remove from global;
+}
+
 .restore {
 	composes: codicon-discard from global;
 }

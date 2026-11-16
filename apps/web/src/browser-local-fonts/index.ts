@@ -1,0 +1,1 @@
+export { createBrowserLocalFontCatalog } from './createBrowserLocalFontCatalog';

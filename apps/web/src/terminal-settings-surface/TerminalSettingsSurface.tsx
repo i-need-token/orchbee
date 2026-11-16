@@ -226,7 +226,13 @@ function CategoryContent({ category, props, query }: CategoryContentProps): Reac
 				/>
 			);
 		case 'appearance':
-			return <AppearanceSettings controller={props.controller} query={query} />;
+			return (
+				<AppearanceSettings
+					controller={props.controller}
+					fontCatalog={props.fontCatalog}
+					query={query}
+				/>
+			);
 		case 'themes':
 			return <ThemeSettings controller={props.controller} query={query} />;
 		case 'terminal':

@@ -1,7 +1,10 @@
 export { useTerminalSettings } from './hooks';
 export {
+	BUILT_IN_TERMINAL_FONT_FAMILY,
 	isTerminalThemePresentationSource,
+	leadingTerminalFontFamily,
 	normalizeTerminalHexColor,
+	terminalFontFamilyList,
 	TerminalSettingsController,
 } from './model';
 export type {
