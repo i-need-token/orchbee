@@ -1996,6 +1996,37 @@ fn viewer_reply(
     .expect("peer writes viewer result");
 }
 
+/// Whether `error` says the CLI closed its end of the connection.
+fn cli_left(error: &std::io::Error) -> bool {
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::UnexpectedEof
+            | std::io::ErrorKind::BrokenPipe
+            | std::io::ErrorKind::ConnectionReset
+    )
+}
+
+/// [`viewer_reply`] to a CLI that may already have left at its deadline: false when it had.
+fn viewer_reply_unless_left(
+    stream: &UnixStream,
+    request: &TerminalViewerRequest,
+    outcome: TerminalViewerOutcome,
+) -> bool {
+    match write_server_message(
+        &mut &*stream,
+        &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+            request.request_id().clone(),
+            outcome,
+        )),
+    ) {
+        Ok(()) => true,
+        Err(orchbee_client_server_protocol::WriteMessageError::Io(error)) if cli_left(&error) => {
+            false
+        }
+        Err(error) => panic!("peer writes viewer result: {error:?}"),
+    }
+}
+
 /// The scripted `terminal.launch.read` answer for the fixture's bound
 /// terminal: the Server's join echoes the same routing the snapshot carries
 /// plus a `started` retained fact.
@@ -3593,6 +3624,8 @@ fn terminal_read_recent_aged_rows_answer_repins_and_retries() -> TestResult {
 fn terminal_read_recent_aging_until_deadline_reports_last_reason() -> TestResult {
     let base = base_dir("trecent-aging");
     let scope = stage_scope(&base);
+    // The CLI leaves at its deadline, closing the connection even while a request is still
+    // unanswered, as it may with a real Server; the peer then ends without its reply.
     let peer = read_peer(&scope, move |stream| {
         let attachment = attach_with_fixture(stream);
         let cells = [0_u32; 8];
@@ -3602,7 +3635,7 @@ fn terminal_read_recent_aging_until_deadline_reports_last_reason() -> TestResult
             let request = match read_client_message(&mut &*stream) {
                 Ok(ClientMessage::TerminalViewer(request)) => request,
                 Err(orchbee_client_server_protocol::ReadMessageError::Io(error))
-                    if error.kind() == std::io::ErrorKind::UnexpectedEof =>
+                    if cli_left(&error) =>
                 {
                     break;
                 }
@@ -3614,11 +3647,13 @@ fn terminal_read_recent_aging_until_deadline_reports_last_reason() -> TestResult
                     pin += 1;
                     acknowledged = false;
                     let frame = budget_obtf_scrolled_at(8, &[(0, &cells)], &["s"], 3, pin, pin);
-                    viewer_reply(
+                    if !viewer_reply_unless_left(
                         stream,
                         &request,
                         TerminalViewerOutcome::Record(frame_record(&frame)),
-                    );
+                    ) {
+                        break;
+                    }
                 }
                 TerminalViewerAction::FrameApplied {
                     attachment_id,
@@ -3632,7 +3667,13 @@ fn terminal_read_recent_aging_until_deadline_reports_last_reason() -> TestResult
                     assert_eq!(generation.get(), 1);
                     assert!(!acknowledged);
                     acknowledged = true;
-                    viewer_reply(stream, &request, TerminalViewerOutcome::FeedbackAccepted {});
+                    if !viewer_reply_unless_left(
+                        stream,
+                        &request,
+                        TerminalViewerOutcome::FeedbackAccepted {},
+                    ) {
+                        break;
+                    }
                 }
                 TerminalViewerAction::ReadRows {
                     attachment_id,
@@ -3644,18 +3685,33 @@ fn terminal_read_recent_aging_until_deadline_reports_last_reason() -> TestResult
                     assert!(acknowledged);
                     assert_eq!(*revision, pin);
                     assert_eq!(request_sequence.get(), pin);
-                    viewer_reply(
+                    if !viewer_reply_unless_left(
                         stream,
                         &request,
                         TerminalViewerOutcome::RowsRejected {
                             reason: ViewerRowsRejectedReason::StaleRevision,
                         },
-                    );
+                    ) {
+                        break;
+                    }
                 }
                 TerminalViewerAction::Detach { attachment_id } => {
                     assert_eq!(attachment_id, &attachment);
-                    viewer_reply(stream, &request, TerminalViewerOutcome::Detached {});
-                    expect_session_eof(stream);
+                    if viewer_reply_unless_left(
+                        stream,
+                        &request,
+                        TerminalViewerOutcome::Detached {},
+                    ) {
+                        // The session is released: the CLI sends nothing after its Detach.
+                        match read_client_message(&mut &*stream) {
+                            Ok(message) => panic!("session must be released; CLI sent {message:?}"),
+                            Err(orchbee_client_server_protocol::ReadMessageError::Io(error))
+                                if cli_left(&error) => {}
+                            Err(error) => {
+                                panic!("session must close, not stall or corrupt: {error:?}")
+                            }
+                        }
+                    }
                     break;
                 }
                 action => panic!("unexpected deadline action: {action:?}"),
