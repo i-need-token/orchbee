@@ -9,8 +9,8 @@ impl super::CliText {
         let (usage, english, chinese) = match path {
             C::TerminalTitleSet => (
                 "orchbee terminal title set <title> [--format text|json]",
-                "Set the foreground Windows terminal interface title. Control characters are removed; the title is limited to 200 characters and trimmed. Empty titles are invalid. Requires an existing session.\n\nWith no foreground client, the title is saved for a later attachment. Submission does not guarantee the title has been displayed. An unknown result is never retried automatically.",
-                "设置前台 Windows 终端界面标题。移除控制字符，截取至 200 个字符并去除两端空白；空标题无效。需要已运行的会话。\n\n没有前台客户端时，为后续连接保存标题。提交成功不代表标题已经显示；结果未知时不自动重试。",
+                "Set the foreground Windows or macOS terminal interface title. Control characters are removed; the title is limited to 200 characters and trimmed. Empty titles are invalid. Requires an existing session.\n\nWith no foreground client, the title is saved for a later attachment. Submission does not guarantee the title has been displayed. An unknown result is never retried automatically.",
+                "设置前台 Windows 或 macOS 终端界面标题。移除控制字符，截取至 200 个字符并去除两端空白；空标题无效。需要已运行的会话。\n\n没有前台客户端时，为后续连接保存标题。提交成功不代表标题已经显示；结果未知时不自动重试。",
             ),
             C::TerminalTitleClear => (
                 "orchbee terminal title clear [--format text|json]",

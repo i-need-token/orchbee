@@ -9,7 +9,8 @@ pub(crate) fn run(title: Option<WindowTitle>, format: OutputFormat, locale: Loca
         return failure_output(failure, Some(format), locale);
     }
     use super::{
-        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        command_interrupt::{ArmedSignals, Finish},
+        console_interrupt::SignalWatch,
         output, query,
     };
     use orchbee_workbench_protocol::{WindowTitleFailure, WindowTitleOutcome, WindowTitleRequest};

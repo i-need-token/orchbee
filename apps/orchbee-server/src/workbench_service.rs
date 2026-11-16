@@ -43,17 +43,17 @@ pub(crate) enum WorkbenchExecution {
 #[cfg(test)]
 mod tests;
 
-/// Request kinds that Linux, and macOS where noted, keep refusing as before ORC-234 until their
-/// behavior off Windows is decided. A policy constant rather than a `cfg`, so every branch
-/// compiles everywhere. macOS serves the Agent view, configured commands and Panel graphics.
+/// Request kinds that Linux keeps refusing as before ORC-234 until their behavior off Windows is
+/// decided. A policy constant rather than a `cfg`, so every branch compiles everywhere. macOS
+/// serves the Agent view, configured commands, Panel graphics, Workspace reports and
+/// notifications.
 fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
     match request {
         WorkbenchRequest::AgentView(_)
         | WorkbenchRequest::ConfiguredCommand(_)
-        | WorkbenchRequest::PaneGraphics(_) => !cfg!(any(windows, target_os = "macos")),
-        WorkbenchRequest::WorkspaceMetadata(_) | WorkbenchRequest::Notification(_) => {
-            !cfg!(windows)
-        }
+        | WorkbenchRequest::PaneGraphics(_)
+        | WorkbenchRequest::WorkspaceMetadata(_)
+        | WorkbenchRequest::Notification(_) => !cfg!(any(windows, target_os = "macos")),
         _ => false,
     }
 }

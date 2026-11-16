@@ -285,7 +285,7 @@ use the owners below. Workspace tokens use the separate metadata owner below.
 
 ## Workspace metadata reports and queries
 
-Windows `workspace report-metadata <workspace> --source <id> --token <key=value>`
+Windows and macOS `workspace report-metadata <workspace> --source <id> --token <key=value>`
 submits one normalized patch. Repeated `--token` / `--clear-token` flags use argv order;
 optional `--seq` fences each source and `--ttl-ms` expires patched values. The
 [Workspace metadata contract](windows-workspace-metadata.md) owns bounds, stale no-ops,

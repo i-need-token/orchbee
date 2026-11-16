@@ -1149,19 +1149,19 @@ Shared application and terminal themes apply to the native TUI from the same Ser
 
 ## Workspace metadata integration
 
-The [Workspace metadata contract](docs/windows-workspace-metadata.md) defines report normalization, source sequence fences, TTL and the consistent read join. Its Server and shared wire owners are separate from canonical topology and terminal OSC metadata. `workspace report-metadata` and Workspace list/get consume that owner with bounded, correlated reads and unknown-outcome receipts. Committed metadata changes publish through the event journal; subscription invalidations and exact TTL deadlines keep TUI reads current. Configurable TUI token templates require their own integration.
+The [Workspace metadata contract](docs/windows-workspace-metadata.md) defines report normalization, source sequence fences, TTL and the consistent read join. Its Server and shared wire owners are separate from canonical topology and terminal OSC metadata. `workspace report-metadata` (Windows and macOS) and Workspace list/get consume that owner with bounded, correlated reads and unknown-outcome receipts. Committed metadata changes publish through the event journal; subscription invalidations and exact TTL deadlines keep TUI reads current. Configurable TUI token templates require their own integration.
 
-Windows `panel report-metadata` supports source-owned presentation fields, guards, token patches, sequence and TTL with a binding-fenced, once-only receipt. See the [Panel metadata contract](docs/windows-panel-metadata.md).
+On Windows and macOS, `panel report-metadata` supports source-owned presentation fields, guards, token patches, sequence and TTL with a binding-fenced, once-only receipt. See the [Panel metadata contract](docs/windows-panel-metadata.md).
 
-Windows `panel report-agent`, `clear-agent-authority` and `release-agent` submit explicit source-owned reports and return correlated dispositions. See the [Agent report contract](docs/windows-panel-agent-reports.md).
+On Windows and macOS, `panel report-agent`, `clear-agent-authority` and `release-agent` submit explicit source-owned reports and return correlated dispositions; Linux returns `unsupported-platform` for them and for `panel report-metadata`. See the [Agent report contract](docs/windows-panel-agent-reports.md).
 
-## Windows CLI notifications
+## CLI notifications
 
-`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` queues a custom notification for accepting main-TUI Clients on the running Session. Configure `[notifications] cli_delivery="orchbee"` for cards, `terminal` or `system` for external delivery; the default is `off`. Use `--format json` for the closed delivery receipt. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance is queue admission, not a display or sound acknowledgement.
+On Windows and macOS, `orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` queues a custom notification for accepting main-TUI Clients on the running Session. Configure `[notifications] cli_delivery="orchbee"` for cards, `terminal` or `system` for external delivery; the default is `off`. Use `--format json` for the closed delivery receipt. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance is queue admission, not a display or sound acknowledgement.
 
-## Windows outer terminal title
+## Outer terminal title
 
-`orchbee terminal title set "Build workspace"` publishes an override for the foreground Client, a main TUI or a Desktop window, which shows it as its window title; `orchbee terminal title clear` returns to the live `appearance.window_title` template (fallback `Orchbee`). Both accept `--format json` and retain publication when no Client is connected. See [title ownership and restoration](docs/windows-terminal-title.md) for configured templates and physical-host limits.
+On Windows and macOS, `orchbee terminal title set "Build workspace"` publishes an override for the foreground Client, a main TUI or a Desktop window, which shows it as its window title; `orchbee terminal title clear` returns to the live `appearance.window_title` template (fallback `Orchbee`). Both accept `--format json` and retain publication when no Client is connected. See [title ownership and restoration](docs/windows-terminal-title.md) for configured templates and physical-host limits.
 
 Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action list` manage the shared user catalog offline. `plugin action invoke` submits owned commands to an existing Session; `plugin log list` reads retained results. See [Windows plugins](docs/windows-plugins.md) for context, process ownership, bounded output, startup and event hooks, managed install/update/uninstall and Pane integration. A start receipt confirms admission; logs report execution results.
 

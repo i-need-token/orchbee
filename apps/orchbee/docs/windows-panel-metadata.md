@@ -1,5 +1,8 @@
 # Windows Panel metadata reports
 
+macOS runs `panel report-metadata` and its Server owner as Windows does; Linux returns
+`unsupported-platform`.
+
 ## Exact member targets
 
 `--presentation <id>` selects one canonical member of the positional Panel, using a full nonzero

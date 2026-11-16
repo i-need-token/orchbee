@@ -224,7 +224,7 @@ previous Client configuration intact. Startup applies the Server's complete admi
 the first snapshot arrives; a local projection shown while connecting is provisional.
 Configuration checking reports the supported layout and its bounds.
 
-Windows `config reload` requests a reload in the running Session and does not activate one. Server freezes the startup configuration location,
+Windows and macOS `config reload` requests a reload in the running Session and does not activate one. Server freezes the startup configuration location,
 serializes reloads, parses the bounded whole file and prepares one admitted candidate containing
 effective settings and warnings before commit. A fatal read or parse failure retains the previous
 revision, every profile, diagnostics and live manifest-check schedule. A warning candidate atomically

@@ -9,7 +9,8 @@ pub(crate) fn run(message: Notification, format: OutputFormat, locale: Locale) -
         return failure_output(failure, Some(format), locale);
     }
     use super::{
-        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        command_interrupt::{ArmedSignals, Finish},
+        console_interrupt::SignalWatch,
         output, query,
     };
     use orchbee_workbench_protocol::{

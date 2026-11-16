@@ -1,5 +1,8 @@
 # Windows Panel Agent reports
 
+macOS runs `panel report-agent`, `clear-agent-authority` and `release-agent` and their Server
+owner as Windows does; Linux returns `unsupported-platform`.
+
 ## Exact member targets
 
 Each command accepts optional `--presentation <id>`, a full nonzero 32-character lowercase
