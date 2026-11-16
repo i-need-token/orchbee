@@ -1,11 +1,11 @@
 # Host Handover
 
-| Field             | Value                                                                                                                                                                                                                                                                                                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Status            | Proposed on 2026-11-15 from the product owner's request of that day; H1's decision run decided [its design](#h1-design) the same day, and its design challenge, R1, amended it the same day. Decided restates a product-owner decision. Chosen marks this page's own pick, which the owner may veto, and Rule marks a safety rule that follows from an accepted outcome. |
-| Owner             | Maintainers of `apps/terminal-host`, `apps/orchbee-worker`, `apps/orchbee-server`, `crates/local-runtime`, and the release workflow                                                                                                                                                                                                                                      |
-| Current authority | The Terminal Host [runtime model](../../apps/terminal-host/docs/runtime-model.md), [versioning and upgrade](versioning-and-upgrade.md), and [automatic updates](automatic-updates.md)                                                                                                                                                                                    |
-| Exit condition    | Delete this proposal once H4 and H5 ship and each rule lives in the Terminal Host runtime model, the Worker reference, or the owning standard.                                                                                                                                                                                                                           |
+| Field             | Value                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Proposed on 2026-11-15 from the product owner's request of that day; H1's decision run decided [its design](#h1-design) the same day, and its design challenge, R1, and probe P1 amended it the same day. Decided restates a product-owner decision. Chosen marks this page's own pick, which the owner may veto, and Rule marks a safety rule that follows from an accepted outcome. |
+| Owner             | Maintainers of `apps/terminal-host`, `apps/orchbee-worker`, `apps/orchbee-server`, `crates/local-runtime`, and the release workflow                                                                                                                                                                                                                                                   |
+| Current authority | The Terminal Host [runtime model](../../apps/terminal-host/docs/runtime-model.md), [versioning and upgrade](versioning-and-upgrade.md), and [automatic updates](automatic-updates.md)                                                                                                                                                                                                 |
+| Exit condition    | Delete this proposal once H4 and H5 ship and each rule lives in the Terminal Host runtime model, the Worker reference, or the owning standard.                                                                                                                                                                                                                                        |
 
 Host handover moves a running terminal from an older Terminal Host to a newer one: the program keeps
 running as the same process, and its screen, history, and pending input arrive whole. The old Host
@@ -415,6 +415,8 @@ Docker it keeps a small holder apart, and unlike Docker it replaces that holder 
   and keeps its children, masters, and their statuses across a re-execution in place; a Keeper
   killed right after `execve` leaves every program whose master a Host holds running; and the POSIX
   quiesce loses and repeats no bytes.
+- Probe P1, which R1 asked for, has run on Windows: `DuplicateHandle` and the checks do not wait
+  behind another process's blocked read, so a Host holds without parking its reader.
 
 ### Prototype 1 result
 
@@ -512,13 +514,13 @@ unless it says inferred.
 | The same child through the system ConHost                                   | 60,000 |                  20,247 |                  30,659 |                              7,928 |                                  1,166 | 0 of 573,961 lines    |
 | A raw pipe, a counter stream in chunks every 20 µs or flooding              | 40,000 |                  19,450 |                   4,327 |                             14,985 |                                  1,238 | 0 of 4.15 GB, by byte |
 
-| Question               | Result                                                                                                                                                                                                                                                                                                                                              |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Loss or repeat         | Through both consoles the turns, joined in order, held every numbered line once and in order with no stray text, and the raw stream matched byte for byte                                                                                                                                                                                           |
-| Hidden consumption     | Every read that ended in `ERROR_OPERATION_ABORTED` returned 0 bytes, and the next reader, in the other process, got the very next byte. No read ended aborted without a cancel, and no cancel reached a later read. A cancelled read never consumes bytes it does not return: the pipe completes a read either with its data or cancelled with none |
-| Completion past cancel | 3,636 of the 160,000 reads returned data after `CancelSynchronousIo` had succeeded, so bytes still arrive after the abort is requested and before the reader stops. 1,193 cancels came before `ReadFile` began, got `ERROR_NOT_FOUND`, and succeeded on a retry                                                                                     |
-| Stop time              | From the abort to the reader stopped with its last batch applied, the run medians were 6 to 22 µs, the 99th percentiles 46 to 82 µs, and the maximum 5.9 ms; `abortRead` alone returned at a median of at most 20 µs. The probe applied a batch by checking or logging it, not by parsing it with Ghostty                                           |
-| Two readers at once    | While one read was blocked, `PeekNamedPipe` and `ReadFile` through a duplicated handle waited behind it, because a duplicate shares the synchronous file object; the blocked read took the next byte and the second read the byte after. Tested in one process; a duplicate in another process shares the same file object (inferred)               |
+| Question               | Result                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Loss or repeat         | Through both consoles the turns, joined in order, held every numbered line once and in order with no stray text, and the raw stream matched byte for byte                                                                                                                                                                                                             |
+| Hidden consumption     | Every read that ended in `ERROR_OPERATION_ABORTED` returned 0 bytes, and the next reader, in the other process, got the very next byte. No read ended aborted without a cancel, and no cancel reached a later read. A cancelled read never consumes bytes it does not return: the pipe completes a read either with its data or cancelled with none                   |
+| Completion past cancel | 3,636 of the 160,000 reads returned data after `CancelSynchronousIo` had succeeded, so bytes still arrive after the abort is requested and before the reader stops. 1,193 cancels came before `ReadFile` began, got `ERROR_NOT_FOUND`, and succeeded on a retry                                                                                                       |
+| Stop time              | From the abort to the reader stopped with its last batch applied, the run medians were 6 to 22 µs, the 99th percentiles 46 to 82 µs, and the maximum 5.9 ms; `abortRead` alone returned at a median of at most 20 µs. The probe applied a batch by checking or logging it, not by parsing it with Ghostty                                                             |
+| Two readers at once    | While one read was blocked, `PeekNamedPipe` and `ReadFile` through a duplicated handle waited behind it, because a duplicate shares the synchronous file object; the blocked read took the next byte and the second read the byte after. Tested in one process; [probe P1](#probe-p1-result) measured that a duplicate in another process shares the same file object |
 
 - The quiesce waits for the reader thread to stop, as [step 2](#how-a-terminal-moves) now says. In
   the probe a reset flag and a parked reader thread resumed reading 159,984 times, and no cancel
@@ -585,6 +587,36 @@ is measured unless it says inferred.
   orphaned from the start, because the Keeper is in another session, so the Keeper's death orphans
   no new group and sends no `SIGHUP` or `SIGCONT` (inferred).
 
+### Probe P1 result
+
+Run on 2026-11-15 on Windows 11 build 26300 with the pinned conpty 1.25.260930003, the system
+ConHost, a bare anonymous pipe, and a named pipe whose reading end was opened for synchronous I/O. A
+driver process, standing in for the Keeper and for a claiming Host, created each pipe and gave
+duplicates of its read end, the Job, and the program to two processes: A read as the Host's reader
+does, with a 256 KiB synchronous `ReadFile`, and K held them without reading, as the Keeper does at
+a claim. Each call ran on a worker thread under a 100 ms watchdog, and a call that outlived it
+counted as a wait. Each pipe kind ran 20,000 repetitions before A's first read and 20,000 while A's
+read was blocked; no read completed during the blocked repetitions. Every result is measured unless
+it says inferred.
+
+| Question          | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hold and claim    | While A's read was blocked, `DuplicateHandle` of the pipe, the Job, and the program out of A and of the pipe out of K, `NtQueryObject` with `ObjectTypeInformation` and `ObjectBasicInformation`, `IsProcessInJob`, `QueryInformationJobObject` for the extended limits, `GetProcessId`, `GetProcessTimes`, and `CloseHandle` of each duplicate never waited: 0 waits in 300,000 calls per pipe kind. Medians were 0.2 to 0.5 µs, and 2.6 to 2.8 µs for duplicating the program; the 99th percentiles were at most 5.4 µs and the maximum 71.5 µs, against 124.5 µs with A idle |
+| Variants          | Duplicating with no access or only `SYNCHRONIZE`, the type and basic queries on the duplicate with no access, `ObjectHandleFlagInformation`, and `GetHandleInformation` never waited in 5,000 repetitions per pipe kind                                                                                                                                                                                                                                                                                                                                                         |
+| Forbidden calls   | `PeekNamedPipe`, `GetNamedPipeInfo`, and `NtQueryObject` with `ObjectNameInformation`, also on a duplicate with no access, waited in all 3 trials on every pipe kind until A's read completed, so a duplicate in another process shares the synchronous file object. `GetFileType` never waited                                                                                                                                                                                                                                                                                 |
+| Basic information | `ObjectBasicInformation` fails with `STATUS_INFO_LENGTH_MISMATCH` unless its length is exactly 56 bytes                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Type and access   | Every pipe reports the type `File`. A read end from `CreatePipe`, for a console or bare, grants `0x120189`; a named pipe client opened with `GENERIC_READ` grants `0x120089`                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+- The pull and the checks do not wait behind a blocked read, so a Host holds without parking its
+  reader, and H2's recovery may pull and check a hung Host's handles before that Host has ended.
+  The new Host still reads only after it has ended, because a blocked read keeps taking output, as
+  [prototype 3](#prototype-3-result) found.
+- The rule against pipe I/O before the commit stands, now measured across processes. `GetFileType`
+  does not wait but stays out, since no check needs it.
+- Not covered: a Host suspended or hung outside a read, a loaded machine, and other Windows builds.
+  The calls that did not wait act on kernel objects and run no code in the source process, so a
+  suspended Host would not change them (inferred).
+
 ## Phases
 
 | Phase | Content                                                                                                                                                                                                                                                                                                                                                                                                                         | Size                                                 | When                                                                                                                                        |
@@ -624,7 +656,8 @@ H1's decision run decided this design on 2026-11-15. It covers the Windows Keepe
 side of a move, which H1 builds and ships dark, and what H2, H3, and H4 inherit from them. It adds
 no user-facing behavior or setting. Each pick is marked Chosen, which the owner may veto, or Rule,
 and rows 18 to 33 of the [decision record](#decision-record) list them with their reasons. R1's
-challenge amended rows 21, 22, 24, 29, and 33 and added rows 34 to 45. A slice
+challenge amended rows 21, 22, 24, 29, and 33 and added rows 34 to 45, and probe P1 settled
+row 43. A slice
 that finds a decision here wrong reports it and pauses only the work that depends on it, as
 [development](../../docs/DEVELOPMENT.md) asks.
 
@@ -736,11 +769,14 @@ After `hello`, a connection sends only the requests its role allows; another get
   leaves a handle in a process that does not know it holds one, and no process writes handles into
   another.
 - Rule: before the commit, neither the Keeper nor a claiming Host does I/O on a pipe handle or asks
-  for its name: no `ReadFile`, `WriteFile`, `PeekNamedPipe`, `GetNamedPipeInfo`, `GetFileType`, or
-  `NtQueryObject` with `ObjectNameInformation`. Each can wait behind a blocked synchronous read of
-  the shared file object, as [prototype 3](#prototype-3-result) measured for `PeekNamedPipe` and
-  `ReadFile`. Checks use `NtQueryObject` with `ObjectTypeInformation` and `ObjectBasicInformation`,
-  process and Job queries, and `IsProcessInJob`.
+  for its name: no `ReadFile`, `WriteFile`, `PeekNamedPipe`, `GetNamedPipeInfo`, or `NtQueryObject`
+  with `ObjectNameInformation`, each of which can wait behind a blocked synchronous read of the
+  shared file object, as [prototype 3](#prototype-3-result) measured for `PeekNamedPipe` and
+  `ReadFile` and [probe P1](#probe-p1-result) across processes for `PeekNamedPipe`,
+  `GetNamedPipeInfo`, and `ObjectNameInformation`; and no `GetFileType`, which did not wait but no
+  check needs. Checks use `NtQueryObject` with `ObjectTypeInformation` and `ObjectBasicInformation`,
+  which takes exactly 56 bytes, process and Job queries, and `IsProcessInJob`; probe P1 measured
+  that none of them waits behind a blocked read.
 - Chosen: a Host mints a random 128-bit holding id at a terminal's first `hold`. The id stays the
   same across moves and Keeper replacements, and the record carries it.
 
@@ -1128,7 +1164,9 @@ evidence index.
 - The claim path in separate steps, inspect, pull, check, pack, create the gated threads, claim,
   and open the gate, so that H2's recovery reuses them with a screen it rebuilds in place of a
   record.
-- No pipe I/O before the commit, so a hung Host's blocked read cannot hold up a claim.
+- No pipe I/O before the commit, so a hung Host's blocked read cannot hold up a claim: H2's recovery
+  may pull and check a hung Host's handles before that Host has ended, as
+  [probe P1](#probe-p1-result) measured, but its replacement reads only after it has ended.
 - A model with crashes, lost replies, and a second Keeper, which H2 extends with orphan claims.
 - When the new Host ends after the Keeper applied its claim, or the Keeper and the new Host both end
   after a mark, the old Host stays stopped until the Worker settles it: by recovery from the Keeper,
@@ -1143,13 +1181,6 @@ evidence index.
 - The private HPCON layout and `ConptyPackPseudoConsole`: each conpty pin repeats prototype 1, and a
   pin with a new layout or signal format needs a table entry, and for a new format a writer for the
   old one.
-- That neither `DuplicateHandle` nor a type, access, or Job query waits behind a blocked
-  synchronous read of the same file object: the Keeper's `hold` runs while the Host's reader is
-  blocked. Prototype 3 measured only `PeekNamedPipe` and `ReadFile`, in one process, and prototype
-  1 duplicated only after its reads had stopped, so S6 measures it first, across processes. If any
-  of them can wait, a Host parks the terminal's reader around each `hold`, as a quiesce does but
-  after any batch rather than at ground, since a hold exports nothing, and
-  H2's recovery ends a hung Host before its replacement pulls the handles; the rest stands.
 - Ghostty calls version 1 a work-in-progress format; the pin check guards each pin change.
 - A program that stops inside a sequence, or output that reaches no ground within a second,
   refuses its quiesce as passing, so its terminal stays on its Host until a later try finds it at
@@ -1243,7 +1274,7 @@ evidence index.
 | 40  | The Keeper serializes only the application of requests; each connection does its own I/O and keeps one reply, and a peer that does not take its reply in time loses its connection                                                                                                                                                                                                                                                                             | A peer that stops reading must not stall every other connection and get the Keeper ended                                                                                                                              | Rule (R1)                                  |
 | 41  | The macOS Keeper also observes each leader with the Host wait worker's bounded non-reaping `waitid` poll; neither `ESRCH` nor a silent filter counts as an exit with a status                                                                                                                                                                                                                                                                                  | XNU can drop the process reference before the child is waitable and can lose `NOTE_EXIT`, as the runtime model records                                                                                                | Rule (R1)                                  |
 | 42  | H1's release freezes the old Host's side; `inspect`, `claim`, and `decline` freeze with H2's release, the import requests with H3's, and the Worker's Keeper requests with H2's                                                                                                                                                                                                                                                                                | No release Session moves a terminal into an H1 Host, and no release Keeper starts before H2                                                                                                                           | Chosen (R1)                                |
-| 43  | If S6 finds that `DuplicateHandle` or a check query waits behind a blocked read, a Host parks the reader around each `hold`, after any batch rather than at ground, since a hold exports nothing, and H2's recovery ends a hung Host before its replacement pulls the handles                                                                                                                                                                                  | Neither the protocol nor the claim path then changes                                                                                                                                                                  | Chosen (R1)                                |
+| 43  | `DuplicateHandle` and the type, basic, process, and Job queries do not wait behind another process's blocked synchronous read, so a Host holds without parking its reader; in H2's recovery a replacement may pull and check a hung Host's handles before that Host has ended, but reads only after it has ended                                                                                                                                               | Probe P1: 0 waits in 1.2 million calls while another process's read was blocked, through the pinned conpty, the system ConHost, an anonymous pipe, and a named pipe; the forbidden calls waited every time            | Rule (probe P1)                            |
 | 44  | The Keeper's 2-second reply deadline stays a constant, and S6 reports the Keeper's reply time at capacity under full processor load                                                                                                                                                                                                                                                                                                                            | H1's Hosts apply it to every later Keeper; a measurement before H1's release settles it more cheaply than a parameter                                                                                                 | Chosen (R1)                                |
 | 45  | Row 24 changes from continuation tracking in every build, with a 64 KiB bound, to parking the reader at ground, with the record's continuation written empty                                                                                                                                                                                                                                                                                                   | R1 recommended it and the coordinator picked it: the Worker moves after 2 seconds without input, when an unfinished sequence is rare, and a dark H1 then adds no parser path to every release terminal                | Chosen (R1)                                |
 
