@@ -97,3 +97,45 @@ fn the_published_program_is_the_one_the_dispatched_launch_starts() {
         (LaunchPreferences::Unavailable, Some("fish".into()))
     );
 }
+
+#[test]
+fn an_env_launch_names_the_program_it_starts() {
+    let named = |executable: &str, arguments: &[&str]| {
+        super::explicit_program(
+            executable,
+            &arguments.iter().map(|&a| a.to_owned()).collect::<Vec<_>>(),
+        )
+        .map(|program| program.as_str().to_owned())
+    };
+    let env = "/usr/bin/env";
+    assert_eq!(
+        named(env, &["ORCHBEE_A=1", "/opt/bin/tool", "-x"]),
+        Some("tool".into())
+    );
+    // A custom command's login shell names the program its command line starts.
+    let shell = |command| named(env, &["ORCHBEE_A=/w x", "/bin/zsh", "-l", "-c", command]);
+    assert_eq!(shell("npm test"), Some("npm".into()));
+    assert_eq!(shell("  ./build.sh --all"), Some("build.sh".into()));
+    assert_eq!(
+        named(env, &["/bin/tcsh", "-c", "make"]),
+        Some("make".into())
+    );
+    // Assignments, expansions, quotes, compound lines and builtins name the shell.
+    for command in [
+        "FOO=1 make",
+        "$EDITOR x",
+        "'npm' test",
+        "cd src && make",
+        "(ls)",
+        "exec ls",
+    ] {
+        assert_eq!(shell(command), Some("zsh".into()), "{command}");
+    }
+    // An option to env, or no program, names env; only env is unwrapped.
+    assert_eq!(named(env, &["-i", "/bin/sh"]), Some("env".into()));
+    assert_eq!(named(env, &["A=1"]), Some("env".into()));
+    assert_eq!(
+        named("/bin/zsh", &["-l", "-c", "npm test"]),
+        Some("zsh".into())
+    );
+}

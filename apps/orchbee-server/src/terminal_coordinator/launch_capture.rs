@@ -57,15 +57,16 @@ impl LaunchCapture {
         }
     }
 
-    /// The file name of the program a launch with this selection requests: the explicit executable,
-    /// else the default profile's custom executable, else this generation's System shell. A default
+    /// The file name of the program a launch with this selection requests: the program an explicit
+    /// selection starts, else the default profile's custom executable, else this generation's
+    /// System shell. A default
     /// launch whose capture is unavailable, which the Worker refuses, requests no known program.
     pub(super) fn launch_program(
         &self,
         selection: Option<&LaunchSelection>,
     ) -> Option<PresentationLaunchProgram> {
         if let Some(selection) = selection {
-            return PresentationLaunchProgram::from_executable(selection.executable());
+            return explicit_program(selection.executable(), selection.arguments());
         }
         match &self.default {
             LaunchPreferences::Available(preferences) => match preferences.program() {
@@ -97,6 +98,52 @@ impl LaunchCapture {
             LaunchPreferences::Absent | LaunchPreferences::Unavailable => true,
         }
     }
+}
+
+/// The program an explicit launch starts, by file name. `/usr/bin/env` only sets its leading
+/// `NAME=value` operands and starts the next one, so the launch names that program, as a terminal
+/// names the process it shows. A POSIX shell that env starts to run one `-c` command line, as a
+/// macOS custom command runs, names the program that line starts when its first word is a plain
+/// program name; any other line names the shell. Windows never launches `/usr/bin/env`.
+fn explicit_program(executable: &str, arguments: &[String]) -> Option<PresentationLaunchProgram> {
+    if executable != "/usr/bin/env" {
+        return PresentationLaunchProgram::from_executable(executable);
+    }
+    let mut operands = arguments.iter().map(String::as_str);
+    let Some(program) = operands.by_ref().find(|operand| !operand.contains('=')) else {
+        return PresentationLaunchProgram::from_executable(executable);
+    };
+    if program.starts_with('-') {
+        return PresentationLaunchProgram::from_executable(executable);
+    }
+    let shell = program.rsplit('/').next().unwrap_or(program);
+    let command = match operands.collect::<Vec<_>>().as_slice() {
+        ["-l", "-c", command] | ["-c", command]
+            if ["sh", "bash", "zsh", "dash", "ksh", "csh", "tcsh", "fish"].contains(&shell) =>
+        {
+            command_program(command)
+        }
+        _ => None,
+    };
+    command.or_else(|| PresentationLaunchProgram::from_executable(program))
+}
+
+/// The program a shell command line starts with: its first word, when that word is a plain file
+/// name or path rather than an assignment, a quoted or expanded word, a shell keyword or a builtin
+/// that starts no program of its name.
+fn command_program(command: &str) -> Option<PresentationLaunchProgram> {
+    const NOT_PROGRAMS: [&str; 18] = [
+        ".", "builtin", "case", "cd", "command", "eval", "exec", "export", "for", "function", "if",
+        "select", "set", "source", "time", "unset", "until", "while",
+    ];
+    let word = command.split_whitespace().next()?;
+    let plain = word.bytes().all(|byte| {
+        byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+' | b'/' | b'@')
+    });
+    if !plain || NOT_PROGRAMS.contains(&word) || word.ends_with('/') {
+        return None;
+    }
+    PresentationLaunchProgram::from_executable(word)
 }
 
 /// The Host's interactive Shell launch rule (`interactive_shell.zig`) applied to a dispatched argv:

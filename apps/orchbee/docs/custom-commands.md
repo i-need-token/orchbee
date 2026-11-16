@@ -57,7 +57,10 @@ names an absolute executable, else the account's shell, else `/bin/sh`. It runs 
 their `.cshrc` or `.tcshrc` as every csh does. Panel and popup commands start
 `/usr/bin/env NAME=value… <shell> -l -c <command>`, with the same exception for csh and tcsh, so
 environment values, such as the source terminal's folder, arrive as written and never as shell
-text; a shell path that holds `=` is refused as unavailable.
+text; a shell path that holds `=` is refused as unavailable. Until the command sets a title, its
+Panel is named by the program its command line starts, as a terminal names the process it shows:
+`npm` for `npm test`. A line that starts with an assignment, a quoted or expanded word, a builtin
+such as `cd` or `exec`, or a compound command is named by the shell.
 
 A `shell` command leads its own process group, and its owner thread unblocks every signal before it
 starts, so the command and its children can be stopped. When the shell exits, the members left in
