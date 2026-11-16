@@ -481,14 +481,17 @@ while that many wait, the session reads no further request until the creation se
 A requester that disconnects does not cancel its creation: the build finishes and commits
 unanswered, as a start on the dispatch thread used to complete after its requester left, so the
 Worker's retry finds the terminal through the creation replay. The requests the session held are
-dropped unanswered, like any request of a closed session. Host teardown cancels a creation in
-progress: it waits for the build to return, then releases only what that creation acquired, which
-is the runtime its build made, contained before it is freed, and, for a new terminal, the admitted
-launch and retained record; a start's awaiting terminal stays with the registry. A cancelled
-runtime whose process tree stays uncontained after about a second of retries is logged and
-retained, never freed under its workers. An import that adopts a terminal instead of spawning one
-joins at the build stage, keeps this commit and cancellation contract, and releases only what the
-import acquired.
+dropped unanswered, like any request of a closed session. Host teardown waits at most 5 s for a
+build in progress, before the registry's own teardown. A runtime the build made is committed
+unanswered, so the registry's teardown contains it with every other terminal and, while its process
+tree stays unconfirmed, keeps it under
+[fatal-teardown retained cleanup](#fatal-teardown-retained-cleanup-thdd-001). A failed build
+releases only what its creation acquired: for a new terminal, the admitted launch and retained
+record; a start's awaiting terminal stays with the registry. A build that has not returned by then
+is abandoned with the launch it reads, which is never freed, and teardown fails once every other
+terminal is contained, because its child may outlive the Host. An import that adopts a terminal
+instead of spawning one joins at the build stage, keeps this commit and teardown contract, and
+releases only what the import acquired.
 
 ### Terminal lifecycle
 
@@ -1064,6 +1067,10 @@ explicit:
   exhausted state, the observable status records `exhausted`, the failure is surfaced loudly, and
   teardown exits with the shutdown failure instead of pretending a clean release. Exhaustion is a
   cleanup result only; it never rewrites an already-settled normal or failed terminal outcome.
+- **Creation in progress**: a terminal built while teardown waits for it joins the retained
+  terminals before the pass, so it is contained and retried like them. A build that never returns
+  within the wait is abandoned, and teardown then exits with a failure instead of a clean release
+  even when every retained terminal was contained.
 
 ### Transport and request fault containment
 

@@ -4,16 +4,17 @@
 //! A creation passes three stages. The dispatch thread admits it, takes the launch it was
 //! admitted with, and encodes its reply; a creator thread builds the runtime, which spawns the
 //! child; the dispatch thread then commits the runtime and sends the reply, or sends the build's
-//! failure. One creation is in progress at a time. Until it settles, every request that names
-//! the terminal it creates or starts, every other creation, and every request that changes what
-//! a creation is admitted with is held in arrival order; each is dispatched once nothing before
-//! it holds it, against the state the creation left, so no request acts on a half-built
-//! terminal. A requester that disconnects leaves its creation to commit unanswered, as a start
-//! on the dispatch thread would have, and drops the requests it had held. Host teardown cancels
-//! the creation, which releases only what the creation itself acquired: the runtime its build
-//! made and, for a new terminal, the launch and record admitted for it. A later stage that
-//! imports a terminal instead of spawning one joins at the build and keeps the same commit and
-//! cancellation contract.
+//! failure. One creation is in progress at a time, and the requests that depend on it wait in
+//! `creation_holds.zig` until it settles, so no request acts on a half-built terminal. A
+//! requester that disconnects leaves its creation to commit unanswered, as a start on the
+//! dispatch thread would have, and drops the requests it had held.
+//!
+//! Host teardown waits a bounded time for a build in progress. A runtime it built is committed
+//! unanswered, so the aggregate's teardown contains it with every other terminal and keeps it
+//! under THDD-001 while its process tree stays unconfirmed; a failed build releases what its
+//! creation acquired. A build that never returns is abandoned with everything it reads, and
+//! teardown then fails. A later stage that imports a terminal instead of spawning one joins at
+//! the build and keeps the same commit and teardown contract.
 const std = @import("std");
 const target_builtin = @import("builtin");
 
@@ -28,6 +29,7 @@ const thread_sync = platform.thread_sync;
 const terminal_runtime = @import("terminal-host-engine").runtime;
 const identifiers = @import("terminal-host-model").identifiers;
 const protocol = @import("terminal-protocol");
+const creation_holds = @import("creation_holds.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 
@@ -36,12 +38,8 @@ const Outgoing = host_outgoing.Outgoing;
 const TerminalRuntime = terminal_runtime.TerminalRuntime;
 const WireIdentifier = identifiers.IdentifierBytes;
 
-/// Requests held behind a creation before the session stops reading more of them.
-pub const held_request_limit = 16;
-
-/// Teardown retries containing a cancelled build's process tree for about one second.
-const cancel_cleanup_attempts = 20;
-const cancel_cleanup_backoff_ns = 50 * std.time.ns_per_ms;
+/// How long Host teardown waits for a build in progress before it abandons the build.
+const teardown_build_wait_ns: u64 = 5 * std.time.ns_per_s;
 
 const failure_record_bytes = protocol.transport_envelope_header_bytes + 512;
 
@@ -53,7 +51,7 @@ pub const BeginError = error{
     TerminalRuntimeMissing,
 };
 
-pub const HoldError = error{ HeldRequestLimit, OutOfMemory };
+pub const HoldError = creation_holds.HoldError;
 
 /// The admitted request a creation answers.
 pub const Request = struct {
@@ -164,22 +162,12 @@ const Creation = struct {
     }
 };
 
-/// What a request depends on, from its kind and the terminal its payload names.
-const Dependence = struct {
-    /// It creates or starts a terminal, or changes what a later creation is admitted with.
-    creation: bool = false,
-    terminal: ?core_module.TerminalId = null,
-};
-
-const HeldRequest = struct {
-    record: []u8,
-    dependence: Dependence,
-};
-
 /// Owned by the dispatch thread, like the rest of the Host service.
 pub const Pipeline = struct {
     in_progress: ?*Creation = null,
-    held: std.ArrayList(HeldRequest) = .empty,
+    holds: creation_holds.Holds = .{},
+    /// Teardown abandoned a build that never returned.
+    abandoned_build: bool = false,
     build_gate: if (target_builtin.is_test) ?*BuildGate else void =
         if (target_builtin.is_test) null else {},
 
@@ -190,7 +178,7 @@ pub const Pipeline = struct {
     /// Whether the session may read another request: false while the held-request limit is
     /// reached, until the creation they wait for settles.
     pub fn acceptsRequests(self: *const Pipeline) bool {
-        return self.held.items.len < held_request_limit;
+        return self.holds.acceptsRequests();
     }
 
     /// Starts building the terminal `preparation` creates with its geometry. On error the
@@ -274,25 +262,13 @@ pub const Pipeline = struct {
         allocator: std.mem.Allocator,
         record: []const u8,
     ) HoldError!bool {
-        if (self.in_progress == null and self.held.items.len == 0) return false;
-        const dependence = dependenceOf(allocator, record);
-        if (!self.dependsOnEarlier(dependence, self.held.items)) return false;
-        if (self.held.items.len >= held_request_limit) return error.HeldRequestLimit;
-        try self.held.ensureUnusedCapacity(allocator, 1);
-        const copy = try allocator.dupe(u8, record);
-        self.held.appendAssumeCapacity(.{ .record = copy, .dependence = dependence });
-        return true;
+        return self.holds.holdIfDependent(allocator, self.creatingTerminal(), record);
     }
 
     /// The first held request that nothing before it holds any longer. The caller owns the
     /// record and dispatches it without holding it again.
     pub fn takeReleased(self: *Pipeline) ?[]u8 {
-        for (self.held.items, 0..) |held, index| {
-            if (self.dependsOnEarlier(held.dependence, self.held.items[0..index])) continue;
-            _ = self.held.orderedRemove(index);
-            return held.record;
-        }
-        return null;
+        return self.holds.takeReleased(self.creatingTerminal());
     }
 
     /// The session of `connection_id` ended: its creation settles unanswered, and the requests it
@@ -305,57 +281,57 @@ pub const Pipeline = struct {
         if (self.in_progress) |creation| {
             if (creation.connection_id == connection_id) creation.answerable = false;
         }
-        self.dropHeld(allocator);
+        self.holds.drop(allocator);
     }
 
-    /// Host teardown: waits for a build in progress to return and cancels its creation.
+    /// Host teardown, before the aggregate's: waits up to `teardown_build_wait_ns` for a build in
+    /// progress. A runtime it built is committed unanswered, so the aggregate's teardown contains
+    /// it, and keeps it under THDD-001 while its process tree stays unconfirmed; a failed build
+    /// releases what its creation acquired. A build that never returns is abandoned.
     pub fn shutdown(self: *Pipeline, aggregate: *Aggregate) void {
-        self.dropHeld(aggregate.allocator);
-        self.held.deinit(aggregate.allocator);
-        self.held = .empty;
+        self.holds.deinit(aggregate.allocator);
         const creation = self.in_progress orelse return;
-        creation.creator.join();
         self.in_progress = null;
-        defer aggregate.allocator.destroy(creation);
         creation.reply.deinit();
-        switch (creation.outcome.?) {
-            .built => |runtime| cancelRuntime(runtime),
-            .failed => {},
+        const outcome = awaitOutcome(creation, teardown_build_wait_ns) orelse
+            return self.abandon(creation);
+        creation.creator.join();
+        defer aggregate.allocator.destroy(creation);
+        switch (outcome) {
+            .built => |runtime| commitAtTeardown(aggregate, creation, runtime),
+            .failed => switch (creation.work) {
+                .create => |*build| aggregate.abandonCreateBuild(build),
+                .start => {},
+            },
         }
+    }
+
+    /// THDD-001: a build that never returned may own a child the Host cannot reach, and its thread
+    /// still reads the creation and the launch it was admitted with. The thread is detached and
+    /// keeps both, never freed: a new terminal's launch stays with its creation, and a start's
+    /// launch leaves its awaiting record, which the aggregate's teardown then frees without it.
+    /// The Host's teardown fails once every other terminal is contained.
+    fn abandon(self: *Pipeline, creation: *Creation) void {
+        creation.creator.detach();
         switch (creation.work) {
-            .create => |*build| aggregate.abandonCreateBuild(build),
-            .start => {},
+            .create => {},
+            .start => |*build| build.retained.start_preparation = null,
         }
+        self.abandoned_build = true;
+        std.log.err(
+            "terminal Host abandoned a terminal creation whose build did not return within {d} s; its process may outlive the Host",
+            .{teardown_build_wait_ns / std.time.ns_per_s},
+        );
+    }
+
+    fn creatingTerminal(self: *const Pipeline) ?core_module.TerminalId {
+        const creation = self.in_progress orelse return null;
+        return creation.work.terminalId();
     }
 
     fn launchCreator(self: *Pipeline, creation: *Creation) !void {
         if (comptime target_builtin.is_test) creation.build_gate = self.build_gate;
         creation.creator = try std.Thread.spawn(.{}, runBuild, .{creation});
-    }
-
-    fn dependsOnEarlier(
-        self: *const Pipeline,
-        dependence: Dependence,
-        earlier: []const HeldRequest,
-    ) bool {
-        if (self.in_progress) |creation| {
-            if (dependence.creation) return true;
-            if (dependence.terminal) |terminal_id| {
-                if (terminal_id.eql(creation.work.terminalId())) return true;
-            }
-        }
-        for (earlier) |held| {
-            if (dependence.creation and held.dependence.creation) return true;
-            const terminal_id = dependence.terminal orelse continue;
-            const held_terminal_id = held.dependence.terminal orelse continue;
-            if (terminal_id.eql(held_terminal_id)) return true;
-        }
-        return false;
-    }
-
-    fn dropHeld(self: *Pipeline, allocator: std.mem.Allocator) void {
-        for (self.held.items) |held| allocator.free(held.record);
-        self.held.clearRetainingCapacity();
     }
 };
 
@@ -447,49 +423,33 @@ fn failureReply(creation: *const Creation, failure: BuildFailure) Reply {
     return .{ .failure = record };
 }
 
-/// Contains and frees a cancelled build's runtime. A process tree that stays unconfirmed after
-/// the retries is logged and its runtime retained, never freed under its workers.
-fn cancelRuntime(runtime: *TerminalRuntime) void {
-    var attempt: usize = 1;
-    while (true) : (attempt += 1) {
-        runtime.shutdown() catch |err| {
-            if (attempt < cancel_cleanup_attempts) {
-                monotonic.sleep(cancel_cleanup_backoff_ns);
-                continue;
-            }
-            std.log.err(
-                "retaining a cancelled terminal build whose process tree is not contained: {s}",
-                .{@errorName(err)},
-            );
-            return;
-        };
-        runtime.destroyAfterShutdown();
-        return;
+/// The build's outcome once it returns within `timeout_ns`, or null.
+fn awaitOutcome(creation: *Creation, timeout_ns: u64) ?BuildOutcome {
+    var timer = monotonic.Timer.start() catch null;
+    var waited_ns: u64 = 0;
+    creation.mutex.lock();
+    defer creation.mutex.unlock();
+    while (creation.outcome == null) {
+        const elapsed_ns = if (timer) |*value| value.read() else waited_ns;
+        if (elapsed_ns >= timeout_ns) return null;
+        const slice_ns = @min(std.time.ns_per_s, timeout_ns - elapsed_ns);
+        creation.finished.timedWait(&creation.mutex, slice_ns) catch {};
+        waited_ns += slice_ns;
     }
+    return creation.outcome;
 }
 
-fn dependenceOf(allocator: std.mem.Allocator, record: []const u8) Dependence {
-    const envelope = protocol.validateTransportEnvelope(record) catch return .{};
-    if (envelope.event or envelope.response) return .{};
-    const contract = protocol.messageContract(envelope.kind) orelse return .{};
-    const request = contract.request orelse return .{};
-    return switch (request.operation) {
-        .create_terminal, .stage_terminal_output, .set_terminal_defaults => .{ .creation = true },
-        .start_terminal => .{
-            .creation = true,
-            .terminal = control.decode.namedTerminal(allocator, envelope.payload),
+/// Commits a build that teardown waited for, unanswered, so the aggregate's teardown owns its
+/// runtime like every other terminal's.
+fn commitAtTeardown(aggregate: *Aggregate, creation: *Creation, runtime: *TerminalRuntime) void {
+    switch (creation.work) {
+        .create => |*build| _ = aggregate.commitCreateBuild(build, runtime),
+        .start => |*build| _ = aggregate.commitStartBuild(build, runtime) catch {
+            // Requests naming the terminal were held, so its record cannot have gone.
+            std.log.err("terminal start found its awaiting terminal gone at teardown", .{});
+            runtime.destroy();
         },
-        .terminate_terminal,
-        .force_terminate_terminal,
-        .dispose_terminal,
-        .attach_terminal,
-        .update_terminal_configuration,
-        .apply_terminal_theme,
-        => .{ .terminal = control.decode.namedTerminal(allocator, envelope.payload) },
-        // Attachment-scoped requests cannot name a creation: no attachment admits a terminal
-        // that is not yet running.
-        else => .{},
-    };
+    }
 }
 
 pub const testing = if (target_builtin.is_test) struct {

@@ -30,6 +30,9 @@ pub const Options = struct {
 const ServiceLifecycle = enum {
     running,
     shutting_down,
+    /// Teardown released every terminal but abandoned a creation build that never returned; only
+    /// `retainedCleanupPending` and a repeated teardown may still be called.
+    released_after_abandoned_build,
 };
 
 // LocalServer gives one dispatch thread ownership of HostService. Each retained
@@ -72,16 +75,19 @@ pub const HostService = struct {
     }
 
     pub fn deinitChecked(self: *HostService) !void {
+        if (self.lifecycle == .released_after_abandoned_build) return error.CreationBuildAbandoned;
         const first_attempt = self.beginShutdown();
-        // Teardown cancels a creation in progress before any terminal record it borrows goes.
+        // A creation in progress settles first: a runtime its build made joins the terminals the
+        // aggregate's teardown contains, and no terminal record it borrows goes before it.
         self.creations.shutdown(&self.runtime_aggregate);
         try self.runtime_aggregate.deinitChecked(first_attempt);
-        self.* = undefined;
+        try self.finishTeardown();
     }
 
     /// THDD-001: whether a failed fatal-teardown pass left an unconfirmed
     /// process tree that the Host still owns and must keep retrying cleanup for.
     pub fn retainedCleanupPending(self: *const HostService) bool {
+        if (self.lifecycle == .released_after_abandoned_build) return false;
         return self.runtime_aggregate.retainedCleanupPending();
     }
 
@@ -97,6 +103,17 @@ pub const HostService = struct {
     /// containment-confirmed, mirroring the successful deinitChecked path.
     pub fn finishRetainedCleanup(self: *HostService) !void {
         try self.runtime_aggregate.finishRetainedCleanup();
+        try self.finishTeardown();
+    }
+
+    /// Ends teardown once the aggregate is released. THDD-001: a creation build that never
+    /// returned may own a process the Host could not contain, so teardown fails instead of
+    /// reporting a clean release.
+    fn finishTeardown(self: *HostService) error{CreationBuildAbandoned}!void {
+        if (self.creations.abandoned_build) {
+            self.lifecycle = .released_after_abandoned_build;
+            return error.CreationBuildAbandoned;
+        }
         self.* = undefined;
     }
 
@@ -121,7 +138,7 @@ pub const HostService = struct {
                 std.math.maxInt(u32),
             .state = switch (self.lifecycle) {
                 .running => self.process_state,
-                .shutting_down => .stopping,
+                .shutting_down, .released_after_abandoned_build => .stopping,
             },
         };
     }
