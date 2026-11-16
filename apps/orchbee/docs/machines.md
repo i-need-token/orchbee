@@ -2,7 +2,9 @@
 
 The native Client owns the catalog of saved remote machines. The `machine` commands manage
 labels, connections, explicit remote Session names, and enabled state; the machines themselves
-are reached from Windows and macOS today; Linux answers unsupported. The person's own configuration for a connection kind owns
+are reached from Windows and macOS today; Linux answers unsupported. From either, the far end must
+run Windows x64 or ARM64: the [launch line](#adding-a-machine) is a PowerShell program, so a macOS
+or Linux far end is not reached yet. The person's own configuration for a connection kind owns
 everything else: for SSH, OpenSSH owns credentials, keys, ports, host trust, and SSH configuration.
 
 ## Catalog and transitions

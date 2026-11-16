@@ -127,14 +127,8 @@ impl Locale {
                 format!("The system on {label} can't run Orchbee.")
             }
             (Self::ZhCn, Line::Unsupported { .. }) => format!("{label} 的系统运行不了 Orchbee。"),
-            (Self::EnUs, Line::Supported) => {
-                "Supported: Windows (x64, ARM64), macOS (Apple silicon, Intel), Linux (x64, ARM64)."
-                    .into()
-            }
-            (Self::ZhCn, Line::Supported) => {
-                "支持：Windows（x64、ARM64）、macOS（Apple 芯片、Intel）、Linux（x64、ARM64）。"
-                    .into()
-            }
+            (Self::EnUs, Line::Supported) => "Supported: Windows (x64, ARM64).".into(),
+            (Self::ZhCn, Line::Supported) => "支持：Windows（x64、ARM64）。".into(),
             (Self::EnUs, Line::RemoteTooOld { version: Some(v) }) => format!(
                 "Orchbee {} on {label} is too old.",
                 sanitize_terminal_text(v)

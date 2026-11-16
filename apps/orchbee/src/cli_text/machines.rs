@@ -148,8 +148,8 @@ impl super::CliText {
             ),
             C::MachineAdd => (
                 "orchbee machine add <ssh-target> [--label <label>] [--remote-session <name>] [--format text|json]",
-                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation and interactive sign-in are not available yet.",
-                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。准备过程总期限为 60 秒。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序和交互登录暂不可用。",
+                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Sign-in questions are asked as machine connect asks them, and preparation has a 90-second deadline that time spent answering them does not count against. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation is not available yet.",
+                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。登录问题的询问方式与 machine connect 相同；准备过程期限为 90 秒，回答登录问题的时间不计入。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序暂不可用。",
             ),
             C::MachineRename => (
                 "orchbee machine rename <id|label> --label <label> [--format text|json]",
