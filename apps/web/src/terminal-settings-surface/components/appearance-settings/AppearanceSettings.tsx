@@ -1,10 +1,11 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import { Input } from '@orchbee/ui/components';
-import type * as React from 'react';
+import * as React from 'react';
 
-import type { TerminalSettingsController } from '../../../terminal-settings';
+import { windowTerminalColors, type TerminalSettingsController } from '../../../terminal-settings';
 import { TERMINAL_FONT_SIZE_RANGE } from '../../constants/terminal-font-size-range';
 import { useSetting } from '../../hooks/useSetting';
+import { useSystemPrefersDark } from '../../hooks/useSystemPrefersDark';
 import type { TerminalSettingsFontCatalog } from '../../types/terminal-settings-surface';
 import { FontFamilyPicker } from '../font-family-picker/FontFamilyPicker';
 import { FontSizeStepper } from '../font-size-stepper/FontSizeStepper';
@@ -12,6 +13,7 @@ import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
 import { SettingsSelect } from '../settings-select/SettingsSelect';
+import { TerminalPreview } from '../terminal-preview/TerminalPreview';
 import { useAppearanceSettings } from './hooks/useAppearanceSettings';
 import styles from './AppearanceSettings.module.css';
 
@@ -39,6 +41,26 @@ export function AppearanceSettings({
 	const fontLabel = intl.formatMessage(terminalSettingsMessages.pageFontLabel);
 	const fontSizeLabel = intl.formatMessage(terminalSettingsMessages.pageFontSizeLabel);
 	const custom = preferences.terminalDisplayTheme === 'custom';
+	const systemDark = useSystemPrefersDark();
+	// The highlighted entry of the open font list, shown before it is chosen.
+	const [fontPreview, setFontPreview] = React.useState<string | null>(null);
+	const draftSize = Number(view.fontSize.draft);
+	const previewSize =
+		Number.isInteger(draftSize) &&
+		draftSize >= TERMINAL_FONT_SIZE_RANGE.minimum &&
+		draftSize <= TERMINAL_FONT_SIZE_RANGE.maximum
+			? draftSize
+			: preferences.fontSize;
+	const preview =
+		query.trim() === '' ? (
+			<TerminalPreview
+				colors={windowTerminalColors(view.presented, systemDark, controller.colorThemes)}
+				fontFamily={fontPreview ?? preferences.fontFamily}
+				fontSize={previewSize}
+				fontWeight={preferences.fontWeight}
+				label={intl.formatMessage(terminalSettingsMessages.pagePreviewLabel)}
+			/>
+		) : undefined;
 	return (
 		<>
 			<SettingsGroup label={intl.formatMessage(terminalSettingsMessages.pageGroupAppAppearance)}>
@@ -127,26 +149,7 @@ export function AppearanceSettings({
 				) : null}
 			</SettingsGroup>
 			<SettingsGroup label={intl.formatMessage(terminalSettingsMessages.pageGroupTerminalText)}>
-				<SettingsRow
-					description={intl.formatMessage(terminalSettingsMessages.pageFontDescription)}
-					label={fontLabel}
-					modified={view.fontFamily.modified}
-					query={query}
-					settingId='appearance.font'
-					status={<SettingFailure message={view.fontFamily.error} />}
-					onRestore={view.fontFamily.onRestore}
-				>
-					<FontFamilyPicker
-						catalog={fontCatalog}
-						invalid={view.fontFamily.error !== null}
-						label={fontLabel}
-						modified={view.fontFamily.modified}
-						readOnly={view.fontFamily.readOnly}
-						value={view.fontFamily.value}
-						onChoose={view.fontFamily.onChoose}
-						onRestore={view.fontFamily.onChooseBuiltIn}
-					/>
-				</SettingsRow>
+				{/* Size comes first, as in the reference, so the growing preview never moves the stepper. */}
 				<SettingsRow
 					description={intl.formatMessage(terminalSettingsMessages.pageFontSizeDescription)}
 					label={fontSizeLabel}
@@ -168,6 +171,28 @@ export function AppearanceSettings({
 						onChange={view.fontSize.onChange}
 						onKeyDown={view.fontSize.onKeyDown}
 						onStep={view.fontSize.onStep}
+					/>
+				</SettingsRow>
+				<SettingsRow
+					description={intl.formatMessage(terminalSettingsMessages.pageFontDescription)}
+					label={fontLabel}
+					modified={view.fontFamily.modified}
+					preview={preview}
+					query={query}
+					settingId='appearance.font'
+					status={<SettingFailure message={view.fontFamily.error} />}
+					onRestore={view.fontFamily.onRestore}
+				>
+					<FontFamilyPicker
+						catalog={fontCatalog}
+						invalid={view.fontFamily.error !== null}
+						label={fontLabel}
+						modified={view.fontFamily.modified}
+						readOnly={view.fontFamily.readOnly}
+						value={view.fontFamily.value}
+						onChoose={view.fontFamily.onChoose}
+						onPreview={setFontPreview}
+						onRestore={view.fontFamily.onChooseBuiltIn}
 					/>
 				</SettingsRow>
 			</SettingsGroup>

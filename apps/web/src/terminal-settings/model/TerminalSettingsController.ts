@@ -40,7 +40,13 @@ export interface TerminalSettingsSnapshot {
 	/** The section the latest opening asked for; null shows the surface's own choice. */
 	readonly landing: TerminalSettingsLanding | null;
 	readonly open: boolean;
+	/** The committed preferences, as the settings file holds them. */
 	readonly preferences: TerminalAppearancePreferences;
+	/**
+	 * What the window shows now: the committed preferences with any previewed theme in its slot, so
+	 * a preview recolors terminals and the Settings preview without saving anything.
+	 */
+	readonly presented: TerminalAppearancePreferences;
 }
 
 /** An accepted change is `pending` until the settings file answers with it. */
@@ -146,7 +152,7 @@ export class TerminalSettingsController
 		this.#themeTarget = themeTarget;
 		const preferences = appearanceFromSettings(userSettings.getSnapshot().snapshot);
 		this.#presentationConfiguration = terminalPresentationConfigurationFromPreferences(preferences);
-		this.#snapshot = snapshot(false, null, preferences);
+		this.#snapshot = snapshot(false, null, preferences, preferences);
 		this.#applyTheme(preferences);
 		this.#removeUserSettings = userSettings.subscribe(() => this.#syncUserSettings());
 		systemTheme?.addEventListener('change', this.#handleSystemTheme);
@@ -181,7 +187,7 @@ export class TerminalSettingsController
 	open(landing: TerminalSettingsLanding | null = null): TerminalSettingsVisibilityResult {
 		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#snapshot.open) return { kind: 'unchanged' };
-		this.#snapshot = snapshot(true, landing, this.#snapshot.preferences);
+		this.#snapshot = Object.freeze({ ...this.#snapshot, landing, open: true });
 		this.#emitSnapshot();
 		return { kind: 'changed' };
 	}
@@ -190,7 +196,7 @@ export class TerminalSettingsController
 		if (this.#disposed) return { kind: 'disposed' };
 		if (!this.#snapshot.open) return { kind: 'unchanged' };
 		if (this.#themePreview?.committing === false) this.previewColorTheme(null);
-		this.#snapshot = snapshot(false, null, this.#snapshot.preferences);
+		this.#snapshot = Object.freeze({ ...this.#snapshot, landing: null, open: false });
 		this.#emitSnapshot();
 		return { kind: 'changed' };
 	}
@@ -221,6 +227,7 @@ export class TerminalSettingsController
 				? null
 				: { committing: false, polarity: preview.polarity, themeId: preview.themeId };
 		this.#presentIfChanged(before);
+		this.#refreshPresented();
 	}
 
 	/**
@@ -244,6 +251,7 @@ export class TerminalSettingsController
 		const preview: ActiveColorThemePreview = { committing: true, polarity, themeId };
 		this.#themePreview = preview;
 		this.#presentIfChanged(before);
+		this.#refreshPresented();
 		const settle = (): void => {
 			if (this.#disposed || this.#themePreview !== preview) return;
 			this.previewColorTheme(null);
@@ -316,6 +324,14 @@ export class TerminalSettingsController
 		};
 	}
 
+	/** A preview changed what the window shows: the snapshot carries it to its readers. */
+	#refreshPresented(): void {
+		const presented = this.#presented(this.#snapshot.preferences);
+		if (terminalAppearancePreferencesEqual(presented, this.#snapshot.presented)) return;
+		this.#snapshot = Object.freeze({ ...this.#snapshot, presented });
+		this.#emitSnapshot();
+	}
+
 	#presentIfChanged(before: TerminalAppearancePreferences): void {
 		const after = this.#presented(this.#snapshot.preferences);
 		if (
@@ -351,7 +367,12 @@ export class TerminalSettingsController
 		const preferences = appearanceFromSettings(this.userSettings.getSnapshot().snapshot);
 		if (terminalAppearancePreferencesEqual(preferences, current)) return;
 		const terminalChanged = !terminalDerivedPreferencesEqual(current, preferences);
-		this.#snapshot = snapshot(this.#snapshot.open, this.#snapshot.landing, preferences);
+		this.#snapshot = snapshot(
+			this.#snapshot.open,
+			this.#snapshot.landing,
+			preferences,
+			this.#presented(preferences),
+		);
 		if (!terminalThemePreferencesEqual(current, preferences)) {
 			this.#startThemePresentation(preferences);
 		}
@@ -457,8 +478,9 @@ function snapshot(
 	open: boolean,
 	landing: TerminalSettingsLanding | null,
 	preferences: TerminalAppearancePreferences,
+	presented: TerminalAppearancePreferences,
 ): TerminalSettingsSnapshot {
-	return Object.freeze({ landing, open, preferences });
+	return Object.freeze({ landing, open, preferences, presented });
 }
 
 function fontWeight(value: number): TerminalAppearancePreferences['fontWeight'] | null {

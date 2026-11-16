@@ -1,3 +1,11 @@
+/* The preview sits in a card like the lists' and keeps a named group's distance from them. */
+.preview {
+	margin-block-end: var(--ob-ref-space-8);
+	padding: var(--ob-ref-space-3);
+	border-radius: var(--ob-ref-radius-xl);
+	background: var(--ob-sys-color-surface-subtle);
+}
+
 .list {
 	display: flex;
 	flex-direction: column;

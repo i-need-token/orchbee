@@ -172,6 +172,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.fontSize.description': 'Size of terminal text, in pixels.',
 	'terminal.settings.page.fontSize.decrease': 'Decrease font size',
 	'terminal.settings.page.fontSize.increase': 'Increase font size',
+	'terminal.settings.page.preview.label': 'Terminal preview',
 	'terminal.settings.page.unit.megabytes': 'MB',
 	'terminal.settings.page.copyOnSelect.label': 'Copy on select',
 	'terminal.settings.page.copyOnSelect.description':

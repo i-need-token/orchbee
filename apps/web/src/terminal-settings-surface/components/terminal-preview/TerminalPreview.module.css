@@ -1,0 +1,6 @@
+/* A terminal's rounded corner. */
+.preview {
+	display: block;
+	overflow: hidden;
+	border-radius: var(--ob-ref-radius-lg);
+}

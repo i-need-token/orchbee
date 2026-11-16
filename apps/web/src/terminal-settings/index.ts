@@ -6,6 +6,7 @@ export {
 	normalizeTerminalHexColor,
 	terminalFontFamilyList,
 	TerminalSettingsController,
+	windowTerminalColors,
 } from './model';
 export type {
 	TerminalThemePresentationCommit,
@@ -13,4 +14,4 @@ export type {
 	TerminalThemePresentationPreparation,
 } from './model';
 export type { TerminalAppearancePreferences, TerminalSettingsLanding } from './model';
-export type { TerminalResolvedThemePreferences } from './model';
+export type { TerminalResolvedThemePreferences, WindowTerminalColors } from './model';

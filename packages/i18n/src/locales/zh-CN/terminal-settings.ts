@@ -165,6 +165,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.fontSize.description': '终端文字的大小，单位为像素。',
 	'terminal.settings.page.fontSize.decrease': '减小字号',
 	'terminal.settings.page.fontSize.increase': '增大字号',
+	'terminal.settings.page.preview.label': '终端预览',
 	'terminal.settings.page.unit.megabytes': 'MB',
 	'terminal.settings.page.copyOnSelect.label': '选中即复制',
 	'terminal.settings.page.copyOnSelect.description': '选择完成后立即复制文字。',

@@ -14,16 +14,17 @@ it('reports the effective palette under fixed appearance and custom defaults and
 	let terminalDisplayTheme: 'theme' | 'custom' = 'theme';
 	const source = createServerTerminalColorsSource(
 		{
-			getSnapshot: () => ({
-				preferences: {
+			getSnapshot: () => {
+				const preferences = {
 					applicationTheme: 'dark',
 					darkTheme,
 					lightTheme: 'orchbee-light',
 					terminalDisplayTheme,
 					customBackground: '#010203',
 					customForeground: '#abcdef',
-				},
-			}),
+				} as const;
+				return { preferences, presented: preferences };
+			},
 			subscribeSnapshot: () => () => {},
 		},
 		{
@@ -60,4 +61,36 @@ it('reports the effective palette under fixed appearance and custom defaults and
 	expect(source.current().host?.palette).toEqual(
 		terminalColorThemeAnsi(resolveTerminalColorTheme('dark', darkTheme)),
 	);
+});
+
+it('paints a previewed theme in the window while it reports the committed one', () => {
+	const preferences = {
+		applicationTheme: 'dark',
+		darkTheme: 'gruvbox-dark',
+		lightTheme: 'orchbee-light',
+		terminalDisplayTheme: 'theme',
+		customBackground: '#010203',
+		customForeground: '#abcdef',
+	} as const;
+	const source = createServerTerminalColorsSource(
+		{
+			getSnapshot: () => ({ preferences, presented: { ...preferences, darkTheme: 'dracula' } }),
+			subscribeSnapshot: () => () => {},
+		},
+		{
+			matches: false,
+			addEventListener: vi.fn<MediaQueryList['addEventListener']>(),
+			removeEventListener: vi.fn<MediaQueryList['removeEventListener']>(),
+		},
+	);
+	const previewed = resolveTerminalColorTheme('dark', 'dracula');
+	const committed = resolveTerminalColorTheme('dark', 'gruvbox-dark');
+	expect(source.current().display).toMatchObject({
+		background: previewed.background,
+		palette: terminalColorThemeAnsi(previewed),
+	});
+	expect(source.current().host).toMatchObject({
+		background: committed.background,
+		palette: terminalColorThemeAnsi(committed),
+	});
 });

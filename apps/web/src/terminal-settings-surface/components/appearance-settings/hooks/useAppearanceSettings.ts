@@ -60,6 +60,8 @@ interface AppearanceSettingsView {
 	readonly fontSize: FontSizeView;
 	readonly foreground: ColorDraftView;
 	readonly preferences: TerminalAppearancePreferences;
+	/** The preferences the window shows now, a previewed theme included. */
+	readonly presented: TerminalAppearancePreferences;
 }
 
 /**
@@ -72,7 +74,7 @@ export function useAppearanceSettings(
 	controller: TerminalSettingsController,
 ): AppearanceSettingsView {
 	const intl = useOrchbeeIntl();
-	const { preferences } = useTerminalSettings(controller);
+	const { preferences, presented } = useTerminalSettings(controller);
 	const settings = controller.userSettings;
 	const fontFamily = useSetting(settings, 'terminal.font_family');
 	const fontSize = useSetting(settings, 'terminal.font_size');
@@ -182,6 +184,7 @@ export function useAppearanceSettings(
 			intl.formatMessage(terminalSettingsMessages.foregroundInvalid),
 		),
 		preferences,
+		presented,
 	};
 }
 

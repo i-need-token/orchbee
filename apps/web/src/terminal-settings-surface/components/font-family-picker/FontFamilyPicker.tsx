@@ -34,6 +34,8 @@ interface FontFamilyPickerProps {
 	/** The stored CSS font list. */
 	readonly value: string;
 	readonly onChoose: (fontList: string) => void;
+	/** The font list the highlighted entry would store, while the list is open; null once it closes. */
+	readonly onPreview: (fontList: string | null) => void;
 	readonly onRestore: () => void;
 }
 
@@ -68,6 +70,7 @@ export function FontFamilyPicker({
 	readOnly,
 	value,
 	onChoose,
+	onPreview,
 	onRestore,
 }: FontFamilyPickerProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
@@ -149,9 +152,16 @@ export function FontFamilyPicker({
 			items={groups}
 			value={selected}
 			onInputValueChange={setQuery}
+			onItemHighlighted={(entry: FontEntry | undefined) => {
+				onPreview(entry === undefined ? null : storedFontList(entry));
+			}}
 			onOpenChange={(open) => {
-				if (open) installed.list();
-				else setQuery('');
+				if (open) {
+					installed.list();
+					return;
+				}
+				setQuery('');
+				onPreview(null);
 			}}
 			onValueChange={(entry: FontEntry | null) => {
 				if (entry === null || (entry.kind === selected.kind && entry.value === selected.value)) {
@@ -231,6 +241,13 @@ function FontEntryName({ entry }: { readonly entry: FontEntry }): React.ReactNod
 			<span className={styles['hiddenLabel']}>{entry.label}</span>
 		</>
 	);
+}
+
+/** The font list choosing the entry stores; the built-in entry restores the default list. */
+function storedFontList(entry: FontEntry): string {
+	return entry.kind === 'built-in'
+		? terminalFontFamilyList(BUILT_IN_TERMINAL_FONT_FAMILY)
+		: entry.value;
 }
 
 function sampleFamily(entry: FontEntry): string | null {

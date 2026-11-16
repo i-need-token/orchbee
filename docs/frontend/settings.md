@@ -131,6 +131,15 @@ implemented with Orchbee's semantic tokens and shared primitives.
   that a configured command holds, is a marker beside the row's control with the detail in its
   tooltip and accessible description, never an extra line.
 - Every change applies at once; the page has no Save, Discard, or footer.
+- A value people judge by eye, such as the terminal's font, size and colors, shows a preview of the
+  candidate: the highlighted entry of an open picker, a valid typed draft, or a previewed theme,
+  else the committed value. The preview spans the row under the name and control of the last setting
+  it shows whose change alters its height, so it grows below every control it follows; a page whose
+  list previews a value holds it above that list. A preview is local and reversible, as in the
+  terminal interface's [commit and preview](../tui/settings.md#commit-and-preview) rule, and never
+  sends a request. The terminal interface previews by repainting its whole frame, workspace
+  included; the window's dialog covers most of the workspace, so the window also draws the preview
+  in place.
 - A long list is one card with one entry per line. When it holds more than eight entries, its first
   line is a filter box with the shown count.
 - A page-wide notice, such as a persistence failure or a missing permission, is a dismissible banner

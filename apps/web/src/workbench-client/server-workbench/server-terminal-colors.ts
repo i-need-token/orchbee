@@ -1,11 +1,7 @@
-import {
-	resolveTerminalColorTheme,
-	terminalColorThemeAnsi,
-	type TerminalPresentationConfiguration,
-} from '@orchbee/terminal';
+import type { TerminalPresentationConfiguration } from '@orchbee/terminal';
 
 import type { TerminalPresentationConfigurationSource } from '../../terminal-presentation';
-import type { TerminalAppearancePreferences } from '../../terminal-settings';
+import { windowTerminalColors, type TerminalAppearancePreferences } from '../../terminal-settings';
 import type { ServerHostColors, ServerHostColorsSource } from '../server-connection';
 
 interface ServerTerminalColors {
@@ -24,17 +20,22 @@ export interface ServerTerminalColorsSource {
 	subscribe(listener: () => void): () => void;
 }
 
+type ThemePreferences = Pick<
+	TerminalAppearancePreferences,
+	| 'applicationTheme'
+	| 'customBackground'
+	| 'customForeground'
+	| 'darkTheme'
+	| 'lightTheme'
+	| 'terminalDisplayTheme'
+>;
+
 interface ThemePreferencesSource {
 	getSnapshot(): {
-		readonly preferences: Pick<
-			TerminalAppearancePreferences,
-			| 'applicationTheme'
-			| 'customBackground'
-			| 'customForeground'
-			| 'darkTheme'
-			| 'lightTheme'
-			| 'terminalDisplayTheme'
-		>;
+		/** The committed preferences, which the Worker hears about. */
+		readonly preferences: ThemePreferences;
+		/** The committed preferences with any previewed theme, which only this window paints. */
+		readonly presented: ThemePreferences;
 	};
 	subscribeSnapshot(listener: () => void): () => void;
 }
@@ -42,40 +43,38 @@ interface ThemePreferencesSource {
 /**
  * Resolves the theme preferences as the Worker resolves a launch's colors, with the system's
  * appearance where a TUI has its outer terminal. Every display mode reports its effective defaults,
- * cursor and ANSI palette when controlling a terminal; rendering remains Client-local.
+ * cursor and ANSI palette when controlling a terminal; rendering remains Client-local. A previewed
+ * theme repaints this window's terminals at once, while the report keeps the committed colors, so
+ * the Worker never remembers a theme nobody chose.
  */
 export function createServerTerminalColorsSource(
-	preferences: ThemePreferencesSource,
+	themePreferences: ThemePreferencesSource,
 	systemTheme: Pick<MediaQueryList, 'addEventListener' | 'matches' | 'removeEventListener'>,
 ): ServerTerminalColorsSource {
 	return {
 		current: () => {
-			const {
-				applicationTheme,
-				customBackground,
-				customForeground,
-				darkTheme,
-				lightTheme,
-				terminalDisplayTheme,
-			} = preferences.getSnapshot().preferences;
-			const polarity =
-				applicationTheme === 'system' ? (systemTheme.matches ? 'dark' : 'light') : applicationTheme;
-			const theme = resolveTerminalColorTheme(
-				polarity,
-				polarity === 'dark' ? darkTheme : lightTheme,
-			);
-			const host = {
-				background:
-					terminalDisplayTheme === 'custom' ? rgbFromHex(customBackground) : theme.background,
-				foreground:
-					terminalDisplayTheme === 'custom' ? rgbFromHex(customForeground) : theme.foreground,
-				cursor: theme.cursor,
-				palette: terminalColorThemeAnsi(theme),
+			const { preferences, presented } = themePreferences.getSnapshot();
+			const shown = windowTerminalColors(presented, systemTheme.matches);
+			const committed =
+				presented === preferences ? shown : windowTerminalColors(preferences, systemTheme.matches);
+			return {
+				display: {
+					background: shown.background,
+					cursor: shown.cursor,
+					cursorAccent: shown.cursorText,
+					foreground: shown.foreground,
+					palette: shown.palette,
+				},
+				host: {
+					background: committed.background,
+					cursor: committed.cursor,
+					foreground: committed.foreground,
+					palette: committed.palette,
+				},
 			};
-			return { display: { ...host, cursorAccent: theme.cursorText }, host };
 		},
 		subscribe: (listener) => {
-			const unsubscribe = preferences.subscribeSnapshot(listener);
+			const unsubscribe = themePreferences.subscribeSnapshot(listener);
 			systemTheme.addEventListener('change', listener);
 			return () => {
 				unsubscribe();
@@ -154,10 +153,6 @@ export function presentServerTerminalColors(
 			};
 		},
 	};
-}
-
-function rgbFromHex(value: string): number {
-	return Number.parseInt(value.slice(1), 16);
 }
 
 function hexFromRgb(value: number): `#${string}` {

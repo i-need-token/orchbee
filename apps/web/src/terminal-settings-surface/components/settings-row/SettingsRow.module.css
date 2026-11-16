@@ -13,6 +13,17 @@
 	padding-block: var(--ob-ref-space-2-5);
 }
 
+/* The preview takes a line of its own under the name and the control. */
+.root[data-preview] {
+	flex-wrap: wrap;
+	row-gap: var(--ob-ref-space-2-5);
+}
+
+.preview {
+	min-width: var(--ob-ref-space-0);
+	flex-basis: 100%;
+}
+
 .root:focus-visible {
 	border-radius: inherit;
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);

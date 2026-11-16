@@ -57,6 +57,16 @@ Local Font Access, or after a refusal, the list holds the built-in entry and the
 size is a stepper of one pixel per press or Up and Down arrow; a typed size applies on Enter or when
 the field loses focus. The page has no Zoom row because the application has no window zoom command.
 
+Font size comes before Font, as in the reference, because the Font row carries a terminal preview
+across its width: a prompt, a listing in the usual ANSI colors and the sixteen colors as cells,
+drawn in the candidate font, size and colors. The candidate is the highlighted entry of the open
+font list, a valid typed size, and the colors the window shows now, a previewed theme included;
+otherwise the committed values. A growing preview therefore never moves the stepper. The colors
+follow `windowTerminalColors`, the same resolution the Desktop window paints with: the active
+slot's theme, with the custom pair as default text and background under Custom, and the theme's
+canvas under Host because a window has no outer terminal. The Themes page starts with the same
+preview, which follows a highlighted theme as the lists preview it. Search hides both previews.
+
 Copy on select is the `terminal.copy_on_select` key. Its controller keeps its own subscription
 and publishes interaction configuration when a snapshot changes the value.
 
@@ -327,7 +337,10 @@ starts with a filter box.
 | Escape with a preview                     | Restore the committed theme and keep Settings open; without a preview, Escape leaves Settings as usual                    |
 | Focus leaves the list, or Settings closes | Restore the committed theme                                                                                               |
 
-A committed pick stays shown until the Session answers, so a confirmed pick never flashes the
+The controller's snapshot carries `presented`, the committed preferences with any previewed theme in
+its slot, so a preview reaches every reader without a write: the Desktop window's terminals repaint
+in it, while the colors the window reports keep the committed theme. A committed pick stays shown
+until the Session answers, so a confirmed pick never flashes the
 previous theme; a refused or failed save restores the committed theme. Each group's Restore default
 returns its slot to the Orchbee theme. Stories show the shipped themes; tests prove the pickers with a test-only fixture
 pair that does not depend on the shipped data.

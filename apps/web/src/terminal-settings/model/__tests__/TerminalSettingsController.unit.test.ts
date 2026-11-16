@@ -34,6 +34,7 @@ describe('TerminalSettingsController', () => {
 			landing: null,
 			open: false,
 			preferences: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+			presented: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 		});
 		expect(controller.current()).toMatchObject({
 			allowTransparency: false,
@@ -153,8 +154,13 @@ describe('TerminalSettingsController', () => {
 
 		controller.previewColorTheme({ polarity: 'dark', themeId: fixtureDarkTheme.id });
 		expect({ ...target.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
+		expect(controller.getSnapshot().presented).toMatchObject({
+			applicationTheme: 'dark',
+			darkTheme: fixtureDarkTheme.id,
+		});
 		controller.previewColorTheme(null);
 		expect({ ...target.dataset }).toEqual({ theme: 'light' });
+		expect(controller.getSnapshot().presented).toEqual(controller.getSnapshot().preferences);
 
 		controller.previewColorTheme({ polarity: 'light', themeId: fixtureLightTheme.id });
 		expect({ ...target.dataset }).toEqual({ colorTheme: fixtureLightTheme.id, theme: 'light' });

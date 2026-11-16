@@ -2,7 +2,11 @@ import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import { ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import { useTerminalSettings, type TerminalSettingsController } from '../../../terminal-settings';
+import {
+	useTerminalSettings,
+	windowTerminalColors,
+	type TerminalSettingsController,
+} from '../../../terminal-settings';
 import { useSetting } from '../../hooks/useSetting';
 import { useSystemPrefersDark } from '../../hooks/useSystemPrefersDark';
 import type { TerminalColorThemeListView } from '../../types/terminal-settings-surface';
@@ -12,6 +16,7 @@ import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SETTINGS_LIST_FILTER_THRESHOLD } from '../../constants/settings-list-filter';
 import { SettingsListFilter } from '../settings-list-filter/SettingsListFilter';
 import { SettingsListFilterEmpty } from '../settings-list-filter-empty/SettingsListFilterEmpty';
+import { TerminalPreview } from '../terminal-preview/TerminalPreview';
 import styles from './ThemeSettings.module.css';
 
 interface ThemeSettingsProps {
@@ -19,7 +24,11 @@ interface ThemeSettingsProps {
 	readonly query: string;
 }
 
-/** The light and dark theme lists; the list the app appearance shows now is tagged in use. */
+/**
+ * A terminal preview of the theme shown now, then the light and dark theme lists; the list the app
+ * appearance shows now is tagged in use. Moving through a list previews its theme everywhere,
+ * the preview included.
+ */
 export function ThemeSettings({ controller, query }: ThemeSettingsProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const snapshot = useTerminalSettings(controller);
@@ -38,7 +47,8 @@ export function ThemeSettings({ controller, query }: ThemeSettingsProps): React.
 		onPreview: (polarity, themeId) =>
 			controller.previewColorTheme(themeId === null ? null : { polarity, themeId }),
 	});
-	return lists.map((list) => {
+	const { presented } = snapshot;
+	const groups = lists.map((list) => {
 		const slot = list.polarity === 'dark' ? dark : light;
 		return (
 			<SettingsGroup
@@ -53,6 +63,22 @@ export function ThemeSettings({ controller, query }: ThemeSettingsProps): React.
 			</SettingsGroup>
 		);
 	});
+	return (
+		<>
+			{query.trim() === '' ? (
+				<div className={styles['preview']}>
+					<TerminalPreview
+						colors={windowTerminalColors(presented, systemDark, controller.colorThemes)}
+						fontFamily={presented.fontFamily}
+						fontSize={presented.fontSize}
+						fontWeight={presented.fontWeight}
+						label={intl.formatMessage(terminalSettingsMessages.pagePreviewLabel)}
+					/>
+				</div>
+			) : null}
+			{groups}
+		</>
+	);
 }
 
 const SWATCH_CELL = { gap: 2, height: 10, insetBlock: 3, insetInline: 4, width: 7 } as const;

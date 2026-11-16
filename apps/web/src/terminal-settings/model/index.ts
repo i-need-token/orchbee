@@ -17,3 +17,5 @@ export type {
 	TerminalSettingsSnapshot,
 } from './TerminalSettingsController';
 export type { TerminalResolvedThemePreferences } from './terminal-appearance-preferences';
+export { windowTerminalColors } from './windowTerminalColors';
+export type { WindowTerminalColors } from './windowTerminalColors';

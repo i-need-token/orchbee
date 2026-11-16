@@ -18,6 +18,12 @@ interface SettingsRowProps {
 	readonly label: string;
 	readonly modified?: boolean | undefined;
 	readonly onRestore?: (() => void) | undefined;
+	/**
+	 * A picture of the value under the row's name and control, across the row, as the reference's
+	 * code sample under its font row. Put it on the row's last setting that changes its height, so
+	 * a growing picture never moves a control under the pointer.
+	 */
+	readonly preview?: React.ReactNode;
 	/** The global Settings query; a row that does not match it renders nothing. */
 	readonly query: string;
 	/** Extra words that find this row, such as a shortcut chord. */
@@ -44,6 +50,7 @@ export function SettingsRow({
 	label,
 	modified = false,
 	onRestore,
+	preview,
 	query,
 	searchTerms = [],
 	settingId,
@@ -74,6 +81,7 @@ export function SettingsRow({
 		<div
 			className={styles['root']}
 			data-modified={modified || undefined}
+			data-preview={preview === undefined ? undefined : true}
 			data-settings-row
 			data-setting-id={settingId}
 			data-two-line={description === null || description === undefined ? undefined : true}
@@ -114,6 +122,7 @@ export function SettingsRow({
 				{restore}
 				{children}
 			</div>
+			{preview === undefined ? null : <div className={styles['preview']}>{preview}</div>}
 		</div>
 	);
 }

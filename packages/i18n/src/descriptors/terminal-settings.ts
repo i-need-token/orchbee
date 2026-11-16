@@ -177,6 +177,7 @@ export const terminalSettingsMessages = defineMessages({
 	pageFontSizeDescription: message('terminal.settings.page.fontSize.description'),
 	pageFontSizeDecrease: message('terminal.settings.page.fontSize.decrease'),
 	pageFontSizeIncrease: message('terminal.settings.page.fontSize.increase'),
+	pagePreviewLabel: message('terminal.settings.page.preview.label'),
 	pageUnitMegabytes: message('terminal.settings.page.unit.megabytes'),
 	pageCopyOnSelectLabel: message('terminal.settings.page.copyOnSelect.label'),
 	pageCopyOnSelectDescription: message('terminal.settings.page.copyOnSelect.description'),
