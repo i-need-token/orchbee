@@ -699,10 +699,14 @@ observed only by a fresh scan and stable reference.
   membership survives credential transitions. It uses an initial reusable-PID `getsid` only to
   reject definite non-members, then acquires a Mach task-name right and its `TASK_AUDIT_TOKEN`
   before the authoritative `getsid` and exact PID-version rechecks. Once the prefilter has matched,
-  acquisition loss, `ESRCH`, a terminated/invalid task right, token change, or exact-ID loss fails
-  the whole scan for retry; exec or same-session PID ABA can therefore never become false empty
-  evidence. It signals through `proc_signal_with_audittoken`, validates liveness through the task
-  right and exact PID-version query, and deallocates the task-name right after the member operation.
+  acquisition loss, `ESRCH`, a terminated, invalid or dead task right, token change, or exact-ID
+  loss fails the whole scan for retry; exec or same-session PID ABA can therefore never become false
+  empty evidence. XNU refuses a task-name right with the same `KERN_FAILURE` it gives a process
+  whose exit has begun, and grants an empty right to a process without a task, so either answer
+  asks `getsid` again: a candidate that no longer answers, or answers another session, was lost and
+  the scan retries, while one still in the session was refused and the operation fails. It signals
+  through `proc_signal_with_audittoken`, validates liveness through the task right and exact
+  PID-version query, and deallocates the task-name right after the member operation.
 - FreeBSD verifies that the Terminal Host is a process reaper before any terminal leader is forked.
   `PROC_REAP_KILL` with `REAPER_KILL_SUBTREE` and `PROC_REAP_GETPIDS` use the retained direct-child
   leader as the subtree identity; the kernel resolves members while holding process identities.
@@ -721,19 +725,21 @@ never consulted again. Platform preparation, enumeration, stable-reference, sign
 reap failures remain typed failures and preserve the retained ownership state for retry. A stable
 member signal scan records its first member error but still attempts and releases every later
 captured reference. A permanent error takes precedence over an invalidated-reference retry from
-the same scan, so a later scan cannot hide a permission, resource or unknown failure. On Linux,
-the native signal adapter preserves the explicit `EAGAIN` invalidation result and makes at most
-eight fresh whole-session scans under the original identity fence. The Linux and macOS containment
-count does the same: a matched candidate lost before or while binding its reference, or a
+the same scan, so a later scan cannot hide a permission, resource or unknown failure. On Linux and
+macOS, the native signal adapter preserves the explicit `EAGAIN` invalidation result, from a
+matched candidate lost before or while binding its reference or from a reference whose process
+exited before its signal, and makes at most eight fresh whole-session scans under the original
+identity fence. A member that exits during force STOP or KILL is therefore rescanned rather than
+reported as a failed termination. The containment count does the same: a lost candidate, or a
 reference whose liveness query no longer names its process (`EAGAIN`), ends that count scan for a
-fresh one. Each failed scan releases all
-captured references and its iterator before another scan binds members and checks membership
-again. The eight-pass limit bounds retries through transient exit or identity churn; it adds no
-sleep, deadline, thread or ownership state. Only a complete successful scan returns success or a
-count; invalidation exhaustion remains a failure and neither an old reference nor its reused
-numeric PID can authorize an effect or empty evidence. Other native errors, macOS signaling and
-FreeBSD behavior keep their existing failure semantics. A partial force KILL whose retries fail still enters a complete CONT compensation scan; on
-FreeBSD, a successful `PROC_REAP_KILL` call with `rk_fpid` set is also a partial failure.
+fresh one. Each failed scan releases all captured references and its iterator before another scan
+binds members and checks membership again. The eight-pass limit bounds retries through transient
+exit or identity churn; it adds no sleep, deadline, thread or ownership state. Only a complete
+successful scan returns success or a count; invalidation exhaustion remains a failure and neither
+an old reference nor its reused numeric PID can authorize an effect or empty evidence. Other native
+errors and FreeBSD behavior keep their existing failure semantics. A partial force KILL whose
+retries fail still enters a complete CONT compensation scan; on FreeBSD, a successful
+`PROC_REAP_KILL` call with `rk_fpid` set is also a partial failure.
 
 The THCR-006 Host termination barrier captures the pending runtime before dispatch, then completes
 that runtime's shutdown before resuming the admitted graceful or force request. Normal completion

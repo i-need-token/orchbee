@@ -289,7 +289,12 @@ static int darwin_read_task_audit_token(
         &token_count
     );
     if (result == KERN_SUCCESS && token_count == TASK_AUDIT_TOKEN_COUNT) return 1;
-    if (result == KERN_INVALID_ARGUMENT || result == KERN_TERMINATED) return 0;
+    // A terminating task first stops answering through its name port, then
+    // destroys it, which leaves this right a dead name: both mean it is gone.
+    if (result == KERN_INVALID_ARGUMENT || result == KERN_TERMINATED ||
+        result == MACH_SEND_INVALID_DEST) {
+        return 0;
+    }
     if (result == KERN_RESOURCE_SHORTAGE || result == KERN_NO_SPACE) {
         errno = ENOMEM;
         return -1;
@@ -345,26 +350,43 @@ static int darwin_read_member_process_info(
     return 0;
 }
 
+// XNU answers task_name_for_pid with KERN_FAILURE both when it refuses the
+// caller and when it no longer hands the process out: once its exit has begun,
+// as a zombie, or when the PID is gone. A process whose task is already gone
+// is answered with success and no right. The caller's prefilter already placed
+// this PID in the owned session, so ask getsid again: a PID that no longer
+// answers, or answers another session, was lost (0), and the scan restarts. A
+// PID still in the session was refused. The owned-session candidate capability
+// is the tracking boundary: skipping an untracked candidate could omit a
+// terminal member from signaling or containment, so a refusal stops the
+// operation. No numeric-PID fallback is permitted.
+static int darwin_classify_unacquired_member(pid_t pid, pid_t session_id) {
+    errno = 0;
+    const pid_t observed_session = getsid(pid);
+    if (observed_session < 0) {
+        return orchbee_classify_session_membership_error(errno);
+    }
+    if (observed_session != session_id) return 0;
+    errno = EPERM;
+    return -1;
+}
+
 static int acquire_session_member_ref(
     pid_t pid,
+    pid_t session_id,
     struct orchbee_session_member_ref **member_ref
 ) {
     mach_port_name_t task = MACH_PORT_NULL;
     const kern_return_t task_result = task_name_for_pid(mach_task_self(), pid, &task);
-    if (task_result != KERN_SUCCESS) {
+    if (task_result == KERN_RESOURCE_SHORTAGE || task_result == KERN_NO_SPACE) {
+        errno = ENOMEM;
+        return -1;
+    }
+    if (task_result != KERN_SUCCESS || task == MACH_PORT_NULL) {
         if (task_result == KERN_INVALID_ARGUMENT || task_result == KERN_TERMINATED) {
             return 0;
         }
-        if (task_result == KERN_RESOURCE_SHORTAGE || task_result == KERN_NO_SPACE) {
-            errno = ENOMEM;
-            return -1;
-        }
-        // The owned-session candidate capability is the tracking boundary.
-        // Any non-vanishing acquisition failure must stop the operation: skipping
-        // an untracked candidate could omit a terminal member from signaling or
-        // containment. No numeric-PID fallback is permitted.
-        errno = EPERM;
-        return -1;
+        return darwin_classify_unacquired_member(pid, session_id);
     }
 
     audit_token_t audit_token = {0};
@@ -412,8 +434,11 @@ int orchbee_darwin_process_enumeration_scope(void) {
 
 static int acquire_session_member_ref(
     pid_t pid,
+    pid_t session_id,
     struct orchbee_session_member_ref **member_ref
 ) {
+    // A pidfd names the process exactly; membership is checked after binding.
+    (void)session_id;
     const long opened = syscall(SYS_pidfd_open, pid, 0U);
     if (opened < 0) return errno == ESRCH ? 0 : -1;
     if (opened > INT_MAX) {
@@ -542,7 +567,11 @@ int orchbee_session_member_iterator_next(
 #endif
 
         struct orchbee_session_member_ref *member_ref = NULL;
-        const int acquire_result = acquire_session_member_ref(pid, &member_ref);
+        const int acquire_result = acquire_session_member_ref(
+            pid,
+            iterator->session_id,
+            &member_ref
+        );
         if (acquire_result < 0) return -1;
         if (acquire_result == 0) {
 #if defined(__APPLE__)

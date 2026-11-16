@@ -264,8 +264,9 @@ const NativeSessionMemberRef = struct {
             @intCast(@intFromEnum(signal_number)),
         );
         if (result != 0) {
-            if (builtin.os.tag == .linux and std.posix.errno(result) == .AGAIN)
-                return error.StableMemberIdentityInvalidated;
+            // The exact process the reference names is gone: it exited after
+            // the scan bound it. That cannot count as delivered.
+            if (std.posix.errno(result) == .AGAIN) return error.StableMemberIdentityInvalidated;
             return error.SessionTerminationFailed;
         }
     }
@@ -348,12 +349,7 @@ fn signalSession(session_id: std.posix.pid_t, signal_number: std.posix.SIG) !voi
         ) != 0) {
             return error.SessionTerminationFailed;
         },
-        .linux => try signalStableSessionMembersWithRetry(
-            session_id,
-            NativeSessionMemberSource{},
-            signal_number,
-        ),
-        .macos => try signalStableSessionMembers(
+        .linux, .macos => try signalStableSessionMembersWithRetry(
             session_id,
             NativeSessionMemberSource{},
             signal_number,
