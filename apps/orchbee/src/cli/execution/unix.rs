@@ -12,8 +12,9 @@
 //! Agent detection rule commands, the outdated integration filter, the Panel, Workspace,
 //! notification, title and configuration reports, the extended creation and move options, the
 //! enriched Workbench inspection, `terminal run` with its managed-shell wait, `terminal clear`,
-//! `panel create-terminal`, layout export and apply, and the terminal streams: `terminal attach`,
-//! `agent attach` and `terminal session observe/control`.
+//! `panel create-terminal`, layout export and apply, the terminal streams: `terminal attach`,
+//! `agent attach` and `terminal session observe/control`, and the named-Session commands
+//! `session list/attach/stop/delete`.
 //! Admission itself does not inspect environment or native state.
 use super::{Capability, Unsupported};
 
@@ -43,6 +44,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::TerminalCreation
         | Capability::Layout
         | Capability::TerminalStream
+        | Capability::NamedSessions
             if cfg!(target_os = "macos") =>
         {
             Ok(())

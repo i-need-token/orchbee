@@ -55,6 +55,6 @@ pub(crate) fn withheld(feature: crate::invocation::grammar::Withheld) -> Failure
 
 /// Transfer the parsed Session choice to its native owner after admission.
 pub(crate) fn prepare(selected: SelectedRequest) -> Request {
-    platform::select_session(selected.session);
+    crate::local_activation::select_session(selected.session);
     selected.request
 }

@@ -1,6 +1,6 @@
 //! Projects named-Session catalog and lifecycle observations and executes explicit guarded
-//! deletion with typed receipts. It does not adopt unregistered processes or infer a running
-//! Session solely from an endpoint pathname.
+//! deletion with typed receipts on Windows and macOS. It does not adopt unregistered processes or
+//! infer a running Session solely from an endpoint pathname.
 
 use super::console_interrupt::{ArmedSignals, Finish, SignalWatch};
 use super::destructive_request::{DestructiveCommand, admit};
@@ -23,13 +23,6 @@ use std::{
     io,
     time::{Duration, Instant},
 };
-
-#[cfg(windows)]
-#[path = "named_sessions/windows.rs"]
-mod platform;
-#[cfg(not(windows))]
-#[path = "named_sessions/unix.rs"]
-mod platform;
 
 pub(crate) fn run(command: &NamedSessionCommand, format: OutputFormat, locale: Locale) -> Output {
     if let Err(failure) = super::execution::admit(super::execution::Capability::NamedSessions) {
@@ -87,7 +80,7 @@ fn delete(
         );
     }
     let deadline = Instant::now() + Duration::from_secs(5);
-    let mut signals = match ArmedSignals::arm_interrupts() {
+    let mut signals = match ArmedSignals::arm_interrupts_except_linux() {
         Ok(signals) => signals,
         Err(_) => return failed(Failure::new(FailureKind::InternalFailure), format, locale),
     };
@@ -152,7 +145,7 @@ fn local_error_at(error: io::Error, stage: &str) -> Failure {
 
 fn list(format: OutputFormat, locale: Locale) -> Output {
     let deadline = Instant::now() + Duration::from_secs(5);
-    let mut signals = match ArmedSignals::arm_interrupts() {
+    let mut signals = match ArmedSignals::arm_interrupts_except_linux() {
         Ok(signals) => signals,
         Err(_) => return failed(Failure::new(FailureKind::InternalFailure), format, locale),
     };
@@ -279,7 +272,7 @@ fn observe(
                 io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
             ) =>
         {
-            let marker = platform::activation_state(&session).map_err(local_error)?;
+            let marker = session.activation_state().map_err(local_error)?;
             let lifetime = session
                 .observe_session_lifetime_lock()
                 .map_err(local_error)?;

@@ -534,10 +534,8 @@ the handshake's own answer: a rejection, or `unsupported` for an unknown request
 | `route`          | At once                               | After the opener's `end`, the reply packet of the [routed command](#command-routing-contract), under its admission and allowlist, then `replied`                                      |
 | `ensure-session` | At once                               | `ready` with `started` once the Session admits a Client, as `server start` would; `unknown` when a start ran out of its 30 seconds or its Server may have started; `failed` otherwise |
 
-A name the Windows Session grammar refuses resets `invalid-session` before `accept`. A macOS
-helper serves only the default Session, as its CLI does: a `session` channel for another name
-resets `unavailable`, an `ensure-session` closes `failed`, and a routed command for another Session
-is not submitted. The endpoint, a pipe on Windows and a socket on macOS, is found as a local Client
+A name the Session grammar refuses resets `invalid-session` before `accept`. A routed command
+selects its Session with `--session` on Windows and macOS alike. The endpoint, a pipe on Windows and a socket on macOS, is found as a local Client
 finds it, through the data root's Session catalog spelling, and must
 belong to the same user. `ensure-session` uses the same activation as `server start`; the Server it
 starts outlives the helper. `install` is answered as an unknown kind until its capability ships.

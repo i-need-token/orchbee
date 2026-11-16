@@ -157,8 +157,8 @@ command-line link selection keeps reporting the missing store.
 The shared runtime exposes settings/manifest types, command outcome types, Windows path syntax
 and literal command encoding on every platform. A Windows path is parsed with the Windows wire
 grammar rather than the host `std::path` grammar; the execution owner supplies frozen environment
-and current-directory inputs. This does not add Unix Windows-path filesystem access, named-Session
-registration, plugin installation or SSH implementations.
+and current-directory inputs. This does not add Unix Windows-path filesystem access, plugin
+installation or SSH implementations.
 
 ## Verification ownership
 

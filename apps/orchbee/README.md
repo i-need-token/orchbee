@@ -4,7 +4,7 @@
 
 A Session contains your Workspaces, terminals and Agents; its background service keeps programs
 running when you leave the interface. Start with the default Session and use Workspaces for daily
-organization. Windows supports separate named Sessions through `--session <name>` and
+organization. Windows and macOS support separate named Sessions through `--session <name>` and
 `session attach <name>`; `server` commands manage the selected Session's background service.
 Agent IDs use `--agent-session <id>`. The [Session contract](docs/native-cli-query.md#sessions-and-background-services)
 defines terminology, supported boundaries and unchanged storage/protocol identities.
@@ -1032,9 +1032,7 @@ never starts a Session, is not release-withheld, and runs on Windows and macOS; 
 typed unsupported-platform failure. Publication shares the
 [schema export](docs/native-cli-query.md#offline-schema-export) steps with a
 `.orchbee-diagnostics-<nonce>.tmp` sibling: the parent must exist and only a regular file is
-replaced. On macOS the bundle is created private to the user (mode `0600`). Until named Sessions
-run on macOS, its `sessions.json` carries the unsupported-platform answer of `session list`, and
-`versions.json` names the default Session from its Server's status query. A write failure exits `1` with `orchbee.cli.failure.diagnostics` (`write-failed`, its
+replaced. On macOS the bundle is created private to the user (mode `0600`). A write failure exits `1` with `orchbee.cli.failure.diagnostics` (`write-failed`, its
 stage, the path and any temporary file left); success answers `orchbee.diagnostics.create` with the
 path, size, entries and section states.
 

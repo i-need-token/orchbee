@@ -131,10 +131,10 @@ commands! {
     DiagnosticsCreate => ["diagnostics", "create"], 0, Operand, Portable, true, false, false;
     ServerStart => ["server", "start"], 0, Operand, Portable, true, false, false;
     ServerConnect => ["server", "connect"], 0, Operand, Portable, false, false, false;
-    SessionList => ["session", "list"], 0, Operand, Windows, true, false, false;
-    SessionAttach => ["session", "attach"], 1, Session, Windows, false, false, false;
-    SessionStop => ["session", "stop"], 1, Session, Windows, true, false, false;
-    SessionDelete => ["session", "delete"], 1, Session, Windows, true, false, false;
+    SessionList => ["session", "list"], 0, Operand, WindowsAndMacos, true, false, false;
+    SessionAttach => ["session", "attach"], 1, Session, WindowsAndMacos, false, false, false;
+    SessionStop => ["session", "stop"], 1, Session, WindowsAndMacos, true, false, false;
+    SessionDelete => ["session", "delete"], 1, Session, WindowsAndMacos, true, false, false;
     ServerUpdateAgentManifests => ["server", "update-agent-manifests"], 0, Operand, Portable, true, true, false;
     TerminalTitleSet => ["terminal", "title", "set"], 1, Operand, Portable, true, true, false;
     TerminalTitleClear => ["terminal", "title", "clear"], 0, Operand, Portable, true, true, false;

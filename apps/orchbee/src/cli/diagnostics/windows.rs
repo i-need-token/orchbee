@@ -1,8 +1,6 @@
-//! Windows bundle facts: the Windows product and build, a process's image, and the running
-//! Sessions, which `session list` names.
-use super::Running;
+//! Windows bundle facts: the Windows product and build, and a process's image.
 use serde_json::{Value, json};
-use std::{path::Path, time::Instant};
+use std::path::Path;
 use winsafe::{self as w, co};
 
 /// `windows` and its product, display version and build.
@@ -29,9 +27,4 @@ pub(super) fn runs(pid: u32, expected: &Path) -> Option<bool> {
             .to_str()
             .is_some_and(|expected| expected.eq_ignore_ascii_case(&image)),
     )
-}
-
-/// The Sessions `session list` named; Windows always admits it.
-pub(super) fn running(listed: Option<Vec<Running>>, _deadline: Instant) -> Option<Vec<Running>> {
-    listed
 }

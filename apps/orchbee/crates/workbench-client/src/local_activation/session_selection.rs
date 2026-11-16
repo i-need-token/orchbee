@@ -1,4 +1,6 @@
-//! Immutable invocation selection; environment is consulted only during runtime discovery.
+//! Immutable invocation selection; environment is consulted only during runtime discovery. Windows
+//! and macOS admit `--session`; Linux refuses it before selection, so only the environment selects
+//! there.
 use orchbee_local_runtime::{SessionName, SessionScope};
 use std::{ffi::OsString, io, path::PathBuf, sync::OnceLock};
 
@@ -71,13 +73,31 @@ fn routed_environment() -> impl Fn(&str) -> Option<OsString> {
     orchbee_local_runtime::session_route_environment(|key| std::env::var_os(key))
 }
 
+#[cfg(windows)]
 fn default_base() -> io::Result<PathBuf> {
-    orchbee_local_runtime::default_runtime_base(|key| std::env::var_os(key)).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            "this environment has no default runtime base",
-        )
-    })
+    orchbee_local_runtime::default_runtime_base(|key| std::env::var_os(key))
+        .ok_or_else(no_default_base)
+}
+
+/// The default base is named through the data root's canonical path once the root exists, the
+/// spelling activation creates it under and every socket name derives from; the root and its
+/// ancestors may be symbolic links.
+#[cfg(unix)]
+fn default_base() -> io::Result<PathBuf> {
+    let root = orchbee_local_runtime::DataRoot::resolve(|key| std::env::var_os(key))
+        .map_err(|_| no_default_base())?;
+    match std::fs::canonicalize(root.path()) {
+        Ok(canonical) => Ok(orchbee_local_runtime::DataRoot::at(canonical).runtime()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(root.runtime()),
+        Err(error) => Err(error),
+    }
+}
+
+fn no_default_base() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::NotFound,
+        "this environment has no default runtime base",
+    )
 }
 
 fn inside_session(

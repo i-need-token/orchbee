@@ -32,19 +32,13 @@ const STOPPING_PAUSE: Duration = Duration::from_millis(100);
 
 mod fallback;
 mod restore_feedback;
+mod session_selection;
 
 #[cfg(any(windows, target_os = "macos"))]
 mod store_start;
-#[cfg(windows)]
-mod windows_selection;
-#[cfg(windows)]
-pub use windows_selection::inside_selected_session;
-#[cfg(windows)]
-pub use windows_selection::{select_session, selected_session_name, target_session_name};
-#[cfg(not(windows))]
-pub fn selected_session_name() -> Option<&'static str> {
-    None
-}
+pub use session_selection::{
+    inside_selected_session, select_session, selected_session_name, target_session_name,
+};
 
 pub use crate::startup_status::StartupFailure;
 
@@ -127,7 +121,7 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
         #[cfg(windows)]
         selected_session_name(),
         #[cfg(windows)]
-        windows_selection::location,
+        session_selection::location,
         #[cfg(windows)]
         ServerJob::Inherit,
         #[cfg(unix)]
@@ -136,29 +130,13 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
 }
 
 /// [`activate_local_session`] for the Session `name` rather than the invocation's selection, as the
-/// link helper's `ensure-session` asks. macOS and Linux serve only the default Session, as they
-/// refuse `--session`; any other name fails before anything is created.
+/// link helper's `ensure-session` asks.
 #[cfg(unix)]
 pub fn activate_named_session(
     name: &orchbee_local_runtime::SessionName,
     deadline: Instant,
 ) -> Result<StartedSession, ActivationFailure> {
     activate(deadline, Some(name))
-}
-
-/// The Client endpoint of the existing Session `name` of this user and environment, found as a
-/// local Client finds it; only the default Session, as for [`activate_named_session`]. A Session
-/// whose runtime folder is absent fails with `NotFound`.
-#[cfg(unix)]
-pub fn session_client_endpoint(name: &orchbee_local_runtime::SessionName) -> io::Result<PathBuf> {
-    let location = unix_named_location(name)?;
-    let scope = SessionScope::parse(&location.scope).map_err(io::Error::other)?;
-    let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(&location.base, scope)
-        .map_err(|error| match error {
-        orchbee_local_runtime::RendezvousError::System { source, .. } => source,
-        other => io::Error::other(other),
-    })?;
-    Ok(session.client_socket_path().to_owned())
 }
 
 /// [`activate_local_session`] for the Session `name` rather than the invocation's selection, so one
@@ -173,7 +151,7 @@ pub fn activate_named_session(
     activate(
         deadline,
         Some(name.as_str()),
-        || windows_selection::location_of(Some(name)),
+        || session_selection::location_of(Some(name)),
         ServerJob::Leave,
     )
 }
@@ -190,9 +168,8 @@ enum ServerJob {
 
 /// The Client endpoint of the existing Session `name` of this user and environment, found as a
 /// local Client finds it. A Session whose runtime folder is absent fails with `NotFound`.
-#[cfg(windows)]
 pub fn session_client_endpoint(name: &orchbee_local_runtime::SessionName) -> io::Result<PathBuf> {
-    let location = windows_selection::location_of(Some(name))?;
+    let location = session_selection::location_of(Some(name))?;
     let scope = SessionScope::parse(location.scope()).map_err(io::Error::other)?;
     let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(&location.base, scope)
         .map_err(|error| match error {
@@ -208,7 +185,7 @@ pub fn session_client_endpoint(name: &orchbee_local_runtime::SessionName) -> io:
 fn activate(
     deadline: Instant,
     #[cfg(windows)] explicit: Option<&str>,
-    #[cfg(windows)] locate: impl FnOnce() -> io::Result<windows_selection::Location>,
+    #[cfg(windows)] locate: impl FnOnce() -> io::Result<session_selection::Location>,
     #[cfg(windows)] server_job: ServerJob,
     #[cfg(unix)] named: Option<&orchbee_local_runtime::SessionName>,
 ) -> Result<StartedSession, ActivationFailure> {
@@ -233,23 +210,28 @@ fn activate(
     // and named through the data root's canonical path. An explicit `ORCHBEE_RUNTIME_BASE` must
     // already exist.
     #[cfg(unix)]
-    let (base, scope_text) = {
-        let location = named
-            .map_or_else(unix_location, unix_named_location)
+    let (base, scope_text, selected) = {
+        let session_selection::Location {
+            base,
+            default_base,
+            name,
+        } = named
+            .map_or_else(session_selection::location, |name| {
+                session_selection::location_of(Some(name))
+            })
             .map_err(runtime_location_failure)?;
-        let base = if location.default_base {
+        let base = if default_base {
             orchbee_local_runtime::prepare_default_runtime_base(|name| std::env::var_os(name))
                 .map_err(runtime_location_failure)?
         } else {
-            location.base
+            base
         };
-        (base, location.scope)
+        (base, name.as_str().to_owned(), name)
     };
     #[cfg(windows)]
     let name = &selection.name;
     #[cfg(unix)]
-    let name = &orchbee_local_runtime::SessionName::parse(&scope_text)
-        .map_err(runtime_location_failure)?;
+    let name = &selected;
     let scope = SessionScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
@@ -809,109 +791,16 @@ fn failure(kind: io::ErrorKind, fallback: StartupFailure) -> StartupFailure {
 /// nothing has created it yet; activation creates it. Read-only commands then report an unstarted
 /// environment instead of failing. An explicit base never qualifies.
 pub fn runtime_base_unstarted() -> io::Result<bool> {
-    #[cfg(windows)]
-    {
-        let location = windows_selection::location()?;
-        Ok(location.default_base
-            && matches!(
-                std::fs::symlink_metadata(&location.base),
-                Err(error) if error.kind() == io::ErrorKind::NotFound
-            ))
-    }
-    #[cfg(unix)]
-    {
-        let location = unix_location()?;
-        Ok(location.default_base
-            && matches!(
-                std::fs::symlink_metadata(&location.base),
-                Err(error) if error.kind() == io::ErrorKind::NotFound
-            ))
-    }
+    let location = session_selection::location()?;
+    Ok(location.default_base
+        && matches!(
+            std::fs::symlink_metadata(&location.base),
+            Err(error) if error.kind() == io::ErrorKind::NotFound
+        ))
 }
 
 pub fn runtime_location() -> io::Result<(PathBuf, String)> {
-    #[cfg(windows)]
-    {
-        let location = windows_selection::location()?;
-        let scope = location.scope().to_owned();
-        Ok((location.base, scope))
-    }
-    #[cfg(unix)]
-    {
-        let location = unix_location()?;
-        Ok((location.base, location.scope))
-    }
-}
-
-/// A macOS or Linux runtime location: the inherited `ORCHBEE_RUNTIME_BASE` or this environment's
-/// default base, and the inherited `ORCHBEE_RUNTIME_SCOPE` or the default Session.
-#[cfg(unix)]
-struct UnixLocation {
-    base: PathBuf,
-    scope: String,
-    /// The base is this environment's default rather than `ORCHBEE_RUNTIME_BASE`.
-    default_base: bool,
-}
-
-/// The default base is named through the data root's canonical path once the root exists, the
-/// spelling activation creates it under and every socket name derives from; the root and its
-/// ancestors may be symbolic links.
-#[cfg(unix)]
-fn unix_location() -> io::Result<UnixLocation> {
-    let environment = orchbee_local_runtime::session_route_environment(|key| std::env::var_os(key));
-    let scope = match environment("ORCHBEE_RUNTIME_SCOPE") {
-        Some(value) => value
-            .to_str()
-            .and_then(|text| orchbee_local_runtime::SessionName::parse(text).ok())
-            .ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidInput, "invalid ORCHBEE_RUNTIME_SCOPE")
-            })?,
-        None => orchbee_local_runtime::SessionName::default_session(),
-    }
-    .as_str()
-    .to_owned();
-    if let Some(base) = environment("ORCHBEE_RUNTIME_BASE") {
-        return Ok(UnixLocation {
-            base: PathBuf::from(base),
-            scope,
-            default_base: false,
-        });
-    }
-    let root = orchbee_local_runtime::DataRoot::resolve(|key| std::env::var_os(key))
-        .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?;
-    let base = match std::fs::canonicalize(root.path()) {
-        Ok(canonical) => orchbee_local_runtime::DataRoot::at(canonical).runtime(),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => root.runtime(),
-        Err(error) => return Err(error),
-    };
-    Ok(UnixLocation {
-        base,
-        scope,
-        default_base: true,
-    })
-}
-
-/// The name of the Session a macOS or Linux invocation targets, as [`runtime_location`] names it:
-/// the inherited `ORCHBEE_RUNTIME_SCOPE` or the default Session. Absent when the location is
-/// invalid.
-#[cfg(unix)]
-pub fn target_session_name() -> Option<orchbee_local_runtime::SessionName> {
-    unix_location()
-        .ok()
-        .and_then(|location| orchbee_local_runtime::SessionName::parse(&location.scope).ok())
-}
-
-/// The runtime location of the Session `name`, which must be the default Session; the base is
-/// found as [`unix_location`] finds it.
-#[cfg(unix)]
-fn unix_named_location(name: &orchbee_local_runtime::SessionName) -> io::Result<UnixLocation> {
-    if name.as_str() != orchbee_local_runtime::SessionName::default_session().as_str() {
-        return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "only the default Session is served on this platform",
-        ));
-    }
-    let mut location = unix_location()?;
-    name.as_str().clone_into(&mut location.scope);
-    Ok(location)
+    let location = session_selection::location()?;
+    let scope = location.scope().to_owned();
+    Ok((location.base, scope))
 }

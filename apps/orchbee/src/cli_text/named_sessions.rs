@@ -97,27 +97,27 @@ impl super::CliText {
             ),
             (Locale::EnUs, CommandPath::SessionAttach) => crate::cli_text::HelpDetails::new(
                 "orchbee session attach <name> [--mouse on|off]",
-                "Activate the selected local session if needed and attach the Windows TUI.\nMouse defaults to on. Requires an interactive terminal; --format is not accepted.\nCtrl+b q (default keys) detaches the client; session and child processes continue.",
+                "Activate the selected local session if needed and attach the TUI.\nMouse defaults to on. Requires an interactive terminal; --format is not accepted.\nCtrl+b q (default keys) detaches the client; session and child processes continue.",
             ),
             (Locale::ZhCn, CommandPath::SessionAttach) => crate::cli_text::HelpDetails::new(
                 "orchbee session attach <name> [--mouse on|off]",
-                "按需激活所选本地会话并连接 Windows TUI。鼠标默认开启。需要交互终端，不接受 --format。\n默认按 Ctrl+b q 脱离客户端，会话和子进程继续运行。",
+                "按需激活所选本地会话并连接 TUI。鼠标默认开启。需要交互终端，不接受 --format。\n默认按 Ctrl+b q 脱离客户端，会话和子进程继续运行。",
             ),
             (Locale::EnUs, CommandPath::SessionStop) => crate::cli_text::HelpDetails::new(
                 "orchbee session stop <name> --confirm [--request-id <id>] [--detach] [--retry] [--timeout <ms>] [--format text|json]",
-                "Stop the selected managed Windows session and its terminals using the server stop protocol.\n--retry requires the prior --request-id. Default timeout: 65000 ms; bounds: 1..=3600000.\n--detach returns an accepted receipt; inspect it with --session <name> operation status <id>.\nClean stop preserves the workbench checkpoint.\nDevelopment and test builds require --confirm; the Windows release build refuses it and runs only in an interactive console after the person types the Session name.",
+                "Stop the selected managed session and its terminals using the server stop protocol.\n--retry requires the prior --request-id. Default timeout: 65000 ms; bounds: 1..=3600000.\n--detach returns an accepted receipt; inspect it with --session <name> operation status <id>.\nClean stop preserves the workbench checkpoint.\nDevelopment and test builds require --confirm; the Windows and macOS release builds refuse it and run only in an interactive console after the person types the Session name.",
             ),
             (Locale::ZhCn, CommandPath::SessionStop) => crate::cli_text::HelpDetails::new(
                 "orchbee session stop <name> --confirm [--request-id <id>] [--detach] [--retry] [--timeout <ms>] [--format text|json]",
-                "通过 server stop 协议停止所选托管 Windows 会话及其终端。\n--retry 要求提供先前的 --request-id。默认超时 65000 毫秒；范围 1..=3600000。\n--detach 返回已接受回执；用 --session <name> operation status <id> 查询。正常停止保留工作区检查点。\n开发版和测试版必须提供 --confirm；Windows 正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行。",
+                "通过 server stop 协议停止所选托管会话及其终端。\n--retry 要求提供先前的 --request-id。默认超时 65000 毫秒；范围 1..=3600000。\n--detach 返回已接受回执；用 --session <name> operation status <id> 查询。正常停止保留工作区检查点。\n开发版和测试版必须提供 --confirm；Windows 和 macOS 正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行。",
             ),
             (Locale::EnUs, CommandPath::SessionDelete) => crate::cli_text::HelpDetails::new(
                 "orchbee session delete <name> --confirm [--format text|json]",
-                "Delete only the selected stopped/unused named session's folder and runtime files: checkpoints, owned checkpoint.corrupt-*.raw archives, kept terminal output, the TUI position and files earlier versions left there.\nDefault, running, uncertain, unsafe or unknown-file state is refused. No processes are killed. Default-session raw archives require a separately authorized repair.\nThe 5-second workflow serializes against activation; partial deletion blocks restart until the same command completes it.\nMissing storage succeeds as absent. User project/worktree directories are preserved.\nDevelopment and test builds require --confirm; the Windows release build refuses it and runs only in an interactive console after the person types the Session name.",
+                "Delete only the selected stopped/unused named session's folder and runtime files: checkpoints, owned checkpoint.corrupt-*.raw archives, kept terminal output, the TUI position and files earlier versions left there.\nDefault, running, uncertain, unsafe or unknown-file state is refused. No processes are killed. Default-session raw archives require a separately authorized repair.\nThe 5-second workflow serializes against activation; partial deletion blocks restart until the same command completes it.\nMissing storage succeeds as absent. User project/worktree directories are preserved.\nDevelopment and test builds require --confirm; the Windows and macOS release builds refuse it and run only in an interactive console after the person types the Session name.",
             ),
             (Locale::ZhCn, CommandPath::SessionDelete) => crate::cli_text::HelpDetails::new(
                 "orchbee session delete <name> --confirm [--format text|json]",
-                "只删除所选已停止或未使用命名会话的文件夹与运行时文件：checkpoint、自有 checkpoint.corrupt-*.raw 归档、保留的终端输出、TUI 位置，以及旧版本留下的文件。拒绝 default、运行中、不确定、不安全或含未知文件的状态；不杀进程。default 会话的 raw 归档需要另行授权的修复。流程期限 5 秒，与激活串行化；部分删除会阻止重启，直到相同命令完成清理。存储不存在时成功返回 absent。保留用户项目与 worktree 目录。\n开发版和测试版必须提供 --confirm；Windows 正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行。",
+                "只删除所选已停止或未使用命名会话的文件夹与运行时文件：checkpoint、自有 checkpoint.corrupt-*.raw 归档、保留的终端输出、TUI 位置，以及旧版本留下的文件。拒绝 default、运行中、不确定、不安全或含未知文件的状态；不杀进程。default 会话的 raw 归档需要另行授权的修复。流程期限 5 秒，与激活串行化；部分删除会阻止重启，直到相同命令完成清理。存储不存在时成功返回 absent。保留用户项目与 worktree 目录。\n开发版和测试版必须提供 --confirm；Windows 和 macOS 正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行。",
             ),
             _ => unreachable!("session help ownership"),
         }

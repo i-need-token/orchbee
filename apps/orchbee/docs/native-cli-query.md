@@ -42,8 +42,9 @@ native ports; unavailable ports inspect no runtime files and invent no endpoint 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,
 Panels, terminals and Agents. Its background service owns the shared state and processes;
 CLI and TUI Clients connect to it. Leaving a Client keeps those programs running.
-Start with the default Session and use Workspaces to organize ordinary work. Windows named
-Sessions provide separate runtime endpoints and persisted state for independent sets of terminal programs.
+Start with the default Session and use Workspaces to organize ordinary work. Named Sessions, on
+Windows and macOS, provide separate runtime endpoints and persisted state for independent sets of
+terminal programs.
 
 `--session <name>` selects that environment; `session list/attach/stop/delete` manages named
 Sessions, while `server start/stop` and `config reload` manage the selected Session's
@@ -390,10 +391,11 @@ selection, input lease or seen acknowledgement. Independent Host/process and Cli
 observations are not an atomic snapshot. Windows Panel list/get and retained viewport controls both use version 1, including
 `orchbee.client.control`. The catalog exposes the current documents and command paths.
 
-## Windows named Session selection
+## Named Session selection
 
-The global `--session <name>` / `--session=<name>` selects the local Windows Session for the entire
-invocation, including `server start`, `server stop`, queries and `tui`. It does not change the
+The global `--session <name>` / `--session=<name>` selects the local Session for the entire
+invocation, including `server start`, `server stop`, queries and `tui`, on Windows and macOS; Linux
+refuses it, and the `session` commands, with the typed unsupported-platform failure. It does not change the
 Agent `--agent-session` selector. Names contain 1–64 ASCII letters, digits, `.` / `_` / `-`,
 neither start nor end with `.`, and are no Windows device name (`con`, `nul`, `com1`, and so on) in
 any letter case, with or without an extension. Letter case does not tell Sessions apart: `Work` and
@@ -403,8 +405,8 @@ The complete argument grammar is validated before selection; offline help, compl
 version and schema operations do not discover a runtime because a name was supplied.
 
 Selection precedence is explicit `--session`, the managed terminal's `ORCHBEE_RUNTIME_SCOPE`,
-`ORCHBEE_SESSION`, then `default`. `ORCHBEE_RUNTIME_BASE` still selects the existing absolute
-base. The Worker supplies the admitted base and scope to child terminals, so nested CLI
+`ORCHBEE_SESSION`, then `default`; Linux reads the same variables. `ORCHBEE_RUNTIME_BASE` still
+selects the existing absolute base. The Worker supplies the admitted base and scope to child terminals, so nested CLI
 commands keep their owning Session even if a different name was inherited by the Server.
 An explicit `--session default` overrides that inherited scope. Invalid selected environment
 values fail discovery; they never silently select the default Session.
@@ -418,9 +420,9 @@ no runtime state and reports running, stopping, stopped, absent, starting, delet
 from authenticated metadata and admitted lifecycle facts. A name two folders spell in different
 letter case is listed as recovery-required while other names list and start normally.
 Unknown/unsafe inventory, including a folder whose name is no Session name, fails explicitly. Data
-an earlier build kept in `%LOCALAPPDATA%\Orchbee` or `%TEMP%` is neither read nor removed. On
-Windows, a default runtime base that does not exist yet lists no sessions, `doctor` reports its runtime folder `absent` with
-no unrecognized records, and `config check` reports it `not-applicable` with reason `not-started`; a
+an earlier build kept in `%LOCALAPPDATA%\Orchbee` or `%TEMP%` is neither read nor removed. A
+default runtime base that does not exist yet lists no sessions; on Windows `doctor` then reports its runtime folder `absent` with
+no unrecognized records, and `config check` reports it `not-applicable` with reason `not-started`. A
 missing explicit `ORCHBEE_RUNTIME_BASE` still fails.
 
 Check and list text views lead with their conclusion and keep raw reason structures in JSON.

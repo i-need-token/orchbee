@@ -1,8 +1,5 @@
-//! POSIX bundle facts: the macOS product version, a process's program, and the running Sessions,
-//! which `session list` names where it is admitted and the default Session's Server answers
-//! otherwise. Linux carries no system release.
-use super::Running;
-use crate::cli::console_interrupt::ArmedSignals;
+//! POSIX bundle facts: the macOS product version and a process's program. Linux carries no system
+//! release.
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -32,29 +29,6 @@ pub(super) fn runs(pid: u32, expected: &Path) -> Option<bool> {
     let image = std::fs::canonicalize(&image).unwrap_or(image);
     let expected = std::fs::canonicalize(expected).unwrap_or_else(|_| expected.to_owned());
     Some(image == expected)
-}
-
-/// The Sessions `session list` named, or else the default Session as its Server's `query` reports
-/// it. The query keeps the inherited signal actions, as `doctor` does here.
-pub(super) fn running(listed: Option<Vec<Running>>, deadline: Instant) -> Option<Vec<Running>> {
-    if listed.is_some() {
-        return listed;
-    }
-    let signals = ArmedSignals::arm_interrupts_or_inherit().ok()?;
-    let facts = crate::cli::runtime_status::server_facts(deadline, &signals).ok()?;
-    let state = &facts["server"]["state"];
-    let pid = facts["server"]["processes"]
-        .as_array()
-        .and_then(|processes| processes.iter().find(|entry| entry["role"] == "server"))
-        .and_then(|entry| entry["processId"].as_u64())
-        .and_then(|pid| u32::try_from(pid).ok());
-    Some(vec![Running {
-        name: facts["scope"].clone(),
-        state: state.clone(),
-        pid,
-        default: true,
-        running: state == "running",
-    }])
 }
 
 /// The first line a system program prints on success, trimmed; `None` on any failure.

@@ -45,8 +45,6 @@ const ABSENT: &str = "absent";
 const UNAVAILABLE: &str = "unavailable";
 /// Larger settings than this are not a file a person wrote by hand.
 const MAXIMUM_SETTINGS_BYTES: u64 = 1024 * 1024;
-/// How long naming the running Sessions may take.
-const SESSION_BUDGET: Duration = Duration::from_secs(5);
 
 /// The collected entries before the manifest is written, with each section's status token:
 /// `included`, `absent` when the source does not exist, or `unavailable` when it exists but could
@@ -204,7 +202,7 @@ fn collect(locale: Locale) -> Collected {
         &named_sessions::run(&NamedSessionCommand::List, OutputFormat::Json, locale),
         &redactor,
     );
-    let running = platform::running(listed(sessions.as_ref()), Instant::now() + SESSION_BUDGET);
+    let running = listed(sessions.as_ref());
     collected.document("versions.json", Some(versions(running.as_deref())));
     collected.document("system.json", Some(system()));
     collected.document(

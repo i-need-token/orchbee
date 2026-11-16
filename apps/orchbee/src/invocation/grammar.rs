@@ -113,7 +113,7 @@ use std::sync::LazyLock;
 pub(crate) enum Availability {
     Portable,
     Windows,
-    /// Saved machines: Windows and macOS execute it.
+    /// Saved machines and named Sessions: Windows and macOS execute it.
     WindowsAndMacos,
 }
 

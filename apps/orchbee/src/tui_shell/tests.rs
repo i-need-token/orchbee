@@ -40,8 +40,9 @@ mod graphics;
 mod machine_picker_capture;
 mod notification_too_small;
 mod rename;
-// Named local Sessions are a Windows activation feature; elsewhere the hint never receives one.
-#[cfg(windows)]
+// Named local Sessions are a Windows and macOS activation feature; elsewhere the hint never
+// receives one.
+#[cfg(any(windows, target_os = "macos"))]
 mod return_command;
 mod settings;
 

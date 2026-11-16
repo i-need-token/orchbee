@@ -35,11 +35,9 @@ impl DestructiveCommand {
         }
     }
 
-    /// The command a person runs by hand in a console, without `--confirm`. macOS takes no
-    /// `--session` yet, so its `server stop` names none.
+    /// The command a person runs by hand in a console, without `--confirm`.
     fn by_hand(self, target: Option<&str>) -> String {
         match (self, target) {
-            (Self::ServerStop, _) if !cfg!(windows) => "orchbee server stop".to_owned(),
             (Self::ServerStop, Some(name)) => format!("orchbee --session {name} server stop"),
             (Self::ServerStop, None) => "orchbee --session <name> server stop".to_owned(),
             (_, name) => format!("orchbee {} {}", self.words(), name.unwrap_or("<name>")),
