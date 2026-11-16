@@ -2106,9 +2106,16 @@ test "runtime resizeGeometry rejects mixed zero positive pixel pairs" {
 }
 
 test "reader ignores 132 column mode while the enabling private mode is disabled" {
-    var resize_probe: TerminalDrivenResizeProbe = .{};
-    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
-    defer runtime.destroy();
+    var probe: harness.GatedPtyProbe(TerminalDrivenResizeProbe) = .{ .probe = .{} };
+    const resize_probe = &probe.probe;
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        runtime.destroy();
+    }
+    // Program output (ConPTY's first paint on Windows) would move the revision compared below.
+    probe.reader.wait();
 
     const initial = runtime.geometry();
     try std.testing.expectEqual(
@@ -2126,9 +2133,16 @@ test "reader ignores 132 column mode while the enabling private mode is disabled
     try runtime.forceTerminate();
 }
 test "reader preserves parser order for multiple terminal-driven resizes in one commit" {
-    var resize_probe: TerminalDrivenResizeProbe = .{};
-    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
-    defer runtime.destroy();
+    var probe: harness.GatedPtyProbe(TerminalDrivenResizeProbe) = .{ .probe = .{} };
+    const resize_probe = &probe.probe;
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        runtime.destroy();
+    }
+    // Program output (ConPTY's first paint on Windows) would move the revision compared below.
+    probe.reader.wait();
 
     const initial = runtime.geometry();
     try std.testing.expectEqual(
@@ -2151,9 +2165,16 @@ test "reader preserves parser order for multiple terminal-driven resizes in one 
     try runtime.forceTerminate();
 }
 test "terminal-driven PTY resize failure fences before Ghostty mutation" {
-    var resize_probe: TerminalDrivenResizeProbe = .{ .fail = true };
-    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
-    defer runtime.destroy();
+    var probe: harness.GatedPtyProbe(TerminalDrivenResizeProbe) = .{ .probe = .{ .fail = true } };
+    const resize_probe = &probe.probe;
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        runtime.destroy();
+    }
+    // Program output (ConPTY's first paint on Windows) would move the revision compared below.
+    probe.reader.wait();
     var before = try canonicalSnapshot(runtime);
     defer before.deinit();
     const initial = runtime.geometry();

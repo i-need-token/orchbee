@@ -468,12 +468,18 @@ test "post-resize-effect barrier keeps normal completion pending through commit 
     const cases = [_]ResizeEffectOutcome{ .commit, .compensated_error };
 
     for (cases) |outcome| {
-        var probe: ResizeProbe = .{ .outcome = outcome };
-        const runtime = try createRuntimeWithHooks(probe.hooks());
+        // The reader stays at its gate: program output (ConPTY paints `more` on Windows) would
+        // move the revision these checks compare.
+        var gated: GatedPtyProbe(ResizeProbe) = .{ .probe = .{ .outcome = outcome } };
+        const probe = &gated.probe;
+        const runtime = try createRuntimeWithHooks(gated.hooks());
+        gated.runtime = runtime;
         defer {
             clearTestingHooks(runtime);
+            gated.reader.release();
             runtime.destroy();
         }
+        gated.reader.wait();
 
         runtimeState(runtime).input_mutex.lock();
         runtimeState(runtime).writer_stop = true;
