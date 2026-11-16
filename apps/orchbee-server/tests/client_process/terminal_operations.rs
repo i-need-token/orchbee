@@ -259,6 +259,7 @@ impl RealTerminalRuntime {
                 .args(["--terminal-host-endpoint-id", endpoint_id]),
             true,
         )?;
+        super::wait_for_worker_registration(server)?;
         Ok(Self {
             worker: Some(worker),
             _host: host,

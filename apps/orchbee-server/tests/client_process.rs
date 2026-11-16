@@ -335,12 +335,75 @@ fn connect_worker(endpoint: &Path, worker_id: WorkerId) -> TestResult<UnixStream
         &LocalWorkerMessage::WorkerHello(WorkerHello::new(env!("CARGO_PKG_VERSION"), worker_id)?),
     )?;
     match read_worker_message(&mut stream)? {
-        LocalWorkerMessage::WorkerAccepted { .. } => Ok(stream),
-        response => Err(io::Error::other(format!(
-            "expected Worker admission, received {response:?}"
-        ))
-        .into()),
+        LocalWorkerMessage::WorkerAccepted { .. } => {}
+        response => {
+            return Err(io::Error::other(format!(
+                "expected Worker admission, received {response:?}"
+            ))
+            .into());
+        }
     }
+    // `WorkerAccepted` acknowledges the connection only: the Server registers the Worker after
+    // writing it, and a request that arrives in between finds no Worker. A registered Worker is
+    // first asked for its titles or its Agent commands, so that request proves registration.
+    let first = read_capability_message(&mut stream)?;
+    if let Some(message) = answer_pump_request(&mut stream, first)? {
+        return Err(io::Error::other(format!(
+            "expected the Server's first title or Agent probe request, received {message:?}"
+        ))
+        .into());
+    }
+    Ok(stream)
+}
+
+/// Waits until the Server routes requests to the real Worker that just reported ready. Its
+/// marker follows `WorkerAccepted`, which acknowledges the connection only. The Agent catalog
+/// reports nothing before a Worker registers and begins once the Server holds the Worker's
+/// request handle.
+fn wait_for_worker_registration(server: &RunningServer) -> TestResult {
+    use orchbee_workbench_protocol::{
+        AgentCatalogAction, AgentCatalogOutcome, AgentCatalogRequest, ProtocolVersion,
+        SnapshotReadIntent, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
+        WorkbenchSnapshotOutcome, read_workbench_response, write_workbench_request,
+    };
+    let (mut client, _) = connect_bounded_client(server.client_endpoint())?;
+    let request_id = |value: u128| WorkbenchRequestId::parse(&format!("{value:032x}"));
+    write_workbench_request(
+        &mut client,
+        &WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
+            protocol_version: ProtocolVersion,
+            request_id: request_id(1)?,
+        }),
+    )?;
+    let WorkbenchResponse::Snapshot(snapshot) = read_workbench_response(&mut client)? else {
+        return Err("expected a Workbench snapshot response".into());
+    };
+    let WorkbenchSnapshotOutcome::Available { snapshot } = snapshot.outcome else {
+        return Err(format!("expected an available snapshot: {:?}", snapshot.outcome).into());
+    };
+    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    for value in 2_u128.. {
+        write_workbench_request(
+            &mut client,
+            &WorkbenchRequest::AgentCatalog(AgentCatalogRequest {
+                protocol_version: ProtocolVersion,
+                request_id: request_id(value)?,
+                session_id: snapshot.session_id.clone(),
+                action: AgentCatalogAction::Current {},
+            }),
+        )?;
+        let WorkbenchResponse::AgentCatalog(result) = read_workbench_response(&mut client)? else {
+            return Err("expected an Agent catalog response".into());
+        };
+        if matches!(result.outcome, AgentCatalogOutcome::Current { .. }) {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(format!("the Server did not register the ready Worker: {result:?}").into());
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    Err("request identities exhausted".into())
 }
 
 /// Reads the next capability-node message the Server sends to a fake Worker. The Server's title
@@ -351,49 +414,60 @@ fn connect_worker(endpoint: &Path, worker_id: WorkerId) -> TestResult<UnixStream
 /// complete page and each probe as a Worker whose platform has no probe does, and reads past them.
 fn read_obcn(stream: &mut (impl Read + Write)) -> TestResult<CapabilityNodeMessage> {
     loop {
-        match read_capability_message(stream)? {
-            CapabilityNodeMessage::AgentProbeJobRequest(request) => {
-                let (job_id, outcome) = match request.action {
-                    AgentProbeJobAction::Start { .. } => (
-                        request.operation_id,
-                        AgentProbeJobOutcome::Start(AgentProbeJobStartOutcome::Unsupported),
-                    ),
-                    AgentProbeJobAction::Poll { job_id } => (
-                        job_id,
-                        AgentProbeJobOutcome::Poll(AgentProbeJobPollOutcome::Unknown),
-                    ),
-                    AgentProbeJobAction::Cancel { job_id } => (
-                        job_id,
-                        AgentProbeJobOutcome::Cancel(AgentProbeJobCancelOutcome::Unknown),
-                    ),
-                };
-                write_capability_message(
-                    stream,
-                    &CapabilityNodeMessage::AgentProbeJobResult(AgentProbeJobResult {
-                        operation_id: request.operation_id,
-                        job_id,
-                        outcome,
-                    }),
-                )?;
-            }
-            CapabilityNodeMessage::TerminalTitleChangesRequest(request) => {
-                write_capability_message(
-                    stream,
-                    &CapabilityNodeMessage::TerminalTitleChangesResult(
-                        TerminalTitleChangesResult {
-                            request,
-                            outcome: TerminalTitleChangesOutcome::Page(TerminalTitleChangePage {
-                                rows: Vec::new(),
-                                next: request.after,
-                                complete: true,
-                            }),
-                        },
-                    ),
-                )?;
-            }
-            message => return Ok(message),
+        let message = read_capability_message(stream)?;
+        if let Some(message) = answer_pump_request(stream, message)? {
+            return Ok(message);
         }
     }
+}
+
+/// Answers `message` when it is a title read or an Agent probe, as [`read_obcn`] describes, and
+/// returns any other message.
+fn answer_pump_request(
+    stream: &mut (impl Read + Write),
+    message: CapabilityNodeMessage,
+) -> TestResult<Option<CapabilityNodeMessage>> {
+    match message {
+        CapabilityNodeMessage::AgentProbeJobRequest(request) => {
+            let (job_id, outcome) = match request.action {
+                AgentProbeJobAction::Start { .. } => (
+                    request.operation_id,
+                    AgentProbeJobOutcome::Start(AgentProbeJobStartOutcome::Unsupported),
+                ),
+                AgentProbeJobAction::Poll { job_id } => (
+                    job_id,
+                    AgentProbeJobOutcome::Poll(AgentProbeJobPollOutcome::Unknown),
+                ),
+                AgentProbeJobAction::Cancel { job_id } => (
+                    job_id,
+                    AgentProbeJobOutcome::Cancel(AgentProbeJobCancelOutcome::Unknown),
+                ),
+            };
+            write_capability_message(
+                stream,
+                &CapabilityNodeMessage::AgentProbeJobResult(AgentProbeJobResult {
+                    operation_id: request.operation_id,
+                    job_id,
+                    outcome,
+                }),
+            )?;
+        }
+        CapabilityNodeMessage::TerminalTitleChangesRequest(request) => {
+            write_capability_message(
+                stream,
+                &CapabilityNodeMessage::TerminalTitleChangesResult(TerminalTitleChangesResult {
+                    request,
+                    outcome: TerminalTitleChangesOutcome::Page(TerminalTitleChangePage {
+                        rows: Vec::new(),
+                        next: request.after,
+                        complete: true,
+                    }),
+                }),
+            )?;
+        }
+        message => return Ok(Some(message)),
+    }
+    Ok(None)
 }
 
 fn exchange_worker(endpoint: &Path, worker_id: WorkerId) -> TestResult<LocalWorkerMessage> {

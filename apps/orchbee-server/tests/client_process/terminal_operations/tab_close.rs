@@ -379,6 +379,7 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
             .args(["--terminal-host-endpoint-id", endpoint_id]),
         true,
     )?;
+    crate::client_process::wait_for_worker_registration(&server)?;
     let mut clients = Vec::new();
     let mut controllers = Vec::new();
     let mut attachments = Vec::new();
