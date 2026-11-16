@@ -1,7 +1,7 @@
 /**
- * The window's relaunch through the window entry: the switches it hands the window launcher, the
- * place a relaunched window opens at, the launcher protocol variable an announced window reads, and
- * when such a window gives up so the launcher can start the version it replaced
+ * The window's relaunch through the window launcher: the switches it hands the launcher, the place
+ * a relaunched window opens at, the launcher protocol variable an announced window reads, and when
+ * such a window gives up so the launcher can start the version it replaced
  * (`apps/orchbee-desktop-launcher/README.md`).
  */
 import path from 'node:path';
@@ -12,9 +12,12 @@ import {
 	type DesktopSessionRefusal,
 } from '@orchbee/desktop-client-protocol';
 
+import { locateApplicationBundle } from './window-update-offer';
+
 // Cross-build contract: every window launcher from the window self-update release on reads the
-// first two and passes the place switches on unchanged.
+// first two and passes the place switches on unchanged; the macOS launcher also reads the third.
 const RELAUNCH_AFTER_SWITCH = '--relaunch-after-v1';
+const REPLACE_APPLICATION_SWITCH = '--replace-application-v1=';
 const SELECT_TERMINAL_SWITCH = '--select-terminal-v1=';
 const SELECT_WORKSPACE_SWITCH = '--select-workspace-v1=';
 /** The launcher protocol variable, which carries the announcing launcher's process id. */
@@ -44,9 +47,17 @@ export function readRelaunchPlace(argumentsList: readonly string[]): DesktopRela
 	return workspace.success ? workspace.data : null;
 }
 
-/** What the window entry starts with: the launcher's two switches first, then the place, if any. */
-function windowRelaunchArguments(processId: number, place: DesktopRelaunchPlace | null): string[] {
+/**
+ * What the window launcher starts with: the launcher's two switches first, on macOS the application
+ * it replaces next, then the place, if any.
+ */
+function windowRelaunchArguments(
+	processId: number,
+	application: string | null,
+	place: DesktopRelaunchPlace | null,
+): string[] {
 	const relaunch = [RELAUNCH_AFTER_SWITCH, String(processId)];
+	if (application !== null) relaunch.push(`${REPLACE_APPLICATION_SWITCH}${application}`);
 	if (place === null) return relaunch;
 	return place.kind === 'terminal'
 		? [...relaunch, `${SELECT_TERMINAL_SWITCH}${place.presentationId}`]
@@ -85,9 +96,9 @@ export function givesWayToReplacedVersion(input: {
 }
 
 export interface WindowRelaunchOptions {
-	/** `desktop\`, which holds the window entry. */
+	/** `desktop`, which holds the window entry on Windows and the window versions everywhere. */
 	readonly desktopRoot: string;
-	/** This window's program, whose file name the entry has. */
+	/** This window's program: the entry has its file name, and on macOS it names the bundle. */
 	readonly executablePath: string;
 	readonly place: DesktopRelaunchPlace | null;
 	readonly platform: NodeJS.Platform;
@@ -100,18 +111,34 @@ export interface WindowRelaunchOptions {
 		argumentsList: readonly string[],
 		workingDirectory: string,
 	) => Promise<boolean>;
+	/**
+	 * On macOS, where the application bundle is the entry, the window launcher in the cohort of the
+	 * version this window switches to; null on Windows, which starts the entry beside the versions.
+	 */
+	readonly versionLauncher: string | null;
 }
 
 /**
- * Starts the window entry, which waits for this window to end and then starts the active window
- * version at the same place, and quits once it has started. A window whose entry cannot start keeps
- * running and says so; nothing else changes.
+ * Starts the window launcher, which waits for this window to end and then starts the active window
+ * version at the same place, and quits once it has started. On Windows that is the window entry; on
+ * macOS the launcher of the version this window switches to, which first replaces the application
+ * bundle this window runs from. A window whose launcher cannot start keeps running and says so;
+ * nothing else changes.
  */
 export async function relaunchWindow(options: WindowRelaunchOptions): Promise<boolean> {
 	const paths = options.platform === 'win32' ? path.win32 : path.posix;
-	const entry = paths.join(options.desktopRoot, paths.basename(options.executablePath));
+	let program: string;
+	let application: string | null = null;
+	if (options.platform === 'darwin') {
+		application = locateApplicationBundle(options.executablePath);
+		if (options.versionLauncher === null || application === null) return false;
+		program = options.versionLauncher;
+	} else {
+		program = paths.join(options.desktopRoot, paths.basename(options.executablePath));
+	}
+	const argumentsList = windowRelaunchArguments(options.processId, application, options.place);
 	const started = await options
-		.start(entry, windowRelaunchArguments(options.processId, options.place), options.desktopRoot)
+		.start(program, argumentsList, options.desktopRoot)
 		.catch(() => false);
 	if (started) options.quit();
 	return started;

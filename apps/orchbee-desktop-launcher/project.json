@@ -3,10 +3,10 @@
 	"domain": "orchbee-desktop-launcher",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Windows window launcher installed as desktop\\orchbee-desktop.exe in the release store: reads the window pointer beside it and starts the active window version of the same name with its own arguments and environment, waits for the window that asked for a relaunch to end, and starts the previous window version once when the active one cannot start or ends with a failure soon after.",
+	"responsibility": "Window launcher of a release installation. On Windows it is installed as desktop\\orchbee-desktop.exe in the release store: it reads the window pointer beside it and starts the active window version of the same name with its own arguments and environment, waits for the window that asked for a relaunch to end, and starts the previous window version once when the active one cannot start or ends with a failure soon after. On macOS a window that relaunches starts it from a window version's bundle in the store: once that window has ended, it replaces the application bundle the window ran from with the active window version, in place or in ~/Applications, starts it, and puts the replaced bundle back and starts it when the new one fails soon after.",
 	"nonGoals": [
-		"Installing, verifying, activating or cleaning up a window version, moving the window pointer, or recording a failure.",
-		"Reading configuration, settings or any file besides the window pointer, or choosing a version other than the active one or the pointer's previous one.",
-		"Owning the window's lifetime, starting a Job, or running on macOS or Linux."
+		"Downloading, verifying, activating or cleaning up a window version in the store, moving the window pointer, or recording a failure.",
+		"Reading configuration, settings or any file besides the window pointer and the window versions it names, or choosing a version other than the active one, the pointer's previous one on Windows, or the application the window ran from on macOS.",
+		"Owning the window's lifetime, stopping a process, starting a Job, or running on Linux."
 	]
 }

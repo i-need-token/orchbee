@@ -4,10 +4,12 @@ import {
 	locateWindowDesktopRoot,
 	parseWindowPointer,
 	readFallbackFromVersion,
+	resolvePosixReleaseStoreRoot,
 	resolveWindowUpdateOffer,
 } from '../window-update-offer';
 
 const ROOT = 'C:\\Users\\a\\AppData\\Local\\Programs\\Orchbee\\desktop';
+const STORE = '/Users/a/.local/share/orchbee';
 const ENTRY = { manifest: 'a'.repeat(64), product: '0.3.0' };
 
 function locate(executablePath: string, overrides: { development?: boolean } = {}) {
@@ -16,6 +18,17 @@ function locate(executablePath: string, overrides: { development?: boolean } = {
 		executablePath,
 		ownVersion: '0.2.0',
 		platform: 'win32',
+		storeRoot: null,
+	});
+}
+
+function locateMac(executablePath: string, storeRoot: string | null = STORE) {
+	return locateWindowDesktopRoot({
+		development: false,
+		executablePath,
+		ownVersion: '0.2.0',
+		platform: 'darwin',
+		storeRoot,
 	});
 }
 
@@ -36,6 +49,44 @@ describe('locateWindowDesktopRoot', () => {
 		expect(
 			locate(`${ROOT}\\versions\\0.2.0\\orchbee-desktop.exe`, { development: true }),
 		).toBeNull();
+	});
+
+	// The macOS launcher replaces the bundle the window runs from, so the rule decides what it renames.
+	it('on macOS reads the store for a window in any application bundle outside the store', () => {
+		expect(locateMac('/Applications/Orchbee.app/Contents/MacOS/Orchbee')).toBe(`${STORE}/desktop`);
+		expect(locateMac('/Users/a/Applications/Orchbee Test.app/Contents/MacOS/Orchbee Test')).toBe(
+			`${STORE}/desktop`,
+		);
+	});
+
+	it('on macOS never offers outside a bundle, without a store root, or from the store’s own copies', () => {
+		expect(locateMac('/Applications/Orchbee')).toBeNull();
+		expect(locateMac('/Applications/Orchbee.app/Contents/Resources/Orchbee')).toBeNull();
+		expect(locateMac('/Applications/Orchbee.app/Contents/MacOS/Orchbee', null)).toBeNull();
+		expect(
+			locateMac(`${STORE}/desktop/versions/0.2.0/Orchbee.app/Contents/MacOS/Orchbee`),
+		).toBeNull();
+		expect(
+			locateMac(`${STORE.toUpperCase()}/DESKTOP/versions/0.2.0/Orchbee.app/Contents/MacOS/Orchbee`),
+		).toBeNull();
+	});
+});
+
+describe('resolvePosixReleaseStoreRoot', () => {
+	it('follows the Client’s rule and refuses what it refuses', () => {
+		expect(resolvePosixReleaseStoreRoot({ HOME: '/Users/a' }, 'orchbee')).toBe(STORE);
+		expect(resolvePosixReleaseStoreRoot({ HOME: '/Users/a' }, 'ob-test-0123456789abcdef')).toBe(
+			'/Users/a/.local/share/ob-test-0123456789abcdef',
+		);
+		expect(
+			resolvePosixReleaseStoreRoot({ HOME: '/Users/a', ORCHBEE_INSTALL_DIR: '/opt/ob' }, 'orchbee'),
+		).toBe('/opt/ob');
+		for (const configured of ['relative', '/a/../b', '/a/./b', '/a:b', '/a$b', '/a\nb']) {
+			expect(
+				resolvePosixReleaseStoreRoot({ ORCHBEE_INSTALL_DIR: configured }, 'orchbee'),
+			).toBeNull();
+		}
+		expect(resolvePosixReleaseStoreRoot({}, 'orchbee')).toBeNull();
 	});
 });
 

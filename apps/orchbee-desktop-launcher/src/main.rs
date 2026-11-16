@@ -1,14 +1,24 @@
-//! The Windows window launcher, installed as `desktop\orchbee-desktop.exe` in the release store,
-//! the path every shortcut names. It reads the window pointer `active.json` beside it and starts
-//! `versions\<active>\<its own file name>` with its own arguments and environment in that version's
-//! folder. Asked to relaunch, it first waits for the window that asked; when the active window
-//! cannot start or soon ends with a failure, it starts the pointer's previous version once. It
-//! moves no pointer, records nothing, and does not own the window it starts.
+//! The window launcher. On Windows it is installed as `desktop\orchbee-desktop.exe` in the release
+//! store, the path every shortcut names. It reads the window pointer `active.json` beside it and
+//! starts `versions\<active>\<its own file name>` with its own arguments and environment in that
+//! version's folder. Asked to relaunch, it first waits for the window that asked; when the active
+//! window cannot start or soon ends with a failure, it starts the pointer's previous version once.
+//!
+//! On macOS the application bundle is the entry, and the launcher runs only to relaunch, from the
+//! cohort of a window version's bundle in the store: once the asking window has ended, it replaces
+//! the application that window ran from with the active window version and starts it, and puts the
+//! replaced application back when the new one fails soon after. Neither moves a pointer, records
+//! anything, or owns the window it starts.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod decision;
+#[cfg(not(target_os = "macos"))]
 mod localization;
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+mod replacement;
 #[cfg(windows)]
 mod windows;
 
@@ -26,8 +36,14 @@ fn main() -> ExitCode {
     }
 }
 
+/// Exit code `1`: the request is no relaunch the launcher serves, or no window started.
+#[cfg(target_os = "macos")]
+fn main() -> ExitCode {
+    macos::launch().map_or(ExitCode::FAILURE, |()| ExitCode::SUCCESS)
+}
+
 /// Exit code `4`: this platform cannot serve the request.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 fn main() -> ExitCode {
     let tag = ["LC_ALL", "LC_MESSAGES", "LANG"]
         .into_iter()

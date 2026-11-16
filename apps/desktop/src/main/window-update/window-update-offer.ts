@@ -14,6 +14,9 @@ import { isNewerProductVersion } from '../product-version';
 const FALLBACK_FROM_SWITCH = '--fallback-from-v1=';
 const VERSIONS_DIRECTORY = 'versions';
 const DESKTOP_DIRECTORY = 'desktop';
+/** The bounds of the macOS and Linux store root rule (`crates/local-runtime/src/release_store.rs`). */
+const STORE_ROOT_LIMIT = 1024;
+const STORE_ROOT_REFUSED = /[:$`\\"'\p{Cc}]/u;
 
 const NUMERIC_IDENTIFIER = '(?:0|[1-9]\\d*)';
 const PRE_RELEASE_IDENTIFIER = `(?:${NUMERIC_IDENTIFIER}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
@@ -46,17 +49,88 @@ const WindowPointerSchema = z.strictObject({
 });
 
 /**
- * The window's `desktop\` folder when it runs from `desktop\versions\<its own version>\`, the only
- * place a window can switch versions from; null anywhere else, such as a flat layout or a build's
- * output folder, and always for a development build.
+ * The release store root on macOS and Linux, by the rule the Client reads: `ORCHBEE_INSTALL_DIR`,
+ * or `$HOME/.local/share/<stem>`, which is `orchbee` for release. Null without `HOME`, and for a
+ * path the rule refuses: a relative one, one that spells a `.` or `..` component, or one longer
+ * than 1024 bytes or holding `:`, `$`, a backquote, a backslash, a quote or a control character.
+ */
+export function resolvePosixReleaseStoreRoot(
+	environment: Readonly<Record<string, string | undefined>>,
+	artifactStem: string,
+): string | null {
+	const configured = environment['ORCHBEE_INSTALL_DIR'];
+	const home = environment['HOME'];
+	let root: string;
+	if (configured !== undefined) root = configured;
+	else if (home === undefined) return null;
+	else root = path.posix.join(home, '.local', 'share', artifactStem);
+	return path.posix.isAbsolute(root) &&
+		new TextEncoder().encode(root).length <= STORE_ROOT_LIMIT &&
+		!STORE_ROOT_REFUSED.test(root) &&
+		!root.split('/').some((part) => part === '.' || part === '..')
+		? root
+		: null;
+}
+
+/**
+ * The application bundle a macOS window runs from, `<name>.app` when its program is
+ * `<name>.app/Contents/MacOS/<program>`; null for any other path.
+ */
+export function locateApplicationBundle(executablePath: string): string | null {
+	const programs = path.posix.dirname(executablePath);
+	const contents = path.posix.dirname(programs);
+	const bundle = path.posix.dirname(contents);
+	return path.posix.isAbsolute(executablePath) &&
+		path.posix.basename(programs) === 'MacOS' &&
+		path.posix.basename(contents) === 'Contents' &&
+		path.posix.extname(bundle) === '.app'
+		? bundle
+		: null;
+}
+
+/**
+ * The resources folder of a window version under `desktop`: `versions\<version>\resources` on
+ * Windows, and on macOS the resources of the application bundle the version folder holds,
+ * `versions/<version>/<application>.app/Contents/Resources`.
+ */
+export function windowVersionResources(input: {
+	readonly applicationName: string;
+	readonly desktopRoot: string;
+	readonly platform: NodeJS.Platform;
+	readonly version: string;
+}): string {
+	const paths = input.platform === 'win32' ? path.win32 : path.posix;
+	const version = paths.join(input.desktopRoot, VERSIONS_DIRECTORY, input.version);
+	return input.platform === 'darwin'
+		? paths.join(version, `${input.applicationName}.app`, 'Contents', 'Resources')
+		: paths.join(version, 'resources');
+}
+
+/**
+ * The window's `desktop` folder, the only place a window can switch versions from, and null for a
+ * development build. On Windows the window must run from `desktop\versions\<its own version>\`, so
+ * a flat layout or a build's output folder offers nothing. On macOS the application bundle is the
+ * entry: a window in a bundle reads `desktop` under the store root, `storeRoot`, unless the bundle
+ * is one of the store's own copies there, which the launcher would otherwise replace.
  */
 export function locateWindowDesktopRoot(input: {
 	readonly development: boolean;
 	readonly executablePath: string;
 	readonly ownVersion: string;
 	readonly platform: NodeJS.Platform;
+	/** On macOS, the store root (`resolvePosixReleaseStoreRoot`); unused elsewhere. */
+	readonly storeRoot: string | null;
 }): string | null {
 	if (input.development) return null;
+	if (input.platform === 'darwin') {
+		const application = locateApplicationBundle(input.executablePath);
+		if (input.storeRoot === null || application === null) return null;
+		const desktopRoot = path.posix.join(input.storeRoot, DESKTOP_DIRECTORY);
+		// APFS compares names without letter case by default.
+		const relative = path.posix.relative(desktopRoot.toLowerCase(), application.toLowerCase());
+		const outside = relative === '..' || relative.startsWith('../');
+		return outside ? desktopRoot : null;
+	}
 	const paths = input.platform === 'win32' ? path.win32 : path.posix;
 	const sameName = (name: string, expected: string): boolean =>
 		input.platform === 'win32' ? name.toLowerCase() === expected : name === expected;

@@ -1,14 +1,18 @@
 //! The window launcher's decisions: which arguments are its own, which window version it starts,
 //! with which arguments and in which folder, whether it watches that start, and what it does after
 //! it. They read no clock, start nothing, and see the process tree and the file system only
-//! through the facts their callers pass in.
+//! through the facts their callers pass in. The macOS launcher shares the arguments, the fallback
+//! arguments and the step after a start, and decides its replacement in `replacement`.
+#[cfg(windows)]
 use orchbee_release_records::Pointer;
+#[cfg(windows)]
+use std::path::Path;
 use std::{
     ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;
 
 /// The launcher protocol variable shared with the command launcher: the launcher's own process id
@@ -19,12 +23,13 @@ pub(crate) const PROTOCOL_VARIABLE: &str = "ORCHBEE_RELAUNCH_V1";
 const RELAUNCH_AFTER: &str = "--relaunch-after-v1";
 /// Prefixed to a version: the window was started because that version failed.
 const FALLBACK_FROM: &str = "--fallback-from-v1=";
-/// The window pointer, in the launcher's own folder.
-const POINTER: &str = "active.json";
-/// The folder of window versions, in the launcher's own folder.
-const VERSIONS: &str = "versions";
+/// The window pointer, in the window store's `desktop` folder.
+pub(crate) const POINTER: &str = "active.json";
+/// The folder of window versions, beside the window pointer.
+pub(crate) const VERSIONS: &str = "versions";
 
 /// Why the launcher starts no window.
+#[cfg(windows)]
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum Failure {
     /// The pointer at this path is missing, unreadable, or names no active version.
@@ -36,9 +41,10 @@ pub(crate) enum Failure {
 /// One window start.
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Start {
-    /// The window program, `versions\<version>\<the launcher's own file name>`.
+    /// The window program: on Windows `versions\<version>\<the launcher's own file name>`, on macOS
+    /// the program inside the application bundle.
     pub(crate) window: PathBuf,
-    /// Its working folder, the version folder, so no window holds another version's folder.
+    /// Its working folder, the folder of the program, so no window holds another version's folder.
     pub(crate) folder: PathBuf,
     /// Its arguments, one by one.
     pub(crate) arguments: Vec<OsString>,
@@ -47,6 +53,7 @@ pub(crate) struct Start {
 }
 
 /// What the launcher does, in order: wait, start `first`, and start `fallback` when `after` says so.
+#[cfg(windows)]
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Plan {
     /// The process to wait for before the first start: the one `--relaunch-after-v1` named, only
@@ -68,6 +75,7 @@ pub(crate) struct Plan {
 ///
 /// `NoActiveVersion` when the pointer names no active version, and `ClientUnavailable` when
 /// neither the active window version nor a previous one can start.
+#[cfg(windows)]
 pub(crate) fn plan(
     launcher: &Path,
     read: impl FnOnce(&Path) -> Option<Vec<u8>>,
@@ -100,13 +108,7 @@ pub(crate) fn plan(
         .previous
         .map(|previous| previous.product)
         .filter(|previous| *previous != active)
-        .map(|previous| {
-            let mut fallback_arguments = Vec::with_capacity(arguments.len() + 1);
-            // First, so a reader that takes the first such argument reads this one.
-            fallback_arguments.push(OsString::from(format!("{FALLBACK_FROM}{active}")));
-            fallback_arguments.extend(arguments.iter().cloned());
-            version_start(&previous, fallback_arguments, false)
-        })
+        .map(|previous| version_start(&previous, fallback_arguments(&active, &arguments), false))
         .filter(|fallback| exists(&fallback.window));
     let first = version_start(&active, arguments, fallback.is_some());
     if fallback.is_none() && !exists(&first.window) {
@@ -123,7 +125,7 @@ pub(crate) fn plan(
 /// receives. Only the exact switch in first place is the launcher's; it is always dropped with the
 /// argument after it, which names a process only as a decimal number from 1 without a sign or a
 /// leading zero. Any other argument, the switch elsewhere included, passes on unchanged.
-fn own_arguments(mut arguments: Vec<OsString>) -> (Option<u32>, Vec<OsString>) {
+pub(crate) fn own_arguments(mut arguments: Vec<OsString>) -> (Option<u32>, Vec<OsString>) {
     if arguments.first().map(OsString::as_os_str) != Some(OsStr::new(RELAUNCH_AFTER)) {
         return (None, arguments);
     }
@@ -133,6 +135,15 @@ fn own_arguments(mut arguments: Vec<OsString>) -> (Option<u32>, Vec<OsString>) {
         .nth(1)
         .and_then(|value| value.to_str().and_then(process_id));
     (process, arguments)
+}
+
+/// The arguments of a start after `active` failed: `--fallback-from-v1=<active>` first, so a reader
+/// that takes the first such argument reads this one, then `arguments`.
+pub(crate) fn fallback_arguments(active: &str, arguments: &[OsString]) -> Vec<OsString> {
+    let mut fallback = Vec::with_capacity(arguments.len() + 1);
+    fallback.push(OsString::from(format!("{FALLBACK_FROM}{active}")));
+    fallback.extend(arguments.iter().cloned());
+    fallback
 }
 
 fn process_id(text: &str) -> Option<u32> {

@@ -5,9 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
-[target.'cfg(windows)'.dependencies]
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
 # The window pointer has one parser, shared with the store's writers and the command launcher.
 orchbee-release-records = { path = "../../crates/release-records" }
+
+[target.'cfg(windows)'.dependencies]
 # The parent check and wait, the message box, and the Windows display language its copy follows.
 winsafe = { workspace = true, features = ["advapi", "kernel", "user"] }
 

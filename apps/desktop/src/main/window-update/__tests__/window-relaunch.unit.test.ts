@@ -62,6 +62,7 @@ describe('window relaunch arguments', () => {
 					argumentsList = started;
 					return Promise.resolve(true);
 				},
+				versionLauncher: null,
 			});
 			expect(argumentsList.slice(0, 2)).toEqual(['--relaunch-after-v1', '4321']);
 			// Every place switch is one `=` argument, which the launcher passes on unchanged.
@@ -142,6 +143,7 @@ describe('relaunchWindow', () => {
 			processId: 77,
 			quit,
 			start,
+			versionLauncher: null,
 		});
 		expect(started).toBe(true);
 		expect(start).toHaveBeenCalledWith(
@@ -150,6 +152,40 @@ describe('relaunchWindow', () => {
 			'C:\\Orchbee\\desktop',
 		);
 		expect(quit).toHaveBeenCalledOnce();
+	});
+
+	// The macOS launcher of another build reads the third argument as the bundle it replaces.
+	it('on macOS starts the version’s launcher and names the bundle it replaces third', async () => {
+		const launcher =
+			'/Users/a/.local/share/orchbee/desktop/versions/0.3.0/Orchbee.app/Contents/Resources/cohort/orchbee-desktop-launcher';
+		const start = vi.fn<
+			(
+				program: string,
+				argumentsList: readonly string[],
+				workingDirectory: string,
+			) => Promise<boolean>
+		>(() => Promise.resolve(true));
+		const started = await relaunchWindow({
+			desktopRoot: '/Users/a/.local/share/orchbee/desktop',
+			executablePath: '/Applications/Orchbee.app/Contents/MacOS/Orchbee',
+			place,
+			platform: 'darwin',
+			processId: 77,
+			quit: () => undefined,
+			start,
+			versionLauncher: launcher,
+		});
+		expect(started).toBe(true);
+		expect(start).toHaveBeenCalledWith(
+			launcher,
+			[
+				'--relaunch-after-v1',
+				'77',
+				'--replace-application-v1=/Applications/Orchbee.app',
+				'--select-terminal-v1=' + PRESENTATION,
+			],
+			'/Users/a/.local/share/orchbee/desktop',
+		);
 	});
 
 	it.each([
@@ -165,6 +201,7 @@ describe('relaunchWindow', () => {
 			processId: 77,
 			quit,
 			start,
+			versionLauncher: null,
 		});
 		expect(started).toBe(false);
 		expect(quit).not.toHaveBeenCalled();

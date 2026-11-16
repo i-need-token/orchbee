@@ -324,6 +324,8 @@ node scripts/stage-local-runtime.mjs --output /private/tmp/orchbee-native-dev
 Then run the staged Client, named by the environment stem, in an interactive terminal; the script
 prints its path, for example `/tmp/orchbee-native-dev/ob-dev-<16 lowercase hex>` on Linux.
 The script rebuilds three Rust release binaries and the Zig ReleaseSafe Host from locked inputs,
+on macOS also the window launcher `<stem>-desktop-launcher`, which no `cohort.json` role lists
+([its contract](../orchbee-desktop-launcher/README.md#macos)),
 copies the canonical observation-adapters capsule as the cohort's lazily validated sidecar,
 and verifies its declared payload digest before writing the manifest;
 existing output directories are rejected. `--cargo-target-dir <absolute-directory>` can reuse a

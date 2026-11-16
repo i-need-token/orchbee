@@ -678,10 +678,11 @@ jobs:
           name: release-signature-${{ matrix.platform }}
           path: ${{ runner.temp }}/cohort
 
-      # Artifacts keep no file modes; the packaging and the manifest's programs need these four.
+      # Artifacts keep no file modes; the packaging and the manifest's programs need these four, and
+      # the application runs the window launcher when its window relaunches.
       - name: Restore the programs' executable bit
         run: |
-          for program in orchbee orchbee-server orchbee-worker orchbee-terminal-host; do
+          for program in orchbee orchbee-server orchbee-worker orchbee-terminal-host orchbee-desktop-launcher; do
             chmod +x "$RUNNER_TEMP/cohort/$program"
           done
 

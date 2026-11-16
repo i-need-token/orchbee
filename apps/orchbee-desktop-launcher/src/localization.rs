@@ -1,7 +1,8 @@
 //! Every message the window launcher shows, in `en-US` and `zh-CN`. On Windows the locale follows
 //! the Windows display language, as Setup chooses its own, because a window started from a
-//! shortcut has no shell locale; elsewhere it follows `LC_ALL`, `LC_MESSAGES` or `LANG`. Both are
-//! read only when a message is shown.
+//! shortcut has no shell locale; on Linux it follows `LC_ALL`, `LC_MESSAGES` or `LANG`. Both are
+//! read only when a message is shown. The macOS launcher shows nothing: it runs only for a window
+//! that asked it to, and its last step starts the window that asked again.
 #[cfg(windows)]
 use crate::decision::Failure;
 
@@ -53,7 +54,7 @@ pub(crate) fn failure(locale: Locale, failure: &Failure) -> String {
 #[cfg(not(windows))]
 pub(crate) fn unsupported_platform(locale: Locale) -> &'static str {
     match locale {
-        Locale::EnUs => "The Orchbee window launcher runs only on Windows.",
-        Locale::ZhCn => "Orchbee 窗口启动器只在 Windows 上运行。",
+        Locale::EnUs => "The Orchbee window launcher runs only on Windows and macOS.",
+        Locale::ZhCn => "Orchbee 窗口启动器只在 Windows 和 macOS 上运行。",
     }
 }

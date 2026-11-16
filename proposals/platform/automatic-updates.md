@@ -601,8 +601,14 @@ Citations name today's code; `orchbee.iss` is `apps/desktop/installer/windows/or
   `--select-workspace-v1` are a contract between builds, like the helper modes: a change adds a new
   name, so every launcher starts every window version from the window self-update release on.
 - The uninstall registration keeps the version of the last Setup run; nothing rewrites it.
-- macOS and Linux follow the same idea when they ship, a versioned bundle or tree behind a stable
-  entry; this page settles Windows.
+- macOS keeps the same `desktop/` folder under its store root, with one application bundle per
+  window version, `desktop/versions/<version>/<name>.app`, and the same pointer. The installed
+  bundle is the entry: a window that switches starts the launcher in the new version's bundle with
+  `--replace-application-v1=<its bundle>`, which replaces that bundle in place once the window has
+  ended, as Squirrel.Mac does, or installs into `~/Applications` when its folder cannot be written,
+  and leaves the Session running ([the launcher](../../apps/orchbee-desktop-launcher/README.md#macos)).
+  What writes a macOS window version into the store, the counterpart of Setup and the window step,
+  is not designed yet. Linux follows when it ships; this page settles Windows.
 
 ### Window archive and file list
 

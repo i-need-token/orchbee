@@ -81,6 +81,17 @@ of a window that runs from a version folder names the entry, so it outlives that
 maintained design is the
 [automatic-update proposal](../../proposals/platform/automatic-updates.md#window).
 
+On macOS the application bundle is the entry. A packaged window that runs from a bundle,
+`<name>.app/Contents/MacOS/<program>`, reads `desktop/active.json` under the store root that the
+Client reads too (`ORCHBEE_INSTALL_DIR`, or `$HOME/.local/share/<stem>`), unless the bundle is one of
+the store's own copies under `desktop/`. Each window version there is
+`desktop/versions/<version>/<name>.app`, and the join check runs the Client in that bundle's
+`Contents/Resources/cohort/`. A joinable version is switched to through the window launcher in that
+same cohort, `<stem>-desktop-launcher`, with `--replace-application-v1=<this window's bundle>` as its
+third argument, before the place. Once the window has ended, the launcher replaces the bundle in
+place, or installs into `~/Applications` when its folder cannot be written, and leaves the Session
+running. Nothing writes a window version to the macOS store yet, so no macOS window offers Update.
+
 The page has the Client authority of the Session it joined. That adds nothing to what it could
 already do by typing into a terminal. A link the page opens asks for a window, which Main refuses,
 handing an `http`, `https`, or `mailto` address to the person's browser instead; top-level
@@ -316,7 +327,8 @@ pnpm desktop:package:test
 `pnpm desktop` uses the `dev` identity without creating a packaged application. Packaging requires
 an explicit dev/test/release profile. Each command builds Web resources and the Main and preload
 bundles, then stages the whole native cohort with `scripts/stage-local-runtime.mjs`: the Client,
-Server, Worker, Terminal Host, the observation Capsule, and the platform's terminal runtime. The
+Server, Worker, Terminal Host, the observation Capsule, the platform's terminal runtime, and on
+macOS the window launcher that a relaunch runs ([Window Update](#window-update)). The
 application carries it because the window's Session may run it: on Windows the bundled Client of a
 test or release package hands a Session start to the store's active version, which that Client
 installs, and starts this cohort only when the store holds no usable version

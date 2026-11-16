@@ -56,8 +56,10 @@ import {
 	readRelaunchPlace,
 	readWindowPointer,
 	relaunchWindow,
+	resolvePosixReleaseStoreRoot,
 	takeRelaunchAnnouncement,
 	watchWindowPointer,
+	windowVersionResources,
 } from '../window-update';
 import { DesktopDataRootRefusal } from './data-root-version-record';
 import { DesktopServerClientApplication } from './DesktopServerClientApplication';
@@ -96,18 +98,23 @@ const automationEnvironment: NodeJS.ProcessEnv =
 	packaged && distribution.dataScope.kind === 'release' ? {} : process.env;
 const windowHidden = automationEnvironment[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined;
 /**
- * `desktop\` when this window runs from `desktop\versions\<its own version>\`, never for a
- * development build; its window entry starts whichever window version is active.
+ * The store's `desktop` folder, never for a development build: on Windows when this window runs
+ * from `desktop\versions\<its own version>\`, whose window entry starts whichever window version is
+ * active; on macOS when it runs from an application bundle outside the store.
  */
 const windowDesktopRoot = locateWindowDesktopRoot({
 	development: !packaged || distribution.dataScope.kind === 'development',
 	executablePath: process.execPath,
 	ownVersion: app.getVersion(),
 	platform: process.platform,
+	storeRoot:
+		process.platform === 'darwin'
+			? resolvePosixReleaseStoreRoot(process.env, distribution.artifactStem)
+			: null,
 });
-/** What starts this window's program: the window entry when there is one, else the program itself. */
+/** What starts this window's program: the Windows window entry when there is one, else the program. */
 const windowStartProgram =
-	windowDesktopRoot === null
+	windowDesktopRoot === null || process.platform !== 'win32'
 		? process.execPath
 		: path.join(windowDesktopRoot, path.basename(process.execPath));
 app.setName(distribution.applicationName);
@@ -245,19 +252,29 @@ function startDetached(
 
 /**
  * The window's Update control: the newer window version its pointer names, offered only to a window
- * that runs from `desktop\versions\<its own version>\` and never to a development build. The join
- * check runs that version's bundled Client with this window's Session arguments and environment; a
- * version that joins starts through the window entry at the place the asking document shows, and
- * this window then quits as Quit Orchbee, Keep Terminals Running does.
+ * that runs from the store's window layout (`windowDesktopRoot`) and never to a development build.
+ * The join check runs that version's bundled Client with this window's Session arguments and
+ * environment; a version that joins starts through the window launcher at the place the asking
+ * document shows, and this window then quits as Quit Orchbee, Keep Terminals Running does.
  */
 function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowUpdate {
 	const desktopRoot = windowDesktopRoot;
 	const stem = distribution.artifactStem;
 	const clientName = process.platform === 'win32' ? `${stem}.exe` : stem;
+	const versionCohort = (root: string, version: string): string =>
+		path.join(
+			windowVersionResources({
+				applicationName: distribution.applicationName,
+				desktopRoot: root,
+				platform: process.platform,
+				version,
+			}),
+			PACKAGED_COHORT_DIRECTORY,
+		);
 	return new DesktopWindowUpdate({
 		desktopRoot,
 		fallbackFrom: readFallbackFromVersion(process.argv),
-		onJoinable: async (_version, place) => {
+		onJoinable: async (version, place) => {
 			if (desktopRoot === null) return;
 			const started = await relaunchWindow({
 				desktopRoot,
@@ -267,6 +284,10 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 				processId: process.pid,
 				quit: () => app.quit(),
 				start: startDetached,
+				versionLauncher:
+					process.platform === 'darwin'
+						? path.join(versionCohort(desktopRoot, version), `${stem}-desktop-launcher`)
+						: null,
 			});
 			if (started) recordEvent('info', 'window-relaunch-started');
 			else recordEvent('error', 'window-relaunch-failed');
@@ -276,7 +297,7 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 		recordEvent,
 		startVersionClient: (root, version) =>
 			readServerStartAnswer(
-				path.join(root, 'versions', version, 'resources', PACKAGED_COHORT_DIRECTORY, clientName),
+				path.join(versionCohort(root, version), clientName),
 				sessionArguments,
 				resolveClientEnvironment(),
 			),

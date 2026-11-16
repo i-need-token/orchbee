@@ -245,6 +245,9 @@ function main() {
 		(distro ? '/tmp/orchbee-native-' + checkout + '-target' : path.join(root, 'target'));
 	if (!path.posix.isAbsolute(target)) throw new Error('Cargo target directory must be absolute');
 	const destination = accessible(output);
+	// A macOS cohort also carries the window launcher, which a window version's bundle runs to
+	// replace the application when the window relaunches (apps/orchbee-desktop-launcher/README.md).
+	const windowLauncher = process.platform === 'darwin' ? 'orchbee-desktop-launcher' : undefined;
 	let temporary;
 	let outputCreated = false;
 	try {
@@ -263,6 +266,7 @@ function main() {
 				'orchbee-server',
 				'-p',
 				'orchbee-worker',
+				...(windowLauncher === undefined ? [] : ['-p', windowLauncher]),
 			],
 			false,
 			{ ORCHBEE_ARTIFACT_STEM: artifactStem },
@@ -299,6 +303,16 @@ function main() {
 			copyFileSync(source, staged, constants.COPYFILE_EXCL);
 			runCommand('chmod', ['700', path.posix.join(output, stagedName)]);
 			hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
+		}
+		if (windowLauncher !== undefined) {
+			// No cohort role, so `cohort.json` does not list it; the release manifest inventories it.
+			const stagedName = `${artifactStem}-desktop-launcher`;
+			copyFileSync(
+				accessible(path.posix.join(target, 'release', windowLauncher)),
+				path.join(destination, stagedName),
+				constants.COPYFILE_EXCL,
+			);
+			runCommand('chmod', ['700', path.posix.join(output, stagedName)]);
 		}
 		cpSync(
 			path.join(hostPrefix, 'bin', SHELL_INTEGRATION_DIRECTORY),
