@@ -455,7 +455,7 @@ and never replayed. [Selection and effects](docs/native-terminal-selection-effec
 clipboard dependency and lifecycle; Panel-program writes, OSC 52 mode, and clipboard configuration
 remain to be connected.
 
-[Windows custom commands](docs/windows-custom-commands.md) share one installed catalog between
+[Custom commands](docs/custom-commands.md), on Windows and macOS, share one installed catalog between
 `command list`, `command invoke`, configured shortcuts and shortcut discovery. Shell jobs, Panel
 creation, independent popups and plugin actions retain their existing execution owners and receipts.
 

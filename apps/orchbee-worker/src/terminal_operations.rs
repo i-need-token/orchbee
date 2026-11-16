@@ -60,7 +60,6 @@ pub(crate) fn run(
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     let agent_integrations = crate::agent_integration_jobs::AgentIntegrationJobs::new();
     let agent_probes = crate::agent_probe_jobs::AgentProbeJobs::new();
-    #[cfg(windows)]
     let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
     let mutation_slot =
         crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
@@ -77,7 +76,6 @@ pub(crate) fn run(
             agent_integrations: &agent_integrations,
             agent_probes: &agent_probes,
             mutation_slot: &mutation_slot,
-            #[cfg(windows)]
             plugin_jobs: &plugin_jobs,
             session_runtime: None,
             managed_host: None,
@@ -88,7 +86,6 @@ pub(crate) fn run(
         integrations: &agent_integrations,
         probes: &agent_probes,
         mutations: &mutation_slot,
-        #[cfg(windows)]
         plugins: &plugin_jobs,
     }
     .settle_exit(outcome)
@@ -105,7 +102,6 @@ pub(crate) struct AdmittedAux<'a> {
     pub(crate) agent_integrations: &'a crate::agent_integration_jobs::AgentIntegrationJobs,
     pub(crate) agent_probes: &'a crate::agent_probe_jobs::AgentProbeJobs,
     pub(crate) mutation_slot: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
-    #[cfg(windows)]
     pub(crate) plugin_jobs: &'a crate::plugin_jobs::PluginJobs,
     pub(crate) session_runtime: Option<&'a std::path::Path>,
     pub(super) managed_host: Option<&'a mut shutdown::ManagedHost>,
@@ -249,7 +245,6 @@ fn serve(
                     integrations: aux.agent_integrations,
                     probes: aux.agent_probes,
                     mutations: aux.mutation_slot,
-                    #[cfg(windows)]
                     plugins: aux.plugin_jobs,
                 },
                 aux.managed_host.map(|owner| (&*host, owner)),
@@ -324,9 +319,7 @@ fn serve(
                 request,
                 worker_id,
                 generation,
-                #[cfg(windows)]
                 aux.plugin_jobs,
-                #[cfg(windows)]
                 aux.session_runtime,
             );
             if server_transport::send(

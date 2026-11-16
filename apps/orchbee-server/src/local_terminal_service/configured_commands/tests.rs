@@ -173,6 +173,41 @@ fn configured_command_permissions_follow_execution_owner_and_preserve_failure() 
     );
 }
 
+/// A Panel or popup command's environment carries text other programs chose, such as the folder the
+/// source terminal reported. It must reach the command as written, never as shell text.
+#[cfg(unix)]
+#[test]
+fn configured_launch_hands_its_environment_to_the_login_shell_as_written() {
+    let directory = std::env::temp_dir().join(format!(
+        "orchbee-configured-launch-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).unwrap();
+    let hostile = "/tmp/$(touch injected) `touch injected` 'q' \"d\" x=y;touch injected";
+    let selection = launch(
+        r#"printf '%s\n' "$ORCHBEE_PANEL_CWD" "$ORCHBEE_COMMAND_ID""#,
+        &[
+            ("ORCHBEE_PANEL_CWD".into(), hostile.into()),
+            ("ORCHBEE_COMMAND_ID".into(), "cmd_profile_0".into()),
+        ],
+    )
+    .unwrap();
+    let output = std::process::Command::new(selection.executable())
+        .args(selection.arguments())
+        .current_dir(&directory)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let injected = std::fs::remove_file(directory.join("injected")).is_ok();
+    std::fs::remove_dir(&directory).unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert!(!injected, "an environment value ran as shell text");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    // Login files may print first; the command's own two lines end the output.
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[lines.len() - 2..], [hostile, "cmd_profile_0"]);
+}
+
 fn snapshot(service: &LocalTerminalService) -> Snapshot {
     let request = WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
         protocol_version: ProtocolVersion,
@@ -286,7 +321,7 @@ fn configured_pane_command_is_admitted_as_a_panel_split() {
         command: pane.definition,
         snapshot: current,
         context: Default::default(),
-        directory: WorkbenchDirectoryPath::parse("C:\\").unwrap(),
+        directory: WorkbenchDirectoryPath::parse(if cfg!(windows) { "C:\\" } else { "/" }).unwrap(),
         environment: Vec::new(),
         placement: None,
     };

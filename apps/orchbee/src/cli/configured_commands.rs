@@ -3,7 +3,8 @@ use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
     client_control::{self, exchange::exchange, selection},
-    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    command_interrupt::{ArmedSignals, Finish},
+    console_interrupt::SignalWatch,
     failure_output, output, query,
 };
 use crate::cli_text::CliText;

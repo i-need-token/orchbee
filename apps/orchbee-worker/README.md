@@ -252,7 +252,7 @@ moves to another thread or connection.
 | ------------------------------ | ----------------------------------------------- | --------- | ---------------------------------------------------------------------------------- |
 | Worktree discovery             | `worktree_discovery_job::WorktreeDiscoverySlot` | all       | five-second Job/child settlement                                                   |
 | Worktree mutation              | `worktree_mutation_job::WorktreeMutationSlot`   | all       | five-second Job/group settlement                                                   |
-| Plugin and configured commands | `plugin_jobs::PluginJobs`                       | Windows   | five-second Job settlement                                                         |
+| Plugin and configured commands | `plugin_jobs::PluginJobs`                       | all       | five-second Job settlement; five-second process-group settlement off Windows       |
 | Agent integration              | `agent_integration_jobs::AgentIntegrationJobs`  | all       | 0.6-second provider command teardown                                               |
 | Agent probe                    | `agent_probe_jobs::AgentProbeJobs`              | all       | 0.6-second `where.exe` Job teardown; five-second process-group settlement on macOS |
 
@@ -1231,6 +1231,8 @@ tests exercise real protocol exchanges, not a packaged Worker/Host process accep
 ## Windows plugin process ownership
 
 The admitted request loop also serves bounded plugin-job start/list/get/cancel/running records before and after Host creation. The running query answers from memory how many plugin jobs and configured commands still run, which the Server's [idle move](../orchbee-server/README.md#idle-move) reads; an owner whose cleanup is unknown refuses it with `physical-unknown`, and it changes nothing. `plugin_jobs` retains up to 32 command owners and 200 logs; the shared `orchbee-local-runtime` Windows command owner supplies the same Job settlement used by Git. CLI disconnect leaves accepted work running. Explicit Session shutdown signals, settles and joins all plugin owners before reporting success; every other exit uses the shared [background job window](#background-job-owners-and-exit), and Drop never waits. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns invocation, paging, output limits and remaining integration.
+
+Off Windows the same owner serves configured commands and the running count, while plugin start, list, get and cancel answer `unsupported`, because plugins run only on Windows. A configured command runs in the person's login shell as the leader of its own process group, and the shared Unix command owner settles that whole group; [custom commands](../orchbee/docs/custom-commands.md#macos) owns the launch.
 
 ## Plugin terminal launch environment
 

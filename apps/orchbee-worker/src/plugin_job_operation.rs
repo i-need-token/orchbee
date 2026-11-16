@@ -3,7 +3,7 @@
 //! a process or owning job history.
 
 use orchbee_capability_node_protocol::{
-    PluginJobOutcome, PluginJobRefusal, PluginJobRequest, PluginJobResult,
+    PluginJobAction, PluginJobOutcome, PluginJobRefusal, PluginJobRequest, PluginJobResult,
 };
 use orchbee_local_worker_protocol::WorkerId;
 use std::num::NonZeroU64;
@@ -11,24 +11,19 @@ pub(crate) fn execute(
     request: PluginJobRequest,
     worker: WorkerId,
     generation: NonZeroU64,
-    #[cfg(windows)] jobs: &crate::plugin_jobs::PluginJobs,
-    #[cfg(windows)] runtime: Option<&std::path::Path>,
+    jobs: &crate::plugin_jobs::PluginJobs,
+    runtime: Option<&std::path::Path>,
 ) -> PluginJobResult {
     let outcome = if request.worker_id.as_bytes() != worker.as_bytes()
         || request.worker_generation.get() != generation.get()
     {
         PluginJobOutcome::Refused(PluginJobRefusal::RejectedFencing)
+    } else if !served(&request.action) {
+        PluginJobOutcome::Refused(PluginJobRefusal::Unsupported)
     } else {
-        #[cfg(windows)]
-        {
-            match route(request.action, runtime) {
-                Ok(action) => jobs.execute(request.operation_id, action),
-                Err(()) => PluginJobOutcome::Refused(PluginJobRefusal::InvalidIntent),
-            }
-        }
-        #[cfg(not(windows))]
-        {
-            PluginJobOutcome::Refused(PluginJobRefusal::Unsupported)
+        match route(request.action, runtime) {
+            Ok(action) => jobs.execute(request.operation_id, action),
+            Err(()) => PluginJobOutcome::Refused(PluginJobRefusal::InvalidIntent),
         }
     };
     PluginJobResult {
@@ -39,22 +34,32 @@ pub(crate) fn execute(
     }
 }
 
-#[cfg(windows)]
+/// Configured commands and the running count are served wherever the Worker runs. Plugin
+/// processes stay Windows-only, as plugin stores are. A policy constant rather than a `cfg`, so
+/// every branch compiles everywhere.
+fn served(action: &PluginJobAction) -> bool {
+    match action {
+        PluginJobAction::StartConfigured(_) | PluginJobAction::Running => true,
+        PluginJobAction::Start(_)
+        | PluginJobAction::List { .. }
+        | PluginJobAction::Get { .. }
+        | PluginJobAction::Cancel { .. } => cfg!(windows),
+    }
+}
+
 fn route(
-    mut action: orchbee_capability_node_protocol::PluginJobAction,
+    mut action: PluginJobAction,
     runtime: Option<&std::path::Path>,
-) -> Result<orchbee_capability_node_protocol::PluginJobAction, ()> {
+) -> Result<PluginJobAction, ()> {
     let fields = match &mut action {
-        orchbee_capability_node_protocol::PluginJobAction::Start(intent) => {
+        PluginJobAction::Start(intent) => Some((&intent.directory, &mut intent.environment)),
+        PluginJobAction::StartConfigured(intent) => {
             Some((&intent.directory, &mut intent.environment))
         }
-        orchbee_capability_node_protocol::PluginJobAction::StartConfigured(intent) => {
-            Some((&intent.directory, &mut intent.environment))
-        }
-        orchbee_capability_node_protocol::PluginJobAction::List { .. }
-        | orchbee_capability_node_protocol::PluginJobAction::Get { .. }
-        | orchbee_capability_node_protocol::PluginJobAction::Cancel { .. }
-        | orchbee_capability_node_protocol::PluginJobAction::Running => None,
+        PluginJobAction::List { .. }
+        | PluginJobAction::Get { .. }
+        | PluginJobAction::Cancel { .. }
+        | PluginJobAction::Running => None,
     };
     if let Some((directory, environment)) = fields {
         if !std::path::Path::new(directory).is_absolute() {

@@ -33,10 +33,12 @@ impl ConfiguredFixture {
         }
         self.jobs
             .stop_before(Instant::now() + Duration::from_secs(6))?;
-        match std::fs::remove_file(self.directory.join("receipt.txt")) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
+        for name in ["receipt.txt", "receipt.ticks"] {
+            match std::fs::remove_file(self.directory.join(name)) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
         }
         std::fs::remove_dir(&self.directory)?;
         self.cleaned = true;
@@ -82,6 +84,7 @@ fn configured_receipt_waits_for_content_after_file_creation() {
     });
     fixture.cleanup().unwrap();
 }
+#[cfg(windows)]
 #[test]
 fn configured_fixture_cleanup_failure_preserves_the_original_panic() {
     use std::os::windows::fs::OpenOptionsExt;
@@ -107,12 +110,24 @@ fn configured_fixture_cleanup_failure_preserves_the_original_panic() {
         Some(&"configured fixture original failure")
     );
 }
+/// Writes its command ID, waits about 20 seconds, then writes `finished`. On POSIX it also keeps a
+/// background member of its process group appending to `receipt.ticks` while it waits.
+#[cfg(windows)]
+const RETAINED_COMMAND: &str = "echo %ORCHBEE_COMMAND_ID%>receipt.txt & ping -n 20 127.0.0.1 >nul & echo finished>>receipt.txt";
+#[cfg(unix)]
+const RETAINED_COMMAND: &str = r#"printf '%s\n' "$ORCHBEE_COMMAND_ID" > receipt.txt; (while :; do printf x >> receipt.ticks; sleep 0.05; done) & sleep 20; echo finished >> receipt.txt"#;
+/// A command that runs for about two seconds.
+#[cfg(windows)]
+const BRIEF_COMMAND: &str = "ping -n 3 127.0.0.1 >nul";
+#[cfg(unix)]
+const BRIEF_COMMAND: &str = "sleep 2";
 #[test]
 fn configured_shell_is_retained_independently_and_shutdown_joins_its_process() {
     let mut owned = ConfiguredFixture::new();
     let command = orchbee_capability_node_protocol::ConfiguredCommandIntent {
-        command_id: "cmd_profile_0".into(), directory: owned.directory.to_str().unwrap().into(),
-        command: "echo %ORCHBEE_COMMAND_ID%>receipt.txt & ping -n 20 127.0.0.1 >nul & echo finished>>receipt.txt".into(),
+        command_id: "cmd_profile_0".into(),
+        directory: owned.directory.to_str().unwrap().into(),
+        command: RETAINED_COMMAND.into(),
         environment: vec![("ORCHBEE_COMMAND_ID".into(), "cmd_profile_0".into())],
     };
     assert_eq!(
@@ -163,6 +178,17 @@ fn configured_shell_is_retained_independently_and_shutdown_joins_its_process() {
         before
     );
     assert!(!String::from_utf8_lossy(&before).contains("finished"));
+    // The whole process group ended with the shell, not the shell alone.
+    #[cfg(unix)]
+    {
+        let ticks = std::fs::read(owned.directory.join("receipt.ticks")).unwrap();
+        assert!(!ticks.is_empty(), "the background member ran");
+        thread::sleep(Duration::from_millis(200));
+        assert_eq!(
+            std::fs::read(owned.directory.join("receipt.ticks")).unwrap(),
+            ticks
+        );
+    }
     let mut bad = command;
     bad.directory = owned.directory.join("missing").to_str().unwrap().into();
     let jobs = PluginJobs::new();
@@ -207,7 +233,7 @@ fn running_query_counts_a_configured_shell_command_only_while_it_runs() {
         command_id: "cmd_profile_0".into(),
         directory: owned.directory.to_str().unwrap().into(),
         // About two seconds, far longer than the query that follows its confirmed start.
-        command: "ping -n 3 127.0.0.1 >nul".into(),
+        command: BRIEF_COMMAND.into(),
         environment: vec![],
     };
     assert_eq!(
@@ -250,6 +276,7 @@ fn complete(jobs: &PluginJobs, id: OperationId) -> PluginCommandLog {
         thread::sleep(Duration::from_millis(10));
     }
 }
+#[cfg(windows)]
 #[test]
 fn plugin_executes_and_retains_exact_receipts_without_replay() {
     let jobs = PluginJobs::new();
@@ -300,6 +327,7 @@ fn plugin_executes_and_retains_exact_receipts_without_replay() {
     jobs.stop_before(Instant::now() + Duration::from_secs(6))
         .unwrap();
 }
+#[cfg(windows)]
 #[test]
 fn plugin_large_output_is_drained_and_explicitly_truncated() {
     let jobs = PluginJobs::new();

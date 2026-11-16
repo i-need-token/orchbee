@@ -420,9 +420,10 @@ subscription, and nothing of it is saved. Panel Agent and Panel metadata request
 same way, so the sidebar and Panel titles read the Agent states process observation and reports
 publish. A macOS Session also serves the Agent view, the Session-scoped Agent source override
 that the TUI's machine Agent list reads; a plugin source answers `source-unavailable` there
-because the plugin store is Windows-only. Configured command, Panel graphics, Workspace metadata
-and notification requests, and the Agent view on Linux, keep their earlier refusal at admission
-until their behavior off Windows is decided.
+because the plugin store is Windows-only. It serves configured commands too, running them in the
+login shell as [custom commands](../orchbee/docs/custom-commands.md#macos) describes. Panel
+graphics, Workspace metadata and notification requests, and the Agent view and configured commands
+on Linux, keep their earlier refusal at admission until their behavior off Windows is decided.
 A macOS Session keeps the [checkpoint](docs/workbench-checkpoint.md#managed-startup-and-clean-stop)
 and [kept terminal output](docs/workbench-checkpoint.md#terminal-output-replay) in the Session
 folder under its POSIX data root and holds a Panel whose saved directory is gone until

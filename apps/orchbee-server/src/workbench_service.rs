@@ -45,12 +45,13 @@ mod tests;
 
 /// Request kinds that Linux, and macOS where noted, keep refusing as before ORC-234 until their
 /// behavior off Windows is decided. A policy constant rather than a `cfg`, so every branch
-/// compiles everywhere. macOS serves the Agent view.
+/// compiles everywhere. macOS serves the Agent view and configured commands.
 fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
     match request {
-        WorkbenchRequest::AgentView(_) => !cfg!(any(windows, target_os = "macos")),
-        WorkbenchRequest::ConfiguredCommand(_)
-        | WorkbenchRequest::PaneGraphics(_)
+        WorkbenchRequest::AgentView(_) | WorkbenchRequest::ConfiguredCommand(_) => {
+            !cfg!(any(windows, target_os = "macos"))
+        }
+        WorkbenchRequest::PaneGraphics(_)
         | WorkbenchRequest::WorkspaceMetadata(_)
         | WorkbenchRequest::Notification(_) => !cfg!(windows),
         _ => false,

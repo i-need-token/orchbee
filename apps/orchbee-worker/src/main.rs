@@ -17,7 +17,7 @@ mod git_repository;
 mod host_connection;
 #[cfg(any(unix, windows))]
 mod plugin_job_operation;
-#[cfg(windows)]
+#[cfg(any(unix, windows))]
 mod plugin_jobs;
 #[cfg(any(unix, windows, test))]
 mod terminal_authorization;

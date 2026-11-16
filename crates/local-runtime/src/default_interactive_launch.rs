@@ -73,6 +73,19 @@ fn default_launch(executable: &str) -> DefaultInteractiveLaunch {
     }
 }
 
+/// The arguments that run `command` in the login `shell`, as VS Code runs a shell task on macOS:
+/// `-l -c <command>`. csh and tcsh accept `-l` only as their sole flag and read their `.cshrc` or
+/// `.tcshrc` on every start, so they take `-c <command>` alone.
+#[cfg(unix)]
+pub fn login_shell_command(shell: &str, command: &str) -> Vec<String> {
+    let name = shell.rsplit('/').next().unwrap_or(shell);
+    let login = (!matches!(name, "csh" | "tcsh")).then(|| "-l".to_owned());
+    login
+        .into_iter()
+        .chain(["-c".to_owned(), command.to_owned()])
+        .collect()
+}
+
 pub fn default_launch_environment() -> [DefaultLaunchEnvironmentEntry; 3] {
     [
         environment_entry("TERM", "xterm-256color"),

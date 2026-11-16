@@ -140,8 +140,8 @@ commands! {
     TerminalTitleClear => ["terminal", "title", "clear"], 0, Operand, Portable, true, true, false;
     EventsSubscribe => ["events", "subscribe"], 0, Operand, Windows, true, false, false;
     EventsWait => ["events", "wait"], 0, Operand, Windows, true, false, false;
-    CommandList => ["command", "list"], 0, Operand, Windows, true, false, false;
-    CommandInvoke => ["command", "invoke"], 1, Operand, Windows, true, false, false;
+    CommandList => ["command", "list"], 0, Operand, Portable, true, false, false;
+    CommandInvoke => ["command", "invoke"], 1, Operand, Portable, true, false, false;
     PluginPaneOpen => ["plugin", "panel", "open"], 0, Operand, Windows, true, true, false;
     PopupClose => ["popup", "close"], 0, Operand, Windows, true, true, false;
     PluginPaneFocus => ["plugin", "panel", "focus"], 1, Operand, Windows, true, true, false;

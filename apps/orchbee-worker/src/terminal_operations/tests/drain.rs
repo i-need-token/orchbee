@@ -322,7 +322,6 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
             mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
                 crate::worktree_mutation_git::run,
             ),
-            #[cfg(windows)]
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
             session_runtime: None,
             managed_host: None,

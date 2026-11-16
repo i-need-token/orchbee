@@ -10,6 +10,7 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
+mod shell;
 
 // Physical Windows process creation can exceed 500 ms under load.
 // Leave room for a confirmed launch within the carrier's 20-second response budget.
@@ -146,26 +147,13 @@ fn run(
     #[cfg(test)]
     let started = std::time::Instant::now();
     use orchbee_local_runtime::CommandChild;
-    use std::{
-        os::windows::process::CommandExt,
-        process::{Command, Stdio},
-    };
+    use std::process::Stdio;
     // The execution machine chooses its command processor, not a source cwd/PATH.
-    let shell = std::env::var_os("ComSpec")
-        .filter(|path| std::path::Path::new(path).is_absolute())
-        .or_else(|| {
-            orchbee_local_runtime::windows_system_program("cmd.exe")
-                .ok()
-                .map(std::path::PathBuf::into_os_string)
-        });
-    let Some(shell) = shell else {
+    let Some(mut command) = shell::command(&intent.command) else {
         let _delivered = spawned.send(Err(false));
         return true;
     };
-    let mut command = Command::new(shell);
     command
-        .args(["/d", "/c"])
-        .raw_arg(&intent.command)
         .current_dir(&intent.directory)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -186,7 +174,7 @@ fn run(
     };
     #[cfg(test)]
     eprintln!(
-        "Configured Job created in {:?}, PID {}",
+        "Configured command owner created in {:?}, PID {}",
         started.elapsed(),
         child.id()
     );

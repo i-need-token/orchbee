@@ -284,8 +284,8 @@ Configured popup controls carry a separate typed selector, source, display
 context and configured dimensions. Open/read/close are owned by the authenticated
 Client connection and use the existing independent terminal lifecycle. A stale
 catalog, selection, membership or source refuses before dispatch. No configured
-command is represented as an installed plugin. [Native command behavior](../../apps/orchbee/docs/windows-custom-commands.md)
-owns configuration, dispatch and Windows lifetime.
+command is represented as an installed plugin. [Native command behavior](../../apps/orchbee/docs/custom-commands.md)
+owns configuration, dispatch and process lifetime on each platform.
 
 ## Native plugin runtime contract
 

@@ -314,10 +314,11 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
 
 ## Background programs the Worker runs
 
-Configured `shell` commands, plugin jobs, and the jobs plugin hooks start run under the Worker today,
-only on Windows, each in a Job without kill-on-close
+Configured `shell` commands, plugin jobs, and the jobs plugin hooks start run under the Worker today:
+on Windows each in a Job without kill-on-close, and on macOS each configured `shell` command in its
+own process group
 ([plugin jobs](../../apps/orchbee-worker/src/plugin_jobs.rs),
-[custom commands](../../apps/orchbee/docs/windows-custom-commands.md#invocation-ownership-model)).
+[custom commands](../../apps/orchbee/docs/custom-commands.md#invocation-ownership-model)).
 The Worker's ordinary stop cancels them, a Worker crash leaves them running untracked, and the
 Server cannot see whether a configured command still runs.
 

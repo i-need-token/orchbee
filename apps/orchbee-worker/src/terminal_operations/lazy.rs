@@ -53,7 +53,6 @@ pub(crate) fn run(
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     let agent_integrations = crate::agent_integration_jobs::AgentIntegrationJobs::new();
     let agent_probes = crate::agent_probe_jobs::AgentProbeJobs::new();
-    #[cfg(windows)]
     let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
     let mutation_slot =
         crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
@@ -152,7 +151,6 @@ pub(crate) fn run(
                         integrations: &agent_integrations,
                         probes: &agent_probes,
                         mutations: &mutation_slot,
-                        #[cfg(windows)]
                         plugins: &plugin_jobs,
                     },
                     None,
@@ -211,9 +209,7 @@ pub(crate) fn run(
                     request,
                     worker_id,
                     generation,
-                    #[cfg(windows)]
                     &plugin_jobs,
-                    #[cfg(windows)]
                     Some(runtime),
                 );
                 let _no_host = server_transport::send(
@@ -359,7 +355,6 @@ pub(crate) fn run(
                     agent_integrations: &agent_integrations,
                     agent_probes: &agent_probes,
                     mutation_slot: &mutation_slot,
-                    #[cfg(windows)]
                     plugin_jobs: &plugin_jobs,
                     session_runtime: Some(runtime),
                     managed_host: Some(&mut managed_host),
@@ -375,7 +370,6 @@ pub(crate) fn run(
         integrations: &agent_integrations,
         probes: &agent_probes,
         mutations: &mutation_slot,
-        #[cfg(windows)]
         plugins: &plugin_jobs,
     }
     .settle_exit(outcome)

@@ -36,8 +36,45 @@ pub(in crate::local_terminal_service) fn launch(
     .map_err(|_| Failure::InvalidIntent)
 }
 
+/// macOS and Linux run the command in the person's login shell, the shell a new terminal starts
+/// (`$SHELL`, else the account's shell, else `/bin/sh`). `/usr/bin/env` sets the
+/// command's environment first, so a value always arrives as written and no shell ever reads it.
+#[cfg(unix)]
+pub(in crate::local_terminal_service) fn launch(
+    command: &str,
+    environment: &[(String, String)],
+) -> Result<LaunchSelection, Failure> {
+    if command.trim().is_empty() || command.contains('\0') {
+        return Err(Failure::InvalidIntent);
+    }
+    let shell = orchbee_local_runtime::resolve_default_interactive_launch()
+        .map_err(|_| Failure::Unavailable)?
+        .executable;
+    // `env` takes its first operand without `=` as the program, so a shell path holding one would
+    // be read as an assignment.
+    if shell.contains('=') {
+        return Err(Failure::Unavailable);
+    }
+    let mut arguments = Vec::with_capacity(environment.len() + 4);
+    for (name, value) in environment {
+        if !name.starts_with("ORCHBEE_")
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_uppercase() || byte == b'_')
+            || value.contains('\0')
+        {
+            return Err(Failure::InvalidIntent);
+        }
+        arguments.push(format!("{name}={value}"));
+    }
+    let login = orchbee_local_runtime::login_shell_command(&shell, command);
+    arguments.push(shell);
+    arguments.extend(login);
+    LaunchSelection::new("/usr/bin/env".into(), arguments).map_err(|_| Failure::InvalidIntent)
+}
+
 /// No configured-command shell adapter exists on this build.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, unix)))]
 pub(in crate::local_terminal_service) fn launch(
     _command: &str,
     _environment: &[(String, String)],
