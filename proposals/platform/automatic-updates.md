@@ -317,6 +317,7 @@ it is a few minutes into a move to 0.5.0, and then after that version's fallback
 | Session start                    | The activator of the moved version, after `begin_activation` and before it starts the Server                                                    | Opens the Session window and adds the generation to `starts` |
 | TUI start                        | The first TUI of the moved version to start                                                                                                     | Opens the Client window                                      |
 | Server or Worker fails to start  | The activator that started the Server, when starting it fails or it ends before its endpoint appears, as it does when its Worker fails to start | A Session failure of that generation                         |
+| Damaged version                  | The activator of the moved version, when its own cohort check finds a file changed or missing, before any generation exists                     | A Session start and failure of a fresh generation            |
 | Server crash                     | Any activator whose crash recovery proves the generation dead                                                                                   | A Session failure of that generation                         |
 | Worker crash                     | The Server, when its Worker exits outside a stop                                                                                                | A Session failure of the Server's generation                 |
 | Client fails to start or to join | Either launcher, as it classifies the outcome, through the previous version's helper below; on macOS without a launcher, the TUI itself         | A Client failure of the version it started                   |
@@ -330,7 +331,10 @@ it is a few minutes into a move to 0.5.0, and then after that version's fallback
 - A Session failure counts once, for a generation in `starts`: its identifier joins `failed`. A
   generation another version started, or whose start notice was dropped, counts nothing, and so
   do a Server still alive at the activator's deadline and a generation that never started its
-  Server.
+  Server. A damaged version is the exception: a Client whose own files fail the cohort check as
+  changed or missing can start no Server from them, so each such start counts as a generation that
+  started and failed, and a store file damaged after an install falls back like a crash. A
+  deadline or a refused open during that check counts nothing.
 - A failed adoption counts from P1b, which adds the fallback after a restart.
 - `--record-client-failure-v1 <version>` is a hidden helper mode whose grammar never changes, left
   out of help, completion, and the Agent guide like the other helper modes. It records one Client

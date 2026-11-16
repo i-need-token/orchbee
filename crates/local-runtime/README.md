@@ -1426,7 +1426,9 @@ longer counts.
   record. The observers that use them belong to their processes: the activator records each
   generation's start just before it starts the Server and its failure when the Server cannot start
   or ends before its endpoint, and a generation `SessionCatalog::recover_inactive` proves dead,
-  whose identifier it answers; the Server records a Worker that exits outside a stop, reading its
+  whose identifier it answers; when its own cohort check finds a file changed or missing, so that
+  no Server can start from the version, it records a fresh generation's start and failure at once;
+  the Server records a Worker that exits outside a stop, reading its
   own generation with `RetainedSessionRecord::current_activation_id`; the TUI records its start on
   a background thread it waits for before it exits; and the
   [Client-failure helper](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation)

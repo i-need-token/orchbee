@@ -663,8 +663,9 @@ impl super::CliText {
         }
     }
 
-    /// A handshake refusal shares the startup copy, which names the older side; any other
-    /// mismatch concerns this installation.
+    /// A handshake refusal shares the startup copy, which names the older side; a cohort check
+    /// that found this installation's files changed says so, since no Session is involved; any
+    /// other mismatch concerns this installation.
     fn cli_incompatible(self, failure: &Failure) -> String {
         use crate::local_activation::{RefusedVersions, StartupFailure};
         let detail = |name: &str| {
@@ -682,6 +683,9 @@ impl super::CliText {
                 session: detail("sessionVersion").map(str::to_owned),
             })
         };
+        if detail("stage") == Some("cohort") {
+            return self.cli_cohort_diagnostic(failure.missing_artifact());
+        }
         if detail("stage") == Some("data-root") {
             let refusal = orchbee_local_runtime::LayoutRefusal {
                 layout: failure

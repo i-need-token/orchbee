@@ -190,6 +190,12 @@ fn activate(
     #[cfg(unix)] named: Option<&orchbee_local_runtime::SessionName>,
 ) -> Result<StartedSession, ActivationFailure> {
     let cohort = Cohort::current_with_diagnostic(deadline).map_err(|error| {
+        // A damaged store version would otherwise fail here on every start without counting, and
+        // stay active; recorded only from a store version folder while its move counts.
+        let mut activation = [0; 16];
+        if fallback::damaged(error.kind()) && getrandom::fill(&mut activation).is_ok() {
+            fallback::observe(&activation, fallback::Seen::Damaged, fallback::record);
+        }
         ActivationFailure::caused(
             failure(error.kind(), StartupFailure::Cohort),
             ActivationCause::Cohort(error),
