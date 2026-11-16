@@ -2,7 +2,10 @@ import { createOrchbeeIntl } from '@orchbee/i18n';
 import { describe, expect, it } from 'vitest';
 
 import type { WorkbenchAgentNames } from '../../types/workbench-agent-observation';
-import { listWorkbenchAgentProviderNames } from '../../utils/workbench-agent-names';
+import {
+	listWorkbenchAgentProviderNames,
+	workbenchAgentTitleNamesAgent,
+} from '../../utils/workbench-agent-names';
 import {
 	resolveWorkbenchAgentTitle,
 	type WorkbenchAgentTitleSource,
@@ -60,5 +63,24 @@ describe('resolveWorkbenchAgentTitle', () => {
 			),
 		).toBe('12');
 		expect(title({}, { ...UNNAMED, reportedTitle: '5' })).toBeNull();
+		// Gemini CLI's own title only reports its state and folder, so it names nothing either.
+		const gemini = listWorkbenchAgentProviderNames(createOrchbeeIntl('en-US'), 'gemini');
+		const ready = { ...UNNAMED, terminalTitle: '◇  Ready (shop-api)' };
+		expect(
+			resolveWorkbenchAgentTitle(
+				{ creationLabel: '1' },
+				ready,
+				gemini,
+				workbenchAgentTitleNamesAgent('gemini'),
+			),
+		).toBeNull();
+		expect(
+			resolveWorkbenchAgentTitle(
+				{ creationLabel: '1', naturalTask: '✦  Working… (shop-api)' },
+				undefined,
+				gemini,
+				workbenchAgentTitleNamesAgent('gemini'),
+			),
+		).toBeNull();
 	});
 });

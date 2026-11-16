@@ -122,9 +122,9 @@ impl Row {
 
     /// What names this Agent ahead of its provider, sanitized: a person's name for it, then a Panel
     /// name the person chose, then an explicit title, then the title its terminal program set, then
-    /// the Panel's creation label. Blank text, an automatic number, a console's launch path, and
-    /// text that only names the provider or its program, as an Agent's idle title does, name
-    /// nothing.
+    /// the Panel's creation label. Blank text, an automatic number, a console's launch path, text
+    /// that only names the provider or its program, as an Agent's idle title does, and the title of
+    /// an Agent whose title only reports its state, name nothing.
     pub(crate) fn identity_title(&self) -> Option<String> {
         // A Panel name the person chose outranks a title a program reported, as in the Panel header.
         let explicit = self
@@ -132,6 +132,7 @@ impl Row {
             .then_some(self.label.as_str())
             .or_else(|| self.metadata.title.as_ref().map(|title| title.as_str()));
         let observed = match &self.terminal_title {
+            _ if self.titles_only_state() => None,
             TerminalTitleObservation::Observed {
                 title: Some(title), ..
             } => match ChromeName::of_title(title) {
@@ -155,6 +156,13 @@ impl Row {
             let automatic = numbered && text.chars().all(|ch| ch.is_ascii_digit());
             (!text.is_empty() && !automatic && !self.names_provider(text)).then(|| text.to_owned())
         })
+    }
+
+    /// Whether this Agent's own terminal title only reports its state and working folder, never
+    /// a task: Gemini CLI writes `◇  Ready (<folder>)`, `✦  Working… (<folder>)` and the like.
+    fn titles_only_state(&self) -> bool {
+        orchbee_agent_observation_protocol::AgentReportProvider::lookup(&self.target.agent)
+            == Some(orchbee_agent_observation_protocol::AgentReportProvider::Gemini)
     }
 
     /// Whether `text` only names this Agent's provider: its shown or reported label, canonical

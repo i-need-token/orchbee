@@ -48,6 +48,17 @@ const PROVIDER_LABELS: ReadonlyMap<string, string> = new Map<string, string>([
 	['qwen-code', 'qwen'],
 ]);
 
+/**
+ * The Agents whose own terminal title only reports their state and working folder, never a task:
+ * Gemini CLI writes `◇  Ready (<folder>)`, `✦  Working… (<folder>)` and the like.
+ */
+const STATE_TITLE_AGENTS: ReadonlySet<string> = new Set(['gemini']);
+
+/** Whether this Agent's own terminal title can name it, as the TUI decides. */
+export function workbenchAgentTitleNamesAgent(agent: string): boolean {
+	return !STATE_TITLE_AGENTS.has(agent);
+}
+
 /** The commands that start a provider where they differ from its report label and registry ID. */
 const PROVIDER_COMMANDS: ReadonlyMap<string, string> = new Map<string, string>([
 	['cursor', 'agent'],

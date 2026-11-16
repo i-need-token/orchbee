@@ -22,18 +22,23 @@ const AUTOMATIC_NUMBER = /^\d+$/u;
  * terminal at creation. A Panel name fixes the title, so later terminal titles leave it be. The
  * terminal's title is the one the Server reports for every terminal, as the TUI reads it, and until
  * that first report the one this window last saw. Blank text, an automatic number and text that only
- * names the provider, as an Agent's idle title does, name nothing; null leaves the provider alone.
+ * names the provider, as an Agent's idle title does, name nothing, and so does the terminal's title
+ * when `terminalTitleNames` is false, for an Agent whose title only reports its state; null leaves
+ * the provider alone.
  */
 export function resolveWorkbenchAgentTitle(
 	{ creationLabel, customTitle, naturalTask }: WorkbenchAgentTitleSource,
 	reported: WorkbenchAgentReportedNames | undefined,
 	providerNames: readonly string[],
+	terminalTitleNames = true,
 ): string | null {
 	const providerKeys = new Set(providerNames.map(nameKey));
+	const terminalTitle =
+		reported?.terminalTitle === undefined ? naturalTask : reported.terminalTitle;
 	const candidates: ReadonlyArray<readonly [string | null | undefined, boolean]> = [
 		[reported?.name, false],
 		[customTitle === undefined ? reported?.reportedTitle : customTitle, true],
-		[reported?.terminalTitle === undefined ? naturalTask : reported.terminalTitle, false],
+		[terminalTitleNames ? terminalTitle : undefined, false],
 		[customTitle === undefined ? creationLabel : undefined, true],
 	];
 	for (const [candidate, numbered] of candidates) {

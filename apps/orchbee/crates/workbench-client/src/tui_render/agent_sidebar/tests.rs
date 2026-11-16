@@ -129,6 +129,16 @@ fn default_agent_row_names_the_agent_then_its_provider_and_never_an_automatic_nu
     let (spans, _) = default_line(agent, &Theme::terminal_native(), usize::MAX);
     assert_eq!(spans.len(), 1);
     assert_eq!(spans[0].content, "Claude Code");
+    // Gemini CLI's title only reports its state and folder, so its provider shows alone.
+    for title in ["◇  Ready (shop-api)", "✦  Working… (shop-api)"] {
+        let mut agent = row(23);
+        agent.target.agent = "gemini".into();
+        agent.label = "1".into();
+        agent.terminal_title = observed(Some(title));
+        let (spans, _) = default_line(agent, &Theme::terminal_native(), usize::MAX);
+        assert_eq!(spans.len(), 1, "{title}");
+        assert_eq!(spans[0].content, "Gemini CLI", "{title}");
+    }
 }
 
 #[test]

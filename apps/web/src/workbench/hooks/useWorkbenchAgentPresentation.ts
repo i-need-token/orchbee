@@ -29,6 +29,7 @@ import {
 	formatWorkbenchAgentGroupName,
 	formatWorkbenchAgentName,
 	listWorkbenchAgentProviderNames,
+	workbenchAgentTitleNamesAgent,
 } from '../utils/workbench-agent-names';
 import {
 	formatWorkbenchAgentStatus,
@@ -212,6 +213,7 @@ export function useWorkbenchAgentPresentation({
 							// What the Server read for another incarnation names nothing in this one.
 							names?.binding === observation.binding ? names : undefined,
 							listWorkbenchAgentProviderNames(intl, observation.agent),
+							workbenchAgentTitleNamesAgent(observation.agent),
 						) ?? '';
 					return { agentLabel, titleLabel };
 				};
