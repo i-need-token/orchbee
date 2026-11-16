@@ -2,6 +2,7 @@ const std = @import("std");
 
 const control_decode = @import("terminal-host-control").decode;
 const core_module = @import("terminal-host-core").state;
+const creation_pipeline = @import("creation_pipeline.zig");
 const host_failure = @import("failure.zig");
 const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
@@ -66,6 +67,8 @@ pub const Context = struct {
     runtime_aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
     /// Whether this request may add a retained terminal; the Host's lifecycle decides it.
     terminal_admission: host_lifecycle.TerminalAdmission,
+    /// Builds a creation's process and engine off the dispatch thread.
+    creations: *creation_pipeline.Pipeline,
 
     pub fn hostEpoch(self: *const Context) core_module.HostEpoch {
         return self.runtime_aggregate.hostEpoch();

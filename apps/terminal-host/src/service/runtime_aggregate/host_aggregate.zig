@@ -114,10 +114,16 @@ pub const HostRuntimeAggregate = struct {
 
     // creation boundary.
     pub const prepareCreateTerminal = creation.prepareCreateTerminal;
+    pub const commitAwaitingStartTerminal = creation.commitAwaitingStartTerminal;
+    pub const beginCreateBuild = creation.beginCreateBuild;
+    pub const commitCreateBuild = creation.commitCreateBuild;
+    pub const abandonCreateBuild = creation.abandonCreateBuild;
     pub const commitPreparedTerminal = creation.commitPreparedTerminal;
 
     // start boundary.
     pub const prepareStartTerminal = start.prepareStartTerminal;
+    pub const beginStartBuild = start.beginStartBuild;
+    pub const commitStartBuild = start.commitStartBuild;
     pub const commitPreparedTerminalStart = start.commitPreparedTerminalStart;
 
     // termination boundary.

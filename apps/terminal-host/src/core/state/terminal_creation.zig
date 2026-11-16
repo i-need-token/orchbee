@@ -44,8 +44,11 @@ pub fn reserveTerminal(self: anytype) (CoreError || std.mem.Allocator.Error)!voi
 // The aggregate calls these commits only after reserving both registry
 // capacities and constructing the complete retained-terminal allocation.
 // `session` is its embedded stable field. Host commands are linearized on one
-// thread, so the validated admission facts cannot change between prepare and
-// the infallible commit.
+// thread, and every request that could change the validated admission facts
+// waits while a creation builds, so they cannot change between prepare and the
+// infallible commit. `connection_id` admitted the creation at prepare; a
+// creation built in the background may commit after that connection ended,
+// which the retained terminal outlives, so the commit does not require it.
 
 pub fn commitRunningTerminal(
     self: anytype,
@@ -147,7 +150,7 @@ pub fn commitAwaitingStartTerminalWithOverlay(
 ) void {
     std.debug.assert(terminal_configuration.valid(configuration));
     std.debug.assert(terminal_theme.valid(initial_theme));
-    std.debug.assert(storage.connected(self, connection_id));
+    _ = connection_id;
     self.terminal_registry.validateAdmission(creation_id, terminal_id) catch unreachable;
     session.* = .{
         .configuration_state = .{ .effective = configuration },

@@ -596,6 +596,98 @@ test "real PTY lifecycle survives disconnect and an idempotent create retry" {
     try std.testing.expect(findRuntime(&service, terminal_id) == null);
     try std.testing.expect(serviceCore(&service).findTerminal(terminal_id) == null);
 }
+test "a slow terminal start does not delay another terminal's request" {
+    const builtin = @import("builtin");
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const arguments: []const []const u8 = if (builtin.os.tag == .windows)
+        &.{ "/Q", "/D", "/S", "/C", "set /p value=" }
+    else
+        &.{ "-c", "read value" };
+    const running_payload = try testCreatePayload("71717171717171717171717171717171", executable, arguments);
+    defer std.testing.allocator.free(running_payload);
+    const awaiting_payload = try harness.testAwaitingCreatePayload("72727272727272727272727272727272", executable, arguments);
+    defer std.testing.allocator.free(awaiting_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    var gate: subject.testing.creations.Gate = .{};
+    // A failed expectation must not leave the creator waiting while teardown joins it.
+    defer gate.release();
+    try testHandshake(&service, &connection, "73737373737373737373737373737373");
+
+    var running = try testRequest(&service, &connection, MessageKind.create_terminal, .control_json, running_payload, [_]u8{0x74} ** 16);
+    defer running.deinit();
+    try std.testing.expectEqual(@as(usize, 2), running.records().len);
+    const running_id = serviceCore(&service).terminalKeys()[0];
+    var awaiting = try testRequest(&service, &connection, MessageKind.create_terminal, .control_json, awaiting_payload, [_]u8{0x75} ** 16);
+    defer awaiting.deinit();
+    try std.testing.expectEqual(@as(usize, 1), awaiting.records().len);
+    const starting_id = for (serviceCore(&service).terminalKeys()) |terminal_id| {
+        if (!terminal_id.eql(running_id)) break terminal_id;
+    } else return error.TestUnexpectedResult;
+
+    subject.testing.creations.gateBuilds(&service.creations, &gate);
+    const start_payload = try harness.testStartPayload(starting_id);
+    defer std.testing.allocator.free(start_payload);
+    const start_correlation = [_]u8{0x76} ** 16;
+    const start_record = try encodeRequest(&service, MessageKind.start_terminal, start_payload, start_correlation[0]);
+    defer std.testing.allocator.free(start_record);
+    var start = try service.handle(&connection, start_record);
+    defer start.deinit();
+    try std.testing.expectEqual(@as(usize, 0), start.records().len);
+    gate.awaitArrival();
+
+    // The start's build is held before it spawns anything, and the other terminal still answers.
+    const running_attach = try testAttachPayload(testId(core_module.AttachmentId, 0x77, 0), running_id);
+    defer std.testing.allocator.free(running_attach);
+    const running_attach_record = try encodeRequest(&service, MessageKind.attach_terminal, running_attach, 0x78);
+    defer std.testing.allocator.free(running_attach_record);
+    var running_attached = try service.handle(&connection, running_attach_record);
+    defer running_attached.deinit();
+    try std.testing.expect(service.creations.creating());
+    try std.testing.expectEqual(MessageKind.attachment_capabilities, (try protocol.validateTransportEnvelope(running_attached.records()[0])).kind);
+
+    // A request naming the terminal still being started waits for the start's result.
+    const starting_attach = try testAttachPayload(testId(core_module.AttachmentId, 0x79, 0), starting_id);
+    defer std.testing.allocator.free(starting_attach);
+    const starting_attach_record = try encodeRequest(&service, MessageKind.attach_terminal, starting_attach, 0x7a);
+    defer std.testing.allocator.free(starting_attach_record);
+    var starting_attached = try service.handle(&connection, starting_attach_record);
+    defer starting_attached.deinit();
+    try std.testing.expectEqual(@as(usize, 0), starting_attached.records().len);
+    try std.testing.expect(service.takeReleasedRequest() == null);
+
+    gate.release();
+    var started = Outgoing.init(std.testing.allocator);
+    defer started.deinit();
+    try harness.settleCreation(&service, &connection, &started);
+    try std.testing.expectEqual(@as(usize, 2), started.records().len);
+    const start_response = try protocol.validateTransportEnvelope(started.records()[0]);
+    try std.testing.expect(start_response.response);
+    try std.testing.expectEqualSlices(u8, &start_correlation, &start_response.correlation_id.?);
+    try std.testing.expectEqual(MessageKind.terminal_started, (try protocol.validateTransportEnvelope(started.records()[1])).kind);
+    try std.testing.expectEqual(core_module.TerminalPhase.running, serviceCore(&service).findTerminal(starting_id).?.phase());
+
+    const released = service.takeReleasedRequest() orelse return error.TestUnexpectedResult;
+    defer std.testing.allocator.free(released);
+    var released_attached = try service.handleReleased(&connection, released);
+    defer released_attached.deinit();
+    try std.testing.expectEqual(MessageKind.attachment_capabilities, (try protocol.validateTransportEnvelope(released_attached.records()[0])).kind);
+}
+
+fn encodeRequest(service: *HostService, kind: u16, payload: []const u8, correlation_byte: u8) ![]u8 {
+    return protocol.encodeTransportEnvelope(std.testing.allocator, kind, .control_json, payload, [_]u8{correlation_byte} ** 16, serviceCore(service).epoch.bytes, false, false);
+}
+
 test "post-exit configuration is rejected without revising or republishing outcome" {
     const builtin = @import("builtin");
     if (builtin.os.tag == .windows) return error.SkipZigTest;

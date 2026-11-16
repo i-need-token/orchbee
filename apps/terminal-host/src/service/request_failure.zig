@@ -43,7 +43,8 @@ pub const Answer = enum {
 pub fn classify(err: anyerror) ?Answer {
     return switch (err) {
         error.InvalidTransportRecord, error.ConnectionClosing, error.ServiceShuttingDown => null,
-        error.OutOfMemory, error.OutgoingCapacityInvariant => .resource_exhausted,
+        // `HeldRequestLimit`: more requests wait behind a creation than the Host holds.
+        error.OutOfMemory, error.OutgoingCapacityInvariant, error.HeldRequestLimit => .resource_exhausted,
         // A framed record of an unknown payload encoding, read whole and discarded.
         error.UnknownPayloadEncoding => .invalid_envelope,
         else => .internal_error,

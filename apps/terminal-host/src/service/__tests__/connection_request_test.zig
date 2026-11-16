@@ -1175,6 +1175,7 @@ test "resize lease claim reservation failure preserves the current owner" {
         &service.runtime_aggregate,
         service.trace_interactions,
         .open,
+        &service.creations,
     );
 
     try std.testing.expectError(
@@ -1261,6 +1262,7 @@ test "resize lease claim event allocation failures return typed failure without 
             &service.runtime_aggregate,
             service.trace_interactions,
             .open,
+            &service.creations,
         );
 
         try dispatcher.dispatch(

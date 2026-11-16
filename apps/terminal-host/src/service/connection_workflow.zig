@@ -5,6 +5,7 @@ const control = @import("terminal-host-control");
 const control_decode = control.decode;
 const control_encode = control.encode;
 const core_module = @import("terminal-host-core").state;
+const creation_pipeline = @import("creation_pipeline.zig");
 const host_failure = @import("failure.zig");
 const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
@@ -78,6 +79,7 @@ pub const Workflow = struct {
         runtime_aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
         trace_interactions: bool,
         terminal_admission: host_lifecycle.TerminalAdmission,
+        creations: *creation_pipeline.Pipeline,
         connection: *ConnectionState,
         record: []const u8,
     ) !Outgoing {
@@ -219,6 +221,7 @@ pub const Workflow = struct {
             runtime_aggregate,
             trace_interactions,
             terminal_admission,
+            creations,
         );
         try request_dispatcher.dispatch(
             request_contract,
@@ -234,6 +237,7 @@ pub const Workflow = struct {
         // A request dispatch contains only records caused by that request.
         // Lifecycle, projection, and interaction events are polled separately,
         // so unrelated fallible work cannot discard a committed command result.
+        // A creation that builds in the background answers when it settles.
         return outgoing;
     }
 

@@ -257,6 +257,32 @@ pub fn decodeUpdateTerminalConfiguration(
     };
 }
 
+/// The terminal a control payload names in its top-level `terminalId`, without validating the
+/// rest of the command; null when it names none or the payload cannot be read. The handler that
+/// later decodes the whole command still rejects any payload this accepts.
+pub fn namedTerminal(
+    allocator: std.mem.Allocator,
+    payload: []const u8,
+) ?identifiers.TerminalId {
+    if (!std.unicode.utf8ValidateSlice(payload)) return null;
+    var parsed = std.json.parseFromSlice(
+        std.json.Value,
+        allocator,
+        payload,
+        .{ .parse_numbers = false },
+    ) catch return null;
+    defer parsed.deinit();
+    const object = switch (parsed.value) {
+        .object => |value| value,
+        else => return null,
+    };
+    const text = switch (object.get("terminalId") orelse return null) {
+        .string => |value| value,
+        else => return null,
+    };
+    return identifiers.parseLowerHex(identifiers.TerminalId, text) catch null;
+}
+
 pub fn decodeTerminalTarget(
     allocator: std.mem.Allocator,
     payload: []const u8,

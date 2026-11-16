@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 
 const core_module = @import("terminal-host-core").state;
 const terminal_engine = @import("terminal-host-engine");
@@ -9,6 +10,7 @@ const host_retained_terminal = @import("../retained_terminal.zig");
 const contracts = @import("contracts.zig");
 
 const RetainedTerminal = host_retained_terminal.RetainedTerminal;
+const StartBuild = contracts.StartBuild;
 const StartCommitError = contracts.StartCommitError;
 const StartOutcome = contracts.StartOutcome;
 const StartPreparation = contracts.StartPreparation;
@@ -44,44 +46,74 @@ pub fn prepareStartTerminal(
     };
 }
 
+/// Takes a pending start out of its preparation for a background build. On error the preparation
+/// is unchanged.
+pub fn beginStartBuild(
+    self: anytype,
+    preparation: *StartPreparation,
+) error{TerminalRuntimeMissing}!StartBuild {
+    const pending = preparation.pending;
+    const retained = awaitingRecord(self, pending.identity.terminal_id) orelse
+        return error.TerminalRuntimeMissing;
+    preparation.* = .consumed;
+    return .{ .pending = pending, .retained = retained };
+}
+
+/// Commits a start whose build returned `runtime`. The terminal must still be the awaiting
+/// record the build read; on error nothing changed and the caller owns `runtime`.
+pub fn commitStartBuild(
+    self: anytype,
+    build: *StartBuild,
+    runtime: *terminal_runtime.TerminalRuntime,
+) error{TerminalRuntimeMissing}!StartOutcome {
+    const terminal_id = build.pending.identity.terminal_id;
+    if (awaitingRecord(self, terminal_id) != build.retained) return error.TerminalRuntimeMissing;
+    build.retained.runtime = runtime;
+    build.retained.deinitStartPreparation(self.allocator);
+    self.core_state.commitTerminalStart(terminal_id, build.pending.geometry);
+    return .{
+        .geometry = build.pending.geometry,
+        .identity = build.pending.identity,
+        .transition = .started,
+    };
+}
+
+/// The retained record of `terminal_id` while it awaits a start with its launch, or null.
+fn awaitingRecord(self: anytype, terminal_id: core_module.TerminalId) ?*RetainedTerminal {
+    const session = self.core_state.findTerminal(terminal_id) orelse return null;
+    if (session.phase() != .awaiting_start) return null;
+    const retained = RetainedTerminal.fromMutableSession(@constCast(session));
+    if (retained.start_preparation == null) return null;
+    std.debug.assert(retained.runtime == null);
+    return retained;
+}
+
+/// The synchronous composition of the start stages that aggregate tests drive directly. A failed
+/// build leaves the preparation pending, as it was.
 pub fn commitPreparedTerminalStart(
     self: anytype,
     preparation: *StartPreparation,
 ) StartCommitError!StartOutcome {
+    if (comptime !target_builtin.is_test) {
+        @compileError("synchronous start is available only to service tests");
+    }
     switch (preparation.*) {
         .replayed => |outcome| return outcome,
         .consumed => unreachable,
-        .pending => |pending| {
-            const session = self.core_state.findTerminal(pending.identity.terminal_id) orelse
-                return error.TerminalRuntimeMissing;
-            const retained = RetainedTerminal.fromMutableSession(@constCast(session));
-            const launch_preparation = if (retained.start_preparation) |*value|
-                value
-            else
-                return error.TerminalRuntimeMissing;
-            std.debug.assert(retained.runtime == null);
+        .pending => {
+            var build = try beginStartBuild(self, preparation);
             const runtime = terminal_runtime.TerminalRuntime.createWithOptions(
                 self.allocator,
-                launch_preparation.processLaunch(pending.geometry),
-                launch_preparation.runtimeOptions(pending.geometry),
+                build.processLaunch(),
+                build.runtimeOptions(),
             ) catch |err| {
+                preparation.* = .{ .pending = build.pending };
                 return if (err == error.OutOfMemory)
                     error.RuntimeAllocationOutOfMemory
                 else
                     error.RuntimeSpawnFailed;
             };
-            retained.runtime = runtime;
-            retained.deinitStartPreparation(self.allocator);
-            self.core_state.commitTerminalStart(
-                pending.identity.terminal_id,
-                pending.geometry,
-            );
-            preparation.* = .consumed;
-            return .{
-                .geometry = pending.geometry,
-                .identity = pending.identity,
-                .transition = .started,
-            };
+            return commitStartBuild(self, &build, runtime) catch unreachable;
         },
     }
 }

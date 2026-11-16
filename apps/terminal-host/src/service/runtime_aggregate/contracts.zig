@@ -13,6 +13,8 @@ const terminal_geometry = model.geometry;
 const terminal_input = @import("terminal-input");
 const terminal_launch = terminal_engine.launch;
 const terminal_runtime = terminal_engine.runtime;
+const pty_process = @import("terminal-host-platform").process;
+const RetainedTerminal = @import("../retained_terminal.zig").RetainedTerminal;
 
 pub const TerminalIdentity = struct {
     creation_id: core_module.CreationId,
@@ -161,6 +163,43 @@ pub const CreatePreparation = union(enum) {
             .replayed => false,
             .consumed => unreachable,
         };
+    }
+};
+
+/// An admitted creation whose process and engine are built off the dispatch thread. It owns the
+/// admitted launch and the retained-terminal allocation that its commit fills; the registry
+/// reservation made at prepare stays valid because this is the only creation in progress.
+pub const CreateBuild = struct {
+    geometry: terminal_geometry.Geometry,
+    pending: PendingCreate,
+    retained: *RetainedTerminal,
+
+    pub fn identity(self: *const CreateBuild) TerminalIdentity {
+        return .{ .creation_id = self.pending.creation_id, .terminal_id = self.pending.terminal_id };
+    }
+
+    pub fn processLaunch(self: *const CreateBuild) pty_process.Launch {
+        return self.pending.runtime_preparation.processLaunch(self.geometry);
+    }
+
+    pub fn runtimeOptions(self: *CreateBuild) terminal_runtime.Options {
+        return self.pending.runtime_preparation.runtimeOptions(self.geometry);
+    }
+};
+
+/// An admitted start whose process and engine are built off the dispatch thread. The awaiting
+/// terminal keeps owning the launch the build reads; every request naming it waits until the
+/// build ends, so nothing changes or frees that launch meanwhile.
+pub const StartBuild = struct {
+    pending: PendingStart,
+    retained: *RetainedTerminal,
+
+    pub fn processLaunch(self: *const StartBuild) pty_process.Launch {
+        return self.retained.start_preparation.?.processLaunch(self.pending.geometry);
+    }
+
+    pub fn runtimeOptions(self: *StartBuild) terminal_runtime.Options {
+        return self.retained.start_preparation.?.runtimeOptions(self.pending.geometry);
     }
 };
 

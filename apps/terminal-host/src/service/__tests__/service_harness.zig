@@ -558,6 +558,7 @@ pub fn testRequestWithContract(
         &service.runtime_aggregate,
         service.trace_interactions,
         .open,
+        &service.creations,
     );
     try dispatcher.dispatch(
         request_contract,
@@ -570,6 +571,7 @@ pub fn testRequestWithContract(
         correlation_id,
         &outgoing,
     );
+    try settleCreation(service, connection, &outgoing);
     try expectCompositionInvariants(service, connection);
     return outgoing;
 }
@@ -693,6 +695,34 @@ pub fn testCreatePayloadWithConfiguration(
     arguments: []const []const u8,
     configuration: ?TerminalConfigurationWire,
 ) ![]u8 {
+    return createPayload(creation_id, executable, arguments, configuration, true);
+}
+
+/// A creation without geometry, which leaves the terminal awaiting its `StartTerminal`.
+pub fn testAwaitingCreatePayload(
+    creation_id: []const u8,
+    executable: []const u8,
+    arguments: []const []const u8,
+) ![]u8 {
+    return createPayload(creation_id, executable, arguments, null, false);
+}
+
+pub fn testStartPayload(terminal_id: core_module.TerminalId) ![]u8 {
+    var terminal_buffer: [32]u8 = undefined;
+    return std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"geometry\":{{\"cellPixelHeight\":16,\"cellPixelWidth\":8,\"columns\":80,\"rows\":24}},\"terminalId\":\"{s}\"}}",
+        .{identifierText(terminal_id, &terminal_buffer)},
+    );
+}
+
+fn createPayload(
+    creation_id: []const u8,
+    executable: []const u8,
+    arguments: []const []const u8,
+    configuration: ?TerminalConfigurationWire,
+    with_geometry: bool,
+) ![]u8 {
     const environment = [_]EnvironmentWire{};
     const features = [_]u16{22};
     const palette = [_]u32{0} ** 256;
@@ -703,14 +733,14 @@ pub fn testCreatePayloadWithConfiguration(
         .environmentOverlay = &.{},
         .launch = .{
             .arguments = arguments,
-            .cellPixelHeight = 16,
-            .cellPixelWidth = 8,
-            .columns = 80,
+            .cellPixelHeight = @as(?u16, if (with_geometry) 16 else null),
+            .cellPixelWidth = @as(?u16, if (with_geometry) 8 else null),
+            .columns = @as(?u16, if (with_geometry) 80 else null),
             .configuration = configuration,
             .currentDirectory = @as(?[]const u8, null),
             .environment = &environment,
             .executable = executable,
-            .rows = 24,
+            .rows = @as(?u16, if (with_geometry) 24 else null),
             .terminalProfile = .{
                 .colorScheme = "dark",
                 .defaultBackgroundRgb = 0,
@@ -898,6 +928,43 @@ pub fn testRequest(
     defer std.testing.allocator.free(record);
     var outgoing = try service.handle(connection, record);
     errdefer outgoing.deinit();
+    try settleCreation(service, connection, &outgoing);
     try expectCompositionInvariants(service, connection);
     return outgoing;
+}
+
+/// Waits for a creation the request handed to its creator thread and adds its reply to the
+/// request's own records, which is what the session writes once the creation settles.
+pub fn settleCreation(
+    service: *HostService,
+    connection: *const ConnectionState,
+    outgoing: *Outgoing,
+) !void {
+    const session: ?core_module.ConnectionId = switch (connection.*) {
+        .active => |active| active.connection_id,
+        .awaiting_hello, .closing => null,
+    };
+    var reply = subject.testing.creations.settleWhenBuilt(
+        &service.creations,
+        &service.runtime_aggregate,
+        session,
+    ) orelse return;
+    defer reply.deinit();
+    switch (reply) {
+        .records => |*records| for (records.records()) |record| try appendRecord(service, outgoing, record),
+        .failure => |*failure| try appendRecord(service, outgoing, failure.bytes()),
+    }
+}
+
+fn appendRecord(service: *HostService, outgoing: *Outgoing, record: []const u8) !void {
+    const envelope = try protocol.validateTransportEnvelope(record);
+    const epoch = service.runtime_aggregate.hostEpoch();
+    const delivery = if (envelope.response)
+        host_response.responseDelivery(envelope.correlation_id.?, epoch)
+    else
+        host_response.eventDelivery(epoch);
+    switch (try outgoing.append(envelope.kind, @enumFromInt(envelope.payload_encoding), envelope.payload, delivery)) {
+        .appended => {},
+        .full => return error.OutgoingCapacityInvariant,
+    }
 }

@@ -59,11 +59,13 @@ const expectExportChunkAcknowledgementFinished = harness.expectExportChunkAcknow
 test "interaction rejects an incompatible success codec before request parsing" {
     var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(false) catch unreachable;
+    var creations: service_subject.testing.CreationPipelineType = .{};
     var dispatcher = service_subject.testing.RequestDispatcherType.init(
         std.testing.allocator,
         &aggregate,
         false,
         .open,
+        &creations,
     );
     var outgoing = host_outgoing.Outgoing.init(std.testing.allocator);
     defer outgoing.deinit();

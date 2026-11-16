@@ -11,6 +11,7 @@ const host_retained_terminal = @import("../retained_terminal.zig");
 const contracts = @import("contracts.zig");
 
 const RetainedTerminal = host_retained_terminal.RetainedTerminal;
+const CreateBuild = contracts.CreateBuild;
 const CreateCommitError = contracts.CreateCommitError;
 const CreateOutcome = contracts.CreateOutcome;
 const CreatePreparation = contracts.CreatePreparation;
@@ -72,74 +73,121 @@ pub fn prepareCreateTerminal(
     } };
 }
 
+/// Commits a creation without geometry as an awaiting terminal; it builds nothing.
+pub fn commitAwaitingStartTerminal(
+    self: anytype,
+    preparation: *CreatePreparation,
+) error{RuntimeAllocationOutOfMemory}!TerminalIdentity {
+    const pending = &preparation.pending;
+    std.debug.assert(pending.initial_geometry == null);
+    const retained = self.allocator.create(RetainedTerminal) catch
+        return error.RuntimeAllocationOutOfMemory;
+    retained.* = .{
+        .runtime = null,
+        .session = undefined,
+        .start_preparation = pending.runtime_preparation,
+    };
+    self.core_state.commitAwaitingStartTerminalWithOverlay(
+        pending.connection_id,
+        pending.creation_id,
+        pending.terminal_id,
+        pending.launch_digest,
+        pending.environment_overlay_digest,
+        retained.start_preparation.?.configuration,
+        retained.start_preparation.?.themeDefaults(),
+        &retained.session,
+    );
+    const identity: TerminalIdentity = .{
+        .creation_id = pending.creation_id,
+        .terminal_id = pending.terminal_id,
+    };
+    preparation.* = .consumed;
+    return identity;
+}
+
+/// Takes a creation with geometry out of its preparation for a background build. On error the
+/// preparation is unchanged.
+pub fn beginCreateBuild(
+    self: anytype,
+    preparation: *CreatePreparation,
+) error{RuntimeAllocationOutOfMemory}!CreateBuild {
+    const pending = preparation.pending;
+    const retained = self.allocator.create(RetainedTerminal) catch
+        return error.RuntimeAllocationOutOfMemory;
+    preparation.* = .consumed;
+    return .{ .geometry = pending.initial_geometry.?, .pending = pending, .retained = retained };
+}
+
+/// Commits a creation whose build returned `runtime`. Every request that could change the
+/// admission facts checked at prepare waited for this creation, so the commit stays infallible;
+/// the requester may have disconnected meanwhile, which the retained terminal outlives.
+pub fn commitCreateBuild(
+    self: anytype,
+    build: *CreateBuild,
+    runtime: *terminal_runtime.TerminalRuntime,
+) TerminalIdentity {
+    const pending = &build.pending;
+    build.retained.* = .{
+        .runtime = runtime,
+        .session = undefined,
+        .start_preparation = null,
+    };
+    self.core_state.commitRunningTerminalWithOverlay(
+        pending.connection_id,
+        pending.creation_id,
+        pending.terminal_id,
+        pending.launch_digest,
+        pending.environment_overlay_digest,
+        build.geometry.columns,
+        build.geometry.rows,
+        build.geometry.cell_pixel_width,
+        build.geometry.cell_pixel_height,
+        pending.runtime_preparation.configuration,
+        pending.runtime_preparation.themeDefaults(),
+        &build.retained.session,
+    );
+    pending.runtime_preparation.deinit(self.allocator);
+    return build.identity();
+}
+
+/// Releases what a failed or cancelled creation build owns. Its runtime, if the build made one,
+/// is the caller's to shut down first.
+pub fn abandonCreateBuild(self: anytype, build: *CreateBuild) void {
+    self.allocator.destroy(build.retained);
+    build.pending.runtime_preparation.deinit(self.allocator);
+    build.* = undefined;
+}
+
+/// The synchronous composition of the creation stages that aggregate tests drive directly. A
+/// failed build leaves the preparation pending, as it was.
 pub fn commitPreparedTerminal(
     self: anytype,
     preparation: *CreatePreparation,
 ) CreateCommitError!CreateOutcome {
+    if (comptime !target_builtin.is_test) {
+        @compileError("synchronous creation is available only to service tests");
+    }
     switch (preparation.*) {
         .replayed => |identity| return .{ .replayed = identity },
         .consumed => unreachable,
-        .pending => |*pending| {
-            const retained = self.allocator.create(RetainedTerminal) catch
-                return error.RuntimeAllocationOutOfMemory;
-            errdefer self.allocator.destroy(retained);
-            const identity: TerminalIdentity = .{
-                .creation_id = pending.creation_id,
-                .terminal_id = pending.terminal_id,
-            };
-            if (pending.initial_geometry) |geometry| {
-                const runtime = terminal_runtime.TerminalRuntime.createWithOptions(
-                    self.allocator,
-                    pending.runtime_preparation.processLaunch(geometry),
-                    pending.runtime_preparation.runtimeOptions(geometry),
-                ) catch |err| {
-                    return if (err == error.OutOfMemory)
-                        error.RuntimeAllocationOutOfMemory
-                    else
-                        error.RuntimeSpawnFailed;
-                };
-                retained.* = .{
-                    .runtime = runtime,
-                    .session = undefined,
-                    .start_preparation = null,
-                };
-                // All domain capacity and the complete engine exist before
-                // this infallible commit. The caller has already encoded and
-                // reserved the records that make the commit observable.
-                self.core_state.commitRunningTerminalWithOverlay(
-                    pending.connection_id,
-                    pending.creation_id,
-                    pending.terminal_id,
-                    pending.launch_digest,
-                    pending.environment_overlay_digest,
-                    geometry.columns,
-                    geometry.rows,
-                    geometry.cell_pixel_width,
-                    geometry.cell_pixel_height,
-                    pending.runtime_preparation.configuration,
-                    pending.runtime_preparation.themeDefaults(),
-                    &retained.session,
-                );
-                pending.runtime_preparation.deinit(self.allocator);
-            } else {
-                retained.* = .{
-                    .runtime = null,
-                    .session = undefined,
-                    .start_preparation = pending.runtime_preparation,
-                };
-                self.core_state.commitAwaitingStartTerminalWithOverlay(
-                    pending.connection_id,
-                    pending.creation_id,
-                    pending.terminal_id,
-                    pending.launch_digest,
-                    pending.environment_overlay_digest,
-                    retained.start_preparation.?.configuration,
-                    retained.start_preparation.?.themeDefaults(),
-                    &retained.session,
-                );
+        .pending => |pending| {
+            if (pending.initial_geometry == null) {
+                return .{ .created = try commitAwaitingStartTerminal(self, preparation) };
             }
-            preparation.* = .consumed;
-            return .{ .created = identity };
+            var build = try beginCreateBuild(self, preparation);
+            const runtime = terminal_runtime.TerminalRuntime.createWithOptions(
+                self.allocator,
+                build.processLaunch(),
+                build.runtimeOptions(),
+            ) catch |err| {
+                self.allocator.destroy(build.retained);
+                preparation.* = .{ .pending = build.pending };
+                return if (err == error.OutOfMemory)
+                    error.RuntimeAllocationOutOfMemory
+                else
+                    error.RuntimeSpawnFailed;
+            };
+            return .{ .created = commitCreateBuild(self, &build, runtime) };
         },
     }
 }

@@ -422,7 +422,8 @@ revisions, and delivery sequences are distinct types. Conversion at a wire bound
 Zero or a missing value is not silently reinterpreted as another state.
 
 The production `RetainedTerminal` has no unowned or empty runtime variant. An immediate creation
-constructs its native engine before committing the embedded session. A deferred creation instead
+constructs its native engine, through the [creation pipeline](#terminal-creation-pipeline), before
+committing the embedded session. A deferred creation instead
 deep-copies and owns its complete prepared launch without constructing a child, PTY, Ghostty state,
 or geometry, then commits the embedded `awaiting_start` session, launch-baseline theme state, and
 both identity indexes in one allocation-free step. A theme transaction admitted before start
@@ -443,6 +444,51 @@ absent creation with an empty overlay simply creates a runtime with no overlay.
 Deterministic Core tests allocate pure
 standalone sessions through a test-build-only storage harness; they do not add a model runtime
 variant to `TerminalSession`, production code, or wire-visible state.
+
+### Terminal creation pipeline
+
+A creation that spawns, a `CreateTerminal` with geometry or a `StartTerminal`, builds its child,
+PTY, and Ghostty state on a `terminal-creation` thread, so a slow spawn never holds the dispatch
+thread. It passes three stages:
+
+1. **Admit**, on the dispatch thread: the request is prepared and checked as before, the launch it
+   was admitted with is taken from its preparation, and its success response and `TerminalStarted`
+   are encoded.
+2. **Build**, on the creator thread, which holds no Host lock: it constructs the runtime, and with
+   it the child. On POSIX nothing the creator holds is held across the fork, and the spawn path
+   itself is unchanged.
+3. **Commit**, on the dispatch thread once the build returns: the runtime and the session commit in
+   one allocation-free step as before, and the encoded records go to the requester. A failed build
+   answers `spawn-failed` or `resource-exhausted`, both retryable, and leaves a start's
+   `awaiting_start` terminal and prepared launch as they were.
+
+One creation builds at a time, which keeps the capacity checked at admission valid. While it
+builds, the dispatch thread keeps serving control lanes, maintenance, events, and every request
+that does not depend on it. A request that depends on it is held in arrival order and dispatched
+once nothing before it holds it:
+
+- a request that names the terminal being created or started by `terminalId`: start, graceful or
+  force termination, disposal, attach, configuration, and theme;
+- another creation or start, output staging, and `SetTerminalDefaults`, each of which could change
+  what a creation is admitted with.
+
+Attachment-scoped requests cannot name it, because no attachment admits a terminal that is not yet
+running. A held request is decided by the terminal's state when the creation ends, through the same
+checks every request meets, so no request acts on a half-built terminal, and a later state that
+refuses some requests until it is claimed needs no change here. At most 16 requests are held;
+while that many wait, the session reads no further request until the creation settles.
+
+A requester that disconnects does not cancel its creation: the build finishes and commits
+unanswered, as a start on the dispatch thread used to complete after its requester left, so the
+Worker's retry finds the terminal through the creation replay. The requests the session held are
+dropped unanswered, like any request of a closed session. Host teardown cancels a creation in
+progress: it waits for the build to return, then releases only what that creation acquired, which
+is the runtime its build made, contained before it is freed, and, for a new terminal, the admitted
+launch and retained record; a start's awaiting terminal stays with the registry. A cancelled
+runtime whose process tree stays uncontained after about a second of retries is logged and
+retained, never freed under its workers. An import that adopts a terminal instead of spawning one
+joins at the build stage, keeps this commit and cancellation contract, and releases only what the
+import acquired.
 
 ### Terminal lifecycle
 
@@ -1067,6 +1113,10 @@ timeout, or transient system failure ends it (`TH-027`).
   event-delivery error.
 - **Slow dispatch turns**: a Worker request or an event-delivery pass that holds the dispatch thread
   longer than 250 ms is recorded with its message kind, at most once per kind per minute.
+- **Slow terminal starts**: a spawn builds on the creator thread of the
+  [creation pipeline](#terminal-creation-pipeline), and its answer is written when it settles, so
+  other terminals' events and requests keep flowing meanwhile. A Worker that waits for each answer
+  before sending its next request still waits behind the start on its own side.
 
 ### Fatal record and diagnostic log
 
@@ -1105,7 +1155,7 @@ not verified. `reason` is the hyphenated class: one per safety
 check, one per exception name, or `serving-failed`. `error` is a source-defined error name for
 `unwrap-error` and `exit` records, and `null` otherwise or when the name is not a plain identifier.
 `thread` is `dispatch`, `control-lane`, `terminal-output`, `terminal-input`, `terminal-wait`,
-`terminal-animation`, `terminal-signals`, or `other`. `module_offset` is the faulting return or instruction address as
+`terminal-animation`, `terminal-signals`, `terminal-creation`, or `other`. `module_offset` is the faulting return or instruction address as
 an offset into the Host executable image, or `null` outside it. The first fault claims the record;
 a fault on another thread waits up to 2 s for it and then exits. A panic or exception exits with
 code `16`; an `exit` record keeps the Host's own failure code, and a fault in the teardown that
@@ -1834,7 +1884,8 @@ never undoes another.
 with the non-retryable `host-draining`; a replay of a retained creation, start, input, attachment,
 and disposal continue. An offer to a `draining` or `stopping` Host is rejected with `stopping`,
 after the `capacity` check, and control requests are still answered. "Last retained terminal" means
-an empty registry: a settled terminal the broker has not disposed keeps a draining Host running.
+an empty registry: a settled terminal the broker has not disposed keeps a draining Host running, and
+a creation admitted before `drain` counts as a terminal until it settles.
 
 Only the dispatch thread changes the state. Without a broker session it applies a request on the
 control connection itself. During one, a control lane posts the request and answers once the facts

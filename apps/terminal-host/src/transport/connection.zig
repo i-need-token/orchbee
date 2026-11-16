@@ -144,6 +144,22 @@ fn serveSession(
             continue;
         }
 
+        // A creation that finished building answers first, then the requests it held run in
+        // arrival order against the state it left.
+        if (service.settleCreation(&connection)) |settled| {
+            var reply = settled;
+            defer reply.deinit();
+            switch (reply) {
+                .records => |*records| try writeSession(transport, records.records(), service, lanes),
+                .failure => |*failure| try writeSession(transport, &.{failure.bytes()}, service, lanes),
+            }
+        }
+        while (service.takeReleasedRequest()) |record| {
+            defer service.allocator.free(record);
+            try serveRequest(transport, service, &connection, record, .released, lanes);
+            if (connection.shouldClose()) return;
+        }
+
         var events = events: {
             var turn = TurnClock.start();
             defer turn.finish(.events);
@@ -152,19 +168,17 @@ fn serveSession(
         defer events.deinit();
         try writeSession(transport, events.records(), service, lanes);
 
+        if (!service.acceptsRequests()) {
+            // The held-request limit is reached: read nothing more until the creation they wait
+            // for settles, and keep serving events meanwhile.
+            service.awaitCreation(poll_interval_ms * std.time.ns_per_ms);
+            continue;
+        }
         if (!try transport.waitReadable()) continue;
         switch (try readSessionRecord(service.allocator, transport, service, lanes)) {
             .record => |record| {
                 defer service.allocator.free(record);
-                var turn = TurnClock.start();
-                const handled = service.handle(&connection, record);
-                turn.finish(.{ .request = host_service.requestKind(record) orelse 0 });
-                var outgoing = handled catch |err| {
-                    try answerFailedRequest(transport, service, &connection, record, err, lanes);
-                    continue;
-                };
-                defer outgoing.deinit();
-                try writeSession(transport, outgoing.records(), service, lanes);
+                try serveRequest(transport, service, &connection, record, .arrived, lanes);
             },
             .discarded => |discarded| try answerFailedRequest(
                 transport,
@@ -177,6 +191,28 @@ fn serveSession(
         }
         if (connection.shouldClose()) return;
     }
+}
+
+/// Handles one request of an active session and writes what it produced. An arrived request may
+/// be held behind a creation, producing nothing yet; a released one was held and runs now.
+fn serveRequest(
+    transport: anytype,
+    service: *host_service.HostService,
+    connection: *host_service.ConnectionState,
+    record: []const u8,
+    origin: enum { arrived, released },
+    lanes: anytype,
+) !void {
+    var turn = TurnClock.start();
+    const handled = switch (origin) {
+        .arrived => service.handle(connection, record),
+        .released => service.handleReleased(connection, record),
+    };
+    turn.finish(.{ .request = host_service.requestKind(record) orelse 0 });
+    var outgoing = handled catch |err|
+        return answerFailedRequest(transport, service, connection, record, err, lanes);
+    defer outgoing.deinit();
+    try writeSession(transport, outgoing.records(), service, lanes);
 }
 
 /// Answers one request that could not be carried out on its own correlation id, so the session

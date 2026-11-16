@@ -33,6 +33,7 @@ pub const ThreadKind = enum {
     @"terminal-wait",
     @"terminal-animation",
     @"terminal-signals",
+    @"terminal-creation",
     other,
 };
 

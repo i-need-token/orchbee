@@ -4,6 +4,7 @@ const target_builtin = @import("builtin");
 
 const candidate_admission = @import("candidate_admission.zig");
 const control_encode = @import("terminal-host-control").encode;
+const creation_pipeline = @import("creation_pipeline.zig");
 const diagnostic_log = @import("terminal-host-platform").diagnostic_log;
 const host_connection = @import("connection_workflow.zig");
 const host_event_delivery = @import("event_delivery.zig");
@@ -36,6 +37,7 @@ const ServiceLifecycle = enum {
 pub const HostService = struct {
     allocator: std.mem.Allocator,
     connection_workflow: host_connection.Workflow = .{},
+    creations: creation_pipeline.Pipeline = .{},
     event_delivery: host_event_delivery.Workflow = .{},
     lifecycle: ServiceLifecycle = .running,
     /// The `drain` and `exit` lifecycle that queries report; only the dispatch thread changes it.
@@ -71,6 +73,8 @@ pub const HostService = struct {
 
     pub fn deinitChecked(self: *HostService) !void {
         const first_attempt = self.beginShutdown();
+        // Teardown cancels a creation in progress before any terminal record it borrows goes.
+        self.creations.shutdown(&self.runtime_aggregate);
         try self.runtime_aggregate.deinitChecked(first_attempt);
         self.* = undefined;
     }
@@ -103,6 +107,10 @@ pub const HostService = struct {
     }
 
     pub fn disconnect(self: *HostService, connection: *ConnectionState) void {
+        switch (connection.*) {
+            .active => |active| self.creations.detach(self.allocator, active.connection_id),
+            .awaiting_hello, .closing => {},
+        }
         self.connection_workflow.disconnect(&self.runtime_aggregate, connection);
     }
 
@@ -130,21 +138,57 @@ pub const HostService = struct {
 
     /// Whether a control request ends the Host now: `exit`, or `drain` once no terminal is
     /// retained. Teardown then ends every terminal the Host still retains.
+    /// A creation admitted before a `drain` counts as a terminal until it settles.
     pub fn controlExitDue(self: *const HostService) bool {
-        return host_lifecycle.endsNow(self.process_state, self.runtime_aggregate.terminalCount());
+        const creating: usize = @intFromBool(self.creations.creating());
+        return host_lifecycle.endsNow(self.process_state, self.runtime_aggregate.terminalCount() + creating);
     }
 
     pub fn canStopWhenIdle(self: *const HostService) bool {
-        return self.runtime_aggregate.isEmpty();
+        return self.runtime_aggregate.isEmpty() and !self.creations.creating();
     }
 
     /// Advances engine-owned state while no broker is connected. Outcome
     /// delivery remains pending until a broker handoff; safety cleanup and
-    /// input-credit settlement do not depend on broker availability.
+    /// input-credit settlement do not depend on broker availability. A
+    /// creation whose requester left settles here, unanswered.
     pub fn maintain(self: *HostService) void {
         if (self.lifecycle == .shutting_down) return;
+        if (self.creations.settle(&self.runtime_aggregate, null)) |unexpected| {
+            var reply = unexpected;
+            reply.deinit();
+        }
         self.runtime_aggregate.synchronizeRuntimes();
         diagnostic_log.flush();
+    }
+
+    /// The reply of a creation that finished building, for the session `connection` serves; a
+    /// creation whose requester left settles unanswered.
+    pub fn settleCreation(
+        self: *HostService,
+        connection: *const ConnectionState,
+    ) ?creation_pipeline.Reply {
+        if (self.lifecycle == .shutting_down) return null;
+        return self.creations.settle(&self.runtime_aggregate, switch (connection.*) {
+            .active => |active| active.connection_id,
+            .awaiting_hello, .closing => null,
+        });
+    }
+
+    /// The next request a settled creation no longer holds, for `handleReleased`; the caller
+    /// frees it with this service's allocator.
+    pub fn takeReleasedRequest(self: *HostService) ?[]u8 {
+        return self.creations.takeReleased();
+    }
+
+    /// Whether the session may read another request, or must first let a creation settle.
+    pub fn acceptsRequests(self: *const HostService) bool {
+        return self.creations.acceptsRequests();
+    }
+
+    /// Waits up to `timeout_ns` for a creation's build to return.
+    pub fn awaitCreation(self: *HostService, timeout_ns: u64) void {
+        self.creations.awaitBuild(timeout_ns);
     }
 
     pub fn pollEvents(self: *HostService, connection: *const ConnectionState) !Outgoing {
@@ -156,17 +200,40 @@ pub const HostService = struct {
         );
     }
 
+    /// Handles one record. A request of an active session that depends on a creation still in
+    /// progress is held, producing nothing until `takeReleasedRequest` returns it.
     pub fn handle(
         self: *HostService,
         connection: *ConnectionState,
         record: []const u8,
     ) !Outgoing {
         if (self.lifecycle == .shutting_down) return error.ServiceShuttingDown;
+        switch (connection.*) {
+            .active => if (try self.creations.holdIfDependent(self.allocator, record)) {
+                return Outgoing.init(self.allocator);
+            },
+            .awaiting_hello, .closing => {},
+        }
+        return self.dispatch(connection, record);
+    }
+
+    /// Handles a request a creation held, without holding it again.
+    pub fn handleReleased(
+        self: *HostService,
+        connection: *ConnectionState,
+        record: []const u8,
+    ) !Outgoing {
+        if (self.lifecycle == .shutting_down) return error.ServiceShuttingDown;
+        return self.dispatch(connection, record);
+    }
+
+    fn dispatch(self: *HostService, connection: *ConnectionState, record: []const u8) !Outgoing {
         return self.connection_workflow.handle(
             self.allocator,
             &self.runtime_aggregate,
             self.trace_interactions,
             host_lifecycle.terminalAdmission(self.process_state),
+            &self.creations,
             connection,
             record,
         );
@@ -233,6 +300,8 @@ fn shuttingDownForTesting(service: *const HostService) bool {
 
 pub const testing = if (target_builtin.is_test) struct {
     pub const beginShutdownFn = HostService.beginShutdown;
+    pub const creations = creation_pipeline.testing;
+    pub const CreationPipelineType = creation_pipeline.Pipeline;
     pub const InputFailureType = InputFailure;
     pub const OutcomePublicationHandoffType = host_event_delivery.OutcomePublicationHandoff;
     pub const RequestDispatcherType = host_request_dispatch.Dispatcher;

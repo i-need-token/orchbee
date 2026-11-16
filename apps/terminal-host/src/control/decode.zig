@@ -31,6 +31,7 @@ pub const decodeStartTerminal = terminal.decodeStartTerminal;
 pub const decodeSetTerminalDefaults = terminal.decodeSetTerminalDefaults;
 pub const decodeUpdateTerminalConfiguration = terminal.decodeUpdateTerminalConfiguration;
 pub const decodeTerminalTarget = terminal.decodeTerminalTarget;
+pub const namedTerminal = terminal.namedTerminal;
 pub const decodeAttachTerminal = terminal.decodeAttachTerminal;
 pub const decodeDetachTerminal = terminal.decodeDetachTerminal;
 pub const ReadProcessInfo = terminal.ReadProcessInfo;

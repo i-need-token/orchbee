@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const core_module = @import("terminal-host-core").state;
+const creation_pipeline = @import("creation_pipeline.zig");
 const host_history_requests = @import("history_requests.zig");
 const host_input_requests = @import("input_requests.zig");
 const host_lifecycle = @import("host_lifecycle.zig");
@@ -35,11 +36,13 @@ pub const Dispatcher = struct {
         runtime_aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
         trace_interactions: bool,
         terminal_admission: host_lifecycle.TerminalAdmission,
+        creations: *creation_pipeline.Pipeline,
     ) Dispatcher {
         return .{ .context = .{
             .allocator = allocator,
             .runtime_aggregate = runtime_aggregate,
             .terminal_admission = terminal_admission,
+            .creations = creations,
         }, .trace_interactions = trace_interactions };
     }
 
