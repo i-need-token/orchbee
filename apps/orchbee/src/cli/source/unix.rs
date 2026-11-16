@@ -20,6 +20,11 @@
 //! policy, not a fallback), and the restore is owed to the common emit
 //! finalizer as a noncloneable token whenever a captured signal selects
 //! cancellation.
+//!
+//! A child process inherits the blocked set: the standard library's spawn
+//! does not clear the signal mask. A child started while an owner is armed
+//! must therefore clear its own mask, as the macOS retained-child adapter
+//! does, or it ignores the interrupts the owner blocked.
 
 use std::{
     io::{self, IsTerminal, Read},

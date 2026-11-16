@@ -1,7 +1,9 @@
 //! The reviewed macOS adapter that starts a retained child through `posix_spawn` with
 //! `POSIX_SPAWN_CLOEXEC_DEFAULT`, so the child receives only the standard streams its file actions
-//! open, and that reaps the child. Like the standard library's spawn, it also clears the child's
-//! signal mask and resets `SIGPIPE` to its default action. macOS marks a new socket or pipe close-on-exec only after
+//! open, and that reaps the child. It also clears the child's signal mask and resets `SIGPIPE` to
+//! its default action. The standard library's spawn does not clear the mask (checked on macOS
+//! with Rust 1.97 through both its `posix_spawn` and its fork path), so a child it starts while a
+//! command's signal owner is armed keeps that owner's blocked signals. macOS marks a new socket or pipe close-on-exec only after
 //! creating it, so without that flag a descriptor another thread is creating at that moment would
 //! reach the child and outlive this process's own use of it. [`crate::retained_child`] is the only
 //! caller; the crate README's safety contract lists every invariant the unsafe blocks below rely on.
