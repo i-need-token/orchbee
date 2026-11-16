@@ -266,7 +266,8 @@ fn carrier_outcome(error: WorkerRequestError) -> Outcome {
         }
         WorkerRequestError::Unavailable
         | WorkerRequestError::InvalidRequest(_)
-        | WorkerRequestError::NotDelivered(_) => {
+        | WorkerRequestError::NotDelivered(_)
+        | WorkerRequestError::Declined => {
             unavailable(Unavailable::WorkerUnavailable, Cleanup::NotNeeded)
         }
         WorkerRequestError::PostDeliveryOutcomeUnknown(_) => Outcome::OutcomeUnknown {

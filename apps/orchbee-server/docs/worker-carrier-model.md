@@ -104,11 +104,15 @@ a frame, or a frame that stops arriving, retire the carrier.
 
 A failed exchange fails only its own request unless the wire itself is lost. A reply that misses
 its window, a whole frame with invalid content, a wrong kind or direction, and an echo mismatch
-complete that request with `PostDeliveryOutcomeUnknown`. The carrier retires only when the frame
+complete that request with `PostDeliveryOutcomeUnknown`. A Worker
+[decline](../../../crates/capability-node-protocol/README.md#declined-requests) that echoes the
+request completes it with `Declined` instead, a known answer: the Worker did nothing, and retrying
+never helps. A decline echoing another request is an echo mismatch. The carrier retires only when the frame
 boundary is lost (a bad header or length, or a started frame unfinished by the later of the
 response window and its I/O timeout after the first byte), the transport closes or fails, a request
 write is incomplete, an in-flight `Required` completion cannot be delivered, or a written `Handoff`
-or `Shutdown` fails, since both belong to the generation. The owner remembers the last eight
+or `Shutdown` fails, declined included, since both belong to the generation and every platform that
+sends them serves them. The owner remembers the last eight
 requests that failed while the wire kept serving; a later reply that echoes one is dropped and
 recorded, whether it arrives during another exchange or while idle, so it never stands in for
 another request's result.

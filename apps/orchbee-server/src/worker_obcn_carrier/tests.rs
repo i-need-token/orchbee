@@ -1230,6 +1230,70 @@ fn a_whole_invalid_frame_fails_only_its_request() -> TestResult {
     Ok(())
 }
 
+/// A Worker that does not serve a request declines it: that request alone completes as declined,
+/// a decline echoing another request is a mismatched reply, and the wire keeps serving.
+#[test]
+fn a_decline_completes_only_the_request_it_echoes() -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let first = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let second = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let third = launch_request(authorization(3, 3, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let (worker_first, worker_third) = (first.clone(), third.clone());
+    let worker_thread = thread::spawn(move || -> TestResult {
+        let declined = |request: &CapabilityNodeMessage| {
+            CapabilityNodeMessage::WorkerRequestDeclined(
+                orchbee_capability_node_protocol::WorkerRequestDeclined::of(request)
+                    .expect("a Server request has a decline"),
+            )
+        };
+        let request = read_message(&mut worker)?;
+        write_message(&mut worker, &declined(&request))?;
+        let _second = read_message(&mut worker)?;
+        write_message(
+            &mut worker,
+            &declined(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
+                worker_first.clone(),
+            )),
+        )?;
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(worker_third.clone())
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&worker_third)),
+        )?;
+        Ok(())
+    });
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Launch(first)),
+        Err(WorkerRequestError::Declined)
+    );
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Launch(second)),
+        Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
+            WorkerResponseFailure::MismatchedCorrelation
+        ))
+    );
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Launch(third.clone()))?,
+        WorkerOperationResult::Launch(launch_result(&third))
+    );
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
 #[test]
 fn registered_owner_panic_preserves_delivery_drains_and_allows_same_worker_reconnect() -> TestResult
 {

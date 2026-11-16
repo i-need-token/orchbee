@@ -34,11 +34,13 @@ pub use plugin_job::{
     PluginJobAction, PluginJobOutcome, PluginJobRefusal, PluginJobRequest, PluginJobResult,
 };
 mod worker_handoff;
+mod worker_request_declined;
 mod worker_shutdown;
 pub use worker_handoff::{
     WorkerHandoffAction, WorkerHandoffOutcome, WorkerHandoffPeer, WorkerHandoffRefusal,
     WorkerHandoffRequest, WorkerHandoffResult, WorkerHandoffTarget,
 };
+pub use worker_request_declined::{DeclinedRequestKind, WorkerRequestDeclined};
 pub use worker_shutdown::{
     ShutdownBudget, ShutdownFailure, ShutdownRefusal, ShutdownStage, ShutdownTerminals,
     WorkerShutdownOutcome, WorkerShutdownRequest, WorkerShutdownResult,

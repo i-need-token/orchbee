@@ -296,6 +296,9 @@ pub(crate) enum WorkerRequestError {
     InvalidRequest(ProtocolError),
     NotDelivered(WorkerTransportFailure),
     PostDeliveryOutcomeUnknown(WorkerResponseFailure),
+    /// The Worker answered that it does not serve this request, on its platform or before its
+    /// first Launch, and did nothing for it; retrying never helps.
+    Declined,
 }
 
 impl fmt::Display for WorkerRequestError {
@@ -315,6 +318,7 @@ impl fmt::Display for WorkerRequestError {
                     "Worker request completed its carrier write, but its operation outcome is unknown: {error}"
                 )
             }
+            Self::Declined => formatter.write_str("Worker does not serve this request"),
         }
     }
 }
@@ -1581,22 +1585,42 @@ impl WorkerWireOwner {
                         continue;
                     }
                     let consumed = key.answered_by(&message);
+                    // A decline that echoes this request is a known answer: the Worker did
+                    // nothing for it. One that echoes another request is a mismatched reply.
+                    if matches!(message, CapabilityNodeMessage::WorkerRequestDeclined(_)) {
+                        let response = if consumed {
+                            Err(WorkerRequestError::Declined)
+                        } else {
+                            Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
+                                WorkerResponseFailure::MismatchedCorrelation,
+                            ))
+                        };
+                        break (response, consumed, None);
+                    }
                     let pending = self.in_flight.as_ref().unwrap_or_else(|| {
                         unreachable!("result validation requires one in-flight request")
                     });
-                    break (validate_response(&pending.request, message), consumed, None);
+                    let response = validate_response(&pending.request, message)
+                        .map_err(WorkerRequestError::PostDeliveryOutcomeUnknown);
+                    break (response, consumed, None);
                 }
                 Ok(Err(error)) => {
-                    break (Err(WorkerResponseFailure::InvalidFrame(error)), false, None);
+                    break (
+                        unknown(WorkerResponseFailure::InvalidFrame(error)),
+                        false,
+                        None,
+                    );
                 }
-                Err(FrameEnd::Silent) => break (Err(WorkerResponseFailure::TimedOut), false, None),
+                Err(FrameEnd::Silent) => {
+                    break (unknown(WorkerResponseFailure::TimedOut), false, None);
+                }
                 Err(FrameEnd::Closed) => {
                     let exit = Some(WorkerWireExit::RequestFailed);
-                    break (Err(WorkerResponseFailure::Disconnected), false, exit);
+                    break (unknown(WorkerResponseFailure::Disconnected), false, exit);
                 }
                 Err(FrameEnd::Io(kind)) => {
                     let exit = Some(WorkerWireExit::RequestFailed);
-                    break (Err(WorkerResponseFailure::Io(kind)), false, exit);
+                    break (unknown(WorkerResponseFailure::Io(kind)), false, exit);
                 }
                 Err(FrameEnd::Broken(framing)) => {
                     let failure = match framing {
@@ -1604,7 +1628,7 @@ impl WorkerWireOwner {
                         FramingBreak::Incomplete => WorkerResponseFailure::TimedOut,
                     };
                     break (
-                        Err(failure),
+                        unknown(failure),
                         false,
                         Some(WorkerWireExit::BrokenFraming(framing)),
                     );
@@ -1612,10 +1636,15 @@ impl WorkerWireOwner {
             }
         };
         // Only silence leaves the reply owed; any frame the Worker sent was its answer.
-        let unanswered = exit.is_none() && matches!(response, Err(WorkerResponseFailure::TimedOut));
+        let unanswered = exit.is_none()
+            && matches!(
+                response,
+                Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
+                    WorkerResponseFailure::TimedOut
+                ))
+            );
         let failed = response.is_err();
-        let delivered = self
-            .complete_in_flight(response.map_err(WorkerRequestError::PostDeliveryOutcomeUnknown));
+        let delivered = self.complete_in_flight(response);
         if let Some(exit) = exit {
             return Err(exit);
         }
@@ -2061,11 +2090,20 @@ fn deliver_note(
     }
 }
 
+/// A completed write whose result never arrived intact.
+fn unknown(failure: WorkerResponseFailure) -> Result<WorkerOperationResult, WorkerRequestError> {
+    Err(WorkerRequestError::PostDeliveryOutcomeUnknown(failure))
+}
+
 fn validate_response(
     request: &WorkerOperationRequest,
     response: CapabilityNodeMessage,
 ) -> Result<WorkerOperationResult, WorkerResponseFailure> {
     match (request, response) {
+        // The exchange completes a decline before validation; one reaching here answers nothing.
+        (_, CapabilityNodeMessage::WorkerRequestDeclined(_)) => {
+            Err(WorkerResponseFailure::WrongResultKind)
+        }
         #[cfg(any(windows, test))]
         (
             WorkerOperationRequest::Handoff(expected),

@@ -12,7 +12,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use orchbee_capability_node_protocol::{CapabilityNodeMessage, HostEpoch, LaunchPreferences};
+use orchbee_capability_node_protocol::{
+    CapabilityNodeMessage, HostEpoch, LaunchPreferences, WorkerRequestDeclined,
+};
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::CorrelationId;
 
@@ -478,51 +480,10 @@ fn serve(
                 host.pacing.set_site(Site::Start);
                 kernel.admit_start(start, now, epoch)?
             }
-            CapabilityNodeMessage::WorkerHandoffRequest(_)
-            | CapabilityNodeMessage::WorkerHandoffResult(_)
-            | CapabilityNodeMessage::WorkerHandoffHello(_)
-            | CapabilityNodeMessage::WorkerHandoffReady(_)
-            | CapabilityNodeMessage::WorkerHandoffOwned(_)
-            | CapabilityNodeMessage::WorkerShutdownRequest(_)
-            | CapabilityNodeMessage::WorkerShutdownResult(_)
-            | CapabilityNodeMessage::AgentDrainRequest(_)
-            | CapabilityNodeMessage::AgentDrainReply(_)
-            | CapabilityNodeMessage::TerminalTitlesRequest(_)
-            | CapabilityNodeMessage::TerminalTitleChangesRequest(_)
-            | CapabilityNodeMessage::TerminalTitlesResult(_)
-            | CapabilityNodeMessage::TerminalTitlesChanged(_)
-            | CapabilityNodeMessage::TerminalTitleChangesResult(_)
-            | CapabilityNodeMessage::TerminalControlRequest(_)
-            | CapabilityNodeMessage::TerminalCwdValidationRequest(_)
-            | CapabilityNodeMessage::TerminalCwdValidationResult(_)
-            | CapabilityNodeMessage::TerminalLifecycleRequest(_)
-            | CapabilityNodeMessage::TerminalLifecycleResult(_)
-            | CapabilityNodeMessage::TerminalControlResult(_)
-            | CapabilityNodeMessage::TerminalLaunchResult(_)
-            | CapabilityNodeMessage::TerminalSendRequest(_)
-            | CapabilityNodeMessage::TerminalSendResult(_)
-            | CapabilityNodeMessage::TerminalStartResult(_)
-            | CapabilityNodeMessage::TerminalGraphicsDecodeRequest(_)
-            | CapabilityNodeMessage::TerminalViewerRequest(_)
-            | CapabilityNodeMessage::TerminalViewerResult(_)
-            | CapabilityNodeMessage::TerminalViewerRecordReady(_)
-            | CapabilityNodeMessage::WorktreeJobRequest(_)
-            | CapabilityNodeMessage::WorktreeJobResult(_)
-            | CapabilityNodeMessage::WorktreeMutationRequest(_)
-            | CapabilityNodeMessage::WorktreeMutationResult(_)
-            | CapabilityNodeMessage::PluginJobRequest(_)
-            | CapabilityNodeMessage::PluginJobResult(_)
-            | CapabilityNodeMessage::AgentIntegrationJobRequest(_)
-            | CapabilityNodeMessage::AgentIntegrationJobResult(_)
-            | CapabilityNodeMessage::AgentProbeJobRequest(_)
-            | CapabilityNodeMessage::AgentProbeJobResult(_)
-            | CapabilityNodeMessage::HostQueryRequest(_)
-            | CapabilityNodeMessage::HostQueryResult(_) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Server sent a Worker-to-Server result",
-                )
-                .into());
+            // Every request served above has continued; what remains is declined or ends here.
+            other => {
+                decline(&server, Some(&*host), &other)?;
+                continue;
             }
         };
         let observed_colors = host.host_colors.borrow().latest();
@@ -566,6 +527,35 @@ fn serve(
 
 /// Runs cleanup after a request's own work, then delivers its result. A cleanup that lost the
 /// Host still delivers the result before the connection ends with that failure.
+/// Answers a whole Server request this Worker does not serve, on its platform or before the first
+/// Launch, with a decline, and keeps serving, so one request without a branch never ends the Worker
+/// and its terminals. A message only a Worker sends is a direction violation instead: the peer is
+/// not a Server speaking this protocol, so the connection ends, as for a malformed frame.
+fn decline(
+    server: &UnixStream,
+    host: Option<&HostBrokerConnection>,
+    request: &CapabilityNodeMessage,
+) -> Result<(), Box<dyn Error>> {
+    let Some(declined) = WorkerRequestDeclined::of(request) else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Server sent a Worker-to-Server message",
+        )
+        .into());
+    };
+    crate::diagnostic_events::request_declined(declined.kind);
+    let host_closed = server_transport::send(
+        server,
+        host,
+        &CapabilityNodeMessage::WorkerRequestDeclined(declined),
+    )?;
+    // Before the first Launch there is no Host, and the send reports it as closed.
+    if host_closed && host.is_some() {
+        return Err(peer_closed().into());
+    }
+    Ok(())
+}
+
 fn clean_and_send(
     server: &UnixStream,
     host: &HostBrokerConnection,

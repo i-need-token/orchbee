@@ -1191,6 +1191,67 @@ fn lazy_prehost_drain_replies_empty_and_never_starts_host() -> TestResult {
     Ok(())
 }
 
+/// A whole request this Worker does not serve, here the Server-wire handoff only Windows serves,
+/// gets a decline that echoes it, and the Worker answers the next request instead of ending.
+#[test]
+fn a_request_this_platform_does_not_serve_is_declined_and_the_worker_keeps_serving() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        DeclinedRequestKind, WorkerHandoffAction, WorkerHandoffId, WorkerHandoffRequest,
+        WorkerHandoffTarget, WorkerRequestDeclined,
+    };
+    let fixture = TestCohort::new()?;
+    let cohort = Cohort::load(fixture.path(), Instant::now() + FIXTURE_TIMEOUT)?;
+    let session_runtime = fixture.path().join("runtime");
+    fs::create_dir(&session_runtime)?;
+    fs::set_permissions(&session_runtime, fs::Permissions::from_mode(0o700))?;
+    let (mut server, worker) = UnixStream::pair()?;
+    server.set_read_timeout(Some(FIXTURE_TIMEOUT))?;
+    server.set_write_timeout(Some(FIXTURE_TIMEOUT))?;
+    let worker_runtime = session_runtime.clone();
+    let worker_thread = thread::spawn(move || {
+        run(
+            worker,
+            WORKER_ID,
+            GENERATION,
+            &cohort,
+            &worker_runtime,
+            &crate::default_interactive_launch::SystemShell::resolve(),
+        )
+        .is_err()
+    });
+    let handoff = WorkerHandoffRequest {
+        operation_id: OperationId::from_bytes([31; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        target: WorkerHandoffTarget {
+            handoff_id: WorkerHandoffId::from_bytes([32; 16])?,
+            cohort_sha256: [33; 32],
+        },
+        action: WorkerHandoffAction::Prepare,
+    };
+    write_message(
+        &mut server,
+        &CapabilityNodeMessage::WorkerHandoffRequest(handoff),
+    )?;
+    assert_eq!(
+        read_message(&mut server)?,
+        CapabilityNodeMessage::WorkerRequestDeclined(WorkerRequestDeclined {
+            kind: DeclinedRequestKind::Handoff,
+            identity: [31; 16],
+        })
+    );
+    let mut mint = TokenMint(0);
+    assert!(drain(&mut server, &mut mint, 0)?.entries().is_empty());
+
+    drop(server);
+    assert!(
+        worker_thread
+            .join()
+            .map_err(|_panic| io::Error::other("lazy Worker test thread panicked"))?
+    );
+    Ok(())
+}
+
 /// Pre-Host drain, a real first launch, a real Host APC signal, and the same
 /// drain owner — every assertion runs only with the real zig Host binary.
 /// This is a requested real-process witness: a missing artifact is a failure,

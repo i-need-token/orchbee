@@ -32,6 +32,7 @@ mod graphics_decode;
 mod host_query;
 mod lifecycle;
 mod plugin_job;
+mod request_declined;
 mod seeded_launch;
 mod send;
 mod shutdown;
@@ -103,6 +104,7 @@ pub enum CapabilityNodeMessage {
     AgentProbeJobResult(crate::AgentProbeJobResult),
     HostQueryRequest(crate::HostQueryRequest),
     HostQueryResult(crate::HostQueryResult),
+    WorkerRequestDeclined(crate::WorkerRequestDeclined),
 }
 
 pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, ProtocolError> {
@@ -346,6 +348,7 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::AgentProbeJobResult(value) => agent_probe_job::encode_result(value),
         CapabilityNodeMessage::HostQueryRequest(value) => host_query::encode_request(*value),
         CapabilityNodeMessage::HostQueryResult(_) => unreachable!("Host query results use OBNH"),
+        CapabilityNodeMessage::WorkerRequestDeclined(value) => request_declined::encode(*value),
     }
 }
 
@@ -446,6 +449,9 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
         }
         Some(host_query::REQUEST_KIND) => {
             host_query::decode_request(payload).map(CapabilityNodeMessage::HostQueryRequest)
+        }
+        Some(request_declined::KIND) => {
+            request_declined::decode(payload).map(CapabilityNodeMessage::WorkerRequestDeclined)
         }
         Some(AUTHORIZED_TERMINAL_LAUNCH_KIND) => decode_authorized_terminal_launch(payload)
             .map(CapabilityNodeMessage::AuthorizedTerminalLaunch),

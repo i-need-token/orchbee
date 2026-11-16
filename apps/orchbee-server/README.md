@@ -525,7 +525,9 @@ its write leaves the connection serving. After the complete write, any failure i
 `OutcomeUnknown` value nor retries the request. An exact Worker result, including a Worker-reported
 semantic unknown outcome, is preserved; the carrier does not interpret launch capability-version or
 lifecycle outcome variants. Viewer results additionally match the attachment identity and
-action/outcome kind. A request that failed while the connection kept serving is recorded as
+action/outcome kind. A Worker decline that echoes the request completes it with the distinct
+`Declined` error, known unchanged and recorded with failure `declined`; callers treat it as the
+Worker being unavailable for that request. A request that failed while the connection kept serving is recorded as
 `worker-request-failed`. The owner remembers the last eight such requests: a reply that echoes one
 of them, whether it arrives while another request waits or between requests, is dropped and
 recorded as a late `worker-reply-dropped`, never taken as another request's result. The owner

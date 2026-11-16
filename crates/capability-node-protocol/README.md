@@ -574,6 +574,25 @@ process entries, this crate's only dependency. The Server carrier checks the who
 The pair follows this protocol's exact-cohort rule: frame version 1 stays, and older cohorts reject
 the new tag.
 
+## Declined requests
+
+Kind 39 `WorkerRequestDeclined` is the Worker's one answer to a whole, well-formed Server request it
+does not serve: a kind its platform has no branch for, such as the Server-wire handoff off Windows,
+or a terminal request before its first Launch. As JSON-RPC's "method not found" and gRPC's
+`UNIMPLEMENTED` do, one generic answer covers every kind, so a request that reaches no Worker branch
+is still answered and never ends the Worker or its terminals. The body after the kind is the declined
+request's kind (`u8`: 1 Launch, 2 Start, 3 viewer, 4 control, 5 lifecycle, 6 cwd validation, 7 Send,
+8 Worktree Job, 9 Agent drain, 10 shutdown, 11 Worktree mutation, 12 titles, 13 handoff, 14 Agent
+integration job, 15 Agent probe job, 16 Host query, 17 title changes, 18 plugin job, 19 graphics
+decode) and its 16-byte identity: the request or operation ID it carries, the Launch or Start
+authorization's operation ID, or for an Agent drain its token and acknowledged sequence, each a
+big-endian `u64`. `WorkerRequestDeclined::of` names the decline of every Server request and of no
+Worker-sent message, by an exhaustive match, so a new request kind must name its decline to build.
+An unknown declined kind, a short identity or a trailing byte is refused. A decline means the Worker
+did nothing for that request; a message only a Worker sends, arriving at a Worker, is a direction
+violation and stays fatal there, like a malformed frame. The kind follows this protocol's
+exact-cohort rule: frame version 1 stays, and older cohorts reject the new tag.
+
 ## Carrier and ownership boundaries
 
 This crate owns only the closed semantic values and canonical `OBCN` frame codec. It does not open,

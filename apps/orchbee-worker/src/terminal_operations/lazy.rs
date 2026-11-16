@@ -261,13 +261,10 @@ pub(crate) fn run(
                 continue;
             }
             let CapabilityNodeMessage::AuthorizedTerminalLaunch(mut launch) = request else {
-                // No binding exists before the first Launch. Other non-Launch traffic retires this
-                // connection and cannot acquire Host-start authority.
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "expected first authorized Launch",
-                )
-                .into());
+                // No binding exists before the first Launch, so any other terminal request is
+                // declined and cannot acquire Host-start authority.
+                super::decline(&server, None, &request)?;
+                continue;
             };
             site.set(Site::Launch);
             // The kernel retains its launch for replay; the earlier output travels apart.

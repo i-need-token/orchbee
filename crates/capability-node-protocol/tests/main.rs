@@ -8,6 +8,7 @@ mod graphics_decode;
 mod host_query;
 mod lifecycle;
 mod plugin_terminal_environment;
+mod request_declined;
 mod terminal_titles;
 mod viewer;
 mod worktree_mutation;

@@ -32,7 +32,12 @@ serving thread panicked); `peer`, `host`, `server` or `none`; and, for a bound t
 that succeeded after more than a second, with its `site` and `waitedMs`; `host-unexpected` records
 an intact Host message the Worker dropped or refused instead of ending, with its `site` and `kind`,
 the Host message kind number. Each of the two is written at most once a minute for each site, with
-`suppressed`, the number of that site's records left out since the last one written. `panicked`
+`suppressed`, the number of that site's records left out since the last one written.
+`request-declined` records a whole Server request the Worker declined instead of ending, with its
+`kind` (`launch`, `start`, `viewer`, `control`, `lifecycle`, `cwd-validation`, `send`,
+`worktree-job`, `agent-drain`, `shutdown`, `worktree-mutation`, `titles`, `handoff`,
+`agent-integration-job`, `agent-probe-job`, `host-query`, `title-changes`, `plugin-job` or
+`graphics-decode`), at most once a minute with `suppressed`. `panicked`
 records the `file` stem and `line` of a Worker panic, never its message. A panic on the serving
 thread ends the Worker, so it also writes the run's `exited` record, with `error` `other`, the site
 it was serving, `reason` `panic` and `peer` `none`; a panic on any other thread writes `panicked`
@@ -723,9 +728,14 @@ resolves native launch inputs. Neither child gains Server placement authority or
 
 The refinement is `idle -> bounded request read -> kernel admission -> optional preparation and
 Host exchange -> bounded exact result delivery -> idle`. A cached replay or rejection skips
-preparation and Host I/O. No next request is admitted until result delivery completes. Malformed,
-wrong-direction, oversized, partial-timeout, and observed pipelined requests close the attachment;
-the codec bounds OBCN payload allocation to 8 KiB. Idle waits have no timeout; once the first record
+preparation and Host I/O. No next request is admitted until result delivery completes. A whole,
+well-formed request this Worker does not serve, on its platform or before its first Launch, gets a
+[decline](../../crates/capability-node-protocol/README.md#declined-requests) that echoes it, one
+`request-declined` record at most each minute, and the loop goes on; one request without a branch
+never ends the Worker and its terminals. Malformed, wrong-direction, oversized, partial-timeout, and
+observed pipelined requests still close the attachment: each means the peer is not a Server keeping
+this protocol, so its next frames cannot be trusted either. The codec bounds OBCN payload allocation
+to 8 KiB. Idle waits have no timeout; once the first record
 is observable, all its fragments share a two-second monotonic budget. Result writes also share one
 two-second budget. Both waits observe Host loss. Host loss during result delivery preserves that
 bounded delivery attempt, then ends the Worker; Server loss abandons delivery and closes Host.

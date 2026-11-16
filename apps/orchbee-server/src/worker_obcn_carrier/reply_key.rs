@@ -4,7 +4,10 @@
 
 use std::num::NonZeroU64;
 
-use orchbee_capability_node_protocol::{CapabilityNodeMessage, LifecycleStepOrdinal, OperationId};
+use orchbee_capability_node_protocol::{
+    CapabilityNodeMessage, DeclinedRequestKind, LifecycleStepOrdinal, OperationId,
+    WorkerRequestDeclined,
+};
 
 use super::WorkerOperationRequest;
 
@@ -165,7 +168,40 @@ impl ReplyKey {
             (Self::AgentProbeJob(id), Message::AgentProbeJobResult(result)) => {
                 result.operation_id == id
             }
+            (key, Message::WorkerRequestDeclined(declined)) => key.declined() == *declined,
             _ => false,
         }
+    }
+
+    /// The decline a Worker that does not serve this request answers with: its kind and the
+    /// identity [`WorkerRequestDeclined::of`] reads from the request itself.
+    fn declined(self) -> WorkerRequestDeclined {
+        use DeclinedRequestKind as Kind;
+        let (kind, id) = match self {
+            #[cfg(any(windows, test))]
+            Self::Handoff(id) => (Kind::Handoff, id),
+            Self::Shutdown(id) => (Kind::Shutdown, id),
+            Self::CwdValidation(id) => (Kind::CwdValidation, id),
+            Self::HostQuery(id) => (Kind::HostQuery, id),
+            Self::Lifecycle { request_id, .. } => (Kind::Lifecycle, request_id),
+            Self::Control(id) => (Kind::Control, id),
+            Self::Viewer(id) => (Kind::Viewer, id),
+            Self::GraphicsDecode { request_id, .. } => (Kind::GraphicsDecode, request_id),
+            Self::Launch(id) => (Kind::Launch, id),
+            Self::Start(id) => (Kind::Start, id),
+            Self::Send(id) => (Kind::Send, id),
+            Self::Titles(id) => (Kind::Titles, id),
+            Self::TitleChanges(id) => (Kind::TitleChanges, id),
+            Self::AgentDrain {
+                token,
+                acknowledged,
+            } => return WorkerRequestDeclined::agent_drain(token, acknowledged),
+            Self::PluginJob(id) => (Kind::PluginJob, id),
+            Self::WorktreeMutation(id) => (Kind::WorktreeMutation, id),
+            Self::WorktreeJob(id) => (Kind::WorktreeJob, id),
+            Self::AgentIntegrationJob(id) => (Kind::AgentIntegrationJob, id),
+            Self::AgentProbeJob(id) => (Kind::AgentProbeJob, id),
+        };
+        WorkerRequestDeclined::operation(kind, id)
     }
 }

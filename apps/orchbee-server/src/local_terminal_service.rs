@@ -433,7 +433,8 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
             | WorkerRequestError::WrongWorker
             | WorkerRequestError::WrongGeneration
             | WorkerRequestError::InvalidRequest(_)
-            | WorkerRequestError::NotDelivered(_),
+            | WorkerRequestError::NotDelivered(_)
+            | WorkerRequestError::Declined,
         ) => Completion::Unavailable,
     }
 }

@@ -279,6 +279,48 @@ pub(crate) fn host_unexpected(site: Site, kind: u16) {
     }
 }
 
+/// A whole Server request this Worker declined instead of ending: a kind it does not serve on its
+/// platform, or a terminal request before the first Launch. At most one record a minute, with the
+/// number suppressed since the last.
+pub(crate) fn request_declined(kind: orchbee_capability_node_protocol::DeclinedRequestKind) {
+    static SLOTS: SiteSlots = SiteSlots::new();
+    if let Some(suppressed) = SLOTS.admit(Site::ServerReceive) {
+        log_event(
+            LogLevel::Warning,
+            "request-declined",
+            &[
+                ("kind", LogValue::Token(declined_token(kind))),
+                ("suppressed", LogValue::Count(suppressed)),
+            ],
+        );
+    }
+}
+
+fn declined_token(kind: orchbee_capability_node_protocol::DeclinedRequestKind) -> &'static str {
+    use orchbee_capability_node_protocol::DeclinedRequestKind as Kind;
+    match kind {
+        Kind::Launch => "launch",
+        Kind::Start => "start",
+        Kind::Viewer => "viewer",
+        Kind::Control => "control",
+        Kind::Lifecycle => "lifecycle",
+        Kind::CwdValidation => "cwd-validation",
+        Kind::Send => "send",
+        Kind::WorktreeJob => "worktree-job",
+        Kind::AgentDrain => "agent-drain",
+        Kind::Shutdown => "shutdown",
+        Kind::WorktreeMutation => "worktree-mutation",
+        Kind::Titles => "titles",
+        Kind::Handoff => "handoff",
+        Kind::AgentIntegrationJob => "agent-integration-job",
+        Kind::AgentProbeJob => "agent-probe-job",
+        Kind::HostQuery => "host-query",
+        Kind::TitleChanges => "title-changes",
+        Kind::PluginJob => "plugin-job",
+        Kind::GraphicsDecode => "graphics-decode",
+    }
+}
+
 /// A once-a-minute record slot for each site, counting the records it suppressed.
 struct SiteSlots {
     last: [AtomicU64; SITE_SLOTS],

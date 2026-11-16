@@ -139,6 +139,7 @@ const fn request_failure(error: WorkerRequestError) -> &'static str {
         WorkerRequestError::WrongWorker => "wrong-worker",
         WorkerRequestError::WrongGeneration => "wrong-generation",
         WorkerRequestError::InvalidRequest(_) => "invalid-request",
+        WorkerRequestError::Declined => "declined",
         WorkerRequestError::NotDelivered(failure) => match failure {
             WorkerTransportFailure::TimedOut => "not-delivered.timed-out",
             WorkerTransportFailure::Closed => "not-delivered.closed",
