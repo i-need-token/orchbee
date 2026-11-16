@@ -269,10 +269,10 @@ impl super::CliText {
             (Locale::EnUs, "ssh-unavailable") => "OpenSSH Client is unavailable at /usr/bin/ssh.",
             (Locale::ZhCn, "ssh-unavailable") => "/usr/bin/ssh 处的 OpenSSH 客户端不可用。",
             (Locale::EnUs, "ssh-failed") => {
-                "SSH preparation failed. Check OpenSSH batch authentication, host trust, and the installed remote orchbee.exe."
+                "SSH could not connect to the machine, or the connection was lost. Check that ssh can sign in to it, then try again."
             }
             (Locale::ZhCn, "ssh-failed") => {
-                "SSH 准备失败，请检查 OpenSSH 批处理认证、主机信任及已安装的远端 orchbee.exe。"
+                "SSH 无法连接该机器，或连接已断开。请确认 ssh 能登录该机器，然后重试。"
             }
             (Locale::EnUs, "remote-protocol") => {
                 "The remote Client returned an invalid or unsupported status document."

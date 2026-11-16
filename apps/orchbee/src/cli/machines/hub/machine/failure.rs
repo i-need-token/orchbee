@@ -15,6 +15,8 @@ use orchbee_workbench_client::application::machine_ssh::PROGRAM_NOT_FOUND;
 
 /// The exit status OpenSSH gives every failure of its own.
 const SSH_FAILED: i32 = 255;
+/// The exit status a POSIX shell gives a command it cannot find.
+const COMMAND_NOT_FOUND: i32 = 127;
 
 /// How a carrier ended.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -150,6 +152,15 @@ pub(in super::super) fn classify(end: &End) -> Failure {
                 Failure::KeyChanged(_) => Failure::KeyChanged(changed_key(stderr)),
                 failure => failure,
             }
+        }
+        // The launch line starts `powershell.exe`, which every supported Windows has: a shell
+        // that cannot find it runs on another system.
+        Some(COMMAND_NOT_FOUND)
+            if String::from_utf8_lossy(stderr)
+                .to_ascii_lowercase()
+                .contains("powershell.exe") =>
+        {
+            Failure::Unsupported(UnsupportedCause::RemotePlatform)
         }
         _ => Failure::Offline(OfflineCause::RemoteProtocol),
     }

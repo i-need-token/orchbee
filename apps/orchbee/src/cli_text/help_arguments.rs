@@ -201,7 +201,7 @@ impl super::CliText {
                 Argument::Args => ("-- <args> ...", "Arguments passed to the Agent after --; --arg can be repeated instead.", "在 -- 之后传给智能体的参数；也可重复使用 --arg。"),
                 Argument::Client => ("<client-id>", "Full client ID returned by orchbee client list.", "orchbee client list 返回的完整客户端 ID。"),
                 Argument::Request => ("<request-id>", "Exact retained request ID returned by the operation.", "操作返回的精确保留请求 ID。"),
-                Argument::Ssh => ("<ssh-target>", "OpenSSH destination, such as user@host; batch authentication must already work.", "OpenSSH 目标，例如 user@host；须已能进行批处理认证。"),
+                Argument::Ssh => ("<ssh-target>", "OpenSSH destination, such as user@host or a Host alias from the SSH configuration.", "OpenSSH 目标，例如 user@host 或 SSH 配置中的 Host 别名。"),
                 Argument::Machine => ("<id|label>", "Saved machine ID, or its exact name when no other machine shares it.", "已保存机器的 ID，或没有其他机器重名时的完整名称。"),
                 Argument::Channel => ("<stable|preview>","Release channel to save and install.", "要保存并安装的发布频道。"),
                 Argument::Profile => ("<selector>", "Launch profile ID or an unambiguous saved name.", "启动配置 ID 或无歧义的保存名称。"),
