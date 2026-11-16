@@ -867,6 +867,67 @@ fn folder_location_names_only_its_folder_and_gives_the_whole_directory_under_the
     }
 }
 
+/// A worktree Workspace named after its branch would show that word twice, so its location line
+/// gives the folder instead.
+#[test]
+fn a_branch_that_repeats_the_workspace_name_gives_the_location_line_to_the_folder() {
+    let mut view = view(120, 40);
+    let rows = view
+        .machines
+        .space_rows()
+        .iter()
+        .map(|r| {
+            let mut observed = view.machines.space_checkpoint_row(r).unwrap().clone();
+            observed.label = Some("fix-checkout".into());
+            observed.git.as_mut().unwrap().branch = Some("fix-checkout".into());
+            observed.directory.as_mut().unwrap().path =
+                WorkbenchDirectoryPath::parse("C:/demo/shop-api-fix-checkout").unwrap();
+            observed
+        })
+        .collect::<Vec<_>>();
+    view.machines.observe_local(
+        rows.iter()
+            .map(|r| NavigationContext {
+                target: r.target.clone(),
+                project_id: r.project_id.clone(),
+                project: Some("Repo".into()),
+                workspace: r.label.clone(),
+            })
+            .collect(),
+    );
+    view.machines.observe_spaces(vec![(
+        Choice::Local,
+        crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
+            crate::machine_spaces::Checkpoint {
+                session_id: SessionId::parse(&id(1)).unwrap(),
+                revision: WorkbenchRevision::new(1),
+                metadata_revision: WorkbenchRevision::new(2),
+                git_requested: true,
+                known_git: Vec::new().into(),
+                projects: vec![crate::machine_spaces::ProjectSummary {
+                    project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+                    label: "Repo".into(),
+                }]
+                .into(),
+                rows: rows.into(),
+            },
+        )),
+    )]);
+    let (rows, _) = paint(&view, Locale::EnUs, &Theme::rgb_test_dark(), 120, 40);
+    let lines = rows
+        .iter()
+        .map(|row| row.split('│').next().unwrap().trim())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| **line == "shop-api-fix-checkout")
+            .count(),
+        2,
+        "{rows:?}"
+    );
+}
+
 #[test]
 fn cut_names_give_their_whole_text_only_when_cut_and_each_cut_line_its_own() {
     use crate::tui_layout::SidebarWidth;

@@ -113,7 +113,12 @@ export function WorkspaceNavigationRow({
 	const unread = folded && agentOverview.unreadLabel !== undefined;
 	// A row whose directory just moved keeps its old name until its new location settles.
 	const name = location?.heldName ?? workspace.name;
-	const line = location?.line?.text ?? null;
+	// A branch that repeats the name, as a worktree named after its branch does, gives way to the
+	// folder, as in the TUI.
+	const line =
+		location?.line?.kind === 'branch' && location.line.text.trim() === name.trim()
+			? location.folderName
+			: (location?.line?.text ?? null);
 	const ahead = location?.ahead ?? 0;
 	const behind = location?.behind ?? 0;
 	const menuEntries: readonly WorkbenchActionMenuEntry[] = [

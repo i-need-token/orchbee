@@ -26,7 +26,15 @@ function location(
 	return new Map([
 		[
 			WORKSPACE,
-			{ ahead: 0, behind: 0, directory: null, divergenceLabel: null, heldName: null, line },
+			{
+				ahead: 0,
+				behind: 0,
+				directory: null,
+				divergenceLabel: null,
+				folderName: null,
+				heldName: null,
+				line,
+			},
 		],
 	]);
 }

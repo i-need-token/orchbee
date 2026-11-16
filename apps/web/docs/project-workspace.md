@@ -132,7 +132,8 @@ The end area keeps its room at all times, so names truncate at one width: at res
 `↑N`, commits to push in the success role, `↓N`, commits to pull in the warning role, each only when
 positive, and the unread dot; under the pointer or focus, Options and Close take its place. The
 arrows tell the counts apart without color. The second line names the branch, otherwise the folder,
-`~` for home, unless the Workspace's Agents are folded, when it lists their states instead (see
+`~` for home, and the folder too when the branch equals the Workspace name, as in the TUI, unless
+the Workspace's Agents are folded, when it lists their states instead (see
 [Workspace Agent overview](#workspace-agent-overview)); a row with neither keeps the line empty. Names
 and lines truncate at their end. A truncated name shows whole in a tooltip, and the second line's
 tooltip holds the full directory. The arrows are hidden from assistive technology, and the row's

@@ -16,6 +16,8 @@ export interface WorkbenchSidebarWorkspaceLocation {
 	readonly directory: string | null;
 	/** The shown counts in words, for the row's accessible name. */
 	readonly divergenceLabel: string | null;
+	/** The directory's own folder name, or `~` for home; null when the directory is unknown. */
+	readonly folderName: string | null;
 	readonly heldName: string | null;
 	/** The second line: the branch, otherwise the directory's own folder name, or `~` for home. */
 	readonly line: { readonly kind: 'branch' | 'folder'; readonly text: string } | null;
@@ -72,6 +74,7 @@ export function useWorkbenchSidebarWorkspaceLocations(
 				behind,
 				directory: location.folder,
 				divergenceLabel: counts.length === 0 ? null : counts.join('. '),
+				folderName: location.folder === null ? null : folderName(location.folder),
 				heldName: location.heldName,
 				line: locationLine(location),
 			});

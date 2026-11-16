@@ -2394,8 +2394,8 @@ Each Workspace reads separately because equal canonical directories may diverge.
 dirty-file count nor a zero invented for an unavailable repository. Detached
 and unborn branches, absent upstream, and nonrepositories remain explicit; a
 nonrepository is an observation without branch facts, so earlier facts are not retained.
-`location` shows the observed branch, otherwise the name of the first terminal's recorded
-directory, else of the canonical Workspace folder; the Client's home folder itself reads `~`, and
+`location` shows the observed branch unless it equals the Workspace name, otherwise the name of the
+first terminal's recorded directory, else of the canonical Workspace folder; the Client's home folder itself reads `~`, and
 the full directory is a pointer tooltip on that name.
 Reads never fetch, change configuration, start a terminal or execute a plugin.
 
