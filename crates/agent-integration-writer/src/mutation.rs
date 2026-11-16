@@ -45,14 +45,11 @@ pub use orchbee_agent_integration::{
 
 #[cfg(windows)]
 mod codex_windows;
-#[cfg(windows)]
-mod file_publication_windows;
+mod file_publication;
 #[cfg(windows)]
 mod grok_windows;
-#[cfg(windows)]
-mod hermes_windows;
-#[cfg(windows)]
-mod hook_configuration_windows;
+mod hermes;
+mod hook_configuration;
 
 /// One invocation's effect journal; vectors borrow its records and frontier
 /// together instead of growing independent mutation-output argument lists.
@@ -950,25 +947,16 @@ fn enable_vector(
     let resource_root = context.capsule_root.to_string_lossy().into_owned();
     let reserve = providers::inspect_slots(id);
     match id {
-        IntegrationId::Hermes => {
-            #[cfg(windows)]
-            {
-                hermes_windows::update(
-                    context,
-                    &options,
-                    true,
-                    EffectTrace {
-                        attempted,
-                        residuals,
-                        begun: effect,
-                    },
-                )
-            }
-            #[cfg(not(windows))]
-            {
-                Attempt::Refused(Refusal::ManualActionRequired)
-            }
-        }
+        IntegrationId::Hermes => hermes::update(
+            context,
+            &options,
+            true,
+            EffectTrace {
+                attempted,
+                residuals,
+                begun: effect,
+            },
+        ),
         IntegrationId::Cursor
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli
@@ -976,25 +964,15 @@ fn enable_vector(
         | IntegrationId::Droid
         | IntegrationId::Kimi
         | IntegrationId::Letta
-        | IntegrationId::Devin => {
-            #[cfg(windows)]
-            {
-                hook_configuration_windows::update(
-                    id.as_str(),
-                    context,
-                    &options,
-                    true,
-                    attempted,
-                    residuals,
-                    effect,
-                )
-            }
-            #[cfg(not(windows))]
-            {
-                let _ = residuals;
-                Attempt::Refused(Refusal::ManualActionRequired)
-            }
-        }
+        | IntegrationId::Devin => hook_configuration::update(
+            id.as_str(),
+            context,
+            &options,
+            true,
+            attempted,
+            residuals,
+            effect,
+        ),
         IntegrationId::ClaudeCode => {
             let Some(inspection) = vector_inspection(initial.state, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
@@ -1288,25 +1266,16 @@ fn disable_vector(
     let options = providers::resource_options(context);
     let reserve = providers::inspect_slots(id);
     match id {
-        IntegrationId::Hermes => {
-            #[cfg(windows)]
-            {
-                hermes_windows::update(
-                    context,
-                    &options,
-                    false,
-                    EffectTrace {
-                        attempted,
-                        residuals,
-                        begun: effect,
-                    },
-                )
-            }
-            #[cfg(not(windows))]
-            {
-                Attempt::Refused(Refusal::ManualActionRequired)
-            }
-        }
+        IntegrationId::Hermes => hermes::update(
+            context,
+            &options,
+            false,
+            EffectTrace {
+                attempted,
+                residuals,
+                begun: effect,
+            },
+        ),
         IntegrationId::Cursor
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli
@@ -1314,25 +1283,15 @@ fn disable_vector(
         | IntegrationId::Droid
         | IntegrationId::Kimi
         | IntegrationId::Letta
-        | IntegrationId::Devin => {
-            #[cfg(windows)]
-            {
-                hook_configuration_windows::update(
-                    id.as_str(),
-                    context,
-                    &options,
-                    false,
-                    attempted,
-                    residuals,
-                    effect,
-                )
-            }
-            #[cfg(not(windows))]
-            {
-                let _ = residuals;
-                Attempt::Refused(Refusal::ManualActionRequired)
-            }
-        }
+        | IntegrationId::Devin => hook_configuration::update(
+            id.as_str(),
+            context,
+            &options,
+            false,
+            attempted,
+            residuals,
+            effect,
+        ),
         IntegrationId::ClaudeCode => {
             let Some(inspection) = vector_inspection(initial.state, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
@@ -2076,8 +2035,7 @@ pub(crate) fn plan_enable(
     };
     match id {
         IntegrationId::Hermes => {
-            #[cfg(windows)]
-            if let Some(profile) = crate::configuration_windows::hermes_home(context.home) {
+            if let Some(profile) = crate::configuration::hermes_home(context.home) {
                 if initial.state != State::Disabled {
                     for name in ["__init__.py", "plugin.yaml"] {
                         steps.push(PlannedStep::GuardedWrite {
@@ -2087,7 +2045,7 @@ pub(crate) fn plan_enable(
                 }
                 steps.push(command(
                     "hermes",
-                    &["plugins", "enable", super::hermes_windows::NAME],
+                    &["plugins", "enable", super::hermes::NAME],
                 ));
                 steps.push(command("hermes", &["plugins", "list", "--json"]));
             }
@@ -2100,9 +2058,8 @@ pub(crate) fn plan_enable(
         | IntegrationId::Kimi
         | IntegrationId::Letta
         | IntegrationId::Devin => {
-            #[cfg(windows)]
             if let Ok((target, _)) =
-                super::hook_configuration_windows::load(id.as_str(), context.home)
+                super::hook_configuration_files::load(id.as_str(), context.home)
             {
                 steps.push(PlannedStep::GuardedWrite {
                     target: target.path,

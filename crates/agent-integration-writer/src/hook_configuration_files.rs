@@ -1,15 +1,16 @@
-//! Windows configuration observations, resource classification and byte mutations.
-//! The pure document scanner belongs to the common hook_configuration owner.
+//! Local configuration observations, resource classification and byte mutations on the
+//! platform's configuration locations. The pure document scanner belongs to the common
+//! hook_configuration owner.
 use super::{
+    configuration::hook_configuration_candidates,
     files,
     hook_configuration::{
-        self as grammar, HookConfigurationKind, HookConfigurationScan, NAMED_HOOK, Object,
-        RootPolicy, command, declaration, event_name,
+        self as grammar, HookConfigurationKind, HookConfigurationScan, HookConfigurationTarget,
+        NAMED_HOOK, Object, RootPolicy, command, declaration, event_name,
     },
     inspect::{ResourceOptions, ResourceOwnership, classify_resource_root, owned_elsewhere},
     model::State,
 };
-use crate::configuration_windows::{HookConfigurationTarget, hook_configuration_candidates};
 use serde_json::{Value, json};
 use splice::Change;
 use std::{io, path::Path};
@@ -25,7 +26,7 @@ fn nowhere(_: &Path) -> bool {
     false
 }
 
-/// The Windows path grammar; a reader sets which roots another environment owns with
+/// The platform's path grammar; a reader sets which roots another environment owns with
 /// [`RootPolicy::owned_elsewhere`].
 pub const ROOT_POLICY: RootPolicy<'static> = RootPolicy {
     admitted: files::path_admitted,

@@ -78,7 +78,7 @@ pub(crate) fn run_hermes_command(
     deadline: Instant,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {
-    let Some(profile) = crate::configuration_windows::hermes_home(home) else {
+    let Some(profile) = crate::configuration::hermes_home(home) else {
         return CommandResult::Failed;
     };
     if !super::files::path_admitted(&profile) {

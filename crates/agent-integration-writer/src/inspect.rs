@@ -79,7 +79,6 @@ pub(crate) fn classify_resource_root(value: &str, options: &ResourceOptions) -> 
 
 /// Whether an Agent entry naming `root` belongs to another environment, which this environment
 /// leaves as it is.
-#[cfg(windows)]
 pub(crate) fn owned_elsewhere(root: &Path, options: &ResourceOptions) -> bool {
     let current = normalize(options.resource_root);
     let root = normalize(root);
@@ -94,7 +93,7 @@ pub(crate) fn owned_elsewhere(root: &Path, options: &ResourceOptions) -> bool {
 
 /// Whether this platform leaves an exact whole-file entry naming `root` as another environment's.
 /// Only Windows does; other platforms keep reading it as a conflict.
-fn left_elsewhere(root: &Path, options: &ResourceOptions) -> bool {
+pub(crate) fn left_elsewhere(root: &Path, options: &ResourceOptions) -> bool {
     #[cfg(windows)]
     let left = owned_elsewhere(root, options);
     #[cfg(unix)]

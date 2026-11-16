@@ -1,6 +1,6 @@
-//! JSON/TOML preparation; filesystem publication belongs to the shared Windows owner.
+//! JSON/TOML preparation; filesystem publication belongs to the shared file publication owner.
 use super::super::{
-    hook_configuration_windows as hooks, inspect::ResourceOptions, model::State,
+    hook_configuration_files as hooks, inspect::ResourceOptions, model::State,
     providers::ProviderContext,
 };
 use super::{Attempt, AttemptedStep, EffectTrace, FailureCode};
@@ -26,7 +26,7 @@ pub(super) fn update(
     let Some(replacement) = hooks::patch(target.kind, expected.as_deref(), options, enable) else {
         return Attempt::Failed(FailureCode::OperationFailed);
     };
-    super::file_publication_windows::replace(
+    super::file_publication::replace(
         &target.path,
         expected,
         replacement,

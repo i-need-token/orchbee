@@ -6,7 +6,7 @@ use std::io;
 use toml_edit::{DocumentMut, Item};
 
 use super::super::providers::ProviderContext;
-use super::{Attempt, EffectTrace, FailureCode, file_publication_windows, files, inspect};
+use super::{Attempt, EffectTrace, FailureCode, file_publication, files, inspect};
 
 const LIMIT: u64 = 512 * 1024;
 
@@ -25,7 +25,7 @@ pub(super) fn forget_activation(context: &ProviderContext, trace: EffectTrace) -
     if replacement == expected {
         return Attempt::Attempted;
     }
-    file_publication_windows::replace(&path, Some(expected), replacement, context, trace)
+    file_publication::replace(&path, Some(expected), replacement, context, trace)
 }
 
 /// `bytes` without the plugin's bare name in `[plugins]` `enabled` and `disabled`. A list or

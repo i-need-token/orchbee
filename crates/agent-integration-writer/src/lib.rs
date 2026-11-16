@@ -6,8 +6,9 @@
 
 #[cfg(any(unix, windows))]
 mod capsule;
-#[cfg(windows)]
-mod configuration_windows;
+#[cfg(any(unix, windows))]
+#[cfg_attr(windows, path = "configuration_windows.rs")]
+mod configuration;
 /// Checks a distribution sidecar against its cohort's payload identity.
 #[cfg(any(unix, windows))]
 pub fn verify_distribution_capsule(root: &std::path::Path, expected: &str) -> bool {
@@ -23,19 +24,19 @@ mod exec_budget;
 #[cfg(any(unix, windows))]
 #[cfg_attr(windows, path = "files_windows.rs")]
 mod files;
-#[cfg(windows)]
-mod hermes_windows;
+#[cfg(any(unix, windows))]
+mod hermes;
 mod hook_configuration;
-#[cfg(windows)]
-mod hook_configuration_windows;
+#[cfg(any(unix, windows))]
+mod hook_configuration_files;
 #[cfg(any(unix, windows))]
 mod inspect;
 pub use hook_configuration::{
     CapsuleLocation, HookConfigurationKind, HookConfigurationScan, RootPolicy, capsule_location,
     configuration_kinds, owned_by_another_environment, scan_hook_configuration,
 };
-#[cfg(windows)]
-pub use hook_configuration_windows::ROOT_POLICY as CONFIGURATION_ROOT_POLICY;
+#[cfg(any(unix, windows))]
+pub use hook_configuration_files::ROOT_POLICY as CONFIGURATION_ROOT_POLICY;
 /// The closed result vocabularies stay available on every platform — the
 /// parser names them — while platform adapters own filesystem and process effects.
 pub(crate) mod model;
@@ -418,7 +419,7 @@ pub trait TerminationSource {
 }
 
 #[cfg(windows)]
-pub use configuration_windows::{
+pub use configuration::{
     extension_directory, hook_configuration_candidates_for, kilo_entry, opencode_entries,
 };
 #[cfg(all(unix, feature = "test-support"))]

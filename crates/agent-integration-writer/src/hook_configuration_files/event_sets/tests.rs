@@ -3,6 +3,7 @@ mod grouped;
 use super::super::{HookConfigurationKind, HookConfigurationScan, scan_hook_configuration};
 use super::*;
 use crate::hook_configuration::Object;
+use crate::tests::host_path;
 use serde_json::{Value, json};
 
 fn patch(set: EventSet, bytes: Option<&[u8]>, root: &Path, enable: bool) -> Option<Vec<u8>> {
@@ -19,7 +20,7 @@ fn scan(set: EventSet, bytes: &[u8]) -> HookConfigurationScan {
 
 #[test]
 fn complete_partial_conflicting_and_foreign_flat_hooks() {
-    let root = Path::new(r"C:\owned\0.4.17");
+    let root = host_path(r"C:\owned\0.4.17");
     let input=br#"{"future":{"huge":1e999},"SessionStart":[{"type":"command","command":"echo foreign"}]}"#;
     let installed = patch(EventSet::Mastracode, Some(input), root, true).unwrap();
     assert!(
@@ -60,7 +61,7 @@ fn complete_partial_conflicting_and_foreign_flat_hooks() {
     for wrong in [
         json!({"SessionStart":[entry,entry]}),
         json!({"Stop":[entry]}),
-        json!({"SessionStart":[entry],"AgentStart":[declaration("mastracode",Path::new(r"C:\other\9.0.0")).unwrap()]}),
+        json!({"SessionStart":[entry],"AgentStart":[declaration("mastracode",host_path(r"C:\other\9.0.0")).unwrap()]}),
     ] {
         assert!(matches!(
             scan(EventSet::Mastracode, &serde_json::to_vec(&wrong).unwrap()),

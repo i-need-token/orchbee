@@ -19,7 +19,7 @@ serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 # Capsule payload digests are canonical sha256.
 sha2.workspace = true
-# Syntax-preserving Kimi hook inspection; Windows also edits Kimi hooks and Grok activation.
+# Syntax-preserving Kimi hook inspection and edits; Windows also edits Grok activation.
 toml_edit.workspace = true
 
 [target.'cfg(unix)'.dependencies]

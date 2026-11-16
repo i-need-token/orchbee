@@ -291,6 +291,8 @@ bounded writes, and cancelled exchanges close their shared pipe without a detach
 
 Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Capsule 0.4.16 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
+On macOS the same commands also manage Cursor, Qoder CLI, Antigravity CLI, Mastracode, Droid,
+Kimi, Letta, Devin and Hermes; see the [macOS integration contract](docs/macos-agent-integrations.md).
 Other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
 files and pipes; on Windows an owned hidden Windows PowerShell reader makes pipe input cancellable.

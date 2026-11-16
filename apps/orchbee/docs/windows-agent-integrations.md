@@ -312,7 +312,8 @@ Pure ownership and identity tests plus isolated public setup/repair/refusal/disa
 HOME override and installed PowerShell 5.1/7/cmd pipe witnesses cover this
 contract. They do not establish authenticated Letta work. The capsule and its
 receivers form one cohort; rollback selects the previous cohort, and disable removes
-only proven owned declarations. No new dependency or other-platform workflow is added.
+only proven owned declarations. No new dependency is added; macOS follows the
+[macOS integration contract](macos-agent-integrations.md).
 Source: [Letta 0.33.2 hook implementation](https://github.com/letta-ai/letta-code/tree/46e1f82ba44145e8b8d0ac283c2470b59822715e/src/hooks).
 
 ## Devin Windows session hooks
@@ -346,7 +347,7 @@ real Devin hook dispatcher. Discovery used only the installed CLI's help/version
 no Devin Agent task or orchestration runs.
 The capsule rolls out with its matching receivers; rollback uses the previous
 cohort. Fixtures isolate APPDATA as well as the native profile. No new dependency
-or other-platform workflow is introduced.
+is introduced; macOS follows the [macOS integration contract](macos-agent-integrations.md).
 
 Sources: [Devin hooks](https://docs.devin.ai/cli/extensibility/hooks/overview),
 [lifecycle](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks), and
@@ -387,7 +388,7 @@ Pure file/list classification, isolated public activation/repair/refusal/disable
 and Python import plus real Windows pipe witnesses cover these boundaries. They
 do not establish authenticated Hermes work or live-session reload. The capsule
 and matching receivers roll out together; rollback selects the previous cohort.
-No new dependency or other-platform implementation is added.
+No new dependency is added; macOS follows the [macOS integration contract](macos-agent-integrations.md).
 Source: [pinned Hermes plugin implementation](https://github.com/NousResearch/hermes-agent/tree/2a05208012cf50bbe8ff7b7b54a3825fd1e4692a/hermes_cli)
 and [native Windows](https://hermes-agent.nousresearch.com/docs/user-guide/windows-native).
 

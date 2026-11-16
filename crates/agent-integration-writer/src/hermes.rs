@@ -1,7 +1,7 @@
 //! Hermes owns activation; Orchbee owns exactly two independently recoverable entry files.
 use super::{
-    files, hook_configuration_windows,
-    inspect::{ResourceOptions, ResourceOwnership, classify_resource_root, owned_elsewhere},
+    files, hook_configuration_files,
+    inspect::{ResourceOptions, ResourceOwnership, classify_resource_root, left_elsewhere},
     model::State,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -89,7 +89,8 @@ fn local_state(entry: Option<&[u8]>, manifest: Option<&[u8]>, options: &Resource
     State::Enabled
 }
 /// Whether every entry file present is exactly one Orchbee writes for another environment's
-/// Capsule. That environment owns the plugin and its activation, which this environment leaves.
+/// Capsule. That environment owns the plugin and its activation, which this environment leaves
+/// where the platform's whole-file rule leaves such entries.
 fn elsewhere(entry: Option<&[u8]>, manifest: Option<&[u8]>, options: &ResourceOptions) -> bool {
     let mut present = [(Member::Entry, entry), (Member::Manifest, manifest)]
         .into_iter()
@@ -97,7 +98,7 @@ fn elsewhere(entry: Option<&[u8]>, manifest: Option<&[u8]>, options: &ResourceOp
         .peekable();
     present.peek().is_some()
         && present.all(|(member, bytes)| {
-            member_root(member, bytes).is_some_and(|root| owned_elsewhere(&root, options))
+            member_root(member, bytes).is_some_and(|root| left_elsewhere(&root, options))
         })
 }
 pub(super) struct Local {
@@ -110,12 +111,11 @@ pub(super) struct Local {
     pub(super) elsewhere: bool,
 }
 pub(super) fn local(home: &Path, options: &ResourceOptions) -> Option<Local> {
-    let directory = crate::configuration_windows::hermes_home(home)?
+    let directory = crate::configuration::hermes_home(home)?
         .join("plugins")
         .join(NAME);
-    let entry = hook_configuration_windows::read(&directory.join(Member::Entry.name())).ok()?;
-    let manifest =
-        hook_configuration_windows::read(&directory.join(Member::Manifest.name())).ok()?;
+    let entry = hook_configuration_files::read(&directory.join(Member::Entry.name())).ok()?;
+    let manifest = hook_configuration_files::read(&directory.join(Member::Manifest.name())).ok()?;
     let alternative = ["plugin.yml", "plugin.json"]
         .iter()
         .any(|name| std::fs::symlink_metadata(directory.join(name)).is_ok());

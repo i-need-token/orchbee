@@ -2,15 +2,9 @@
 //! offline diagnostics. Callers retain their own filesystem admission guards.
 use std::path::{Path, PathBuf};
 
-pub(crate) use crate::HookConfigurationKind;
 use crate::configuration_kinds;
+use crate::hook_configuration::{HookConfigurationKind, HookConfigurationTarget};
 
-/// One candidate configuration. Callers own reads, budgets and failure handling.
-#[derive(Clone)]
-pub struct HookConfigurationTarget {
-    pub path: PathBuf,
-    pub kind: HookConfigurationKind,
-}
 /// Priority is authoritative; errors at an earlier candidate never admit fallback.
 /// When no candidate exists, use the first one for a new declaration.
 pub(crate) fn hook_configuration_candidates(

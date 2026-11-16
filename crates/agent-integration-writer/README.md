@@ -9,20 +9,24 @@ retained mutation outcomes. Values and report vocabularies come from the
 
 - One invocation runs under one cooperative 40-second budget. Callers pass a
   `TerminationSource`; the writer observes it between bounded steps and settles as cancelled.
-- Unix and Windows are supported. Windows configuration-location helpers compile only on Windows.
+- Unix and Windows are supported. Each platform has its own provider configuration locations:
+  `configuration_windows.rs` on Windows, and `configuration.rs` elsewhere, taken from macOS
+  sources. Linux compiles the latter unverified and keeps the configuration-hook providers and
+  Hermes manual-only. The hook command each declaration carries is the platform's launcher:
+  PowerShell on Windows, a POSIX shell line elsewhere.
 - The actual consumers are `orchbee-worker`, whose job owner runs `explain`, every mutation and
   the Settings `list` for its Session, and `orchbee`, which runs the files-only `list` of
   `agent integration list` and `doctor` in its own process, reuses the read-only configuration
   helpers for Windows update verification, and, after the environment's Sessions have stopped,
   runs the disable of each provider `uninstall` finds this environment may have enabled. It
-  decides from `list_owned`, which reads Windows Hermes's own state from its two entry files
-  alone, so it starts no Agent program for a provider without such evidence.
+  decides from `list_owned`, which reads Hermes's own state from its two entry files alone, so it
+  starts no Agent program for a provider without such evidence.
 
 ## What each operation starts
 
 Most providers are read from files. Claude Code, Grok and GitHub Copilot report their plugins only
-through `plugin list` and `plugin marketplace list` commands of their own program, and Windows
-Hermes through `plugins list`; a provider's program may create its own first-run files whenever it
+through `plugin list` and `plugin marketplace list` commands of their own program, and Hermes
+through `plugins list`; a provider's program may create its own first-run files whenever it
 starts. `list` reads files only and starts no provider program, so those rows stay `unknown` with
 no issue, not checked, unless Orchbee's own Hermes entry files already prove a conflict.
 `explain` is the explicit check of one provider and runs those read commands; `enable` and
@@ -91,7 +95,8 @@ removes it there. Disable, and so `uninstall`, treats it as absent: it removes o
 environment's targets of the provider and completes without an effect when none is left. A folder
 or file pair whose members belong to different owners is `conflict`, and Hermes counts as another
 environment's only when every entry file present is, which leaves its activation to that
-environment too. Other platforms still read another environment's whole-file entry as `conflict`.
+environment too. Other platforms still read another environment's whole-file entry as `conflict`,
+Hermes's entry files on macOS included.
 
 At hook time the transport reads the owner record beside it and reports only when the inherited
 `ORCHBEE_ENVIRONMENT` equals the owner, or when the variable is absent and the owner is release;

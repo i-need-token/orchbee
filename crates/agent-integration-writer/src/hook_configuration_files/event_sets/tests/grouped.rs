@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 #[test]
 fn devin_group_set_is_complete_repairable_and_preserves_foreign_settings() {
     let set = EventSet::Devin;
-    let root = Path::new(r"C:\owned\0.4.17");
+    let root = host_path(r"C:\owned\0.4.17");
     let input = br#"{"user":123456789012345678901234567890,"hooks":{"future":{"number":1e999},"Stop":[{"matcher":"custom","hooks":[{"type":"prompt","prompt":"USER"}]}]}}"#;
     let installed = patch(set, Some(input), root, true).unwrap();
     assert!(matches!(scan(set,&installed),HookConfigurationScan::Owned(found) if found==root));
@@ -34,7 +34,7 @@ fn devin_group_set_is_complete_repairable_and_preserves_foreign_settings() {
     for wrong in [
         json!({"SessionStart":[entry,entry]}),
         json!({"SessionEnd":[entry]}),
-        json!({"SessionStart":[entry],"Stop":[{"hooks":[declaration("devin",Path::new(r"C:\other\0.4.17")).unwrap()]}]}),
+        json!({"SessionStart":[entry],"Stop":[{"hooks":[declaration("devin",host_path(r"C:\other\0.4.17")).unwrap()]}]}),
     ] {
         assert!(matches!(
             scan(set, &serde_json::to_vec(&json!({"hooks":wrong})).unwrap()),

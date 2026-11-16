@@ -245,21 +245,23 @@ pub(crate) fn inspect_slots(id: IntegrationId) -> usize {
 
 /// One platform admission rule for both plans and effects. The JS module
 /// entries use the existing Windows pipe/console transport without a shell.
+/// The configuration-hook providers and Hermes have a POSIX adapter whose
+/// locations are verified on macOS only, so Linux keeps them manual.
 pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode) -> ManagementMode {
+    let posix_adapter = matches!(
+        id,
+        IntegrationId::Cursor
+            | IntegrationId::QoderCli
+            | IntegrationId::AntigravityCli
+            | IntegrationId::Mastracode
+            | IntegrationId::Droid
+            | IntegrationId::Kimi
+            | IntegrationId::Letta
+            | IntegrationId::Devin
+            | IntegrationId::Hermes
+    );
     if !cfg!(windows)
-        && matches!(
-            id,
-            IntegrationId::Kilo
-                | IntegrationId::Cursor
-                | IntegrationId::QoderCli
-                | IntegrationId::AntigravityCli
-                | IntegrationId::Mastracode
-                | IntegrationId::Droid
-                | IntegrationId::Kimi
-                | IntegrationId::Letta
-                | IntegrationId::Devin
-                | IntegrationId::Hermes
-        )
+        && (matches!(id, IntegrationId::Kilo) || posix_adapter && !cfg!(target_os = "macos"))
     {
         return ManagementMode::ManualOnly;
     }
@@ -339,7 +341,7 @@ pub(crate) fn companion_guarded_spec(id: IntegrationId) -> Option<GuardedSpec> {
 pub(crate) fn guarded_target(id: IntegrationId, spec: GuardedSpec, home: &Path) -> Option<PathBuf> {
     #[cfg(windows)]
     if id == IntegrationId::Opencode {
-        let paths = crate::configuration_windows::opencode_entries(home)?;
+        let paths = crate::configuration::opencode_entries(home)?;
         let target = if spec.kind == BootstrapKind::OpencodeClient {
             paths.client
         } else if spec.target_relative.ends_with(".mjs") {
@@ -351,12 +353,12 @@ pub(crate) fn guarded_target(id: IntegrationId, spec: GuardedSpec, home: &Path) 
     }
     #[cfg(windows)]
     if id == IntegrationId::Kilo {
-        let target = crate::configuration_windows::kilo_entry(home)?;
+        let target = crate::configuration::kilo_entry(home)?;
         return super::files::path_admitted(&target).then_some(target);
     }
     #[cfg(windows)]
     if matches!(id, IntegrationId::Gemini | IntegrationId::QwenCode) {
-        let target = crate::configuration_windows::extension_directory(id.as_str(), home)?;
+        let target = crate::configuration::extension_directory(id.as_str(), home)?;
         return super::files::path_admitted(&target).then_some(target);
     }
     let _ = id;
@@ -552,14 +554,11 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
     let mut timed_out = false;
     let mut read_slot =
         |executable: &Path, arguments: &[&str], context: &ProviderContext| -> ReadOutcome {
-            #[cfg(windows)]
             let outcome = if id == IntegrationId::Hermes {
-                super::hermes_windows::read(executable, context)
+                super::hermes::read(executable, context)
             } else {
                 read(executable, arguments, context)
             };
-            #[cfg(not(windows))]
-            let outcome = read(executable, arguments, context);
             if matches!(outcome, ReadOutcome::TimedOut) {
                 timed_out = true;
             }
@@ -574,18 +573,24 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
     // Set where another environment's whole-file entry may make what disable acts on differ
     // from the row.
     let mut own = None;
+    // A platform that keeps a local adapter manual leaves its Agent files unread.
+    let local_adapter = cfg!(windows) || management_mode == ManagementMode::ManagedLocal;
     let (state, inspection_failed, detail) = match spec.kind {
         Kind::ConfigurationHooks => {
-            #[cfg(windows)]
-            let state =
-                super::hook_configuration_windows::inspect(id.as_str(), context.home, &options);
-            #[cfg(not(windows))]
-            let state = State::Unknown;
+            let state = if local_adapter {
+                super::hook_configuration_files::inspect(id.as_str(), context.home, &options)
+            } else {
+                State::Unknown
+            };
             (state, state == State::Unknown, InspectionDetail::Plain {})
         }
         Kind::Cli(CliKind::Hermes) => {
-            #[cfg(windows)]
-            let state = match super::hermes_windows::local(context.home, &options) {
+            let local = if local_adapter {
+                super::hermes::local(context.home, &options)
+            } else {
+                None
+            };
+            let state = match local {
                 Some(local) if local.state == State::Conflict => {
                     if local.elsewhere {
                         own = Some(State::NotInstalled);
@@ -597,7 +602,7 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
                     &["plugins", "list", "--json"],
                     context,
                 ) {
-                    ReadOutcome::Stdout(bytes) => super::hermes_windows::list_state(
+                    ReadOutcome::Stdout(bytes) => super::hermes::list_state(
                         &bytes,
                         local.state,
                         context
@@ -610,8 +615,6 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
                 },
                 None => State::Unknown,
             };
-            #[cfg(not(windows))]
-            let state = State::Unknown;
             (state, state == State::Unknown, InspectionDetail::Plain {})
         }
         Kind::Cli(CliKind::Claude) => {
@@ -799,9 +802,8 @@ fn unread_state(
     context: &ProviderContext,
     options: &ResourceOptions,
 ) -> (State, State) {
-    #[cfg(windows)]
     if id == IntegrationId::Hermes
-        && let Some(local) = super::hermes_windows::local(context.home, options)
+        && let Some(local) = super::hermes::local(context.home, options)
     {
         match local.state {
             State::Conflict => {
@@ -818,7 +820,6 @@ fn unread_state(
             State::Disabled | State::Unknown => {}
         }
     }
-    let _ = (id, context, options);
     (State::Unknown, State::Unknown)
 }
 

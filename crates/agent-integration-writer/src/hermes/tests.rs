@@ -1,6 +1,9 @@
 use super::*;
+use crate::tests::host_path;
 /// Entry files Orchbee writes for another environment's Capsule are that environment's; an edited
-/// byte, or a member of this environment's, proves no other owner.
+/// byte, or a member of this environment's, proves no other owner. Only Windows leaves whole-file
+/// entries to another environment.
+#[cfg(windows)]
 #[test]
 fn entry_files_of_another_environment_are_left_to_it() {
     let own = Path::new(
@@ -28,11 +31,11 @@ fn entry_files_of_another_environment_are_left_to_it() {
 #[test]
 fn exact_members_partial_repair_versions_and_provider_rows() {
     let current =
-        Path::new(r"C:\owned\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        host_path(r"C:\owned\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     let old =
-        Path::new(r"C:\owned\bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        host_path(r"C:\owned\bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
     let newer =
-        Path::new(r"C:\owned\cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
+        host_path(r"C:\owned\cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
     let options = ResourceOptions {
         resource_root: current,
     };

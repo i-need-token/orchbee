@@ -1,8 +1,25 @@
 use super::*;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use crate::tests::host_path;
 use serde_json::Value;
 
-const PREFIX: &str = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ";
+/// Whether a hook command writes to the Agent's stdout.
+#[cfg(windows)]
+fn prints_output(command: &str) -> bool {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    const PREFIX: &str = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ";
+    let bytes = STANDARD
+        .decode(command.strip_prefix(PREFIX).unwrap())
+        .unwrap();
+    let words: Vec<_> = bytes
+        .chunks_exact(2)
+        .map(|v| u16::from_le_bytes([v[0], v[1]]))
+        .collect();
+    String::from_utf16(&words).unwrap().contains("Out.Write")
+}
+#[cfg(unix)]
+fn prints_output(command: &str) -> bool {
+    command.contains("printf")
+}
 
 /// Patches as an environment whose current Capsule is `root`.
 fn patch(
@@ -22,7 +39,7 @@ fn options(root: &Path) -> ResourceOptions<'_> {
 
 #[test]
 fn letta_owns_a_silent_millisecond_hook_and_preserves_policy_and_foreign_values() {
-    let root = Path::new(r"C:\owned\0.4.17");
+    let root = host_path(r"C:\owned\0.4.17");
     let input = br#"{"large":123456789012345678901234567890,"hooks":{"disabled":true,"future":{"number":1e999},"SessionStart":[{"hooks":[{"type":"prompt","prompt":"USER"}]}]}}"#;
     let installed = patch(HookConfigurationKind::Letta, Some(input), root, true).unwrap();
     assert!(
@@ -36,15 +53,7 @@ fn letta_owns_a_silent_millisecond_hook_and_preserves_policy_and_foreign_values(
     let entry = &entries[1]["hooks"][0];
     assert_eq!(entry["timeout"], 10000);
     assert_eq!(entry["quiet"], true);
-    let command = entry["command"].as_str().unwrap();
-    let bytes = STANDARD
-        .decode(command.strip_prefix(PREFIX).unwrap())
-        .unwrap();
-    let words: Vec<_> = bytes
-        .chunks_exact(2)
-        .map(|v| u16::from_le_bytes([v[0], v[1]]))
-        .collect();
-    assert!(!String::from_utf16(&words).unwrap().contains("Out.Write"));
+    assert!(!prints_output(entry["command"].as_str().unwrap()));
     assert_eq!(
         patch(HookConfigurationKind::Letta, Some(&installed), root, true).unwrap(),
         installed
@@ -70,11 +79,11 @@ fn letta_owns_a_silent_millisecond_hook_and_preserves_policy_and_foreign_values(
 /// naming its own Capsules, and a provider with one named block refuses another environment's.
 #[test]
 fn entries_of_other_environments_stay_as_they_are() {
-    let own = Path::new(
+    let own = host_path(
         r"C:\Users\u\.ob-dev-0123456789abcdef\internal\integrations\agent-observation\0.4.17",
     );
-    let release = Path::new(r"C:\Users\u\.orchbee\internal\integrations\agent-observation\0.4.17");
-    let shared = Path::new(r"C:\Users\u\.orchbee\agent-observation-adapters\0.4.16");
+    let release = host_path(r"C:\Users\u\.orchbee\internal\integrations\agent-observation\0.4.17");
+    let shared = host_path(r"C:\Users\u\.orchbee\agent-observation-adapters\0.4.16");
     for kind in [HookConfigurationKind::Cursor, HookConfigurationKind::Kimi] {
         for other in [release, shared] {
             let theirs = patch(kind, None, other, true).unwrap();
@@ -150,8 +159,8 @@ fn user_document(kind: HookConfigurationKind) -> String {
 #[test]
 fn enable_repair_and_disable_keep_the_users_bytes() {
     use HookConfigurationKind as Kind;
-    let old = Path::new(r"C:\owned\0.4.16");
-    let root = Path::new(r"C:\owned\0.4.17");
+    let old = host_path(r"C:\owned\0.4.16");
+    let root = host_path(r"C:\owned\0.4.17");
     for kind in [
         Kind::Cursor,
         Kind::Qoder,
@@ -189,7 +198,7 @@ fn enable_repair_and_disable_keep_the_users_bytes() {
 fn raw_user_values_survive_enable_repair_and_disable() {
     let input = br#"{"large":123456789012345678901234567890,"nested":{"future":1e999,"duplicate":1,"duplicate":2},"hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo before"}]}}"#;
     let root =
-        Path::new(r"C:\Users\用户 & ' $ `\.orchbee\internal\integrations\agent-observation\0.4.17");
+        host_path(r"C:\Users\用户 & ' $ `\.orchbee\internal\integrations\agent-observation\0.4.17");
     let installed = patch(HookConfigurationKind::Cursor, Some(input), root, true).unwrap();
     assert!(
         matches!(scan_hook_configuration(HookConfigurationKind::Cursor, &installed), HookConfigurationScan::Owned(found) if found == root)
@@ -223,7 +232,7 @@ fn duplicated_edited_members_and_changed_owned_commands_are_refused() {
             HookConfigurationScan::Malformed
         ));
     }
-    let root = Path::new(r"C:\owned\0.4.17");
+    let root = host_path(r"C:\owned\0.4.17");
     let bytes = patch(HookConfigurationKind::Cursor, None, root, true).unwrap();
     let mut doc: Value = serde_json::from_slice(&bytes).unwrap();
     doc["hooks"]["sessionStart"][0]["timeout"] = json!(99);
@@ -251,7 +260,7 @@ fn duplicated_edited_members_and_changed_owned_commands_are_refused() {
 
 #[test]
 fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership() {
-    let root = Path::new(r"C:\owned\0.4.17");
+    let root = host_path(r"C:\owned\0.4.17");
     let input = br#"{"version":1e999,"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"prompt","prompt":"keep","future":123456789012345678901234567890}]}]}}"#;
     let installed = patch(HookConfigurationKind::Qoder, Some(input), root, true).unwrap();
     assert!(
@@ -311,7 +320,7 @@ fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership
 #[test]
 fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_ownership() {
     let id = HookConfigurationKind::Antigravity;
-    let root = Path::new(r"C:\owned\0.4.17");
+    let root = host_path(r"C:\owned\0.4.17");
     let options = options(root);
     for (version, expected) in [
         ("0.4.17", State::Disabled),
@@ -359,7 +368,7 @@ fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_owners
 
 #[test]
 fn droid_document_shapes_preserve_foreign_data_and_own_only_session_group() {
-    let root = Path::new(r"C:\owned\0.4.17");
+    let root = host_path(r"C:\owned\0.4.17");
     for (kind,input) in [
         (HookConfigurationKind::DroidStandalone,br#"{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"echo user"}]}],"future":{"big":1e999}}"#.as_slice()),
         (HookConfigurationKind::DroidSettings,br#"{"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"echo user"}]}]},"future":{"big":1e999}}"#.as_slice()),

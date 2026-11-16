@@ -1,7 +1,7 @@
-use super::super::super::hook_configuration_windows;
+use super::super::super::hook_configuration_files;
 use super::super::super::{model::ManagementMode, tests::windows_adapters::Fixture};
 use super::*;
-use crate::configuration_windows::HookConfigurationKind;
+use crate::HookConfigurationKind;
 use std::{
     cell::Cell,
     fs,
@@ -45,7 +45,7 @@ fn changed_preimages_arrivals_and_cancellation_preserve_user_data() {
         let result = replace_observed(
             &target,
             Some(original.to_vec()),
-            hook_configuration_windows::patch(
+            hook_configuration_files::patch(
                 HookConfigurationKind::Cursor,
                 Some(original),
                 &crate::inspect::ResourceOptions {

@@ -1,4 +1,4 @@
-//! Bounded optimistic Windows file publication with preserved metadata and recoverable preimages.
+//! Bounded optimistic file publication with preserved metadata and recoverable preimages.
 use super::super::{files, providers::ProviderContext};
 use super::{
     Attempt, AttemptedStep, EffectTrace, FailureCode, FsStep, StepKind, cancelled, now,
@@ -220,5 +220,5 @@ fn record(
     });
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;

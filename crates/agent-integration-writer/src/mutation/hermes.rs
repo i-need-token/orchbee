@@ -1,8 +1,6 @@
 //! Publish only proven Hermes entry members, then let Hermes own activation.
-use super::super::{
-    hermes_windows as hermes, inspect::ResourceOptions, model::State, providers::ProviderContext,
-};
-use super::{Attempt, EffectTrace, FailureCode, exec, file_publication_windows, run_step_with};
+use super::super::{hermes, inspect::ResourceOptions, model::State, providers::ProviderContext};
+use super::{Attempt, EffectTrace, FailureCode, exec, file_publication, run_step_with};
 pub(super) fn update(
     context: &ProviderContext,
     options: &ResourceOptions,
@@ -34,7 +32,7 @@ pub(super) fn update(
             if expected.as_ref() == Some(&replacement) {
                 continue;
             }
-            let result = file_publication_windows::replace(
+            let result = file_publication::replace(
                 &local.directory.join(member.name()),
                 expected,
                 replacement,

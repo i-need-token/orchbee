@@ -89,6 +89,98 @@ fn nonce(attempt: usize) -> u64 {
     nanos ^ seed.wrapping_mul(0x9e3779b97f4a7c15) ^ (attempt as u64)
 }
 
+fn denied() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::PermissionDenied,
+        "unsafe managed integration path",
+    )
+}
+
+/// An absolute UTF-8 path in one unambiguous spelling: bounded, without control characters and
+/// without `.` or `..` parts. Directory links above the final name are followed, as macOS's own
+/// `/tmp` and `/var` are links.
+pub(crate) fn path_admitted(path: &Path) -> bool {
+    path.to_str().is_some_and(|text| {
+        text.len() <= 4096
+            && path.is_absolute()
+            && !text.chars().any(char::is_control)
+            && !text.split('/').any(|part| matches!(part, "." | ".."))
+    })
+}
+
+/// Opens an admitted path that must be a regular file itself: a link at the final name fails
+/// rather than being followed, and a FIFO never blocks the open.
+pub(crate) fn regular_file(path: &Path) -> io::Result<fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    if !path_admitted(path) {
+        return Err(denied());
+    }
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK | nix::libc::O_CLOEXEC)
+        .open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(denied());
+    }
+    Ok(file)
+}
+
+fn read_limited(file: &fs::File, maximum: u64) -> io::Result<Vec<u8>> {
+    use std::io::Read;
+    if file.metadata()?.len() > maximum {
+        return Err(denied());
+    }
+    let mut bytes = Vec::new();
+    file.take(maximum + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > maximum {
+        return Err(denied());
+    }
+    Ok(bytes)
+}
+
+/// The bytes of a regular file of at most `maximum` bytes; a missing file stays `NotFound`.
+pub(crate) fn read_bounded(path: &Path, maximum: u64) -> io::Result<Vec<u8>> {
+    read_limited(&regular_file(path)?, maximum)
+}
+
+/// The open file and its bytes, read before the caller's no-replace move. Unix cannot deny
+/// in-place writes through the handle, so the caller compares the moved bytes again.
+pub(crate) fn read_for_move(path: &Path, maximum: u64) -> io::Result<(fs::File, Vec<u8>)> {
+    let file = regular_file(path)?;
+    let bytes = read_limited(&file, maximum)?;
+    Ok((file, bytes))
+}
+
+/// The POSIX counterpart of `ReplaceFile` on three private names: the staged replacement takes
+/// the moved original's permission bits, then the original moves to `backup` and the replacement
+/// to the original's name, each move no-replace. Owner, extended attributes and ACLs are not
+/// copied. Failure can be partial; the caller compares every name afterwards.
+pub(crate) fn preserve_configuration_metadata(
+    original: &Path,
+    staged: &Path,
+    backup: &Path,
+) -> FsStep {
+    use std::os::unix::fs::PermissionsExt;
+    if fs::symlink_metadata(backup).is_ok() {
+        return FsStep::Conflict;
+    }
+    let (Ok(source), Ok(replacement)) = (regular_file(original), regular_file(staged)) else {
+        return FsStep::Failed;
+    };
+    let Ok(metadata) = source.metadata() else {
+        return FsStep::Failed;
+    };
+    let mode = fs::Permissions::from_mode(metadata.permissions().mode() & 0o777);
+    if replacement.set_permissions(mode).is_err() {
+        return FsStep::Failed;
+    }
+    drop((source, replacement));
+    match move_no_replace(original, backup) {
+        FsStep::Done => move_no_replace(staged, original),
+        step => step,
+    }
+}
+
 /// `O_NOFOLLOW`-disciplined write of `bytes` at `path`, `wx`+0600: fails
 /// rather than following a swapped symlink or overwriting an arrival.
 pub(crate) fn write_file_exclusive(path: &Path, bytes: &[u8]) -> io::Result<()> {

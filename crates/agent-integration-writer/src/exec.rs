@@ -108,6 +108,49 @@ pub(crate) fn run_command(
     invocation_deadline: Instant,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {
+    run_scoped_command(
+        executable,
+        arguments,
+        home,
+        None,
+        invocation_deadline,
+        cancel,
+    )
+}
+
+/// Runs Hermes with `HERMES_HOME` pinned to the profile root that filesystem admission read, so
+/// the plugin Hermes lists is the one whose entry files were checked.
+pub(crate) fn run_hermes_command(
+    executable: &Path,
+    arguments: &[String],
+    home: &Path,
+    invocation_deadline: Instant,
+    cancel: Option<&dyn crate::TerminationSource>,
+) -> CommandResult {
+    let Some(profile) = crate::configuration::hermes_home(home) else {
+        return CommandResult::Failed;
+    };
+    if !super::files::path_admitted(&profile) {
+        return CommandResult::Failed;
+    }
+    run_scoped_command(
+        executable,
+        arguments,
+        home,
+        Some(("HERMES_HOME", &profile)),
+        invocation_deadline,
+        cancel,
+    )
+}
+
+fn run_scoped_command(
+    executable: &Path,
+    arguments: &[String],
+    home: &Path,
+    provider_home: Option<(&str, &Path)>,
+    invocation_deadline: Instant,
+    cancel: Option<&dyn crate::TerminationSource>,
+) -> CommandResult {
     // Test seam: a scripted plan replaces the process spawn entirely — the
     // provider's argv is logged for assertion and the scripted outcome is
     // materialized without touching a real binary.
@@ -145,6 +188,9 @@ pub(crate) fn run_command(
         // — so a SIGINT'd CLI relies on the same group-kill teardown and a
         // surviving descendant reports `Leaked`, never a silent orphan.
         .process_group(0);
+    if let Some((variable, profile)) = provider_home {
+        command.env(variable, profile);
+    }
     if cancel.map(|source| source.requested()).unwrap_or(false) {
         return CommandResult::Cancelled;
     }
