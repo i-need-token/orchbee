@@ -49,10 +49,11 @@ pub(super) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Local
     output
 }
 
-/// This executable and its installation files, without contacting a Server.
+/// This executable and its installation files, without contacting a Server. The program file is
+/// the resolved one, so a macOS start through the command link still finds the release beside it.
 pub(super) fn client(deadline: Instant) -> Result<Report, Failure> {
     let executable =
-        std::env::current_exe().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+        runtime::current_executable().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let admitted = admitted_cohort(deadline);
     let installation = crate::cli::installation::inspect(
         &executable,
