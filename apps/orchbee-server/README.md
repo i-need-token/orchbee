@@ -370,13 +370,14 @@ explicit-endpoint stdout readiness marker.
 Client exit does not end the Session, and neither does `SIGHUP`. `server stop`, an admitted
 Client's `workbench.session-stop`, `SIGTERM` and `SIGINT` all reach the
 [managed stop owner](#managed-windows-session-shutdown), so a logout or a system shutdown, which
-sends `SIGTERM`, stops the Session normally. The owner runs as on Windows without plugin hooks,
-automatic updates or Agent resume, and on Linux also without the checkpoint saver, final capture
-and kept terminal output: the Worker shutdown request disposes every terminal, and after the Client
+sends `SIGTERM`, stops the Session normally. The owner runs as on Windows without plugin hooks or
+automatic updates, and on Linux also without Agent resume, the checkpoint saver, final capture and
+kept terminal output: the Worker shutdown request disposes every terminal, and after the Client
 listeners stop the owner removes the Session's socket files before it publishes the Stopped record,
 which is the receipt the next start consumes. A macOS start then relaunches every terminal from the
 final capture in its saved directory, showing its kept output first while `terminal.restore_output`
-is on.
+is on, and resumes each retained Agent conversation in its managed zsh or bash under the
+[Agent session resume contract](docs/agent-session-resume.md).
 Every stop the Server begins itself, on a signal or once its Worker exited and its Host is gone,
 uses one identity, and a later signal or loss check retries that identity once its attempt failed.
 After its Worker exited, a stop fails while that Worker's Host still runs, since nothing here may

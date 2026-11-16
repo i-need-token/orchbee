@@ -191,15 +191,15 @@ fn start(
     startup_deadline: Instant,
     configuration: orchbee_local_runtime::UserSettingsLoad,
 ) -> io::Result<local_client_service::ManagedClients> {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     owners.terminals.bind_agent_names(&owners.agents)?;
     owners.terminals.start_close_maintenance()?;
     owners.terminals.start_title_reads()?;
     owners.terminals.start_agent_catalog()?;
     owners.terminals.start_agent_start_delivery()?;
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let mut restored = restored;
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let resumes = restored.take_agent_resume();
     // Restored launches read their kept output through the same store.
     if let Some(kept) = &owners.checkpoint {
@@ -214,7 +214,7 @@ fn start(
         .terminals
         .start_process_observer(move || Ok(configuration), true)?;
     // Resumes read through the observer and wait for a Client, so no listener may open first.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     owners.terminals.start_agent_resume(resumes)?;
     if let Some(kept) = &mut owners.checkpoint {
         kept.start_saver(&owners.terminals, checkpoint_worker(&owners.handle)?)?;
@@ -486,6 +486,9 @@ fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()
             updates.stop();
         }
         owners.terminals.stop_plugin_hooks_before(deadline)?;
+    }
+    #[cfg(any(windows, target_os = "macos"))]
+    {
         // A resume types through the Worker and reads through the observer, so it stops first; one
         // not yet attempted stays pending for the final capture.
         owners.terminals.stop_agent_resume_before(deadline)?;
@@ -643,7 +646,7 @@ fn worker_phase(stage: ShutdownStage) -> StopPhase {
 fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
     let deadline = Instant::now() + Duration::from_secs(30);
     let cleanup = (|| -> io::Result<()> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         {
             owners.terminals.stop_agent_resume_before(deadline)?;
             owners

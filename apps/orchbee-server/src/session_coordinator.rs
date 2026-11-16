@@ -48,9 +48,9 @@ mod target_lifecycle;
 pub(crate) use target_lifecycle::TargetLifecycle;
 mod agent_names;
 mod agent_registration;
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 mod agent_resume;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use agent_resume::{RunTableEntry, read_run_table, resume_arguments};
 mod delivery_target;
 pub(crate) use delivery_target::ResumeTarget;
@@ -61,7 +61,7 @@ mod process_observation;
 mod semantic_events;
 #[cfg(all(test, windows))]
 pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use process_observation::decoded_argv;
 pub(crate) use process_observation::{
     ProcessObservationTarget, host_time_as_creation, identify as identify_host_agent,
@@ -80,7 +80,7 @@ pub(crate) struct SessionCoordinator {
     /// feed. Its lock is a leaf, so feeding it under this coordinator's lock is safe.
     agent_catalog: Option<std::sync::Arc<crate::agent_catalog::AgentCatalog>>,
     /// Delivered Agent session references carried forward to later captures.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     carried_agent_sessions: agent_resume::CarriedSessions,
 }
 
@@ -97,7 +97,7 @@ impl SessionCoordinator {
             terminal_observations: semantic_events::Observations::new(),
             agents: None,
             agent_catalog: None,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             carried_agent_sessions: agent_resume::CarriedSessions::new(),
         }
     }

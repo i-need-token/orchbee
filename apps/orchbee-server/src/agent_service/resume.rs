@@ -17,7 +17,7 @@ pub(crate) struct AgentResumeCandidate {
     pub(crate) run_token: Option<AgentRunToken>,
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 impl super::AgentService {
     /// Candidates for each supplied Presentation and its current Host Terminal identity: root
     /// sessions whose provider has a resume row, whose canonical session is live with no parent,

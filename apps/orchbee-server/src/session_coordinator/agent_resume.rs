@@ -11,15 +11,15 @@ use orchbee_agent_observation_protocol::AgentProcessIdentity;
 use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
 use std::collections::BTreeSet;
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod claude_run_table;
 mod conversation_ids;
 #[cfg(test)]
 mod tests;
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use claude_run_table::read as read_run_table;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use conversation_ids::resume_arguments;
 
 /// The shell command evidence of one exact Terminal generation.
@@ -35,7 +35,7 @@ pub(crate) enum CommandEvidence {
 
 impl CommandEvidence {
     /// The evidence a generation's latest shell-echoed command gives; none means unmarked.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn of(latest: Option<orchbee_terminal_protocol::TerminalObservedCommand>) -> Self {
         match latest {
             Some(command) if !command.completed => Self::Open(command.id),
@@ -212,11 +212,11 @@ pub(crate) fn carried_outcome(carried: &Carried, moment: CarriedMoment<'_>) -> C
 
 /// Carried references keyed like process samples, each with the exact Terminal generation its
 /// delivery reached.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(super) type CarriedSessions =
     std::collections::BTreeMap<(String, String), (orchbee_server::TerminalAgentBinding, Carried)>;
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 impl super::SessionCoordinator {
     /// Records the reference the driver just admitted for delivery into `target`'s exact Terminal
     /// generation, with the tokens that delivery types. At most one delivery reaches a Presentation
@@ -439,7 +439,7 @@ impl super::SessionCoordinator {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 impl super::SessionCoordinator {
     /// Whether a restart reference still waits for delivery in this Presentation.
     pub(crate) fn has_pending_agent_session(

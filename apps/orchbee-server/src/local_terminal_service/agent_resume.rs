@@ -1,5 +1,5 @@
 //! Owns the one thread that types each retained Agent session reference's resume command into its
-//! restored shell after a managed Windows restart. It waits for the first Client view of this
+//! restored shell after a managed restart. It waits for the first Client view of this
 //! Server lifetime, then attempts each pending reference once, viewed terminals first. An attempt
 //! sends only through the Host's prompt gate, into a shell the Host launched with prompt marks, of
 //! the restored Terminal generation in the retained directory that no Client input or command has
@@ -502,7 +502,7 @@ impl LocalTerminalService {
             return Delivery::Done(Outcome::Skipped(Reason::Gone));
         };
         let powershell = shell == MarkedShell::ManagedPowerShell;
-        let token = if powershell {
+        let token = if plan::takes_run_prefix(shell) {
             match plan::run_token() {
                 Some(token) => Some(token),
                 None => return Delivery::Done(self.consume(candidate, Reason::TokenUnavailable)),
@@ -510,8 +510,9 @@ impl LocalTerminalService {
         } else {
             None
         };
-        let text = plan::text(&session, shell, token.as_deref());
-        let Some(request) = prompt_line::request(target, &text, powershell) else {
+        let Some(request) = plan::text(&session, shell, token.as_deref())
+            .and_then(|text| prompt_line::request(target, &text, powershell))
+        else {
             return Delivery::Done(self.consume(candidate, Reason::SendFailed));
         };
         let mut admission = None;

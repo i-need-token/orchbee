@@ -42,10 +42,10 @@ struct SessionBinding {
     execution_location_id: String,
     /// The provider's native session key, verbatim as the admitted envelope carried it.
     #[cfg_attr(
-        not(windows),
+        not(any(windows, target_os = "macos")),
         expect(
             dead_code,
-            reason = "only the managed Windows checkpoint captures resume references until POSIX restore exists"
+            reason = "only the managed Windows and macOS checkpoints capture resume references; a Linux Session keeps none"
         )
     )]
     native_key: String,
@@ -95,10 +95,10 @@ enum SessionEventInput {
 /// One root hook session joined to its native key. The key is private provider state: it may feed
 /// a checkpoint reference, never the wire, logs or notices.
 #[cfg_attr(
-    not(windows),
+    not(any(windows, target_os = "macos")),
     expect(
         dead_code,
-        reason = "only the managed Windows checkpoint captures resume references until POSIX restore exists"
+        reason = "only the managed Windows and macOS checkpoints capture resume references; a Linux Session keeps none"
     )
 )]
 pub struct NativeSessionRef<'a> {
@@ -258,10 +258,10 @@ impl AgentHookObservationIngress {
     /// Every root hook session with its canonical identity, provider, native key and first run
     /// token; bounded by the session cap. Child sessions have no entry.
     #[cfg_attr(
-        not(windows),
+        not(any(windows, target_os = "macos")),
         expect(
             dead_code,
-            reason = "only the managed Windows checkpoint captures resume references until POSIX restore exists"
+            reason = "only the managed Windows and macOS checkpoints capture resume references; a Linux Session keeps none"
         )
     )]
     pub fn native_session_refs(&self) -> impl Iterator<Item = NativeSessionRef<'_>> {

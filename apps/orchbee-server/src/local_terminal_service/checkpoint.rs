@@ -21,11 +21,11 @@ pub(super) use riders::{Riders, attach_held_seed};
 pub(crate) struct CheckpointRestore {
     /// Each restored launch and, when replay is on, the kept output its Presentation replays.
     pending: Vec<(PendingOperation, riders::Output)>,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     resumes: riders::Resumes,
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 impl CheckpointRestore {
     /// The Presentations whose retained Agent session reference survived startup, in restoration
     /// order. Taking them leaves none behind.
@@ -186,7 +186,7 @@ impl LocalTerminalService {
             service,
             CheckpointRestore {
                 pending,
-                #[cfg(windows)]
+                #[cfg(any(windows, target_os = "macos"))]
                 resumes,
             },
         ))

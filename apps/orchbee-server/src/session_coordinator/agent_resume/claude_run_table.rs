@@ -23,11 +23,17 @@ mod tests;
 /// Claude Code 2.1.322 writes entries of under 1 KiB; anything larger is not one.
 const MAXIMUM_ENTRY_BYTES: u64 = 64 * 1024;
 
+/// Whether this platform's Claude Code writes `procStart` in the unit its Host samples. Only the
+/// native Windows build does; its POSIX build writes `ps -o lstart` text, which never equals a
+/// sampled creation time, so its entries are never read. A policy constant rather than a `cfg`,
+/// so every branch compiles everywhere.
+const SAMPLED_START: bool = cfg!(windows);
+
 /// The run table entry of each anchored process that has one naming a valid Claude Code session.
 /// Call it with no lock held: it reads one small file per anchor.
 pub(crate) fn read(anchors: &[RunAnchor]) -> Vec<RunTableEntry> {
     match directory() {
-        Some(directory) if !anchors.is_empty() => read_in(&directory, anchors),
+        Some(directory) if SAMPLED_START && !anchors.is_empty() => read_in(&directory, anchors),
         _ => Vec::new(),
     }
 }

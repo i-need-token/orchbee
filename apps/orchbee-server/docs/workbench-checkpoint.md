@@ -229,22 +229,24 @@ Fresh physical creation establishes terminal bindings. Client and history recove
 
 macOS runs this startup, clean stop and the running save model in the same Session folder under
 its POSIX data root, with the same storage owner, record format and restore notice. Kept terminal
-output rides on a macOS checkpoint as on Windows
-([Terminal output replay](#terminal-output-replay)); Agent session references ride only on Windows
-(`local_terminal_service/checkpoint/riders/resume.rs`), so a macOS save records none and its
-restore resumes nothing. A macOS stop, an `exit` included, disposes every terminal and stops the
-Host, so its next start relaunches them from the final capture, each showing its kept output first
-while the preference is on. A Session that ended without its stop has no final capture: once
-activation has recovered it, which waits until every recorded process is gone and refuses while its
-Host holds its lock, startup restores the newest background save and the output that save named, at
-most one save period old. No restore therefore starts beside a running terminal.
+output and Agent session references ride on a macOS checkpoint as on Windows
+([Terminal output replay](#terminal-output-replay);
+`local_terminal_service/checkpoint/riders/resume.rs`), and its restore resumes each Agent in
+managed zsh or bash ([Agent session resume](agent-session-resume.md)). A macOS stop, an `exit`
+included, disposes every terminal and stops the Host, so its next start relaunches them from the
+final capture, each showing its kept output first while the preference is on. A Session that ended
+without its stop has no final capture: once activation has recovered it, which waits until every
+recorded process is gone and refuses while its Host holds its lock, startup restores the newest
+background save and the output that save named, at most one save period old. No restore therefore
+starts beside a running terminal.
 
 ## Running save model
 
 The managed Server owns one background saver after terminal restoration has settled. It watches committed Workbench revision; each change restarts a 500ms debounce.
 Every 30 seconds it also captures cached directories. Agent session rows come from the same
-capture on Windows. No terminal screen, history, Agent conversation or live controller state enters
-the payload; kept terminal output lives in its own files, which the payload names only by number.
+capture on Windows and macOS. No terminal screen, history, Agent conversation or live controller
+state enters the payload; kept terminal output lives in its own files, which the payload names only
+by number.
 The pending work is one latest snapshot, not an unbounded queue.
 When every retained copy was invalid, the saver retains the exact initial empty checkpoint in
 memory and does not publish that baseline. A later layout or cached directory

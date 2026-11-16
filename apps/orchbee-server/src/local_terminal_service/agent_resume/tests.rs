@@ -1,17 +1,19 @@
 //! The delivery rule's decisions: a gated resume is tried only in an idle shell the Host launched
 //! with prompt marks, at its prompt or silent in the retained directory, and never in a busy, foreign or
-//! too-old terminal; and the handover of a retried reference to the driver at any point of its run.
-//! Timing, ordering, the Host's gate and wiring are witnessed end to end by
-//! `cli_windows_agent_resume`.
+//! too-old terminal; the line a managed zsh or bash receives; and the handover of a retried
+//! reference to the driver at any point of its run. Timing, ordering, the Host's gate and wiring
+//! are witnessed end to end by `cli_windows_agent_resume`.
 use super::{
     Admitted, Candidate, Reason,
     admission::{Readiness, readiness},
+    plan,
     signals::{Offer, Signals},
 };
 use crate::local_terminal_service::{
     prompt_readiness::{MarkedShell, ResumeFacts},
     tab_close::evidence::ShellReport,
 };
+use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
 use orchbee_terminal_protocol::{
     AttachmentId, MAXIMUM_PROCESS_SAMPLE_ROWS, TerminalId, TerminalLaunchKind, TerminalProcess,
     TerminalProcessConsole, TerminalProcessInfo,
@@ -100,6 +102,33 @@ fn cmd() -> TerminalProcess {
     row(1, Some(CMD), &format!("{} /D /Q", quoted(CMD)))
 }
 
+/// An idle terminal of every shell kind the Host launches with prompt marks.
+fn marked_shells() -> [(TerminalProcessInfo, MarkedShell); 4] {
+    [
+        (
+            sample(managed_powershell(), vec![conhost(2)]),
+            MarkedShell::ManagedPowerShell,
+        ),
+        (sample(cmd(), vec![conhost(2)]), MarkedShell::Cmd),
+        (
+            launched(
+                Some(TerminalLaunchKind::ManagedZsh),
+                row(1, Some("/bin/zsh"), "-zsh"),
+                vec![],
+            ),
+            MarkedShell::ManagedZsh,
+        ),
+        (
+            launched(
+                Some(TerminalLaunchKind::ManagedBash),
+                row(1, Some("/bin/bash"), "-bash"),
+                vec![],
+            ),
+            MarkedShell::ManagedBash,
+        ),
+    ]
+}
+
 fn conhost(pid: u32) -> TerminalProcess {
     row(
         pid,
@@ -126,11 +155,7 @@ fn decide(facts: &ResumeFacts) -> Readiness {
 
 #[test]
 fn a_shell_at_its_prompt_in_the_retained_directory_receives_the_resume_for_its_kind() {
-    for (root, shell) in [
-        (managed_powershell(), MarkedShell::ManagedPowerShell),
-        (cmd(), MarkedShell::Cmd),
-    ] {
-        let idle = sample(root, vec![conhost(2)]);
+    for (idle, shell) in marked_shells() {
         assert_eq!(
             decide(&facts(
                 Some(ShellReport::AtPrompt),
@@ -144,13 +169,10 @@ fn a_shell_at_its_prompt_in_the_retained_directory_receives_the_resume_for_its_k
 
 #[test]
 fn a_silent_shell_in_the_retained_directory_is_offered_to_the_hosts_gate() {
-    // The viewing Client's resize repaints the console, which erases the prompt's marks from every
-    // later frame while the Host's gate still holds the prompt: only the gate can tell.
-    for (root, shell) in [
-        (managed_powershell(), MarkedShell::ManagedPowerShell),
-        (cmd(), MarkedShell::Cmd),
-    ] {
-        let idle = sample(root, vec![conhost(2)]);
+    // The viewing Client's resize repaints the console, or the shell redraws its prompt line, which
+    // erases the prompt's marks from every later frame while the Host's gate still holds the
+    // prompt: only the gate can tell.
+    for (idle, shell) in marked_shells() {
         assert_eq!(
             decide(&facts(
                 Some(ShellReport::Silent),
@@ -261,6 +283,49 @@ fn evidence_that_cannot_decide_waits() {
             decide(&facts(None, Some(sample(root, vec![])), Some(RETAINED))),
             Readiness::Wait
         );
+    }
+}
+
+/// One valid session of every provider, and Letta's stored default key.
+fn sessions() -> Vec<RetainedAgentSession> {
+    use AgentResumeProvider as P;
+    let id = |provider| match provider {
+        P::OpenCode | P::Kilo | P::Mimo => "ses_0123456789abCdEfGhIjKlMnOp",
+        P::Kimi => "session_0f8fad5b-d9cb-469f-a165-70867728950e",
+        P::Letta => "conv-0f8fad5b-d9cb-469f-a165-70867728950e",
+        P::Devin => "a1b2c3d4-e5f6",
+        P::Hermes => "20261111_120000_a1b2c3",
+        P::Cline => "1730000000000_a1b2c",
+        _ => "0f8fad5b-d9cb-469f-a165-70867728950e",
+    };
+    AgentResumeProvider::ALL
+        .into_iter()
+        .map(|provider| RetainedAgentSession::new(provider, id(provider)).unwrap())
+        .chain(RetainedAgentSession::new(
+            P::Letta,
+            "default:agent-0f8fad5b-d9cb-469f-a165-70867728950e",
+        ))
+        .collect()
+}
+
+#[test]
+fn a_zsh_or_bash_resume_line_is_the_run_prefix_then_the_resume_words() {
+    let token = "0123456789abcdef0123456789abcdef";
+    for session in sessions() {
+        for shell in [MarkedShell::ManagedZsh, MarkedShell::ManagedBash] {
+            let line = plan::text(&session, shell, Some(token)).unwrap();
+            // The prefix `orchbee.zsh` and `orchbee.bash` strip before the line runs with its token.
+            let rest = line
+                .strip_prefix(&format!(": orchbee-run:{token}; "))
+                .unwrap();
+            // The shell reads back the program and exactly the arguments that bind the id.
+            let words = orchbee_terminal_protocol::split_posix_command_line(rest).unwrap();
+            assert_eq!(
+                words.get(1..),
+                Some(crate::session_coordinator::resume_arguments(&session).as_slice()),
+                "{line}"
+            );
+        }
     }
 }
 

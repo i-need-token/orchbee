@@ -1,16 +1,19 @@
 # Agent session resume
 
-Status: implemented for the managed Windows Session: the `agents.resume_on_restore` setting, the retained format, capture,
-delivery after a restart at a prompt the Host confirms, the one-shot notice when a resume is given
-up, carry-forward of a delivered reference, and two [process sources](#process-source) that need
-no hook: Claude Code's own run table, and the conversation id bound on the Agent process's own
-command line.
+Status: implemented for the managed Windows and macOS Sessions: the `agents.resume_on_restore`
+setting, the retained format, capture, delivery after a restart at a prompt the Host confirms, the
+one-shot notice when a resume is given up, carry-forward of a delivered reference, and two
+[process sources](#process-source) that need no hook: Claude Code's own run table, on Windows, and
+the conversation id bound on the Agent process's own command line.
 
 ## Outcome and scope
 
 A user runs supported Agents in Panels, and the managed Server restarts from its checkpoint. Each
-Panel's supported Agent Session should reopen in that Panel once. The managed Windows Session is
-the only platform with checkpoint restore; POSIX restore will reuse this format and these rules.
+Panel's supported Agent Session should reopen in that Panel once. The managed Windows and macOS
+Sessions keep a checkpoint and share this format and these rules; the macOS line is typed into
+managed zsh or bash. A Linux Session keeps no checkpoint, and its build compiles the closed rider,
+`checkpoint/riders/without_resume.rs`, without the resume driver, until its Host is tested, as for
+Agent start.
 
 Non-goals: replaying a command, relaunching an arbitrary program, restoring managed Agent names,
 and restoring a terminal screen or history. A resumed Agent appears without its former name.
@@ -31,8 +34,8 @@ A provider joins when all four hold:
 1. Its resume form is source-verified or documented.
 2. The typed id is bound to a value-taking option or a resume subcommand, so the documented grammar
    cannot read it as a positional prompt.
-3. A strict per-provider validator accepts the id, and every accepted id is inert in cmd and
-   PowerShell and cannot start with `-`.
+3. A strict per-provider validator accepts the id, and every accepted id is inert in cmd,
+   PowerShell, zsh and bash and cannot start with `-`.
 4. A wrong or stale id can only cause an error, or an empty or new session.
 
 Same-id evidence from source is preferred. Documentation or Herdr precedent is enough under rules
@@ -131,12 +134,15 @@ Not in the table:
   source-verified while its `=` support is not.
 - Tokens use only `[A-Za-z0-9_=-]`: never `'`, `:` or `.`. Letta's stored `default:<agent>` key is
   split into `--conversation default --agent <agent>` before it is typed.
-- Programs resolve both in cmd and as a PowerShell application or external script, and none is a cmd
-  internal command: `cursor-agent`, never the generic `agent`; `qodercli`, never the IDE dispatcher
-  `qoder`; and `agy`.
+- Programs resolve in cmd, as a PowerShell application or external script, and as a command zsh
+  and bash find on `PATH`, and none is a cmd internal command: `cursor-agent`, never the generic
+  `agent`; `qodercli`, never the IDE dispatcher `qoder`; and `agy`.
 - PowerShell single-quotes every argument token. A quoted token is a plain string, never a
   parameter, so it reaches a native program verbatim and an npm `.ps1` shim's `$args` intact. cmd
-  takes the tokens bare.
+  takes the tokens bare. zsh and bash take the program and tokens through the shared POSIX quoting
+  of a [typed Agent start](../../orchbee/docs/windows-agent-start.md#typed-start-in-zsh-and-bash),
+  where every token is a plain word, so the person's own alias or function of the program's name
+  runs, as for a line they typed.
 
 ## Inputs and trust
 
@@ -257,6 +263,8 @@ behind when it is killed. No other provider has a run table source yet.
   1601 UTC. Claude Code's native Windows build writes `procStart` as that same count in decimal.
   Its PowerShell fallback writes CIM creation ticks, local and microsecond-precise, and its POSIX
   build writes `ps -o lstart` text; neither ever equals a sampled value, so those entries give none.
+  The macOS Host samples creation times in the same unit, so no entry there could ever match, and
+  the Server reads no run table outside Windows (`SAMPLED_START`).
 - **Reuse.** A later process that reuses a pid has another creation time, so an entry a killed
   process left behind never names it.
 - **Location.** The directory is `.claude/sessions` in the Server's home directory, Claude Code's
@@ -268,8 +276,7 @@ behind when it is killed. No other provider has a run table source yet.
   creation time, so a run that changed in between gains nothing. Restore never reads it, and the
   entries are kept only for that capture.
 - **Coverage.** A `claude` the person typed is covered like a board start, since identity and the
-  published run do not depend on who started it. Only the Windows Host samples processes, so the
-  source gives none elsewhere.
+  published run do not depend on who started it. It gives none outside Windows, as Units says.
 
 A capture that meets an entry while Claude Code rewrites it may read nothing for that Presentation
 at that capture. Whether Claude Code updates `sessionId` when it switches conversation inside the
@@ -344,7 +351,9 @@ any of them gives none, since the process may hold another conversation than any
   switches conversation inside the Agent (`/resume`, `/new`, `/clear` and the like) and no hook
   session reports the switch, the next restart reopens the conversation the process started in,
   which still exists: stale, never a prompt. Orchbee does not detect the switch.
-- **Platform.** Only the Windows Host samples processes, so the source gives none elsewhere.
+- **Platform.** The Windows and macOS Hosts sample command lines; the macOS Host splits each by
+  POSIX quoting rules before identity reads it. A Linux Session keeps no checkpoint, so the source
+  gives none there.
 
 ## Carry-forward
 
@@ -390,7 +399,8 @@ Stale ids stay harmless:
 
 Orchbee types the provider's own resume command into the restored default shell, the way Herdr
 does, instead of launching the Agent as the terminal's program. The shell survives the Agent's
-exit, profile `PATH` and `.cmd` or `.ps1` shims resolve as when the user types the command, and
+exit, profile `PATH`, `.cmd` or `.ps1` shims and zsh's or bash's own startup files resolve as when
+the user types the command, and
 the run prefix gives the resumed run a token, so the next capture finds it like any other run, or
 keeps the delivered reference while the provider stays silent ([carry-forward](#carry-forward)).
 Launch programs and the restored-program policy stay unchanged.
@@ -402,6 +412,7 @@ chooses the line; the root's command line is never read.
 | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Managed PowerShell: `powershell` or `pwsh` with prompt marks | `<#orchbee-run:<token>#> & (Get-Command '<program>' -CommandType Application,ExternalScript -ErrorAction Stop \| Select-Object -First 1) '<arg>' …` |
 | Interactive cmd with prompt marks                            | `<program> <arg> …`                                                                                                                                 |
+| Managed zsh or bash: the Host's startup with prompt marks    | `: orchbee-run:<token>; <program> <arg> …`                                                                                                          |
 | Any other shell, unmanaged PowerShell included               | Nothing: the reference is given up.                                                                                                                 |
 | None: the Host predates the prompt gate                      | Nothing: the reference is given up as `terminal-too-old`.                                                                                           |
 
@@ -410,9 +421,10 @@ shell waits at a fresh, empty, marked prompt, and otherwise refuses with `prompt
 having typed nothing ([prompt-gated input](../../orchbee/docs/windows-agent-start.md#prompt-gated-input)).
 The records are one paste of the line, then Right for PowerShell, then Enter, as an Agent start
 types them. The token is 16 bytes of operating-system entropy as 32 lowercase hex digits; without
-entropy the reference is skipped. Managed PowerShell strips the prefix, echoes the token in the
-command's start and finish markers and keeps the line out of history, as for an Agent start
-([Windows Agent start](../../orchbee/docs/windows-agent-start.md)).
+entropy the reference is skipped. Managed PowerShell, zsh and bash strip the prefix, echo the token
+in the command's start and finish markers and keep the line out of history, as for an Agent start
+([Windows and macOS Agent start](../../orchbee/docs/windows-agent-start.md)). A word POSIX quoting
+cannot type, which no id grammar admits, skips the reference.
 
 ### Startup
 
@@ -478,17 +490,21 @@ Each read then decides:
 
 A shell's report is only a sign that a send is worth trying; the Host's gate decides, typing only
 at a fresh, empty prompt it confirmed. A silent shell is tried too: the Client viewing a restored
-Panel resizes it within the settle, and the console host's repaint erases the prompt's marks from
-every later frame while the Host's gate still holds that prompt. With no Client input or command
-since the restore and the shell alone in its console, nothing else can be waiting for input there.
-Agent start delivery does not count silence.
+Panel resizes it within the settle, and the console host's repaint, or zsh's and bash's redraw of
+the prompt line, erases the prompt's marks from every later frame while the Host's gate still holds
+that prompt. With no Client input or command since the restore and the shell alone in its console,
+nothing else can be waiting for input there. Agent start delivery does not count silence.
 
 The shell-only rule is the strict idle-shell rule an Agent start uses, shared in
 `orchbee-agent-observation-protocol`. The directory, the reported one else the root's, must equal
-the retained one, compared ASCII case-insensitively with one trailing separator trimmed, except a
-drive root's. Another directory skips: resuming elsewhere fails for Claude Code, whose session
-lookup is per project, misplaces Codex, and for other providers changes the outcome where the
-[table](#rows) says so. No directory evidence waits.
+the retained one by the platform's own rule. On Windows the two compare ASCII case-insensitively
+with one trailing separator trimmed, except a drive root's. On macOS they are equal byte for byte
+after one trailing `/` is trimmed, except the root's, or both are absolute and name the same
+existing directory by device and inode, as zsh and bash decide whether `$PWD` still names the
+current directory; a link, the `/private` spelling of `/tmp` and `/var`, and another case on a
+case-insensitive volume therefore match. Another directory skips: resuming elsewhere fails for
+Claude Code, whose session lookup is per project, misplaces Codex, and for other providers changes
+the outcome where the [table](#rows) says so. No directory evidence waits.
 
 On a try, the send's own admission checks every guard again under its locks and takes the
 pending reference before any record leaves, so an input admitted before that point refutes the
@@ -623,8 +639,11 @@ provider, a manual start, unreadable arguments and a run not yet an `Agent` drop
 gone anchor, a reused process id with a new creation time and a run that is no longer `Agent` of
 the provider drop; a living bound run is written; an unbound reference is kept but never written)
 and the delivery readiness table (a running command, another program, another launch kind, no
-launch kind, every undecidable sample, each marked shell at its prompt, silence and no frame for
-each, and directory equality), the Clients' notice selection (once per fact, only while fresh),
+launch kind, every undecidable sample, each marked shell at its prompt, managed zsh and bash
+included, silence and no frame for each, and each platform's directory equality, with a link, its
+target and a sibling on POSIX), the zsh and bash line (the run prefix, then words that POSIX
+quoting reads back as each provider's program and exact resume arguments), the Clients' notice
+selection (once per fact, only while fresh),
 and the Retry handover (a reference handed over while the driver runs is taken before
 it ends, one handed over after it ended starts a new run, and a stopping Server refuses it and
 leaves it pending). Candidate joining, lock order, the gate, ordering, spacing, the observer lane, saver
@@ -682,6 +701,9 @@ It does not prove:
 
 - the managed PowerShell line, which has no end-to-end witness that keeps a real provider out of
   reach;
+- anything on macOS, which has no automated end-to-end witness: the zsh and bash line, the POSIX
+  directory rule, capture there and the stop and start paths rest on the decision tables and on
+  manual runs with stub providers in a scratch home;
 - a refused send's retry, a give-up or its notice, which no CLI read can provoke or observe; they
   rest on the decision tables and the end batch's real-window checks;
 - any real provider: that its hook key is the id it resumes, that it parses the typed form, or

@@ -25,7 +25,7 @@ impl LocalTerminalService {
 
     /// Whether this Session records and resumes Agent sessions, read before the caller takes any
     /// lock. Before startup installs configuration it reads as off.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn agent_resume_enabled(&self) -> bool {
         self.configuration
             .with_preferences(|values| values.resume_agents_on_restore)

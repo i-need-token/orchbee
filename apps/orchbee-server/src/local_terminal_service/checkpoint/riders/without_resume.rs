@@ -1,5 +1,5 @@
-//! No Agent resume rides on a checkpoint on this platform: a save records no Agent session, a
-//! restore resumes nothing, and a held Presentation keeps no Agent reference.
+//! No Agent resume rides on a Linux checkpoint: a save records no Agent session, a restore resumes
+//! nothing, and a held Presentation keeps no Agent reference.
 
 use crate::{
     local_terminal_service::LocalTerminalService,

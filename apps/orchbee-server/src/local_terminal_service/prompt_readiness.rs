@@ -12,8 +12,11 @@ use orchbee_terminal_protocol::{
 };
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
+mod directory;
 #[cfg(test)]
 mod tests;
+
+use directory::same_directory;
 
 /// One read of a terminal: the shell's report and reported directory from one fresh frame, then
 /// one process sample, whose root directory stands in when the shell reports none.
@@ -121,17 +124,4 @@ pub(in crate::local_terminal_service) fn readiness(
         Some(ShellReport::Silent) => Readiness::Silent(shell),
         None | Some(ShellReport::Running) => Readiness::Wait,
     }
-}
-
-/// Windows paths compare ASCII case-insensitively. One trailing separator is trimmed, except the
-/// one that makes a drive root, since `C:` alone names the drive's current directory. Only resume,
-/// which runs in a Windows Session, gives a directory.
-fn same_directory(left: &str, right: &str) -> bool {
-    fn trimmed(path: &str) -> &str {
-        match path.strip_suffix(['\\', '/']) {
-            Some(rest) if !(rest.len() == 2 && rest.as_bytes()[1] == b':') => rest,
-            _ => path,
-        }
-    }
-    trimmed(left).eq_ignore_ascii_case(trimmed(right))
 }

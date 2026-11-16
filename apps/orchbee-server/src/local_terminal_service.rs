@@ -39,7 +39,7 @@ mod agent_catalog;
 mod agent_drain_read;
 mod agent_integration;
 mod agent_names;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod agent_resume;
 mod agent_start_delivery;
 mod checkpoint;
@@ -98,7 +98,7 @@ pub(crate) struct LocalTerminalService {
     popups: independent_popup::Popups,
     process_observer: process_observer::ProcessObserver,
     close_maintenance: close_maintenance::CloseMaintenance,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     agent_resume: agent_resume::AgentResume,
     agent_start_delivery: agent_start_delivery::AgentStartDelivery,
     #[cfg(windows)]
@@ -152,7 +152,7 @@ impl LocalTerminalService {
             popups: independent_popup::Popups::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),
             process_observer: process_observer::ProcessObserver::default(),
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             agent_resume: agent_resume::AgentResume::default(),
             agent_start_delivery: agent_start_delivery::AgentStartDelivery::default(),
             #[cfg(windows)]

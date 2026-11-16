@@ -46,7 +46,7 @@ pub(super) struct Sample {
     directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
     /// The published run and the arguments after its program, read from that run's own row when
     /// it is interactive for the run's provider: the only command line a resume source reads.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     command_line: Option<(Selected, Vec<String>)>,
 }
 pub(super) type Samples = BTreeMap<(String, String), Sample>;
@@ -229,7 +229,7 @@ impl SessionCoordinator {
         // Discard tracking only, never emit an exit from missing coordinator facts.
         self.process_samples
             .retain(|_, s| facts.contains(&s.target));
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         self.retain_carried_agent_sessions(&facts);
         let key = key(&physical.binding);
         let prior = self.process_samples.get(&key);
@@ -278,7 +278,7 @@ impl SessionCoordinator {
             |p| p.screen.clone(),
         );
         let mut screen_input_revision = same.map_or(0, |p| p.screen_input_revision);
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let command_line = published_command_line(sample, retained, same);
         let mut fallback = None;
         let since_seen = started.saturating_duration_since(first_seen);
@@ -344,7 +344,7 @@ impl SessionCoordinator {
         if let Some(directory) = &directory {
             self.follow_first_terminal_directory(&physical.binding, directory);
         }
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         self.bind_carried_agent_session(&physical, retained, identity.result(), sample);
         self.process_samples.insert(
             key,
@@ -358,7 +358,7 @@ impl SessionCoordinator {
                 screen,
                 screen_input_revision,
                 directory,
-                #[cfg(windows)]
+                #[cfg(any(windows, target_os = "macos"))]
                 command_line,
             },
         );
@@ -369,7 +369,7 @@ impl SessionCoordinator {
 /// The published run's arguments after its program: kept from the same run's earlier sample once
 /// read, else read from this sample's row with the run's pid and creation time, and only when that
 /// row is interactive for the run's provider.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn published_command_line(
     sample: &TerminalProcessInfo,
     run: Option<Selected>,
@@ -430,7 +430,7 @@ impl SessionCoordinator {
     }
 
     /// The published run of every tracked generation, with that generation's identity result.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn published_runs(
         &self,
     ) -> impl Iterator<
@@ -446,7 +446,7 @@ impl SessionCoordinator {
 
     /// The exact physical generation's published run with the arguments after its program, as
     /// that run's own sample row gave them, if any.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn published_command_line(
         &self,
         physical: &TerminalAgentBinding,
@@ -686,7 +686,7 @@ impl SessionCoordinator {
         let Some(workbench) = self.workbench.as_ref() else {
             self.process_samples.clear();
             self.terminal_observations.clear();
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             self.carried_agent_sessions.clear();
             return Ok(vec![]);
         };
@@ -733,7 +733,7 @@ impl SessionCoordinator {
             .retain(|_, s| retained.contains(&s.target));
         self.terminal_observations
             .retain(|_, s| retained.contains(&s.physical));
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         self.retain_carried_agent_sessions(&retained);
         Ok(targets.into_values().collect())
     }
