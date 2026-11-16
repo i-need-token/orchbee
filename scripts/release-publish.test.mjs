@@ -15,6 +15,7 @@ import {
 	registryIntegrity,
 	releaseAssets,
 	releaseTable,
+	selectGatePaths,
 	tagNotes,
 } from './release-publish.mjs';
 import {
@@ -80,6 +81,68 @@ test('a pre-release goes to the dist-tag next and only a plain version to latest
 		planRelease({ event: 'push', ref: 'refs/tags/v0.1.0', platforms: rows }).distTag,
 		'latest',
 	);
+});
+
+// The release gate picks among releases v0.2.0-beta.<n>, the first of which updates itself.
+const gateNow = new Date('2026-12-31T12:00:00Z');
+const day = 24 * 60 * 60 * 1000;
+const published = (n, daysAgo, extra = {}) => ({
+	tag: `v0.2.0-beta.${n}`,
+	draft: false,
+	publishedAt: new Date(gateNow.getTime() - daysAgo * day).toISOString(),
+	...extra,
+});
+const gatePaths = (releases, version = '0.2.0-beta.99', firstVersion = '0.2.0-beta.1') =>
+	selectGatePaths({ releases, version, now: gateNow, firstVersion });
+
+test('the gate updates from the previous, the next older, the middle and the oldest release', () => {
+	assert.deepEqual(gatePaths([]), []);
+	assert.deepEqual(gatePaths([published(1, 3)]), ['v0.2.0-beta.1']);
+	const four = [published(3, 2), published(1, 30), published(4, 1), published(2, 10)];
+	assert.deepEqual(gatePaths(four), [
+		'v0.2.0-beta.4',
+		'v0.2.0-beta.3',
+		'v0.2.0-beta.2',
+		'v0.2.0-beta.1',
+	]);
+	const nine = Array.from({ length: 9 }, (_, index) => published(index + 1, 80 - index * 9));
+	assert.deepEqual(gatePaths(nine), [
+		'v0.2.0-beta.9',
+		'v0.2.0-beta.8',
+		'v0.2.0-beta.5',
+		'v0.2.0-beta.1',
+	]);
+});
+
+test('gate ties: equal times order by version and the older of two middle releases counts', () => {
+	const six = [4, 1, 6, 3, 5, 2].map((n) => published(n, 5));
+	assert.deepEqual(gatePaths(six), [
+		'v0.2.0-beta.6',
+		'v0.2.0-beta.5',
+		'v0.2.0-beta.3',
+		'v0.2.0-beta.1',
+	]);
+	assert.deepEqual(gatePaths([published(2, 5), published(1, 5), published(2, 5)]), [
+		'v0.2.0-beta.2',
+		'v0.2.0-beta.1',
+	]);
+});
+
+test('the gate window holds only published releases from the first one on, within 90 days', () => {
+	const releases = [
+		published(2, 90),
+		published(1, 91),
+		{ tag: 'v0.1.0-beta.13', draft: false, publishedAt: published(0, 1).publishedAt },
+		published(5, 1, { draft: true }),
+		published(4, 2, { tag: 'nightly' }),
+		published(3, 3, { publishedAt: null }),
+		published(99, 1),
+		published(100, 1),
+	];
+	assert.deepEqual(gatePaths(releases, '0.2.0-beta.99', '0.2.0-beta.2'), ['v0.2.0-beta.2']);
+	assert.deepEqual(gatePaths([published(1, 1)], '0.2.0-beta.1'), []);
+	const noFirst = { releases: [published(1, 1)], version: '0.2.0-beta.2', now: gateNow };
+	assert.deepEqual(selectGatePaths({ ...noFirst, firstVersion: undefined }), []);
 });
 
 // Answers the two API reads of tagNotes the way `gh api --jq` prints them.

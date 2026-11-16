@@ -40,9 +40,9 @@ repository>`. Print each public half with the command in
    pre-release is `<version>-beta.<n>`.
 2. Optional rehearsal: Actions › Release › Run workflow on `main` with `version` `0.1.0-beta.1`, or
    `gh workflow run release.yml --ref main -f version=0.1.0-beta.1`. It builds, signs and smoke-tests
-   the release identity on every row with `build` set, macOS rows not yet published included, joins
-   the rows the way a tag run would, and publishes nothing. Its artifacts are a different build of
-   the same version: never install them.
+   the release identity on every row with `build` set, macOS rows not yet published included, runs
+   the release gate's paths a tag run would select, joins the rows the way a tag run would, and
+   publishes nothing. Its artifacts are a different build of the same version: never install them.
 3. Write the release notes in Markdown in a file outside the repository, with their own headings;
    they follow the generated Install section verbatim. Tag the commit with them and push the tag:
    `git tag -a v0.1.0-beta.1 --cleanup=verbatim -F <notes file>`, then
@@ -63,8 +63,13 @@ repository>`. Print each public half with the command in
    page) before its job "Publish v0.1.0-beta.1" starts; until then nothing is public.
 5. After packaging, the job "Release feed windows-x86_64" signs the update feed document and the
    release gate's copy of it with the release key, in a rehearsal too; the gate copy names the
-   archives by their file names and is never published. Publication places the feed's signature
-   beside it, then creates a draft release `v0.1.0-beta.1` holding the setup file, the `.zip`, the
+   archives by their file names and is never published. Then the jobs "Release gate from
+   v<older>" each install an older release from its published archive on a fresh Windows runner
+   and let its own automatic helper update it to this release from the gate copy while a terminal
+   keeps running; the job "Release version" names the older releases it selected, or says the gate
+   runs no path, which until a release after the first self-updating one is always the case and
+   lets publication go on. Publication places the feed's signature beside it, then creates
+   a draft release `v0.1.0-beta.1` holding the setup file, the `.zip`, the
    window archive `orchbee-desktop-0.1.0-beta.1-windows-x86_64.zip`, the feed
    document `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, the npm tarballs and
    `SHA256SUMS`, then publishes `@orchbee/cli-win32-x64` and `orchbee` under the dist-tag `next`
@@ -111,6 +116,11 @@ repository>`. Print each public half with the command in
   (`git push origin :refs/tags/v0.1.0-beta.1` and `git tag -d v0.1.0-beta.1`) and tag the fixed
   commit. A failed precondition names the missing secret, key or table entry; a lightweight tag or
   an empty tag message gives the tag command.
+- A failed job "Release gate from v<older>" means an Orchbee of that release could not update to
+  this one, so nothing was published. Its last lines name the stage that failed, the probe record's
+  last line and the diagnostic log's tail. A download that failed for a passing reason, such as a
+  timeout, is cleared by "Re-run failed jobs"; any other failure is fixed on `main` like any other
+  failure before publication.
 - A failed publication job is run again: "Re-run failed jobs" on the same run, within 14 days while
   its artifacts are kept, never "Re-run all jobs". A failed npm step leaves the release a draft.
   The re-run publishes from the same artifacts, the feed signature of the job "Release feed"

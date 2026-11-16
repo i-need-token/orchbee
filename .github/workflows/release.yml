@@ -4,9 +4,10 @@ name: Release
 # marked `build` with the TEST identity, signs its manifest with the repository's test key, proves
 # the result on fresh runners, and publishes nothing. A pushed tag v<version>, or a manual run naming
 # a version (a rehearsal): the release path builds the rows with the release identity, signs in the
-# environment `release`, proves the files on fresh runners, and joins every row's files into one
-# set. A tag takes the rows marked `build` and `publish`; a rehearsal takes every row marked `build`,
-# so a row is rehearsed before it publishes. A tag run alone then publishes with no human step: a
+# environment `release`, proves the files on fresh runners, updates the older releases the release
+# gate selects to them, and joins every row's files into one set. A tag takes the rows marked
+# `build` and `publish`; a rehearsal takes every row marked `build`, so a row is rehearsed before it
+# publishes. A tag run alone then publishes with no human step: a
 # draft GitHub release whose notes are the annotated tag's message, the npm packages, then the
 # release as Latest, and starts the Update check. A lightweight tag or an empty tag message stops it
 # before the build. A rehearsal cannot publish: `release-publish` is the only job with write
@@ -249,6 +250,9 @@ jobs:
       windows-matrix: ${{ steps.plan.outputs.windows-matrix }}
       macos-matrix: ${{ steps.plan.outputs.macos-matrix }}
       macos: ${{ steps.plan.outputs.macos }}
+      # Whether the release gate runs a path, and one row per older release it updates from.
+      gate: ${{ steps.gate.outputs.gate }}
+      gate-matrix: ${{ steps.gate.outputs.gate-matrix }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -279,6 +283,14 @@ jobs:
         env:
           RELEASE_TAG: ${{ steps.plan.outputs.tag }}
         run: node scripts/release-version.mjs check "$RELEASE_TAG"
+
+      # Reads the published releases; a rehearsal selects the same paths as a tag would.
+      - name: Select the release gate's paths
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.plan.outputs.version }}
+        run: node scripts/release-publish.mjs gate-paths --version "$RELEASE_VERSION" --repository "$GITHUB_REPOSITORY"
 
   release-preconditions:
     name: Release preconditions
@@ -894,6 +906,53 @@ jobs:
       - name: Install, start and uninstall through npm
         run: node scripts/release-smoke-macos.mjs npm "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-npm"
 
+  # One path of the release gate per older release the plan selected, on a fresh runner, from that
+  # release's published assets to this run's Windows archive and signed gate feed. With no path
+  # selected the job is skipped, since a job with no row fails, and `release-publish` goes on; a
+  # failed path stops the release before Publish. A rehearsal runs the same paths.
+  release-gate:
+    name: Release gate from ${{ matrix.older }}
+    needs: [release-plan, release-feed]
+    if: ${{ !cancelled() && needs.release-plan.outputs.gate == 'true' && needs.release-feed.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.gate-matrix) }}
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets-windows-x86_64
+          path: ${{ runner.temp }}\gate
+
+      # The gate copy names the archive by its file name, so it goes beside it.
+      - name: Download the signed gate feed beside them
+        uses: actions/download-artifact@v4
+        with:
+          name: release-gate-feed-windows-x86_64
+          path: ${{ runner.temp }}\gate
+
+      # The gate's one platform is the one scripts/release-smoke-windows.mjs updates.
+      - name: Update from ${{ matrix.older }} while a terminal keeps running
+        env:
+          OLDER: ${{ matrix.older }}
+          GATE_FEED: ${{ runner.temp }}\gate\orchbee-${{ needs.release-plan.outputs.version }}-windows-x86_64.gate.feed.json
+        run: node scripts/release-smoke-windows.mjs gate $env:OLDER --release "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/releases/download/$env:OLDER/" --feed "$env:GATE_FEED" --work "$env:RUNNER_TEMP\gate-work"
+
   # Joins every row's artifacts, each with the feed signature `release-feed` made beside its feed,
   # into the one set `release-publish` publishes: one row unchanged, several with one main npm
   # package listing every row's platform package and one SHA256SUMS. A rehearsal runs it too, so it
@@ -956,16 +1015,26 @@ jobs:
   # release. GitHub first, as a draft; then npm, because a published npm version can never be
   # replaced; then the draft becomes the Latest release, so a failed npm step leaves it a draft.
   # Run again, the job finishes a partial publication. The condition names the `push` event as well
-  # as the plan's `publish`, so no manual run reaches it; every needed job must have passed, and the
-  # macOS smoke may be skipped only when the plan has no macOS row.
+  # as the plan's `publish`, so no manual run reaches it; every needed job must have passed, the
+  # macOS smoke may be skipped only when the plan has no macOS row, and the release gate only when
+  # the plan selected no path.
   release-publish:
     name: Publish ${{ needs.release-plan.outputs.tag }}
-    needs: [release-plan, release-join, release-smoke, release-smoke-npm, release-smoke-macos]
+    needs:
+      [
+        release-plan,
+        release-join,
+        release-smoke,
+        release-smoke-npm,
+        release-smoke-macos,
+        release-gate,
+      ]
     if: >-
       ${{ !cancelled() && github.event_name == 'push' && needs.release-plan.outputs.publish == 'true' &&
       needs.release-join.result == 'success' && needs.release-smoke.result == 'success' &&
       needs.release-smoke-npm.result == 'success' &&
-      (needs.release-smoke-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') }}
+      (needs.release-smoke-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
+      (needs.release-gate.result == 'success' || needs.release-plan.outputs.gate == 'false') }}
     environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 30

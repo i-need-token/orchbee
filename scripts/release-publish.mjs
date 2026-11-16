@@ -6,6 +6,7 @@
 //
 //   node scripts/release-publish.mjs plan --event <name> --ref <git ref> [--version <version>]
 //   node scripts/release-publish.mjs notes --tag v<version> --repository <owner/name>
+//   node scripts/release-publish.mjs gate-paths --version <version> --repository <owner/name>
 //   node scripts/release-publish.mjs preconditions --signing-key-env <VARIABLE> [--npm-token-env <VARIABLE>]
 //   node scripts/release-publish.mjs github <artifacts> --tag v<version> --repository <owner/name>
 //   node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>
@@ -20,6 +21,10 @@
 // - notes: prints the release notes, the message of the annotated tag read through the GitHub API
 //   (a checkout drops tag annotations) without a trailing signature block. A lightweight tag or an
 //   empty message fails with the command that tags correctly.
+// - gate-paths: the older releases the release gate updates from to <version>, chosen from the
+//   repository's releases read through the GitHub API by the rule of selectGatePaths below; writes
+//   `gate` (whether there is any) and `gate-matrix`, one row `{"older": "v<version>"}` per path, to
+//   GITHUB_OUTPUT. No path is not a failure: the workflow then skips the gate jobs.
 // - preconditions: the signing key variable holds an Ed25519 PKCS #8 PEM key whose public half is in
 //   RELEASE_KEYS of apps/orchbee/src/cli/update/signature.rs, and the npm token variable, when named,
 //   is not empty.
@@ -38,7 +43,7 @@
 //   <artifacts>, as the repository's Latest release and not a pre-release; a published release is
 //   only confirmed.
 //
-// notes, github and publish run `gh` with the token in GH_TOKEN. <artifacts> is a directory
+// notes, gate-paths, github and publish run `gh` with the token in GH_TOKEN. <artifacts> is a directory
 // `node scripts/release-artifacts.mjs collect --profile release` wrote.
 // Exit codes: 0 done; 1 a step failed or a check found a problem; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
@@ -62,6 +67,7 @@ const releaseFamilies = ['windows', 'macos'];
 const usage =
 	'Usage: node scripts/release-publish.mjs plan --event <name> --ref <git ref> [--version <version>]\n' +
 	'       node scripts/release-publish.mjs notes --tag v<version> --repository <owner/name>\n' +
+	'       node scripts/release-publish.mjs gate-paths --version <version> --repository <owner/name>\n' +
 	'       node scripts/release-publish.mjs preconditions --signing-key-env <VARIABLE> [--npm-token-env <VARIABLE>]\n' +
 	'       node scripts/release-publish.mjs github <artifacts> --tag v<version> --repository <owner/name>\n' +
 	'       node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>\n' +
@@ -134,6 +140,51 @@ export function planRelease({ event, ref, version: requested, platforms }) {
 		macosMatrix: { include: rowsOf('macos') },
 		macos: rowsOf('macos').length > 0,
 	};
+}
+
+/**
+ * The first release whose own automatic helper can install a newer one: slice 1 of
+ * proposals/platform/automatic-updates.md#phases, set by the commit that switches slice 1 on. No
+ * release below it enters the release gate's window; while it is undefined, none does.
+ */
+const gateFirstVersion = undefined;
+// The release gate's window: the releases published in the last 90 days.
+const gateWindowDays = 90;
+
+/**
+ * The older releases the release gate updates from to `version`
+ * (proposals/platform/automatic-updates.md#the-release-gate), as tags: the previous release, the one
+ * before it, the one in the middle of the window (the older of two middle ones) and the oldest,
+ * each counted once, so at most four and every release of a window of four or fewer. The window
+ * holds the published releases below `version`, from `firstVersion` on, published within 90 days
+ * before `now`; drafts and tags that are not `v<version>` never count. `releases` are
+ * `{ tag, draft, publishedAt }` rows as the GitHub API lists them, in any order.
+ */
+export function selectGatePaths({ releases, version, now, firstVersion = gateFirstVersion }) {
+	if (firstVersion === undefined) return [];
+	const since = now.getTime() - gateWindowDays * 24 * 60 * 60 * 1000;
+	const window = new Set();
+	for (const release of releases) {
+		const tag = /^v(.+)$/u.exec(release?.tag ?? '');
+		const published = Date.parse(release?.publishedAt ?? '');
+		if (
+			tag === null ||
+			!SEMVER.test(tag[1]) ||
+			release.draft !== false ||
+			Number.isNaN(published) ||
+			published < since ||
+			compareVersions(tag[1], firstVersion) < 0 ||
+			compareVersions(tag[1], version) >= 0
+		)
+			continue;
+		window.add(tag[1]);
+	}
+	const newestFirst = [...window].toSorted((left, right) => compareVersions(right, left));
+	const count = newestFirst.length;
+	if (count === 0) return [];
+	// Ascending positions, so the paths list the newest older release first.
+	const picks = new Set([0, Math.min(1, count - 1), Math.floor(count / 2), count - 1]);
+	return [...picks].map((index) => `v${newestFirst[index]}`);
 }
 
 /** The 64-hex public keys of RELEASE_KEYS in the Rust source, or undefined when the table is not found. */
@@ -486,6 +537,21 @@ export function githubReleases(tag, repositoryName, gh = (argv) => run('gh', arg
 		.map((line) => JSON.parse(line));
 }
 
+/** Every release of `repositoryName` as `{ tag, draft, publishedAt }`, drafts included. */
+function githubReleaseList(repositoryName, gh = (argv) => run('gh', argv)) {
+	const result = gh([
+		'api',
+		'--paginate',
+		`repos/${repositoryName}/releases?per_page=100`,
+		'--jq',
+		'.[] | {tag: .tag_name, draft, publishedAt: .published_at}',
+	]);
+	return result.stdout
+		.split('\n')
+		.filter((line) => line.trim() !== '')
+		.map((line) => JSON.parse(line));
+}
+
 /** The one sentence a run without usable release notes stops with. */
 function untaggedNotes(tag, why) {
 	return `${tag} ${why}: delete the tag, then tag again with \`git tag -a ${tag} --cleanup=verbatim -F <notes file>\`, whose message becomes the release notes.`;
@@ -749,6 +815,34 @@ async function main(argv) {
 			'windows-matrix': JSON.stringify(plan.windowsMatrix),
 			'macos-matrix': JSON.stringify(plan.macosMatrix),
 			macos: String(plan.macos),
+		});
+		return;
+	}
+	if (command === 'gate-paths') {
+		const { positional, options } = parseOptions(rest, ['version', 'repository']);
+		if (
+			positional.length > 0 ||
+			!SEMVER.test(options.version ?? '') ||
+			!/^[\w.-]+\/[\w.-]+$/u.test(options.repository ?? '')
+		)
+			throw new UsageError(usage);
+		const paths = selectGatePaths({
+			releases: githubReleaseList(options.repository),
+			version: options.version,
+			now: new Date(),
+		});
+		log(
+			paths.length > 0
+				? `The release gate of ${options.version} updates from ${paths.join(', ')}.`
+				: `The release gate of ${options.version} runs no path: ${
+						gateFirstVersion === undefined
+							? 'no release updates itself yet'
+							: `no release from ${gateFirstVersion} on was published in the last ${gateWindowDays} days`
+					}.`,
+		);
+		writeOutputs({
+			gate: String(paths.length > 0),
+			'gate-matrix': JSON.stringify({ include: paths.map((older) => ({ older })) }),
 		});
 		return;
 	}
