@@ -5,7 +5,7 @@
 | Status            | Accepted by the product owner on 2026-11-07 in ORC-384; ORC-393 settled the P0 details on 2026-11-08. Windows first; macOS and Linux adopt the same rules with ORC-328.                                                                                                                                                                                                                                                                                                                                            |
 | Owner             | Maintainers of `crates/local-runtime`, `apps/orchbee`, `apps/orchbee-server`, `apps/orchbee-worker`, `apps/terminal-host`, and `apps/desktop`, with the owner of each contract in [Connections](#connections)                                                                                                                                                                                                                                                                                                      |
 | Current authority | [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries), the [connection contract](../../schemas/connection/README.md), the [terminal version policy](../../schemas/terminal/docs/version-history.md), the [development cohort contract](../../crates/local-runtime/README.md#development-cohort-contract), [Windows release installation](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation), and [native runtime status](../../apps/orchbee/docs/native-runtime-status.md) |
-| Exit condition    | Delete this proposal once P0, P1, and P2 ship and their rules live in the owning standards and package references. A P3 or P4 still open then moves to its own proposal.                                                                                                                                                                                                                                                                                                                                           |
+| Exit condition    | Delete this proposal once P0, P1, and P2 ship and their rules live in the owning standards and package references. P3 has its own proposal, [Host handover](host-handover.md).                                                                                                                                                                                                                                                                                                                                     |
 
 ## Outcomes
 
@@ -21,16 +21,19 @@
   anticipated.
 
 Everything a person can lose — shells, Agents, builds, screens, and history — lives in the Terminal
-Host. The Host therefore stays, and every other process may be replaced at any time.
+Host, and so will the Worker's background programs once B1 of
+[Host handover](host-handover.md#background-programs-the-worker-runs) moves them there. Every other
+process may be replaced at any time. A Host is never restarted; it is replaced only by moving each
+of its terminals to a newer Host through [Host handover](host-handover.md), which stops no program.
 
 ## Version kinds
 
-| Kind                                     | Example                                        | Used by                                   | Changes when                                                                  |
-| ---------------------------------------- | ---------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------- |
-| Product version                          | `1.4.2`                                        | People, the release feed, and bug reports | Every release                                                                 |
-| Protocol generation and capability names | Terminal generation 1 with `clear` and `reset` | Each connection's [handshake](#handshake) | The generation only on an incompatible change; a name with each added feature |
-| Handoff format version                   | Host handoff format `3`                        | Live handoff (P4)                         | The handoff content format changes                                            |
-| Data format version                      | Session checkpoint format `2`                  | Reading and writing persisted data        | A persisted format changes (ORCL-29)                                          |
+| Kind                                     | Example                                        | Used by                                               | Changes when                                                                  |
+| ---------------------------------------- | ---------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Product version                          | `1.4.2`                                        | People, the release feed, and bug reports             | Every release                                                                 |
+| Protocol generation and capability names | Terminal generation 1 with `clear` and `reset` | Each connection's [handshake](#handshake)             | The generation only on an incompatible change; a name with each added feature |
+| Handover format version                  | Host handover format `1`                       | [Host handover](host-handover.md#the-terminal-record) | The terminal record's format changes                                          |
+| Data format version                      | Session checkpoint format `2`                  | Reading and writing persisted data                    | A persisted format changes (ORCL-29)                                          |
 
 Only the product version is shown to people. Build identity — the source commit and the
 installation's cohort digest — serves diagnostics and integrity; only
@@ -389,7 +392,8 @@ active version's manifest, so every evaluator reaches the same tier:
   Agents continue.
 - The only confirmation is a Host replacement. It names the effect, such as "These 3 terminals
   restart; supported Agents resume", lists the terminals, and defaults to No; declining keeps the
-  older Host running and the tier visible. A Server and Worker restart whose new Worker would share
+  older Host running and the tier visible. From H4 of [Host handover](host-handover.md#phases) it
+  lists only the terminals that cannot move. A Server and Worker restart whose new Worker would share
   no generation with a running Host is that Host's replacement, and declining it keeps the old
   Server and Worker as well.
 - A running TUI or Desktop older than the active version shows the Update control, whatever its
@@ -400,14 +404,15 @@ active version's manifest, so every evaluator reaches the same tier:
 
 ## Component upgrade
 
-| Component                     | After a newer version installs                                                                                                                                    | The person sees                                     |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| CLI command                   | The next invocation runs it                                                                                                                                       | Nothing                                             |
-| TUI                           | Keeps running and shows the [Update control](automatic-updates.md#the-update-control); a click relaunches it on the newer version in the same console and Session | One click; terminals continue                       |
-| Desktop                       | Its newer version installs beside it; a click relaunches it through the [window launcher](automatic-updates.md#how-the-window-updates); the Session is untouched  | One click; terminals continue                       |
-| Server and Worker             | Keep running while compatible; Restart Session replaces them                                                                                                      | A few seconds of "reconnecting"; terminals continue |
-| Terminal Host                 | Never replaced; see [Host lifetime](#host-lifetime)                                                                                                               | Nothing                                             |
-| Host that must change, rarely | See [Required Host replacement](#required-host-replacement)                                                                                                       | One confirmation                                    |
+| Component                         | After a newer version installs                                                                                                                                                                                                                  | The person sees                                     |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| CLI command                       | The next invocation runs it                                                                                                                                                                                                                     | Nothing                                             |
+| TUI                               | Keeps running and shows the [Update control](automatic-updates.md#the-update-control); a click relaunches it on the newer version in the same console and Session                                                                               | One click; terminals continue                       |
+| Desktop                           | Its newer version installs beside it; a click relaunches it through the [window launcher](automatic-updates.md#how-the-window-updates); the Session is untouched                                                                                | One click; terminals continue                       |
+| Server and Worker                 | Keep running while compatible; Restart Session replaces them                                                                                                                                                                                    | A few seconds of "reconnecting"; terminals continue |
+| Terminal Host                     | Never restarted; from H4 of [Host handover](host-handover.md#phases) each terminal moves to the newest Host, and the old Host exits; see [Host lifetime](#host-lifetime)                                                                        | Nothing; output pauses for a moment                 |
+| Keeper, from H2                   | From H4, replaced at every update that changes the Terminal Host executable: on Windows a new Keeper takes the handles, and on macOS and Linux the Keeper re-executes in place; see [updating the Keeper](host-handover.md#updating-the-keeper) | Nothing                                             |
+| Terminal that cannot move, rarely | See [Required Host replacement](#required-host-replacement)                                                                                                                                                                                     | One confirmation                                    |
 
 ## Server and Worker restart
 
@@ -449,6 +454,12 @@ Server and Worker on a private standby endpoint, and that Server runs these step
 - An old Client that cannot join the new Server switches itself to the active version, as a click
   does.
 - Input during the gap is neither queued nor replayed; Clients show that input is unavailable.
+- Until B1 of [Host handover](host-handover.md#background-programs-the-worker-runs), the old Worker's
+  ordinary stop would cancel the configured `shell` commands, plugin jobs, and plugin hooks it runs.
+  The check therefore asks the old Server, whose own Worker answers the idle move's read-only query,
+  and waits while one runs; the drain closes admission and asks again, and a nonzero count ends the
+  attempt with nothing changed. From B1 they run in the Host and need no check.
+- No [Host handover](host-handover.md#how-a-terminal-moves) runs during a restart.
 - A Session running a release before P1b cannot take part and waits for the idle move.
 - After the commit, a new version that keeps failing falls back inside the bound of
   [automatic updates](automatic-updates.md#falling-back-after-a-failed-move). Any later activation
@@ -673,13 +684,16 @@ Host it released. `drain` and `exit` are built.
 
 ## Host lifetime
 
-- No update, restart, or tier replaces a Host or ends its terminals without the person's
-  confirmation.
+- No update, restart, or tier ends a terminal without the person's confirmation. From H4 of
+  [Host handover](host-handover.md#phases), a Host is replaced only by moving each of its terminals
+  to the newest Host.
 - Each Host has its own endpoint, Host epoch, inventory, and registration in the Session runtime
   directory. One Worker brokers Hosts of several versions at once.
 - A Worker starts Hosts only from its own installation, and every new terminal goes to that Host.
   It sends `drain` to each older Host it adopts, which then accepts no new terminals and exits after
-  its last terminal closes.
+  its last terminal closes or, from H4, moves.
+- From H2, the Session's [Keeper](host-handover.md#the-keeper) holds what keeps each terminal's
+  programs alive, so a Host that crashes or hangs costs its screens, not its programs.
 - A Host outlives Server and Worker exit, and the next Worker adopts it as in
   [Server and Worker restart](#server-and-worker-restart).
 - A machine restart still loses Hosts; the next activation restores the layout and resumes supported
@@ -690,22 +704,16 @@ Host it released. `drain` and `exit` are built.
 A Host must change only when it is below the Host `securityFloor` or shares no generation with the
 active version's Worker. Inside 1.x, only a security fix can cause either.
 
-- The first public release has no live handoff. The confirmation lists the affected terminals and
+- From H4 of [Host handover](host-handover.md#phases), such a Host's terminals move to the newest
+  Host with no confirmation.
+- The confirmation remains for a terminal that cannot move: one whose Host was released before H1,
+  or before H5 on macOS, or lies outside the window, and one whose record the new Host refuses. It lists those terminals and
   defaults to No; once the person confirms, they restart on the current Host, supported Agents
   resume (ORC-363), and the old Host exits. Declining keeps the old Host running. A CLI path that
   ends terminals follows the
   [release destructive-command rule](environment-isolation.md#release-destructive-commands).
-- P3 builds a Windows prototype and a feasibility report. It answers whether terminal processes
-  survive the old Host's exit after its ConPTY pipes and handles are duplicated into a new Host;
-  whether the screen and history can move in the existing row-window format; and which terminal
-  state cannot move, such as some modes or graphics, given that Ghostty VT offers no state
-  serialization. It also evaluates splitting the Host into a minimal process that holds PTYs and a
-  restartable process that parses terminal output.
-- P4, if accepted, adds live handoff, off by default and used only for a required replacement. It
-  commits in steps — validate, restore in the new Host, ready, commit, take over — and any failure
-  before commit leaves the old Host serving. The handoff content carries its handoff format version;
-  different versions fall back to the confirmation. POSIX passes PTY descriptors with `SCM_RIGHTS`,
-  scheduled with ORC-328.
+- Host handover replaces the P3 prototype and the opt-in P4 handoff planned here. Ghostty's binary
+  snapshot now serializes terminal state, and the Host split is decided there.
 
 ## Shared runtime store
 
@@ -859,8 +867,7 @@ persisted file its version, migration owner, backups, and failure behavior (ORCL
 | P1b. Upgrade without terminal loss | Restart decision and display; Server and Worker restart by make before break: the check, the standby Server, each hand-over with its way back, and the durable binding record; required Host replacement; status output; the Update click moves the Session                                                                                                                                                                | P1a and a durable binding record    | Right after P1a, before the first public release                               |
 | P1c. Host rollover                 | [Host lifetime](#host-lifetime): one Worker brokers several Hosts, new terminals start on the newest, and older Hosts drain                                                                                                                                                                                                                                                                                                | P1b                                 | Right after P1b                                                                |
 | P2. Release gate                   | The [release gate](automatic-updates.md#the-release-gate) and the other [cross-version tests](#cross-version-tests)                                                                                                                                                                                                                                                                                                        | Automatic updates' slice 1          | From the release after slice 1; P1b adds its restart checks                    |
-| P3. Live handoff prototype         | Windows prototype, feasibility report, and Host split evaluation                                                                                                                                                                                                                                                                                                                                                           | P1                                  | Right after P1                                                                 |
-| P4. Live handoff                   | Opt-in handoff for a required replacement; POSIX with ORC-328                                                                                                                                                                                                                                                                                                                                                              | P3, accepted by the product owner   | Optional                                                                       |
+| Host handover                      | [Host handover](host-handover.md#phases), H0–H5 and B1, which replace P3 and P4: prototypes, the Keeper, recovery after a Host crash or hang, moves across versions and in updates, macOS, and the Worker's background programs in the Host                                                                                                                                                                                | H0 none; H3 P1c; H4 P2; B1 P1b      | H0 now; on by default from H4                                                  |
 
 Automatic updates' slice 1 ships before P1, because none of its automatic paths touches a running
 terminal; P1a starts at the same time.
@@ -906,7 +913,4 @@ transactional binding record.
 - **P2:** every release passes its upgrade paths before Publish, and a failing path leaves the
   release unpublished; the oldest path pairs the current Worker with the oldest Host generation in
   the window.
-- **P3:** the report answers every prototype question in
-  [Required Host replacement](#required-host-replacement), and the product owner decides on P4.
-- **P4:** with handoff enabled, a required replacement keeps terminal processes running, and a
-  failure before commit leaves the old Host serving.
+- **Host handover:** its own [acceptance](host-handover.md#acceptance).

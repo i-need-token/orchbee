@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Proposed on 2026-11-15 from the product owner's request of that day, and revised the same day after the owner asked that upgrades across several releases count as much as single ones. Decided restates a product-owner decision. Announced marks a pick the owner was told about and may still veto, and Chosen marks this page's own pick, which the owner may also veto. Rule marks a safety or trust rule that follows from an accepted outcome.                                                                                                                              |
+| Status            | Proposed on 2026-11-15 from the product owner's request of that day, and revised the same day after the owner asked that upgrades across several releases count as much as single ones, and again after the owner asked that a Host change reach running terminals by [Host handover](host-handover.md). Decided restates a product-owner decision. Announced marks a pick the owner was told about and may still veto, and Chosen marks this page's own pick, which the owner may also veto. Rule marks a safety or trust rule that follows from an accepted outcome.             |
 | Owner             | Maintainers of `apps/orchbee`, `apps/orchbee-server`, `apps/desktop`, `apps/web`, `crates/local-runtime`, the release scripts under `scripts/`, and the release workflow                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Current authority | [Windows release installation](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation), the [Windows installer](../../apps/desktop/README.md#windows-installer), [running in the notification area](../../apps/desktop/docs/window-lifecycle.md#running-in-the-notification-area), the [TUI Settings row](../../apps/orchbee/docs/tui-shell-layout.md#sidebar-toggle-and-help), [native settings](../../apps/orchbee/docs/native-settings.md), [release distribution](release-distribution.md), and [versioning and upgrade](versioning-and-upgrade.md) |
 | Exit condition    | Delete this proposal once slice 1, the window self-update release, and P1 ship and each rule lives in its owning package reference or standard.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -35,7 +35,8 @@ the **window self-update release** after it. Each is whichever release is ready 
 4. **One click.** The Update control switches the window or TUI it sits in to the installed version
    at once, on the same Session and at the same place. Terminals and Agents keep running.
 5. **The Session follows.** The background Session moves to the new version by itself once no
-   terminal runs. After P1 the same click also moves it, and terminals continue.
+   terminal runs. After P1 the same click also moves it, and terminals continue. From H4 of
+   [Host handover](host-handover.md#phases), running terminals then move to the new Terminal Host.
 6. **Off means off.** With automatic updates off, nothing is checked or downloaded on a schedule;
    `orchbee update` keeps working.
 
@@ -47,14 +48,16 @@ on without interruption.
 
 ### What still breaks the non-stop rule
 
-| Behavior today                                                                                                                                              | What the person loses                                                                                   | Removed by                                                                                       |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| After a Worker loss the Host keeps every program, but nothing can show, reach, or stop them; Quit All and `orchbee server stop` refuse while the Host lives | Every terminal, until the Host is ended from outside or the computer restarts, which ends every program | P1a: the Server replaces the Worker, and a confirmed stop really stops                           |
-| A Server or Worker change takes effect only after a Session stop, which ends every terminal; the `initiator-too-new` message asks for `orchbee server stop` | The terminals, or the fix                                                                               | Slice 1 for an idle Session; P1b while terminals run, by [make before break](#make-before-break) |
-| A Host change reaches a terminal only after its Host empties; a Host below its security floor changes only by restarting its terminals after a confirmation | Nothing until a security floor is set; then the listed terminals                                        | P1c for new terminals; P3 and P4 for the confirmation                                            |
-| Setup refuses while terminals started by an older window run from files under `desktop\`, and asks the person to close them                                 | Those terminals, if the person follows the advice                                                       | The window self-update release: Setup and `update` add window versions beside running ones       |
-| Session records change format in place, without migration                                                                                                   | The layout at an idle move; adoption at a restart                                                       | Slice 1: [records read forward](#records-follow-the-window) from every format since then         |
-| A new version that keeps crashing after it takes over has no way back but a manual reinstall                                                                | Access to the terminals until a fix ships                                                               | Slice 1: the bounded [fallback](#falling-back-after-a-failed-move)                               |
+| Behavior today                                                                                                                                              | What the person loses                                                                                   | Removed by                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| After a Worker loss the Host keeps every program, but nothing can show, reach, or stop them; Quit All and `orchbee server stop` refuse while the Host lives | Every terminal, until the Host is ended from outside or the computer restarts, which ends every program | P1a: the Server replaces the Worker, and a confirmed stop really stops                                                                 |
+| A Server or Worker change takes effect only after a Session stop, which ends every terminal; the `initiator-too-new` message asks for `orchbee server stop` | The terminals, or the fix                                                                               | Slice 1 for an idle Session; P1b while terminals run, by [make before break](#make-before-break)                                       |
+| A Host change reaches a terminal only after its Host empties; a Host below its security floor changes only by restarting its terminals after a confirmation | Host fixes, for a terminal that never ends; at a security floor, the listed terminals                   | P1c for new terminals; [Host handover](host-handover.md) for running ones                                                              |
+| Configured `shell` commands, plugin jobs, and plugin hooks run under the Worker, unseen by the Server, so a Server and Worker change would cancel them      | Those programs                                                                                          | Slice 1 and P1b wait while one runs; B1 of [Host handover](host-handover.md#background-programs-the-worker-runs) runs them in the Host |
+| A crash in output parsing ends every program in its Host, and one panic that crafted output can cause is still open                                         | Every terminal in that Host                                                                             | Recovery, H2 of [Host handover](host-handover.md#what-a-crash-or-hang-costs)                                                           |
+| Setup refuses while terminals started by an older window run from files under `desktop\`, and asks the person to close them                                 | Those terminals, if the person follows the advice                                                       | The window self-update release: Setup and `update` add window versions beside running ones                                             |
+| Session records change format in place, without migration                                                                                                   | The layout at an idle move; adoption at a restart                                                       | Slice 1: [records read forward](#records-follow-the-window) from every format since then                                               |
+| A new version that keeps crashing after it takes over has no way back but a manual reinstall                                                                | Access to the terminals until a fix ships                                                               | Slice 1: the bounded [fallback](#falling-back-after-a-failed-move)                                                                     |
 
 A computer restart still ends every program, as
 [Host lifetime](versioning-and-upgrade.md#host-lifetime) says; it is not an update path.
@@ -71,8 +74,9 @@ Applying an update:
 | Squirrel.Windows apps such as GitHub Desktop | At start                                         | Into a new version directory beside a stub that starts the newest | A restart prompt                                   | The application restarts                           |
 | Orchbee                                      | One minute after the Session starts, then hourly | In the background, beside the running version                     | Update to the right of Settings                    | Terminals and Agents keep running                  |
 
-Each of them ends running work when it applies an update. Orchbee can keep it because the Terminal
-Host, which owns every program, takes part in no switch.
+Each of them ends running work when it applies an update. Orchbee keeps it: the Terminal Host, which
+owns every program, takes part in no Client or Session switch, and a Host change moves each
+terminal to the new Host by [Host handover](host-handover.md).
 
 Across versions:
 
@@ -85,7 +89,10 @@ Across versions:
 
 Orchbee takes herdr's capability fallback and its No-by-default confirmation, keeps each version in
 its own directory as VS Code does, and replaces tmux's refusal with waiting: outside the window an
-update waits for the idle move instead of asking for a restart.
+update waits for the idle move instead of asking for a restart. Where herdr's live handoff stays an
+opt-in Unix experiment, Orchbee moves terminals to a new Host by default on every platform;
+[Host handover](host-handover.md#comparable-products) compares the long-running services it
+borrows from.
 
 ## Decision record
 
@@ -184,6 +191,9 @@ Every release proves the window before Publish.
   new pair adopts the probe's Host, and the layout survives.
 - Each path checks that the probe kept its process id, that its numbers have no gap, and that the
   new Client joined.
+- From H4 of [Host handover](host-handover.md#phases), a path whose new release changes the Host also
+  checks that the Keeper was replaced, that the probe moved to the new Host, and that the old Host
+  exited.
 - A failing path stops the release before Publish: `release-publish` needs the gate, so nothing
   reaches npm, GitHub Releases, or the update channel.
 - The feed is signed in a job of its own before the gate, which also signs a gate copy naming the
@@ -203,7 +213,10 @@ An update can stall but never interrupt.
   running Host and accepted the Clients;
   [Server and Worker restart](versioning-and-upgrade.md#server-and-worker-restart) gives the steps.
 - Preconditions come first: the new version shares a generation with every running Host and every
-  connected Client, and it reads every Session record.
+  connected Client, and it reads every Session record. Until B1 of
+  [Host handover](host-handover.md#background-programs-the-worker-runs), the old Worker must also run
+  no configured `shell` command, plugin job, or plugin hook, and the drain checks again, so the
+  restart waits while one runs.
 - Any failure, expected or not, leaves or puts back the old pair, and the update waits for the idle
   move. A Session running a release before P1b, which cannot take part, always waits for it.
 - Before P1b, a new Client that cannot join keeps the Client the person has: the click checks the
@@ -549,7 +562,8 @@ Every commit and refusal releases the lock.
   the diagnostic log records it, and a held version is simply not offered.
 - The only confirmation stays the
   [required Host replacement](versioning-and-upgrade.md#required-host-replacement) at a security
-  floor: it lists the affected terminals, defaults to No, and refusing keeps the old Host.
+  floor: it lists the affected terminals, defaults to No, and refusing keeps the old Host. From H4 of
+  [Host handover](host-handover.md#phases) it lists only the terminals that cannot move.
 
 ### Records follow the window
 
@@ -1089,8 +1103,7 @@ Rule: each step reuses a store rule.
 | P1a                                         | [Host adoption](versioning-and-upgrade.md#host-adoption) with Worker-loss recovery                                                                                                                                                                                                                                                                    | 1.5–3 weeks after its decision run                               | Starts now, beside slice 1                      |
 | P1b                                         | Server and Worker restart by [make before break](#make-before-break): preconditions, the standby Server, each Host's hand-over and its way back, the durable binding record, old Clients switching themselves, the fallback after a restart, and the gate's restart checks; the click moves the Session, and the idle move drops its Client condition | 2.5–3.5 weeks after its decision run                             | Right after P1a and slice 1                     |
 | P1c                                         | Host rollover: one Worker brokers several Hosts, and new terminals start on the newest                                                                                                                                                                                                                                                                | About 1 week                                                     | After P1b                                       |
-| P3                                          | Live handoff prototype, feasibility report, and Host split evaluation                                                                                                                                                                                                                                                                                 | About 1 week                                                     | Right after P1                                  |
-| P4                                          | Opt-in live handoff for a required Host replacement                                                                                                                                                                                                                                                                                                   | 3–6 weeks                                                        | If the owner accepts P3's report                |
+| Host handover                               | [Host handover](host-handover.md#phases), H0–H5 and B1: prototypes, the Keeper, recovery after a Host crash or hang, moves across versions, moves in updates, macOS, and the Worker's background programs in the Host                                                                                                                                 | About 9 weeks to Windows' H4                                     | H0 now; H3 after P1c; B1 right after P1b        |
 
 The [release gate](#the-release-gate) is P2 of
 [versioning and upgrade](versioning-and-upgrade.md#delivery-phases): slice 1 builds it, and P1b adds
@@ -1118,9 +1131,10 @@ its restart checks.
 - Make before break adds about 1.5 weeks to P1b. Its decision run settles how each resource with a
   single owner changes hands and comes back: a Host's one Worker session, the Session endpoint with
   its lifetime lock, and the Session store's writer lock.
-- P3 does not move earlier. Inside 1.x only a security fix can force a Host change, and P3 depends
-  on the adoption core. Until P4, a required Host replacement remains a confirmation that lists the
-  terminals that restart, and declining keeps the old Host and its visible tier. P3 is dated right
-  after P1 because its Host split evaluation could also contain a crash in output parsing, which
-  today ends every program in that Host.
-- macOS and Linux join when their release platforms do.
+- Host handover's prototypes start now instead of after P1: every later Host must speak the Keeper
+  protocol and read the records of H1's release, and a Host released before H1 can never hand over
+  its terminals. Until H4, a
+  required Host replacement remains a confirmation that lists the terminals that restart, and
+  declining keeps the old Host and its visible tier. From H2 a crash in output parsing, which today
+  ends every program in that Host, costs only screens.
+- macOS and Linux join when their release platforms do; macOS Host handover comes with H5.
