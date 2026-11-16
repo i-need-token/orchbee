@@ -769,7 +769,10 @@ raw input or resize is refused as control lost, and the GUI reports those refusa
 | Launch, Start, lifecycle requests | a failure before handoff, with no effect        |
 
 A Detach or Release that cannot start still ends its viewer or grant and leaves the Host Detach
-to a later cleanup, and Host colors that cannot start wait for the next colors. A Takeover whose
+to a later cleanup, and Host colors that cannot start wait for the next colors. A released
+controller keeps its terminal's resize lease until that Host Detach, so an Acquire or Takeover
+sends every deferred Detach before its own exchanges; one with no room for them answers
+`ControllerBusy`, and any incumbent keeps control. A Takeover whose
 incumbent Detach went ahead but whose Attach cannot start leaves no grant at either end, and the
 Client may ask again. After a refused viewer request the Server keeps the viewer only for demand,
 history, rows-applied and selection requests; after frame feedback or a process read it releases

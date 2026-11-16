@@ -139,6 +139,11 @@ fn apply(
         if host.viewers.borrow().contains(request.controller_id) || host.detach_backlog_full() {
             return Ok(Outcome::Rejected(Rejection::ControllerBusy));
         }
+        // A deferred Detach's attachment may still hold this terminal's resize lease, which the
+        // Attach below asks for, so the Host would refuse the new controller until cleanup ran.
+        // Those Detaches go first; with no room for one, control is busy and any incumbent keeps
+        // it.
+        crate::terminal_viewer_operation::settle_deferred_detaches(host, server)?;
         if let Action::Takeover {
             previous_controller_id,
         } = request.action
@@ -151,8 +156,8 @@ fn apply(
             );
             match incumbent {
                 Err(reason) => return Ok(Outcome::Rejected(reason)),
-                // The incumbent keeps control unless its Detach starts; this is the request's
-                // first exchange.
+                // The incumbent keeps control unless its Detach starts; only the deferred
+                // Detaches above go before it.
                 Ok(Some(grant)) => {
                     detach_controller(host, server, grant.controller_id)?;
                     host.forget_controller(grant.controller_id);

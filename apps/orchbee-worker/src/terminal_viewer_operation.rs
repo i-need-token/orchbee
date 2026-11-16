@@ -173,10 +173,7 @@ fn clean(
     };
     for id in host.pending_detaches() {
         within()?;
-        let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
-        let answer = detach_attachment(host, server, correlation, AttachmentId::from_bytes(id)?)?;
-        record_cleanup_answer(&answer);
-        host.settle_detach(id);
+        settle_deferred_detach(host, server, id)?;
     }
     let closed = host.viewers.borrow().closed_ids();
     for bytes in closed {
@@ -202,6 +199,32 @@ fn clean(
         let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
         follow_viewer_demand(host, server, correlation, grant, demand)?;
     }
+    Ok(())
+}
+
+/// Sends every Detach that no earlier request had room for, oldest first. A Detach this request
+/// has no room for stays pending and ends the call with `NotStarted`; only a failed exchange is
+/// another error.
+pub(crate) fn settle_deferred_detaches(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+) -> Result<(), Box<dyn Error>> {
+    for id in host.pending_detaches() {
+        settle_deferred_detach(host, server, id)?;
+    }
+    Ok(())
+}
+
+/// Any correlated answer settles a deferred Detach; one other than the acceptance is recorded.
+fn settle_deferred_detach(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    id: [u8; 16],
+) -> Result<(), Box<dyn Error>> {
+    let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
+    let answer = detach_attachment(host, server, correlation, AttachmentId::from_bytes(id)?)?;
+    record_cleanup_answer(&answer);
+    host.settle_detach(id);
     Ok(())
 }
 

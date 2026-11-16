@@ -353,6 +353,71 @@ fn contradictory_input_or_paste_answer_is_refused_releases_the_grant_and_is_neve
     Ok(())
 }
 
+/// A controller released while no request had room for its Detach still holds the Host's resize
+/// lease. The next Acquire sends that Detach before its own Attach, so the Host can grant the lease.
+#[test]
+fn acquire_sends_a_deferred_detach_before_asking_for_the_lease() -> TestResult {
+    let (host, mut peer) = fixture()?;
+    let (server, _quiet) = UnixStream::pair()?;
+    host.defer_detach(id(11).as_bytes());
+    host.forget_controller(id(11));
+    thread::scope(|scope| -> TestResult {
+        let script = scope.spawn(move || {
+            let record = read_transport_record(&mut peer).unwrap();
+            let envelope = decode_transport_envelope(&record).unwrap();
+            let AttachmentControl::DetachTerminal(target) =
+                decode_attachment_control(envelope.kind, envelope.role, envelope.payload).unwrap()
+            else {
+                panic!("expected the deferred Detach before any Attach")
+            };
+            assert_eq!(*target.attachment_id.as_bytes(), id(11).as_bytes());
+            let released =
+                encode_attachment_control(&AttachmentControl::DetachTerminalAccepted(target))
+                    .unwrap();
+            respond(
+                &mut peer,
+                &envelope,
+                released.kind,
+                &released.payload,
+                PayloadEncoding::ControlJson,
+            );
+            let record = read_transport_record(&mut peer).unwrap();
+            let envelope = decode_transport_envelope(&record).unwrap();
+            let AttachmentControl::AttachTerminal(attach) =
+                decode_attachment_control(envelope.kind, envelope.role, envelope.payload).unwrap()
+            else {
+                panic!("expected the new controller's Attach")
+            };
+            assert!(attach.request_resize_lease);
+            let granted = encode_attachment_control(&AttachmentControl::AttachmentCapabilities(
+                AttachmentCapabilities {
+                    attachment_id: attach.attachment_id,
+                    terminal_id: attach.terminal_id,
+                    capabilities: attach.capabilities,
+                    capability_revision: NonZeroU64::MIN,
+                    resize_lease: true,
+                },
+            ))
+            .unwrap();
+            respond(
+                &mut peer,
+                &envelope,
+                granted.kind,
+                &granted.payload,
+                PayloadEncoding::ControlJson,
+            );
+            accept_demand(&mut peer, 12, ProjectionDemand::Active);
+        });
+        assert_eq!(
+            execute(&host, &server, request(10, 12, Action::Acquire))?,
+            Outcome::Acquired
+        );
+        script.join().map_err(|_| "the scripted Host panicked")?;
+        assert!(host.pending_detaches().is_empty());
+        Ok(())
+    })
+}
+
 #[test]
 fn viewer_demand_reaches_its_controller_first_and_seeds_a_new_grant() -> TestResult {
     let (host, mut peer) = fixture()?;

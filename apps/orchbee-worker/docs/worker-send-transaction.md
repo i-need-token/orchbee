@@ -170,8 +170,8 @@ acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
   next write" into a lossless transition; the dominant real trace (zero-byte
   discovery inside `prepare`) is covered, while the write-halfway-failed
   sub-case is abstracted away.
-- A `deferred` attachment is detached by a later request's cleanup, outside
-  this one-request model. The Worker's backlog of eight deferred Detaches,
+- A `deferred` attachment is detached by a later request's cleanup, or ahead
+  of a later Acquire or Takeover, outside this one-request model. The Worker's backlog of eight deferred Detaches,
   which refuses new sends while full, is not counted here.
 - A step with no room left in the request or past the send's input budget is
   modeled as `*LocalFault`; the implementation reports it as
