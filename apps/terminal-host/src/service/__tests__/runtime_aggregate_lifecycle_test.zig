@@ -926,14 +926,13 @@ test "maintenance synchronizes terminal-driven geometry without projection deman
         terminal_runtime.testing.ReaderBatchOutcomeType.committed,
         commitReaderBatch(runtime, "\x1b[?40h\x1b[?3h"),
     );
-    const runtime_geometry = runtime.geometry();
-    try std.testing.expectEqual(@as(u16, 132), runtime_geometry.columns);
+    try std.testing.expectEqual(@as(u16, 132), runtime.geometry().columns);
     try std.testing.expectEqual(
         @as(u16, 80),
         aggregate.core().findTerminal(terminal_id).?.observedGeometry().columns,
     );
 
-    aggregate.synchronizeRuntimes();
+    const runtime_geometry = try synchronizeSettledGeometry(&aggregate, runtime);
 
     const observed = aggregate.core().findTerminal(terminal_id).?;
     try std.testing.expectEqual(runtime_geometry.columns, observed.observedGeometry().columns);
@@ -952,14 +951,13 @@ test "maintenance synchronizes terminal-driven geometry without projection deman
         terminal_runtime.testing.ReaderBatchOutcomeType.committed,
         commitReaderBatch(runtime, "\x1b[?40l"),
     );
-    const restored_geometry = runtime.geometry();
-    try std.testing.expectEqual(@as(u16, 80), restored_geometry.columns);
+    try std.testing.expectEqual(@as(u16, 80), runtime.geometry().columns);
     try std.testing.expectEqual(
         @as(u16, 132),
         aggregate.core().findTerminal(terminal_id).?.observedGeometry().columns,
     );
 
-    aggregate.synchronizeRuntimes();
+    const restored_geometry = try synchronizeSettledGeometry(&aggregate, runtime);
 
     const restored_observation = aggregate.core().findTerminal(terminal_id).?;
     try std.testing.expectEqual(
@@ -1239,4 +1237,20 @@ test "pending and normal engine completion do not map to runtime failures" {
         .pty_drained = true,
         .writer_stopped = true,
     }) == null);
+}
+
+/// Runs the maintenance pass until the runtime's geometry holds still across it, and returns that
+/// geometry. The long-running launch is a real console: it repaints after every terminal-driven
+/// resize, and its reader commits that output, a new revision, at any moment. Each pass that sees
+/// the revision move consumes one such commit, and the console writes only a few.
+fn synchronizeSettledGeometry(
+    aggregate: *subject.HostRuntimeAggregate,
+    runtime: *terminal_runtime.TerminalRuntime,
+) !terminal_runtime.Geometry {
+    for (0..64) |_| {
+        const geometry = runtime.geometry();
+        aggregate.synchronizeRuntimes();
+        if (runtime.geometry().revision == geometry.revision) return geometry;
+    }
+    return error.GeometryNeverSettled;
 }
