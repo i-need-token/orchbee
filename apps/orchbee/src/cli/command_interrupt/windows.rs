@@ -16,6 +16,10 @@ impl NativeSignals for ArmedSignals {
         SignalWatch::poll_fd(self)
     }
 
+    fn requested(&self) -> bool {
+        ArmedSignals::requested(self)
+    }
+
     fn take(&mut self) -> io::Result<Option<i32>> {
         SignalWatch::take(self)
     }
@@ -25,5 +29,15 @@ impl NativeSignals for ArmedSignals {
             Finish::Clear => None,
             Finish::Cancelled { finalization, .. } => Some(finalization),
         })
+    }
+}
+
+impl SignalWatch for super::ArmedSignals {
+    fn poll_fd(&self) -> Option<LocalIo<'_>> {
+        self.poll_fd()
+    }
+
+    fn take(&mut self) -> io::Result<Option<i32>> {
+        self.0.take()
     }
 }

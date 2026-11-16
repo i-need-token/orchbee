@@ -1,7 +1,8 @@
 //! Native visual writes and reads with exact receipts, no uncertain replay and no PTY input.
 use super::{
     Failure, FailureKind, Output,
-    console_interrupt::{ArmedSignals as Signals, Finish, SignalWatch},
+    command_interrupt::{ArmedSignals as Signals, Finish},
+    console_interrupt::SignalWatch,
     failure_output, output, query, results,
 };
 use crate::cli_text::CliText;

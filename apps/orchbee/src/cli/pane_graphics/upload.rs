@@ -1,7 +1,7 @@
 //! Acquire one complete input before any Session discovery or graphics submission.
 use super::{Failure, FailureKind, Signals};
 use crate::{
-    cli::console_interrupt::{self as source, SourceFailure},
+    cli::{command_interrupt, source::SourceFailure},
     invocation::pane_graphics::{Input, MAXIMUM_SET_DOCUMENT_BYTES, SetSpec},
 };
 use base64::Engine;
@@ -19,15 +19,16 @@ pub(super) fn acquire(
         Input::File(path) => Some(path.as_str()),
         Input::Stdin => None,
     };
-    let bytes = source::acquire_document(path, MAXIMUM_SET_DOCUMENT_BYTES, deadline, signals)
-        .map_err(|error| match error {
-            SourceFailure::Standard(mut failure) => {
-                failure.usage = None;
-                failure
-            }
-            SourceFailure::Timeout { .. } => Failure::new(FailureKind::Timeout),
-            SourceFailure::Cancelled { .. } => Failure::new(FailureKind::Cancelled),
-        })?;
+    let bytes =
+        command_interrupt::acquire_document(path, MAXIMUM_SET_DOCUMENT_BYTES, deadline, signals)
+            .map_err(|error| match error {
+                SourceFailure::Standard(mut failure) => {
+                    failure.usage = None;
+                    failure
+                }
+                SourceFailure::Timeout { .. } => Failure::new(FailureKind::Timeout),
+                SourceFailure::Cancelled { .. } => Failure::new(FailureKind::Cancelled),
+            })?;
     parse(&bytes)
 }
 pub(super) fn parse(bytes: &[u8]) -> Result<SetSpec, Failure> {

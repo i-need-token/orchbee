@@ -49,3 +49,12 @@ pub(super) fn acquire_stdin(
 ) -> Result<Vec<u8>, SourceFailure> {
     Err(unavailable())
 }
+
+pub(in crate::cli) fn acquire_document(
+    _path: Option<&str>,
+    _limit: usize,
+    _deadline: Instant,
+    _signals: &mut dyn SignalWatch,
+) -> Result<Vec<u8>, SourceFailure> {
+    Err(unavailable())
+}

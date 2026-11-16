@@ -8,8 +8,8 @@ use serde::{
     de::{self, MapAccess, Visitor},
 };
 use serde_json::Value;
+use std::io;
 use std::{collections::BTreeMap, fmt};
-use std::{io, process::Stdio};
 
 pub(super) const MAX_INPUT: usize = 256 * 1024;
 const MAX_LINE: usize = 2 * 1024 * 1024;
@@ -186,16 +186,19 @@ pub(super) struct Reader {
 }
 impl Reader {
     pub(super) fn start() -> io::Result<Self> {
-        Self::with_input(Stdio::inherit())
+        ByteReader::start().map(Self::over)
     }
-    pub(super) fn with_input(input: Stdio) -> io::Result<Self> {
-        let bytes = ByteReader::with_input(input)?;
-        Ok(Self {
+    #[cfg(all(test, windows))]
+    pub(super) fn with_input(input: std::process::Stdio) -> io::Result<Self> {
+        ByteReader::with_input(input).map(Self::over)
+    }
+    fn over(bytes: ByteReader) -> Self {
+        Self {
             bytes,
             pending: Vec::new(),
             eof: false,
             first: true,
-        })
+        }
     }
     pub(super) fn poll(&mut self) -> io::Result<Poll> {
         if let Some(line) = self.line()? {

@@ -1163,9 +1163,9 @@ Windows `panel report-agent`, `clear-agent-authority` and `release-agent` submit
 
 Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action list` manage the shared user catalog offline. `plugin action invoke` submits owned commands to an existing Session; `plugin log list` reads retained results. See [Windows plugins](docs/windows-plugins.md) for context, process ownership, bounded output, startup and event hooks, managed install/update/uninstall and Pane integration. A start receipt confirms admission; logs report execution results.
 
-## Windows Panel graphics commands
+## Panel graphics commands
 
-`panel graphics set|clear|info|stream` admits closed image inputs, file/pipe acquisition and bounded raw frame streams, with one submission through existing Workbench ownership. See [Windows Panel graphics CLI](docs/windows-panel-graphics.md) for parameters, unknown receipts and producer cleanup. The [native TUI renderer](docs/native-panel-graphics.md) stages complete images and publishes successful draw facts; final composed Windows acceptance is still required.
+On Windows and macOS, `panel graphics set|clear|info|stream` admits closed image inputs, file/pipe acquisition and bounded raw frame streams, with one submission through existing Workbench ownership; Linux returns `unsupported-platform`. See [Panel graphics CLI](docs/windows-panel-graphics.md) for parameters, unknown receipts and producer cleanup. The [native TUI renderer](docs/native-panel-graphics.md) stages complete images and publishes successful draw facts; it draws Kitty images only in an outer terminal that answers the Kitty query, such as Ghostty or kitty, and the cell raster elsewhere, including iTerm2 and Terminal.app. Final composed acceptance is still required.
 
 ## Native Settings
 

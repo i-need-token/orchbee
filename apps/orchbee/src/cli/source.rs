@@ -19,9 +19,8 @@ mod unsupported;
 use unsupported as platform;
 
 pub(crate) use platform::SignalWatch;
+pub(in crate::cli) use platform::acquire_document;
 use platform::{acquire_file, acquire_stdin};
-#[cfg(windows)]
-pub(in crate::cli) use windows::acquire_document;
 
 pub(crate) enum Finish {
     Clear,

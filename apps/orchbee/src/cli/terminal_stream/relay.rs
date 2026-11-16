@@ -6,7 +6,7 @@ use std::{
 #[cfg(windows)]
 #[path = "relay/windows.rs"]
 mod platform;
-#[cfg(not(windows))]
+#[cfg(unix)]
 #[path = "relay/unix.rs"]
 mod platform;
 trait NativeRelay {

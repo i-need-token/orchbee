@@ -411,8 +411,10 @@ mount never holds a terminal's routing; answers serve the same path for ten seco
 sample carries the same path, so Clients read the rows the Server read. On
 macOS a catalog download runs `/usr/bin/curl` with the Windows arguments, attempts and limits;
 Linux admits no system curl and fails it as a process failure before any network effect. Startup
-also configures Panel graphics
-file frames, whose private frame directory refuses reservation with `Unsupported`. Agent names
+also configures Panel graphics file frames: on macOS each producer gets a private 0700 frame
+directory under the Session runtime, read only through descriptors that never follow a link (see
+[macOS private frame directories](docs/windows-graphics.md#macos-private-frame-directories)), and
+Linux compiles the same directory but never reaches it. Agent names
 resolve through the same guarded path as on Windows; terminal name owners come from Agent reports
 and process observation. Client view, semantic event and window title
 requests are admitted as on Windows: their state lives in Server memory for the connection or its
@@ -421,9 +423,10 @@ same way, so the sidebar and Panel titles read the Agent states process observat
 publish. A macOS Session also serves the Agent view, the Session-scoped Agent source override
 that the TUI's machine Agent list reads; a plugin source answers `source-unavailable` there
 because the plugin store is Windows-only. It serves configured commands too, running them in the
-login shell as [custom commands](../orchbee/docs/custom-commands.md#macos) describes. Panel
-graphics, Workspace metadata and notification requests, and the Agent view and configured commands
-on Linux, keep their earlier refusal at admission until their behavior off Windows is decided.
+login shell as [custom commands](../orchbee/docs/custom-commands.md#macos) describes, and Panel
+graphics. Workspace metadata and notification requests, and the Agent view, configured commands
+and Panel graphics on Linux, keep their earlier refusal at admission until their behavior off
+Windows is decided.
 A macOS Session keeps the [checkpoint](docs/workbench-checkpoint.md#managed-startup-and-clean-stop)
 and [kept terminal output](docs/workbench-checkpoint.md#terminal-output-replay) in the Session
 folder under its POSIX data root and holds a Panel whose saved directory is gone until
@@ -1368,9 +1371,9 @@ exact completion, expiry, cancellation and shutdown. On Windows, a real window a
 started New Workspace in the shell's directory after `cd`, and the window's read was answered in
 14 ms.
 
-## Windows Panel image ownership
+## Panel image ownership
 
-The accepted model and current implementation boundary are maintained in [Windows Panel graphics](docs/windows-graphics.md). Canonical commits retire invalid layers immediately; authenticated connections own producers, and the shared temporary-viewer observer retains uncertain PNG-read cleanup. UI pixels, capability observations, CLI producers and final composed acceptance remain separately required.
+The accepted model and current implementation boundary on Windows and macOS are maintained in [Panel graphics](docs/windows-graphics.md). Canonical commits retire invalid layers immediately; authenticated connections own producers, and the shared temporary-viewer observer retains uncertain PNG-read cleanup. UI pixels, capability observations, CLI producers and final composed acceptance remain separately required.
 
 Canonical split ratios are shared by native Clients and retained in checkpoint v6, guarded by catalog v5. The [checkpoint contract](docs/workbench-checkpoint.md) owns strict migration from versions 1–5; the [shared ratio contract](docs/shared-split-ratios.md) owns ratio mutation, projection and compatibility.
 

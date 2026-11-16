@@ -219,12 +219,36 @@ impl SignalWatch for ArmedSignals {
     }
 }
 
-/// Acquire `--file`: open without blocking on non-regular paths, `fstat` the
-/// already-open descriptor so a swapped path still reports its true type,
-/// and accept only a regular file.
+/// Acquire one complete document of at most `limit` bytes from a `--file`
+/// path or noninteractive stdin through the same cancellable bounded reads
+/// as a declared `terminal send` source.
+pub(in crate::cli) fn acquire_document(
+    path: Option<&str>,
+    limit: usize,
+    deadline: Instant,
+    signals: &mut dyn SignalWatch,
+) -> Result<Vec<u8>, SourceFailure> {
+    match path {
+        Some(path) => acquire_file_limit(path, limit, deadline, signals),
+        None => acquire_stdin_limit(limit, deadline, signals),
+    }
+}
+
 pub(super) fn acquire_file(
     path: &str,
     paste: bool,
+    deadline: Instant,
+    signals: &mut dyn SignalWatch,
+) -> Result<Vec<u8>, SourceFailure> {
+    acquire_file_limit(path, limit_for(paste), deadline, signals)
+}
+
+/// Acquire `--file`: open without blocking on non-regular paths, `fstat` the
+/// already-open descriptor so a swapped path still reports its true type,
+/// and accept only a regular file.
+fn acquire_file_limit(
+    path: &str,
+    limit: usize,
     deadline: Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
@@ -253,7 +277,7 @@ pub(super) fn acquire_file(
             fd: file.as_fd(),
             pollable: true,
             deadline,
-            limit: limit_for(paste),
+            limit,
             source: InputSource::File,
             operand: Some(path),
         },
@@ -281,12 +305,20 @@ impl Read for BorrowedReader<'_> {
     }
 }
 
+pub(super) fn acquire_stdin(
+    paste: bool,
+    deadline: Instant,
+    signals: &mut dyn SignalWatch,
+) -> Result<Vec<u8>, SourceFailure> {
+    acquire_stdin_limit(limit_for(paste), deadline, signals)
+}
+
 /// Acquire `--stdin`: refuse a terminal, then dispatch on the inherited
 /// descriptor's exact `S_IFMT` type — a regular file keeps its shared
 /// offset, a FIFO is read through the native port without mutating the
 /// caller's descriptor flags, and anything else is rejected outright.
-pub(super) fn acquire_stdin(
-    paste: bool,
+fn acquire_stdin_limit(
+    limit: usize,
     deadline: Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
@@ -307,7 +339,7 @@ pub(super) fn acquire_stdin(
         let mut reader = BorrowedReader(stdin.as_fd());
         read_bounded(
             &mut reader,
-            stdin_plan(stdin.as_fd(), false, deadline, paste),
+            stdin_plan(stdin.as_fd(), false, deadline, limit),
             signals,
         )?
     } else if file_type == SFlag::S_IFIFO {
@@ -316,7 +348,7 @@ pub(super) fn acquire_stdin(
             let private = linux::reopen_fifo_stdin()?;
             read_bounded(
                 &mut &private,
-                stdin_plan(private.as_fd(), true, deadline, paste),
+                stdin_plan(private.as_fd(), true, deadline, limit),
                 signals,
             )?
         }
@@ -330,7 +362,7 @@ pub(super) fn acquire_stdin(
             let mut reader = BorrowedReader(stdin.as_fd());
             read_bounded(
                 &mut reader,
-                stdin_plan(stdin.as_fd(), true, deadline, paste),
+                stdin_plan(stdin.as_fd(), true, deadline, limit),
                 signals,
             )?
         }
@@ -343,12 +375,12 @@ pub(super) fn acquire_stdin(
     Ok(bytes)
 }
 
-fn stdin_plan(fd: BorrowedFd<'_>, pollable: bool, deadline: Instant, paste: bool) -> ReadPlan<'_> {
+fn stdin_plan(fd: BorrowedFd<'_>, pollable: bool, deadline: Instant, limit: usize) -> ReadPlan<'_> {
     ReadPlan {
         fd,
         pollable,
         deadline,
-        limit: limit_for(paste),
+        limit,
         source: InputSource::Stdin,
         operand: None,
     }

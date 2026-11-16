@@ -20,10 +20,10 @@ macro_rules! commands {
 commands! {
     OperationStatus => ["operation", "status"], 1, Operand, Portable, true, true, false;
     OperationResume => ["operation", "resume"], 1, Operand, Portable, true, true, false;
-    PanelGraphicsSet => ["panel", "graphics", "set"], 1, Panel, Windows, true, false, false;
-    PanelGraphicsClear => ["panel", "graphics", "clear"], 1, Panel, Windows, true, false, false;
-    PanelGraphicsInfo => ["panel", "graphics", "info"], 1, Panel, Windows, true, false, false;
-    PanelGraphicsStream => ["panel", "graphics", "stream"], 1, Panel, Windows, true, false, false;
+    PanelGraphicsSet => ["panel", "graphics", "set"], 1, Panel, Portable, true, false, false;
+    PanelGraphicsClear => ["panel", "graphics", "clear"], 1, Panel, Portable, true, false, false;
+    PanelGraphicsInfo => ["panel", "graphics", "info"], 1, Panel, Portable, true, false, false;
+    PanelGraphicsStream => ["panel", "graphics", "stream"], 1, Panel, Portable, true, false, false;
     ClientList => ["client", "list"], 0, Operand, Portable, true, true, false;
     ClientGet => ["client", "get"], 1, Operand, Portable, true, true, false;
     WorkspaceFocus => ["workspace", "focus"], 1, Operand, Portable, true, true, false;

@@ -1,8 +1,8 @@
-# Windows Panel graphics
+# Panel graphics
 
 ## Accepted outcome and ownership
 
-Windows supports Panel graphics set, clear, information and framed streams. A working renderer requires end-to-end evidence. Desktop, macOS and Linux runtime additions are outside this boundary.
+Windows and macOS support Panel graphics set, clear, information and framed streams. A Linux Server refuses Panel graphics requests at admission until its frame directory and outer-terminal behavior are verified. A working renderer requires end-to-end evidence. Desktop runtime additions are outside this boundary.
 
 The Session owns ephemeral layers by canonical Panel and Presentation identity. Its existing
 navigation-management grant admits visual writes; its read grant admits information and bounded
@@ -63,9 +63,9 @@ only exact regular files within the Session-owned producer root, with pinned siz
 consumed leases and producer roots are released after their last consumer. External paths are not
 an upload shortcut. A lost write receipt remains unknown and is not replayed.
 
-## Windows producer file ownership
+## Producer file ownership
 
-Managed Windows Sessions lazily allocate one private directory for each admitted producer. A pure
+Managed Windows and macOS Sessions lazily allocate one private directory for each admitted producer. A pure
 open preparation first proves canonical source, connection ownership and capacity; directory I/O
 then runs outside canonical locks, and commit repeats the source and producer checks. Idempotent
 open returns the same directory. Allocation failure preserves the old static layer. Unmanaged
@@ -73,7 +73,7 @@ endpoint mode advertises no file directory and refuses file frames.
 
 The Server file owner retains at most 128 roots, including failed or retired roots, with at most
 64 live producers. A preparing token prevents an uncommitted root from being collected. The
-canonical layer owner retains only the directory identity, with no Windows handles or filesystem
+canonical layer owner retains only the directory identity, with no native handles or filesystem
 effects. Frame preparation leases that exact root after producer/source/sequence admission;
 RGBA/BGRA bytes are copied and normalized before atomic commit. No base64 round trip or partial
 patch is required. The frame header remains bounded at 16 MiB and damage is only a complete-frame
@@ -120,9 +120,39 @@ private admission, writer/rename exclusion, creation refusal and failed-removal 
 malicious ACL changes, process crashes and replacement during the final delete syscall are outside
 this per-user development boundary; a crash does not prove clean runtime shutdown.
 
+## macOS private frame directories
+
+The same module compiles a POSIX `PrivateFrameDirectory` with the Windows API, leaf name, owner
+marker, 16 MiB read bound and Reserved → Preparing → Ready → Releasing → Released lifecycle. A
+POSIX descriptor cannot refuse a same-user writer or rename the way a Windows handle refuses
+sharing, so privacy rests on ownership: `reserve` keeps one descriptor for the runtime admitted by
+the shared private-filesystem walk (owned by the effective user, mode 0700, and on macOS no
+extended ACL or ownership-ignoring volume), and every later step is relative to that descriptor
+or to the pinned leaf. `create` makes the leaf with `mkdirat` at 0700 and reads the mode back, then
+writes the owner record through an exclusive `O_NOFOLLOW` create at 0600; an existing leaf or a
+link at its name fails creation and is never adopted.
+
+A read opens the one direct child relative to the pinned leaf with `O_NOFOLLOW | O_NONBLOCK`, so a
+symbolic link is refused and a FIFO never blocks. It requires a regular file with one link that
+the effective user owns, then checks the declared length before and after the copy and confirms
+EOF. The producer's own file mode is accepted, because nobody else can enter the leaf. A frame name
+is one UTF-8 component of at most 255 bytes without control characters; the owner marker is
+reserved ignoring ASCII case, since the default APFS volume is case-insensitive.
+
+Release lists the leaf through a fresh description of the pinned descriptor before removing, at
+most 4096 names per folder per pass and 16 folders deep, and removes each entry relative to its
+pinned folder without following links, so a link is removed and its target kept. The owner note
+goes last, then the leaf relative to the runtime descriptor. A leaf that is no longer the created
+directory is refused; an entry added during the pass makes the final removal fail, recreates the
+owner note and leaves the same owner to retry. Unit traces on macOS cover private modes, symbolic
+link, hard link, directory and FIFO refusal, no adoption of an existing leaf or a linked or shared
+runtime, nested release that keeps link targets, failed-removal retry and replaced-leaf refusal.
+Linux compiles the same module, but its Server refuses Panel graphics requests at admission until
+the behavior is verified there.
+
 ## Client rendering and truthful information
 
-The native Windows Client must consume the installed layer catalog and complete pixels. Its
+The native Client on Windows and macOS must consume the installed layer catalog and complete pixels. Its
 ordinary cell surface provides a color raster fallback; negotiated pixel transports can improve
 resolution without changing layer ownership. Pixel transport, physical cell dimensions and pixel
 mouse are reported only after actual capability evidence. Unknown dimensions remain unknown.
@@ -146,10 +176,10 @@ The Windows Session layer transactions and read-only Host PNG adapter are implem
 
 OBWP kinds 57/58 carry closed requests and results. OBNG carries a bounded viewer-scoped PNG request; existing correlated OBNR records carry its result. Terminal Host kinds 80/81 use the distinct graphics-image encoding (5), bounded at 32 MiB plus its 56-byte result header; ordinary input bounds are unchanged.
 
-The native CLI upload/stream paths and [native TUI cell raster consumer](../../orchbee/docs/native-panel-graphics.md) are implemented. The dedicated read lane stages complete, revision-pinned resources; the authenticated Client publisher records successful uncovered draw observations. Info uses fresh matching Client facts and leaves unknown physical pixel geometry null. Managed Windows producers now own private file-frame directories and complete bounded copies, with preparation/read tokens, maintenance retry and clean-stop settlement. Unmanaged endpoint mode advertises no directory. Physical pixel transports and final composed/full acceptance remain pending; these four comparison rows still await exact reference review and Windows acceptance. The complete native cohort is versioned and restaged for final integration; no main integration or old-cohort substitution is authorized by this checkpoint.
+The native CLI upload/stream paths and [native TUI cell raster consumer](../../orchbee/docs/native-panel-graphics.md) are implemented. The dedicated read lane stages complete, revision-pinned resources; the authenticated Client publisher records successful uncovered draw observations. Info uses fresh matching Client facts and leaves unknown physical pixel geometry null. Managed Windows and macOS producers now own private file-frame directories and complete bounded copies, with preparation/read tokens, maintenance retry and clean-stop settlement. Unmanaged endpoint mode advertises no directory. Physical pixel transports and final composed/full acceptance remain pending; these four comparison rows still await exact reference review and Windows acceptance. The complete native cohort is versioned and restaged for final integration; no main integration or old-cohort substitution is authorized by this checkpoint.
 
 Focused evidence includes the 62-case Rust/TypeScript/JSON Schema corpus, image and carrier bounds, eight layer-owner tests, seven production Server session/observer/file witnesses and a Client freshness/scope test, and five Host PNG/graphics tests including actual Windows PTY creation and PNG decoding. This is component evidence, not composed renderer or final acceptance.
 
 ## Consumer implementation order
 
-Within the same authorized Windows replacement outcome, the foundation is followed by CLI upload and retained streams, then actual TUI rendering and capability facts; composed acceptance follows both. The [Windows Panel graphics CLI](../../orchbee/docs/windows-panel-graphics.md) owns grammar and input rules. This scheduling adjustment does not change alignment completion criteria.
+Within the same authorized Windows replacement outcome, the foundation is followed by CLI upload and retained streams, then actual TUI rendering and capability facts; composed acceptance follows both. The [Panel graphics CLI](../../orchbee/docs/windows-panel-graphics.md) owns grammar and input rules. This scheduling adjustment does not change alignment completion criteria.

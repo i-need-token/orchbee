@@ -53,12 +53,14 @@ impl Capability {
             Self::AgentLaunch => cfg!(any(windows, target_os = "macos")),
             // macOS keeps the position record and `config.toml` under its data root, as Windows,
             // resolves a typed folder in the POSIX grammar, from its launch folder, and its Server
-            // serves Worktree operations.
+            // serves Worktree operations and Panel graphics. Graphics admits only the outer
+            // terminal's probe; its replies, never the terminal's name, select the renderer.
             Self::PositionStorage
             | Self::ConfigurationFile
             | Self::DirectoryInput
-            | Self::Worktrees => cfg!(any(windows, target_os = "macos")),
-            Self::SavedMachines | Self::Graphics => cfg!(windows),
+            | Self::Worktrees
+            | Self::Graphics => cfg!(any(windows, target_os = "macos")),
+            Self::SavedMachines => cfg!(windows),
         }
     }
 

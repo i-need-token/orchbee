@@ -39,6 +39,9 @@ impl Reader {
         Ok(Self { child, output })
     }
 }
+pub(super) fn start() -> io::Result<Box<dyn NativeReader>> {
+    with_input(Stdio::inherit())
+}
 pub(super) fn with_input(input: Stdio) -> io::Result<Box<dyn NativeReader>> {
     Reader::with_input(input).map(|reader| Box::new(reader) as Box<dyn NativeReader>)
 }

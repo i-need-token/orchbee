@@ -1,4 +1,4 @@
-# Native Windows Panel graphics rendering
+# Native Panel graphics rendering
 
 ## Image lanes
 
@@ -34,7 +34,7 @@ Rendering uses the actual Panel body after terminal content and before shell ove
 
 ## Bounded host measurement
 
-The interactive Windows shell probes only its already-admitted terminal, after entering its owned modes and before the first ordinary draw. The existing lifecycle writer issues the xterm `CSI 16 t` cell-pixel query and a Kitty `a=q,t=d,f=32,s=1,v=1` query with a nonzero random image ID. Queries have a 300 ms deadline and never wait before rendering or create image placements. Terminal names, environment variables, font guesses and producer `transport` hints cannot establish these facts. These sequences follow the [xterm control contract](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html) and the [Kitty graphics contract](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
+The interactive shell on Windows and macOS probes only its already-admitted terminal, after entering its owned modes and before the first ordinary draw. Every outer terminal receives the same probe, and only its replies select the renderer; Linux sends no probe, so it measures no cell pixels and admits no physical output. The existing lifecycle writer issues the xterm `CSI 16 t` cell-pixel query and a Kitty `a=q,t=d,f=32,s=1,v=1` query with a nonzero random image ID. Queries have a 300 ms deadline and never wait before rendering or create image placements. Terminal names, environment variables, font guesses and producer `transport` hints cannot establish these facts. These sequences follow the [xterm control contract](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html) and the [Kitty graphics contract](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
 
 The existing input decoder owns complete cell reports and graphics APC replies before key, prefix, popup and confirmation dispatch. The same metadata is consumed during a native text modal; bracketed paste remains literal paste, including bytes that look like replies. A graphics reply is bounded at 256 bytes; oversized or timed-out replies drain to their string terminator without allocating or exposing the remaining reply as typed keys. A bare Alt+underscore retains its ordinary meaning when it is not followed by the graphics introducer. No reply, a malformed reply or a late reply establishes capability, increments human-activity intent or reaches a retained terminal.
 
@@ -44,7 +44,7 @@ The shell passes a measurement only to its exact cell geometry and the active na
 
 ## Physical Kitty surface
 
-The Windows shell's fixed backend owns one UI-thread graphics surface and an owned image lease shared with terminal restoration. Only a timely successful Kitty query and current measured cell pixels admit physical output. A draw stages immutable canvases using the actual Panel bodies, Session, selected source/binding and cell measurement. Overlay, Machine, notification, source, layer-set or geometry changes retire the affected physical frame in the same synchronized draw. Unsupported or unknown hosts continue to render color cells. No producer hint, terminal name, cached Session ID or upload success alone establishes visible drawing.
+The shell's fixed backend owns one UI-thread graphics surface and an owned image lease shared with terminal restoration. Only a timely successful Kitty query and current measured cell pixels admit physical output. A draw stages immutable canvases using the actual Panel bodies, Session, selected source/binding and cell measurement. Overlay, Machine, notification, source, layer-set or geometry changes retire the affected physical frame in the same synchronized draw. Unsupported or unknown hosts continue to render color cells. No producer hint, terminal name, cached Session ID or upload success alone establishes visible drawing.
 
 A physical frame contains at most 64 images and 64 MiB of visible RGBA output. Each image is lazily sampled from its immutable source into its clipped physical rectangle; a single image exceeding 32 MiB uses cell fallback. Natural and omitted-axis placement share the cell renderer's measured aspect calculation. Full unsigned 32-bit virtual grids are clipped before sampling; wide intermediate arithmetic preserves offscreen placements without wrapping. Straight alpha, layer order and signed z remain intact. An unrelated Session revision advance reuses host images only when the exact source, complete layer metadata, immutable pixel identities and physical geometry are unchanged; a confirmed receipt can then advance to that equivalent canvas revision without retransmission. No full resampled image or full base64 payload is retained. Active and one frozen candidate can each retain at most 64 MiB of source pixels, in addition to the existing 128 MiB read/cache bound. Staged draw references are released after the successful frame flush, before another read publication; a bounded replan flag requests a later draw when resource deletion first needs to settle.
 
@@ -58,7 +58,7 @@ Acceptance includes protocol reconstruction across chunk boundaries, current-sou
 
 An additive bounded graphics observation is submitted by the existing Client control connection after its normal synchronized view. The Server checks authenticated generation-derived Client ID, heartbeat, Workbench revision, canonical target/binding and installed revision bounds. Foreign connections cannot replace another Client's facts. Info uses fresh matching observations, reports cell-raster or admitted physical Kitty capability from the actual draw path and pixelMouse false, and publishes cell pixels only from the current bounded host measurement. Partial surface lists cannot claim an absent Pane is hidden. Stale, disconnected or mismatched observations do not claim visibility or successful drawing.
 
-The fallback does not claim negotiated Kitty/Sixel or pixel mouse support. Managed private producer file leases and complete file-frame CLI inputs are implemented by the [Session graphics owner](../../orchbee-server/docs/windows-graphics.md). The physical Kitty path is integrated with bounded probing, uploads, placements and restoration; pixel mouse is not advertised. Focused evidence covers actual native renderer output, alpha/z/clipping, complete chunk/resource fences and Client ownership. Real Windows composed graphics workflows and final full regression remain required before alignment or main integration. No TLA, WSL, new macOS/Linux runtime or manual focus-stealing Desktop test is run.
+The fallback does not claim negotiated Kitty/Sixel or pixel mouse support. Managed private producer file leases and complete file-frame CLI inputs are implemented by the [Session graphics owner](../../orchbee-server/docs/windows-graphics.md). The physical Kitty path is integrated with bounded probing, uploads, placements and restoration; pixel mouse is not advertised. Focused evidence covers actual native renderer output, alpha/z/clipping, complete chunk/resource fences and Client ownership. Real composed graphics workflows in Windows and macOS outer terminals and final full regression remain required before alignment. macOS runs the same probe, renderers and restoration as Windows; no TLA, Linux runtime or manual focus-stealing Desktop test is run.
 
 ## Program-printed Kitty images
 
@@ -103,9 +103,10 @@ Program images never enter the Session read scope or the Workbench draw observat
 facts only keep staged physical scenes through the frame and are dropped before receipts are
 built.
 
-An outer terminal that answers the Kitty query and reports cell pixels, such as WezTerm or Kitty,
-shows physical images. Windows Terminal supports Sixel but not Kitty, so the TUI paints the
-upper-half-block cell raster there; it emits no Sixel and writes no graphics bytes to a host
+An outer terminal that answers the Kitty query and reports cell pixels, such as WezTerm, Kitty or
+Ghostty, shows physical images. Windows Terminal supports Sixel but not Kitty, and on macOS iTerm2
+has its own image protocol and Terminal.app none, so the TUI paints the upper-half-block cell
+raster there once the query deadline passes unanswered; it emits no Sixel and writes no graphics bytes to a host
 without Kitty support. When the TUI sizes a Panel from an outer terminal that does not report cell
 pixels, the Host gets zero pixel metrics, so no client shows program images in that Panel.
 
@@ -121,4 +122,4 @@ after a scroll, and the empty snapshot after deletion) from a real direct transm
 The Client's acceptance test feeds that sequence through the projection and the actual shell
 renderer: a capable simulated host receives upload, placement and delete commands, and an incapable
 host receives cell raster and no graphics bytes. Real-window confirmation in a Kitty-capable outer
-terminal and in Windows Terminal remains required.
+terminal, in Windows Terminal and in iTerm2 and Terminal.app remains required.

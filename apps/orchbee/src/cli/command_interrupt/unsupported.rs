@@ -5,3 +5,5 @@ use std::io;
 pub(super) fn arm() -> io::Result<Box<dyn NativeSignals>> {
     Err(io::ErrorKind::Unsupported.into())
 }
+
+impl crate::cli::source::SignalWatch for super::ArmedSignals {}

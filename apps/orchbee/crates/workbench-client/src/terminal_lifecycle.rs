@@ -1150,7 +1150,6 @@ impl TerminalModes for InheritedTerminalModes {
     fn ring_bell(&self) -> io::Result<()> {
         write_bell(&mut self.terminal.output()?)
     }
-    #[cfg(windows)]
     fn cleanup_graphics(&self, sequence: &str) -> io::Result<()> {
         let mut output = self.terminal.output()?;
         output.write_all(sequence.as_bytes())?;

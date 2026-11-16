@@ -1,12 +1,9 @@
 //! Bounded polling and EOF interpretation for an invocation-owned native stdin reader.
-use std::{
-    io,
-    process::{ExitStatus, Stdio},
-};
+use std::{io, process::ExitStatus};
 #[cfg(windows)]
 #[path = "stdin_bytes/windows.rs"]
 mod platform;
-#[cfg(not(windows))]
+#[cfg(unix)]
 #[path = "stdin_bytes/unix.rs"]
 mod platform;
 
@@ -24,10 +21,12 @@ pub(in crate::cli) struct Reader {
     eof: bool,
 }
 impl Reader {
+    /// Reads the invocation's inherited stdin; the caller's descriptor flags never change.
     pub(in crate::cli) fn start() -> io::Result<Self> {
-        Self::with_input(Stdio::inherit())
+        platform::start().map(|native| Self { native, eof: false })
     }
-    pub(in crate::cli) fn with_input(input: Stdio) -> io::Result<Self> {
+    #[cfg(all(test, windows))]
+    pub(in crate::cli) fn with_input(input: std::process::Stdio) -> io::Result<Self> {
         platform::with_input(input).map(|native| Self { native, eof: false })
     }
     pub(in crate::cli) fn poll(&mut self, buffer: &mut [u8]) -> io::Result<Poll> {
