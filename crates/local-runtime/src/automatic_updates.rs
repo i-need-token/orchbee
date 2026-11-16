@@ -42,10 +42,10 @@ pub const fn automatic_updates_live() -> bool {
     }
 }
 
-/// Whether release builds install window versions, false until the window self-update release
-/// passes its real run. While it is false, a release build's `update` and automatic helper leave
-/// the window store alone, and its Client does not know `--installer-window-v1`.
-const WINDOW_IN_RELEASE_BUILDS: bool = false;
+/// Whether release builds install window versions, true from the window self-update release on.
+/// While it is false, a release build's `update` and automatic helper leave the window store alone,
+/// and its Client does not know `--installer-window-v1`.
+const WINDOW_IN_RELEASE_BUILDS: bool = true;
 
 /// Whether this build installs window versions: only where [`automatic_updates_live`] holds, and
 /// in a release build only once `WINDOW_IN_RELEASE_BUILDS` is set. Test builds always do, and

@@ -758,7 +758,8 @@ programs exist:
   off refuses the word as unknown, and a development build answers `development-build`. Setup then
   installs as this section says only after the first answer, and otherwise writes the flat
   `desktop\` of earlier releases as before, with its move to `desktop.previous` and its two refusals.
-  So release builds keep the flat install until the window self-update release sets the switch.
+  Release builds answer the first way from the window self-update release on, which sets the
+  switch.
 - After its files, the bundled Client in `{tmp}\desktop\resources\cohort\` runs
   `install --format json` as today (`orchbee.iss:255-274`) and then the new helper mode
   `orchbee --installer-window-v1`. That mode installs the window directory two levels above its own
@@ -881,7 +882,8 @@ unpacking, and a bundle the launcher swaps at the click.
   [AppUserModelID guidance](https://learn.microsoft.com/en-us/windows/win32/shell/appids) says the
   shell then takes the command line, icon, and text from that shortcut; relaunch properties serve an
   ID set on one window. A pin made while the window runs from a version folder therefore starts the
-  entry. Unverified until the real window run.
+  entry. The real window run saw the Start menu shortcut start the active window version through
+  the entry; a pin itself is still unverified.
 - The Jump List's Save Diagnostic Bundle task names `process.execPath` today (`entry.ts:260-271`); a
   window that runs from a version folder names the entry instead, so the task outlives that version.
 - Rejected: Electron's per-window relaunch properties through `setAppDetails`, a second source of
