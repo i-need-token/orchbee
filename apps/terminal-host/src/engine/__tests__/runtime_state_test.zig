@@ -679,6 +679,101 @@ test "reader preserves direct Kitty graphics emitted through a real PTY" {
     try std.testing.expectEqual(@as(usize, 1), graphics.images.count());
     try std.testing.expectEqual(@as(usize, 1), graphics.placements.count());
 }
+/// Parks the PTY reader, so the test owns every batch, and holds each Kitty graphics medium read
+/// on its own thread until the test releases it.
+const MediaReadGate = struct {
+    media: TestGate = .{},
+    reader: TestGate = .{},
+    runtime: *TerminalRuntime = undefined,
+
+    fn hooks(self: *MediaReadGate) RuntimeTestingHooks {
+        return .{ .context = self, .graphics_media_read_starting = starting, .read_pty = read };
+    }
+
+    fn starting(context: *anyopaque) void {
+        const self: *MediaReadGate = @ptrCast(@alignCast(context));
+        self.media.pause();
+    }
+
+    fn read(context: *anyopaque, buffer: []u8) anyerror!usize {
+        const self: *MediaReadGate = @ptrCast(@alignCast(context));
+        self.reader.pause();
+        return runtimeState(self.runtime).process.read(buffer);
+    }
+};
+test "a stalled image read does not delay another terminal" {
+    var directory = std.testing.tmpDir(.{});
+    defer directory.cleanup();
+    try directory.dir.writeFile(std.testing.io, .{ .sub_path = "pixel.rgb", .data = "\xff\x00\x00" });
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const path = path_buffer[0..try directory.dir.realPathFile(std.testing.io, "pixel.rgb", &path_buffer)];
+    var encoded: [std.base64.standard.Encoder.calcSize(std.fs.max_path_bytes)]u8 = undefined;
+    const output = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "before\x1b_Ga=T,t=f,f=24,s=1,v=1,i=7,C=1,q=2;{s}\x1b\\after",
+        .{std.base64.standard.Encoder.encode(&encoded, path)},
+    );
+    defer std.testing.allocator.free(output);
+
+    var stalled: MediaReadGate = .{};
+    const runtime = try createRuntimeWithHooks(stalled.hooks());
+    defer runtime.destroy();
+    stalled.runtime = runtime;
+    stalled.reader.wait();
+    defer stalled.reader.release();
+    var other: MediaReadGate = .{};
+    const other_runtime = try createRuntimeWithHooks(other.hooks());
+    defer other_runtime.destroy();
+    other.runtime = other_runtime;
+    other.reader.wait();
+    defer other.reader.release();
+
+    // The terminal's output arrives on its own thread, as a PTY reader's would.
+    const Reader = struct {
+        fn commit(target: *TerminalRuntime, bytes: []const u8, outcome: *ReaderBatchOutcome) void {
+            outcome.* = commitReaderBatch(target, bytes);
+        }
+    };
+    var outcome: ReaderBatchOutcome = .runtime_failed;
+    const reader = try std.Thread.spawn(.{}, Reader.commit, .{ runtime, output, &outcome });
+    var reader_joined = false;
+    defer if (!reader_joined) {
+        stalled.media.release();
+        reader.join();
+    };
+    stalled.media.wait();
+
+    // While the read is held, what the dispatch thread does for each terminal completes: it reads
+    // the stalled terminal's screen up to the image, and the other terminal takes output.
+    {
+        var capture = try screen_text.read(runtime, std.testing.allocator, 4096);
+        defer capture.deinit();
+        try std.testing.expectEqualStrings("before", capture.text());
+    }
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(other_runtime, "other"));
+    {
+        var capture = try screen_text.read(other_runtime, std.testing.allocator, 4096);
+        defer capture.deinit();
+        try std.testing.expectEqualStrings("other", capture.text());
+    }
+
+    stalled.media.release();
+    reader.join();
+    reader_joined = true;
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, outcome);
+    var capture = try screen_text.read(runtime, std.testing.allocator, 4096);
+    defer capture.deinit();
+    try std.testing.expectEqualStrings("beforeafter", capture.text());
+    const runtime_state = runtimeState(runtime);
+    runtime_state.terminal_mutex.lock();
+    defer runtime_state.terminal_mutex.unlock();
+    const graphics = &runtime_state.terminal.screens.active.kitty_images;
+    try std.testing.expectEqual(@as(usize, 1), graphics.images.count());
+    try std.testing.expectEqual(@as(usize, 1), graphics.placements.count());
+    // The image was placed where the output before it ended, ahead of the output after it.
+    var placements = graphics.placements.iterator();
+    try std.testing.expectEqual(@as(usize, 6), placements.next().?.value_ptr.location.pin.x);
+}
 test "projection frames carry paired-zero pixel geometry and still validate" {
     const runtime = try createIdleRuntime(.{});
     defer destroyRuntimeWithIdentityRetry(runtime);

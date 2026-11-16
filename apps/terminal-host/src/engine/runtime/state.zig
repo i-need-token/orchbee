@@ -15,6 +15,7 @@ const terminal_runtime_startup = @import("../runtime_startup.zig");
 const terminal_stream = @import("../terminal_stream.zig");
 const program_status = @import("../program_status.zig");
 const contracts = @import("contracts.zig");
+const graphics_media = @import("graphics_media.zig");
 
 pub const State = struct {
     allocator: std.mem.Allocator,
@@ -139,7 +140,9 @@ pub const State = struct {
     // makes retained read-only state available again.
     read_commit_epoch: u64 = 0,
     stream: terminal_stream.Stream,
-    stream_allocator: terminal_stream.ParserAllocator,
+    stream_allocator: terminal_stream.BoundedAllocator,
+    // Only the reader thread touches this between runtime start and the final worker join.
+    graphics_media: graphics_media.State = .{},
     scrollback_bytes: usize,
     // terminal_mutex owns Ghostty's opaque compression activity observation,
     // the client-input/output interaction serial, the idle deadline, and the

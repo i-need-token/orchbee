@@ -1117,6 +1117,10 @@ timeout, or transient system failure ends it (`TH-027`).
   [creation pipeline](#terminal-creation-pipeline), and its answer is written when it settles, so
   other terminals' events and requests keep flowing meanwhile. A Worker that waits for each answer
   before sending its next request still waits behind the start on its own side.
+- **Slow image media**: a Kitty graphics file, temporary file, or shared-memory medium is read on
+  its own thread with no terminal lock held, as the
+  [Kitty graphics projection model](#kitty-graphics-projection-model) describes, so a slow or
+  stalled read delays only the rest of that terminal's output, by at most 2 s.
 
 ### Fatal record and diagnostic log
 
@@ -1155,7 +1159,7 @@ not verified. `reason` is the hyphenated class: one per safety
 check, one per exception name, or `serving-failed`. `error` is a source-defined error name for
 `unwrap-error` and `exit` records, and `null` otherwise or when the name is not a plain identifier.
 `thread` is `dispatch`, `control-lane`, `terminal-output`, `terminal-input`, `terminal-wait`,
-`terminal-animation`, `terminal-signals`, `terminal-creation`, or `other`. `module_offset` is the faulting return or instruction address as
+`terminal-animation`, `terminal-signals`, `terminal-creation`, `terminal-media`, or `other`. `module_offset` is the faulting return or instruction address as
 an offset into the Host executable image, or `null` outside it. The first fault claims the record;
 a fault on another thread waits up to 2 s for it and then exits. A panic or exception exits with
 code `16`; an `exit` record keeps the Host's own failure code, and a fault in the teardown that
@@ -1363,10 +1367,29 @@ directory lifetime, the monotonic animation deadline, and each immutable resolve
 enables direct, regular-file, temporary-file, and, where available, POSIX shared-memory loading;
 raw and PNG data, zlib compression, chunking, transmit/display/query/delete, frame composition,
 animation control, virtual placements, and relative placements remain native Ghostty transitions.
-The loader's Ghostty-matching 400 MiB acquisition bound and the Host's per-screen 32 MiB
-decoded-storage bound remain finite and independent. Host never serializes a source path, open file, temporary-file handle,
+The loader's Ghostty-matching 400 MiB acquisition bound for direct data, the media read bounds
+below, and the Host's per-screen 32 MiB decoded-storage bound remain finite and independent. Host never serializes a source path, open file, temporary-file handle,
 shared-memory name or mapping, PNG container, or compressed stream. Only Host-owned decoded pixel
 bytes and fully resolved placement values can cross the native boundary.
+
+Ghostty reads a file, temporary-file, or shared-memory medium inside its command handler, under the
+terminal-state lock, where a slow disk, a network path, or a FIFO would hold every request for that
+terminal. The reader therefore takes such a command at its APC end, stops feeding the PTY batch
+there, and commits the output before it as its own revision. A `terminal-media` thread then reads
+the medium through Ghostty's own loader, which keeps its path, blocklist, and temporary-directory
+checks, and decodes it, while the reader waits without any terminal lock for at most 2 s. The next
+commit hands Ghostty the decoded pixels as a direct transmission of the same command, so storage,
+replies, the quiet setting, and identifiers stay Ghostty's, and the rest of the batch follows it.
+Before Ghostty opens a file or temporary file, it must be a regular file whose requested bytes fit
+32 MiB, and exactly that many bytes are read; one read holds at most 96 MiB of medium, decoded
+pixels, and copies. A read that fails, exceeds a bound, or misses the deadline drops the image as a
+failed load does: Ghostty runs the command without data, answers with its error unless quieted,
+and a warning names the medium and the reason, never the path. A read still blocked at the
+deadline finishes alone, holding nothing of the terminal; until it does, that terminal drops each
+further medium at once. Animation frames and the first chunk of a chunked file transmission are
+read off the lock but decode under it with the rest of their data, as direct ones do. A medium
+command opened by a C1 string introducer, which only follows another unfinished sequence, is taken
+the same way but may apply after the rest of its PTY read.
 
 Capture executes `advance -> resolve -> encode -> commit`. While holding the terminal-state lock,
 Host first advances any due animation, then resolves pinned, virtual, and relative placements to
@@ -1399,15 +1422,15 @@ changes, while no running animation schedules no wake. Counter exhaustion or an 
 the existing typed runtime-failure or saturating bounded-time path and cannot create an ABA-valid
 frame or an unbounded busy loop.
 
-| Transition                                                           | Canonical effect                                                                                                      | Projection and failure rule                                                                                           |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| PTY transmit, query, display, frame, animation, or delete action     | Ghostty validates and atomically mutates its bounded graphics storage or emits its protocol reply                     | Rejection preserves the prior canonical image/placement state; no client payload is partially committed               |
-| Direct, file, temporary-file, or shared-memory load                  | Ghostty acquires bounded input and stores owned decoded pixels; temporary-file and shared-memory cleanup stays native | Paths, handles, mappings, encoded containers, and compressed bytes never enter OBKG or OBRW                           |
-| Due animation tick                                                   | Ghostty selects the displayed frame and returns the next delay                                                        | A graphics-generation change advances one terminal revision; no change is a projection stutter                        |
-| Scroll, reflow, resize, screen switch, or placement mutation         | Ghostty keeps pins and placement relationships canonical                                                              | Host resolves the current absolute crop and layer during capture; no unresolved pin crosses the boundary              |
-| Live capture and serialized handoff                                  | Host stages deterministic resources and placements against one generation/revision                                    | Exact commit publishes all bytes and base metadata together; allocation, limit, or stale-guard failure publishes none |
-| Render-detail row-window capture                                     | Host selects current placements intersecting the requested historical rows and rebases them                           | OBRW commits rows and its independent graphics snapshot atomically; text detail excludes graphics                     |
-| Exact acknowledgement, reset, delete, eviction, detach, or reconnect | Delivery ownership advances or invalidates the attachment-scoped base                                                 | A stale acknowledgement cannot advance resources; invalidation forces a complete successor snapshot                   |
+| Transition                                                           | Canonical effect                                                                                                            | Projection and failure rule                                                                                                        |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| PTY transmit, query, display, frame, animation, or delete action     | Ghostty validates and atomically mutates its bounded graphics storage or emits its protocol reply                           | Rejection preserves the prior canonical image/placement state; no client payload is partially committed                            |
+| Direct, file, temporary-file, or shared-memory load                  | Ghostty acquires bounded input, off the lock for a non-direct medium, and stores owned decoded pixels; cleanup stays native | Paths, handles, mappings, encoded containers, and compressed bytes never enter OBKG or OBRW; a failed or late read drops the image |
+| Due animation tick                                                   | Ghostty selects the displayed frame and returns the next delay                                                              | A graphics-generation change advances one terminal revision; no change is a projection stutter                                     |
+| Scroll, reflow, resize, screen switch, or placement mutation         | Ghostty keeps pins and placement relationships canonical                                                                    | Host resolves the current absolute crop and layer during capture; no unresolved pin crosses the boundary                           |
+| Live capture and serialized handoff                                  | Host stages deterministic resources and placements against one generation/revision                                          | Exact commit publishes all bytes and base metadata together; allocation, limit, or stale-guard failure publishes none              |
+| Render-detail row-window capture                                     | Host selects current placements intersecting the requested historical rows and rebases them                                 | OBRW commits rows and its independent graphics snapshot atomically; text detail excludes graphics                                  |
+| Exact acknowledgement, reset, delete, eviction, detach, or reconnect | Delivery ownership advances or invalidates the attachment-scoped base                                                       | A stale acknowledgement cannot advance resources; invalidation forces a complete successor snapshot                                |
 
 macOS and supported libc-backed Linux targets enable every medium. Windows enables direct, regular
 file, and temporary file media but reports POSIX shared memory unsupported, matching the pinned

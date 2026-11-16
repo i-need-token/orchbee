@@ -18,6 +18,8 @@ const output_seed = @import("../output_seed.zig");
 const writer_ops = @import("writer.zig");
 const wait_thread_ops = @import("wait_thread.zig");
 const animation_ops = @import("animation.zig");
+const graphics_media = @import("graphics_media.zig");
+const terminal_stream = @import("../terminal_stream.zig");
 
 const SystemThreadSpawner = struct {
     fn spawn(
@@ -114,7 +116,7 @@ pub fn createWithOptionsUsingSpawner(
         .projection = .init(allocator),
         .history = .init(allocator),
         .stream = undefined,
-        .stream_allocator = .init(allocator),
+        .stream_allocator = .init(allocator, terminal_stream.osc_allocation_limit_bytes),
         .scrollback_bytes = resolved_options.scrollback_bytes,
         .terminal = resources.terminal,
     };
@@ -145,6 +147,7 @@ pub fn createWithOptionsUsingSpawner(
     self.stream.handler.progress_report = feedback_ops.progressReportEffect;
     self.stream.handler.semantic_prompt = feedback_ops.semanticPromptEffect;
     self.stream.handler.metadata_reset = output_ops.metadataResetEffect;
+    self.stream.handler.kitty_graphics = graphics_media.takeEffect;
     self.stream.handler.terminal_handler.apc_handler.unknown_max_bytes =
         feedback_ops.max_private_application_signal_apc_bytes;
     self.stream.handler.terminal_handler.unknown_sequence =

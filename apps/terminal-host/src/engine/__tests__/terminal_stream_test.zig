@@ -40,7 +40,10 @@ test "Windows prompt resize preserves text by default and honors explicit redraw
 }
 
 test "Host OSC parser allocator enforces and releases its byte budget" {
-    var state = terminal_stream.ParserAllocator.init(std.testing.allocator);
+    var state = terminal_stream.BoundedAllocator.init(
+        std.testing.allocator,
+        terminal_stream.osc_allocation_limit_bytes,
+    );
     defer state.deinit();
     const allocator = state.allocator();
 

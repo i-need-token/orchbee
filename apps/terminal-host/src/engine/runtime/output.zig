@@ -10,6 +10,7 @@ const state = @import("state.zig");
 const animation_ops = @import("animation.zig");
 const failure_ops = @import("failure.zig");
 const feedback_ops = @import("feedback.zig");
+const graphics_media = @import("graphics_media.zig");
 const process_io_ops = @import("process_io.zig");
 const resize_ops = @import("resize.zig");
 const metadata_ops = @import("metadata.zig");
@@ -279,10 +280,45 @@ pub fn commitReaderBatch(
     return commitObservedReaderBatch(self, bytes);
 }
 
+/// Commits one PTY read. A Kitty graphics command whose medium must be read splits it: the
+/// output before the command commits first, the medium is read without the terminal lock, and
+/// the next batch applies the image and goes on with the rest.
 fn commitObservedReaderBatch(
     self: *state.State,
     bytes: []const u8,
 ) contracts.ReaderBatchOutcome {
+    var rest = bytes;
+    var media: ?graphics_media.Loaded = null;
+    while (true) {
+        switch (commitReaderSlice(self, rest, &media)) {
+            .finished => |outcome| return outcome,
+            .stopped_at_media => |consumed| rest = rest[consumed..],
+        }
+        // Publish the output before the image while its medium is read.
+        output_wake.signal();
+        media = graphics_media.load(self) orelse {
+            notifyReaderBatchFinished(self, .output_aborted);
+            return .output_aborted;
+        };
+    }
+}
+
+const ReaderSlice = union(enum) {
+    finished: contracts.ReaderBatchOutcome,
+    /// The batch committed through a taken Kitty graphics command, this many bytes in.
+    stopped_at_media: usize,
+};
+
+fn commitReaderSlice(
+    self: *state.State,
+    bytes: []const u8,
+    media: *?graphics_media.Loaded,
+) ReaderSlice {
+    // A media read that this batch cannot apply is dropped with it.
+    defer if (media.*) |*loaded| {
+        loaded.deinit();
+        media.* = null;
+    };
     self.terminal_mutex.lock();
     while (self.resize_effect_in_flight) {
         if (comptime target_builtin.is_test) {
@@ -295,12 +331,12 @@ fn commitObservedReaderBatch(
     if (self.failure_fenced) {
         self.terminal_mutex.unlock();
         notifyReaderBatchFinished(self, .failure_fenced);
-        return .failure_fenced;
+        return .{ .finished = .failure_fenced };
     }
     if (self.output_abort_requested.load(.acquire)) {
         self.terminal_mutex.unlock();
         notifyReaderBatchFinished(self, .output_aborted);
-        return .output_aborted;
+        return .{ .finished = .output_aborted };
     }
 
     const current_revision = self.revision.load(.monotonic);
@@ -319,7 +355,7 @@ fn commitObservedReaderBatch(
         self.terminal_mutex.unlock();
         notifyReaderBatchFinished(self, .runtime_failed);
         if (won) failure_ops.finishFailureFence(self);
-        return .runtime_failed;
+        return .{ .finished = .runtime_failed };
     }
 
     self.reader_commit_in_progress = true;
@@ -338,7 +374,11 @@ fn commitObservedReaderBatch(
     const previous_clear = self.terminal.flags.dirty.clear;
     self.terminal.flags.dirty.clear = false;
     const cursor_was_visible = self.terminal.modes.get(.cursor_visible);
-    program_status_feed.feedLocked(self, bytes);
+    if (media.*) |*loaded| {
+        graphics_media.applyLocked(self, loaded);
+        media.* = null;
+    }
+    const consumed = graphics_media.feedLocked(self, bytes);
     mode_effects.noteCursorVisibilityLocked(self, cursor_was_visible);
     const screen_reset = self.terminal.flags.dirty.clear;
     self.terminal.flags.dirty.clear = previous_clear or screen_reset;
@@ -363,12 +403,13 @@ fn commitObservedReaderBatch(
         self.bell_sequence_overflow_pending = false;
         self.feedback_sequence_overflow_pending = false;
         feedback_ops.abortReaderBatch(self);
+        graphics_media.discardPending(self);
         const won = failure_ops.closeFailureFenceLocked(self, .resize);
         finishReaderCommitLocked(self);
         self.terminal_mutex.unlock();
         notifyReaderBatchFinished(self, .runtime_failed);
         if (won) failure_ops.finishFailureFence(self);
-        return .runtime_failed;
+        return .{ .finished = .runtime_failed };
     }
     const screen_changed = previous_screen != self.terminal.screens.active_key or
         screen_reset;
@@ -411,9 +452,14 @@ fn commitObservedReaderBatch(
         .runtime_failed
     else
         .committed;
+    if (graphics_media.pending(self)) {
+        // The PTY read finishes once, after its last slice.
+        if (outcome == .committed) return .{ .stopped_at_media = consumed };
+        graphics_media.discardPending(self);
+    }
     notifyReaderBatchFinished(self, outcome);
     if (failure_won) failure_ops.finishFailureFence(self);
-    return outcome;
+    return .{ .finished = outcome };
 }
 
 pub fn finishReaderCommitLocked(self: *state.State) void {

@@ -100,6 +100,8 @@ The accepted contract requires these externally visible properties:
   placements through OBKG; render-detail OBRW includes a graphics snapshot, while
   text detail excludes graphics. macOS and supported libc-backed Linux targets enable every medium;
   Windows enables direct, regular-file, and temporary-file media but not POSIX shared memory.
+  Non-direct media are read off the terminal lock within size, memory, and time bounds; a failed
+  or late read drops the image while the text goes on.
 - Terminal control queries, including DECRQSS, read that same canonical Ghostty state and enqueue their replies through the Host-owned bounded terminal-reply path; attachments never emulate a second VT reply surface.
 - Attachment resize and terminal-driven 80/132-column requests share one native geometry commit
   owner. The Host correlates OS PTY size, Ghostty dimensions, cell pixels, revision, generation, Core

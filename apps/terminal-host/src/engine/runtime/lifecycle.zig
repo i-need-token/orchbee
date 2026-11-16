@@ -5,6 +5,7 @@ const state = @import("state.zig");
 const containment_ops = @import("containment.zig");
 const process_io_ops = @import("process_io.zig");
 const feedback_ops = @import("feedback.zig");
+const graphics_media = @import("graphics_media.zig");
 
 pub fn stopIoForShutdown(self: *state.State) void {
     self.output_abort_requested.store(true, .release);
@@ -98,6 +99,7 @@ pub fn destroy(self: *state.State) void {
 pub fn destroyAfterShutdown(self: *state.State) void {
     std.debug.assert(self.threads_joined);
     std.debug.assert(self.containment_confirmed.load(.acquire));
+    graphics_media.deinit(self);
     self.stream.deinit();
     self.stream_allocator.deinit();
     feedback_ops.deinit(self);

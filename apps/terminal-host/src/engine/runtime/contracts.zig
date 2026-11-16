@@ -102,6 +102,8 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     context: ?*anyopaque = null,
     failure_fence_starting: ?*const fn (*anyopaque) void = null,
     finish_pty_after_child_exit: ?*const fn (*anyopaque) anyerror!void = null,
+    /// Runs on the media read's own thread before it reads, holding nothing of the terminal.
+    graphics_media_read_starting: ?*const fn (*anyopaque) void = null,
     has_active_command: ?*const fn (*anyopaque) anyerror!bool = null,
     host_containment_waiting: ?*const fn (*anyopaque) void = null,
     projection_capture_starting: ?*const fn (*anyopaque) void = null,
