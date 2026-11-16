@@ -50,7 +50,7 @@ Unknown transport outcomes retain the existing complete-write distinction and ne
 | Prepared | Matching Abort                                                                                       | Close standby; Aborted -> Active                                                                                           |
 | Prepared | Lease expires                                                                                        | Close standby -> Active; a later Commit is NotPrepared                                                                     |
 | Prepared | Matching Commit before expiry                                                                        | Complete Committed result on old wire; swap the single owned Server stream; send Owned on new wire -> Active on new Server |
-| Prepared | Non-handoff request                                                                                  | Refuse protocol continuation before dispatching any effect                                                                 |
+| Prepared | Non-handoff request                                                                                  | Decline it before dispatching any effect (`request-declined`, cause `handoff`); stay Prepared                              |
 | Active   | Ordinary EOF, partial/malformed record or Host loss                                                  | Existing retirement; never infer handoff from loss                                                                         |
 
 Before the complete Committed write, failure drops the standby without switching authority.

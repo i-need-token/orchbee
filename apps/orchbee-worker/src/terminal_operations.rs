@@ -13,7 +13,7 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    CapabilityNodeMessage, HostEpoch, LaunchPreferences, WorkerRequestDeclined,
+    CapabilityNodeMessage, DeclinedRequestKind, HostEpoch, LaunchPreferences, WorkerRequestDeclined,
 };
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::CorrelationId;
@@ -21,7 +21,7 @@ use orchbee_terminal_protocol::CorrelationId;
 use crate::{
     agent_drain::AgentDrain,
     default_interactive_launch::SystemShell,
-    diagnostic_events::Site,
+    diagnostic_events::{DeclineCause, Site},
     host_connection::HostBrokerConnection,
     terminal_authorization::{
         AuthorizedHostDispatch, AuthorizedHostOperation, AuthorizedHostOperationKernel,
@@ -196,13 +196,12 @@ fn serve(
             handoff.execute(&mut server, Some(host), request, worker_id, generation)?;
             continue;
         }
+        // A prepared handoff hands this connection to another Server: an ordinary request now is
+        // declined, so nothing changes under the handoff, and the connection serves on.
         #[cfg(windows)]
         if handoff.is_prepared() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "ordinary request during prepared Server handoff",
-            )
-            .into());
+            decline(&server, Some(&*host), &request, DeclineCause::Handoff)?;
+            continue;
         }
         if let CapabilityNodeMessage::HostQueryRequest(request) = request {
             let result = host_query::execute(Some(host), request, worker_id, generation);
@@ -379,30 +378,48 @@ fn serve(
             continue;
         }
         if let CapabilityNodeMessage::TerminalLifecycleRequest(request) = request {
+            use crate::terminal_authorization::LifecycleAdmission;
             host.pacing.set_site(Site::Lifecycle);
-            let disposition = match kernel.admit_lifecycle(request, unix_milliseconds(), epoch)? {
-                crate::terminal_authorization::LifecycleAdmission::Dispatch(dispatch) => {
-                    crate::terminal_lifecycle_operation::PreparedLifecycleOperation::new(
+            let declined = WorkerRequestDeclined::operation(
+                DeclinedRequestKind::Lifecycle,
+                request.request_id,
+            );
+            let disposition = match kernel.admit_lifecycle(request, unix_milliseconds(), epoch) {
+                Ok(LifecycleAdmission::Dispatch(dispatch)) => {
+                    match crate::terminal_lifecycle_operation::PreparedLifecycleOperation::new(
                         dispatch, host,
-                    )?
-                    .execute(
-                        &mut kernel,
-                        host,
-                        &server,
-                        unix_milliseconds,
-                        host.pacing.exchange_bound(),
-                    )?
+                    ) {
+                        Ok(prepared) => prepared.execute(
+                            &mut kernel,
+                            host,
+                            &server,
+                            unix_milliseconds,
+                            host.pacing.exchange_bound(),
+                        )?,
+                        // A request this Worker cannot put into a Host record reaches no Host.
+                        Err(error) => {
+                            crate::diagnostic_events::request_unprepared(
+                                Site::Lifecycle,
+                                error.as_ref(),
+                            );
+                            kernel.lifecycle_pre_handoff_failure(dispatch, unix_milliseconds())?;
+                            HostOperationDisposition::ResultReady
+                        }
+                    }
                 }
-                crate::terminal_authorization::LifecycleAdmission::ResultReady => {
-                    HostOperationDisposition::ResultReady
-                }
-                crate::terminal_authorization::LifecycleAdmission::SlotOccupied => {
-                    return Err(io::Error::other("Worker lifecycle slot is still occupied").into());
+                Ok(LifecycleAdmission::ResultReady) => HostOperationDisposition::ResultReady,
+                // The kernel refused it before any effect, so only this request is declined.
+                Ok(LifecycleAdmission::SlotOccupied) | Err(_) => {
+                    send_decline(&server, Some(&*host), declined, DeclineCause::State)?;
+                    continue;
                 }
             };
             if disposition == HostOperationDisposition::ServerClosed {
                 return Err(peer_closed().into());
             }
+            // Every dispatched path above settles the slot before it returns; the loop is
+            // serialized and Host events never touch the kernel, so a missing result is this
+            // Worker's own broken invariant.
             let result = kernel
                 .take_lifecycle_result()
                 .ok_or_else(|| io::Error::other("Worker lifecycle result is missing"))?;
@@ -469,30 +486,39 @@ fn serve(
         }
         let now = unix_milliseconds();
         let mut output_seed = None;
-        let admission = match request {
+        let (admission, declined) = match request {
             CapabilityNodeMessage::AuthorizedTerminalLaunch(mut launch) => {
                 host.pacing.set_site(Site::Launch);
+                let declined = WorkerRequestDeclined::operation(
+                    DeclinedRequestKind::Launch,
+                    launch.authorization().operation_id(),
+                );
                 // The kernel retains its launch for replay; the earlier output travels apart.
                 output_seed = launch.take_output_seed();
-                kernel.admit_launch(launch, now)?
+                (kernel.admit_launch(launch, now), declined)
             }
             CapabilityNodeMessage::AuthorizedTerminalStart(start) => {
                 host.pacing.set_site(Site::Start);
-                kernel.admit_start(start, now, epoch)?
+                let declined = WorkerRequestDeclined::operation(
+                    DeclinedRequestKind::Start,
+                    start.authorization().operation_id(),
+                );
+                (kernel.admit_start(start, now, epoch), declined)
             }
-            // Every request served above has continued; what remains is declined or ends here.
+            // Every request served above has continued; what remains is declined.
             other => {
-                decline(&server, Some(&*host), &other)?;
+                decline(&server, Some(&*host), &other, DeclineCause::Unserved)?;
                 continue;
             }
         };
         let observed_colors = host.host_colors.borrow().latest();
         let disposition = match admission {
-            HostOperationAdmission::Dispatch(dispatch) => {
+            Ok(HostOperationAdmission::Dispatch(dispatch)) => {
                 let bound = host.pacing.exchange_bound();
                 match prepare_or_fail(
                     &mut kernel,
                     &dispatch,
+                    host.pacing.site(),
                     aux.session_runtime,
                     observed_colors,
                     aux.system_shell,
@@ -505,9 +531,11 @@ fn serve(
                     None => HostOperationDisposition::ResultReady,
                 }
             }
-            HostOperationAdmission::ResultReady => HostOperationDisposition::ResultReady,
-            HostOperationAdmission::SlotOccupied => {
-                return Err(io::Error::other("Worker operation slot is still occupied").into());
+            Ok(HostOperationAdmission::ResultReady) => HostOperationDisposition::ResultReady,
+            // The kernel refused it before any effect, so only this request is declined.
+            Ok(HostOperationAdmission::SlotOccupied) | Err(_) => {
+                send_decline(&server, Some(&*host), declined, DeclineCause::State)?;
+                continue;
             }
         };
         if disposition == HostOperationDisposition::ServerClosed {
@@ -525,25 +553,31 @@ fn serve(
     }
 }
 
-/// Runs cleanup after a request's own work, then delivers its result. A cleanup that lost the
-/// Host still delivers the result before the connection ends with that failure.
-/// Answers a whole Server request this Worker does not serve, on its platform or before the first
-/// Launch, with a decline, and keeps serving, so one request without a branch never ends the Worker
-/// and its terminals. A message only a Worker sends is a direction violation instead: the peer is
-/// not a Server speaking this protocol, so the connection ends, as for a malformed frame.
+/// Answers a whole Server request this Worker will not serve with a decline, records its `cause`,
+/// and keeps serving, so one request without a branch, or one this Worker refuses before any
+/// effect, never ends the Worker and its terminals. A message only a Worker sends answers no Server
+/// request, so it is dropped unanswered and recorded.
 fn decline(
     server: &UnixStream,
     host: Option<&HostBrokerConnection>,
     request: &CapabilityNodeMessage,
+    cause: DeclineCause,
 ) -> Result<(), Box<dyn Error>> {
     let Some(declined) = WorkerRequestDeclined::of(request) else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Server sent a Worker-to-Server message",
-        )
-        .into());
+        crate::diagnostic_events::server_unexpected();
+        return Ok(());
     };
-    crate::diagnostic_events::request_declined(declined.kind);
+    send_decline(server, host, declined, cause)
+}
+
+/// Sends `declined`, which tells the Server that this Worker did nothing for that request.
+fn send_decline(
+    server: &UnixStream,
+    host: Option<&HostBrokerConnection>,
+    declined: WorkerRequestDeclined,
+    cause: DeclineCause,
+) -> Result<(), Box<dyn Error>> {
+    crate::diagnostic_events::request_declined(declined.kind, cause);
     let host_closed = server_transport::send(
         server,
         host,
@@ -556,6 +590,8 @@ fn decline(
     Ok(())
 }
 
+/// Runs cleanup after a request's own work, then delivers its result. A cleanup that lost the
+/// Host still delivers the result before the connection ends with that failure.
 fn clean_and_send(
     server: &UnixStream,
     host: &HostBrokerConnection,
@@ -573,10 +609,10 @@ fn clean_and_send(
 /// One Agent Drain request dispatched on the serialized Server connection.
 /// Shared by the pre-Host lazy loop and the admitted loop: the queue state is
 /// the same object either way. A request fenced to another Worker or
-/// generation is a protocol violation, not a typed rejection — the caller ends
-/// the connection. Returns the send host-closed flag: both `Ok` values prove
-/// the page was completely written, so the captured watermark commits first
-/// and the caller decides whether a closed Host retires the connection.
+/// generation, or one acknowledging more than this Worker offered, is declined
+/// before it changes the queue. Returns the send host-closed flag: both `Ok` values prove the
+/// reply was completely written, so the captured watermark commits first and
+/// the caller decides whether a closed Host retires the connection.
 pub(super) fn dispatch_drain_request(
     server: &UnixStream,
     host: Option<&HostBrokerConnection>,
@@ -585,14 +621,23 @@ pub(super) fn dispatch_drain_request(
     worker_id: WorkerId,
     generation: NonZeroU64,
 ) -> Result<bool, Box<dyn Error>> {
-    if request.worker_id.as_bytes() != worker_id.as_bytes()
+    let cause = if request.worker_id.as_bytes() != worker_id.as_bytes()
         || request.worker_generation.get() != generation.get()
     {
-        return Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "Agent drain request is fenced to another Worker or generation",
-        )
-        .into());
+        Some(DeclineCause::Fence)
+    } else if drain.borrow().acknowledges_unoffered(request.acknowledged) {
+        Some(DeclineCause::Watermark)
+    } else {
+        None
+    };
+    if let Some(cause) = cause {
+        let declined = WorkerRequestDeclined::agent_drain(request.token, request.acknowledged);
+        crate::diagnostic_events::request_declined(declined.kind, cause);
+        return Ok(server_transport::send(
+            server,
+            host,
+            &CapabilityNodeMessage::WorkerRequestDeclined(declined),
+        )?);
     }
     // The borrow ends before the bounded write: send consumes Host events
     // mid-write, and those events append to this same queue.
@@ -608,6 +653,9 @@ pub(super) fn dispatch_drain_request(
     Ok(host_closed)
 }
 
+/// The result of the request just served. Every dispatched path settles the slot before it
+/// returns; the loop is serialized and Host events never touch the kernel, so a missing result is
+/// this Worker's own broken invariant, which ends it.
 fn take_result(kernel: &mut AuthorizedHostOperationKernel) -> io::Result<CapabilityNodeMessage> {
     match kernel
         .take_result()
@@ -622,16 +670,20 @@ fn take_result(kernel: &mut AuthorizedHostOperationKernel) -> io::Result<Capabil
     }
 }
 
+/// Prepares a dispatched Launch or Start, or fails it before handoff with a record at `site` when
+/// this Worker cannot: nothing has reached the Host, so only this request fails.
 fn prepare_or_fail(
     kernel: &mut AuthorizedHostOperationKernel,
     dispatch: &AuthorizedHostDispatch,
+    site: Site,
     session_runtime: Option<&std::path::Path>,
     observed_colors: Option<orchbee_local_runtime::UserTerminalColors>,
     system_shell: &SystemShell,
 ) -> Result<Option<PreparedHostOperation>, Box<dyn Error>> {
     match prepare(dispatch, session_runtime, observed_colors, system_shell) {
         Ok(prepared) => Ok(Some(prepared)),
-        Err(_) => {
+        Err(error) => {
+            crate::diagnostic_events::request_unprepared(site, error.as_ref());
             kernel.record_pre_handoff_failure(dispatch, unix_milliseconds())?;
             Ok(None)
         }

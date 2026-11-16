@@ -2,7 +2,7 @@
 //! the Host adapter on the current platform. It does not issue authorization, start a Host, or
 //! submit a terminal creation request.
 
-use std::{error::Error, io};
+use std::{error::Error, io, time::Duration};
 
 #[cfg(all(test, windows))]
 mod tests;
@@ -23,6 +23,7 @@ use orchbee_terminal_protocol::{
 };
 
 use crate::{
+    bounded_helper::HelperPool,
     default_interactive_launch::{SystemShell, default_launch_environment},
     terminal_host_launch_adapter::ResolvedTerminalLaunchFacts,
     worker_identity::fresh_identity,
@@ -83,7 +84,7 @@ pub(super) fn resolve(
     let cwd = match launch.cwd() {
         Some(cwd) => cwd.clone(),
         None => {
-            let home_path = default_home()?;
+            let home_path = bounded_home()?;
             let home = home_path.to_str().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "Worker home is not UTF-8")
             })?;
@@ -226,6 +227,26 @@ fn terminal_profile(
         palette,
         version_response: "Orchbee".to_owned(),
     }
+}
+
+/// A home folder lookup that has not answered by then fails its Launch before handoff.
+const HOME_LOOKUP_DEADLINE: Duration = Duration::from_secs(2);
+/// Lookups still running, stalled ones included; at four, a Launch that needs one fails without
+/// starting another.
+static HOME_LOOKUPS: HelperPool = HelperPool::new(4);
+
+/// The account's home folder, looked up on a helper thread under [`HOME_LOOKUP_DEADLINE`]: an
+/// account service that does not answer, or a profile folder on an unreachable share, must not hold
+/// the serving thread.
+fn bounded_home() -> io::Result<std::path::PathBuf> {
+    HOME_LOOKUPS
+        .run("home-lookup", HOME_LOOKUP_DEADLINE, default_home)
+        .unwrap_or_else(|| {
+            Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "Worker home folder lookup did not answer in time",
+            ))
+        })
 }
 
 #[cfg(unix)]

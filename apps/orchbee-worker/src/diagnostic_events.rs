@@ -1,9 +1,11 @@
 //! The Worker's diagnostic log records: its own start and end, each Terminal Host start
-//! it attempts, the Host anomalies it contains with the class of each, and background cleanup its
-//! end could not prove, so Host diagnostics reach the log through the Worker. A record carries only
-//! closed tokens and numbers: an error kind, a site and reason, a Host message kind number and its
-//! anomaly, and for a Host start its stage and codes; no record holds terminal content, input,
-//! launch commands, messages or paths.
+//! it attempts, the Host anomalies it contains with the class of each, the Server requests it
+//! declines with their cause, a Server message it drops, an operation it could not prepare, and
+//! background cleanup its end could not prove, so Host diagnostics reach the log through the
+//! Worker. A record carries only closed tokens and numbers: an error kind, a site and reason, a
+//! Host message kind number and its anomaly, a request kind and decline cause, and for a Host
+//! start its stage and codes; no record holds terminal content, input, launch commands, messages
+//! or paths.
 use orchbee_local_runtime::{LogField, LogLevel, LogValue, log_event};
 use std::{
     cell::Cell,
@@ -28,8 +30,8 @@ static EXIT_RECORDED: AtomicBool = AtomicBool::new(false);
 
 #[cfg(test)]
 thread_local! {
-    /// The Host records this thread asked for, before a once-a-minute slot drops one, so a test
-    /// that drives the serving loop reads where a contained failure was recorded.
+    /// The contained-failure records this thread asked for, before a once-a-minute slot drops one,
+    /// so a test that drives the serving loop reads where a contained failure was recorded.
     static NOTED: std::cell::RefCell<Vec<(&'static str, Vec<LogField>)>> =
         const { std::cell::RefCell::new(Vec::new()) };
 }
@@ -39,8 +41,8 @@ fn note(event: &'static str, fields: &[LogField]) {
     NOTED.with_borrow_mut(|noted| noted.push((event, fields.to_vec())));
 }
 
-/// The Host records this thread asked for since the last call, oldest first, each with its event
-/// name and fields.
+/// The contained-failure records this thread asked for since the last call, oldest first, each
+/// with its event name and fields.
 #[cfg(test)]
 pub(crate) fn take_noted() -> Vec<(&'static str, Vec<LogField>)> {
     NOTED.with_borrow_mut(std::mem::take)
@@ -338,19 +340,91 @@ pub(crate) fn host_unexpected(site: Site, kind: u16, anomaly: Anomaly) {
     }
 }
 
-/// A whole Server request this Worker declined instead of ending: a kind it does not serve on its
-/// platform, or a terminal request before the first Launch. At most one record a minute, with the
-/// number suppressed since the last.
-pub(crate) fn request_declined(kind: orchbee_capability_node_protocol::DeclinedRequestKind) {
+/// Why a whole Server request was declined instead of served or ending the Worker.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DeclineCause {
+    /// A kind this Worker does not serve on its platform, or a terminal request before the first
+    /// Launch.
+    Unserved,
+    /// A request addressed to another Worker or generation.
+    Fence,
+    /// An Agent drain acknowledgement above the watermark this Worker offered.
+    Watermark,
+    /// An ordinary request while a Server handoff is prepared.
+    #[cfg(windows)]
+    Handoff,
+    /// The operation kernel refused it before anything reached the Host.
+    State,
+}
+
+const _: () = assert!((DeclineCause::State as usize) < SITE_SLOTS);
+
+impl DeclineCause {
+    const fn token(self) -> &'static str {
+        match self {
+            Self::Unserved => "unserved",
+            Self::Fence => "fence",
+            Self::Watermark => "watermark",
+            #[cfg(windows)]
+            Self::Handoff => "handoff",
+            Self::State => "state",
+        }
+    }
+}
+
+/// A whole Server request this Worker declined instead of ending, with its `cause`. At most one
+/// record a minute for each cause, with the number suppressed since the last.
+pub(crate) fn request_declined(
+    kind: orchbee_capability_node_protocol::DeclinedRequestKind,
+    cause: DeclineCause,
+) {
     static SLOTS: SiteSlots = SiteSlots::new();
-    if let Some(suppressed) = SLOTS.admit(Site::ServerReceive) {
+    let fields = [
+        ("kind", LogValue::Token(declined_token(kind))),
+        ("cause", LogValue::Token(cause.token())),
+    ];
+    #[cfg(test)]
+    note("request-declined", &fields);
+    if let Some(suppressed) = SLOTS.admit_slot(cause as usize) {
+        let [kind, cause] = fields;
         log_event(
             LogLevel::Warning,
             "request-declined",
-            &[
-                ("kind", LogValue::Token(declined_token(kind))),
-                ("suppressed", LogValue::Count(suppressed)),
-            ],
+            &[kind, cause, ("suppressed", LogValue::Count(suppressed))],
+        );
+    }
+}
+
+/// A message only a Worker sends, received from the Server and dropped unanswered: no Server
+/// request waits for it. At most one record a minute, with the number suppressed since the last.
+pub(crate) fn server_unexpected() {
+    static SLOTS: SiteSlots = SiteSlots::new();
+    #[cfg(test)]
+    note("server-unexpected", &[]);
+    if let Some(suppressed) = SLOTS.admit(Site::ServerReceive) {
+        log_event(
+            LogLevel::Warning,
+            "server-unexpected",
+            &[("suppressed", LogValue::Count(suppressed))],
+        );
+    }
+}
+
+/// A terminal operation at `site` that failed before handoff because this Worker could not prepare
+/// it, such as a home folder lookup that passed its bound or a request too large for one Host
+/// record; nothing reached the Host. At most one record a minute for each site, with the number
+/// suppressed since the last.
+pub(crate) fn request_unprepared(site: Site, error: &(dyn Error + 'static)) {
+    static SLOTS: SiteSlots = SiteSlots::new();
+    let fields = [("site", LogValue::Token(site.token())), error_kind(error)];
+    #[cfg(test)]
+    note("request-unprepared", &fields);
+    if let Some(suppressed) = SLOTS.admit(site) {
+        let [site, error] = fields;
+        log_event(
+            LogLevel::Warning,
+            "request-unprepared",
+            &[site, error, ("suppressed", LogValue::Count(suppressed))],
         );
     }
 }
@@ -403,7 +477,11 @@ impl SiteSlots {
     /// Admits `site`'s record at most once a minute and returns how many of its records were
     /// suppressed since the last one admitted; a record not admitted is counted instead.
     fn admit(&self, site: Site) -> Option<u64> {
-        let index = site as usize;
+        self.admit_slot(site as usize)
+    }
+
+    /// [`Self::admit`] for the slot at `index`, for records keyed by something other than a site.
+    fn admit_slot(&self, index: usize) -> Option<u64> {
         let (last, suppressed) = (self.last.get(index)?, self.suppressed.get(index)?);
         if admit_once_a_minute(last) {
             Some(suppressed.swap(0, Ordering::Relaxed))

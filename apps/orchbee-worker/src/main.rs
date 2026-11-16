@@ -8,6 +8,8 @@ mod agent_drain;
 mod agent_integration_jobs;
 mod agent_probe_jobs;
 #[cfg(any(unix, windows))]
+mod bounded_helper;
+#[cfg(any(unix, windows))]
 mod default_interactive_launch;
 #[cfg(any(unix, windows))]
 mod diagnostic_events;

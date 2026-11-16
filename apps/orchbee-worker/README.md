@@ -46,7 +46,16 @@ which keeps the loop's own cause.
 `kind` (`launch`, `start`, `viewer`, `control`, `lifecycle`, `cwd-validation`, `send`,
 `worktree-job`, `agent-drain`, `shutdown`, `worktree-mutation`, `titles`, `handoff`,
 `agent-integration-job`, `agent-probe-job`, `host-query`, `title-changes`, `plugin-job` or
-`graphics-decode`), at most once a minute with `suppressed`. `panicked`
+`graphics-decode`) and its `cause`: `unserved` (a kind this Worker does not serve on its platform,
+or a terminal request before the first Launch), `fence` (addressed to another Worker or
+generation), `watermark` (an Agent drain acknowledgement above what this Worker offered), `handoff`
+(an ordinary request while a Server handoff is prepared) or `state` (the operation kernel refused it
+before anything reached the Host); it is written at most once a minute for each cause, with
+`suppressed`. `server-unexpected` records a message only a Worker sends that arrived from the Server
+and was dropped unanswered. `request-unprepared` records, with its `site` and `error` kind, a
+terminal operation that failed before handoff because the Worker could not prepare it, such as a
+home folder lookup past its bound or a request too large for one Host record. Each of these two is
+written at most once a minute, the second for each site, with `suppressed`. `panicked`
 records the `file` stem and `line` of a Worker panic, never its message. A panic on the serving
 thread ends the Worker, so it also writes the run's `exited` record, with `error` `other`, the site
 it was serving, `reason` `panic` and `peer` `none`; a panic on any other thread writes `panicked`
@@ -161,7 +170,11 @@ checked against the platform socket-address ABI before the directory or the Host
 address that cannot fit produces the same pre-handoff failure without either side effect. Any pre-existing endpoint immediately requires recovery; only the
 newly spawned Host may be awaited for its final 0600 socket.
 Host startup, its dial, the `worker-host` offer with its `capacity` redials, and the strict OBTP
-handshake share five seconds without renewal.
+handshake share five seconds without renewal. The start also spends the first Launch's request
+bound, which runs from when that Launch became readable: a creation the remaining bound has no room
+for is never sent, the Launch fails before handoff with no effect, and the started Host serves the
+next Launch. A kernel refusal of that Launch is declined with cause `state`, and an ordinary request
+under a prepared Windows handoff with cause `handoff`, as in the admitted loop.
 A preparation failure refuses only its Launch. A Host start failure answers its Launch with the
 definite pre-handoff failure, which reaches the person who asked for the terminal as
 `terminal-runtime-unavailable`. When the failed start leaves no Host process, because it failed
@@ -474,7 +487,11 @@ invocation-scoped `CreateTerminal.environmentOverlay` stays empty on the explici
 on the managed local-runtime path it carries the single Agent observation variable described below.
 
 Per-launch `cwd` arrives already selected by the Server: explicit override, accepted Workspace
-directory, then Worker home if absent. Host owns the actual directory check and spawn failure.
+directory, then Worker home if absent. Host owns the actual directory check and spawn failure. The
+Worker home is looked up on a helper thread, since an account service or a profile folder on an
+unreachable share can stall: the serving thread waits for it at most two seconds, and past that, or
+while four lookups are still running, the Launch fails before handoff with a `request-unprepared`
+record and any late answer is dropped.
 The loop appends the validated OBCN environment to the three default launch entries, for either
 an explicit program or the default shell. Host inherits its environment and applies these literal
 entries; Worker process environment is never changed. The caller cannot override Orchbee or
@@ -755,14 +772,26 @@ resolves native launch inputs. Neither child gains Server placement authority or
 The refinement is `idle -> bounded request read -> kernel admission -> optional preparation and
 Host exchange -> bounded exact result delivery -> idle`. A cached replay or rejection skips
 preparation and Host I/O. No next request is admitted until result delivery completes. A whole,
-well-formed request this Worker does not serve, on its platform or before its first Launch, gets a
+well-formed request this Worker does not serve, on its platform or before its first Launch, or one
+it refuses before any effect, gets a
 [decline](../../crates/capability-node-protocol/README.md#declined-requests) that echoes it, one
-`request-declined` record at most each minute, and the loop goes on; one request without a branch
-never ends the Worker and its terminals. Malformed, wrong-direction, oversized, partial-timeout, and
-observed pipelined requests still close the attachment: each means the peer is not a Server keeping
-this protocol, so its next frames cannot be trusted either. The codec bounds OBCN payload allocation
-to 8 KiB. Idle waits have no timeout; once the first record
-is observable, all its fragments share a two-second monotonic budget. Result writes also share one
+`request-declined` record at most each minute for its cause, and the loop goes on; one request
+never ends the Worker and its terminals. The refusals before any effect are: an Agent drain fenced
+to another Worker or generation or acknowledging more than was offered, an ordinary request while a
+Windows handoff is prepared, and a Launch, Start or lifecycle step the operation kernel refuses at
+admission, including an occupied slot. A Launch, Start or lifecycle step the Worker cannot prepare,
+such as one too large for a Host record, fails before handoff with a `request-unprepared` record. A
+message only a Worker sends answers no Server request, so it is dropped unanswered with a
+`server-unexpected` record. Once a request is dispatched, the kernel's own phase checks and the
+taking of its result stay fatal: every dispatched path settles the slot before it returns, the loop
+is serialized, and Host events never touch the kernel, so a failure there is the Worker's own broken
+invariant, not a peer's. Malformed, oversized and partial-timeout frames still close the
+attachment: each loses the frame boundary, so the next frames cannot be trusted either. Bytes the
+Server writes while a result is being delivered close it too, since this carrier admits one request
+at a time and the Worker cannot read a frame in the middle of writing one. The codec bounds OBCN
+payload allocation to 8 KiB. Idle waits have no timeout; once the first byte
+of a record is readable, all its fragments share one hard two-second monotonic budget from that
+moment, readiness hints the Worker was writing then included. Result writes also share one
 two-second budget. Both waits observe Host loss. Host loss during result delivery preserves that
 bounded delivery attempt, then ends the Worker; Server loss abandons delivery and closes Host.
 
@@ -907,16 +936,17 @@ the same queue.
 `HostBrokerConnection::receive_event` is the single producer. After envelope and Host-epoch
 validation it decodes every kind-58 application signal, converts the Terminal Host identity
 through the existing launch adapter, and appends to the shared drain before borrowing viewers —
-a terminal with no attached viewer still enters the queue. Signals for a foreign Host epoch stay
-fatal, and an `ApplicationSignal` reaching the viewer path is now unexpected rather than silently
-dropped. Bell and Clipboard routing is unchanged.
+a terminal with no attached viewer still enters the queue. A signal for a foreign Host epoch mints
+nothing and is dropped with a `contract` record, and an `ApplicationSignal` reaching the viewer path
+is unexpected rather than silently dropped. Bell and Clipboard routing is unchanged.
 
 The queue retains at most 1,024 entries and 4 MiB of encoded bytes. Overflow evicts the oldest
 sequence, covering it with a merged leading `Gap` that consumes its own slot and bytes. Replies
 page by both an entry count of 480 and 8,165 encoded entry bytes; a successful send commits the
-watermark captured at request time, for both `Ok(false)` and `Ok(true)` write results. An
-acknowledgement above the offered watermark is fatal, a stale or zero acknowledgement is a
-no-op that leaves unconfirmed sequences offered, and the echoed token is exactly the request's.
+watermark captured at request time, for both `Ok(false)` and `Ok(true)` write results. A request
+acknowledging above the offered watermark, or fenced to another Worker or generation, is declined
+before it changes the queue, and the loop serves on; a stale or zero acknowledgement is a no-op
+that leaves unconfirmed sequences offered, and the echoed token is exactly the request's.
 
 The pre-Host loop answers drain requests with the same shared dispatch as the admitted loop, so
 a request before any Host returns a truthful empty page without starting a Host, and the same

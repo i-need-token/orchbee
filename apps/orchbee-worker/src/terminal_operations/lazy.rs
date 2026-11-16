@@ -6,12 +6,14 @@ use super::{server_transport, unix_milliseconds};
 use crate::{
     agent_drain::AgentDrain,
     default_interactive_launch::SystemShell,
-    diagnostic_events::{ExitCause, Peer, Reason, Site},
+    diagnostic_events::{DeclineCause, ExitCause, Peer, Reason, Site},
     host_connection::{DialFailure, HostBrokerConnection},
     terminal_authorization::{AuthorizedHostOperationKernel, HostOperationAdmission},
     terminal_host_operation::HostOperationDisposition,
 };
-use orchbee_capability_node_protocol::CapabilityNodeMessage;
+use orchbee_capability_node_protocol::{
+    CapabilityNodeMessage, DeclinedRequestKind, WorkerRequestDeclined,
+};
 use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_local_runtime::{
     Cohort, CohortArtifact, HOST_SCOPE_NAME, ModeCheckedLocalSessionRendezvous, SessionScope,
@@ -80,13 +82,11 @@ pub(crate) fn run(
                 handoff.execute(&mut server, None, request, worker_id, generation)?;
                 continue;
             }
+            // As in the admitted loop, an ordinary request under a prepared handoff is declined.
             #[cfg(windows)]
             if handoff.is_prepared() {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "ordinary request during prepared Server handoff",
-                )
-                .into());
+                super::decline(&server, None, &request, DeclineCause::Handoff)?;
+                continue;
             }
             if let CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) = request {
                 let refusal = if request.worker_id.as_bytes() != worker_id.as_bytes() {
@@ -263,27 +263,39 @@ pub(crate) fn run(
             let CapabilityNodeMessage::AuthorizedTerminalLaunch(mut launch) = request else {
                 // No binding exists before the first Launch, so any other terminal request is
                 // declined and cannot acquire Host-start authority.
-                super::decline(&server, None, &request)?;
+                super::decline(&server, None, &request, DeclineCause::Unserved)?;
                 continue;
             };
             site.set(Site::Launch);
+            let declined = WorkerRequestDeclined::operation(
+                DeclinedRequestKind::Launch,
+                launch.authorization().operation_id(),
+            );
             // The kernel retains its launch for replay; the earlier output travels apart.
             let output_seed = launch.take_output_seed();
-            let dispatch = match kernel.admit_launch(launch, unix_milliseconds())? {
-                HostOperationAdmission::Dispatch(dispatch) => dispatch,
-                HostOperationAdmission::ResultReady => {
+            let dispatch = match kernel.admit_launch(launch, unix_milliseconds()) {
+                Ok(HostOperationAdmission::Dispatch(dispatch)) => dispatch,
+                Ok(HostOperationAdmission::ResultReady) => {
                     let result = super::take_result(&mut kernel)?;
                     let _no_host = server_transport::send(&server, None, &result)?;
                     continue;
                 }
-                HostOperationAdmission::SlotOccupied => {
-                    return Err(io::Error::other("occupied operation slot").into());
+                // The kernel refused it before any effect, so only this Launch is declined.
+                Ok(HostOperationAdmission::SlotOccupied) | Err(_) => {
+                    super::send_decline(&server, None, declined, DeclineCause::State)?;
+                    continue;
                 }
             };
             // Preserve this exact kernel and dispatch across preparation and startup.
-            let prepared =
-                super::prepare_or_fail(&mut kernel, &dispatch, Some(runtime), None, system_shell)?
-                    .map(|prepared| prepared.with_output_seed(output_seed));
+            let prepared = super::prepare_or_fail(
+                &mut kernel,
+                &dispatch,
+                Site::Launch,
+                Some(runtime),
+                None,
+                system_shell,
+            )?
+            .map(|prepared| prepared.with_output_seed(output_seed));
             let Some(prepared) = prepared else {
                 let result = super::take_result(&mut kernel)?;
                 let _no_host = server_transport::send(&server, None, &result)?;

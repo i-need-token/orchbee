@@ -7,30 +7,20 @@
 //! unreachable network share, must not keep the serving thread from reading the Terminal Host,
 //! which drops a Worker it cannot write to for five seconds.
 
-use std::{
-    fs,
-    io::ErrorKind,
-    num::NonZeroU64,
-    path::Path,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        mpsc,
-    },
-    thread,
-    time::Duration,
-};
+use std::{fs, io::ErrorKind, num::NonZeroU64, path::Path, time::Duration};
 
 use orchbee_capability_node_protocol::{
     TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalCwdValidationResult,
 };
 use orchbee_local_worker_protocol::WorkerId;
 
+use crate::bounded_helper::HelperPool;
+
 /// A probe that has not answered by then is answered as inaccessible and its late result dropped.
 const PROBE_DEADLINE: Duration = Duration::from_secs(2);
-/// Probes still running, stalled ones included; at this many, a new request is answered as
-/// inaccessible without starting another.
-const MAXIMUM_RUNNING_PROBES: usize = 4;
-static RUNNING_PROBES: AtomicUsize = AtomicUsize::new(0);
+/// Probes still running, stalled ones included; at four, a new request is answered as inaccessible
+/// without starting another.
+static PROBES: HelperPool = HelperPool::new(4);
 
 pub(crate) fn validate(
     request: TerminalCwdValidationRequest,
@@ -49,25 +39,10 @@ pub(crate) fn validate(
 
 /// Observes `path` on a helper thread and waits at most [`PROBE_DEADLINE`] for it.
 fn probe(path: String) -> TerminalCwdValidationOutcome {
-    if RUNNING_PROBES.fetch_add(1, Ordering::AcqRel) >= MAXIMUM_RUNNING_PROBES {
-        RUNNING_PROBES.fetch_sub(1, Ordering::AcqRel);
-        return TerminalCwdValidationOutcome::DirectoryInaccessible;
-    }
-    let (sender, receiver) = mpsc::sync_channel(1);
-    let spawned = thread::Builder::new()
-        .name("cwd-probe".to_owned())
-        .spawn(move || {
-            let outcome = observe(Path::new(&path));
-            RUNNING_PROBES.fetch_sub(1, Ordering::AcqRel);
-            // A probe past its deadline finds the receiver gone; its answer is dropped.
-            let _late = sender.send(outcome);
-        });
-    if spawned.is_err() {
-        RUNNING_PROBES.fetch_sub(1, Ordering::AcqRel);
-        return TerminalCwdValidationOutcome::DirectoryInaccessible;
-    }
-    receiver
-        .recv_timeout(PROBE_DEADLINE)
+    PROBES
+        .run("cwd-probe", PROBE_DEADLINE, move || {
+            observe(Path::new(&path))
+        })
         .unwrap_or(TerminalCwdValidationOutcome::DirectoryInaccessible)
 }
 

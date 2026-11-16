@@ -519,11 +519,14 @@ fn malformed_partial_and_pipelined_server_records_never_reach_host() -> TestResu
             TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::LeaseExpired),
         )?,
     ))?;
-    for bytes in [
-        b"OBCN\x00\x01\xff\xff".to_vec(),
-        b"OB".to_vec(),
-        wrong_direction,
-        pipelined,
+    // A lost frame boundary or a pipelined record closes the Server connection. A whole message
+    // only a Worker sends answers no request: it is dropped unanswered, and the connection stays
+    // until the Server leaves. None reaches the Host.
+    for (bytes, closes) in [
+        (b"OBCN\x00\x01\xff\xff".to_vec(), true),
+        (b"OB".to_vec(), true),
+        (wrong_direction, false),
+        (pipelined, true),
     ] {
         let fixture = RuntimeFixture::new()?;
         let listener = fixture.bind_host_listener()?;
@@ -535,7 +538,20 @@ fn malformed_partial_and_pipelined_server_records_never_reach_host() -> TestResu
         let (mut server, _) = admit_worker(&fixture.server_listener)?;
         assert_eq!(worker.await_readiness()?, Some(*b"ready\n"));
         server.write_all(&bytes)?;
-        require_connection_closed(&mut server)?;
+        if closes {
+            require_connection_closed(&mut server)?;
+        } else {
+            server.set_read_timeout(Some(Duration::from_millis(300)))?;
+            let unanswered = server.read(&mut [0_u8; 1]).map(|_| ()).unwrap_err();
+            assert!(
+                matches!(
+                    unanswered.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                ),
+                "{unanswered:?}"
+            );
+            drop(server);
+        }
         assert_failed_after_exact_readiness(worker.finish()?);
         join_peer(host, "Host no-command observer")?;
     }

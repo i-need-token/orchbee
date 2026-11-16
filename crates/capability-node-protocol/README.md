@@ -505,8 +505,9 @@ the Worker's retained terminal application signals. The request body after its k
 the protocol-owned Worker ID (`16` bytes), the nonzero Worker generation (`u64`), the nonzero
 request token (`u64`), and the acknowledged sequence watermark (`u64`) — 41 payload bytes, 49
 framed. The Worker echoes the exact token; it never mints or remints one. An acknowledgement above
-the Worker's offered watermark is a fatal protocol error; a stale or zero acknowledgement is a
-legal no-op and never removes an unconfirmed sequence.
+the Worker's offered watermark breaks the contract: the Worker declines that request
+([declined requests](#declined-requests)) without changing its queue and keeps serving. A stale or
+zero acknowledgement is a legal no-op and never removes an unconfirmed sequence.
 
 The reply carries the echoed token and acknowledgement, the queue tail watermark, a bounded entry
 count, and a contiguous non-overlapping page of `Event` and `Gap` entries. Each event entry is the
@@ -578,7 +579,8 @@ the new tag.
 
 Kind 39 `WorkerRequestDeclined` is the Worker's one answer to a whole, well-formed Server request it
 does not serve: a kind its platform has no branch for, such as the Server-wire handoff off Windows,
-or a terminal request before its first Launch. As JSON-RPC's "method not found" and gRPC's
+a terminal request before its first Launch, or a request it refuses before any effect, such as an
+Agent drain fenced to another Worker or one acknowledging more than was offered. As JSON-RPC's "method not found" and gRPC's
 `UNIMPLEMENTED` do, one generic answer covers every kind, so a request that reaches no Worker branch
 is still answered and never ends the Worker or its terminals. The body after the kind is the declined
 request's kind (`u8`: 1 Launch, 2 Start, 3 viewer, 4 control, 5 lifecycle, 6 cwd validation, 7 Send,
@@ -589,8 +591,8 @@ authorization's operation ID, or for an Agent drain its token and acknowledged s
 big-endian `u64`. `WorkerRequestDeclined::of` names the decline of every Server request and of no
 Worker-sent message, by an exhaustive match, so a new request kind must name its decline to build.
 An unknown declined kind, a short identity or a trailing byte is refused. A decline means the Worker
-did nothing for that request; a message only a Worker sends, arriving at a Worker, is a direction
-violation and stays fatal there, like a malformed frame. The kind follows this protocol's
+did nothing for that request; a message only a Worker sends, arriving at a Worker, answers no
+request, so the Worker drops it unanswered. The kind follows this protocol's
 exact-cohort rule: frame version 1 stays, and older cohorts reject the new tag.
 
 ## Carrier and ownership boundaries

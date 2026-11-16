@@ -1,5 +1,6 @@
 //! The Worker's one answer to a whole, well-formed Server request it does not serve: a kind its
-//! platform has no branch for, or a terminal request before any Launch. Like JSON-RPC's "method not
+//! platform has no branch for, a terminal request before any Launch, or a request it refuses before
+//! any effect. Like JSON-RPC's "method not
 //! found" or gRPC's `UNIMPLEMENTED`, it is generic, so a request kind that reaches no Worker branch
 //! is still answered and never ends the Worker. It echoes the request's kind and identity, so the
 //! Server completes exactly that request and knows the Worker did nothing for it.

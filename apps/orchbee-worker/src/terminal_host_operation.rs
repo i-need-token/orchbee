@@ -180,7 +180,7 @@ impl PreparedHostOperation {
         budget: Duration,
     ) -> Result<HostOperationDisposition, HostOperationError> {
         let epoch = host.host_epoch();
-        let record = encode_transport_envelope(&Envelope {
+        let record = match encode_transport_envelope(&Envelope {
             correlation_id: Some(self.correlation),
             host_epoch: Some(epoch),
             kind: self.kind,
@@ -189,7 +189,15 @@ impl PreparedHostOperation {
             payload_encoding: PayloadEncoding::ControlJson,
             protocol: CURRENT_PROTOCOL_VERSION,
             role: MessageRole::Request,
-        })?;
+        }) {
+            Ok(record) => record,
+            // A creation too large for one Host record reaches no Host: it fails before handoff.
+            Err(error) => {
+                diagnostic_events::request_unprepared(host.pacing.site(), &error);
+                kernel.record_pre_handoff_failure(&self.dispatch, now_unix_milliseconds())?;
+                return Ok(HostOperationDisposition::ResultReady);
+            }
+        };
         if budget.is_zero() {
             return Err(HostOperationError::InvalidBudget);
         }

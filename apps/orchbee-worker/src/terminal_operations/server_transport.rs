@@ -110,9 +110,27 @@ struct ServerRecord<'a> {
 }
 
 impl ServerRecord<'_> {
+    /// Whether the Server's next request is already readable, which starts its bound now.
+    fn server_readable(&mut self) -> io::Result<bool> {
+        let mut descriptors = [PollFd::new(self.server.as_local_io(), PollFlags::POLLIN)];
+        match poll(&mut descriptors, PollTimeout::ZERO) {
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => return Ok(false),
+            Err(error) => return Err(error),
+        }
+        let readable = descriptors[0]
+            .revents()
+            .is_some_and(|events| events.contains(PollFlags::POLLIN));
+        if readable {
+            self.readable.get_or_insert_with(Instant::now);
+        }
+        Ok(readable)
+    }
+
     /// Called only while idle between requests, with no record open in either direction, so a
     /// hint cannot split one: viewer readiness first, then at most one title note. A prepared
-    /// handoff waits under a deadline and therefore sends none.
+    /// handoff waits under a deadline and therefore sends none. A request that becomes readable
+    /// while hints are written starts its bound then, so hint time counts against it.
     fn send_ready_hints(&mut self) -> io::Result<()> {
         let Some(host) = self.host else {
             return Ok(());
@@ -134,7 +152,7 @@ impl ServerRecord<'_> {
             .chain(titles.map(CapabilityNodeMessage::TerminalTitlesChanged));
         for hint in hints {
             let record = encode_message(&hint).map_err(io::Error::other)?;
-            write_hint(self.server, &record, deadline)?;
+            write_hint(self.server, &record, deadline, &mut self.readable)?;
         }
         Ok(())
     }
@@ -142,7 +160,14 @@ impl ServerRecord<'_> {
     fn wait(&mut self, interest: PollFlags) -> io::Result<()> {
         loop {
             if self.deadline.is_none() && interest == PollFlags::POLLIN {
-                self.send_ready_hints()?;
+                // A request already readable keeps the pending hints for the next idle wait.
+                if !self.server_readable()? {
+                    self.send_ready_hints()?;
+                }
+                // One hard bound from the first readable byte, whatever the wait did since.
+                if let Some(readable) = self.readable {
+                    self.deadline = Some(readable + RECORD_BUDGET);
+                }
             }
             let now = Instant::now();
             if self.deadline.is_some_and(|deadline| now >= deadline) {
@@ -229,8 +254,14 @@ impl ServerRecord<'_> {
     }
 }
 
-/// Unlike a result, a hint races the Server's next request, so readable input is no error here.
-fn write_hint(server: &UnixStream, mut record: &[u8], deadline: Instant) -> io::Result<()> {
+/// Unlike a result, a hint races the Server's next request, so readable input is no error here;
+/// the first time it is seen readable is stamped in `readable`, which starts that request's bound.
+fn write_hint(
+    server: &UnixStream,
+    mut record: &[u8],
+    deadline: Instant,
+    readable: &mut Option<Instant>,
+) -> io::Result<()> {
     let mut writer = server;
     while !record.is_empty() {
         match writer.write(record) {
@@ -244,11 +275,23 @@ fn write_hint(server: &UnixStream, mut record: &[u8], deadline: Instant) -> io::
                 }
                 let timeout = PollTimeout::try_from(remaining.as_millis().saturating_add(1))
                     .map_err(io::Error::other)?;
-                let mut descriptors = [PollFd::new(server.as_local_io(), PollFlags::POLLOUT)];
+                // Readable input stays readable, so it is watched only until first seen.
+                let interest = if readable.is_none() {
+                    PollFlags::POLLOUT | PollFlags::POLLIN
+                } else {
+                    PollFlags::POLLOUT
+                };
+                let mut descriptors = [PollFd::new(server.as_local_io(), interest)];
                 match poll(&mut descriptors, timeout) {
                     Ok(_) => {}
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
                     Err(error) => return Err(error),
+                }
+                if descriptors[0]
+                    .revents()
+                    .is_some_and(|events| events.contains(PollFlags::POLLIN))
+                {
+                    readable.get_or_insert_with(Instant::now);
                 }
             }
             Err(error) => return Err(error),

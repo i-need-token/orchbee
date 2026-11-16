@@ -84,8 +84,9 @@ impl AgentDrain {
     /// the reply entry budget. Returns the reply and the highest covered
     /// sequence; `None` means the page is empty and nothing is committable.
     ///
-    /// `ack > offered_hi` is a protocol violation: the caller must end the
-    /// connection rather than answer. `ack <= confirmed_hi` is a legal stale
+    /// `ack > offered_hi` breaks the contract: the caller declines such a
+    /// request before it gets here ([`Self::acknowledges_unoffered`]), and this
+    /// refuses it without a change. `ack <= confirmed_hi` is a legal stale
     /// acknowledgment and still produces a fresh page.
     pub(crate) fn respond(
         &mut self,
@@ -119,6 +120,12 @@ impl AgentDrain {
         let reply = AgentDrainReply::new(token, acknowledged, self.minted_hi, page)
             .map_err(io::Error::other)?;
         Ok((reply, covered_hi))
+    }
+
+    /// Whether `acknowledged` covers sequences this Worker never offered, which
+    /// the Server cannot have read.
+    pub(crate) const fn acknowledges_unoffered(&self, acknowledged: u64) -> bool {
+        acknowledged > self.offered_hi
     }
 
     /// Commit the captured watermark after the page was completely written.

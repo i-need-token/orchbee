@@ -259,13 +259,14 @@ fn mint_at_max_fails_closed_without_wrap() -> TestResult {
 }
 
 #[test]
-fn stale_ack_is_noop_and_future_ack_is_fatal() -> TestResult {
+fn stale_ack_is_noop_and_future_ack_is_refused() -> TestResult {
     let mut drain = AgentDrain::new();
     append(&mut drain, 1)?;
     let (_, covered) = drain.respond(nz(1), 0)?;
     drain.commit_offered(covered.expect("covered"));
 
-    // ack beyond offered is fatal.
+    // ack beyond offered is refused and changes nothing.
+    assert!(drain.acknowledges_unoffered(2));
     assert!(drain.respond(nz(2), 2).is_err());
     // stale ack at or below confirmed is a legal no-op; the unconfirmed
     // sequence 1 stays queued and is offered again, never dropped.

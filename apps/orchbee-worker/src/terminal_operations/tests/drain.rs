@@ -13,9 +13,11 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    AgentDrainEntry, AgentDrainRequest, CapabilityNodeMessage, WorkerGeneration, read_message,
+    AgentDrainEntry, AgentDrainRequest, CapabilityNodeMessage, OperationId,
+    TerminalViewerRecordReady, WorkerGeneration, WorkerRequestDeclined, read_message,
     write_message,
 };
+use orchbee_local_runtime::LogValue;
 use orchbee_terminal_protocol::{
     ConnectionControl, Envelope, HelloAccepted, HostEpoch, PayloadEncoding,
     TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalApplicationSignal, TerminalApplicationSignalChannel,
@@ -188,38 +190,109 @@ fn pre_host_request_gets_truthful_empty_reply() -> TestResult {
     Ok(())
 }
 
-/// The shared dispatch path refuses a drain request fenced to another Worker
-/// or generation — a fatal error rather than a typed rejection.
+/// A Server request that breaks its contract fails only itself: through the real admitted loop, a
+/// drain fenced to another Worker or generation and one acknowledging more than was offered are
+/// each declined, a message only a Worker sends is dropped unanswered, and the next drain is
+/// served from the unchanged queue. Each is recorded with its cause.
 #[test]
-fn wrong_worker_fence_is_fatal() -> TestResult {
-    let (server, _peer) = UnixStream::pair()?;
-    let drain = Rc::new(RefCell::new(AgentDrain::new()));
-    let mut fenced = request(11, 0);
-    fenced.worker_id =
-        orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16]).expect("worker");
-    assert!(
-        dispatch_drain_request(
-            &server,
-            None,
-            &drain,
-            &fenced,
-            LOCAL_WORKER_ID,
-            nz(GENERATION)
-        )
-        .is_err()
-    );
-    let mut stale_generation = request(11, 0);
+fn server_contract_breaks_are_declined_while_the_loop_serves_on() -> TestResult {
+    let (mut connection, drain, mut host_peer, directory) = scripted_host_peer()?;
+    let (server, mut server_peer) = UnixStream::pair()?;
+    server_peer.set_read_timeout(Some(Duration::from_secs(3)))?;
+    server_peer.set_write_timeout(Some(Duration::from_secs(3)))?;
+    let epoch = connection.host_epoch();
+    let mut other_worker = request(31, 0);
+    other_worker.worker_id = orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16])?;
+    let mut stale_generation = request(32, 0);
     stale_generation.worker_generation = WorkerGeneration::new(nz(GENERATION + 1));
+    let unoffered = request(33, 1);
+    // The Host's end stays open until the loop has ended, so only the Server's close can end it.
+    let runner = thread::spawn(move || -> Result<UnixStream, String> {
+        let mut run = || -> TestResult {
+            host_peer.write_all(&signal_record(epoch, "ready")?)?;
+            for broken in [other_worker, stale_generation, unoffered] {
+                let message = CapabilityNodeMessage::AgentDrainRequest(broken);
+                write_message(&mut server_peer, &message)?;
+                let answer = read_message(&mut server_peer)?;
+                assert_eq!(
+                    answer,
+                    CapabilityNodeMessage::WorkerRequestDeclined(
+                        WorkerRequestDeclined::of(&message).ok_or("a request")?
+                    )
+                );
+            }
+            write_message(
+                &mut server_peer,
+                &CapabilityNodeMessage::TerminalViewerRecordReady(TerminalViewerRecordReady {
+                    attachment_id: OperationId::from_bytes([7; 16])?,
+                }),
+            )?;
+            write_message(
+                &mut server_peer,
+                &CapabilityNodeMessage::AgentDrainRequest(request(34, 0)),
+            )?;
+            let CapabilityNodeMessage::AgentDrainReply(reply) = read_message(&mut server_peer)?
+            else {
+                return Err("expected AgentDrainReply".into());
+            };
+            assert_eq!(reply.token_echo(), nz(34));
+            assert_eq!(reply.entries().len(), 1);
+            server_peer.shutdown(std::net::Shutdown::Both)?;
+            Ok(())
+        };
+        run().map_err(|error| error.to_string())?;
+        Ok(host_peer)
+    });
+    server.set_nonblocking(true)?;
+    connection.stream().set_nonblocking(true)?;
+    let kernel = AuthorizedHostOperationKernel::new(LOCAL_WORKER_ID, nz(GENERATION))?;
+    let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
+    let outcome = super::super::run_admitted(
+        server,
+        &mut connection,
+        LOCAL_WORKER_ID,
+        nz(GENERATION),
+        kernel,
+        super::super::AdmittedAux {
+            drain: &drain,
+            system_shell: &crate::default_interactive_launch::SystemShell::resolve(),
+            worktree_slot: &worktree_slot,
+            agent_integrations: &crate::agent_integration_jobs::AgentIntegrationJobs::new(),
+            agent_probes: &crate::agent_probe_jobs::AgentProbeJobs::new(),
+            mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
+                crate::worktree_mutation_git::run,
+            ),
+            plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
+            session_runtime: None,
+            managed_host: None,
+        },
+    );
+    let noted = crate::diagnostic_events::take_noted();
+    let _host_peer = runner.join().map_err(|_| "peer driver panic")??;
+    let _ = fs::remove_dir_all(&directory);
+    let cause = outcome
+        .expect_err("closing the Server end ends the connection")
+        .downcast::<crate::diagnostic_events::ExitCause>()
+        .map_err(|_| "a classified exit")?;
+    assert_eq!(cause.peer, crate::diagnostic_events::Peer::Server);
+    let declined = |cause: &'static str| {
+        noted
+            .iter()
+            .filter(|(event, fields)| {
+                *event == "request-declined"
+                    && fields.contains(&("kind", LogValue::Token("agent-drain")))
+                    && fields.contains(&("cause", LogValue::Token(cause)))
+            })
+            .count()
+    };
+    assert_eq!(
+        (declined("fence"), declined("watermark")),
+        (2, 1),
+        "{noted:?}"
+    );
     assert!(
-        dispatch_drain_request(
-            &server,
-            None,
-            &drain,
-            &stale_generation,
-            LOCAL_WORKER_ID,
-            nz(GENERATION),
-        )
-        .is_err()
+        noted.iter().any(|(event, _)| *event == "server-unexpected"),
+        "{noted:?}"
     );
     Ok(())
 }
