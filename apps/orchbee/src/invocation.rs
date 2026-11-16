@@ -69,7 +69,6 @@ mod send_input;
 mod server_stop;
 mod target_syntax;
 pub(crate) mod user_path;
-pub(crate) mod user_path_windows;
 mod wait_options;
 mod workbench_options;
 mod worktree;

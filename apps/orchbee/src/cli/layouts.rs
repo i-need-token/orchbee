@@ -7,7 +7,7 @@ mod workflow;
 use super::layout_topology::failure;
 use super::{
     Failure, FailureKind, Output,
-    console_interrupt::{ArmedSignals, Finish},
+    command_interrupt::{ArmedSignals, Finish},
     failure_output, output,
 };
 use crate::{

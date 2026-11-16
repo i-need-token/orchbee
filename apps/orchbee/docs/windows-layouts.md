@@ -1,7 +1,7 @@
 # Windows reusable layouts
 
-The native Windows CLI owns portable layout export and composition of canonical Workbench
-membership, Client view state and read-only terminal facts.
+The native Windows and macOS CLI owns portable layout export and composition of canonical Workbench
+membership, Client view state and read-only terminal facts. Linux answers unsupported-platform.
 
 ## Export
 
@@ -55,6 +55,12 @@ fields with structured members, duplicate/unknown fields and malformed nested ch
 A non-starting member cannot supply cwd, command or nonempty env. Ratios are finite and clamped
 to 0.1..0.9. Validate every cwd, literal argv and environment overlay and resolve every intended
 program before creation, without evaluating shell syntax. Environment values never enter receipts.
+A member cwd resolves in the host's path grammar: the Windows drive grammar, or on macOS the POSIX
+grammar with `~` from `HOME` and relative paths from the caller's directory. A bare program name
+searches the member's `PATH` overlay or the caller's `PATH`, at most 256 absolute entries: Windows
+matches the overlay name in any case and adds `.exe` to a name without an extension; macOS matches
+`PATH` exactly and takes the first executable regular file. A name with a slash follows the
+caller's directory.
 
 First create the complete unbound tree with one `tab.create-layout` transaction. Labels and ordered
 members are present immediately. Then bind only starting members through
@@ -90,7 +96,7 @@ remain localized. Group/pin roundtrip and complete saved-focus restoration remai
 ## Ownership and evidence
 
 The pure template/projector owns shape, bounds, member intent and identity-free reconstruction.
-The Server owns canonical membership and launches; the Client owns view observations. The Windows
+The Server owns canonical membership and launches; the Client owns view observations. The CLI
 adapter owns exact binding joins, send-once submission, ownership fences, cancellation and cleanup.
 Shared ratios persist in the current version 1 checkpoint and catalog; no dependency is introduced. Mixed releases require a matched private cohort.
 

@@ -42,14 +42,14 @@ mod windows;
 
 fn path_failure(
     value: &str,
-    failure: super::user_path_windows::PathFailure,
+    failure: orchbee_local_runtime::UserPathError,
     envelope: FailureEnvelope,
 ) -> ParseFailure {
     let (option, value, expected) = match failure {
-        super::user_path_windows::PathFailure::Input => {
+        orchbee_local_runtime::UserPathError::Input => {
             ("--cwd", value.to_owned(), ExpectedValue::WorktreePath)
         }
-        super::user_path_windows::PathFailure::Context(name) => {
+        orchbee_local_runtime::UserPathError::Context(name) => {
             (name, String::new(), ExpectedValue::DirectoryPath)
         }
     };

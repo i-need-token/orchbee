@@ -31,8 +31,8 @@ commands! {
     PanelFocus => ["panel", "focus"], 1, Panel, Portable, true, true, false;
     PanelResize => ["panel", "resize"], 1, Panel, Portable, true, true, false;
     LayoutSetSplitRatio => ["layout", "set-split-ratio"], 0, Operand, Portable, true, true, false;
-    LayoutExport => ["layout", "export"], 0, Operand, Windows, true, false, false;
-    LayoutApply => ["layout", "apply"], 0, Operand, Windows, true, false, false;
+    LayoutExport => ["layout", "export"], 0, Operand, Portable, true, false, false;
+    LayoutApply => ["layout", "apply"], 0, Operand, Portable, true, false, false;
     PanelMaximize => ["panel", "maximize"], 1, Panel, Portable, true, true, false;
     PanelLayout => ["panel", "layout"], 1, Panel, Portable, true, true, false;
     PanelNeighbor => ["panel", "neighbor"], 1, Panel, Portable, true, true, false;

@@ -2,11 +2,8 @@
 use super::super::template;
 use super::error;
 use crate::{
-    cli::{
-        Failure, FailureKind,
-        console_interrupt::{ArmedSignals, SignalWatch},
-    },
-    invocation::user_path_windows,
+    cli::{Failure, FailureKind, command_interrupt::ArmedSignals, console_interrupt::SignalWatch},
+    invocation::user_path,
 };
 use orchbee_workbench_protocol::LaunchOptions;
 use orchbee_workbench_protocol::LaunchSelection;
@@ -59,19 +56,27 @@ pub(super) fn prepare(
                 .cwd
                 .as_ref()
                 .map(|value| {
-                    user_path_windows::normalize(
+                    user_path::resolve(
                         value,
+                        user_path::HOST_GRAMMAR,
                         |key| std::env::var_os(key),
                         || Ok(current.clone()),
                     )
                     .map_err(|_| error(FailureKind::InvalidUsage, "invalid-layout"))
                 })
                 .transpose()?;
+            // Windows environment names ignore case; macOS and Linux names are exact.
             let path = leaf
                 .environment
                 .entries()
                 .iter()
-                .find(|(name, _)| name.eq_ignore_ascii_case("PATH"))
+                .find(|(name, _)| {
+                    if cfg!(windows) {
+                        name.eq_ignore_ascii_case("PATH")
+                    } else {
+                        name == "PATH"
+                    }
+                })
                 .map(|(_, value)| OsString::from(value))
                 .or_else(|| ambient.clone());
             let launch = leaf

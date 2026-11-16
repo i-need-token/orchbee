@@ -63,3 +63,6 @@ pub(super) fn absolute(value: &str) -> bool {
                 && parts.next().is_some_and(|part| !part.is_empty())
         })
 }
+
+#[cfg(test)]
+mod tests;

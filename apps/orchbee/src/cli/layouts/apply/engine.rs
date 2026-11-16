@@ -5,7 +5,8 @@ use super::{error, exchange, launch, ownership, receipt::Receipt, targeting::Des
 use crate::{
     cli::{
         Failure, FailureKind,
-        console_interrupt::{ArmedSignals, SignalWatch},
+        command_interrupt::ArmedSignals,
+        console_interrupt::SignalWatch,
         layouts::{export, template, workflow},
         mutation, query,
     },

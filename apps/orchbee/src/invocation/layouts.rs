@@ -1,4 +1,4 @@
-//! Windows portable-layout grammar; no runtime discovery while parsing.
+//! Portable-layout grammar; no runtime discovery while parsing.
 use super::{
     ClientLayoutTarget, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource,
     TabContext, Target, UsageContext, UsageReason, WorkbenchLabel, check_scope, client_control,

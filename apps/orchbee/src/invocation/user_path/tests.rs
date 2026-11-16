@@ -1,7 +1,18 @@
+//! The Windows grammar's operand resolution into the Workbench wire type.
 use super::*;
+use orchbee_local_runtime::UserPathError as PathFailure;
+use orchbee_workbench_protocol::MAXIMUM_DIRECTORY_PATH_BYTES;
 
 #[cfg(windows)]
 mod windows;
+
+fn normalize(
+    value: &str,
+    environment: impl FnMut(&str) -> Option<OsString>,
+    cwd: impl FnOnce() -> std::io::Result<PathBuf>,
+) -> Result<WorkbenchDirectoryPath, PathFailure> {
+    super::resolve(value, UserPathGrammar::Windows, environment, cwd)
+}
 
 fn resolve(value: &str, variables: &[(&str, &str)]) -> Result<WorkbenchDirectoryPath, PathFailure> {
     normalize(
