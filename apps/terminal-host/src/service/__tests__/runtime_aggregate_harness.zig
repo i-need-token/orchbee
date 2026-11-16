@@ -6,6 +6,7 @@ pub const service_boundary = @import("terminal-host-service");
 pub const core_module = core_boundary.state;
 pub const input_admission = service_boundary.testing.input_admission;
 pub const pty_process = @import("terminal-host-platform").process;
+const schedule = @import("deterministic_schedule.zig");
 pub const subject = service_boundary.testing.runtime_aggregate;
 pub const terminal_launch = engine_boundary.launch;
 pub const terminal_runtime = engine_boundary.runtime;
@@ -437,6 +438,62 @@ pub fn normalExitWithRetainedDescendantProcessLaunch() pty_process.Launch {
         .rows = 24,
     };
 }
+
+/// Running native terminal whose PTY reader parks before its first read. Native
+/// startup and resize output then cannot commit a revision between the Host's
+/// observation and the test's own reads. Release the reader before the
+/// aggregate tears the runtime down.
+pub const ParkedReaderTerminal = struct {
+    reader: schedule.Gate = .{},
+
+    pub fn adopt(
+        self: *ParkedReaderTerminal,
+        aggregate: *subject.HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        terminal_id: core_module.TerminalId,
+    ) !void {
+        var process_launch = try longRunningProcessLaunch();
+        defer process_launch.deinit();
+        var spawner: HookedThreadSpawner = .{ .hooks = .{
+            .context = &self.reader,
+            .read_pty = parkedRead,
+        } };
+        const runtime = try terminal_runtime.testing.createWithOptionsUsingSpawnerFn(
+            std.testing.allocator,
+            process_launch.launch,
+            .{ .cell_pixel_height = 16, .cell_pixel_width = 8 },
+            &spawner,
+        );
+        errdefer {
+            self.reader.release();
+            runtime.destroy();
+        }
+        try aggregate.core().reserveTerminal();
+        try subject.testing.adoptRunningTerminalFn(
+            aggregate,
+            connection_id,
+            testId(core_module.CreationId, 0x42),
+            terminal_id,
+            [_]u8{0x43} ** 32,
+            80,
+            24,
+            8,
+            16,
+            .{},
+            runtime,
+        );
+    }
+
+    pub fn release(self: *ParkedReaderTerminal) void {
+        self.reader.release();
+    }
+
+    fn parkedRead(context: *anyopaque, _: []u8) anyerror!usize {
+        const reader: *schedule.Gate = @ptrCast(@alignCast(context));
+        reader.pause();
+        return 0;
+    }
+};
 
 pub fn commitHookedRuntime(
     aggregate: *subject.HostRuntimeAggregate,

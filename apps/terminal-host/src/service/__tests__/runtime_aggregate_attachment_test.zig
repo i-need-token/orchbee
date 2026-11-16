@@ -34,6 +34,7 @@ const HookedThreadSpawner = harness.HookedThreadSpawner;
 const longRunningProcessLaunch = harness.longRunningProcessLaunch;
 const commitHookedRuntime = harness.commitHookedRuntime;
 const LogicalCleanupClock = harness.LogicalCleanupClock;
+const ParkedReaderTerminal = harness.ParkedReaderTerminal;
 const readLogicalCleanupNs = harness.readLogicalCleanupNs;
 
 const ResizeCommitProbe = struct {
@@ -76,24 +77,14 @@ test "configuration synchronization adopts runtime output committed after the up
     var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(true) catch unreachable;
     const connection_id: core_module.ConnectionId = 1;
+    const terminal_id = testId(core_module.TerminalId, 0x76);
     _ = try aggregate.core().connect(
         connection_id,
         testId(core_module.ClientId, 0x75),
     );
-    var launch_fixture = try validatedLongRunningLaunch();
-    defer launch_fixture.deinit();
-    const validated = launch_fixture.validated;
-    var preparation = try aggregate.prepareCreateTerminal(
-        connection_id,
-        testId(core_module.CreationId, 0x76),
-        validated,
-    );
-    defer preparation.deinit();
-    const created = try aggregate.commitPreparedTerminal(&preparation);
-    const terminal_id = switch (created) {
-        .created => |identity| identity.terminal_id,
-        .replayed => return error.ExpectedCreatedTerminal,
-    };
+    var terminal: ParkedReaderTerminal = .{};
+    defer terminal.release();
+    try terminal.adopt(&aggregate, connection_id, terminal_id);
     const configuration_revision_before =
         aggregate.core().findTerminal(terminal_id).?.configurationRevision();
 
@@ -153,25 +144,15 @@ test "resize synchronization adopts a runtime revision that advances after commi
     var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(true) catch unreachable;
     const connection_id: core_module.ConnectionId = 1;
+    const terminal_id = testId(core_module.TerminalId, 0x71);
     const attachment_id = testId(core_module.AttachmentId, 0x73);
     _ = try aggregate.core().connect(
         connection_id,
         testId(core_module.ClientId, 0x70),
     );
-    var launch_fixture = try validatedLongRunningLaunch();
-    defer launch_fixture.deinit();
-    const validated = launch_fixture.validated;
-    var preparation = try aggregate.prepareCreateTerminal(
-        connection_id,
-        testId(core_module.CreationId, 0x71),
-        validated,
-    );
-    defer preparation.deinit();
-    const created = try aggregate.commitPreparedTerminal(&preparation);
-    const terminal_id = switch (created) {
-        .created => |identity| identity.terminal_id,
-        .replayed => return error.ExpectedCreatedTerminal,
-    };
+    var terminal: ParkedReaderTerminal = .{};
+    defer terminal.release();
+    try terminal.adopt(&aggregate, connection_id, terminal_id);
     _ = try aggregate.attach(
         connection_id,
         attachment_id,
@@ -232,23 +213,15 @@ test "terminal control synchronization adopts runtime output committed after the
     var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(true) catch unreachable;
     const connection_id: core_module.ConnectionId = 1;
+    const terminal_id = testId(core_module.TerminalId, 0x79);
     const attachment_id = testId(core_module.AttachmentId, 0x7a);
     _ = try aggregate.core().connect(
         connection_id,
         testId(core_module.ClientId, 0x78),
     );
-    var launch_fixture = try validatedLongRunningLaunch();
-    defer launch_fixture.deinit();
-    var preparation = try aggregate.prepareCreateTerminal(
-        connection_id,
-        testId(core_module.CreationId, 0x79),
-        launch_fixture.validated,
-    );
-    defer preparation.deinit();
-    const terminal_id = switch (try aggregate.commitPreparedTerminal(&preparation)) {
-        .created => |identity| identity.terminal_id,
-        .replayed => return error.ExpectedCreatedTerminal,
-    };
+    var terminal: ParkedReaderTerminal = .{};
+    defer terminal.release();
+    try terminal.adopt(&aggregate, connection_id, terminal_id);
     _ = try aggregate.attach(
         connection_id,
         attachment_id,
