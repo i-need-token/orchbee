@@ -132,12 +132,13 @@ installed release's. A Session already running keeps the configuration it starte
   Reopen Orchbee while no window shows, Quit Orchbee, Keep Terminals Running, and Quit All…. The
   application menu names `Command+Q` Quit Orchbee, Keep Terminals Running and adds Quit All… after
   it, and the Window menu holds Reopen Orchbee while no window shows.
-- On Windows, Save Diagnostic Bundle… in the Help menu and in the taskbar's Jump List of a packaged
-  build, since the title bar overlay hides the menu bar. It asks where to save, starting in the
+- On Windows and macOS, Save Diagnostic Bundle… in the Help menu, and on Windows also in the
+  taskbar's Jump List of a packaged build, since the title bar overlay hides the menu bar. It asks
+  where to save, starting in the
   Desktop folder, or in the home folder when the system cannot name the Desktop, runs
   `orchbee diagnostics create`, shows the bundle in its folder, and says in a dialog when it failed;
   one save runs at a time and cancelling the dialog writes nothing. The bundle's contents belong to
-  the [CLI command](../orchbee/README.md#windows-diagnostic-bundle).
+  the [CLI command](../orchbee/README.md#diagnostic-bundle).
 - The menu with the window Actions and, on macOS, Secure Keyboard Entry. It is installed once the
   window has opened, because a hidden title bar never opens the menu that would refresh what its
   accelerators may do. On macOS, Workbench owns `Command+W` as Close Terminal: the native Close

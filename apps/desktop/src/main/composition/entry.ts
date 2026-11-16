@@ -353,8 +353,8 @@ async function resolveRendererUrl(): Promise<URL> {
 }
 
 /**
- * The menu, its window Actions, macOS Secure Keyboard Entry, and the Windows diagnostic bundle with
- * its taskbar task; returns their removal.
+ * The menu, its window Actions, macOS Secure Keyboard Entry, and the diagnostic bundle with, on
+ * Windows, its taskbar task; returns their removal.
  */
 function installPlatformActions(application: DesktopServerClientApplication): () => void {
 	const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
@@ -371,7 +371,8 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 	);
 	saveDiagnosticBundle = () => diagnosticsActions.invokeSaveBundle('menu');
 	// The title bar overlay hides the Windows menu bar, so the taskbar's Jump List holds the same
-	// Action; a checkout's Electron has no identity of its own to hold one.
+	// Action; a checkout's Electron has no identity of its own to hold one. The macOS menu bar always
+	// shows, so its Help menu is enough and the Dock menu keeps only window and quit items.
 	if (process.platform === 'win32' && packaged) {
 		app.setUserTasks([
 			{

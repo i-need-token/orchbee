@@ -27,7 +27,7 @@ export interface DesktopApplicationMenuLabels {
 	readonly toggleMaximized: string;
 }
 
-/** The Windows diagnostic bundle Action, placed in the Help menu. */
+/** The Windows and macOS diagnostic bundle Action, placed in the Help menu. */
 interface DesktopApplicationMenuDiagnostics {
 	readonly categoryLabel: string;
 	readonly label: string;
@@ -228,7 +228,8 @@ export function installDesktopApplicationMenu(
 		}
 	}
 
-	const diagnostics = platform === 'win32' ? actions.saveDiagnosticBundle : undefined;
+	const diagnostics =
+		platform === 'win32' || platform === 'darwin' ? actions.saveDiagnosticBundle : undefined;
 	if (diagnostics !== undefined) {
 		const saveDiagnosticBundleItem: MenuItemConstructorOptions & { readonly id: string } = {
 			click: () => diagnostics.invoke('menu'),
@@ -240,6 +241,7 @@ export function installDesktopApplicationMenu(
 			appendedRoots.push({
 				id: 'desktop-help-menu',
 				label: diagnostics.categoryLabel,
+				...(platform === 'darwin' ? { role: 'help' as const } : {}),
 				submenu: [saveDiagnosticBundleItem],
 			});
 		} else {
