@@ -93,7 +93,7 @@ fn organization_events_have_one_nullable_project_location_in_both_machine_envelo
 fn semantic_events_parser_owns_repeatable_filters_zero_deadline_and_rejects_scope_leakage() {
     use crate::invocation::{Request, parse_request};
     let parse = |args: &[&str]| parse_request(args.iter().map(std::ffi::OsString::from));
-    let Request::Events { command, format } = parse(&[
+    let Request::Events { command, .. } = parse(&[
         "events",
         "subscribe",
         "--event=tab.renamed",
@@ -107,7 +107,6 @@ fn semantic_events_parser_owns_repeatable_filters_zero_deadline_and_rejects_scop
     };
     assert_eq!(command.events, [Kind::TabRenamed, Kind::PaneExited]);
     assert_eq!(command.timeout_ms, Some(0));
-    assert_eq!(format, OutputFormat::Json);
     assert!(parse(&["events", "wait"]).is_err());
     assert!(
         parse(&[

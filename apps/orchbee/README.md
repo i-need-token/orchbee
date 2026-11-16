@@ -16,7 +16,8 @@ and close paths; [terminal settlement](docs/native-panel-lifecycle.md#terminal-s
 final output and known exit codes. An interactive Shell that exits with code 0 instead closes its
 Panel, and its Tab when it was the last Panel.
 
-On Windows and macOS, `events subscribe` emits bounded NDJSON observations from an existing Session. `events wait`
+On Windows and macOS, `events subscribe` streams bounded observations from an existing Session: one
+text line per record, or NDJSON records under `--format json`. `events wait`
 retains one connection and filter through wait slices, distinguishing match, known timeout,
 history loss, refusal and interruption. Use `--event tab.renamed`, a resource selector or a closed
 `--filter` JSON; `--after-cursor` pins retained journal history. Output/scroll probes preserve actual

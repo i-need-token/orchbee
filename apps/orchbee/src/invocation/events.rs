@@ -264,10 +264,6 @@ pub(super) fn parse(
             strip_ansi: !options.ansi,
             state,
         },
-        format: options.format.unwrap_or(if wait {
-            OutputFormat::Text
-        } else {
-            OutputFormat::Json
-        }),
+        format: options.format.unwrap_or(OutputFormat::Text),
     })
 }
