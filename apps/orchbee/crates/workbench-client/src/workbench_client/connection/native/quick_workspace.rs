@@ -63,10 +63,13 @@ fn launch_directory() -> std::io::Result<Option<WorkbenchDirectoryPath>> {
     .and_then(|path| WorkbenchDirectoryPath::parse(&path).ok()))
 }
 
+/// The operating system's spelling of the launch directory, as directory startup takes it: on
+/// macOS a folder reached through `/tmp` reads `/private/tmp`, as a shell started there reports it.
 #[cfg(not(windows))]
 fn launch_directory() -> std::io::Result<Option<WorkbenchDirectoryPath>> {
-    Err(
-        crate::host_capabilities::Unsupported(crate::host_capabilities::Capability::DirectoryInput)
-            .into(),
-    )
+    crate::host_capabilities::Capability::DirectoryInput.require()?;
+    // The Client never changes its process directory, so it remains the launch directory.
+    Ok(std::env::current_dir()
+        .ok()
+        .and_then(|path| WorkbenchDirectoryPath::parse(path.to_str()?).ok()))
 }

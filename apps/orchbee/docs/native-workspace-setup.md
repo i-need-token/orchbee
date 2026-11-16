@@ -8,7 +8,7 @@ revisions; the Client owns selection and input. This reference extends
 [context selection](native-context-selection.md) and the Server's
 [directory contract](../../orchbee-server/docs/workspace-terminal-directory.md).
 
-On Windows, New Workspace, the empty state's Create Workspace, `Ctrl+b a` and `Ctrl+b Shift+N`
+On Windows and macOS, New Workspace, the empty state's Create Workspace, `Ctrl+b a` and `Ctrl+b Shift+N`
 immediately prepare and submit a Workspace with its first default shell. They open no directory or
 name form and require no confirmation. The default result is ungrouped. New Workspace from an exact
 Project row's menu or heading uses that Project, including empty and noncurrent Projects. Creating a Workspace never
@@ -17,7 +17,7 @@ starts an AI provider automatically.
 Quick preparation leaves the sidebar and current Tab intact and immediately displays a pending
 sidebar item using the generated name and a current top Tab. The top Tab uses the localized automatic Tab 1
 title from [Tab labels](native-tab-labels.md). Accepted creation progress appears in the content region without a modal.
-This feedback improvement is scoped to the Windows TUI. GUI creation retains its existing
+This feedback improvement is scoped to the Windows and macOS TUI. GUI creation retains its existing
 activation owner and the same canonical creation semantics.
 
 Ordinary and worktree-backed Workspaces are peers. Each can contain multiple Agents, listed directly
@@ -168,13 +168,13 @@ replays it.
 
 ## Explicit directory and label editing
 
-The Windows creation menu and global action menu also offer **New Workspace in directory…**.
+The Windows and macOS creation menu and global action menu also offer **New Workspace in directory…**.
 This uses the same read-only preparation, then displays the prepared path and generated name in
 the existing two-field draft with directory focus. It submits nothing until an explicit, drawn
 Submit/Enter; Esc cancels without creating resources and displays no pending item before then.
 Up/Down or a drawn directory row selects the prepared directory, recent workspace directories, then
 other known workspace directories, deduplicated by `same_directory_spelling` (on Windows ASCII
-case, either separator and a trailing separator) and limited to eight choices. Recency belongs to
+case, either separator and a trailing separator; on macOS the exact spelling) and limited to eight choices. Recency belongs to
 the Client's existing volatile navigation memory; no filesystem scan or new history file is
 created. An automatic name follows path edits until the user edits the name. A Project creation
 menu retains its exact Project target. The edited directory and name belong only to this launch.
@@ -204,8 +204,16 @@ submit it.
 The draft explains that the default is the terminal process directory. PowerShell's logical `$PWD`
 can differ after ordinary `cd`; this path is not claimed to be that logical location. Users can
 review the actual sampled path and supply an existing folder, including Unicode and spaces,
-without changing a global shell profile. This directory-review entry is scoped to the Windows
-TUI; GUI creation keeps its existing directory-selection owner and the shared launch contract.
+without changing a global shell profile. This directory-review entry is scoped to the Windows and
+macOS TUI; GUI creation keeps its existing directory-selection owner and the shared launch contract.
+
+The field resolves in the grammar of the prepared folder's spelling. A drive path, as on Windows,
+takes the Windows user-path grammar. A POSIX-rooted path, as on macOS, takes the POSIX grammar of
+`local-runtime`: an absolute path as written, `~` or `~/...` under `HOME`, or a path relative to the
+prepared folder, resolved lexically. A folder typed through the `/tmp` or `/var` link keeps that
+spelling, which the Worker follows; a shell started there may report its `/private/...` spelling.
+The launch folder default is the operating system's spelling, as in
+[directory startup](native-directory-startup.md).
 
 The TUI offers no way to give an existing Workspace its first directory; `orchbee workspace
 set-directory` remains that route for an Empty, unconfigured Workspace, and New Workspace in

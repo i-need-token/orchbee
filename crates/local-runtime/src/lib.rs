@@ -43,7 +43,10 @@ pub use automatic_updates::{
     AUTOMATIC_UPDATE_HELPER, RELAUNCH_PROTOCOL_VARIABLE, automatic_updates_live,
 };
 mod user_path;
-pub use user_path::{USER_PATH_LIMIT, UserPathError, UserPathOperand, normalize_user_path};
+pub use user_path::{
+    USER_PATH_LIMIT, UserPathError, UserPathGrammar, UserPathOperand, normalize_posix_user_path,
+    normalize_user_path,
+};
 mod user_settings;
 pub use user_settings::set_update_channel;
 pub use user_settings::{

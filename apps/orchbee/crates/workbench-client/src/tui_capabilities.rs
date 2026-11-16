@@ -11,9 +11,10 @@ pub(crate) fn for_action(action: &ClientAction) -> Option<Capability> {
         ClientAction::RequestQuickWorkspace
         | ClientAction::RequestWorkspaceCreate
         | ClientAction::RequestWorkspaceAtDirectory
-        | ClientAction::RequestProjectQuickWorkspace
-        | ClientAction::RequestWorktreeCreate
-        | ClientAction::RequestWorktreeOpen => Some(Capability::DirectoryInput),
+        | ClientAction::RequestProjectQuickWorkspace => Some(Capability::DirectoryInput),
+        ClientAction::RequestWorktreeCreate | ClientAction::RequestWorktreeOpen => {
+            Some(Capability::Worktrees)
+        }
         _ => None,
     }
 }
@@ -44,7 +45,7 @@ impl Capabilities {
     }
     pub(crate) const fn all() -> Self {
         Self {
-            effects: (1 << 10) - 1,
+            effects: (1 << 11) - 1,
             login_shell: true,
             search: true,
         }

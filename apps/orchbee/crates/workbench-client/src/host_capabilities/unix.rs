@@ -64,6 +64,7 @@ pub(super) fn admits(capability: Capability) -> bool {
         Capability::WindowTitle => facts.window_title,
         Capability::SavedMachines
         | Capability::DirectoryInput
+        | Capability::Worktrees
         | Capability::AgentLaunch
         | Capability::PositionStorage
         | Capability::ConfigurationFile

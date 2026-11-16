@@ -2,6 +2,7 @@
 use super::super::line_editor::{LengthLimit, LineEditor};
 use super::ClientContextTabs;
 use crate::localization::Locale;
+use orchbee_local_runtime::UserPathGrammar;
 use orchbee_workbench_protocol::{
     Project, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId, same_directory_spelling,
 };
@@ -141,6 +142,9 @@ impl QuickProject {
 #[derive(Clone, Debug)]
 pub(crate) struct QuickWorkspaceFields {
     base: WorkbenchDirectoryPath,
+    /// The grammar typed folders resolve in, which is the base's: a POSIX-rooted base resolves in
+    /// the POSIX grammar and a drive base in the Windows grammar.
+    grammar: UserPathGrammar,
     environment: Vec<(String, std::ffi::OsString)>,
     name: LineEditor,
     directory: LineEditor,
@@ -198,6 +202,11 @@ impl QuickWorkspaceFields {
             name: LineEditor::new(label, LengthLimit::Scalars(512)),
             directory: LineEditor::new(cwd.as_str().to_owned(), LengthLimit::Bytes(4096)),
             directories: vec![cwd.clone()],
+            grammar: if cwd.as_str().starts_with('/') {
+                UserPathGrammar::Posix
+            } else {
+                UserPathGrammar::Windows
+            },
             base: cwd,
             environment: Vec::new(),
             project,
@@ -215,13 +224,11 @@ impl QuickWorkspaceFields {
     pub(crate) fn name_editor(&mut self) -> &mut LineEditor {
         &mut self.name
     }
-    // Only the Windows path-rule tests type a directory; quick creation's directory entry is
-    // Windows-only (apps/orchbee/docs/tui-platforms.md, "Local directory entry").
-    #[cfg(all(test, windows))]
+    #[cfg(test)]
     pub(crate) fn directory_editor(&mut self) -> &mut LineEditor {
         &mut self.directory
     }
-    #[cfg(all(test, windows))]
+    #[cfg(test)]
     pub(crate) fn set_environment(&mut self, environment: Vec<(String, std::ffi::OsString)>) {
         self.environment = environment;
     }
@@ -310,38 +317,45 @@ impl QuickWorkspaceFields {
         }
     }
     /// The `~` spelling that this draft's own expansion resolves back to `path`, for a path inside
-    /// the captured home folder: ASCII case and either separator match, and trailing separators
-    /// are dropped.
+    /// the captured home folder. In the Windows grammar ASCII case and either separator match; in
+    /// the POSIX grammar the bytes match exactly and only `/` separates. Trailing separators are
+    /// dropped.
     pub(crate) fn home_spelling(&self, path: &str) -> Option<String> {
-        const SEPARATORS: [char; 2] = ['\\', '/'];
+        let windows = self.grammar == UserPathGrammar::Windows;
+        let separators: &[char] = if windows { &['\\', '/'] } else { &['/'] };
         let home = self.expand("~")?;
-        let home = home.trim_end_matches(SEPARATORS);
-        let separator = |byte: u8| matches!(byte, b'\\' | b'/');
+        let home = home.trim_end_matches(separators);
+        let separator = |byte: u8| byte == b'/' || windows && byte == b'\\';
         let rest = path.get(home.len()..).filter(|_| {
             !home.is_empty()
                 && path.as_bytes()[..home.len()]
                     .iter()
                     .zip(home.as_bytes())
-                    .all(|(&a, &b)| a.eq_ignore_ascii_case(&b) || separator(a) && separator(b))
+                    .all(|(&a, &b)| {
+                        a == b
+                            || windows && a.eq_ignore_ascii_case(&b)
+                            || separator(a) && separator(b)
+                    })
         })?;
-        (rest.is_empty() || rest.starts_with(SEPARATORS))
-            .then(|| format!("~{}", rest.trim_end_matches(SEPARATORS)))
+        (rest.is_empty() || rest.starts_with(separators))
+            .then(|| format!("~{}", rest.trim_end_matches(separators)))
     }
     fn normalized_path(&self) -> Option<String> {
         self.expand(self.directory())
     }
     fn expand(&self, value: &str) -> Option<String> {
-        orchbee_local_runtime::normalize_user_path(
-            value,
-            |name| {
-                self.environment
-                    .iter()
-                    .find(|(key, _)| key == name)
-                    .map(|(_, value)| value.clone())
-            },
-            || Ok(std::path::PathBuf::from(self.base.as_str())),
-        )
-        .ok()
+        self.grammar
+            .normalize(
+                value,
+                |name| {
+                    self.environment
+                        .iter()
+                        .find(|(key, _)| key == name)
+                        .map(|(_, value)| value.clone())
+                },
+                || Ok(std::path::PathBuf::from(self.base.as_str())),
+            )
+            .ok()
     }
 }
 

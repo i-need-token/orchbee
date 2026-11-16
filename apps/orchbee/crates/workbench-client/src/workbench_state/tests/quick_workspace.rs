@@ -71,9 +71,7 @@ fn refused_quick_preparation_cannot_auto_open_when_its_read_finishes() {
     assert_eq!(state.take_quick_preparation(&preparation), Some(false));
 }
 
-// Quick creation takes its directory through the directory-input adapter, which only Windows has
-// (apps/orchbee/docs/tui-platforms.md, "Local directory entry"), so these Windows path rules run
-// there alone.
+// These Windows path rules read this host's own USERPROFILE, so they run on Windows alone.
 #[cfg(windows)]
 #[test]
 fn quick_workspace_fields_normalize_relative_and_home_paths_without_mutating_raw_text() {
@@ -121,6 +119,41 @@ fn quick_workspace_fields_normalize_relative_and_home_paths_without_mutating_raw
     fields.directory_editor().insert("C:relative").unwrap();
     assert!(fields.plan().is_none());
     fields.directory_editor().clear();
+    assert!(fields.plan().is_none());
+}
+
+// The POSIX grammar macOS uses reads only the captured HOME and the prepared folder, so it runs on
+// every host.
+#[test]
+fn quick_workspace_posix_fields_expand_home_and_relative_paths_and_spell_home_exactly() {
+    let mut fields = QuickWorkspaceFields::new(
+        &projected(1, 1),
+        WorkbenchDirectoryPath::parse("/private/tmp/项目 space").unwrap(),
+        Locale::EnUs,
+    );
+    fields.directory_editor().clear();
+    fields.directory_editor().insert("child/../other").unwrap();
+    assert_eq!(
+        fields.plan().unwrap().cwd.as_str(),
+        "/private/tmp/项目 space/other"
+    );
+    fields.directory_editor().clear();
+    fields.directory_editor().insert("~/code").unwrap();
+    assert!(fields.plan().is_none());
+    fields.set_environment(vec![("HOME".to_owned(), "/Users/demo".into())]);
+    assert_eq!(fields.plan().unwrap().cwd.as_str(), "/Users/demo/code");
+    assert_eq!(fields.directory(), "~/code");
+    for (path, spelled) in [
+        ("/Users/demo", Some("~")),
+        ("/Users/demo/code/", Some("~/code")),
+        ("/users/demo/code", None),
+        ("/Users/demoted", None),
+        ("/private/Users/demo", None),
+    ] {
+        assert_eq!(fields.home_spelling(path).as_deref(), spelled, "{path}");
+    }
+    fields.directory_editor().clear();
+    fields.directory_editor().insert("C:relative").unwrap();
     assert!(fields.plan().is_none());
 }
 

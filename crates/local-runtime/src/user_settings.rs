@@ -679,37 +679,12 @@ fn host_path(value: &str, file: &Path, env: &impl Fn(&str) -> Option<OsString>) 
 /// or share path is not one of them.
 #[cfg(not(windows))]
 fn host_path(value: &str, file: &Path, env: &impl Fn(&str) -> Option<OsString>) -> Option<String> {
-    let windows_form = value.starts_with('\\')
-        || matches!(value.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic());
-    if value.len() > USER_PATH_LIMIT || value.contains('\0') || windows_form {
-        return None;
-    }
-    if value.starts_with('/') {
-        return Some(value.to_owned());
-    }
-    let (base, relative) = match value.strip_prefix('~') {
-        Some(rest) if rest.is_empty() || rest.starts_with('/') => (
-            PathBuf::from(env("HOME").filter(|home| !home.is_empty())?),
-            rest.trim_start_matches('/'),
-        ),
-        _ => (file.parent()?.to_owned(), value),
-    };
-    if !base.is_absolute() {
-        return None;
-    }
-    let mut resolved = PathBuf::new();
-    for component in base.join(relative).components() {
-        match component {
-            std::path::Component::RootDir => resolved.push("/"),
-            std::path::Component::ParentDir => {
-                resolved.pop();
-            }
-            std::path::Component::Normal(part) => resolved.push(part),
-            std::path::Component::CurDir | std::path::Component::Prefix(_) => {}
-        }
-    }
-    let resolved = resolved.to_str()?.to_owned();
-    (resolved.len() <= USER_PATH_LIMIT).then_some(resolved)
+    crate::normalize_posix_user_path(value, env, || {
+        file.parent()
+            .map(Path::to_path_buf)
+            .ok_or(std::io::ErrorKind::NotFound.into())
+    })
+    .ok()
 }
 
 #[cfg(test)]

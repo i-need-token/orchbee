@@ -225,7 +225,7 @@ impl WorkbenchClientUi {
     /// for the current Workspace now, by the same refusals `W` meets.
     pub(super) fn worktree_place_available(&self) -> bool {
         self.capabilities
-            .supports(crate::tui_capabilities::Capability::DirectoryInput)
+            .supports(crate::tui_capabilities::Capability::Worktrees)
             && self.retirement_failure.is_none()
             && !self.copy_mode_active()
             && !self.popup.captured()

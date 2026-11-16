@@ -11,6 +11,7 @@ pub enum Capability {
     Browser,
     SavedMachines,
     DirectoryInput,
+    Worktrees,
     AgentLaunch,
     PositionStorage,
     ConfigurationFile,
@@ -25,11 +26,12 @@ pub struct Unsupported(pub Capability);
 
 impl Capability {
     /// Every optional effect, in declaration order.
-    pub(crate) const ALL: [Self; 10] = [
+    pub(crate) const ALL: [Self; 11] = [
         Self::Clipboard,
         Self::Browser,
         Self::SavedMachines,
         Self::DirectoryInput,
+        Self::Worktrees,
         Self::AgentLaunch,
         Self::PositionStorage,
         Self::ConfigurationFile,
@@ -49,11 +51,13 @@ impl Capability {
             }
             // macOS shells get the same managed prompt and run prefix as Windows PowerShell.
             Self::AgentLaunch => cfg!(any(windows, target_os = "macos")),
-            // macOS keeps the position record and `config.toml` under its data root, as Windows.
-            Self::PositionStorage | Self::ConfigurationFile => {
+            // macOS keeps the position record and `config.toml` under its data root, as Windows,
+            // and resolves a typed folder in the POSIX grammar, from its launch folder.
+            Self::PositionStorage | Self::ConfigurationFile | Self::DirectoryInput => {
                 cfg!(any(windows, target_os = "macos"))
             }
-            Self::SavedMachines | Self::DirectoryInput | Self::Graphics => cfg!(windows),
+            // The macOS Server does not serve Worktree operations yet.
+            Self::SavedMachines | Self::Worktrees | Self::Graphics => cfg!(windows),
         }
     }
 

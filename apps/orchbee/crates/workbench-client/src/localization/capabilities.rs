@@ -37,6 +37,8 @@ impl Locale {
             (Self::ZhCn, Capability::SavedMachines) => "已保存的远程机器",
             (Self::EnUs, Capability::DirectoryInput) => "Local directory creation",
             (Self::ZhCn, Capability::DirectoryInput) => "从本地目录创建工作区",
+            (Self::EnUs, Capability::Worktrees) => "Git worktrees",
+            (Self::ZhCn, Capability::Worktrees) => "Git 工作树",
             (Self::EnUs, Capability::AgentLaunch) => "Local Agent launch",
             (Self::ZhCn, Capability::AgentLaunch) => "启动本地智能体",
             (Self::EnUs, Capability::PositionStorage) => "Saving the window position",
