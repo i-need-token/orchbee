@@ -5,19 +5,22 @@ use super::{
     client_control::{self, exchange::exchange, selection},
     command_interrupt::{ArmedSignals, Finish},
     console_interrupt::SignalWatch,
+    creation::{self, Created},
     failure_output, output, query,
+    stale_retry::{Ended, StaleRetry},
 };
 use crate::cli_text::CliText;
 use crate::{
     invocation::{ClientNavigationTarget, OutputFormat, Target, configured_commands::Command},
+    local_client::LocalClient,
     localization::Locale,
 };
 use orchbee_workbench_protocol::{
     ClientPopupSource, ClientViewAction, ClientViewControl, ClientViewIntent, ClientViewOutcome,
-    ConfiguredCommandAction as Action, ConfiguredCommandFailure as Reason,
+    ClientViewRecord, ConfiguredCommandAction as Action, ConfiguredCommandFailure as Reason,
     ConfiguredCommandInvocation, ConfiguredCommandKind, ConfiguredCommandOutcome as Outcome,
     ConfiguredCommandRequest, ConfiguredCommandResult, ConfiguredCommandSource, ProtocolVersion,
-    Snapshot, WorkbenchCommandOutcome,
+    SessionId, Snapshot, WorkbenchCommandOutcome, WorkbenchRevision,
 };
 use std::time::{Duration, Instant};
 
@@ -290,35 +293,86 @@ fn execute(
         } = &result.outcome
         && let Some(selected) = selected
     {
-        let answer = client_control::exchange::submit_control(
+        let created = Created {
+            context: terminal_context_id.clone(),
+            tab: tab_id.clone(),
+            panel: new_panel_id.clone(),
+            split: true,
+        };
+        let answer = focus_split(
             &mut client,
             &snapshot.session_id,
-            ClientViewControl {
-                operation_id: query::request_id()?,
-                client_id: selected.client_id,
-                expected_view_revision: selected.view_revision,
-                minimum_workbench_revision: *revision,
-                intent: ClientViewIntent::Panel {
-                    terminal_context_id: terminal_context_id.clone(),
-                    tab_id: tab_id.clone(),
-                    panel_id: new_panel_id.clone(),
-                },
-            },
+            &selected,
+            &created,
+            *revision,
             deadline,
             signals,
         );
-        match answer {
-            Ok(answer) => {
-                complete = answer.exit_code() == 0;
-                followup = Some(Followup {
-                    status: answer.exit_code(),
-                    document: answer.document(),
-                });
-            }
-            Err(_) => complete = false,
-        }
+        complete = answer.as_ref().is_ok_and(|answer| answer.exit_code() == 0);
+        followup = Some(match answer {
+            Ok(answer) => Followup {
+                status: answer.exit_code(),
+                document: answer.document(),
+            },
+            // The Panel stays created; the failure says why it was not focused.
+            Err(failure) => Followup {
+                status: failure.kind.exit_code(),
+                document: serde_json::Value::Null,
+            },
+        });
     }
     emit(Some(reply), followup, complete, "invoke", format, locale)
+}
+/// Focuses the Panel a command's split created in the Client the command was invoked from.
+/// Installing the split steps that Client's view revision, so each submission first observes the
+/// Client at or beyond the split's commit, with only the added Panel changing its selection, and
+/// carries the view revision it observed. A definite `stale-view` refusal applied nothing: the
+/// Client is observed again and the focus submitted under a fresh operation identity, at most
+/// `stale_retry::RETRIES` more times, and otherwise the last refusal stands.
+fn focus_split(
+    client: &mut LocalClient,
+    session_id: &SessionId,
+    original: &ClientViewRecord,
+    created: &Created,
+    revision: WorkbenchRevision,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<client_control::Answer, Failure> {
+    // The Client and the intent are fixed, so only the count of fresh reads applies.
+    let mut retry = StaleRetry::<()>::new(true);
+    let mut refused = None;
+    loop {
+        let current = match creation::observe(
+            client, session_id, original, created, revision, deadline, signals,
+        ) {
+            Ok(current) => current,
+            Err(failure) => return refused.ok_or(failure),
+        };
+        let command = ClientViewControl {
+            operation_id: query::request_id()?,
+            client_id: original.client_id.clone(),
+            expected_view_revision: current.view_revision,
+            minimum_workbench_revision: revision,
+            intent: ClientViewIntent::Panel {
+                terminal_context_id: created.context.clone(),
+                tab_id: created.tab.clone(),
+                panel_id: created.panel.clone(),
+            },
+        };
+        let answer = match client_control::exchange::submit_control(
+            client, session_id, command, deadline, signals,
+        ) {
+            Ok(answer) => answer,
+            // A failed exchange may follow an accepted submission, so its outcome is unknown.
+            Err(_) => {
+                return refused.ok_or_else(|| Failure::new(FailureKind::OutcomeUnknown));
+            }
+        };
+        if !(answer.stale_refusal() && retry.reread(Ended::Stale)) {
+            return Ok(answer);
+        }
+        refused = Some(answer);
+    }
 }
 fn target_intent(
     workspace: Option<&Target>,

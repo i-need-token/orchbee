@@ -125,11 +125,11 @@ pub(super) fn panel<'a>(
     )
 }
 
-pub(super) struct Created {
-    pub(super) context: WorkbenchTerminalContextId,
-    pub(super) tab: WorkbenchTabId,
-    pub(super) panel: WorkbenchPanelId,
-    pub(super) split: bool,
+pub(in crate::cli) struct Created {
+    pub(in crate::cli) context: WorkbenchTerminalContextId,
+    pub(in crate::cli) tab: WorkbenchTabId,
+    pub(in crate::cli) panel: WorkbenchPanelId,
+    pub(in crate::cli) split: bool,
 }
 
 /// Empty views have no terminal poll to carry publication hints. An unchanged

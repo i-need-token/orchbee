@@ -586,7 +586,10 @@ fn split_path(
     None
 }
 
-fn observe(
+/// Waits until the original Client shows the creation's commit and returns that record, whose view
+/// revision a later control of the created Panel carries: installing the commit steps the Client's
+/// view revision. Only the count increase this creation caused may change the selection.
+pub(in crate::cli) fn observe(
     client: &mut LocalClient,
     session: &SessionId,
     original: &ClientViewRecord,

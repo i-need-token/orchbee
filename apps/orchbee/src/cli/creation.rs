@@ -13,6 +13,9 @@ mod receipt;
 mod targeting;
 mod workflow;
 
+pub(super) use targeting::Created;
+pub(super) use workflow::observe;
+
 pub(crate) fn run_parsed(
     command: &CreationCommand<crate::invocation::program::ParsedLaunch>,
     format: OutputFormat,
