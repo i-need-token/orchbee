@@ -16,8 +16,7 @@ updates run.
 On macOS a release directory carries it as `<stem>-desktop-launcher`, inside every application
 bundle's `Contents/Resources/cohort/`. The bundle itself is the entry there, so the launcher runs
 only when a window relaunches into a newer window version ([macOS](#macos)). Staging builds it into
-every macOS cohort and release packaging requires it; nothing writes a window version to the macOS
-store yet, so nothing starts it.
+every macOS cohort and release packaging requires it.
 
 On Linux it prints that it runs only on Windows and macOS and exits `4`.
 

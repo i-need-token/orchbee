@@ -91,8 +91,7 @@ same cohort, `<stem>-desktop-launcher`, with `--replace-application-v1=<this win
 third argument, before the place. Once the window has ended, the launcher replaces the bundle in
 place, or installs into `~/Applications` when its folder cannot be written, and leaves the Session
 running. Window versions reach the macOS store through `orchbee update` and install.sh's
-`--desktop`, wherever window updates run: every test build, and a release build once they are
-switched on.
+`--desktop` in test and release builds.
 
 The page has the Client authority of the Session it joined. That adds nothing to what it could
 already do by typing into a terminal. A link the page opens asks for a window, which Main refuses,
