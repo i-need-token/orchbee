@@ -1165,7 +1165,8 @@ table that breaks them falls back as a whole with `invalid-value`.
 
 The built-in `system-default` profile is `UserLaunchCommand::BUILT_IN`: the system shell, started
 as a login shell on macOS, where terminals start login shells so `path_helper` and the person's
-profile set `PATH`, and without login elsewhere. A table entry with that id replaces it, so a
+profile set `PATH`, and without login elsewhere. A profile either Client adds starts with the same
+command. A table entry with that id replaces it, so a
 `login = false` the person saved for it stays as written; a catalog that leaves the built-in
 profile as built writes no entry for it, so it follows this default.
 

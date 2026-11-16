@@ -148,7 +148,11 @@ export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileC
 		}
 		let changes = launchProfileRestore(observed.platform);
 		if (change.kind !== 'reset') {
-			const transition = transitionCatalog(observed.launchProfiles, change);
+			const transition = transitionCatalog(
+				observed.launchProfiles,
+				change,
+				observed.platform === 'macos',
+			);
 			if (typeof transition === 'string') return this.#fail(transition);
 			changes = launchProfileChanges(observed.platform, transition);
 		}
@@ -216,16 +220,17 @@ export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileC
 function transitionCatalog(
 	catalog: UserLaunchProfileCatalog,
 	change: Exclude<CatalogChange, { readonly kind: 'reset' }>,
+	builtInLogin: boolean,
 ): UserLaunchProfileCatalog | CatalogRefusal {
 	const { profiles } = catalog;
 	if (change.kind === 'create') {
 		if (profiles.length >= USER_LAUNCH_PROFILE_LIMITS.maximumProfileCount) {
 			return 'catalog-full';
 		}
-		// As in the TUI, a new profile starts as the system shell at the end of the list, never
-		// as a copy of the profile last edited.
+		// As in the TUI, a new profile starts as the built-in system shell, a login shell on macOS,
+		// at the end of the list, never as a copy of the profile last edited.
 		const created = {
-			command: { kind: 'system-shell', login: false },
+			command: { kind: 'system-shell', login: builtInLogin },
 			id: nextProfileId(catalog),
 			name: change.name,
 		};

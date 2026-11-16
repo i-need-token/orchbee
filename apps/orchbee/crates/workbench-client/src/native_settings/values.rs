@@ -178,7 +178,7 @@ pub(super) fn activate(draft: &mut Draft) {
             profiles.push(UserLaunchProfile {
                 id: id.clone(),
                 name: Some(id),
-                command: UserLaunchCommand::SystemShell { login: false },
+                command: UserLaunchCommand::BUILT_IN,
             });
             draft.profile = profiles.len() - 1;
             draft.argument = 0;
