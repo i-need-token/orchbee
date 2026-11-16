@@ -16,12 +16,12 @@ and close paths; [terminal settlement](docs/native-panel-lifecycle.md#terminal-s
 final output and known exit codes. An interactive Shell that exits with code 0 instead closes its
 Panel, and its Tab when it was the last Panel.
 
-Windows `events subscribe` emits bounded NDJSON observations from an existing Session. `events wait`
+On Windows and macOS, `events subscribe` emits bounded NDJSON observations from an existing Session. `events wait`
 retains one connection and filter through wait slices, distinguishing match, known timeout,
 history loss, refusal and interruption. Use `--event tab.renamed`, a resource selector or a closed
 `--filter` JSON; `--after-cursor` pins retained journal history. Output/scroll probes preserve actual
 terminal and Client viewport ownership. Run `orchbee events --help` for bounds and conditions;
-the [event contract](../orchbee-server/docs/windows-events.md) owns behavior and final Windows evidence.
+the [event contract](../orchbee-server/docs/windows-events.md) owns behavior and evidence.
 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:<suffix>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](docs/native-terminal-run.md).
 

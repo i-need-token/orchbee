@@ -1,7 +1,7 @@
 //! One retained semantic subscription. No reconnect, replay, PTY input or navigation effect.
 use super::{
     Failure, FailureKind, Output,
-    console_interrupt::{ArmedSignals, Finish},
+    command_interrupt::{ArmedSignals, Finish},
     failure_output, output, query, results,
     terminal_stream::relay::Relay,
 };

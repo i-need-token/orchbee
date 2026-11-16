@@ -13,8 +13,8 @@
 //! notification, title and configuration reports, the extended creation and move options, the
 //! enriched Workbench inspection, `terminal run` with its managed-shell wait, `terminal clear`,
 //! `panel create-terminal`, layout export and apply, the terminal streams: `terminal attach`,
-//! `agent attach` and `terminal session observe/control`, and the named-Session commands
-//! `session list/attach/stop/delete`.
+//! `agent attach` and `terminal session observe/control`, the named-Session commands
+//! `session list/attach/stop/delete`, and `events subscribe/wait`.
 //! Admission itself does not inspect environment or native state.
 use super::{Capability, Unsupported};
 
@@ -45,6 +45,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::Layout
         | Capability::TerminalStream
         | Capability::NamedSessions
+        | Capability::Events
             if cfg!(target_os = "macos") =>
         {
             Ok(())
