@@ -1773,7 +1773,7 @@ fn empty_lists_say_how_to_create_their_first_entry() {
 #[cfg(not(windows))]
 #[test]
 fn unsupported_commands_share_the_platform_failure_contract() {
-    use crate::invocation::{ClientCommand, ManifestCommand};
+    use crate::invocation::ClientCommand;
     use orchbee_workbench_protocol::WorkbenchRequestId;
     let schema: Value =
         serde_json::from_str(include_str!("schemas/orchbee.cli.failure.json")).unwrap();
@@ -1788,8 +1788,9 @@ fn unsupported_commands_share_the_platform_failure_contract() {
                     locale,
                 )
             });
-            let manifests = super::agent_manifests::run(&ManifestCommand::Current, format, locale);
-            for output in control.into_iter().chain([manifests]) {
+            // `channel show` stays Windows only.
+            let channel = super::channel::show(format, locale);
+            for output in control.into_iter().chain([channel]) {
                 assert_eq!(output.status, 4);
                 assert!(!output.stderr.is_empty());
                 if format == OutputFormat::Json {

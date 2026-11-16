@@ -2659,14 +2659,14 @@ Windows `project close-all <target> --confirm` explicitly closes captured member
 
 [Windows Client view control](windows-client-control.md) owns `client list/get/status`, `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. The current catalog includes `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`; view/control are v1, routing failure is v1 and composed Agent Client read failure is v1. No operating-system window activation is added. macOS admits the same control; Linux admits only the read-only `client list` and `client get`.
 
-## Windows offline schema export
+## Offline schema export
 
 Text `api schema` without an ID lists the catalog: one row per schema ID with its versions and title, then how to read one schema or every document. `api schema <schema-id>`, `api schema --format json` and file export answer the JSON document. `api schema [<schema-id>] --output <path>` explicitly publishes the same complete JSON document that `api schema [<schema-id>] --format json` writes to stdout. It accepts `--format text|json` for failure presentation; successful stdout and file bytes remain identical JSON with a final newline. Omitting `--output` retains the existing read-only behavior.
 
-The parser admits a nonempty literal file path of at most 4,096 UTF-8 bytes, validates all arguments before effects, and never expands variables or a leading tilde. Relative paths resolve against the invoking process directory. On Windows, device names, alternate data streams and ambiguous drive-relative paths are refused; macOS and Linux take any POSIX path that names a file, refusing only a trailing `/` and a last component of `.` or `..`. This does not select or start a Session, inspect runtime configuration, or use the network to obtain schemas. New Mac/Linux file-export runtimes are not included.
+The parser admits a nonempty literal file path of at most 4,096 UTF-8 bytes, validates all arguments before effects, and never expands variables or a leading tilde. Relative paths resolve against the invoking process directory. On Windows, device names, alternate data streams and ambiguous drive-relative paths are refused; macOS and Linux take any POSIX path that names a file, refusing only a trailing `/` and a last component of `.` or `..`. This does not select or start a Session, inspect runtime configuration, or use the network to obtain schemas. Windows and macOS publish the file; Linux refuses before any file operation.
 
 The schema owner resolves the embedded ID and prepares the entire bounded document before any filesystem operation. Unknown IDs preserve existing not-found behavior and create nothing. The shared publication workflow resolves the destination, refuses an existing non-regular/reparse target through the Windows metadata port, creates one exclusively owned random sibling `.orchbee-schema-<nonce>.tmp`, writes and synchronizes the complete document, closes the handle, then publishes with one rename. Existing regular destinations may be replaced; parent directories are never created. There is no truncation fallback or automatic retry.
-The Windows port retains the exclusive temporary-file open mode. The macOS and Linux port refuses an existing target that is not a regular file, a symbolic link included, and creates the temporary exclusively with mode `0600`; the diagnostic bundle publishes through it on macOS. Schema export on macOS and Linux returns unsupported-platform after the same schema preparation, without resolving the file destination, generating a random temporary name or performing file operations.
+The Windows port retains the exclusive temporary-file open mode. The macOS and Linux port refuses an existing target that is not a regular file, a symbolic link included, and creates the temporary exclusively with mode `0600`; schema export and the diagnostic bundle publish through it on macOS. Schema export on Linux returns unsupported-platform after the same schema preparation, without resolving the file destination, generating a random temporary name or performing file operations.
 
 | Phase                                       | Result and ownership                                                                                               |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -2857,13 +2857,13 @@ Launch selections additionally cap worst-case JSON string-content bytes at 30 Ki
 
 ## Installed Agent detection manifests
 
-Windows `server agent-manifests` reads the running Session's installed rules, revision, engine version,
+Windows and macOS `server agent-manifests` reads the running Session's installed rules, revision, engine version,
 configuration root and each provider's actual source/version/path/cache/warnings. It also reports the
 frozen update catalog, source errors, last update facts and persisted-status errors.
 `server reload-agent-manifests` reloads the startup configuration root
 and existing status, resets screen stabilization and switches sampling and Explain together.
 `server update-agent-manifests` downloads validated rules through the
-Server's owned Windows curl worker, commits eligible cache versions and then activates the current
+Server's owned curl worker (the Windows curl, and `/usr/bin/curl` on macOS), commits eligible cache versions and then activates the current
 local/cache/bundled selection. Local overrides continue to take precedence. The catalog comes only
 from `ORCHBEE_AGENT_DETECTION_CATALOG_URL`; there is no default. Without it, or with an
 invalid value, Update is unavailable, no check runs, the remote cache is ignored and the catalog reads

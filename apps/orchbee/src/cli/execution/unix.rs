@@ -8,7 +8,8 @@
 //! download, `update` and the automatic helper. macOS admits `server stop`, Worktree operations
 //! and source queries, `project close-all`, the unified Agent projection with per-Client
 //! attention, Client control, configured commands, Panel graphics, the runtime status reads
-//! with the processes its managed Session reports, and the diagnostic bundle.
+//! with the processes its managed Session reports, the diagnostic bundle, schema export, the
+//! Agent detection rule commands and the outdated integration filter.
 //! Admission itself does not inspect environment or native state.
 use super::{Capability, Unsupported};
 
@@ -26,6 +27,9 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::RuntimeStatus
         | Capability::PaneGraphics
         | Capability::DiagnosticBundle
+        | Capability::SchemaPublication
+        | Capability::AgentManifests
+        | Capability::IntegrationOutdated
             if cfg!(target_os = "macos") =>
         {
             Ok(())

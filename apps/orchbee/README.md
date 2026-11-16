@@ -1018,9 +1018,9 @@ Windows CLI Panel/Tab/Workspace Close captures and settles every bound primary a
 
 Windows process tests execute the emitted completion in Git for Windows Bash, found relative to `git --exec-path`; that installed Bash is required for this witness. Conflicting flags are checked before and after their command verb without contacting a Session. PowerShell has a separate real-shell grammar witness.
 
-## Windows schema export
+## Schema export
 
-`api schema [<schema-id>] --output <path>` exports the embedded JSON document offline and also emits it on stdout. The destination parent must exist; a complete sibling file replaces an existing regular target. The [export contract](docs/native-cli-query.md#windows-offline-schema-export) owns failure stages, temporary cleanup and post-publication stdout failures. Catalog v68 contains 76 documents, including `orchbee.cli.failure.schema-export` v1.
+`api schema [<schema-id>] --output <path>` exports the embedded JSON document offline and also emits it on stdout. The destination parent must exist; a complete sibling file replaces an existing regular target. The [export contract](docs/native-cli-query.md#offline-schema-export) owns failure stages, temporary cleanup and post-publication stdout failures. Catalog v68 contains 76 documents, including `orchbee.cli.failure.schema-export` v1. It runs on Windows and macOS; Linux answers the typed unsupported-platform failure.
 
 ## Diagnostic bundle
 
@@ -1028,7 +1028,7 @@ Windows process tests execute the emitted completion in Git for Windows Bash, fo
 path the person chooses and creates nothing in the data root; nothing is uploaded. It runs offline,
 never starts a Session, is not release-withheld, and runs on Windows and macOS; Linux answers the
 typed unsupported-platform failure. Publication shares the
-[schema export](docs/native-cli-query.md#windows-offline-schema-export) steps with a
+[schema export](docs/native-cli-query.md#offline-schema-export) steps with a
 `.orchbee-diagnostics-<nonce>.tmp` sibling: the parent must exist and only a regular file is
 replaced. On macOS the bundle is created private to the user (mode `0600`). Until named Sessions
 run on macOS, its `sessions.json` carries the unsupported-platform answer of `session list`, and

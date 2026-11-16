@@ -7,7 +7,7 @@ and Devin (`devin`), and the Hermes session plugin (`hermes`), on macOS as on Wi
 document grammar, ownership proofs, byte-preserving edits and refusals are the ones the
 [Windows integration contract](windows-agent-integrations.md) describes; this page owns what
 differs on macOS: where each provider keeps its configuration, the hook command, and how a file
-is replaced.
+is replaced. `agent integration list --outdated-only` filters the same inspection as on Windows.
 
 Linux compiles the same adapter and locations, but they are not verified there, so these nine
 providers stay manual-only on Linux. Kilo stays manual-only on every platform but Windows.

@@ -6,7 +6,8 @@ use super::{Answer, Observation};
 use crate::{
     cli::{
         Failure, FailureKind,
-        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        command_interrupt::{ArmedSignals, Finish},
+        console_interrupt::SignalWatch,
         failure_output,
         operation::Probe,
         query,
