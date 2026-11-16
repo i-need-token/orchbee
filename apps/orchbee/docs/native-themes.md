@@ -17,8 +17,8 @@ paints. The first matching row wins:
 | Appearance is System and it has not settled          | Terminal colors                   |
 
 System takes the outer terminal's OSC 11 background. When the terminal does not answer before the
-probe deadline, it takes the operating system's appearance where an adapter exists (Windows
-today), as the GUI follows the operating system; a named theme paints its own canvas, so the
+probe deadline, it takes the operating system's appearance where an adapter exists (Windows,
+and macOS outside a remote login), as the GUI follows the operating system; a named theme paints its own canvas, so the
 terminal's unreported colors need not match it. A slot id this build does not ship, or one of
 the other polarity, paints that slot's Orchbee theme and keeps the stored id. Below truecolor the
 named themes are unavailable: a quantized canvas and ANSI palette would show a different theme, so

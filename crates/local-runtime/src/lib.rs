@@ -17,9 +17,11 @@ pub use plugins::{
     PluginRegistryEntry, PluginRegistryError, PluginRegistryMutation, PluginRegistryResult,
     plugin_git_reference, plugin_identifier,
 };
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod host_appearance;
 mod host_system;
+#[cfg(target_os = "macos")]
+pub use host_appearance::read_macos_dark_appearance;
 #[cfg(windows)]
 pub use host_appearance::read_windows_apps_use_light_theme;
 pub use host_system::WindowsVersion;

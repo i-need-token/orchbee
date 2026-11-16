@@ -87,7 +87,7 @@ impl Facts {
         let text = |name: &str| env(name).and_then(|value| value.into_string().ok());
         // A remote login's desktop belongs to another machine, so only X forwarding and the
         // outer terminal can reach the user's own screen.
-        let remote = set("SSH_CONNECTION") || set("SSH_CLIENT") || set("SSH_TTY");
+        let remote = remote_login(&env);
         let wayland = !macos && !remote && set("WAYLAND_DISPLAY");
         let x11 = !macos && set("DISPLAY");
         let term = text("TERM");
@@ -148,6 +148,13 @@ impl Facts {
             window_title,
         }
     }
+}
+
+/// A remote login: the outer terminal, its desktop and its appearance belong to another machine.
+pub(crate) fn remote_login(env: impl Fn(&str) -> Option<OsString>) -> bool {
+    ["SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"]
+        .into_iter()
+        .any(|name| env(name).is_some_and(|value| !value.is_empty()))
 }
 
 /// Terminals that apply an application's OSC 52 clipboard write under their default settings.

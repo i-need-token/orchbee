@@ -14,7 +14,17 @@ pub(crate) fn system_fallback() -> HostAppearance {
     {
         from_windows_apps_use_light_theme(orchbee_local_runtime::read_windows_apps_use_light_theme())
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        // A remote login's outer terminal shows another machine, which this Mac's setting does not
+        // describe.
+        from_macos_dark_appearance(
+            (!crate::host_capabilities::unix::remote_login(|name| std::env::var_os(name)))
+                .then(orchbee_local_runtime::read_macos_dark_appearance)
+                .flatten(),
+        )
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         HostAppearance::Unknown
     }
@@ -169,6 +179,16 @@ pub(crate) const fn from_windows_apps_use_light_theme(light: Option<bool>) -> Ho
     match light {
         Some(true) => HostAppearance::Light,
         Some(false) => HostAppearance::Dark,
+        None => HostAppearance::Unknown,
+    }
+}
+
+/// Maps the macOS appearance read; an unread appearance stays unknown.
+#[cfg(target_os = "macos")]
+const fn from_macos_dark_appearance(dark: Option<bool>) -> HostAppearance {
+    match dark {
+        Some(true) => HostAppearance::Dark,
+        Some(false) => HostAppearance::Light,
         None => HostAppearance::Unknown,
     }
 }

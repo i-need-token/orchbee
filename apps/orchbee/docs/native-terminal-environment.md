@@ -159,10 +159,13 @@ If no valid OSC `11` background arrives by the deadline, Windows uses its fallba
 `local-runtime` to read the current user's
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`.
 DWORD `1` means Light and `0` means Dark. Missing, unreadable, or non-boolean values stay Unknown;
-foreground-only, malformed, partial, or absent background replies all trigger this fallback. Other
-platforms stay Unknown when no valid background arrives. Late replies cannot revise the fallback.
-The registry read is one-shot and read-only. This appearance probe
-does not alter terminal colors, Windows personalization, launched-pane query defaults, or the
+foreground-only, malformed, partial, or absent background replies all trigger this fallback. macOS
+uses its own fallback at the same point outside a remote login: one bounded
+`defaults read -g AppleInterfaceStyle` (see `local-runtime`), where `Dark` means Dark, an absent key
+means Light, and any other answer stays Unknown. A remote macOS login and Linux stay Unknown when no
+valid background arrives. Late replies cannot revise the fallback.
+Each system read is one-shot and read-only. This appearance probe
+does not alter terminal colors, Windows personalization or macOS appearance, launched-pane query defaults, or the
 terminal mode set, and needs no cleanup beyond the normal lifecycle restoration.
 
 ## Viewport observation

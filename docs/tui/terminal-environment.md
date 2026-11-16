@@ -111,19 +111,19 @@ enabling.
 
 ## Capability detection
 
-| Capability           | Source                                                                                                                                                                  | Unknown means                                     |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Color level          | `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, `TERM`, and terminfo in that precedence; documented vendor fallback without explicit descriptors or a multiplexer               | 16 colors                                         |
-| Default colors       | One ordered OSC `10`/`11` query; classify a valid OSC `11` background; on Windows only, use `AppsUseLightTheme` if no valid OSC `11` background arrives by the deadline | Appearance unknown; System uses `terminal-native` |
-| Appearance changes   | DEC `2031` reports, accepted only after a successful appearance query                                                                                                   | No live theme switching                           |
-| Keyboard enhancement | The keyboard-protocol capability query with a bounded reply deadline                                                                                                    | Legacy decoding only                              |
-| Pointer any-motion   | Explicit host or adapter capability result, a product-owned platform contract with maintained conformance evidence, or an explicit supported user choice                | DEC `1002` + `1006` outside scoped menus          |
-| UTF-8                | `LC_ALL`, `LC_CTYPE`, `LANG` in that precedence                                                                                                                         | ASCII glyph fallbacks                             |
-| Multiplexer          | `TMUX`, `ZELLIJ`, and `STY` presence                                                                                                                                    | Not inside a multiplexer                          |
-| Terminal name        | `TERM_PROGRAM` and vendor variables                                                                                                                                     | No vendor-specific workaround applied             |
-| Remote login         | `SSH_CONNECTION`, `SSH_CLIENT`, and `SSH_TTY` presence                                                                                                                  | Local session                                     |
-| Desktop session      | `WAYLAND_DISPLAY` and `DISPLAY` on Linux; macOS outside a remote login                                                                                                  | No desktop                                        |
-| Host-effect programs | Fixed system paths on macOS; absolute `PATH` entries on Linux, never relative ones                                                                                      | Program absent                                    |
+| Capability           | Source                                                                                                                                                                                              | Unknown means                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Color level          | `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, `TERM`, and terminfo in that precedence; documented vendor fallback without explicit descriptors or a multiplexer                                           | 16 colors                                         |
+| Default colors       | One ordered OSC `10`/`11` query; classify a valid OSC `11` background; if none arrives by the deadline, use `AppsUseLightTheme` on Windows or `AppleInterfaceStyle` on macOS outside a remote login | Appearance unknown; System uses `terminal-native` |
+| Appearance changes   | DEC `2031` reports, accepted only after a successful appearance query                                                                                                                               | No live theme switching                           |
+| Keyboard enhancement | The keyboard-protocol capability query with a bounded reply deadline                                                                                                                                | Legacy decoding only                              |
+| Pointer any-motion   | Explicit host or adapter capability result, a product-owned platform contract with maintained conformance evidence, or an explicit supported user choice                                            | DEC `1002` + `1006` outside scoped menus          |
+| UTF-8                | `LC_ALL`, `LC_CTYPE`, `LANG` in that precedence                                                                                                                                                     | ASCII glyph fallbacks                             |
+| Multiplexer          | `TMUX`, `ZELLIJ`, and `STY` presence                                                                                                                                                                | Not inside a multiplexer                          |
+| Terminal name        | `TERM_PROGRAM` and vendor variables                                                                                                                                                                 | No vendor-specific workaround applied             |
+| Remote login         | `SSH_CONNECTION`, `SSH_CLIENT`, and `SSH_TTY` presence                                                                                                                                              | Local session                                     |
+| Desktop session      | `WAYLAND_DISPLAY` and `DISPLAY` on Linux; macOS outside a remote login                                                                                                                              | No desktop                                        |
+| Host-effect programs | Fixed system paths on macOS; absolute `PATH` entries on Linux, never relative ones                                                                                                                  | Program absent                                    |
 
 - Every query has a deadline that fits inside the Client's startup budget. A late reply is
   discarded, never applied.
@@ -131,14 +131,16 @@ enabling.
   not wait for the 350 ms appearance deadline to draw. A valid OSC `11` background determines Light
   or Dark; the foreground reply is consumed but does not classify appearance. At the deadline,
   Windows reads the current user's `AppsUseLightTheme` registry value if no valid OSC `11` background
-  arrived, including when the reply is foreground-only, malformed, partial, or absent. Other
-  platforms settle Unknown when no valid background arrived.
+  arrived, including when the reply is foreground-only, malformed, partial, or absent. macOS reads
+  the current user's `AppleInterfaceStyle` the same way, except in a remote login, whose outer
+  terminal shows another machine. Other platforms, a remote macOS login and an unreadable system
+  value settle Unknown when no valid background arrived.
 - Both ordinary and modal decoders consume recognized OSC `10`/`11` reply strings. Payloads are
   bounded; malformed and oversized replies do not classify appearance. An incomplete targeted
   frame drains for at most 98 bytes, 50 ms without input, or one second total, then ordinary input
   resumes because an unframed late tail is indistinguishable from new typing. Late framed replies
-  cannot change the settled appearance. At the deadline Windows uses its registry fallback if no
-  valid background arrived, while other platforms settle Unknown.
+  cannot change the settled appearance. At the deadline Windows and macOS use their system
+  fallback if no valid background arrived, while other platforms settle Unknown.
 - Queries are issued and their replies consumed before ordinary key dispatch begins, or the decoder
   recognizes and removes reply sequences so they never reach a pane as typed input.
 - Inside a multiplexer the multiplexer answers queries about itself. Treat its answers as the host

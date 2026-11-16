@@ -67,7 +67,16 @@ and global sound policy, including the values the common setting keys set.
 It returns `Some(true)` or `Some(false)` only for the documented `REG_DWORD` values `1` and `0`;
 missing, unreadable, and other values return `None`. The Client invokes this once only when its
 native terminal OSC `10`/`11` probe has no valid OSC `11` background by the deadline. The Worker
-invokes it for a Host-default launch before any Client has reported `host-colors`. Each
+invokes it for a Host-default launch before any Client has reported `host-colors`.
+
+## macOS host appearance fallback
+
+`read_macos_dark_appearance` reads `AppleInterfaceStyle` from the global preferences domain through
+one `/usr/bin/defaults read -g AppleInterfaceStyle` child under a 300 ms deadline, without changing
+any setting. The key names `Dark` while the system appears dark, under the automatic appearance
+too, and is absent while it appears light. Exit status 0 with `Dark` returns `Some(true)`; status 1
+with the absent-pair message returns `Some(false)`; every other answer, a timeout or a failed
+start returns `None`. The Client invokes it once, at the same point as the Windows fallback. Each
 caller owns its precedence; this runtime helper changes no Windows setting and reads no other theme
 state.
 
