@@ -79,7 +79,12 @@ both enable and disable refuse them; see the writer's
 ## Evidence
 
 Unit tests run the shared grammar, launcher round trip and byte-preserving edits on macOS. Real
-`enable`, `explain` and `disable` runs of a staged cohort in a scratch HOME on macOS 14 cover each
-provider's written files and the exact undo. A provider whose CLI is absent reports not installed,
-and Hermes's activation is checked only when its CLI is present. Real hook execution by each Agent,
-delivery to the Server and authenticated Agent sessions are not established.
+`explain`, `enable`, repeated `enable` and `disable` runs of a staged cohort in a scratch HOME on
+macOS 14 cover every provider. A user's existing file keeps its bytes outside Orchbee's entries
+and its permission bits, and disable returns it byte for byte; a file enable created keeps an empty
+object after disable. A malformed or linked configuration file is refused and left as it is, and
+each written command runs under `/bin/sh` and `/bin/zsh` with the expected output. Without the
+Agent's program on PATH, enable refuses with `agent-unavailable`. Those runs stood in for the
+absent Agent programs, and for Hermes's plugin commands, with stand-in executables. Real hook
+execution by each Agent, Hermes's own activation, delivery to the Server and authenticated Agent
+sessions are not established.
