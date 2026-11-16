@@ -12,11 +12,22 @@ impl Root {
     pub(crate) fn new() -> Self {
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
-        let root = Self(std::env::temp_dir().join(format!(
+        // The product reaches its data root through the canonical path, and the private cache
+        // refuses links and shared folders; macOS's temporary folder sits behind /var.
+        #[cfg(unix)]
+        let parent = std::env::temp_dir().canonicalize().unwrap();
+        #[cfg(windows)]
+        let parent = std::env::temp_dir();
+        let root = Self(parent.join(format!(
             "orchbee-agent-updates-{:032x}",
             u128::from_le_bytes(nonce)
         )));
         fs::create_dir(&root.0).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&root.0, fs::Permissions::from_mode(0o700)).unwrap();
+        }
         root
     }
 }
