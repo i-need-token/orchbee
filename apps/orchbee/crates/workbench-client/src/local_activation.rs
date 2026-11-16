@@ -5,16 +5,30 @@
 //! lock/marker/spawn order is identical for both callers; only the failure
 //! projection differs. On Windows a release or test Client outside the
 //! release store first hands a start to the store's active version (see
-//! `store_start`), then runs this same sequence to join.
+//! `store_start`), then runs this same sequence to join. A Session whose Server
+//! is ending by a stop is waited out without the activation lock, and the whole
+//! sequence, the store's start included, then runs again, so a Client opened
+//! during a stop starts the next Session instead of failing.
 
 use crate::local_client::{CLIENT_VERSION, LocalClient, LocalClientConnectError, client_offer};
 use crate::startup_status::RefusedVersions;
 use orchbee_connection_handshake::RejectionReason as Refusal;
-use orchbee_local_client_protocol::{ConnectClientError, unix_socket_path_fits};
+use orchbee_local_client_protocol::{
+    ConnectClientError, RejectionReason as ClientRejection, unix_socket_path_fits,
+};
 use orchbee_local_runtime::{
     Cohort, CohortArtifact, LockAttempt, ModeCheckedLocalSessionRendezvous, SessionScope,
 };
-use std::{io, path::PathBuf, thread, time::Instant};
+use std::{
+    io,
+    path::PathBuf,
+    thread,
+    time::{Duration, Instant},
+};
+
+/// How long an activation that met a Server ending by a stop waits before it looks again. The stop
+/// refuses every look until it ends, so a shorter pause would only add work to the ending Server.
+const STOPPING_PAUSE: Duration = Duration::from_millis(100);
 
 mod fallback;
 mod restore_feedback;
@@ -239,71 +253,102 @@ fn activate(
     let scope = SessionScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
-    // A start the store's Client takes runs before the catalog lock, which that Client's own
-    // activation takes in turn; this activation then joins its Session as any other.
-    #[cfg(windows)]
-    let started_by_store = store_start::start_if_absent(
-        &base,
-        &scope_text,
-        explicit,
-        &cohort.executable(CohortArtifact::Client),
-        deadline,
-    )?;
-    // Every Session is one catalog entry, named by its folders.
-    let catalog = {
-        let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
-            .map_err(|_| runtime_location_failure(io::ErrorKind::NotFound.into()))?;
-        let catalog = loop {
-            check_deadline(deadline)?;
-            match orchbee_local_runtime::SessionCatalog::try_lock(&base, &root) {
-                Ok(owner) => break owner,
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => pause(deadline)?,
-                Err(error) => return Err(runtime_location_failure(error)),
+    // Each pass ends joined, failed, or at a Server ending by a stop, which the next pass outlasts.
+    loop {
+        // A start the store's Client takes runs before the catalog lock, which that Client's own
+        // activation takes in turn; this activation then joins its Session as any other.
+        #[cfg(windows)]
+        let started_by_store = store_start::start_if_absent(
+            &base,
+            &scope_text,
+            explicit,
+            &cohort.executable(CohortArtifact::Client),
+            deadline,
+        )?;
+        // Every Session is one catalog entry, named by its folders.
+        let catalog = {
+            let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+                .map_err(|_| runtime_location_failure(io::ErrorKind::NotFound.into()))?;
+            let catalog = loop {
+                check_deadline(deadline)?;
+                match orchbee_local_runtime::SessionCatalog::try_lock(&base, &root) {
+                    Ok(owner) => break owner,
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => pause(deadline)?,
+                    Err(error) => return Err(runtime_location_failure(error)),
+                }
+            };
+            catalog.prepare_activation(name).map_err(recovery_failure)?;
+            catalog
+        };
+        let session = ModeCheckedLocalSessionRendezvous::prepare_mode_checked(&base, scope.clone())
+            .map_err(|error| {
+                ActivationFailure::caused(
+                    runtime_verdict(error.refusal()),
+                    ActivationCause::Rendezvous(error, scope_directory.clone()),
+                )
+            })?;
+        // Every endpoint a Session derives that cannot fit this platform's socket
+        // address ABI can never bind or connect; report the derived-path budget
+        // before any admission attempt collapses it into a generic refusal.
+        if !ModeCheckedLocalSessionRendezvous::socket_budget_paths(session.runtime_directory())
+            .iter()
+            .all(|path| unix_socket_path_fits(path))
+        {
+            return Err(ActivationFailure::bare(StartupFailure::SocketPathTooLong));
+        }
+        let (client, spawned) = match connect_or_activate(
+            &session,
+            &cohort,
+            deadline,
+            &catalog,
+            #[cfg(windows)]
+            server_job,
+        )? {
+            Activated::Joined(client, spawned) => (client, spawned),
+            // The catalog and the Session's folder handles go too, and the next pass starts with
+            // the store's start, so the next Session runs the store's active version.
+            Activated::Stopping => {
+                drop((catalog, session));
+                wait(deadline, STOPPING_PAUSE)?;
+                continue;
             }
         };
-        catalog.prepare_activation(name).map_err(recovery_failure)?;
-        catalog
-    };
-    let session =
-        ModeCheckedLocalSessionRendezvous::prepare_mode_checked(&base, scope).map_err(|error| {
-            ActivationFailure::caused(
-                runtime_verdict(error.refusal()),
-                ActivationCause::Rendezvous(error, scope_directory),
-            )
-        })?;
-    // Every endpoint a Session derives that cannot fit this platform's socket
-    // address ABI can never bind or connect; report the derived-path budget
-    // before any admission attempt collapses it into a generic refusal.
-    if !ModeCheckedLocalSessionRendezvous::socket_budget_paths(session.runtime_directory())
-        .iter()
-        .all(|path| unix_socket_path_fits(path))
-    {
-        return Err(ActivationFailure::bare(StartupFailure::SocketPathTooLong));
-    }
-    let (client, spawned) = connect_or_activate(
-        &session,
-        &cohort,
-        deadline,
-        &catalog,
         #[cfg(windows)]
-        server_job,
-    )?;
-    #[cfg(windows)]
-    let spawned = spawned || started_by_store;
-    // Reading the notice leaves it in place, so a Client that joins a Session the store's Client
-    // started reads the same notice that Client reported.
-    let restore_notice = match restore_feedback::read(&session) {
-        Ok(notice) => notice.map_err(runtime_failure)?,
-        Err(restore_feedback::Unsupported) => None,
-    };
-    Ok(StartedSession {
-        client,
-        spawned,
-        scope: scope_text,
-        runtime_base: base,
-        runtime_directory: session.runtime_directory().to_owned(),
-        restore_notice,
-    })
+        let spawned = spawned || started_by_store;
+        // Reading the notice leaves it in place, so a Client that joins a Session the store's Client
+        // started reads the same notice that Client reported.
+        let restore_notice = match restore_feedback::read(&session) {
+            Ok(notice) => notice.map_err(runtime_failure)?,
+            Err(restore_feedback::Unsupported) => None,
+        };
+        return Ok(StartedSession {
+            client,
+            spawned,
+            scope: scope_text,
+            runtime_base: base,
+            runtime_directory: session.runtime_directory().to_owned(),
+            restore_notice,
+        });
+    }
+}
+
+/// How one pass of [`connect_or_activate`] ended.
+enum Activated {
+    /// An admitted Client, and whether this pass spawned the Server.
+    Joined(LocalClient, bool),
+    /// A Server this pass did not start is ending by a stop; the pass let go of the activation
+    /// lock so the stop can complete.
+    Stopping,
+}
+
+/// What one connection attempt reached.
+enum Reached {
+    Client(LocalClient),
+    /// No Server listens.
+    Absent,
+    /// A Server listens but is ending: a recorded Session stop refuses every Client until the
+    /// Server exits, and an exiting Server refuses every offer.
+    Stopping,
 }
 
 fn connect_or_activate(
@@ -312,11 +357,13 @@ fn connect_or_activate(
     deadline: Instant,
     catalog: &orchbee_local_runtime::SessionCatalog,
     #[cfg(windows)] server_job: ServerJob,
-) -> Result<(LocalClient, bool), ActivationFailure> {
+) -> Result<Activated, ActivationFailure> {
     loop {
         check_deadline(deadline)?;
-        if let Some(client) = connect(session, cohort, deadline)? {
-            return Ok((client, false));
+        match connect(session, cohort, deadline)? {
+            Reached::Client(client) => return Ok(Activated::Joined(client, false)),
+            Reached::Stopping => return Ok(Activated::Stopping),
+            Reached::Absent => {}
         }
         let _activation = match session
             .try_acquire_activation_lock()
@@ -328,8 +375,12 @@ fn connect_or_activate(
                 continue;
             }
         };
-        if let Some(client) = connect(session, cohort, deadline)? {
-            return Ok((client, false));
+        // A stopping Server takes the activation lock to complete its stop, so this pass never
+        // waits for one while holding it.
+        match connect(session, cohort, deadline)? {
+            Reached::Client(client) => return Ok(Activated::Joined(client, false)),
+            Reached::Stopping => return Ok(Activated::Stopping),
+            Reached::Absent => {}
         }
         // The generation this attempt publishes, whose failure to start the fallback counts.
         let mut generation = None;
@@ -461,8 +512,14 @@ fn connect_or_activate(
         };
         loop {
             check_deadline(deadline)?;
-            if let Some(client) = connect(session, cohort, deadline)? {
-                return Ok((client, child.is_some()));
+            match connect(session, cohort, deadline)? {
+                Reached::Client(client) => {
+                    return Ok(Activated::Joined(client, child.is_some()));
+                }
+                // The stop of a Server this pass did not start needs the activation lock to
+                // complete, so the pass lets go of it and starts again.
+                Reached::Stopping if child.is_none() => return Ok(Activated::Stopping),
+                Reached::Stopping | Reached::Absent => {}
             }
             if let Some(child) = child.as_mut() {
                 if child
@@ -580,11 +637,11 @@ fn connect(
     session: &ModeCheckedLocalSessionRendezvous,
     cohort: &Cohort,
     deadline: Instant,
-) -> Result<Option<LocalClient>, ActivationFailure> {
+) -> Result<Reached, ActivationFailure> {
     session.client_socket_exists().map_err(runtime_failure)?;
     let offer = client_offer(Some(cohort.identity()));
     match LocalClient::connect_before(session.client_socket_path(), &offer, deadline) {
-        Ok(client) => Ok(Some(client)),
+        Ok(client) => Ok(Reached::Client(client)),
         Err(error) => {
             // An absent or refusing socket inside the activation loop is
             // retryable; every other connect failure surfaces verbatim.
@@ -595,7 +652,12 @@ fn connect(
                     io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
                 )
             {
-                return Ok(None);
+                return Ok(Reached::Absent);
+            }
+            if let LocalClientConnectError::Admission(admission) = &error
+                && stopping(admission)
+            {
+                return Ok(Reached::Stopping);
             }
             let failure = match &error {
                 LocalClientConnectError::Admission(error) => match refusal(error) {
@@ -609,6 +671,16 @@ fn connect(
                 ActivationCause::Connect(error),
             ))
         }
+    }
+}
+
+/// Whether the Server refused because it is ending: a recorded Session stop refuses the Client phase
+/// and an exiting Server refuses the offer, both with `stopping`.
+fn stopping(error: &ConnectClientError) -> bool {
+    match error {
+        ConnectClientError::Rejected(reason) => *reason == ClientRejection::Stopping,
+        ConnectClientError::Refused(rejection) => rejection.reason == Refusal::Stopping,
+        _ => false,
     }
 }
 
@@ -711,11 +783,13 @@ pub fn check_deadline(deadline: Instant) -> Result<(), ActivationFailure> {
 }
 
 pub fn pause(deadline: Instant) -> Result<(), ActivationFailure> {
+    wait(deadline, Duration::from_millis(10))
+}
+
+/// Sleeps `duration`, or until `deadline` when that comes first.
+fn wait(deadline: Instant, duration: Duration) -> Result<(), ActivationFailure> {
     check_deadline(deadline)?;
-    thread::sleep(
-        std::time::Duration::from_millis(10)
-            .min(deadline.saturating_duration_since(Instant::now())),
-    );
+    thread::sleep(duration.min(deadline.saturating_duration_since(Instant::now())));
     Ok(())
 }
 
