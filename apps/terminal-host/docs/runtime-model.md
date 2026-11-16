@@ -655,7 +655,12 @@ because XNU may drain the process reference before the child becomes waitable. W
 successful registration, the worker also performs a non-reaping observation at a bounded interval
 so a child cannot leave it waiting forever when XNU loses `NOTE_EXIT` across a process-reference
 drain race. An audit timeout closes that kqueue before the observation, allowing its process
-reference to drain; a child that is still running is registered again. A transient
+reference to drain; a child that is still running is registered again. A poll that ends without a
+waitable status registers again too, after a witnessed exit as after an audit: under load a dying
+child can take longer than the poll to become waitable, and only a waitable status is completion.
+Giving up there would leave the exit unobserved and the leader unreleasable, so poll exhaustion is
+never an observation failure; registration answers `ESRCH` for a child that is still draining and
+the poll repeats. A transient
 `CLD_STOPPED` can never become child completion. Observation failure is a typed runtime failure,
 never a fallback that reaps the leader before containment. Final identity release uses
 `waitpid(WNOHANG)`. Without a prior exact exit observation, `EAGAIN` returns immediately and the
