@@ -301,6 +301,12 @@ fn encode(presentation: &TerminalPresentationId, saved_at: u64, content: &[u8]) 
     payload
 }
 
+/// Whether this build reads `payload` as kept output, the check the store's restore after a
+/// fallback applies.
+pub(crate) fn readable(payload: &[u8]) -> bool {
+    decode(payload).is_some()
+}
+
 fn decode(payload: &[u8]) -> Option<(&str, u64, &[u8])> {
     let rest = payload.strip_prefix(MAGIC)?;
     let end = rest.iter().position(|byte| *byte == b'\n')?;

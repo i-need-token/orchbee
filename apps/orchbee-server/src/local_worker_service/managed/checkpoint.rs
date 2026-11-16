@@ -110,6 +110,12 @@ fn load_from(
     // Direct Server entry must also refuse unsupported catalog versions before store effects.
     let record = RetainedSessionRecord::retain(root, session)?;
     let store = SessionStore::open(root, session, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES)?;
+    // After a fallback, what the held version migrated comes back before anything reads it.
+    store.restore_after_fallback(
+        root,
+        |bytes| WorkbenchCheckpoint::parse(bytes).is_ok(),
+        crate::terminal_output::readable,
+    );
     let loaded = store.read_validated(|bytes| WorkbenchCheckpoint::parse(bytes).ok())?;
     let suppress_initial_empty = loaded.checkpoint.is_none()
         && loaded.notice == Some(orchbee_local_runtime::CheckpointRestoreNotice::Empty);

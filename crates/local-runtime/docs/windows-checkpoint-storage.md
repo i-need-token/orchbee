@@ -46,7 +46,11 @@ distinct from invalid files. Permission, identity, reparse and filesystem errors
 they never become an empty workspace. Every payload validation failure, including an unsupported
 version or old shape, invalidates that copy and uses ordinary fallback/empty restoration. Loading
 keeps committed bytes unchanged; publication archives an invalid original before replacement.
-Pending bytes are not a committed slot.
+Pending bytes are not a committed slot. The one exception comes before loading: after a
+[fallback](../README.md#persisted-data-versions), the Server puts back each slot and kept output
+file it cannot use from the copy a held version's upgrade backup keeps, so the Session opens as it
+was before the failed version migrated it; a replaced slot is preserved as a corrupt original
+first.
 
 The newest valid generation wins. Conflicting payloads with the same generation are invalid;
 identical duplicate copies do not invent a different generation. If invalid copies are present,

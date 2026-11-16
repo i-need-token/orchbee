@@ -300,8 +300,9 @@ veto). Every other row applies from the first public release:
     over. With no copy left the record stays as above, and so does a record whose writer lock is
     busy at that open. Copies stay in place, and each restore is logged as `record-restored`.
   - Only the process that migrates a record restores it: the TUI restores `tui-position.json`, and
-    the Server that holds the Session store restores its checkpoint slots, restore notice, earlier
-    layouts, and kept terminal output. Records that two installed versions read at once change only
+    the Server that holds the Session store restores its checkpoint slots and kept terminal output,
+    each file that version cannot use, before it loads them. The restore notice needs none, since
+    every Server start writes its own, and nothing reads earlier layouts. Records that two installed versions read at once change only
     by message evolution and take no step, so none needs a restore: restoring `session.json` could
     hide a running generation, and a newer one would keep the previous version from starting the
     Session. Raising the version of any of them needs its own decision.

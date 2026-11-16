@@ -12,6 +12,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod restore;
 mod terminal_output;
 
 /// Visible startup recovery facts; filesystem admission errors never become an empty fallback.

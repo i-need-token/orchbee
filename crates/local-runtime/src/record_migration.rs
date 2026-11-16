@@ -299,19 +299,32 @@ fn restore_from_held(
     held: &[String],
     admits: impl Fn(&[u8]) -> bool,
 ) -> Option<Vec<u8>> {
+    held_copy(root, path, held, backup::INSPECTED_LIMIT, |bytes| {
+        open_record(record, bytes, &admits) == RecordOpening::Current
+    })
+}
+
+/// The first unnumbered copy of the file at `path` that `usable` accepts, read at most `maximum`
+/// bytes from its path relative to `root` in the upgrade folders of `held`: the versions in the
+/// order given, and each version's folders newest date first. A copy that cannot be read is passed
+/// over. Every restore after a fallback takes its copy here.
+pub(crate) fn held_copy(
+    root: &DataRoot,
+    path: &Path,
+    held: &[String],
+    maximum: usize,
+    mut usable: impl FnMut(&[u8]) -> bool,
+) -> Option<Vec<u8>> {
     let relative = path.strip_prefix(root.path()).ok()?;
     let backups = root.backups();
     held.iter()
         .flat_map(|version| backup::upgrade_folders_of(&backups, version))
         .find_map(|folder| {
             let copy = folder.join(relative);
-            let bytes = PrivateCache::read_existing(
-                copy.parent()?,
-                copy.file_name()?.to_str()?,
-                backup::INSPECTED_LIMIT,
-            )
-            .ok()??;
-            (open_record(record, &bytes, &admits) == RecordOpening::Current).then_some(bytes)
+            let bytes =
+                PrivateCache::read_existing(copy.parent()?, copy.file_name()?.to_str()?, maximum)
+                    .ok()??;
+            usable(&bytes).then_some(bytes)
         })
 }
 

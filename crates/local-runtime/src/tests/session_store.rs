@@ -395,3 +395,69 @@ fn redirected_state_directory_is_refused_before_writing_any_checkpoint() {
     assert!(result.is_err());
     assert_eq!(fs::read_dir(target).unwrap().count(), 0);
 }
+
+#[test]
+fn a_fallback_restores_only_what_a_held_version_migrated() {
+    let fixture = Fixture::new();
+    let session = fixture.open("fallback-restore");
+    let root = fixture.root();
+    let mut store = SessionStore::open(&root, &session, 64).unwrap();
+    // Publication fills the missing slots in order.
+    for payload in [b"first".as_slice(), b"second", b"third"] {
+        store.publish(payload).unwrap();
+    }
+    store.write_terminal_output(7, b"kept").unwrap();
+    let state = directory(&fixture, &session);
+    let output = state.join("terminal-output").join("7.bin");
+    let originals = [
+        "checkpoint.json",
+        "checkpoint.previous-1.json",
+        "checkpoint.previous-2.json",
+    ]
+    .map(|name| fs::read(state.join(name)).unwrap());
+    let kept = fs::read(&output).unwrap();
+    // The held version backed up the second slot and the kept output before it migrated them, and
+    // wrote the third slot without a copy. The first slot it never touched, so a copy there that
+    // differs stays unused.
+    let folder =
+        crate::record_migration::upgrade_folder(&root.backups(), "2026-11-16", "0.2.0").unwrap();
+    let copies = folder.join("sessions").join(state.file_name().unwrap());
+    crate::data_root::create_state_directory(&copies.join("terminal-output")).unwrap();
+    write_private(copies.join("checkpoint.previous-1.json"), &originals[1]).unwrap();
+    write_private(copies.join("terminal-output").join("7.bin"), &kept).unwrap();
+    write_private(copies.join("checkpoint.json"), &originals[2]).unwrap();
+    let newer = b"OBCK\x02 a format this build cannot read".to_vec();
+    for path in [
+        state.join("checkpoint.previous-1.json"),
+        state.join("checkpoint.previous-2.json"),
+        output.clone(),
+    ] {
+        write_private(path, &newer).unwrap();
+    }
+    store.restore_from(&root, &["0.2.0".to_owned()], |_| true, |_| true);
+    assert_eq!(
+        fs::read(state.join("checkpoint.json")).unwrap(),
+        originals[0]
+    );
+    assert_eq!(
+        fs::read(state.join("checkpoint.previous-1.json")).unwrap(),
+        originals[1]
+    );
+    assert_eq!(
+        fs::read(state.join("checkpoint.previous-2.json")).unwrap(),
+        newer
+    );
+    assert_eq!(store.read().unwrap(), Some(b"second".to_vec()));
+    assert_eq!(
+        store.read_terminal_output(7).unwrap(),
+        Some(b"kept".to_vec())
+    );
+    // The replaced slot stays as a corrupt original, as publication keeps one.
+    let archived: Vec<_> = fs::read_dir(&state)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "raw"))
+        .collect();
+    assert_eq!(archived.len(), 1);
+    assert_eq!(fs::read(&archived[0]).unwrap(), newer);
+}

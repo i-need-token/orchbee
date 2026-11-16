@@ -361,7 +361,14 @@ version it replaced; the copy stays in place. Without such a copy, or when the r
 the record stays as a newer record does. The store is read only for a record in a newer format.
 `session.json` is never restored, since two installed versions read it at once, and a reader
 restores nothing: `VersionedFile::read` and `open_to_read` leave the record to its writer's next
-opening.
+opening. The Server restores the checkpoint slots and kept terminal output the same way when it
+opens the Session store, before it loads them: `SessionStore::restore_after_fallback` puts back
+each slot or output file that this build cannot use, judged by the frame and the Server's payload
+check, from the held copy at its path that this build can use, and logs `record-restored` with the
+record and file. A slot it replaces moves aside as a corrupt original first, as publication keeps
+one. A file the held version created has no copy and stays, and loading treats it as any invalid
+copy. The restore notice needs no restore, since every Server start writes its own, and nothing
+reads the `layouts` folder.
 
 | Record                            | Version and extension object | While its version is one this build cannot use                                                          |
 | --------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
