@@ -55,7 +55,11 @@ pub(super) fn run(stop: &Stop) -> Outcome {
 fn exchange(client: &Path, stop: &Stop) -> Option<CommandOutput> {
     let system = winsafe::GetSystemDirectory().ok()?;
     let mut command = Command::new(client);
-    command.arg(AUTOMATIC_UPDATE_HELPER).current_dir(system);
+    // A Server started by an announced TUI inherits its launcher's relaunch variable.
+    command
+        .arg(AUTOMATIC_UPDATE_HELPER)
+        .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
+        .current_dir(system);
     Some(orchbee_local_runtime::run_background_command_exchange(
         command,
         OUTPUT_LIMIT,

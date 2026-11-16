@@ -52,8 +52,10 @@ as above and sets no variable. The npm launcher follows the same rule on Windows
   `1`, so it never sends the person back a version.
 - The Client keeps the variable from every process it starts where its spawner can: on Unix, and
   for the store Client's `server start`. A Windows Server started directly inherits it, because the
-  safe process creation this repository uses cannot pass a changed environment; the parent check
-  keeps that copy inert.
+  safe process creation this repository uses cannot pass a changed environment, and so do its
+  Worker and Terminal Host; the parent check keeps those copies inert. No program they start for
+  the person receives it: every terminal's launch environment removes it, and so do configured
+  commands, plugin jobs, and the automatic update helper.
 - After every start, the first one or a relaunch, the launcher tells a failed start or join from a
   normal exit by status alone: no process started, status `76`, Rust's panic status `101`, or an
   error-severity `NTSTATUS` other than `STATUS_CONTROL_C_EXIT` is a failure; every other status,

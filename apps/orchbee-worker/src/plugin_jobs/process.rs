@@ -71,6 +71,8 @@ pub(super) fn clear_context(command: &mut Command) {
         "ORCHBEE_PANEL_ID",
         "ORCHBEE_TERMINAL_ID",
         "ORCHBEE_WORKER_ID",
+        // A Server started by an announced TUI inherits its launcher's relaunch variable.
+        orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE,
     ] {
         command.env_remove(name);
     }
