@@ -8,9 +8,9 @@
 //
 // `collect` runs on Windows or macOS and reads what `pnpm desktop:installer:<profile>` (on macOS,
 // `apps/desktop/scripts/package.mjs --installer`) left under apps/desktop/out/<profile>/: the
-// packaged application, with its window file list on Windows, its bundled runtime, which that build
-// made a signed release directory, and the installer. `<platform>` is the signed manifest's. It
-// writes, without signing the release directory again:
+// packaged application with its window file list (on macOS beside the bundle), its bundled runtime,
+// which that build made a signed release directory, and the installer. `<platform>` is the signed
+// manifest's. It writes, without signing the release directory again:
 //
 //   <stem>-<version>-<platform>/   the signed release directory, every file checked against release.json
 //   <stem>-<version>-<platform>.zip  Windows: that directory as one top-level folder, for the command
@@ -18,11 +18,12 @@
 //   <stem>-<version>-<platform>.tar.gz  macOS: the same as a tar.gz (scripts/tar-gzip.mjs); the
 //                                  programs release.json names record mode 0755, whatever the copy
 //                                  on disk says, since `upload-artifact` drops modes
-//   <stem>-desktop-<version>-<platform>.zip  Windows: the packaged application, `desktop-files.json`
-//                                  included, as one top-level folder of that name: the window
-//                                  archive (scripts/desktop-files.mjs)
+//   <stem>-desktop-<version>-<platform>.zip  the window archive (scripts/desktop-files.mjs): one
+//                                  top-level folder of that name holding the packaged application
+//                                  and its `desktop-files.json`; on macOS just the list and the
+//                                  signed bundle, links and modes kept
 //   <stem>-<version>-<platform>.feed.json  the update feed document naming the runtime archive and,
-//                                  on Windows, in `extensions.desktop`, the window archive
+//                                  in `extensions.desktop`, the window archive
 //                                  (scripts/release-feed.mjs)
 //   <stem>-<version>-<platform>.feed.json.sig  test profile only: its signature with the test key;
 //                                  the release path's feed job signs with the release key
@@ -41,8 +42,8 @@
 // reader's rules and matches its archive and release directory. A feed's `extensions.desktop`
 // must name the window archive of the feed's version beside it, by the same kind of address as the
 // runtime archive, and that archive must hold one top-level folder whose list matches the entry's
-// digest and names exactly the folder's other files, the bundled `release.json` being the feed's
-// own. A feed signature, which SHA256SUMS
+// digest and names exactly the folder's other files (on macOS also its links and execute bits), the
+// bundled `release.json` being the feed's own. A feed signature, which SHA256SUMS
 // does not list, must verify with a key of the build's table: RELEASE_KEYS for the release stem,
 // TEST_KEYS otherwise. The release gate's copy of the feed, `<...>.gate.feed.json` with its `.sig`,
 // placed beside the archive after the feed job, is not listed either: it must carry its signature
@@ -159,12 +160,12 @@ function manifestVersion(directory) {
  * The bytes of the window list apps/desktop/scripts/package.mjs wrote into the packaged
  * application, after checking it names `version`; the archive check confirms it against the files.
  */
-function readWindowList(application, version) {
+function readWindowList(application, version, macos) {
 	const filename = path.join(application, DESKTOP_FILES);
 	if (!existsSync(filename))
 		throw new Error(`${application} holds no ${DESKTOP_FILES}; package it again on this commit`);
 	const bytes = readFileSync(filename);
-	const { list, problems } = readDesktopFiles(bytes);
+	const { list, problems } = readDesktopFiles(bytes, { macos });
 	if (problems.length > 0) throw new Error(problems.join('\n'));
 	if (list.version !== version)
 		throw new Error(`${DESKTOP_FILES} names version ${list.version}, not ${version}`);
@@ -246,15 +247,31 @@ function archiveTarGzip(directory, release, archive) {
 /**
  * Writes the window archive `<output>/<name>.zip`: the packaged application as one top-level folder
  * `name`. Windows' bsdtar cannot rename stored paths, so a scratch copy carries the folder's name;
- * `check` then confirms every file against the list.
+ * `check` then confirms every file against the list. On macOS the folder holds the list and the
+ * signed bundle `bundle` alone, and the system bsdtar keeps the bundle's links and modes and leaves
+ * out macOS metadata, so no AppleDouble entry joins them.
  */
-function archiveWindow(application, output, name) {
+function archiveWindow(application, output, name, bundle) {
 	const archive = path.join(output, `${name}.zip`);
 	const scratch = mkdtempSync(path.join(tmpdir(), 'orchbee-release-window-'));
+	const copy = { recursive: true, errorOnExist: true, verbatimSymlinks: true };
 	try {
 		const folder = path.join(scratch, name);
-		cpSync(application, folder, { recursive: true, errorOnExist: true, verbatimSymlinks: true });
-		archiveRelease(folder, archive);
+		if (bundle === undefined) {
+			cpSync(application, folder, copy);
+			archiveRelease(folder, archive);
+		} else {
+			mkdirSync(folder);
+			for (const entry of [DESKTOP_FILES, bundle])
+				cpSync(path.join(application, entry), path.join(folder, entry), copy);
+			const result = spawnSync(
+				'/usr/bin/tar',
+				['--format', 'zip', '--no-mac-metadata', '-c', '-f', archive, '-C', scratch, name],
+				{ stdio: ['ignore', 'inherit', 'inherit'] },
+			);
+			if (result.error !== undefined) throw result.error;
+			if (result.status !== 0) throw new Error(`tar ${archive} exited ${result.status}`);
+		}
 	} finally {
 		rmSync(scratch, { force: true, recursive: true });
 	}
@@ -412,14 +429,19 @@ function checkWindow(directory, feed, stem, releaseTag) {
 		releaseTag,
 	);
 	if (bytes === undefined) return problems;
-	const window = checkDesktopArchive(bytes, folder);
+	const macos = feed.platform.startsWith('macos-');
+	const window = checkDesktopArchive(bytes, folder, { macos });
 	problems.push(...window.problems.map((problem) => `${archiveName} ${problem}`));
 	if (window.problems.length > 0) return problems;
 	if (sha256(window.listBytes) !== desktop.manifest.sha256)
 		problems.push(`extensions.desktop.manifest.sha256 does not match ${archiveName}'s list`);
 	if (window.list.version !== desktop.version)
 		problems.push(`${archiveName}'s list names version ${window.list.version}`);
-	const bundled = window.list.files.find((file) => file.path === 'resources/cohort/release.json');
+	// A macOS bundle keeps its runtime under Contents/Resources.
+	const bundledPath = macos
+		? /^[^/]+\.app\/Contents\/Resources\/cohort\/release\.json$/u
+		: /^resources\/cohort\/release\.json$/u;
+	const bundled = window.list.files.find((file) => bundledPath.test(file.path));
 	if (bundled?.sha256 !== feed.manifest.sha256)
 		problems.push(`${archiveName} does not bundle the feed's release.json`);
 	return problems;
@@ -641,19 +663,20 @@ function collect({ profile, output, repositoryUrl = runRepository() }) {
 		'packaged application',
 	);
 	// macOS keeps the runtime inside the one application bundle the packager wrote.
-	const bundled =
+	const bundle =
 		process.platform === 'darwin'
-			? path.join(
+			? path.basename(
 					single(
 						application,
 						(entry) => entry.isDirectory() && entry.name.endsWith('.app'),
 						'application bundle',
 					),
-					'Contents',
-					'Resources',
-					'cohort',
 				)
-			: path.join(application, 'resources', 'cohort');
+			: undefined;
+	const bundled =
+		bundle === undefined
+			? path.join(application, 'resources', 'cohort')
+			: path.join(application, bundle, 'Contents', 'Resources', 'cohort');
 	const version = manifestVersion(bundled);
 	const release = readRelease(bundled, version);
 	if ((profile === 'release') !== (release.stem === 'orchbee'))
@@ -681,11 +704,13 @@ function collect({ profile, output, repositoryUrl = runRepository() }) {
 	// Settled before anything is written, so a missing repository or window list leaves no partial
 	// output.
 	const archiveUrl = archiveAddress({ profile, repositoryUrl, version, archiveName });
-	// Only Windows publishes the window archive.
-	const desktopUrl = windows
-		? archiveAddress({ profile, repositoryUrl, version, archiveName: `${desktopName}.zip` })
-		: undefined;
-	const desktopList = windows ? readWindowList(application, version) : undefined;
+	const desktopUrl = archiveAddress({
+		profile,
+		repositoryUrl,
+		version,
+		archiveName: `${desktopName}.zip`,
+	});
+	const desktopList = readWindowList(application, version, bundle !== undefined);
 	mkdirSync(output, { recursive: true });
 	const releaseDirectory = path.join(output, releaseName);
 	// The copy restores the programs' executable bit off Windows.
@@ -693,13 +718,11 @@ function collect({ profile, output, repositoryUrl = runRepository() }) {
 	const archive = path.join(output, archiveName);
 	if (windows) archiveRelease(releaseDirectory, archive);
 	else archiveTarGzip(releaseDirectory, release, archive);
-	const desktop = windows
-		? {
-				archive: archiveWindow(application, output, desktopName),
-				url: desktopUrl,
-				list: desktopList,
-			}
-		: undefined;
+	const desktop = {
+		archive: archiveWindow(application, output, desktopName, bundle),
+		url: desktopUrl,
+		list: desktopList,
+	};
 	writeFeed({ profile, archive, archiveUrl, release, releaseDirectory, desktop });
 	copyFileSync(installer, path.join(output, path.basename(installer)));
 	// package-npm writes into a new directory; its folders are packed and then dropped.

@@ -251,6 +251,10 @@ try {
 				path.join(application, 'Contents', 'Resources', cohortDirectoryName),
 				stagedCohortFiles,
 			);
+			// The window file list of the signed bundle, beside it, since a file inside the bundle's
+			// root would break its seal; it keeps the bundle's links and execute bits.
+			if (signsReleaseDirectory)
+				runNode('desktop-files.mjs', ['write', output, productVersion, applicationFileName]);
 			console.info(`Packaged Orchbee Desktop (${distributionProfile.profileId}): ${application}`);
 			if (packaging.installer) await createMacDiskImage(application);
 			continue;

@@ -356,6 +356,10 @@ manifest's file rules and refuses links and names outside its path grammar. Setu
 list with the window, and the release tooling's window archive carries the same directory, so the
 signed update feed binds every window file
 ([window archive](../../proposals/platform/automatic-updates.md#window-archive-and-file-list)).
+On macOS they write it beside the signed application once signing is done, since a file at the
+bundle's root would break its seal; it lists only the bundle, with its links and execute bits, and
+the window archive carries the list and the bundle
+([macOS window versions](../../proposals/platform/automatic-updates.md#macos-window-versions)).
 
 On macOS every package command then signs the packaged application ad hoc
 (`codesign --force --deep --sign -`) and checks it with `codesign --verify --deep --strict`: Apple

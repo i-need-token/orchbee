@@ -15,7 +15,7 @@ import test from 'node:test';
 
 import { crc32 } from 'node:zlib';
 
-import { desktopFilesDocument } from './desktop-files.mjs';
+import { desktopFilesDocument, readDesktopFiles } from './desktop-files.mjs';
 import { checkArtifacts, joinArtifacts } from './release-artifacts.mjs';
 import { feedDocument, gateFeed, sha256 } from './release-feed.mjs';
 import { FEED_DOMAIN, loadKey, signatureDocument } from './sign-release-manifest.mjs';
@@ -241,6 +241,47 @@ test('check refuses a window archive that its list or the feed does not describe
 	assert.deepEqual(unbound, [
 		`${feedFile}: extensions.desktop.manifest.sha256 does not match ${folder}.zip's list`,
 	]);
+});
+
+/** A listed file of the bundle `A b.app`. */
+function bundleFile(name) {
+	return { path: `A b.app/${name}`, size: 1, sha256: '0'.repeat(64) };
+}
+
+test('a macOS window list admits links that stay in the bundle and refuses any other', () => {
+	const list = (links) =>
+		readDesktopFiles(
+			Buffer.from(
+				JSON.stringify({
+					schemaVersion: 1,
+					version,
+					files: [
+						bundleFile('Contents/F.framework/Versions/A/F (x)'),
+						{ ...bundleFile('Contents/MacOS/A b'), executable: true },
+					],
+					links: links.map(([name, target]) => ({ path: `A b.app/${name}`, target })),
+				}),
+			),
+			{ macos: true },
+		).problems;
+	// The framework layout: a link to a folder, and links through it.
+	assert.deepEqual(
+		list([
+			['Contents/F.framework/Versions/Current', 'A'],
+			['Contents/F.framework/F (x)', 'Versions/Current/F (x)'],
+			['Contents/MacOS/link', '../F.framework/F (x)'],
+		]),
+		[],
+	);
+	for (const target of ['../../../outside', '/Contents/MacOS/A b', 'Versions/B', '../.', ''])
+		assert.equal(list([['Contents/F.framework/x', target]]).length, 1, target);
+	// A Windows list carries none of the macOS members.
+	assert.notDeepEqual(
+		readDesktopFiles(
+			Buffer.from(JSON.stringify({ schemaVersion: 1, version, files: [], links: [] })),
+		).problems,
+		[],
+	);
 });
 
 /**
