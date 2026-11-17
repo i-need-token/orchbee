@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
@@ -34,6 +35,9 @@ pub fn encodeKey(
         if (input.action == .release) return "";
         options.kitty_flags = .{ .disambiguate = true };
     }
+    if (options.kitty_flags.int() == 0 and !options.modify_other_keys_state_2) {
+        if (legacyControlLetter(buffer, input)) |bytes| return bytes;
+    }
     var writer: std.Io.Writer = .fixed(buffer);
     try ghostty_vt.input.encodeKey(&writer, .{
         .action = keyAction(input.action),
@@ -45,6 +49,41 @@ pub fn encodeKey(
         .utf8 = input.text,
     }, options);
     return writer.buffered();
+}
+
+/// Without a negotiated Kitty mode or modifyOtherKeys mode 2, Ctrl+letter sends that
+/// letter's C0 control whatever Shift does, as xterm and Windows Terminal do,
+/// and Alt prefixes it with ESC. Ghostty's legacy encoder keeps Shift for
+/// Ctrl+Shift+letter and sends CSI u for Ctrl+I and Ctrl+M, so this chord is
+/// encoded here. Null leaves every other key to Ghostty.
+fn legacyControlLetter(buffer: *[max_key_bytes]u8, input: terminal_input.KeyInput) ?[]const u8 {
+    if (input.action == .release or input.composing or input.modifiers.meta) return null;
+    // On macOS an Option key that does not act as Alt composes text, which Ghostty keeps.
+    if (builtin.os.tag == .macos and input.modifiers.alt and !input.option_as_alt) return null;
+    // A modifier that produced the typed text, such as AltGr's Ctrl and Alt, is not a chord.
+    const has_text = input.text.len != 0;
+    if (!input.modifiers.control or (has_text and input.consumed_modifiers.control)) return null;
+    const letter = controlLetter(input) orelse return null;
+    const alt = input.modifiers.alt and !(has_text and input.consumed_modifiers.alt);
+    var length: usize = 0;
+    if (alt) {
+        buffer[0] = 0x1b;
+        length = 1;
+    }
+    buffer[length] = letter - 'a' + 1;
+    return buffer[0 .. length + 1];
+}
+
+/// Typed text follows the keyboard layout, so a single ASCII letter names the
+/// chord. The unshifted key letter stands in for absent or non-ASCII text.
+fn controlLetter(input: terminal_input.KeyInput) ?u8 {
+    if (input.text.len == 1 and std.ascii.isAlphabetic(input.text[0])) {
+        return std.ascii.toLower(input.text[0]);
+    }
+    if (input.unshifted_codepoint >= 'a' and input.unshifted_codepoint <= 'z') {
+        return @intCast(input.unshifted_codepoint);
+    }
+    return null;
 }
 
 pub fn encodeMouse(

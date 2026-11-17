@@ -1787,6 +1787,45 @@ test "programmatic key text and Super preserve legacy and Kitty semantics" {
     try runtime.forceTerminate();
 }
 
+test "programmatic key Ctrl+letter without a negotiated protocol sends that letter's C0 control" {
+    const Case = struct {
+        mode: []const u8 = "",
+        key: []const u8,
+        text: []const u8,
+        scalar: u21,
+        alt: bool = false,
+        shift: bool = false,
+        expected: []const u8,
+    };
+    for ([_]Case{
+        .{ .key = "KeyK", .text = "K", .scalar = 'k', .shift = true, .expected = "\x0b" },
+        .{ .key = "KeyK", .text = "k", .scalar = 'k', .expected = "\x0b" },
+        .{ .key = "KeyI", .text = "I", .scalar = 'i', .shift = true, .expected = "\x09" },
+        .{ .key = "KeyM", .text = "m", .scalar = 'm', .expected = "\x0d" },
+        .{ .key = "KeyK", .text = "K", .scalar = 'k', .shift = true, .alt = true, .expected = "\x1b\x0b" },
+        .{ .mode = "\x1b[=1u", .key = "KeyK", .text = "K", .scalar = 'k', .shift = true, .expected = "\x1b[107;6u" },
+        .{ .mode = "\x1b[>4;2m", .key = "KeyK", .text = "K", .scalar = 'k', .shift = true, .expected = "\x1b[27;6;75~" },
+    }) |case| {
+        const runtime = try createIdleRuntime(.{});
+        defer runtime.destroy();
+        if (case.mode.len != 0) parseTerminalInput(runtime, case.mode);
+        var prepared = try runtime.prepareKeyInput(.{
+            .action = .press,
+            .composing = false,
+            .consumed_modifiers = .{ .shift = case.shift },
+            .key = case.key,
+            .modifiers = .{ .shift = case.shift, .control = true, .alt = case.alt },
+            .option_as_alt = true,
+            .text = case.text,
+            .unshifted_codepoint = case.scalar,
+        }, std.math.maxInt(usize));
+        try std.testing.expectEqualSlices(u8, case.expected, prepared.bytes.?);
+        prepared.deinit();
+        try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+        try runtime.forceTerminate();
+    }
+}
+
 test "maximum key text uses the negotiated encoded-byte limit" {
     const runtime = try createIdleRuntime(.{});
     defer runtime.destroy();

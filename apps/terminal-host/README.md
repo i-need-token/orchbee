@@ -578,7 +578,7 @@ directories, named Zig modules, allowed imports, and test placement.
 
 ## Programmatic key encoding checks
 
-Run `zig build test-input-encoding` for the focused legacy/Kitty semantic-key regression. Host derives encoding from the current terminal mode. Legacy Super character presses use the existing CSI-u encoder to preserve the chord, without changing negotiated mode or reporting legacy releases. Printable Shift text and full-report Kitty identity remain distinct inputs; the Worker send adapter owns logical character normalization.
+Run `zig build test-input-encoding` for the focused legacy/Kitty semantic-key regression. Host derives encoding from the current terminal mode. Legacy Super character presses use the existing CSI-u encoder to preserve the chord, without changing negotiated mode or reporting legacy releases. Printable Shift text and full-report Kitty identity remain distinct inputs; the Worker send adapter owns logical character normalization. Without a negotiated Kitty mode or modifyOtherKeys mode 2, Ctrl+letter sends that letter's C0 control whatever Shift does, and Alt prefixes it with ESC, as xterm does; on macOS, Option counts as Alt only when the option-as-Alt flag is set, and other Option chords stay with the pinned Ghostty encoder.
 
 ## Read-only PNG image service
 
