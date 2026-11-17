@@ -24,10 +24,14 @@ mod window_layout;
 #[cfg(any(windows, target_os = "macos"))]
 mod window_update;
 
+#[cfg(windows)]
+use super::platform;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use ed25519_dalek::{Signer, SigningKey};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+#[cfg(windows)]
+use std::{collections::BTreeSet, ffi::OsString};
 
 /// The checked-in test key, which only development and test builds trust.
 const TEST_KEY: &str = include_str!("tests/fixtures/test-only-signing-key.pem");
@@ -87,4 +91,26 @@ fn feed_signed_bytes(feed: &[u8]) -> Vec<u8> {
 fn sign_feed(feed: &[u8]) -> Vec<u8> {
     serde_json::to_vec(&json!({"signatures": [entry(&test_key(), &feed_signed_bytes(feed))]}))
         .unwrap()
+}
+
+/// The variables that a child started by `platform::system_child` with `environment` really
+/// receives. The child is the system `cmd.exe /d /c set`, which prints its own environment and runs
+/// in a private fixture folder; `/d` keeps it from running AutoRun commands. cmd.exe adds
+/// `COMSPEC`, `PATHEXT` and `PROMPT` when they are absent, so those three are left out.
+#[cfg(windows)]
+pub(super) fn child_variables(environment: &dyn Fn(&str) -> Option<OsString>) -> BTreeSet<String> {
+    let fixture = install_fixture::Fixture::new();
+    let mut command = platform::system_child("cmd.exe", environment).unwrap();
+    let output = command
+        .args(["/d", "/c", "set"])
+        .current_dir(&fixture.0)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.split_once('=').map(|(name, _)| name))
+        .filter(|name| !name.is_empty() && !["COMSPEC", "PATHEXT", "PROMPT"].contains(name))
+        .map(str::to_owned)
+        .collect()
 }

@@ -145,11 +145,13 @@ fn the_archive_transfer_limit_follows_the_signed_size_up_to_six_hours() {
 }
 
 /// curl receives `SystemRoot` and the three proxy variables that are set, and nothing else of the
-/// environment: no other proxy, credential, curlrc or TLS setting reaches it.
+/// environment: no other proxy, credential, curlrc or TLS setting reaches it. The names come from
+/// a real child, because `get_envs` never reports an inherited environment that `env_clear` removed.
 #[cfg(windows)]
 #[test]
 fn curl_receives_only_the_proxy_variables_of_the_environment() {
-    use std::{collections::BTreeMap, ffi::OsString};
+    use super::super::tests::child_variables;
+    use std::{collections::BTreeSet, ffi::OsString};
     let environment = |name: &str| -> Option<OsString> {
         [
             ("HTTPS_PROXY", "http://127.0.0.1:9"),
@@ -164,23 +166,13 @@ fn curl_receives_only_the_proxy_variables_of_the_environment() {
         .find(|(key, _)| *key == name)
         .map(|(_, value)| value.into())
     };
-    let names = |command: &Command| -> BTreeMap<String, bool> {
-        command
-            .get_envs()
-            .map(|(name, value)| (name.to_string_lossy().into_owned(), value.is_some()))
-            .collect()
-    };
-    let command = platform::curl_command_from(&environment).unwrap();
     assert_eq!(
-        names(&command),
-        BTreeMap::from(
-            ["ALL_PROXY", "HTTPS_PROXY", "NO_PROXY", "SystemRoot"].map(|name| (name.into(), true))
-        )
+        child_variables(&environment),
+        BTreeSet::from(["ALL_PROXY", "HTTPS_PROXY", "NO_PROXY", "SystemRoot"].map(str::to_owned))
     );
-    let quiet = platform::curl_command_from(&|_| None).unwrap();
     assert_eq!(
-        names(&quiet),
-        BTreeMap::from([("SystemRoot".to_owned(), true)])
+        child_variables(&|_| None),
+        BTreeSet::from(["SystemRoot".to_owned()])
     );
 }
 

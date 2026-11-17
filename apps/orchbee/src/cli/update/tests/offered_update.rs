@@ -31,13 +31,13 @@ use crate::{
 use orchbee_local_runtime::{AUTOMATIC_UPDATE_HELPER, environment_stem};
 use orchbee_local_runtime::{PrivateCache, UpdateChannel};
 use serde_json::{Value, json};
-#[cfg(windows)]
-use std::ffi::OsString;
 use std::{
     cell::Cell,
     fs, io,
     path::{Path, PathBuf},
 };
+#[cfg(windows)]
+use std::{collections::BTreeSet, ffi::OsString};
 
 /// The archive's name beside the feed.
 const ARCHIVE: &str = "release.zip";
@@ -503,8 +503,10 @@ fn the_system_tar_unpacks_the_one_top_folder_from_fixed_arguments_and_refuses_a_
             arguments,
             ["-x", "-f", r"..\archive.zip", "--strip-components", "1"]
         );
-        let environment: Vec<_> = command.get_envs().map(|(name, _)| name).collect();
-        assert_eq!(environment, ["SystemRoot"]);
+        assert_eq!(
+            super::child_variables(&|_| None),
+            BTreeSet::from(["SystemRoot".to_owned()])
+        );
         assert_eq!(command.get_current_dir(), Some(unpacked.as_path()));
     }
     // The launch sets no working directory there, so the archive and the folder are the only

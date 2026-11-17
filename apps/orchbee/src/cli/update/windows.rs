@@ -59,16 +59,18 @@ pub(super) fn open_source_file(path: &Path) -> io::Result<File> {
 }
 
 pub(super) fn curl_command() -> io::Result<Command> {
-    curl_command_from(&|name| std::env::var_os(name))
+    system_child("curl.exe", &|name| std::env::var_os(name))
 }
 
-/// The system curl with a cleared environment holding only `SystemRoot` and the [`PROXY_VARIABLES`]
-/// that `environment` sets, so no curlrc location, credential or other proxy setting reaches it.
-pub(super) fn curl_command_from(
+/// A child of the system folder's `program` with a cleared environment: `SystemRoot`, then the
+/// [`PROXY_VARIABLES`] that `environment` sets, and nothing else of this process's environment.
+/// The update's tests start the same environment with a reporting child.
+pub(super) fn system_child(
+    program: &str,
     environment: &dyn Fn(&str) -> Option<OsString>,
 ) -> io::Result<Command> {
     let system = winsafe::GetSystemDirectory().map_err(io::Error::other)?;
-    let mut command = Command::new(PathBuf::from(&system).join("curl.exe"));
+    let mut command = Command::new(PathBuf::from(&system).join(program));
     command.env_clear().env(
         "SystemRoot",
         PathBuf::from(&system)
@@ -115,15 +117,7 @@ pub(super) fn system_proxy() -> Option<Settings> {
 /// The system `tar.exe` with a cleared environment holding only `SystemRoot`. Its arguments and
 /// working directory are the caller's.
 pub(super) fn tar_command() -> io::Result<Command> {
-    let system = winsafe::GetSystemDirectory().map_err(io::Error::other)?;
-    let mut command = Command::new(PathBuf::from(&system).join("tar.exe"));
-    command.env_clear().env(
-        "SystemRoot",
-        PathBuf::from(&system)
-            .parent()
-            .ok_or(io::ErrorKind::NotFound)?,
-    );
-    Ok(command)
+    system_child("tar.exe", &|_| None)
 }
 
 pub(super) fn execute(command: Command, context: &mut Context) -> io::Result<CommandOutput> {
