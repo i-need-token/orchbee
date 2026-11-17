@@ -45,6 +45,7 @@ interface OpenChildPage {
  * otherwise returns to where the user was.
  */
 export function useTerminalSettingsSurface({
+	about,
 	agentIntegrationManagementControl,
 	controller,
 	initialCategory,
@@ -109,7 +110,8 @@ export function useTerminalSettingsSurface({
 	const categories = TERMINAL_SETTINGS_CATEGORIES.filter(
 		(definition) =>
 			(definition.id !== 'terminal' || terminalAvailable) &&
-			(definition.id !== 'notifications' || terminalFeedbackSettingsController !== undefined),
+			(definition.id !== 'notifications' || terminalFeedbackSettingsController !== undefined) &&
+			(definition.id !== 'about' || about !== undefined),
 	);
 
 	React.useEffect(() => {

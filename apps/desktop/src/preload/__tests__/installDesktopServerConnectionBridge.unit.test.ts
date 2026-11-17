@@ -14,14 +14,17 @@ import {
 } from '../installDesktopServerConnectionBridge';
 
 const BOOTSTRAP = {
+	applicationVersion: '1.2.0',
 	automaticWorkspaceAllowed: true,
 	checkoutName: null,
 	defaultDirectory: 'C:\\Users\\someone',
 	distribution: 'release',
 	loginShellAvailable: false,
+	negotiatedCapabilities: ['update-check'],
 	relaunchPlace: null,
 	sessionRefusal: null,
 	terminalHostName: 'host',
+	windowUpdatesOffered: true,
 };
 const ISOLATED = { contextIsolated: true, sandboxed: true };
 const DOCUMENT = '00000000-0000-4000-8000-000000000001';

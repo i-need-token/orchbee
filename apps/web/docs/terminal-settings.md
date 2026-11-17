@@ -415,8 +415,9 @@ The categories keep a stable product-outcome order instead of exposing implement
 | Notifications | When to notify; Sound and delivery                                                     |
 | Keyboard      | Window and panel shortcuts                                                             |
 | Agents        | After a restart: resume Agents; Agent integrations                                     |
+| About         | Version; Updates (unnamed card)                                                        |
 
-Every category but Themes ends with a "More options in config.toml" row that shows the path of
+Every category but Themes and About ends with a "More options in config.toml" row that shows the path of
 the settings file the Session reads, taken from its snapshot, with a copy action. The renderer has
 no port that opens a file, so the row copies the path instead; Copy is unavailable until the first
 snapshot arrives.
@@ -424,11 +425,48 @@ snapshot arrives.
 Navigation and search expose only categories and rows whose required capabilities are present: the
 Terminal category needs at least one of its controls, Notifications needs the feedback controller,
 and the Agent integrations group needs the Desktop control. Roadmap-only controls remain absent.
+About is an information category: it holds no setting, so it has no settings-file row and search
+never lists it. Every composition that hands the page its build shows it; a served Web Client shows
+its Updates row unavailable for this installation and leaves Version out, because it knows neither.
 
 The page leaves out the terminal's regular and bold font weights, ligatures, padding and background
 opacity, trailing-blank-row trimming, the completion-reminder minimum, the terminal reset, the
 reminder reset, and the remote-development diagnostic. Their stored values keep applying; the TUI's
 Settings and `config.toml` edit them.
+
+## About and Check for updates
+
+About is the last category, after every setting, as Warp places it. One unnamed card holds two rows,
+in the TUI's words:
+
+- **Version** shows the version the window runs, which Main states in the document's bootstrap, and
+  the build (Release build, Test build, Development build) as its description.
+- **Updates** has one control. While Main offers a newer window version it is the sidebar footer's
+  Update: the same `workbench.client.update` Action, registered in a `WebApplication` scope above
+  the Workbench's so both surfaces reach it, with the footer's tooltip sentence as the
+  description and the same waiting notice. Otherwise it is Check for updates, which reads
+  “Checking…” and is disabled, without a spinner, while a run is queued or running.
+
+Check for updates asks the Session Server to run its scheduled automatic-update job now, through the
+`workbench.update-check` request; the client never starts `orchbee update` itself.
+`WorkbenchUpdateCheckModel` holds the one status (Idle, Checking, Up to date, Failed, or Unavailable
+with a reason), and the Desktop composition hands it to About and the footer as part of the window's
+one update state, `WorkbenchClientUpdate`, beside Main's offer. The reason is decided before any
+request, in this order: a development build; a window Main can offer no newer version, which the
+bootstrap's `windowUpdatesOffered` says, and also a Server that answers `unavailable`; and a
+Session whose negotiated capabilities, from the bootstrap's `negotiatedCapabilities`, lack
+`update-check`. The window's one table from capability to actions, `serverSessionServes.ts`, reads
+an unknown list as serving nothing, so a request a Session may not know is never sent.
+
+Pressing Check sends `start` and shows Checking. While About is shown and the status is Checking,
+the window sends `read` about once a second, one exchange at a time. `up-to-date` shows Up to date;
+`failed`, `denied`, `rejected`, `idle` after a start, and an answer that is lost, late after ten
+seconds, of another kind, or for another request fail the check, and none is repeated. `installed`
+keeps Checking until Main offers the installed version, then the Update control takes its place;
+Main follows the window pointer as it changes, and a check that sees no offer within 15 seconds
+goes back to Idle rather than claim Up to date. Showing About again clears a finished result, then
+sends one `read`: a run queued or running shows Checking, and a finished result shows only for a
+check this window started, so a background run shows nothing but its offer.
 
 ## Settings discovery and navigation model
 

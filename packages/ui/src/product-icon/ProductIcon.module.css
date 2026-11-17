@@ -75,6 +75,10 @@
 	composes: codicon-git-branch from global;
 }
 
+.info {
+	composes: codicon-info from global;
+}
+
 .keyboard {
 	composes: codicon-keyboard from global;
 }

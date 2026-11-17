@@ -13,7 +13,7 @@ import {
 	ResizablePanelGroup,
 } from '@orchbee/ui/components';
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import type { ActionRuntime } from '@orchbee/actions';
+import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import * as React from 'react';
 import type { CSSProperties } from 'react';
 
@@ -91,6 +91,11 @@ interface WorkbenchProps {
 	readonly configuredCommandKeys?: WorkbenchConfiguredCommandKeysView | undefined;
 	/** The build the sidebar marks beside Settings; a release has none. */
 	readonly environmentMarker?: WorkbenchEnvironmentMarker | undefined;
+	/**
+	 * The host's Action scope: the Workbench's Actions resolve under it, and Update registers in it,
+	 * so the host's own surfaces, such as Settings' About, run the footer's Action.
+	 */
+	readonly hostActionScope?: ActionScope | undefined;
 	readonly isShortcutScopeActive?: boolean | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
@@ -120,6 +125,7 @@ export function Workbench({
 	clientUpdate,
 	configuredCommandKeys = NO_CONFIGURED_COMMAND_KEYS,
 	environmentMarker,
+	hostActionScope,
 	isShortcutScopeActive = true,
 	layoutStorage,
 	navigation,
@@ -154,6 +160,7 @@ export function Workbench({
 		clientUpdate,
 		configuredCommandCatalog: configuredCommandKeys.catalog,
 		configuredCommandKeys: configuredCommandKeys.keys,
+		hostActionScope,
 		isShortcutScopeActive,
 		navigation,
 		onSettings,

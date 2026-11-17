@@ -82,6 +82,8 @@ interface UseWorkbenchActionsOptions {
 	>;
 	/** The localized sentence naming what a close ends; keep it stable across renders. */
 	readonly formatCloseWarning: (impact: TerminalCloseImpact) => string;
+	/** The host's scope, which the Workbench's own scope is created under; none for a standalone one. */
+	readonly hostActionScope?: ActionScope | undefined;
 	readonly isSidebarVisible: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
@@ -132,6 +134,7 @@ export function useWorkbenchActions({
 	configuredCommandKeys,
 	focusRouting,
 	formatCloseWarning,
+	hostActionScope,
 	isSidebarVisible,
 	navigation,
 	onNewTerminal,
@@ -152,7 +155,10 @@ export function useWorkbenchActions({
 	toggleSidebar,
 	worktreeLabel,
 }: UseWorkbenchActionsOptions): WorkbenchActions {
-	const scope = React.useMemo(() => runtime.createScope('workbench'), [runtime]);
+	const scope = React.useMemo(
+		() => runtime.createScope('workbench', hostActionScope ?? null),
+		[hostActionScope, runtime],
+	);
 	const typedRuntime = React.useMemo(
 		() => createTypedActionRuntime<WorkbenchActionCatalog>(runtime),
 		[runtime],

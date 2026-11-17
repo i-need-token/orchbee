@@ -54,6 +54,8 @@ export interface DesktopServerClientApplicationOptions {
 	 * started hidden.
 	 */
 	readonly background: DesktopWindowBackground | undefined;
+	/** The version this window runs, which About shows. */
+	readonly applicationVersion: string;
 	readonly checkoutName: DesktopServerConnectionBootstrap['checkoutName'];
 	readonly clientEnvironment: NodeJS.ProcessEnv;
 	readonly clientExecutable: string;
@@ -74,8 +76,14 @@ export interface DesktopServerClientApplicationOptions {
 	/** A window started hidden for automation is never shown and neither restores nor records its place. */
 	readonly windowHidden: boolean;
 	readonly windowStateOwner: DesktopWindowStateOwner;
-	/** Serves a document's window-update port; what it returns ends that service. */
-	readonly windowUpdate: { serve(port: DesktopWindowUpdatePort): { close(): void } };
+	/**
+	 * Serves a document's window-update port, what it returns ending that service, and says whether
+	 * it can ever offer a newer version.
+	 */
+	readonly windowUpdate: {
+		readonly offersUpdates: boolean;
+		serve(port: DesktopWindowUpdatePort): { close(): void };
+	};
 }
 
 const MACOS_TRAFFIC_LIGHT_POSITION = { x: 12, y: 12 } as const;
@@ -398,21 +406,27 @@ export class DesktopServerClientApplication {
 				options.sessionArguments,
 				options.clientEnvironment,
 			)
-				.then(({ restore }) => {
+				.then(({ negotiatedCapabilities, restore }) => {
 					if (request !== requests || window.isDestroyed()) return;
 					const refusal = restore.kind === 'refused' ? restore.refusal : null;
 					if (!everConnected && options.exitsOnFirstStartAnswer(refusal)) return;
 					current = this.#connect(window, {
 						bootstrap: {
+							applicationVersion: options.applicationVersion,
 							// A later document follows a person's own actions; an empty Session may be what they chose.
 							automaticWorkspaceAllowed: !everConnected && restore.kind === 'intact',
 							checkoutName: options.checkoutName,
 							defaultDirectory: app.getPath('home'),
 							distribution: options.distribution,
 							loginShellAvailable: options.platform !== 'win32',
+							// The relay's own handshake joins the same Server with the same Client, so it
+							// negotiates the names this start reported.
+							negotiatedCapabilities:
+								negotiatedCapabilities.length === 0 ? null : [...negotiatedCapabilities],
 							relaunchPlace: everConnected ? null : options.relaunchPlace,
 							sessionRefusal: refusal,
 							terminalHostName: hostname(),
+							windowUpdatesOffered: options.windowUpdate.offersUpdates,
 						},
 						document: document.data,
 					});

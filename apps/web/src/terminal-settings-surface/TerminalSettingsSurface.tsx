@@ -12,6 +12,7 @@ import {
 	useKeyboardShortcutSettings,
 } from '../keyboard-shortcuts';
 import type { TerminalDefaultSettingsControl } from '../terminal-default-settings-control';
+import { AboutSettings } from './components/about-settings/AboutSettings';
 import { AgentSettings } from './components/agent-settings/AgentSettings';
 import { AppearanceSettings } from './components/appearance-settings/AppearanceSettings';
 import { ConfigFileRow } from './components/config-file-row/ConfigFileRow';
@@ -47,6 +48,8 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 	const filePath = useUserSettings(userSettings).snapshot?.filePath ?? null;
 	if (!page.open) return null;
 	const searchLabel = intl.formatMessage(terminalSettingsMessages.searchPlaceholder);
+	// An information category such as About holds no setting, so search never lists it.
+	const searchableCategories = page.categories.filter((definition) => definition.searchable);
 	const currentCategory = TERMINAL_SETTINGS_CATEGORIES.find(
 		(definition) => definition.id === page.category,
 	);
@@ -163,7 +166,7 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 							</h1>
 							{page.searching ? (
 								<div className={styles['searchPage']} data-slot='settings-search-results'>
-									{page.categories.map((definition) => (
+									{searchableCategories.map((definition) => (
 										<section
 											aria-label={intl.formatMessage(definition.label)}
 											className={styles['searchCategory']}
@@ -217,6 +220,8 @@ interface CategoryContentProps {
 function CategoryContent({ category, props, query }: CategoryContentProps): React.ReactNode {
 	const userSettings = props.controller.userSettings;
 	switch (category) {
+		case 'about':
+			return props.about === undefined ? null : <AboutSettings about={props.about} />;
 		case 'general':
 			return (
 				<GeneralSettings

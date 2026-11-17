@@ -530,6 +530,7 @@ async function start(): Promise<void> {
 	windowUpdate = createWindowUpdate(sessionArguments);
 	windowUpdate.start();
 	const started = new DesktopServerClientApplication({
+		applicationVersion: app.getVersion(),
 		background,
 		checkoutName: resolveDesktopCheckoutName(distribution, process.platform),
 		clientEnvironment: resolveClientEnvironment(),

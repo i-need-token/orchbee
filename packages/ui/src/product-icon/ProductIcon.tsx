@@ -23,6 +23,7 @@ export type ProductIconName =
 	| 'folder'
 	| 'folder-opened'
 	| 'git-branch'
+	| 'info'
 	| 'keyboard'
 	| 'layout'
 	| 'more-vertical'
@@ -72,6 +73,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'folder' && styles['folder'],
 				name === 'folder-opened' && styles['folderOpened'],
 				name === 'git-branch' && styles['gitBranch'],
+				name === 'info' && styles['info'],
 				name === 'keyboard' && styles['keyboard'],
 				name === 'layout' && styles['layout'],
 				name === 'more-vertical' && styles['moreVertical'],

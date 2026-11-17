@@ -22,7 +22,10 @@ import { WorkbenchWorkspaceIdSchema } from '@orchbee/workbench-client-protocol';
 import {
 	matchesWorkbenchProjectCreation,
 	resolveActiveTerminalPresentationId,
+	WorkbenchUpdateCheckModel,
+	type WorkbenchClientUpdate,
 	type WorkbenchShortcutPlatform,
+	type WorkbenchUpdateCheckUnavailableReason,
 } from '../../workbench';
 import { createMemoryHistory } from '@tanstack/react-router';
 import { createElement } from 'react';
@@ -41,6 +44,7 @@ import { TerminalInteractionSettingsController } from '../../terminal-interactio
 import { TerminalSettingsController } from '../../terminal-settings';
 import {
 	admitsAutomaticWorkspace,
+	askServerUpdateCheck,
 	createServerTerminalColorsSource,
 	createServerWorkbenchRuntime,
 	ProjectedTerminalSurface,
@@ -50,6 +54,7 @@ import {
 	ServerTerminalLaunchProfileClient,
 	ServerUserSettingsClient,
 	ServerWorkbenchSession,
+	serverSessionServes,
 	stopServerSession,
 	workspaceLaunchAction,
 	type ProjectedTerminalPlatformEffects,
@@ -119,6 +124,19 @@ function receiveConnection(targetWindow: Window): Promise<DesktopServerConnectio
 			targetWindow.location.origin,
 		);
 	});
+}
+
+/**
+ * Why Check for updates can never run in this window, in the order About decides it: a development
+ * build, a window Main can offer no newer version, then a Session whose handshake lacks the request.
+ */
+function updateCheckUnavailable(
+	bootstrap: DesktopServerConnectionBootstrap,
+): WorkbenchUpdateCheckUnavailableReason | null {
+	if (bootstrap.distribution === 'development') return 'development';
+	if (!bootstrap.windowUpdatesOffered) return 'installation';
+	if (!serverSessionServes(bootstrap.negotiatedCapabilities, 'check-for-updates')) return 'session';
+	return null;
 }
 
 function browserPlatformEffects(targetWindow: Window): ProjectedTerminalPlatformEffects {
@@ -221,6 +239,21 @@ async function run(
 	// Quit All in Main's notification-area menu stops the Session through this connection.
 	backgroundStatus.serveSessionStop((stopId) => stopServerSession(session, stopId));
 
+	// Check for updates asks this Session's Server to run its update job now; what it installs
+	// reaches the window as Main's offer, so About and the footer read one update state.
+	const updateCheck = new WorkbenchUpdateCheckModel({
+		ask: (action) => askServerUpdateCheck(session, action),
+		offer: windowUpdate,
+		unavailable: updateCheckUnavailable(bootstrap),
+	});
+	const clientUpdate: WorkbenchClientUpdate = {
+		check: updateCheck,
+		getSnapshot: windowUpdate.getSnapshot,
+		request: windowUpdate.request,
+		subscribe: windowUpdate.subscribe,
+		subscribeWaiting: windowUpdate.subscribeWaiting,
+	};
+
 	// Search is withheld in every distribution until it is finished (ORC-424); its code stays
 	// for later.
 	const searchOffered = false;
@@ -296,6 +329,7 @@ async function run(
 					() => routing?.dispose(),
 					() => runtime?.dispose(),
 					() => projectFolderAcquisition.dispose(),
+					() => updateCheck.dispose(),
 					() => keyboardShortcutSettingsController.dispose(),
 					() => terminalSettingsController.dispose(),
 					() => terminalInteractionSettingsController.dispose(),
@@ -357,7 +391,8 @@ async function run(
 			agentObservationSource: runtime.agentObservationSource,
 			applicationLocaleController,
 			authority: runtime.authority,
-			clientUpdate: windowUpdate,
+			clientBuild: { distribution: bootstrap.distribution, version: bootstrap.applicationVersion },
+			clientUpdate,
 			environmentMarker,
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,

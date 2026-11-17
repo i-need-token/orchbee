@@ -78,6 +78,9 @@ renderer must not erase domain-specific controls, explanations, validation, or m
   reason and recovery beside the control.
 - Do not turn legal consent, irreversible deletion, or acknowledgement of a severe consequence into
   a casual toggle. Use the owning reviewed flow and confirmation boundary.
+- An information category, such as About, holds no setting: it states facts about the product and
+  offers their actions. It comes after every settings category, has no settings-file row, and stays
+  out of Settings search.
 
 ## Surface and information architecture
 

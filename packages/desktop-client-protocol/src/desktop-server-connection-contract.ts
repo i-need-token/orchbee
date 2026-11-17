@@ -42,8 +42,16 @@ const DesktopSessionRefusalSchema = z.discriminatedUnion('reason', [
 	z.strictObject({ reason: z.literal('development-build-mismatch') }),
 ]);
 
+/** A capability name of the `client-server` handshake: 1 to 64 lowercase letters, digits, and hyphens. */
+const CapabilityNameSchema = z.string().regex(/^[a-z0-9-]{1,64}$/u);
+
 /** What only Main can know about the document it is connecting. */
 const DesktopServerConnectionBootstrapSchema = z.strictObject({
+	/**
+	 * The version this window runs, as About shows it; null when it is not a product version. A
+	 * malformed value reads as unknown rather than refusing the document.
+	 */
+	applicationVersion: ProductVersionSchema.nullable().catch(null),
 	/** The first document of a window on a Session with no sign of damage may open a Workspace. */
 	automaticWorkspaceAllowed: z.boolean(),
 	/**
@@ -64,6 +72,13 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	/** Whether this machine's Host can start the system shell as a login shell; Windows cannot. */
 	loginShellAvailable: z.boolean(),
 	/**
+	 * The capability names this document's `server start` reported its `client-server` handshake
+	 * negotiated, which the window's actions that need one read; null when the answer named none or
+	 * could not be read. A malformed list reads as null, so the actions it gates stay unavailable
+	 * rather than the document being refused.
+	 */
+	negotiatedCapabilities: z.array(CapabilityNameSchema).max(256).nullable().catch(null),
+	/**
 	 * Where the first document of a window relaunched by Update opens, from the window's command
 	 * line; null for every other document.
 	 */
@@ -74,6 +89,12 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	 */
 	sessionRefusal: DesktopSessionRefusalSchema.nullable(),
 	terminalHostName: z.string().min(1),
+	/**
+	 * Whether Main follows a release store's window pointer, so it can ever offer this window a newer
+	 * version: false for a window outside a store, such as a development build or a Linux window. A
+	 * malformed value reads as false.
+	 */
+	windowUpdatesOffered: z.boolean().catch(false),
 });
 
 export const DesktopServerConnectionReplySchema = z.strictObject({

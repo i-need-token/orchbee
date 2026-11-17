@@ -9,7 +9,10 @@ import { TerminalSettingsController } from '../src/terminal-settings';
 import { KeyboardShortcutSettingsController } from '../src/keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../src/macos-terminal-input-settings';
 import { TerminalFeedbackSettingsController } from '../src/terminal-feedback-settings';
-import { TerminalSettingsSurface } from '../src/terminal-settings-surface';
+import {
+	TerminalSettingsSurface,
+	type TerminalSettingsAbout,
+} from '../src/terminal-settings-surface';
 import {
 	TerminalLaunchProfileSnapshotSchema,
 	type TerminalLaunchProfileClientSnapshot,
@@ -112,6 +115,7 @@ type TerminalSettingsCategory = NonNullable<
 >;
 
 const englishArgs = {
+	about: createAboutStorySource({ kind: 'idle' }),
 	agentIntegrationManagementControl: englishAgentIntegrations,
 	applicationLocaleController: englishApplicationLocaleController,
 	controller: englishController,
@@ -127,6 +131,7 @@ const englishArgs = {
 } satisfies Story['args'];
 
 const chineseArgs = {
+	about: createAboutStorySource({ kind: 'idle' }),
 	agentIntegrationManagementControl: chineseAgentIntegrations,
 	applicationLocaleController: chineseApplicationLocaleController,
 	controller: chineseController,
@@ -176,7 +181,7 @@ export const EnglishGeneral: Story = {
 		docs: {
 			description: {
 				story:
-					'Settings is a large dialog over the workspace: the close button, Escape, and a press outside it return to the workbench, search filters every category, and the seven categories open centered cards of rows with one control each. Change a setting to see its dot and Restore default action; type in search to see matches grouped under category names.',
+					'Settings is a large dialog over the workspace: the close button, Escape, and a press outside it return to the workbench, search filters every category, and the eight categories open centered cards of rows with one control each. Change a setting to see its dot and Restore default action; type in search to see matches grouped under category names.',
 			},
 		},
 	},
@@ -196,6 +201,25 @@ export const EnglishKeyboard: Story = {
 	},
 };
 export const EnglishAgents: Story = englishLight('agents');
+export const EnglishAbout: Story = {
+	...englishLight('about'),
+	parameters: {
+		docs: {
+			description: {
+				story:
+					'About shows the version this window runs with its build, and Updates with Check for updates. Press it to see Checking…, then Orchbee is up to date; the other About stories hold each state still.',
+			},
+		},
+	},
+};
+export const EnglishAboutChecking: Story = aboutStory(englishLight, { kind: 'checking' });
+export const EnglishAboutUpToDate: Story = aboutStory(englishLight, { kind: 'up-to-date' });
+export const EnglishAboutFailed: Story = aboutStory(englishLight, { kind: 'failed' });
+export const EnglishAboutUnavailable: Story = aboutStory(englishLight, {
+	kind: 'unavailable',
+	reason: 'session',
+});
+export const EnglishAboutReady: Story = aboutStory(englishLight, { kind: 'idle' }, '1.4.0');
 export const EnglishSettingsFileError: Story = {
 	...englishLight('appearance'),
 	args: {
@@ -214,6 +238,66 @@ export const ChineseTerminal: Story = chineseDark('terminal');
 export const ChineseNotifications: Story = chineseDark('notifications');
 export const ChineseKeyboard: Story = chineseDark('keyboard');
 export const ChineseAgents: Story = chineseDark('agents');
+export const ChineseAbout: Story = chineseDark('about');
+export const ChineseAboutChecking: Story = aboutStory(chineseDark, { kind: 'checking' });
+export const ChineseAboutUpToDate: Story = aboutStory(chineseDark, { kind: 'up-to-date' });
+export const ChineseAboutFailed: Story = aboutStory(chineseDark, { kind: 'failed' });
+export const ChineseAboutUnavailable: Story = aboutStory(chineseDark, {
+	kind: 'unavailable',
+	reason: 'session',
+});
+export const ChineseAboutReady: Story = aboutStory(chineseDark, { kind: 'idle' }, '1.4.0');
+
+type AboutStatus = ReturnType<NonNullable<TerminalSettingsAbout['check']>['getSnapshot']>;
+
+/** About held in `status`, with `offer` as the newer version the window can switch to. */
+function aboutStory(
+	theme: (initialCategory: TerminalSettingsCategory) => Story,
+	status: AboutStatus,
+	offer: string | null = null,
+): Story {
+	const story = theme('about');
+	return {
+		...story,
+		args: { ...story.args, about: createAboutStorySource(status, offer, false) },
+	};
+}
+
+/**
+ * About for a release window at 1.3.0. A live source answers Check for updates with Checking…, then
+ * Up to date a moment later; a held one stays in `status`.
+ */
+function createAboutStorySource(
+	status: AboutStatus,
+	offer: string | null = null,
+	live = true,
+): TerminalSettingsAbout {
+	let current = status;
+	const listeners = new Set<() => void>();
+	const set = (next: AboutStatus): void => {
+		current = next;
+		for (const listener of listeners) listener();
+	};
+	return {
+		build: 'release',
+		check: {
+			getSnapshot: () => current,
+			show: () => () => undefined,
+			start: () => {
+				if (!live) return;
+				set({ kind: 'checking' });
+				setTimeout(() => set({ kind: 'up-to-date' }), 1500);
+			},
+			subscribe: (listener) => {
+				listeners.add(listener);
+				return () => listeners.delete(listener);
+			},
+		},
+		offer: { getSnapshot: () => offer, subscribe: () => () => undefined },
+		update: () => undefined,
+		version: '1.3.0',
+	};
+}
 
 function createStoryApplicationLocaleController(
 	locale: 'en-US' | 'zh-CN',

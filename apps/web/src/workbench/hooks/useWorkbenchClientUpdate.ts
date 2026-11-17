@@ -2,8 +2,9 @@ import { createTypedActionRuntime, type ActionRuntime, type ActionScope } from '
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
 
+import { invokeWorkbenchClientUpdate } from '../actions/invokeWorkbenchClientUpdate';
 import { registerWorkbenchClientUpdateAction } from '../actions/registerWorkbenchClientUpdateAction';
-import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
+import type { WorkbenchActionCatalog } from '../actions/workbench-action-ids';
 import type { WorkbenchClientUpdate } from '../types/workbench-client-update';
 
 /** The sidebar footer's Update control while a newer version is offered. */
@@ -15,6 +16,11 @@ export interface WorkbenchClientUpdateView {
 
 interface UseWorkbenchClientUpdateOptions {
 	readonly clientUpdate: WorkbenchClientUpdate | undefined;
+	/**
+	 * Where Update is registered: the host's scope when the host's own surfaces, such as Settings'
+	 * About, run it too, else the Workbench's. The footer runs it from `scope`, at or below it.
+	 */
+	readonly registrationScope: ActionScope;
 	/** Shows that the update waits until no terminal runs, in the window's status notice. */
 	readonly reportWaiting: () => void;
 	readonly runtime: ActionRuntime;
@@ -27,10 +33,11 @@ const NO_SUBSCRIPTION = (): (() => void) => () => undefined;
 /**
  * Update, while the host offers a newer version: its Action, registered again whenever the offer
  * changes so every surface reads its availability anew, the footer control that invokes it, and
- * the notice the host's waiting answer shows.
+ * the notice the host's waiting answer shows, whichever surface asked.
  */
 export function useWorkbenchClientUpdate({
 	clientUpdate,
+	registrationScope,
 	reportWaiting,
 	runtime,
 	scope,
@@ -47,9 +54,13 @@ export function useWorkbenchClientUpdate({
 	);
 	React.useEffect(() => {
 		if (clientUpdate === undefined) return undefined;
-		const registration = registerWorkbenchClientUpdateAction({ clientUpdate, scope, typedRuntime });
+		const registration = registerWorkbenchClientUpdateAction({
+			clientUpdate,
+			scope: registrationScope,
+			typedRuntime,
+		});
 		return () => registration.dispose();
-	}, [clientUpdate, scope, typedRuntime, version]);
+	}, [clientUpdate, registrationScope, typedRuntime, version]);
 	React.useEffect(
 		() => clientUpdate?.subscribeWaiting(reportWaiting),
 		[clientUpdate, reportWaiting],
@@ -57,12 +68,7 @@ export function useWorkbenchClientUpdate({
 	if (version === null) return undefined;
 	return {
 		label: intl.formatMessage(workbenchMessages.update),
-		onUpdate: () => {
-			typedRuntime.execute(WORKBENCH_ACTION_IDS.updateClient, undefined, {
-				scope,
-				source: 'button',
-			});
-		},
+		onUpdate: () => invokeWorkbenchClientUpdate(runtime, scope),
 		tooltip: intl.formatMessage(workbenchMessages.updateTooltip, { version }),
 	};
 }

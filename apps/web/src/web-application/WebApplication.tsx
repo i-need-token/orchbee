@@ -2,6 +2,7 @@ import type { ActionRuntime } from '@orchbee/actions';
 import {
 	Workbench,
 	findActiveTerminalFocusTarget,
+	invokeWorkbenchClientUpdate,
 	type WorkbenchAgentNameSource,
 	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
@@ -37,7 +38,7 @@ import type { TerminalSettingsController } from '../terminal-settings';
 import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
-import { TerminalSettingsSurface } from '../terminal-settings-surface';
+import { TerminalSettingsSurface, type TerminalSettingsAbout } from '../terminal-settings-surface';
 import { isSettingsFileReadOnly } from '../user-settings';
 import type { TerminalLaunchProfileControl } from '../terminal-launch-profile-control';
 import type { TerminalDefaultSettingsControl } from '../terminal-default-settings-control';
@@ -55,6 +56,11 @@ export interface WebApplicationProps {
 	readonly agentNameSource?: WorkbenchAgentNameSource | undefined;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority: WorkbenchAuthority;
+	/**
+	 * Which build this window is and the version it runs, which Settings' About shows; a served Web
+	 * Client has none.
+	 */
+	readonly clientBuild?: WebApplicationClientBuild | undefined;
 	/** A newer version the Desktop window can switch to; a served Web Client has none. */
 	readonly clientUpdate?: WorkbenchClientUpdate | undefined;
 	/** The build the sidebar marks; a release window and a served Web Client have none. */
@@ -81,6 +87,12 @@ export interface WebApplicationProps {
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
 }
 
+/** The build a window is and the version it runs; null when it is not known. */
+interface WebApplicationClientBuild {
+	readonly distribution: 'development' | 'release' | 'test';
+	readonly version: string | null;
+}
+
 export function WebApplication({
 	actionRuntime,
 	applicationLocaleController,
@@ -88,6 +100,7 @@ export function WebApplication({
 	agentNameSource,
 	agentObservationSource,
 	authority,
+	clientBuild,
 	clientUpdate,
 	environmentMarker,
 	keyboardShortcutSettingsController,
@@ -111,6 +124,21 @@ export function WebApplication({
 		terminalSettingsController,
 	});
 	const intl = useOrchbeeIntl();
+	// Settings sits beside the Workbench, so Update registers in this scope, which both reach.
+	const hostActionScope = React.useMemo(
+		() => actionRuntime.createScope('web-application'),
+		[actionRuntime],
+	);
+	const about = React.useMemo<TerminalSettingsAbout>(
+		() => ({
+			build: clientBuild?.distribution ?? null,
+			check: clientUpdate?.check,
+			offer: clientUpdate,
+			update: () => invokeWorkbenchClientUpdate(actionRuntime, hostActionScope),
+			version: clientBuild?.version ?? null,
+		}),
+		[actionRuntime, clientBuild, clientUpdate, hostActionScope],
+	);
 	const settingsFile = React.useSyncExternalStore(
 		terminalSettingsController.userSettings.subscribe,
 		terminalSettingsController.userSettings.getSnapshot,
@@ -169,6 +197,7 @@ export function WebApplication({
 					clientUpdate={clientUpdate}
 					configuredCommandKeys={configuredCommandKeys}
 					environmentMarker={environmentMarker}
+					hostActionScope={hostActionScope}
 					isShortcutScopeActive={!view.settingsOpen}
 					layoutStorage={layoutStorage}
 					navigation={navigation}
@@ -189,6 +218,7 @@ export function WebApplication({
 				/>
 			</div>
 			<TerminalSettingsSurface
+				about={about}
 				agentIntegrationManagementControl={agentIntegrationManagementControl}
 				applicationLocaleController={applicationLocaleController}
 				controller={terminalSettingsController}

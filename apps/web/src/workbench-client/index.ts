@@ -12,6 +12,8 @@ export {
 	ServerTerminalLaunchProfileClient,
 	ServerUserSettingsClient,
 	ServerWorkbenchSession,
+	askServerUpdateCheck,
+	serverSessionServes,
 	stopServerSession,
 	workspaceLaunchAction,
 } from './server-workbench';

@@ -350,6 +350,11 @@ interface UseWorkbenchOptions {
 	readonly clientUpdate?: WorkbenchClientUpdate | undefined;
 	readonly configuredCommandCatalog: readonly WorkbenchConfiguredCommand[];
 	readonly configuredCommandKeys: WorkbenchConfiguredCommandKeys;
+	/**
+	 * The host's scope: the Workbench's Actions resolve under it, and Update registers in it, so the
+	 * host's own surfaces run the footer's Action.
+	 */
+	readonly hostActionScope?: ActionScope | undefined;
 	readonly isShortcutScopeActive: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
@@ -375,6 +380,7 @@ export function useWorkbench({
 	clientUpdate,
 	configuredCommandCatalog,
 	configuredCommandKeys,
+	hostActionScope,
 	isShortcutScopeActive,
 	navigation,
 	onSettings,
@@ -672,6 +678,7 @@ export function useWorkbench({
 		focusRouting: focusRouter,
 		formatCloseWarning,
 		getNewTerminalAvailability,
+		hostActionScope,
 		isSidebarVisible,
 		navigation,
 		onNewTerminal: createTerminal,
@@ -693,6 +700,7 @@ export function useWorkbench({
 	});
 	const update = useWorkbenchClientUpdate({
 		clientUpdate,
+		registrationScope: hostActionScope ?? actions.scope,
 		reportWaiting: authorityNotice.reportUpdateWaiting,
 		runtime: actionRuntime,
 		scope: actions.scope,

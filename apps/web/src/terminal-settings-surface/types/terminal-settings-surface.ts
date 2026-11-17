@@ -12,6 +12,7 @@ import type { TerminalSettingsController } from '../../terminal-settings';
 
 /** The Settings page's categories, in navigation order. */
 export type TerminalSettingsCategory =
+	| 'about'
 	| 'agents'
 	| 'appearance'
 	| 'general'
@@ -19,6 +20,42 @@ export type TerminalSettingsCategory =
 	| 'notifications'
 	| 'terminal'
 	| 'themes';
+
+/** What Check for updates shows, and why it cannot run where it cannot. */
+export type TerminalSettingsUpdateCheckStatus =
+	| { readonly kind: 'checking' | 'failed' | 'idle' | 'up-to-date' }
+	| {
+			readonly kind: 'unavailable';
+			readonly reason: 'development' | 'installation' | 'session';
+	  };
+
+/** Check for updates, as About reads and runs it. */
+interface TerminalSettingsUpdateCheck {
+	readonly getSnapshot: () => TerminalSettingsUpdateCheckStatus;
+	readonly start: () => void;
+	/** About shows the status from now until the returned call. */
+	readonly show: () => () => void;
+	readonly subscribe: (listener: () => void) => () => void;
+}
+
+/** The version, the build, and the update control About shows. */
+export interface TerminalSettingsAbout {
+	/** Which build this window is; null where the host does not say. */
+	readonly build: 'development' | 'release' | 'test' | null;
+	/** Check for updates; absent where the host has no update at all, which About says. */
+	readonly check: TerminalSettingsUpdateCheck | undefined;
+	/** The newer version the window can switch to now, which puts Update in Check's place. */
+	readonly offer:
+		| {
+				readonly getSnapshot: () => string | null;
+				readonly subscribe: (listener: () => void) => () => void;
+		  }
+		| undefined;
+	/** Runs Update, the same Action as the sidebar footer's control. */
+	readonly update: () => void;
+	/** The version this window runs; null leaves the Version row out. */
+	readonly version: string | null;
+}
 
 /** What the folder picker answered; a failure's reason does not change what the page does. */
 type TerminalSettingsFolderSelection =
@@ -38,6 +75,8 @@ export interface TerminalSettingsFontCatalog {
 }
 
 export interface TerminalSettingsSurfaceProps {
+	/** What About shows; without it Settings has no About category. */
+	readonly about?: TerminalSettingsAbout | undefined;
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
 	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly controller: TerminalSettingsController;

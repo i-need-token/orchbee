@@ -912,6 +912,13 @@ unpacking, and a bundle the launcher swaps at the click.
   answer has none, and one table from capability to window actions, as the TUI's
   `session_capabilities.rs` does. The relay's own handshake joins the same Server with the same
   Client, so it negotiates the same names, and each document reads them anew.
+- Landed with About's Check for updates, the first window action that needs one (`update-check`):
+  the bootstrap's `negotiatedCapabilities` is null when the start answer named none, and a
+  malformed list also reads as null rather than refusing the document. The table is
+  `apps/web/src/workbench-client/server-workbench/serverSessionServes.ts`; unlike the TUI's, it
+  reads an unknown list as serving nothing, because the window cannot read its own handshake. The
+  [window's settings](../../apps/web/docs/terminal-settings.md#about-and-check-for-updates) describe
+  the action.
 - Rejected: a first frame on the relay. Main and its bundled Client are an exact pair
   ([what stays exact](versioning-and-upgrade.md#what-stays-exact)), so it would be allowed, but it
   changes both ends of the page's stream, whose bytes Main keeps opaque

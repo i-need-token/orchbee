@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the Settings dialog over the Workbench, closed by its close button, Escape or a press on its scrim: a navigation column with search and seven categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents) and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme lists with in-place preview, copy-on-select, the new terminal folder, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices and local Agent integrations, with per-setting restore default, a per-row reason when the settings file refuses a change, a read-only page while the file cannot be parsed or read, dismissible page notices, global search and the settings file's real path for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the Settings dialog over the Workbench, closed by its close button, Escape or a press on its scrim: a navigation column with search and eight categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents, About) and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme lists with in-place preview, copy-on-select, the new terminal folder, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices, local Agent integrations, and About with the window's version and Check for updates, with per-setting restore default, a per-row reason when the settings file refuses a change, a read-only page while the file cannot be parsed or read, dismissible page notices, global search and the settings file's real path for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -19,7 +19,8 @@
 		"configure-macos-terminal-input",
 		"configure-local-shell-profiles",
 		"configure-shell-integration-reminders",
-		"search-terminal-settings"
+		"search-terminal-settings",
+		"check-for-updates"
 	],
 	"implementation": [
 		"apps/web/src/application-locale/model/ApplicationLocaleController.ts",
@@ -42,6 +43,10 @@
 		"apps/web/src/terminal-settings-surface/components/terminal-behavior-settings/TerminalBehaviorSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/notification-settings/NotificationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/agent-settings/AgentSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/about-settings/AboutSettings.tsx",
+		"apps/web/src/workbench/model/WorkbenchUpdateCheckModel.ts",
+		"apps/web/src/workbench-client/server-workbench/askServerUpdateCheck.ts",
+		"apps/web/src/workbench-client/server-workbench/serverSessionServes.ts",
 		"apps/web/src/terminal-settings-surface/components/agent-integration-settings/AgentIntegrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/application-language-settings/ApplicationLanguageSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/keyboard-shortcut-settings/KeyboardShortcutSettings.tsx",
@@ -134,6 +139,54 @@
 			]
 		},
 		{
+			"exportName": "EnglishAbout",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-about",
+			"states": [
+				"Inspect About last in the navigation with its info icon: one unnamed card with Version showing 1.3.0 and Release build, and Updates with the hourly-check description and Check for updates. Press it to see Checking… replace the action without moving the row, then Orchbee is up to date in the positive tone. Search for a word from About to see that it lists nothing from it."
+			]
+		},
+		{
+			"exportName": "EnglishAboutChecking",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-about-checking",
+			"states": [
+				"Inspect the disabled, spinner-free Checking… action over the unchanged description."
+			]
+		},
+		{
+			"exportName": "EnglishAboutUpToDate",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-about-up-to-date",
+			"states": [
+				"Inspect Orchbee is up to date in the positive tone with Check for updates available again."
+			]
+		},
+		{
+			"exportName": "EnglishAboutFailed",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-about-failed",
+			"states": [
+				"Inspect the failure sentence in the danger tone with Check for updates available to try again."
+			]
+		},
+		{
+			"exportName": "EnglishAboutUnavailable",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-about-unavailable",
+			"states": [
+				"Inspect a Session whose handshake lacks the request: Check for updates disabled and Available once the Session updates."
+			]
+		},
+		{
+			"exportName": "EnglishAboutReady",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-about-ready",
+			"states": [
+				"Inspect a newer version offered: the footer's Update in the place of Check for updates, and the Update tooltip's sentence as the description."
+			]
+		},
+		{
 			"exportName": "ChineseGeneral",
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-general",
@@ -182,6 +235,44 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-agents",
 			"states": ["Inspect localized Agent integration states."]
+		},
+		{
+			"exportName": "ChineseAbout",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-about",
+			"states": [
+				"Inspect localized About in the dark appearance: 关于 last in the navigation, 版本 with 正式版, and 更新 with 检查更新 on the control column."
+			]
+		},
+		{
+			"exportName": "ChineseAboutChecking",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-about-checking",
+			"states": ["Inspect the localized Checking… action."]
+		},
+		{
+			"exportName": "ChineseAboutUpToDate",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-about-up-to-date",
+			"states": ["Inspect the localized up-to-date sentence."]
+		},
+		{
+			"exportName": "ChineseAboutFailed",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-about-failed",
+			"states": ["Inspect the localized failure sentence."]
+		},
+		{
+			"exportName": "ChineseAboutUnavailable",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-about-unavailable",
+			"states": ["Inspect the localized Session reason with the disabled action."]
+		},
+		{
+			"exportName": "ChineseAboutReady",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-about-ready",
+			"states": ["Inspect the localized Update control and its sentence."]
 		}
 	],
 	"uses": [],
@@ -194,7 +285,8 @@
 		"A Desktop client creates, edits, selects, or removes the Session's shared system-shell and custom-executable launch profiles for future terminals.",
 		"A Desktop client changes the terminal history default captured only by future terminals.",
 		"A Desktop user explicitly inspects, enables, or disables Orchbee's exact local observation integration for one supported terminal Agent without granting remote-host mutation authority.",
-		"A user wants to configure Agent notifications, completion reminders, or notification sound."
+		"A user wants to configure Agent notifications, completion reminders, or notification sound.",
+		"A user wants to see which version and build the window runs, or ask the Session to check for updates now."
 	],
 	"avoidWhen": [
 		"A native window, operating-system transparency, palette, VT, or OSC setting is being configured.",
@@ -226,6 +318,7 @@
 		"The surface never reads or edits a shell startup file, executes a source command, or requests notification permission except from the notification banner's Allow button.",
 		"The config.toml row shows the path of the settings file the Session reads, from its snapshot, with a copy action; the page opens no file and adds no native capability.",
 		"No current composition runs a Host-owned terminal-theme transaction: a Desktop window, as a Server Client, paints default-coded cells through defaultColorOverride, with the selected color theme's canvas for Theme and Host and the custom pair for Custom. Explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",
+		"About is the last category and holds no setting: no settings-file line, and search never lists it. Version shows the version the window runs with its build; Updates shows Check for updates, a disabled spinner-free Checking… while a run is queued or running, or, while a newer version is offered, the footer's Update Action with its tooltip sentence. Check sends workbench.update-check only when the build is not a development build, Main can offer the window a newer version, and the Session's negotiated capabilities list update-check; otherwise it is disabled with that reason. A finished result shows only for a check this window started; an installed version shows as the offer and never as Up to date; a refused, lost, or late answer, or one of another kind or for another request, fails the check and is never repeated.",
 		"All product copy ships in English and Simplified Chinese.",
 		"Navigation and search project only categories and settings whose required composition capabilities are present; roadmap-only categories and controls remain absent."
 	],

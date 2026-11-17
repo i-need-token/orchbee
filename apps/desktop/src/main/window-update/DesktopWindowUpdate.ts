@@ -66,6 +66,11 @@ export class DesktopWindowUpdate {
 		this.#options = options;
 	}
 
+	/** Whether this window can ever be offered a newer version: only from a release store's folder. */
+	get offersUpdates(): boolean {
+		return this.#options.desktopRoot !== null;
+	}
+
 	/** Reads the pointer and follows its changes; a window outside a version folder offers nothing. */
 	start(): void {
 		const root = this.#options.desktopRoot;
