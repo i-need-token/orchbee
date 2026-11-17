@@ -93,7 +93,8 @@ export async function stageConptyBundle(output) {
 					ORCHBEE_CONPTY_PREPARED: prepared,
 				},
 				stdio: 'inherit',
-				timeout: 30_000,
+				// A cold Windows PowerShell start on a loaded CI runner can take longer than 30 s; this bound only stops a hang.
+				timeout: 120_000,
 				windowsHide: true,
 			},
 		);
