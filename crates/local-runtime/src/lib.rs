@@ -117,7 +117,8 @@ pub use diagnostic_bundle::{
 mod diagnostic_log;
 pub use diagnostic_log::{
     DAILY_LOG_LIMIT_BYTES, LogField, LogLevel, LogRole, LogValue, RETAINED_LOG_DAYS,
-    RecentDiagnosticLogs, install_diagnostic_log, log_event, recent_diagnostic_logs, utc_timestamp,
+    RecentDiagnosticLogs, install_diagnostic_log, log_event, log_panicked, panic_thread_token,
+    recent_diagnostic_logs, source_file_stem, utc_timestamp,
 };
 mod destructive_log;
 pub use data_root::{create_private_directory, prepare_default_runtime_base};

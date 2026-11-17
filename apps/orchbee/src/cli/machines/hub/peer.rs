@@ -8,6 +8,7 @@
 use super::super::shared_carrier::frames;
 use super::{
     catalog::Machines,
+    draft_ledger::DraftLedger,
     machine::{Answers, Kind, Machine, Route, Waiter},
     state::{Hub, Line, Shared},
     stop,
@@ -155,6 +156,16 @@ fn deliver(
         }
         Delivery::Message(Message::Request {
             id: request,
+            request: Request::Connect(connect),
+            ..
+        }) => {
+            connect_request(shared, line, id, request, connect);
+            // The lifetime may have changed, or a carrier may wait to start.
+            shared.wake();
+            true
+        }
+        Delivery::Message(Message::Request {
+            id: request,
             request: Request::StopSession { machine },
             ..
         }) => {
@@ -215,7 +226,42 @@ fn deliver(
     }
 }
 
-/// Answers every request but `reload` at once, under the hub state's lock.
+/// Answers `connect`, flushing a newly recorded draft ledger off lock before starting a carrier.
+fn connect_request(shared: &Arc<Shared>, line: &Line, id: u64, request: Id, connect: Connect) {
+    let mut hub = shared.lock();
+    if let Some(reply) = connect_reply(&hub.machines, &connect, id, hub.lifetime.is_closing()) {
+        drop(hub);
+        let _replied = line.lock().connection.reply(request, reply);
+        return;
+    }
+    let answers = match connect.origin {
+        Origin::User => Answers::User,
+        Origin::Command { answers: true } => Answers::Command,
+        Origin::Command { answers: false } => Answers::Never,
+    };
+    if let Some(route) = connect.draft.as_ref().and_then(route)
+        && hub.machines.state(&connect.machine).is_none()
+        && hub.machines.draft(&connect.machine).is_none()
+    {
+        if let Some(older) = hub.machines.owned_draft(id).cloned() {
+            hub.drop_draft(&older, |machine, _| machine.remove());
+        }
+        hub.add_draft(Machine::draft(connect.machine.clone(), route, id));
+        let persister = hub.drafts.persister();
+        drop(hub);
+        persister.flush();
+        hub = shared.lock();
+        if let Some(reply) = connect_reply(&hub.machines, &connect, id, hub.lifetime.is_closing()) {
+            drop(hub);
+            let _replied = line.lock().connection.reply(request, reply);
+            return;
+        }
+    }
+    let waiter = Waiter::new(id, request, answers);
+    hub.machine(&connect.machine, |machine, cx| machine.connect(waiter, cx));
+}
+
+/// Answers every request other than `reload`, `stop-session`, and `connect`, under the hub lock.
 fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
     let closing = hub.lifetime.is_closing();
     let reply = match body {
@@ -271,31 +317,6 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             }
             return;
         }
-        Request::Connect(connect) => match connect_reply(&hub.machines, &connect, id, closing) {
-            Some(reply) => reply,
-            None => {
-                let answers = match connect.origin {
-                    Origin::User => Answers::User,
-                    Origin::Command { answers: true } => Answers::Command,
-                    Origin::Command { answers: false } => Answers::Never,
-                };
-                // A new draft is this connection's until the catalog holds it. A connection keeps
-                // one draft: one it left behind goes first, as its leaving would drop it.
-                if let Some(route) = connect.draft.as_ref().and_then(route)
-                    && hub.machines.state(&connect.machine).is_none()
-                    && hub.machines.draft(&connect.machine).is_none()
-                {
-                    if let Some(older) = hub.machines.owned_draft(id).cloned() {
-                        hub.drop_draft(&older, |machine, _| machine.remove());
-                    }
-                    hub.machines
-                        .add_draft(Machine::draft(connect.machine.clone(), route, id));
-                }
-                let waiter = Waiter::new(id, request, answers);
-                hub.machine(&connect.machine, |machine, cx| machine.connect(waiter, cx));
-                return;
-            }
-        },
         Request::Disconnect { .. } if closing => Reply::Disconnect(DisconnectOutcome::Stopping),
         // Disconnecting a draft drops it; another connection's draft is not there for this one.
         Request::Disconnect { machine } if hub.machines.state(&machine).is_none() => {
@@ -346,7 +367,11 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             }
             Reply::Dismiss(outcome)
         }
-        // `deliver` hands `reload` and `stop-session` to their own paths.
+        // `deliver` hands `reload`, `stop-session`, and `connect` to their own paths.
+        Request::Connect(_) => Reply::Connect(ConnectResult {
+            outcome: ConnectOutcome::NotOnline(ConnectFailure::Stopping),
+            state: None,
+        }),
         Request::Reload => Reply::Reload(ReloadOutcome::Stopping),
         Request::StopSession { .. } => Reply::StopSession(StopSessionOutcome::Stopping),
     };
@@ -412,8 +437,9 @@ fn connect_reply(
 }
 
 /// Rereads `machines.json` outside every lock and replies with the catalog then in use.
-fn reload(shared: &Shared, line: &Line, request: Id) {
+fn reload(shared: &Arc<Shared>, line: &Line, request: Id) {
     let mut hub = shared.lock();
+    let mut sweep = Vec::new();
     let outcome = if hub.lifetime.is_closing() {
         ReloadOutcome::Stopping
     } else {
@@ -428,7 +454,7 @@ fn reload(shared: &Shared, line: &Line, request: Id) {
                 ReloadOutcome::Stopping
             }
             Ok(read) => {
-                hub.finish_reload(order, read);
+                sweep = hub.finish_reload(order, read);
                 ReloadOutcome::Reloaded {
                     revision: hub.machines.revision(),
                 }
@@ -444,6 +470,7 @@ fn reload(shared: &Shared, line: &Line, request: Id) {
         .connection
         .reply(request, Reply::Reload(outcome));
     drop(hub);
+    DraftLedger::spawn_sweep(Arc::clone(shared), sweep);
     // Closing waits for the reads in flight.
     shared.wake();
 }

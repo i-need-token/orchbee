@@ -1067,9 +1067,13 @@ destructive request log. The Client writes `tui-started` and `tui-exited` with a
 `server-start` and `server-start-finished` with the exit status, and `relay-started` and
 `relay-exited` to the
 [daily log](../../crates/local-runtime/README.md#diagnostic-log), the remote link helper
-writes `link-rights` with the rights its token runs with or why it refused, and its
+writes `link-rights` with the rights its token runs with or why it refused, its
 `ensure-session` writes the [Session start's records](docs/machines.md#link-helper),
-`session-start-source` and `server-job`; other commands write none. The TUI also writes `client-retired` when its connection retires on a failure: the failure's
+`session-start-source` and `server-job`, and the machine hub (`--machine-hub-v1`) writes `panicked`
+with its thread role token, `file` stem and `line` before aborting; other commands write none.
+The TUI also writes `machine-hub-loss` (when a protocol violation ends a hub connection, with `loss`,
+`stage` and `class`), `machine-hub-ended` (when attachment ends permanently, with `failure`), and
+`client-retired` when its connection retires on a failure: the failure's
 token, the kind of command the connection worker held then, such as `poll` or `panel`, and the
 source directory, file stem and line of the mailbox check or Client step that closed it, never the
 path. A process exit's close writes nothing. When the TUI contains one request's fault to its

@@ -836,3 +836,53 @@ fn machine_catalog_failure_preserves_active_identity_but_disable_returns_local()
         "even a disconnected Local surface must remain reachable"
     );
 }
+
+#[test]
+fn another_process_removing_current_in_a_tick_with_other_manage_work_does_not_read_as_own() {
+    use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
+
+    let (mut manager, mut view, mut surface) = setup();
+    drop(surface.replace(Box::new(DisconnectedLocal)));
+    let mut other = profile();
+    other.id = crate::machines::ProfileId::parse("22222222222222222222222222222222")
+        .expect("valid profile id");
+    other.draft.label = "other".to_owned();
+    other.draft.connection =
+        crate::machines::Connection::ssh("other.invalid").expect("valid target");
+    manager.profiles.push(other.clone());
+    view.machines.replace(&manager.profiles);
+    manager.install(
+        Cached {
+            profile: Some(profile()),
+            surface: Box::new(UnavailableTerminalInputPort),
+            view: ClientView::new(100),
+        },
+        &mut surface,
+        &mut view,
+        dimensions(),
+        true,
+        &mut |_| {},
+    );
+    view.machines.show();
+
+    let change = manager.refresh_catalog(
+        Ok(crate::machines::Catalog {
+            revision: 2,
+            profiles: vec![other.clone()],
+            ..Default::default()
+        }),
+        &[other.id],
+        &mut surface,
+        &mut view,
+        dimensions(),
+        &mut |_| {},
+    );
+    assert!(change.switched);
+    assert_eq!(view.machines.current, Choice::Local);
+    assert!(!view.machines.open);
+    assert_eq!(view.machines.error, Some("removed"));
+    assert_eq!(
+        view.notice(),
+        Some(crate::client_view::Notice::WorkspaceNavigationUnavailable)
+    );
+}

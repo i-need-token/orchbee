@@ -134,6 +134,71 @@ pub fn log_event(level: LogLevel, event: &'static str, fields: &[LogField]) {
         event,
         fields,
     );
+    append_encoded(stamp, role, &record);
+}
+
+/// Strips directory components and a trailing `.rs` suffix so diagnostic records never carry
+/// build paths.
+#[must_use]
+pub fn source_file_stem(path: &str) -> &str {
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    name.strip_suffix(".rs").unwrap_or(name)
+}
+
+/// Normalizes a panicking thread's name into a closed diagnostic token: keeps `"main"` and
+/// `orchbee-…` / `workbench-…` names within the token grammar, `"unnamed"` when absent, and
+/// `"other"` otherwise.
+#[must_use]
+pub fn panic_thread_token(name: Option<&str>) -> &str {
+    match name {
+        None => "unnamed",
+        Some(name)
+            if (name == "main"
+                || name.starts_with("orchbee-")
+                || name.starts_with("workbench-"))
+                && is_token(name) =>
+        {
+            name
+        }
+        Some(_) => "other",
+    }
+}
+
+/// Appends one `panicked` record carrying optional `thread`, `file` stem, `line`, and optional
+/// `suppressed` count when this process installed its role, without leaking tokens.
+pub fn log_panicked(
+    thread: Option<&str>,
+    location: Option<&std::panic::Location<'_>>,
+    suppressed: Option<u64>,
+) {
+    let Some(role) = ROLE.get() else {
+        return;
+    };
+    let (file, line) = location.map_or(("unknown", 0), |loc| {
+        (source_file_stem(loc.file()), u64::from(loc.line()))
+    });
+    let file = if is_token(file) { file } else { "other" };
+    let mut body = String::new();
+    if let Some(thread) = thread {
+        let thread = if is_token(thread) { thread } else { "other" };
+        body.push_str(&format!("\"thread\":\"{thread}\","));
+    }
+    body.push_str(&format!("\"file\":\"{file}\",\"line\":{line}"));
+    if let Some(suppressed) = suppressed {
+        body.push_str(&format!(",\"suppressed\":{suppressed}"));
+    }
+    let stamp = Stamp::now();
+    let record = format_envelope(
+        stamp.unix_milliseconds,
+        LogLevel::Error.token(),
+        role.token(),
+        "panicked",
+        &body,
+    );
+    append_encoded(stamp, role, &record);
+}
+
+fn append_encoded(stamp: Stamp, role: &LogRole, record: &[u8]) {
     let capped = encode(
         stamp.unix_milliseconds,
         LogLevel::Warning.token(),
@@ -141,7 +206,7 @@ pub fn log_event(level: LogLevel, event: &'static str, fields: &[LogField]) {
         CAPPED_EVENT,
         &[],
     );
-    let _ = daily::append(&record, &capped, stamp);
+    drop(daily::append(record, &capped, stamp));
 }
 
 /// The daily files of the last seven days, each holding only the lines that are well-formed
@@ -301,6 +366,16 @@ fn encode(
         };
         body.push_str(&format!("\"{name}\":{value}"));
     }
+    format_envelope(unix_milliseconds, level, role, event, &body)
+}
+
+fn format_envelope(
+    unix_milliseconds: u64,
+    level: &str,
+    role: &str,
+    event: &str,
+    body: &str,
+) -> Vec<u8> {
     format!(
         "{{\"time\":\"{}\",\"level\":\"{level}\",\"role\":\"{role}\",\"pid\":{},\"event\":\"{event}\",\"fields\":{{{body}}}}}\n",
         timestamp(unix_milliseconds),

@@ -8,14 +8,14 @@
 //! connection it was opened on and reads `lost` when that connection is lost.
 
 use super::{
-    AttachFailure, Attached, Attachment,
+    AttachFailure, Attached, Attachment, Incompatible,
     attach::{self, Cancel, Link, READ_BUFFER_BYTES, Start},
     data_root,
 };
 use crate::machine_endpoint::LocalStream;
-use orchbee_local_runtime::DataRoot;
+use orchbee_local_runtime::{DataRoot, LogLevel, LogValue, log_event};
 use orchbee_machine_protocol::{
-    ByeReason, Connection, Delivery, FrameDecoder, Id, Message, ResetReason, SendError,
+    ByeReason, Connection, Delivery, FrameDecoder, Id, Message, ResetReason, SendError, Violation,
     hub::{self, AttachOutcome, Event, HubState, Outcome, Reply, Request},
 };
 use std::{
@@ -147,6 +147,16 @@ struct Inner {
     changed: Condvar,
     /// Wakes the writer.
     transmit: Condvar,
+    #[cfg(test)]
+    faults: Mutex<Vec<FaultRecord>>,
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct FaultRecord {
+    pub(super) event: &'static str,
+    pub(super) field: &'static str,
+    pub(super) value: &'static str,
 }
 
 struct State {
@@ -189,6 +199,27 @@ struct Current {
     pending: BTreeMap<Id, (u64, Option<Attachment>)>,
 }
 
+/// Where a protocol violation ended an attached connection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ViolationStage {
+    /// Wire frame decoding failed on the incoming stream.
+    Decode,
+    /// A decoded frame broke the hub connection contract.
+    Protocol,
+    /// The hub ended the connection with `bye` `violation`.
+    PeerBye,
+}
+
+impl ViolationStage {
+    const fn token(self) -> &'static str {
+        match self {
+            Self::Decode => "decode",
+            Self::Protocol => "protocol",
+            Self::PeerBye => "peer-bye",
+        }
+    }
+}
+
 /// Why the reader stopped reading a connection.
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum Loss {
@@ -196,8 +227,8 @@ enum Loss {
     Stopped,
     /// `bye` other than `stopping` or `violation`, or the carrier ended.
     Gone,
-    /// Either side broke the protocol.
-    Violation,
+    /// Either side broke the protocol on this connection, with its stage and class token.
+    Violation(ViolationStage, &'static str),
     /// `close` began.
     Closed,
 }
@@ -236,7 +267,36 @@ impl HubClient {
         opening: Opening,
         cancel: &OpenCancel,
     ) -> Result<(Self, Attached), AttachFailure> {
-        let root = data_root()?;
+        Self::open_at(data_root()?, attachment, deadline, opening, cancel)
+    }
+
+    #[cfg(test)]
+    pub(super) fn open_with_in(
+        root: DataRoot,
+        attachment: Attachment,
+        deadline: Instant,
+        opening: Opening,
+        cancel: &OpenCancel,
+    ) -> Result<(Self, Attached), AttachFailure> {
+        Self::open_at(root, attachment, deadline, opening, cancel)
+    }
+
+    #[cfg(test)]
+    pub(super) fn fault_records(&self) -> Vec<FaultRecord> {
+        self.inner
+            .faults
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    fn open_at(
+        root: DataRoot,
+        attachment: Attachment,
+        deadline: Instant,
+        opening: Opening,
+        cancel: &OpenCancel,
+    ) -> Result<(Self, Attached), AttachFailure> {
         let start = match opening {
             Opening::Start => Start::Always,
             Opening::Restart => Start::UntilStopping,
@@ -264,6 +324,8 @@ impl HubClient {
             }),
             changed: Condvar::new(),
             transmit: Condvar::new(),
+            #[cfg(test)]
+            faults: Mutex::new(Vec::new()),
         });
         let reading = {
             let mut state = inner.lock();
@@ -671,15 +733,18 @@ impl Inner {
             let mut offset = 0;
             while let Some(rest) = buffer.get(offset..read).filter(|rest| !rest.is_empty()) {
                 let Ok((consumed, frame)) = reading.decoder.decode(rest) else {
-                    return Loss::Violation;
+                    return Loss::Violation(ViolationStage::Decode, Violation::Frame.as_str());
                 };
                 offset += consumed;
                 if let Some(frame) = frame {
                     let Some(current) = state.current.as_mut() else {
                         return Loss::Gone;
                     };
-                    let Ok(receipt) = current.connection.receive(&frame) else {
-                        return Loss::Violation;
+                    let receipt = match current.connection.receive(&frame) {
+                        Ok(receipt) => receipt,
+                        Err(violation) => {
+                            return Loss::Violation(ViolationStage::Protocol, violation.as_str());
+                        }
                     };
                     if let Some(delivery) = receipt.delivery
                         && let Some(loss) = state.deliver(delivery)
@@ -705,7 +770,9 @@ impl Inner {
 
     /// After a loss: ends the owner, or re-attaches and returns the new connection to read. A hub
     /// that was stopping is never restarted in reaction: the owner attaches only to a hub somebody
-    /// else starts, and ends `closing` when none appears.
+    /// else starts, and ends `closing` when none appears. A protocol violation ends only the
+    /// broken connection and re-attaches within [`LOSSES`] in [`LOSS_WINDOW`], ending as `lost`
+    /// if that bound is reached on a violation.
     fn recover(&self, loss: Loss) -> Option<Reading> {
         let (attachment, stopped) = {
             let mut state = self.lock();
@@ -720,11 +787,8 @@ impl Inner {
             if state.closing || loss == Loss::Closed {
                 return None;
             }
-            if loss == Loss::Violation {
-                state.end(AttachFailure::Lost);
-                drop(state);
-                self.changed.notify_all();
-                return None;
+            if let Loss::Violation(stage, class) = loss {
+                self.record_violation(stage, class);
             }
             let now = Instant::now();
             while state
@@ -736,9 +800,12 @@ impl Inner {
             }
             state.losses.push_back(now);
             if state.losses.len() >= LOSSES {
-                state.end(AttachFailure::Unavailable);
-                drop(state);
-                self.changed.notify_all();
+                let failure = if matches!(loss, Loss::Violation(_, _)) {
+                    AttachFailure::Lost
+                } else {
+                    AttachFailure::Unavailable
+                };
+                self.finish(state, failure);
                 return None;
             }
             (state.attachment, loss == Loss::Stopped || state.stopping)
@@ -763,9 +830,7 @@ impl Inner {
                 Ok(link) => {
                     let notice = Notice::Reattached(link.attached);
                     let Some(reading) = install(&mut state, link) else {
-                        state.end(AttachFailure::Unavailable);
-                        drop(state);
-                        self.changed.notify_all();
+                        self.finish(state, AttachFailure::Unavailable);
                         return None;
                     };
                     state.notices.push_back(notice);
@@ -784,13 +849,64 @@ impl Inner {
                     deadline = lost + CLOSING_ALLOWANCE;
                 }
                 Err(failure) => {
-                    state.end(failure);
-                    drop(state);
-                    self.changed.notify_all();
+                    self.finish(state, failure);
                     return None;
                 }
             }
         }
+    }
+
+    fn record_violation(&self, stage: ViolationStage, class: &'static str) {
+        let token = stage.token();
+        log_event(
+            LogLevel::Warning,
+            "machine-hub-loss",
+            &[
+                ("loss", LogValue::Token("violation")),
+                ("stage", LogValue::Token(token)),
+                ("class", LogValue::Token(class)),
+            ],
+        );
+        #[cfg(test)]
+        {
+            let mut faults = self
+                .faults
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            faults.push(FaultRecord {
+                event: "machine-hub-loss",
+                field: "stage",
+                value: token,
+            });
+            faults.push(FaultRecord {
+                event: "machine-hub-loss",
+                field: "class",
+                value: class,
+            });
+        }
+    }
+
+    fn finish(&self, mut state: MutexGuard<'_, State>, failure: AttachFailure) {
+        let token = failure_token(&failure);
+        log_event(
+            LogLevel::Error,
+            "machine-hub-ended",
+            &[("failure", LogValue::Token(token))],
+        );
+        #[cfg(test)]
+        {
+            self.faults
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(FaultRecord {
+                    event: "machine-hub-ended",
+                    field: "failure",
+                    value: token,
+                });
+        }
+        state.end(failure);
+        drop(state);
+        self.changed.notify_all();
     }
 
     /// The writer: whole frames in the state machine's order, up to a batch per write, until the
@@ -880,7 +996,7 @@ impl State {
             }
             Delivery::Message(Message::Bye { reason, .. }) => Some(match reason {
                 ByeReason::Stopping => Loss::Stopped,
-                ByeReason::Violation => Loss::Violation,
+                ByeReason::Violation => Loss::Violation(ViolationStage::PeerBye, "peer-bye"),
                 _ => Loss::Gone,
             }),
             Delivery::Accept { channel, .. } => {
@@ -959,6 +1075,20 @@ impl State {
     }
 }
 
+const fn failure_token(failure: &AttachFailure) -> &'static str {
+    match failure {
+        AttachFailure::DataRoot => "data-root",
+        AttachFailure::Incompatible(Incompatible::Held { .. }) => "incompatible-held",
+        AttachFailure::Incompatible(Incompatible::Environment { .. }) => "incompatible-environment",
+        AttachFailure::Incompatible(Incompatible::Protocol) => "incompatible-protocol",
+        AttachFailure::Denied => "denied",
+        AttachFailure::Timeout => "timeout",
+        AttachFailure::Unavailable => "unavailable",
+        AttachFailure::Closing => "closing",
+        AttachFailure::Lost => "lost",
+    }
+}
+
 /// Makes `link` the attached connection and returns what the reader needs to read it; `None` when
 /// the carrier cannot be shared between the reader and the writer.
 fn install(state: &mut State, link: Link) -> Option<Reading> {
@@ -977,3 +1107,6 @@ fn install(state: &mut State, link: Link) -> Option<Reading> {
         early: link.early,
     })
 }
+
+#[cfg(test)]
+mod tests;

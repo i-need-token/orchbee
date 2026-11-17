@@ -8,6 +8,7 @@ use super::{
     askpass,
     carrier::{self, Launch},
     catalog::Machines,
+    draft_ledger::DraftLedger,
     environment::Environment,
     lifetime::{Lifetime, Moment, ReadDue},
     machine, peer, relay,
@@ -18,15 +19,20 @@ use orchbee_connection_handshake::{
     DrainResult, ExitResult, Extensions, ProcessRole, ProcessState, ReadError, RejectionReason,
     RequestKind, read_initiator_message,
 };
-use orchbee_local_runtime::{DataRoot, HeldLock, create_private_directory, machine_hub_endpoint};
+use orchbee_local_runtime::{
+    DataRoot, HeldLock, LogRole, create_private_directory, install_diagnostic_log, log_panicked,
+    machine_hub_endpoint, panic_thread_token,
+};
 use orchbee_machine_protocol::ByeReason;
 use orchbee_workbench_client::application::{
     machine_endpoint::{LocalListener, LocalStream, bind_locked, hold_folder},
     machine_hub,
 };
 use std::{
+    cell::Cell,
     fs::TryLockError,
     io::{self, Read},
+    panic::PanicHookInfo,
     path::Path,
     sync::{
         Arc,
@@ -60,9 +66,13 @@ const REFUSAL_WRITE: Duration = Duration::from_secs(1);
 const IDLE_WAKE: Duration = Duration::from_secs(60);
 /// How long closing waits for ended carriers to be reaped; each settles within 5 seconds.
 const CARRIERS_END: Duration = Duration::from_secs(10);
+/// Bounded OS credential-store cleanup on normal shutdown and explicit `exit`.
+const CLOSE_FORGET_BOUND: Duration = Duration::from_secs(3);
+const EXIT_FORGET_BOUND: Duration = Duration::from_secs(2);
 
 /// Runs the hub until it closes and returns its exit status.
 pub(super) fn serve() -> u8 {
+    install_diagnostic_log(LogRole::Client);
     end_on_panic();
     // A Unix hub leaves the session and process group of the client that started it, so the
     // terminal that client runs in signals it neither at an interrupt nor when it closes. A hub
@@ -91,7 +101,15 @@ pub(super) fn serve() -> u8 {
     let Some(listener) = bind(&endpoint) else {
         return CANNOT_SERVE;
     };
-    let machines = Machines::read(&root).unwrap_or_else(|_| Machines::empty());
+    let mut drafts = DraftLedger::open(&root);
+    let (machines, startup_sweep) = match Machines::read(&root) {
+        Ok(read) => {
+            let sweep = drafts.reconcile_catalog(|id| read.state(id).is_some());
+            (read, sweep)
+        }
+        Err(_) => (Machines::empty(), Vec::new()),
+    };
+    let persister = drafts.persister();
     let base = machine_hub::runtime_base(|name| environment.get(name));
     let live = any_live(base.as_deref());
     let lifetime = Lifetime::start(environment.expiry().unwrap_or(EXPIRY), live, Moment::now());
@@ -104,10 +122,18 @@ pub(super) fn serve() -> u8 {
     };
     let question = environment.question().unwrap_or(machine::QUESTION);
     let shared = Arc::new_cyclic(|this| {
-        Shared::new(Hub::new(root, lifetime, machines, question, this.clone()))
+        Shared::new(Hub::new(
+            root,
+            lifetime,
+            machines,
+            drafts,
+            question,
+            this.clone(),
+        ))
     });
     let profile = Arc::new(acceptor_profile(ConnectionKind::MachineHub));
     let stop = Arc::new(AtomicBool::new(false));
+    let mut draft_writer = persister.spawn_writer();
     let listening = {
         let (shared, profile, stop) = (shared.clone(), profile.clone(), stop.clone());
         thread::Builder::new()
@@ -128,12 +154,17 @@ pub(super) fn serve() -> u8 {
         let _listener_ended = listening.join();
         return CANNOT_SERVE;
     };
+    // Sweep orphaned draft credentials only after listeners are running, off every shared lock.
+    DraftLedger::spawn_sweep(shared.clone(), startup_sweep);
     supervise(&shared, &launch, base.as_deref());
     close(&shared);
     stop.store(true, Ordering::Release);
     // The endpoint closes before the lock is released, so a successor binds a free name.
     let _listener_ended = listening.join();
     let _askpass_ended = answering.join();
+    if let Some(writer) = draft_writer.as_mut() {
+        writer.stop_and_join();
+    }
     drop(lock);
     CLOSED
 }
@@ -147,12 +178,49 @@ fn any_live(base: Option<&Path>) -> bool {
     })
 }
 
-/// Makes a panic in any of the hub's threads end the process after the usual report, as a kill
+thread_local! {
+    static ROLE_OVERRIDE: Cell<Option<&'static str>> = const { Cell::new(None) };
+}
+
+struct PeerRoleGuard(&'static str);
+
+impl PeerRoleGuard {
+    fn enter() -> Self {
+        ROLE_OVERRIDE.with(|slot| slot.set(Some("orchbee-hub-peer-reader")));
+        Self("orchbee-hub-peer-reader")
+    }
+}
+
+impl Drop for PeerRoleGuard {
+    fn drop(&mut self) {
+        let expected = self.0;
+        ROLE_OVERRIDE.with(|slot| {
+            if slot.get() == Some(expected) {
+                slot.set(None);
+            }
+        });
+    }
+}
+
+fn record_panic(panic: &PanicHookInfo<'_>) {
+    let current = thread::current();
+    let thread = ROLE_OVERRIDE
+        .with(Cell::get)
+        .unwrap_or_else(|| match current.name() {
+            Some("main") | None => "orchbee-hub-supervisor",
+            name => panic_thread_token(name),
+        });
+    log_panicked(Some(thread), panic.location(), None);
+}
+
+/// Makes a panic in any of the hub's threads write one structured `panicked` record naming the
+/// panicking thread's role and source site, then end the process after the usual report, as a kill
 /// would. Unwinding one thread would leave the rest serving wrongly: a listener's panic drops the
 /// endpoint while the lock stays held, and a reader's leaves its `presence` counted for ever.
 fn end_on_panic() {
     let report = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic| {
+        record_panic(panic);
         report(panic);
         std::process::abort();
     }));
@@ -253,6 +321,7 @@ fn candidate(
     let admitted = decide(shared, profile, &stream, accepted + CANDIDATE_DEADLINE);
     shared.lock().candidates -= 1;
     if let Some((id, line)) = admitted {
+        let _role = PeerRoleGuard::enter();
         peer::read(shared, &line, id, &stream);
     }
 }
@@ -315,7 +384,9 @@ fn decide(
             drop(hub);
             answer(&mut &*stream, &reply);
             if matches!(kind, RequestKind::Exit) {
-                // `exit` ends the process at once; the system releases the lock and the endpoint.
+                let remaining = shared.lock().drafts.pending_ids();
+                DraftLedger::forget_bounded(shared, &remaining, EXIT_FORGET_BOUND);
+                // `exit` ends the process within the control wait; the system releases lock and pipe.
                 std::process::exit(i32::from(CLOSED));
             }
             shared.lock().controls -= 1;
@@ -469,4 +540,9 @@ fn close(shared: &Shared) {
     while !hub.carriers.is_empty() && Instant::now() < reaped {
         hub = shared.wait_until(hub, reaped);
     }
+    let remaining = hub.drafts.pending_ids();
+    let persister = hub.drafts.persister();
+    drop(hub);
+    DraftLedger::forget_bounded(shared, &remaining, CLOSE_FORGET_BOUND);
+    persister.flush();
 }

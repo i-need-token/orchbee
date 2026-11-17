@@ -8,6 +8,7 @@
 use super::{
     carrier::Handle,
     catalog::{Conditions, Machines, Outcome},
+    draft_ledger::DraftLedger,
     lifetime::{Lifetime, Moment},
     machine::{Context, Effect, Machine, Route},
     relay::Relays,
@@ -19,7 +20,9 @@ use orchbee_machine_protocol::{
     Connection, MachineId,
     hub::{self, ConnectOutcome, Event, Reply},
 };
-use orchbee_workbench_client::application::machine_credentials::{Item, SecretKind, Store};
+use orchbee_workbench_client::application::machine_credentials::{
+    Failure, Item, SecretKind, Store,
+};
 use orchbee_workbench_client::application::machine_endpoint::LocalStream;
 use std::{
     collections::BTreeMap,
@@ -47,6 +50,7 @@ pub(super) struct Hub {
     pub(super) root: DataRoot,
     pub(super) lifetime: Lifetime,
     pub(super) machines: Machines,
+    pub(super) drafts: DraftLedger,
     pub(super) peers: BTreeMap<u64, Peer>,
     next_peer: u64,
     /// Every carrier from its start until its owner reports its end.
@@ -103,6 +107,7 @@ impl Hub {
         root: DataRoot,
         lifetime: Lifetime,
         machines: Machines,
+        drafts: DraftLedger,
         question: Duration,
         this: Weak<Shared>,
     ) -> Self {
@@ -110,6 +115,7 @@ impl Hub {
             root,
             lifetime,
             machines,
+            drafts,
             peers: BTreeMap::new(),
             next_peer: 0,
             carriers: BTreeMap::new(),
@@ -210,15 +216,29 @@ impl Hub {
         self.reload_started
     }
 
-    /// Ends the catalog read `order`, applying `read` unless a newer read was applied already.
-    pub(super) fn finish_reload(&mut self, order: u64, read: Machines) {
+    /// Ends the catalog read `order`, applying `read` unless a newer read was applied already, and
+    /// returns any orphan draft IDs to sweep off lock.
+    pub(super) fn finish_reload(&mut self, order: u64, read: Machines) -> Vec<MachineId> {
         self.reloads = self.reloads.saturating_sub(1);
         if order > self.reload_applied {
             self.reload_applied = order;
+            let sweep = self.drafts.reconcile_catalog(|id| read.state(id).is_some());
             let conditions = self.conditions();
             let outcome = self.machines.replace(read, &conditions);
             self.publish(outcome);
+            self.drafts.sync_live(self.machines.draft_ids());
+            sweep
+        } else {
+            Vec::new()
         }
+    }
+
+    /// Registers a new draft Machine in both memory and the durable draft ledger queue before any
+    /// login answer can be stored under its ID. Callers flush the ledger off lock before starting
+    /// its carrier.
+    pub(super) fn add_draft(&mut self, machine: Machine) {
+        self.drafts.record_draft(machine.id());
+        self.machines.add_draft(machine);
     }
 
     /// Ends a catalog read that failed.
@@ -403,7 +423,10 @@ impl Hub {
                     self.recalls.insert(carrier, recall(&machine, kind));
                 }
             }
-            Effect::Forget { machine, kind } => self.forget(machine, kind),
+            Effect::Forget { machine, kind } => {
+                self.drafts.begin_forget(&machine);
+                self.forget(machine, kind);
+            }
             Effect::Reply { waiters, result } => {
                 // A `connect` that ends `online` starts the expiry countdown again.
                 if matches!(result.outcome, ConnectOutcome::Online { .. })
@@ -436,20 +459,25 @@ impl Hub {
     fn forget(&mut self, machine: MachineId, kind: SecretKind) {
         let this = self.this.clone();
         let failed = machine.clone();
+        let persister = self.drafts.persister();
         let started = thread::Builder::new()
             .name("orchbee-hub-forget".into())
             .spawn(move || {
                 let deleted = Store::select().delete(&Item::new(machine.clone(), kind));
-                if deleted.is_err()
-                    && let Some(shared) = this.upgrade()
-                {
-                    shared
-                        .lock()
-                        .machine(&machine, |machine, _| machine.undeleted(kind));
+                let completed = matches!(deleted, Ok(_) | Err(Failure::Unavailable));
+                if let Some(shared) = this.upgrade() {
+                    let mut hub = shared.lock();
+                    hub.drafts.finish_forget(&machine, completed);
+                    if deleted.is_err() {
+                        hub.machine(&machine, |machine, _| machine.undeleted(kind));
+                    }
+                    drop(hub);
+                    persister.flush();
                     shared.wake();
                 }
             });
         if started.is_err() {
+            self.drafts.finish_forget(&failed, false);
             self.machine(&failed, |machine, _| machine.undeleted(kind));
         }
     }

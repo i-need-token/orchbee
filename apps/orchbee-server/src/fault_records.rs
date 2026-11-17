@@ -16,7 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use orchbee_local_runtime::{LogField, LogLevel, LogValue};
+use orchbee_local_runtime::{LogField, LogLevel, LogValue, panic_thread_token, source_file_stem};
 
 /// The shortest interval between two records from one site.
 const RECORD_INTERVAL: Duration = Duration::from_secs(60);
@@ -374,48 +374,32 @@ pub(crate) fn install_panic_hook() {
 /// Runs inside the panic hook, where a second panic would abort the process: every step here is
 /// infallible or falls back to a token.
 fn record_panic(info: &PanicHookInfo<'_>) {
-    let (file, line) = info.location().map_or(("unknown", 0), |location| {
-        (intern(file_stem(location.file())), location.line())
-    });
-    let thread = thread_token();
+    let file = info
+        .location()
+        .map_or("unknown", |location| source_file_stem(location.file()));
+    let line = info.location().map_or(0, std::panic::Location::line);
+    let current = std::thread::current();
+    let thread = panic_thread_token(current.name());
+    let file_token = intern(file);
+    let thread_token = intern(thread);
     let site = Site {
         event: PANICKED,
-        unit: file,
-        stage: thread,
+        unit: file_token,
+        stage: thread_token,
         line,
     };
     if let Some(suppressed) = admit(site, Instant::now(), false) {
-        write(
-            LogLevel::Error,
+        #[cfg(test)]
+        capture::push(
             PANICKED,
             &[
-                ("thread", LogValue::Token(thread)),
-                ("file", LogValue::Token(file)),
+                ("thread", LogValue::Token(thread_token)),
+                ("file", LogValue::Token(file_token)),
                 ("line", LogValue::Count(u64::from(line))),
                 ("suppressed", LogValue::Count(suppressed)),
             ],
         );
-    }
-}
-
-/// The file name without its directories or `.rs`, so a record never carries a build path.
-fn file_stem(path: &str) -> &str {
-    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
-    name.strip_suffix(".rs").unwrap_or(name)
-}
-
-/// The panicking thread's name when it is one of this program's own static names: the main thread
-/// or a thread named `orchbee-…` or `workbench-…`.
-fn thread_token() -> &'static str {
-    let thread = std::thread::current();
-    match thread.name() {
-        None => "unnamed",
-        Some(name)
-            if name == "main" || name.starts_with("orchbee-") || name.starts_with("workbench-") =>
-        {
-            intern(name)
-        }
-        Some(_) => "other",
+        orchbee_local_runtime::log_panicked(Some(thread), info.location(), Some(suppressed));
     }
 }
 

@@ -139,6 +139,14 @@ impl Machines {
             .find(|machine| machine.owner().is_some() && machine.id() == id)
     }
 
+    /// Every draft Machine ID currently held beside the catalog.
+    pub(super) fn draft_ids(&self) -> impl Iterator<Item = &MachineId> {
+        self.entries
+            .iter()
+            .filter(|machine| machine.owner().is_some())
+            .map(Machine::id)
+    }
+
     /// The draft the connection `peer` owns; a connection keeps one at a time.
     pub(super) fn owned_draft(&self, peer: u64) -> Option<&MachineId> {
         self.entries
@@ -329,7 +337,14 @@ impl Machines {
                     outcome.events.push(machine.event());
                     self.entries.push(machine);
                 }
-                (Some(position), _) => {
+                (Some(position), drafted) => {
+                    if let Some(drafted) = drafted {
+                        let mut draft = drafts.swap_remove(drafted);
+                        outcome.effects.extend(draft.remove());
+                        if !draft.drafts(incoming.kind()) {
+                            outcome.effects.extend(forget_all(draft.id()));
+                        }
+                    }
                     let mut machine = previous.swap_remove(position);
                     let kind = incoming.into_kind();
                     step(
@@ -405,3 +420,6 @@ fn forget_all(id: &MachineId) -> impl Iterator<Item = Effect> + '_ {
         kind,
     })
 }
+
+#[cfg(test)]
+mod tests;

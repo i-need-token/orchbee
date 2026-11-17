@@ -6,15 +6,14 @@
 //! Host message kind number and its anomaly, a request kind and decline cause, and for a Host
 //! start its stage and codes; no record holds terminal content, input, launch commands, messages
 //! or paths.
-use orchbee_local_runtime::{LogField, LogLevel, LogValue, log_event};
+use orchbee_local_runtime::{LogField, LogLevel, LogValue, log_event, log_panicked};
 use std::{
     cell::Cell,
     error::Error,
     fmt, io,
-    path::Path,
     sync::{
         OnceLock,
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -566,17 +565,7 @@ impl SiteSlots {
 pub(crate) fn install_panic_hook() {
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        let (file, line) = info.location().map_or(("unknown", 0), |location| {
-            (file_stem_token(location.file()), location.line())
-        });
-        log_event(
-            LogLevel::Error,
-            "panicked",
-            &[
-                ("file", LogValue::Token(file)),
-                ("line", LogValue::Count(u64::from(line))),
-            ],
-        );
+        log_panicked(None, info.location(), None);
         if let Some(site) = SERVING.try_with(Cell::get).ok().flatten()
             && !EXIT_RECORDED.swap(true, Ordering::Relaxed)
         {
@@ -594,19 +583,6 @@ pub(crate) fn install_panic_hook() {
         }
         previous(info);
     }));
-}
-
-/// A source file's stem as a log token. Tokens are `'static`, so a stem is leaked, at most a few
-/// times per process; a stem outside the token grammar is written as `invalid` by the log.
-fn file_stem_token(file: &str) -> &'static str {
-    static LEAKED: AtomicUsize = AtomicUsize::new(0);
-    let Some(stem) = Path::new(file).file_stem().and_then(|stem| stem.to_str()) else {
-        return "unknown";
-    };
-    if stem.len() > 64 || LEAKED.fetch_add(1, Ordering::Relaxed) >= 8 {
-        return "other";
-    }
-    Box::leak(stem.to_owned().into_boxed_str())
 }
 
 fn admit_once_a_minute(last: &AtomicU64) -> bool {
