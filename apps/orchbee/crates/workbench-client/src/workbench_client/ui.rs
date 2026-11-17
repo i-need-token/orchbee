@@ -116,8 +116,8 @@ pub(crate) use workspace_setup::{LocationLabelTarget, SetupStatus, SetupToken};
 pub(crate) use worktree_launch::{WorktreeMode, WorktreeNotice, WorktreeToken};
 mod copy_mode;
 mod find_bar;
-mod tab_rename;
 mod projection_resync;
+mod tab_rename;
 mod terminal_effects;
 mod terminal_selection;
 pub use super::input::CaptureContext;
@@ -4085,6 +4085,15 @@ impl WorkbenchClientUi {
                     .is_some_and(|state| state.observe_controller(&key, mode, geometry)),
                 WorkerEvent::PaneDetached { key } => {
                     self.clear_pane_projection(&key);
+                    if self
+                        .state
+                        .as_ref()
+                        .is_some_and(|state| state.pane_detach_stale(&key))
+                    {
+                        // The record already left with its anchor or was replaced; the late
+                        // proof settles nothing beyond the projection it named.
+                        return true;
+                    }
                     self.state
                         .as_mut()
                         .is_some_and(|state| state.settle_pane_detached(&key))
@@ -4097,6 +4106,14 @@ impl WorkbenchClientUi {
                     }) {
                         // The exact incarnation already departed; a late loss fact
                         // cannot retire the selection that replaced it.
+                        return false;
+                    }
+                    if self
+                        .state
+                        .as_ref()
+                        .is_some_and(|state| state.pane_fault_stale(&key, fault))
+                    {
+                        // The record already reflects this fault, or a later attach replaced it.
                         return false;
                     }
                     let applied = self
@@ -4773,8 +4790,9 @@ impl WorkbenchClientUi {
                                 "history-changed",
                                 "stale-revision",
                             );
-                            return self
-                                .contain_rejected_record(index, poll_key, &record, class, ordinary);
+                            return self.contain_rejected_record(
+                                index, poll_key, &record, class, ordinary,
+                            );
                         }
                         self.projections[index].history_sequence = changed.sequence.get();
                         if let Some(viewport) = self.projections[index].viewport.as_mut() {
@@ -4789,8 +4807,10 @@ impl WorkbenchClientUi {
                     // identical decode can only succeed; anything else refuses
                     // the record rather than skipping it silently.
                     _ => {
-                        let class =
-                            projection_resync::RecordClass::new("history-changed", "payload-decode");
+                        let class = projection_resync::RecordClass::new(
+                            "history-changed",
+                            "payload-decode",
+                        );
                         return self
                             .contain_rejected_record(index, poll_key, &record, class, ordinary);
                     }

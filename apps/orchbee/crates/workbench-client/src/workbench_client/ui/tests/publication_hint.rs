@@ -1277,3 +1277,27 @@ fn remote_panel_focus_refuses_a_faulted_peer_instead_of_waiting_or_reattaching()
     assert!(!progress.had_effect);
     assert_eq!(ui.control_observation(false), before);
 }
+
+#[test]
+fn a_repeated_focus_loss_is_stale_and_keeps_the_session() {
+    use crate::workbench_state::{OPERATION_TOTAL, PaneFault};
+    let (mut ui, mailbox, clock, _) = ready_split_ui();
+    attach_split_peer(&mut ui, &mailbox, &clock);
+    let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+    for _ in 0..2 {
+        mailbox
+            .publish_notice_before(
+                WorkerEvent::PaneFailed {
+                    key: focus.clone(),
+                    fault: PaneFault::ViewerLost,
+                },
+                clock.now() + OPERATION_TOTAL,
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+    }
+    assert!(ui.state.as_ref().unwrap().focused_viewer_lost());
+    assert!(ui.retirement_failure.is_none());
+    assert!(mailbox.is_closed().is_none());
+}

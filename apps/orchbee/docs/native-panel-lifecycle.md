@@ -190,6 +190,10 @@ close confirmation, a retained Tab close, or unresolved Workspace close evidence
 Workspace setup draft, a publication or explicit refresh, and a submitted Move, Panel or Rename
 with its projection recovery. A takeover, whose completion needs `Ready`, a setup or Workspace
 close in flight, a recovery refresh or an uncertain Rename keeps the existing retirement boundary.
+A pane notice the record has already moved past is stale and settles nothing, never retiring the
+Client: a viewer or grant loss for a record that holds no viewer, an attach failure for a record
+that has since attached, or a detach proof for an incarnation the state no longer holds (its
+projection is still dropped).
 The existing `ViewerLost` fault parks the exact selection. Pane reconcile never attaches the focused pane, so a reconcile planned before the loss
 settled cannot replace that fault. A parked focus, whether its viewer was lost, its attach failed
 or it never attaches, leaves its siblings working as under `Ready`: reconcile attaches them, and

@@ -2274,6 +2274,26 @@ impl WorkbenchClientState {
                 if self.desired.as_ref() == Some(&selected.key))
     }
 
+    /// A pane fault the record has already moved past, so it settles nothing: a viewer or grant
+    /// loss for a record that no longer holds a viewer, or an attach failure for one that has
+    /// since attached. A departed or replaced incarnation is the caller's stale case.
+    pub(crate) fn pane_fault_stale(&self, key: &PaneRef, fault: PaneFault) -> bool {
+        self.live_pane_record(key)
+            .is_some_and(|record| match fault {
+                PaneFault::AttachRejected
+                | PaneFault::AttachUnavailable
+                | PaneFault::CapacityExceeded
+                | PaneFault::ConvergenceExpired => record.attached(),
+                PaneFault::ViewerLost | PaneFault::ControlLost => !record.attached(),
+            })
+    }
+
+    /// A detach proof for an incarnation the state no longer holds: the record was already
+    /// dropped with its anchor, or a new incarnation replaced it.
+    pub(crate) fn pane_detach_stale(&self, key: &PaneRef) -> bool {
+        self.live_pane_record(key).is_none()
+    }
+
     /// One pane's controller grant ended or was lost: the pane keeps its live
     /// viewer but is parked view-only until an explicit reconcile re-arms it.
     /// No automatic re-acquire — NotController and definite failures never
