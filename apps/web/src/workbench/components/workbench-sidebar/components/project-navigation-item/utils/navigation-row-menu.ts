@@ -24,6 +24,36 @@ export function findNavigationRowMenuTrigger(row: HTMLElement): HTMLButtonElemen
 		: null;
 }
 
+/** The control a row keeps visible for focus: a Workspace's name button or a Project's chevron. */
+function findNavigationRowFocusTarget(row: HTMLElement): HTMLElement | null {
+	const target = row.querySelector<HTMLElement>(
+		'[data-sidebar-nav="workspace"], [data-sidebar-nav="heading"]',
+	);
+	return target?.isConnected === true ? target : null;
+}
+
+/**
+ * Where a row's menu returns focus when it closes. A trigger revealed only by hover cannot take focus
+ * once the pointer has left the row, so a keyboard close returns to the row's focus target. A menu the
+ * pointer opened returns to its trigger while the pointer still holds the row. Any other close leaves
+ * focus where it landed.
+ */
+export function resolveNavigationRowMenuReturn({
+	closeType,
+	keyboardOpened,
+	row,
+	trigger,
+}: {
+	readonly closeType: string;
+	readonly keyboardOpened: boolean;
+	readonly row: HTMLElement;
+	readonly trigger: HTMLElement;
+}): HTMLElement | false {
+	if (!keyboardOpened && row.matches(':hover')) return trigger;
+	if (closeType === 'keyboard') return findNavigationRowFocusTarget(row) ?? false;
+	return false;
+}
+
 /** F2 renames the row; Shift+F10 and the Menu key open its menu beside it. */
 export function handleNavigationRowKeyDown(
 	event: KeyboardEvent<HTMLDivElement>,

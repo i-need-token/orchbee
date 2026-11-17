@@ -293,7 +293,7 @@ export function ProjectNavigationItem({
 					</ContextMenuTrigger>
 					<WorkbenchActionContextMenuContent
 						entries={projectMenuEntries}
-						finalFocus={() => menuFocus.finalFocus(null)}
+						finalFocus={(closeType) => menuFocus.finalFocus(null, closeType)}
 					/>
 				</ContextMenu>
 			)}

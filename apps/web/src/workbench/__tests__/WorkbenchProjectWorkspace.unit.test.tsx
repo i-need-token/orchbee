@@ -315,7 +315,7 @@ describe('Workbench Project and Workspace management', () => {
 				expect(screen.getAllByRole('menu')).toHaveLength(1);
 				fireEvent.keyDown(document, { key: 'Escape' });
 				await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
-				await waitFor(() => expect(document.activeElement).toBe(options));
+				await waitFor(() => expect(document.activeElement).toBe(button));
 				expect(projectWorkspaceRuntime.getSnapshot()).toBe(snapshot);
 			}
 		}
@@ -390,7 +390,7 @@ describe('Workbench Project and Workspace management', () => {
 		await screen.findByRole('menu');
 		fireEvent.keyDown(document, { key: 'Escape' });
 		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
-		await waitFor(() => expect(document.activeElement).toBe(options));
+		await waitFor(() => expect(document.activeElement).toBe(workspaceButton));
 		expect(projectWorkspaceRuntime.getSnapshot()).toBe(snapshot);
 
 		fireEvent.contextMenu(workspaceButton, { clientX: 120, clientY: 180 });

@@ -89,7 +89,7 @@ their consequence requires it. Do not add lines around individual menu items.
 - `Enter` or `Space` invokes a command or opens a submenu. Logical forward and backward arrow keys
   open and close submenus according to writing direction.
 - `Escape` closes the deepest open menu first. Closing the root menu restores focus to an explicit
-  trigger; a Context Menu restores focus without changing the owning object's semantic state.
+  trigger; a Context Menu restores focus without changing the owning object's semantic state. A trigger revealed only by hover cannot take restored focus once the pointer has left it, so the owning row's always-visible focus target takes it instead.
 - Pointer movement from a submenu trigger into its submenu does not clear the parent highlight or
   close the submenu because the trigger is no longer physically hovered.
 - Focus indication remains fully visible after dismissal; do not repair clipping with arbitrary

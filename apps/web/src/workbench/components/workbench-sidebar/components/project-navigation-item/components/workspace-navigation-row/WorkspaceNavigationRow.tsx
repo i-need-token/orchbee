@@ -308,7 +308,7 @@ export function WorkspaceNavigationRow({
 				</ContextMenuTrigger>
 				<WorkbenchActionContextMenuContent
 					entries={menuEntries}
-					finalFocus={() => menuFocus.finalFocus(workspace.id)}
+					finalFocus={(closeType) => menuFocus.finalFocus(workspace.id, closeType)}
 				/>
 			</ContextMenu>
 			{/* A held Workspace moves as its row alone; its Agent rows return where it lands. */}

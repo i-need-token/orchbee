@@ -34,6 +34,7 @@ export function WorkbenchSidebarDropdownMenu({
 				align='start'
 				alignOffset={placement.alignOffset}
 				entries={entries}
+				finalFocus={placement.finalFocus}
 				side={placement.side}
 				sideOffset={placement.sideOffset}
 			/>
