@@ -1280,6 +1280,15 @@ connection then reads it once and sends a frame only when the answer changed, so
 the latest catalog and never a backlog. Publishing never waits on a watcher, and a closed
 connection leaves nothing to release.
 
+## Terminal runtime
+
+`terminal_runtime::TerminalRuntime`, owned by `LocalTerminalService` and reached through
+`terminal_runtime()`, holds whether the Session's terminals are `Serving`, `Reconnecting` while the
+Server replaces a lost Worker, or `GivenUp` once it stops trying until the Session stops. It starts
+`Serving` at revision 1; `set` advances the revision by one only when the state changes and then
+wakes its watchers, held weakly and woken after its lock is released, so a change never waits on a
+Client connection. The Worker replacement is its only writer.
+
 ## Agent start delivery
 
 Every Tab, split, Workspace or Worktree creation that carried `agentStart` hands its started

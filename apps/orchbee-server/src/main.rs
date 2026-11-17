@@ -43,6 +43,8 @@ mod terminal_coordinator;
 #[cfg(any(unix, windows))]
 mod terminal_output;
 #[cfg(any(unix, windows))]
+mod terminal_runtime;
+#[cfg(any(unix, windows))]
 mod terminal_titles;
 #[cfg(any(unix, windows))]
 mod viewer_ready;

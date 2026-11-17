@@ -1,5 +1,5 @@
-//! Commit, output, published-title and Agent catalog invalidation fanout. A listener owns its wait; publishers
-//! never wait for delivery.
+//! Commit, output, published-title, Agent catalog and terminal-runtime invalidation fanout. A
+//! listener owns its wait; publishers never wait for delivery.
 use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::time::Duration;
 
@@ -26,6 +26,9 @@ impl SessionChangeSource {
     pub fn notify_agent_catalog(&self) {
         self.each(|listener| listener.notify_agent_catalog());
     }
+    pub fn notify_terminal_runtime(&self) {
+        self.each(|listener| listener.notify_terminal_runtime());
+    }
     fn each(&self, mut signal: impl FnMut(&SessionChangeSignal)) {
         let listeners = self
             .0
@@ -48,6 +51,7 @@ struct SignalState {
     commits: u64,
     titles: u64,
     catalog: u64,
+    terminal_runtime: u64,
     wake: u64,
 }
 impl SessionChangeSignal {
@@ -94,6 +98,17 @@ impl SessionChangeSignal {
         state.wake = state.wake.wrapping_add(1);
         self.changed.notify_all();
     }
+    /// The terminal-runtime state changed. It is neither commit nor output, so only the streams
+    /// that follow it reevaluate.
+    pub fn notify_terminal_runtime(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.terminal_runtime = state.terminal_runtime.wrapping_add(1);
+        state.wake = state.wake.wrapping_add(1);
+        self.changed.notify_all();
+    }
     /// Carrier mailbox activity is a wakeup, never a semantic publication.
     pub fn wake(&self) {
         let mut state = self
@@ -126,6 +141,12 @@ impl SessionChangeSignal {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .catalog
+    }
+    pub fn terminal_runtime_revision(&self) -> u64 {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .terminal_runtime
     }
     pub fn wake_revision(&self) -> u64 {
         self.state

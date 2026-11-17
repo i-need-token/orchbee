@@ -114,6 +114,7 @@ pub(crate) struct LocalTerminalService {
     tab_duplicate_maintenance: operation_maintenance::OperationMaintenance,
     worktree_discovery: worktree_list::DiscoveryGate,
     terminal_output: std::sync::OnceLock<Arc<crate::terminal_output::TerminalOutput>>,
+    terminal_runtime: Arc<crate::terminal_runtime::TerminalRuntime>,
     workers: Arc<Mutex<WorkerRegistry>>,
     coordinator: RecordedLock<SessionCoordinator>,
     controllers: Mutex<
@@ -180,6 +181,7 @@ impl LocalTerminalService {
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
             terminal_output: std::sync::OnceLock::new(),
+            terminal_runtime: Arc::default(),
             workers,
             coordinator: RecordedLock::new(
                 SessionCoordinator::new(workbench).with_agent_catalog(catalog),
@@ -187,6 +189,13 @@ impl LocalTerminalService {
             ),
             controllers: Mutex::new(std::collections::BTreeMap::new()),
         }
+    }
+
+    /// The Session's terminal-runtime state, which the Worker replacement sets and the
+    /// `workbench.terminal-runtime` read answers from.
+    #[expect(dead_code, reason = "the Worker replacement and the read reach it")]
+    pub(crate) fn terminal_runtime(&self) -> &Arc<crate::terminal_runtime::TerminalRuntime> {
+        &self.terminal_runtime
     }
 
     /// The Session's started terminals, saturating at `u32::MAX`.
