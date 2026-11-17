@@ -5,11 +5,13 @@ export {
 	DESKTOP_SERVER_CONNECTION_WINDOW_MESSAGE,
 	DESKTOP_SERVER_CONNECTION_WINDOW_REQUEST,
 	DesktopServerConnectionDocumentSchema,
+	DesktopServerConnectionReadSchema,
 	DesktopServerConnectionReplySchema,
 	DesktopServerConnectionWindowMessageSchema,
 	DesktopServerConnectionWindowRequestSchema,
 	type DesktopServerConnectionBootstrap,
 	type DesktopServerConnectionPortRole,
+	type DesktopServerConnectionRead,
 	type DesktopServerConnectionReply,
 	type DesktopSessionRefusal,
 } from './desktop-server-connection-contract';

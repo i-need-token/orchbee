@@ -169,9 +169,13 @@ export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 					const { reason } = command;
 					// The words say only what happened; the reason goes to the diagnostic log.
 					this.#options.recordEvent('warning', 'quit-all-failed', { reason });
+					const report = (window: BrowserWindow | undefined): Promise<void> =>
+						reportDesktopQuitAllFailure(intl, applicationName, window, reason);
+					// Whatever becomes of the report, Quit All is offered again afterwards.
 					void this.#options
 						.showWindow()
-						.then((window) => reportDesktopQuitAllFailure(intl, applicationName, window, reason))
+						.then(report, () => report(undefined))
+						.catch(() => undefined)
 						.then(() => this.#dispatch({ kind: 'quit-all-failure-dismissed' }));
 					break;
 				}
@@ -181,6 +185,8 @@ export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 				case 'stop-session':
 					void this.#sessionStop
 						.stop()
+						// A stop that failed in Main may still have reached the page, so it is unconfirmed.
+						.catch(() => ({ kind: 'failed', reason: 'unconfirmed' }) as const)
 						.then((result) =>
 							this.#dispatch(
 								result.kind === 'stopped'

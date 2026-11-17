@@ -29,7 +29,11 @@ and it asks first.
 
 Each document gets one `orchbee server connect` process and four transferred ports, in the order
 `DESKTOP_SERVER_CONNECTION_PORT_ROLES` fixes. `ServerConnectionRelay` moves bytes between the
-process and the first port without reading any; the second is the document's
+process and the first port without reading any, bounded both ways: the page reports each chunk
+it has read, and Main pauses the process's output while 4 MiB it relayed are unread, until half is
+read. A slow page then slows only its own connection, and the Server's bound on a slow Client
+decides beyond that, as for any Client. A process that leaves 64 MiB of the page's input untaken
+ends that connection alone. The second is the document's
 [Project Folder acquisition](docs/project-folder-acquisition.md) port, served by a broker that lives
 as long as the connection; the third is its background-status port, over which the page reports how
 many terminals run and which Agent states need the person, and asks for the window when a
@@ -43,6 +47,11 @@ owns the protocol. A document asks for its connection once it is listening, thro
 under an identity the reply must repeat: a reload can hand the next document what Main meant for the
 last one, and a load event cannot tell them apart. Its asking ends the previous document's
 connection, and closing the process's standard input ends it.
+
+One window, connection, message, or request never ends Main. A document whose connection cannot be
+made gets none, and a reload asks again; a throw or rejection that nothing else handled is
+recorded as `main-fault-contained` and Main goes on, because every fault Main can meet belongs to
+one of them.
 
 Before connecting, Main runs `orchbee server start --format json`, because whether a restore lost
 anything is known only to the activating process and the connection's bytes are opaque. It announces

@@ -327,31 +327,37 @@ export class DesktopServerClientApplication {
 				options.clientExecutable,
 				options.sessionArguments,
 				options.clientEnvironment,
-			).then(({ restore }) => {
-				if (request !== requests || window.isDestroyed()) return;
-				const refusal = restore.kind === 'refused' ? restore.refusal : null;
-				if (!everConnected && options.exitsOnFirstStartAnswer(refusal)) return;
-				current = this.#connect(window, {
-					bootstrap: {
-						// A later document follows a person's own actions; an empty Session may be what they chose.
-						automaticWorkspaceAllowed: !everConnected && restore.kind === 'intact',
-						checkoutName: options.checkoutName,
-						defaultDirectory: app.getPath('home'),
-						distribution: options.distribution,
-						loginShellAvailable: options.platform !== 'win32',
-						relaunchPlace: everConnected ? null : options.relaunchPlace,
-						sessionRefusal: refusal,
-						terminalHostName: hostname(),
-					},
-					document: document.data,
+			)
+				.then(({ restore }) => {
+					if (request !== requests || window.isDestroyed()) return;
+					const refusal = restore.kind === 'refused' ? restore.refusal : null;
+					if (!everConnected && options.exitsOnFirstStartAnswer(refusal)) return;
+					current = this.#connect(window, {
+						bootstrap: {
+							// A later document follows a person's own actions; an empty Session may be what they chose.
+							automaticWorkspaceAllowed: !everConnected && restore.kind === 'intact',
+							checkoutName: options.checkoutName,
+							defaultDirectory: app.getPath('home'),
+							distribution: options.distribution,
+							loginShellAvailable: options.platform !== 'win32',
+							relaunchPlace: everConnected ? null : options.relaunchPlace,
+							sessionRefusal: refusal,
+							terminalHostName: hostname(),
+						},
+						document: document.data,
+					});
+					this.#document = current;
+					everConnected = true;
+				})
+				.catch(() => {
+					// This document gets no connection and a reload asks again; the window and Main go on.
+					options.recordEvent('error', 'document-connection-failed');
 				});
-				this.#document = current;
-				everConnected = true;
-			});
 		});
 		return end;
 	}
 
+	/** Connects one document; what a failure had already started is ended before it rethrows. */
 	#connect(window: BrowserWindow, reply: DesktopServerConnectionReply): DocumentConnection {
 		const options = this.#options;
 		const relayProcess = spawn(
@@ -363,28 +369,38 @@ export class DesktopServerClientApplication {
 		const folders = new MessageChannelMain();
 		const backgroundStatus = new MessageChannelMain();
 		const windowUpdate = new MessageChannelMain();
-		const relay = new ServerConnectionRelay(relayProcess, connection.port1);
+		const relay = new ServerConnectionRelay(relayProcess, connection.port1, options.recordEvent);
 		const folderAcquisition = new DesktopProjectFolderAcquisitionBroker(
 			folders.port1,
 			new DesktopProjectFolderAcquisitionRuntime(window),
 		);
-		folderAcquisition.start();
-		const backgroundStatusPort = serveDesktopBackgroundStatus(
-			backgroundStatus.port1,
-			options.background,
-		);
-		const windowUpdatePort = options.windowUpdate.serve(windowUpdate.port1);
-		const pagePorts: Readonly<Record<DesktopServerConnectionPortRole, MessagePortMain>> = {
-			'background-status': backgroundStatus.port2,
-			'project-folder-acquisition': folders.port2,
-			'server-connection': connection.port2,
-			'window-update': windowUpdate.port2,
-		};
-		window.webContents.postMessage(
-			DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
-			reply,
-			DESKTOP_SERVER_CONNECTION_PORT_ROLES.map((role) => pagePorts[role]),
-		);
+		let backgroundStatusPort: DesktopBackgroundStatusPort | undefined;
+		let windowUpdatePort: { close(): void } | undefined;
+		try {
+			folderAcquisition.start();
+			backgroundStatusPort = serveDesktopBackgroundStatus(
+				backgroundStatus.port1,
+				options.background,
+			);
+			windowUpdatePort = options.windowUpdate.serve(windowUpdate.port1);
+			const pagePorts: Readonly<Record<DesktopServerConnectionPortRole, MessagePortMain>> = {
+				'background-status': backgroundStatus.port2,
+				'project-folder-acquisition': folders.port2,
+				'server-connection': connection.port2,
+				'window-update': windowUpdate.port2,
+			};
+			window.webContents.postMessage(
+				DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
+				reply,
+				DESKTOP_SERVER_CONNECTION_PORT_ROLES.map((role) => pagePorts[role]),
+			);
+		} catch (error) {
+			relay.close();
+			backgroundStatusPort?.close();
+			windowUpdatePort?.close();
+			folderAcquisition.dispose();
+			throw error;
+		}
 		return {
 			backgroundStatus: backgroundStatusPort,
 			folderAcquisition,

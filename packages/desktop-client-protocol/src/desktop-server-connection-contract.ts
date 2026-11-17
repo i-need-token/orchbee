@@ -96,6 +96,19 @@ export const DESKTOP_SERVER_CONNECTION_PORT_ROLES = [
 
 export type DesktopServerConnectionPortRole = (typeof DESKTOP_SERVER_CONNECTION_PORT_ROLES)[number];
 
+/**
+ * The page's one message on the `server-connection` port that is not connection bytes: it has read
+ * `byteLength` more bytes of what Main relayed, once each chunk's handling returns. Main relays
+ * output only while what the page has not yet read stays under its bound, so a page that reads
+ * slowly slows its own connection instead of growing Main.
+ */
+export const DesktopServerConnectionReadSchema = z.strictObject({
+	byteLength: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+	type: z.literal('desktop-server-connection-read'),
+});
+
+export type DesktopServerConnectionRead = z.infer<typeof DesktopServerConnectionReadSchema>;
+
 /** Announces this document's ports, transferred in `DESKTOP_SERVER_CONNECTION_PORT_ROLES` order. */
 export const DesktopServerConnectionWindowMessageSchema = z.strictObject({
 	bootstrap: DesktopServerConnectionBootstrapSchema,

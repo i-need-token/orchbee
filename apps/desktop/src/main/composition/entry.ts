@@ -61,6 +61,7 @@ import {
 	watchWindowPointer,
 	windowVersionResources,
 } from '../window-update';
+import { containMainProcessFaults } from './containMainProcessFaults';
 import { DesktopDataRootRefusal } from './data-root-version-record';
 import { DesktopServerClientApplication } from './DesktopServerClientApplication';
 import { isPackagedDesktop } from './isPackagedDesktop';
@@ -607,3 +608,7 @@ app.once('will-quit', () => {
 	windowUpdate?.dispose();
 	recordEvent('info', 'exited');
 });
+
+// Last, once every handler above is registered: from here a fault in one window, connection, message,
+// or request is recorded and Main goes on.
+containMainProcessFaults(recordEvent);

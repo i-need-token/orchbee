@@ -36,7 +36,10 @@ without migration.
 On Windows and macOS Main appends `started`, `startup-failed`, `renderer-gone` with Electron's reason,
 diagnostic bundle outcomes, Window Update's `window-update-joinable` and `window-update-waiting`
 with its reason, `window-relaunch-started`, `window-relaunch-failed` and
-`window-relaunch-gave-way`, and `exited` to the data root's
+`window-relaunch-gave-way`, the faults it contains without ending (`main-fault-contained` with the
+kind, error class and a named error code for a throw or rejection nothing else handled,
+`document-connection-failed`, `server-relay-ended` with reason `input-bound`, and
+`server-relay-message-dropped` with its reason, once per connection), and `exited` to the data root's
 [daily diagnostic log](../../../crates/local-runtime/README.md#diagnostic-log), creating
 `logs/` with its first record. It writes the natives' records with role `desktop-main` under their
 retention, cap, and exclusive-open rules; its event names and text values are string literals in

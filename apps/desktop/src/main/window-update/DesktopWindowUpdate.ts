@@ -116,19 +116,23 @@ export class DesktopWindowUpdate {
 	}
 
 	async #read(root: string): Promise<void> {
-		do {
-			this.#rereadRequested = false;
-			const activeVersion = await this.#options.readPointer(root).catch(() => null);
-			if (this.#disposed) return;
-			this.#setOffer(
-				resolveWindowUpdateOffer({
-					activeVersion,
-					fallbackFrom: this.#options.fallbackFrom,
-					ownVersion: this.#options.ownVersion,
-				}),
-			);
-		} while (this.#rereadRequested);
-		this.#reading = false;
+		try {
+			do {
+				this.#rereadRequested = false;
+				const activeVersion = await this.#options.readPointer(root).catch(() => null);
+				if (this.#disposed) return;
+				this.#setOffer(
+					resolveWindowUpdateOffer({
+						activeVersion,
+						fallbackFrom: this.#options.fallbackFrom,
+						ownVersion: this.#options.ownVersion,
+					}),
+				);
+			} while (this.#rereadRequested);
+		} finally {
+			// A read that failed leaves the next pointer change free to read again.
+			this.#reading = false;
+		}
 	}
 
 	#setOffer(offer: string | null): void {
