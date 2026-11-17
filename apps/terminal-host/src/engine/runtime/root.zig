@@ -58,9 +58,14 @@ pub const ShutdownError = contracts.ShutdownError;
 pub const ShutdownCleanupPhase = contracts.ShutdownCleanupPhase;
 pub const ScrollbackCompressionOutcome = contracts.ScrollbackCompressionOutcome;
 pub const ReaderParkWait = contracts.ReaderParkWait;
+pub const HandoverInputs = @import("handover_export.zig").Inputs;
+pub const handover_pin = @import("handover_export.zig").pin;
+pub const HandoverExportError = @import("handover_export.zig").Error;
+pub const HandoverFacts = @import("handover_restore.zig").Facts;
 
 pub const PreparedInput = handle.PreparedInput;
 pub const PreparedAttachment = handle.PreparedAttachment;
 pub const ReadCommitGuard = handle.ReadCommitGuard;
 pub const TerminalRuntime = handle.TerminalRuntime;
+pub const HandoverImport = handle.HandoverImport;
 pub const testing = @import("testing.zig").testing;

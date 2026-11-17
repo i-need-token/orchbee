@@ -221,6 +221,14 @@ pub fn build(builder: *std.Build) void {
     build_options.addOption([]const u8, "host_version", host_version);
     build_options.addOption([]const u8, "environment", environment);
     build_options.addOption(?[]const u8, "source_commit", source_commit);
+    // A handover record names the exporting Host's version and its Ghostty pin, the package hash.
+    const handover_options = builder.addOptions();
+    handover_options.addOption([]const u8, "host_version", host_version);
+    handover_options.addOption(
+        []const u8,
+        "ghostty_package_hash",
+        @import("build.zig.zon").dependencies.ghostty.hash,
+    );
     const handshake_options = builder.addOptions();
     handshake_options.addOption(
         []const u8,
@@ -399,6 +407,7 @@ pub fn build(builder: *std.Build) void {
     engine_module.addImport("terminal-host-model", model_module);
     engine_module.addImport("terminal-host-platform", platform_module);
     engine_module.addImport("wuffs", wuffs_module);
+    engine_module.addOptions("handover-options", handover_options);
     surface_fixture_module.addImport("ghostty-vt", ghostty_vt_module);
     surface_fixture_module.addImport("terminal-protocol", protocol_module);
     surface_fixture_module.addImport("terminal-host-model", model_module);

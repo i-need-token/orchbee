@@ -8,6 +8,7 @@ The application is private and experimentally versioned. It installs an executab
 
 - [Runtime contract and correctness model](docs/runtime-model.md) owns Host lifecycle, state, delivery, retry, failure, concurrency, and evidence requirements.
 - [Terminal protocol reference](../../schemas/terminal/references/protocol.md) owns wire records, codecs, message schemas, format versions, and protocol safety limits.
+- [Handover record reference](docs/handover-record.md) owns the `obhr` format that carries one terminal's state from one Host to another.
 - [Worker](../orchbee-worker/README.md) is the Host's local broker and owns Host lifetime and coupled peer liveness; it owns no terminal semantics.
 - Clients, such as the TUI and [Desktop](../desktop/README.md), own presentation and platform effects through the Server.
 

@@ -329,7 +329,7 @@ pub fn deinit(self: *state.State) void {
     self.clipboard_write_in_flight = false;
 }
 
-fn validClipboardText(text: []const u8) bool {
+pub fn validClipboardText(text: []const u8) bool {
     if (!std.unicode.utf8ValidateSlice(text)) return false;
     for (text) |byte| {
         if (byte == 0x7f or (byte < 0x20 and byte != '\t' and byte != '\n' and byte != '\r')) {

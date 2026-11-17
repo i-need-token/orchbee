@@ -7,6 +7,7 @@ const terminal_theme = @import("terminal-host-model").theme;
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const handle = @import("handle.zig");
+const handover_handle = @import("handover_handle.zig");
 const attachment_input_admission_ops = @import("attachment_input_admission.zig");
 const animation_ops = @import("animation.zig");
 const creation_ops = @import("creation.zig");
@@ -192,6 +193,7 @@ pub const testing = if (builtin.is_test) struct {
     }
 
     pub const createWithOptionsUsingSpawnerFn = createWithOptionsUsingSpawner;
+    pub const importHandoverUsingSpawner = handover_handle.Type(handle.TerminalRuntime).importHandoverUsingSpawner;
 
     pub fn stateForTesting(runtime: *handle.TerminalRuntime) *state.State {
         return handle.stateFrom(runtime);

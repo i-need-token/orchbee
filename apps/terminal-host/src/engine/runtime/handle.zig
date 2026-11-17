@@ -24,6 +24,7 @@ const prepared_input = @import("prepared_input.zig");
 const prepared_attachment = @import("prepared_attachment.zig");
 const read_commit_guard = @import("read_commit_guard.zig");
 const reader_pause = @import("reader_pause.zig");
+const handover_handle = @import("handover_handle.zig");
 
 pub const PreparedInput = prepared_input.Type(TerminalRuntime);
 pub const PreparedAttachment = prepared_attachment.Type(TerminalRuntime);
@@ -32,6 +33,8 @@ const InputHandle = input_handle.Type(TerminalRuntime, PreparedInput);
 const FeedbackHandle = feedback_handle.Type(TerminalRuntime);
 const ProcessHandle = process_handle.Type(TerminalRuntime);
 const ScheduleHandle = schedule_handle.Type(TerminalRuntime);
+const HandoverHandle = handover_handle.Type(TerminalRuntime);
+pub const HandoverImport = HandoverHandle.Imported;
 
 pub const TerminalRuntime = opaque {
     pub const sampleProcesses = ProcessHandle.sampleProcesses;
@@ -50,6 +53,8 @@ pub const TerminalRuntime = opaque {
     pub const setWakeOnOutput = ScheduleHandle.setWakeOnOutput;
     pub const setHasActiveProjection = ScheduleHandle.setHasActiveProjection;
     pub const atomicRevision = ScheduleHandle.atomicRevision;
+    pub const exportHandover = HandoverHandle.exportHandover;
+    pub const importHandover = HandoverHandle.importHandover;
 
     pub fn create(
         allocator: std.mem.Allocator,

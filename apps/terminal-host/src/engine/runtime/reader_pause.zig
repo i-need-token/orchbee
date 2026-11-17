@@ -89,7 +89,9 @@ fn withdraw(self: *state.State) void {
     self.terminal_condition.broadcast();
 }
 
-fn atGroundLocked(self: *const state.State) bool {
+/// Whether Ghostty's parser, its UTF-8 decoder, the APC state and the Host's scanners are all
+/// outside every sequence.
+pub fn atGroundLocked(self: *const state.State) bool {
     return self.stream.ground() and
         !self.stream.handler.in_apc and
         self.program_status_scanner.atGround();

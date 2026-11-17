@@ -34,6 +34,8 @@ const Seam = enum(u8) {
     reader_pause,
     keeper_hold,
     keeper_release,
+    handover_export,
+    handover_restore,
 };
 
 const Disposition = enum {
@@ -99,6 +101,8 @@ const matrix = [_]Entry{
     entry(.reader_pause, "CS-030", "ReaderPause", .rollback, .deterministic_interleaving, "src/engine/__tests__/reader_pause_test.zig", "reader pause the platform refuses is withdrawn and the reader reads on"),
     entry(.keeper_hold, "CS-031", "KeeperHold", .commit_and_drop, .native_boundary, "src/service/__tests__/keeper_link_test.zig", "keeper hold the Keeper refuses leaves the terminal running unheld and reported"),
     entry(.keeper_release, "CS-032", "KeeperRelease", .contain_and_retain, .native_boundary, "src/service/__tests__/keeper_link_test.zig", "keeper release the Keeper leaves unanswered holds the end until its deadline and fails the link at once"),
+    entry(.handover_export, "CS-033", "HandoverExport", .rollback, .allocation_index, "src/engine/__tests__/handover_test.zig", "a failed handover export is discarded and the reader reads on"),
+    entry(.handover_restore, "CS-034", "HandoverRestore", .reject_without_commit, .allocation_index, "src/engine/__tests__/handover_test.zig", "a failed handover import is discarded and creates nothing"),
 };
 
 test "commit seam matrix is exhaustive unique documented and backed by named tests" {

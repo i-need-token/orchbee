@@ -22,7 +22,7 @@ const graphics_media = @import("graphics_media.zig");
 const terminal_geometry_effects = @import("terminal_geometry_effects.zig");
 const terminal_stream = @import("../terminal_stream.zig");
 
-const SystemThreadSpawner = struct {
+pub const SystemThreadSpawner = struct {
     fn spawn(
         _: *SystemThreadSpawner,
         comptime thread_function: anytype,
@@ -70,12 +70,6 @@ pub fn createWithOptionsUsingSpawner(
         const kitty_temp_directory = try temp_directory.resolveOwned(allocator);
         errdefer allocator.free(kitty_temp_directory);
 
-        const kitty_loading_limits: ghostty_vt.kitty.graphics.LoadingImage.Limits = .{
-            .file = true,
-            .temporary_file = .{ .enabled = .{ .directory = kitty_temp_directory } },
-            .shared_memory = target_builtin.os.tag != .windows,
-        };
-
         var terminal: ghostty_vt.Terminal = try .init(thread_sync.io(), allocator, .{
             .cols = resolved_launch.columns,
             .colors = colors,
@@ -86,7 +80,7 @@ pub fn createWithOptionsUsingSpawner(
                 .cursor_blinking = profile.default_cursor_blinking,
                 .grapheme_cluster = true,
             },
-            .kitty_image_loading_limits = kitty_loading_limits,
+            .kitty_image_loading_limits = kittyLoadingLimits(kitty_temp_directory),
             .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
             .max_scrollback_bytes = resolved_options.scrollback_bytes,
             .rows = resolved_launch.rows,
@@ -125,12 +119,33 @@ pub fn createWithOptionsUsingSpawner(
         .scrollback_bytes = resolved_options.scrollback_bytes,
         .terminal = resources.terminal,
     };
+    adoptTestingHooks(self, spawner);
+    errdefer cleanupFailedThreadStartup(self);
+    wireStream(self);
+    if (resolved_options.output_seed) |seed| output_seed.apply(&self.stream, seed);
+    try startWorkers(self, resolved_launch, spawner);
+    return self;
+}
+
+pub fn kittyLoadingLimits(temporary_directory: [:0]const u8) ghostty_vt.kitty.graphics.LoadingImage.Limits {
+    return .{
+        .file = true,
+        .temporary_file = .{ .enabled = .{ .directory = temporary_directory } },
+        .shared_memory = target_builtin.os.tag != .windows,
+    };
+}
+
+pub fn adoptTestingHooks(self: *state.State, spawner: anytype) void {
     if (comptime target_builtin.is_test and
         @hasDecl(@TypeOf(spawner.*), "terminalRuntimeTestingHooks"))
     {
         self.testing_hooks = spawner.terminalRuntimeTestingHooks();
     }
-    errdefer cleanupFailedThreadStartup(self);
+}
+
+/// Creates the runtime's stream over its terminal at its final address and routes the parser's
+/// effects to the runtime.
+pub fn wireStream(self: *state.State) void {
     self.stream = .init(.{
         .allocator = self.stream_allocator.allocator(),
         .handler = .init(&self.terminal),
@@ -157,16 +172,18 @@ pub fn createWithOptionsUsingSpawner(
         feedback_ops.max_private_application_signal_apc_bytes;
     self.stream.handler.terminal_handler.unknown_sequence =
         feedback_ops.privateApplicationSignalEffect;
-    if (resolved_options.output_seed) |seed| output_seed.apply(&self.stream, seed);
+}
 
+/// Starts the workers behind the startup gate, then the process, then opens the gate. On failure
+/// the caller runs `cleanupFailedThreadStartup`.
+pub fn startWorkers(self: *state.State, launch: pty_process.Launch, spawner: anytype) !void {
     self.wait_thread = try spawner.spawn(wait_thread_ops.waitThread, self);
     self.reader_thread = try spawner.spawn(output_ops.readerThread, self);
     self.writer_thread = try spawner.spawn(writer_ops.writerThread, self);
     self.animation_thread = try spawner.spawn(animation_ops.animationThread, self);
-    self.process = try pty_process.Process.spawn(allocator, resolved_launch);
+    self.process = try pty_process.Process.spawn(self.allocator, launch);
     self.process.registerReaderThread(self.reader_thread.?.getHandle());
     self.startup.ready();
-    return self;
 }
 
 pub fn cleanupFailedThreadStartup(self: *state.State) void {
