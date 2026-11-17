@@ -33,11 +33,14 @@ Browser storage under `internal/desktop/` holds view state, such as terminal foc
 the keyboard shortcut overrides. None of it is a stable contract: a release may reset or reshape it
 without migration.
 
-On Windows and macOS Main appends `started`, `startup-failed`, `renderer-gone` with Electron's reason,
+On Windows and macOS Main appends `started`, `startup-failed`, `renderer-gone` with Electron's reason
+and whether the page was reloaded or the person asked, `renderer-crash-answered` with their choice,
 diagnostic bundle outcomes, Window Update's `window-update-joinable` and `window-update-waiting`
 with its reason, `window-relaunch-started`, `window-relaunch-failed` and
 `window-relaunch-gave-way`, the faults it contains without ending (`main-fault-contained` with the
-kind, error class and a named error code for a throw or rejection nothing else handled,
+kind, listener site, error class and a named error code for a listener throw, or a throw or
+rejection nothing else handled, the window's `window-fault` with its site and
+`window-faults-dropped` with a count,
 `document-connection-failed`, `server-relay-ended` with reason `input-bound`, and
 `server-relay-message-dropped` with its reason, once per connection), and `exited` to the data root's
 [daily diagnostic log](../../../crates/local-runtime/README.md#diagnostic-log), creating

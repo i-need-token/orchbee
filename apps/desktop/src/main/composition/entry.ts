@@ -25,6 +25,8 @@ import {
 	FileDesktopTrayRecord,
 } from '../background-tray';
 import {
+	containListenerFault,
+	containMainProcessFaults,
 	DesktopDiagnosticLog,
 	DesktopDiagnosticsActions,
 	DesktopDiagnosticsRuntime,
@@ -61,7 +63,6 @@ import {
 	watchWindowPointer,
 	windowVersionResources,
 } from '../window-update';
-import { containMainProcessFaults } from './containMainProcessFaults';
 import { DesktopDataRootRefusal } from './data-root-version-record';
 import { DesktopServerClientApplication } from './DesktopServerClientApplication';
 import { isPackagedDesktop } from './isPackagedDesktop';
@@ -334,16 +335,24 @@ async function createBackground(
 	return new DesktopBackgroundRuntime({
 		applicationName,
 		closeWindow: () => application?.window?.close(),
-		createSurface: (actions) =>
-			dock === undefined
+		createSurface: (actions) => {
+			const site = dock === undefined ? 'tray' : 'dock';
+			const contained = {
+				onNoticeShown: containListenerFault(recordEvent, site, actions.onNoticeShown, undefined),
+				onQuit: containListenerFault(recordEvent, site, actions.onQuit, undefined),
+				onQuitAll: containListenerFault(recordEvent, site, actions.onQuitAll, undefined),
+				onReopen: containListenerFault(recordEvent, site, actions.onReopen, undefined),
+			};
+			return dock === undefined
 				? new DesktopBackgroundTray({
-						...actions,
+						...contained,
 						applicationName,
 						distribution: distribution.dataScope.kind,
 						iconDirectory: resolveTrayIconDirectory(),
 						intl,
 					})
-				: new DesktopBackgroundDock({ ...actions, applicationName, dock, intl }),
+				: new DesktopBackgroundDock({ ...contained, applicationName, dock, intl });
+		},
 		intl,
 		noticeShown: await record.readNoticeShown(),
 		quit: () => app.quit(),
@@ -421,6 +430,11 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 	app.on('browser-window-focus', activateSecureKeyboardEntry);
 	app.on('browser-window-blur', deactivateSecureKeyboardEntry);
 	const menuBackground = background;
+	const menuListener = <Args extends readonly unknown[], Result>(
+		listener: (...args: Args) => Result,
+		fallback: Result,
+	): ((...args: Args) => Result) =>
+		containListenerFault(recordEvent, 'application-menu', listener, fallback);
 	const menu = installDesktopApplicationMenu(
 		{
 			background:
@@ -433,8 +447,11 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 							getReopenAvailability: () => ({
 								kind: menuBackground.dockView.reopen ? 'enabled' : 'hidden',
 							}),
-							invokeQuitAll: () => menuBackground.quitAllRequested(),
-							invokeReopen: () => void application.openWindow().catch(() => undefined),
+							invokeQuitAll: menuListener(() => menuBackground.quitAllRequested(), undefined),
+							invokeReopen: menuListener(
+								() => void application.openWindow().catch(() => undefined),
+								undefined,
+							),
 							quitAllLabel: intl.formatMessage(desktopTrayMessages.quitAll),
 							quitKeepRunningLabel: intl.formatMessage(desktopTrayMessages.quitKeepRunning),
 							reopenLabel: intl.formatMessage(desktopTrayMessages.reopen),
@@ -442,13 +459,22 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 			getSecureKeyboardEntryAvailability: () => secureKeyboardEntryActions.getToggleAvailability(),
 			getToggleFullScreenAvailability: () => windowActions.getToggleFullScreenAvailability(),
 			getToggleMaximizedAvailability: () => windowActions.getToggleMaximizedAvailability(),
-			invokeToggleFullScreen: (source) => windowActions.invokeToggleFullScreen(source),
-			invokeToggleMaximized: (source) => windowActions.invokeToggleMaximized(source),
-			invokeToggleSecureKeyboardEntry: (source) => secureKeyboardEntryActions.invokeToggle(source),
+			invokeToggleFullScreen: menuListener(
+				(source) => windowActions.invokeToggleFullScreen(source),
+				false,
+			),
+			invokeToggleMaximized: menuListener(
+				(source) => windowActions.invokeToggleMaximized(source),
+				false,
+			),
+			invokeToggleSecureKeyboardEntry: menuListener(
+				(source) => secureKeyboardEntryActions.invokeToggle(source),
+				false,
+			),
 			saveDiagnosticBundle: {
 				categoryLabel: intl.formatMessage(desktopDiagnosticsMessages.category),
 				getAvailability: () => diagnosticsActions.getSaveBundleAvailability(),
-				invoke: (source) => diagnosticsActions.invokeSaveBundle(source),
+				invoke: menuListener((source) => diagnosticsActions.invokeSaveBundle(source), false),
 				label: intl.formatMessage(desktopDiagnosticsMessages.saveBundle),
 			},
 		},

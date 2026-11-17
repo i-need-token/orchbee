@@ -1,4 +1,5 @@
 export { createServerWorkbenchRuntime } from './composition';
+export { ContainedClientFault } from './contained-client-fault';
 export type { ServerWorkbenchRuntime } from './composition';
 export type { ProjectedTerminalPlatformEffects } from './projected-terminal-platform-effects';
 export { registerTerminalProductFonts } from './projected-terminal-renderer';

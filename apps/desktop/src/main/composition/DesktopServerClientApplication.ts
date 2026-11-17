@@ -6,8 +6,10 @@ import {
 	DESKTOP_SERVER_CONNECTION_PORT_ROLES,
 	DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
 	DESKTOP_WINDOW_CAPTION_IPC_CHANNEL,
+	DESKTOP_WINDOW_FAULT_IPC_CHANNEL,
 	DesktopServerConnectionDocumentSchema,
 	DesktopWindowCaptionColorSchema,
+	DesktopWindowFaultSiteSchema,
 	type DesktopRelaunchPlace,
 	type DesktopServerConnectionBootstrap,
 	type DesktopServerConnectionPortRole,
@@ -26,10 +28,15 @@ import {
 import {
 	serveDesktopBackgroundStatus,
 	type DesktopBackgroundStatusPort,
+	type DesktopBackgroundStatusSink,
 	type DesktopWindowBackground,
 } from '../background-tray';
 import { isSameDesktopRendererOrigin } from '../desktop-renderer-protocol';
-import type { DesktopDiagnosticRecorder } from '../diagnostics';
+import {
+	containListenerFault,
+	DesktopWindowFaultLog,
+	type DesktopDiagnosticRecorder,
+} from '../diagnostics';
 import {
 	DesktopProjectFolderAcquisitionBroker,
 	DesktopProjectFolderAcquisitionRuntime,
@@ -37,6 +44,7 @@ import {
 import { ServerConnectionRelay, readServerStartAnswer } from '../server-connection';
 import type { DesktopWindowStateAttachment, DesktopWindowStateOwner } from '../window-state';
 import type { DesktopWindowUpdatePort } from '../window-update';
+import { followRendererCrashes } from './followRendererCrashes';
 
 /** What the window's Client processes run under, and where its page comes from. */
 export interface DesktopServerClientApplicationOptions {
@@ -94,12 +102,47 @@ function openExternalLink(address: string): void {
  * The Windows caption buttons' symbols take the color the page's theme gives them, each time it
  * changes; until the first document says, they keep the system's.
  */
-function followPageCaptionColor(window: BrowserWindow): void {
-	window.webContents.ipc.on(DESKTOP_WINDOW_CAPTION_IPC_CHANNEL, (_event, value) => {
-		const symbolColor = DesktopWindowCaptionColorSchema.safeParse(value);
-		if (!symbolColor.success || window.isDestroyed()) return;
-		window.setTitleBarOverlay({ symbolColor: symbolColor.data });
-	});
+function followPageCaptionColor(
+	window: BrowserWindow,
+	recordEvent: DesktopDiagnosticRecorder,
+): void {
+	window.webContents.ipc.on(
+		DESKTOP_WINDOW_CAPTION_IPC_CHANNEL,
+		containListenerFault(
+			recordEvent,
+			'ipc-window-caption',
+			(_event: unknown, value: unknown) => {
+				const symbolColor = DesktopWindowCaptionColorSchema.safeParse(value);
+				if (!symbolColor.success || window.isDestroyed()) return;
+				window.setTitleBarOverlay({ symbolColor: symbolColor.data });
+			},
+			undefined,
+		),
+	);
+}
+
+/**
+ * Records, by site, the faults the window's pages report, under a bound that a page which keeps
+ * failing cannot exceed; returns what writes the count it dropped once the window is gone.
+ */
+function recordPageFaults(
+	window: BrowserWindow,
+	recordEvent: DesktopDiagnosticRecorder,
+): () => void {
+	const log = new DesktopWindowFaultLog(recordEvent);
+	window.webContents.ipc.on(
+		DESKTOP_WINDOW_FAULT_IPC_CHANNEL,
+		containListenerFault(
+			recordEvent,
+			'ipc-window-fault',
+			(_event: unknown, value: unknown) => {
+				const site = DesktopWindowFaultSiteSchema.safeParse(value);
+				if (site.success) log.record(site.data);
+			},
+			undefined,
+		),
+	);
+	return () => log.dispose();
 }
 
 /**
@@ -126,6 +169,35 @@ interface DocumentConnection {
 	readonly folderAcquisition: DesktopProjectFolderAcquisitionBroker;
 	readonly relay: ServerConnectionRelay;
 	readonly windowUpdate: { close(): void };
+}
+
+/** The page's background reports, each of which costs only its own call when it throws. */
+function containBackgroundSink(
+	sink: DesktopBackgroundStatusSink | undefined,
+	recordEvent: DesktopDiagnosticRecorder,
+): DesktopBackgroundStatusSink | undefined {
+	if (sink === undefined) return undefined;
+	const site = 'port-background-status';
+	return {
+		sessionStopAnswered: containListenerFault(
+			recordEvent,
+			site,
+			sink.sessionStopAnswered.bind(sink),
+			undefined,
+		),
+		summaryChanged: containListenerFault(
+			recordEvent,
+			site,
+			sink.summaryChanged.bind(sink),
+			undefined,
+		),
+		windowRequested: containListenerFault(
+			recordEvent,
+			site,
+			sink.windowRequested.bind(sink),
+			undefined,
+		),
+	};
 }
 
 /** Electron rejects a load that another navigation of the same window replaced with `ERR_ABORTED`. */
@@ -247,7 +319,8 @@ export class DesktopServerClientApplication {
 			},
 		});
 		this.#window = window;
-		if (options.platform === 'win32') followPageCaptionColor(window);
+		if (options.platform === 'win32') followPageCaptionColor(window, options.recordEvent);
+		const endPageFaults = recordPageFaults(window, options.recordEvent);
 		let attachment: DesktopWindowStateAttachment | undefined;
 		if (!options.windowHidden) {
 			attachment = options.windowStateOwner.attach(window);
@@ -263,11 +336,7 @@ export class DesktopServerClientApplication {
 			if (!isSameDesktopRendererOrigin(navigationUrl, options.rendererUrl)) event.preventDefault();
 		});
 		const endDocumentConnection = this.#serveDocuments(window);
-		window.webContents.on('render-process-gone', (_event, details) => {
-			options.recordEvent('warning', 'renderer-gone', { reason: details.reason });
-			endDocumentConnection();
-			if (details.reason !== 'clean-exit' && !window.isDestroyed()) window.reload();
-		});
+		followRendererCrashes(window, options.recordEvent, endDocumentConnection);
 		const background = options.background;
 		if (background !== undefined) {
 			window.on('show', () => background.windowShown());
@@ -285,6 +354,7 @@ export class DesktopServerClientApplication {
 		window.once('closed', () => {
 			background?.windowClosed();
 			endDocumentConnection();
+			endPageFaults();
 			attachment?.dispose();
 			if (this.#windowStateAttachment === attachment) this.#windowStateAttachment = undefined;
 			if (this.#window === window) this.#window = undefined;
@@ -318,7 +388,7 @@ export class DesktopServerClientApplication {
 			current?.folderAcquisition.dispose();
 			current = undefined;
 		};
-		window.webContents.ipc.on(DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL, (_event, value) => {
+		const onRequest = (_event: unknown, value: unknown): void => {
 			const document = DesktopServerConnectionDocumentSchema.safeParse(value);
 			if (!document.success) return;
 			end();
@@ -353,7 +423,16 @@ export class DesktopServerClientApplication {
 					// This document gets no connection and a reload asks again; the window and Main go on.
 					options.recordEvent('error', 'document-connection-failed');
 				});
-		});
+		};
+		window.webContents.ipc.on(
+			DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
+			containListenerFault(
+				options.recordEvent,
+				'ipc-server-connection-request',
+				onRequest,
+				undefined,
+			),
+		);
 		return end;
 	}
 
@@ -380,7 +459,7 @@ export class DesktopServerClientApplication {
 			folderAcquisition.start();
 			backgroundStatusPort = serveDesktopBackgroundStatus(
 				backgroundStatus.port1,
-				options.background,
+				containBackgroundSink(options.background, options.recordEvent),
 			);
 			windowUpdatePort = options.windowUpdate.serve(windowUpdate.port1);
 			const pagePorts: Readonly<Record<DesktopServerConnectionPortRole, MessagePortMain>> = {

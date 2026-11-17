@@ -13,8 +13,10 @@ Server. The page has no Node integration, generic IPC, filesystem capability, or
 Main never reads terminal content.
 
 Main keeps one instance; starting Orchbee again brings the window forward. On macOS the application
-stays open without a window, and activating it opens one. A renderer that crashes is reloaded, and
-the new document connects again. Closing the window or quitting asks nothing, because nothing ends
+stays open without a window, and activating it opens one. A renderer that crashes is reloaded once,
+and the new document connects again; a second crash within a minute of the last stops reloading,
+and a native dialog, like VS Code's, offers Reopen or Close (Esc closes). Closing destroys the dead
+page, so the window opens afresh later. Closing the window or quitting asks nothing, because nothing ends
 with it: Main records the window's place and the Session's terminals keep running. On Windows,
 closing the window while terminals run hides it, and Desktop keeps running in the notification area
 until the window is reopened, Orchbee is quit from the icon, or the last terminal ends, as
@@ -51,7 +53,14 @@ connection, and closing the process's standard input ends it.
 One window, connection, message, or request never ends Main. A document whose connection cannot be
 made gets none, and a reload asks again; a throw or rejection that nothing else handled is
 recorded as `main-fault-contained` and Main goes on, because every fault Main can meet belongs to
-one of them.
+one of them. A throw from a notification-area, Dock, application menu, IPC or port listener costs
+only that call and is recorded with its site.
+
+The page reports the site of every fault it contains, and of every error or rejection that escapes
+it, by posting it to its own window; the preload forwards a parsed site to Main, which records it
+as `window-fault`. A window records at most 20 a minute, and once that minute ends one
+`window-faults-dropped` record counts the rest, so a page that keeps failing cannot fill the log.
+Nothing leaves the computer.
 
 Before connecting, Main runs `orchbee server start --format json`, because whether a restore lost
 anything is known only to the activating process and the connection's bytes are opaque. It announces

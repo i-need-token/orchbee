@@ -35,6 +35,14 @@ export {
 } from './desktop-window-caption-contract';
 
 export {
+	DESKTOP_WINDOW_FAULT_IPC_CHANNEL,
+	DESKTOP_WINDOW_FAULT_WINDOW_MESSAGE,
+	DesktopWindowFaultSiteSchema,
+	DesktopWindowFaultWindowMessageSchema,
+	type DesktopWindowFaultSite,
+} from './desktop-window-fault-contract';
+
+export {
 	DesktopRelaunchPlaceSchema,
 	DesktopWindowUpdateMainMessageSchema,
 	DesktopWindowUpdateRendererMessageSchema,

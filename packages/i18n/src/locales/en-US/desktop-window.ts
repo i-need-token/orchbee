@@ -2,6 +2,11 @@ export const enUSDesktopWindowMessages = {
 	'desktop.window.action.toggleFullScreen': 'Enter / Exit Full Screen',
 	'desktop.window.action.toggleMaximized': 'Maximize / Restore Window',
 	'desktop.window.category': 'Window',
+	'desktop.window.crashedClose': 'Close',
+	'desktop.window.crashedDetail':
+		"It stopped twice within a minute, so Orchbee didn't reopen it. Your terminals keep running.",
+	'desktop.window.crashedReopen': 'Reopen',
+	'desktop.window.crashedTitle': 'The window stopped unexpectedly',
 	'desktop.window.dataFolderLayoutNewer':
 		"{root} was last used by Orchbee {version}, which changed how the folder is laid out. This version can't open it; use Orchbee {version} or later.",
 	'desktop.window.dataFolderLayoutNewerUnnamed':

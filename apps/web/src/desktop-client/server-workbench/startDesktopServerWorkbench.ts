@@ -63,6 +63,7 @@ import { SessionDisconnectedStatus } from '../session-disconnected-status';
 import { SessionUnavailable } from '../session-unavailable';
 import { WorkbenchFailure } from '../workbench-failure';
 import { followDesktopWindowCaption } from '../window-caption';
+import { forwardDesktopWindowFaults } from '../window-fault';
 import { MessagePortServerCarrier } from './MessagePortServerCarrier';
 
 type DocumentElement = Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>;
@@ -426,6 +427,8 @@ export function startDesktopServerWorkbench(
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee Desktop application root element is missing.');
 	}
+	// Before anything renders, so every fault this document meets reaches Main's log.
+	forwardDesktopWindowFaults(targetWindow);
 	const reactRoot = createRoot(rootElement);
 	// Whatever this document shows, the Windows caption buttons draw in its theme.
 	followDesktopWindowCaption(targetWindow);

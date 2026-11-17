@@ -4,6 +4,11 @@ export const zhCNDesktopWindowMessages = {
 	'desktop.window.action.toggleFullScreen': '进入 / 退出全屏',
 	'desktop.window.action.toggleMaximized': '最大化 / 还原窗口',
 	'desktop.window.category': '窗口',
+	'desktop.window.crashedClose': '关闭',
+	'desktop.window.crashedDetail':
+		'窗口在一分钟内停止了两次，因此 Orchbee 没有重新打开它。你的终端仍在运行。',
+	'desktop.window.crashedReopen': '重新打开',
+	'desktop.window.crashedTitle': '窗口意外停止',
 	'desktop.window.dataFolderLayoutNewer':
 		'{root} 上次由 Orchbee {version} 使用，该版本更改了文件夹的布局。此版本无法打开它；请使用 Orchbee {version} 或更高版本。',
 	'desktop.window.dataFolderLayoutNewerUnnamed':

@@ -4,3 +4,5 @@ export {
 	type DesktopDiagnosticsActionSource,
 } from './DesktopDiagnosticsActions';
 export { DesktopDiagnosticsRuntime } from './DesktopDiagnosticsRuntime';
+export { DesktopWindowFaultLog } from './DesktopWindowFaultLog';
+export { containListenerFault, containMainProcessFaults } from './main-fault-containment';

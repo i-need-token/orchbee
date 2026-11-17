@@ -3,7 +3,7 @@ import type { Readable, Writable } from 'node:stream';
 
 import { DesktopServerConnectionReadSchema } from '@orchbee/desktop-client-protocol';
 
-import type { DesktopDiagnosticRecorder } from '../diagnostics';
+import { containListenerFault, type DesktopDiagnosticRecorder } from '../diagnostics';
 
 export type ServerConnectProcess = ChildProcessByStdio<Writable, Readable, null>;
 
@@ -52,11 +52,19 @@ export class ServerConnectionRelay {
 		this.#port = port;
 		this.#process = process;
 		this.#recordEvent = recordEvent;
-		port.on('message', ({ data }) => {
-			if (this.#closed) return;
-			if (data instanceof Uint8Array) this.#relayInput(data);
-			else this.#read(data);
-		});
+		port.on(
+			'message',
+			containListenerFault(
+				recordEvent,
+				'port-server-connection',
+				({ data }: { readonly data: unknown }) => {
+					if (this.#closed) return;
+					if (data instanceof Uint8Array) this.#relayInput(data);
+					else this.#read(data);
+				},
+				undefined,
+			),
+		);
 		port.on('close', () => this.close());
 		process.stdout.on('data', (chunk: Buffer) => this.#relayOutput(chunk));
 		process.stdout.once('close', () => this.close());
