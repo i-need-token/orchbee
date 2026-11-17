@@ -1,4 +1,5 @@
 import type { RefObject } from 'react';
+import type { ProjectedTerminalConnectionState } from '../components/projected-terminal-connection-status/ProjectedTerminalConnectionStatus';
 import type { ProjectedPasteReview } from '@orchbee/terminal';
 import type { ProjectedTerminalControlPresentation } from '../../projected-terminal-actions';
 import type {
@@ -18,8 +19,9 @@ export type ProjectedTerminalLaunchFailureView =
 	| { readonly kind: 'unavailable' };
 
 export interface ProjectedTerminalSurfaceView {
+	/** Why the terminal shows no live attachment, absent while it has one. */
+	readonly connectionStatus: ProjectedTerminalConnectionState | null;
 	readonly controlPresentation: ProjectedTerminalControlPresentation;
-	readonly failureMessage: string | null;
 	readonly launchFailure: ProjectedTerminalLaunchFailureView | null;
 	readonly launchFailureRoot: RefObject<HTMLElement | null>;
 	/** The pane shows only the part of a larger terminal around its cursor. */
@@ -27,7 +29,6 @@ export interface ProjectedTerminalSurfaceView {
 	readonly mobileInputState: MobileTerminalInputState;
 	readonly pasteReview: ProjectedPasteReview | null;
 	readonly projectionState: 'failed' | 'inactive' | 'recovering' | 'requested';
-	readonly recoveryAvailable: boolean;
 	readonly root: RefObject<HTMLDivElement | null>;
 	/** How the shown terminal ended, absent while it runs. */
 	readonly terminalOutcome: ProjectedTerminalOutcome | null;
@@ -37,7 +38,6 @@ export interface ProjectedTerminalSurfaceView {
 	createTab(): void;
 	/** Starts a held restore's terminal; null where this surface cannot. */
 	readonly restoreTerminal: ((directory: 'home' | 'saved') => Promise<void>) | null;
-	retryProjection(): void;
 	sendMobileKey(key: MobileTerminalKey): boolean;
 	takeControl(): void;
 	toggleMobileKeyboard(): boolean;

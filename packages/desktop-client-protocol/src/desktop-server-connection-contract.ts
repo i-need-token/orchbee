@@ -79,6 +79,11 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	 */
 	negotiatedCapabilities: z.array(CapabilityNameSchema).max(256).nullable().catch(null),
 	/**
+	 * Whether Main serves Quit All, which a terminal offers once its Server gave up on it; false where
+	 * Desktop keeps no notification-area icon or Dock menu.
+	 */
+	quitAllAvailable: z.boolean(),
+	/**
 	 * Where the first document of a window relaunched by Update opens, from the window's command
 	 * line; null for every other document.
 	 */

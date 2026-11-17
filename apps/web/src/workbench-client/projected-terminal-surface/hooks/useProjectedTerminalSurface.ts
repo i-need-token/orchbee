@@ -1,5 +1,4 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import { projectedTerminalMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { ProjectedPasteReview } from '@orchbee/terminal';
 import type {
 	WorkbenchTerminalPresentation,
@@ -16,8 +15,10 @@ import {
 	type MobileTerminalModifier,
 	type ProjectedTerminalOutcome,
 } from '../../projected-terminal-renderer';
+import type { ProjectedTerminalConnectionState } from '../components/projected-terminal-connection-status/ProjectedTerminalConnectionStatus';
 import {
 	ProjectedTerminalSurfaceCapabilityContext,
+	type ProjectedTerminalRuntimeState,
 	type ProjectedTerminalSurfaceCapability,
 } from '../contexts/projected-terminal-surface-capability';
 import { MountedTerminalProjectionRequest } from '../model/MountedTerminalProjectionRequest';
@@ -63,6 +64,9 @@ const unavailableMobileInputState: MobileTerminalInputState = {
 
 type ProjectedTerminalSessionPolicy = 'project' | 'retain';
 
+const subscribeToNothing = (): (() => void) => () => undefined;
+const readServing = (): ProjectedTerminalRuntimeState => 'serving';
+
 type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 	WorkbenchTerminalSurfaceProps,
 	'actionRuntime' | 'actionScope' | 'admitBellEffect' | 'autoFocus' | 'bindActionContextProvider'
@@ -97,7 +101,6 @@ export function useProjectedTerminalSurface(
 	const onTerminalEdit = workbenchHost?.onTerminalEdit;
 	const presentationMode = workbenchHost?.presentationMode ?? 'active';
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
-	const intl = useOrchbeeIntl();
 	const root = React.useRef<HTMLDivElement>(null);
 	const launchFailureRoot = React.useRef<HTMLElement>(null);
 	const recoveryController = React.useRef<{
@@ -121,6 +124,14 @@ export function useProjectedTerminalSurface(
 		presentationMode === 'retained' ? 'retain' : 'project';
 	const sessionPolicyReference = React.useRef(sessionPolicy);
 	sessionPolicyReference.current = sessionPolicy;
+	// Without a published state, every terminal keeps its own recovery.
+	const runtimeSource = capability?.terminalRuntimeSource;
+	const runtimeState = React.useSyncExternalStore(
+		runtimeSource?.subscribe ?? subscribeToNothing,
+		runtimeSource?.getSnapshot ?? readServing,
+	);
+	const runtimeStateReference = React.useRef(runtimeState);
+	runtimeStateReference.current = runtimeState;
 	// The renderer hears an end first, but the surface names it only once the Presentation has
 	// ended too, so a composition decides when the person sees it, as the Server path holds a pane
 	// whose shell exited cleanly while the Server closes it.
@@ -306,6 +317,8 @@ export function useProjectedTerminalSurface(
 				presentationId: presentation.presentationId,
 			});
 		});
+		// A terminal mounted while the Server replaces its Worker waits for it before attaching.
+		if (runtimeStateReference.current !== 'serving') controller.hold();
 		if (sessionPolicyReference.current === 'retain') controller.retain();
 		else controller.start();
 		return () => {
@@ -349,13 +362,21 @@ export function useProjectedTerminalSurface(
 			recovery.controller.start();
 		}
 	}, [presentation.presentationId, sessionPolicy]);
+	// Reconnecting holds every attachment and drops what is typed; serving attaches each shown
+	// terminal at once.
+	React.useEffect(() => {
+		const recovery = recoveryController.current;
+		if (recovery?.presentationId !== presentation.presentationId) return;
+		if (runtimeState === 'serving') recovery.controller.release();
+		else recovery.controller.hold();
+	}, [presentation.presentationId, projectable, runtimeState]);
 	React.useLayoutEffect(() => {
 		if (presentationMode === 'retained') return;
-		if (!projectable || currentRecovery?.kind === 'failed') {
+		if (!projectable || currentRecovery?.kind === 'failed' || runtimeState !== 'serving') {
 			reportPresentationReady('display-ready');
 			reportPresentationReady('activation-ready');
 		}
-	}, [currentRecovery?.kind, presentationMode, projectable, reportPresentationReady]);
+	}, [currentRecovery?.kind, presentationMode, projectable, reportPresentationReady, runtimeState]);
 	React.useEffect(() => {
 		if (presentationMode !== 'active' || !autoFocus || currentRecovery?.kind !== 'ready') return;
 		const recovery = recoveryController.current;
@@ -374,15 +395,27 @@ export function useProjectedTerminalSurface(
 		launchFailureRoot.current?.focus({ preventScroll: true });
 	}, [autoFocus, creationFailed, focusRequest, presentationMode]);
 
+	const retryProjection = (): void => {
+		if (recoveryController.current?.presentationId === presentation.presentationId) {
+			recoveryController.current.controller.retry();
+		}
+	};
 	let projectionState: ProjectedTerminalSurfaceView['projectionState'] = 'inactive';
+	let connectionStatus: ProjectedTerminalConnectionState | null = null;
 	if (projectable) projectionState = 'requested';
-	if (currentRecovery?.kind === 'recovering') projectionState = 'recovering';
-	if (currentRecovery?.kind === 'failed') projectionState = 'failed';
-	let failureMessage: string | null = null;
-	if (currentRecovery?.kind === 'recovering') {
-		failureMessage = intl.formatMessage(projectedTerminalMessages.connectionRecovering);
+	if (projectable && !ended && runtimeState !== 'serving') {
+		// The Server's state speaks for every running terminal over its own attachment's.
+		projectionState = runtimeState === 'reconnecting' ? 'recovering' : 'failed';
+		connectionStatus =
+			runtimeState === 'reconnecting'
+				? { kind: 'reconnecting' }
+				: { kind: 'given-up', onQuitAll: capability.quitAll ?? null };
+	} else if (currentRecovery?.kind === 'recovering') {
+		projectionState = 'recovering';
+		connectionStatus = { kind: 'recovering' };
 	} else if (currentRecovery?.kind === 'failed') {
-		failureMessage = intl.formatMessage(projectedTerminalMessages.disconnected);
+		projectionState = 'failed';
+		connectionStatus = { kind: 'disconnected', onRetry: retryProjection };
 	}
 	const mobileInputState =
 		presentationMobileInput?.presentationId === presentation.presentationId
@@ -397,9 +430,9 @@ export function useProjectedTerminalSurface(
 		approvePaste: () => settlePasteReview(true),
 		cancelPaste: () => settlePasteReview(false),
 		closeTerminal: () => closeTerminal?.('button'),
+		connectionStatus,
 		controlPresentation,
 		createTab: () => createTab?.('button'),
-		failureMessage,
 		launchFailure,
 		launchFailureRoot,
 		restoreTerminal: restoreTerminal ?? null,
@@ -407,12 +440,6 @@ export function useProjectedTerminalSurface(
 		mobileInputState,
 		pasteReview,
 		projectionState,
-		recoveryAvailable: currentRecovery?.kind === 'failed',
-		retryProjection: () => {
-			if (recoveryController.current?.presentationId === presentation.presentationId) {
-				recoveryController.current.controller.retry();
-			}
-		},
 		root,
 		sendMobileKey,
 		takeControl,

@@ -1,10 +1,9 @@
-import { projectedTerminalMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { Button } from '@orchbee/ui/components';
 import type { WorkbenchTerminalSurfaceProps } from '../../workbench';
 import type { ReactNode } from 'react';
 
 import { WorkbenchRenderBoundary } from '../workbench-render-boundary';
 import styles from './ProjectedTerminalSurface.module.css';
+import { ProjectedTerminalConnectionStatus } from './components/projected-terminal-connection-status/ProjectedTerminalConnectionStatus';
 import { ProjectedTerminalDisplayFailure } from './components/projected-terminal-display-failure/ProjectedTerminalDisplayFailure';
 import { ProjectedTerminalLaunchFailure } from './components/projected-terminal-launch-failure/ProjectedTerminalLaunchFailure';
 import { ProjectedTerminalMobileInputBar } from './components/projected-terminal-mobile-input-bar/ProjectedTerminalMobileInputBar';
@@ -42,7 +41,6 @@ function ProjectedTerminalSurfaceContent({
 	// The host's props pass through whole, so an optional capability the host adds cannot be
 	// dropped by a field list kept here.
 	const view = useProjectedTerminalSurface(presentation, props);
-	const intl = useOrchbeeIntl();
 	// An ended terminal keeps its last frame but takes no input and has no control to take.
 	const terminalShown = view.launchFailure === null && view.terminalOutcome === null;
 	return (
@@ -55,19 +53,8 @@ function ProjectedTerminalSurfaceContent({
 				data-terminal-projection-state={view.projectionState}
 				ref={view.root}
 			>
-				{view.failureMessage === null ? null : (
-					<div data-projected-terminal-status='true' role='alert'>
-						<span>{view.failureMessage}</span>
-						{view.recoveryAvailable ? (
-							<Button
-								data-slot='projected-terminal-retry-connection'
-								onClick={view.retryProjection}
-								variant='outline'
-							>
-								{intl.formatMessage(projectedTerminalMessages.retryConnection)}
-							</Button>
-						) : null}
-					</div>
+				{view.connectionStatus === null ? null : (
+					<ProjectedTerminalConnectionStatus state={view.connectionStatus} />
 				)}
 				{view.launchFailure === null ? null : (
 					<ProjectedTerminalLaunchFailure

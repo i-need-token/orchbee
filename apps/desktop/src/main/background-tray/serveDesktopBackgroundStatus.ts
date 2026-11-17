@@ -36,6 +36,9 @@ export function serveDesktopBackgroundStatus(
 			case 'desktop-background-window-requested':
 				sink.windowRequested();
 				break;
+			case 'desktop-background-quit-all-requested':
+				sink.quitAllRequested();
+				break;
 			case 'desktop-session-stop-answered':
 				sink.sessionStopAnswered(message.data.stopId, message.data.answer);
 				break;

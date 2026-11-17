@@ -361,6 +361,7 @@ async function run(
 		// A publication this document cannot apply leaves nothing current to show, so it disconnects.
 		onPublicationFailure: () => session.dispose(),
 		preferredLocales,
+		quitAll: bootstrap.quitAllAvailable ? () => backgroundStatus.requestQuitAll() : undefined,
 		relaunchPlace: bootstrap.relaunchPlace,
 		session,
 		ctrlCCopiesSelection,
@@ -373,6 +374,10 @@ async function run(
 		terminalInteractionConfigurationSource: terminalInteractionSettingsController,
 		terminalPlatformEffects: browserPlatformEffects(targetWindow),
 		terminalPresentationConfigurationSource: terminalSettingsController,
+		terminalRuntime: serverSessionServes(
+			bootstrap.negotiatedCapabilities,
+			'follow-terminal-runtime',
+		),
 		// Electron names the window after its page, which the taskbar and window switcher show.
 		titleWindow: targetWindow,
 	});

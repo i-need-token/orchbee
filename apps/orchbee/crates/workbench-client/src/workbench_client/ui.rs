@@ -55,8 +55,8 @@ use crate::{
 };
 use orchbee_client_server_protocol::{ControlInput, Geometry, TerminalViewerAction};
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchPanelId,
-    WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    ProtocolVersion, TerminalRuntimeState, WorkbenchAction, WorkbenchCommand, WorkbenchLabel,
+    WorkbenchPanelId, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 use std::sync::Arc;
 
@@ -353,6 +353,9 @@ pub struct WorkbenchClientView<'a> {
     popup: Option<&'a crate::independent_popup::Driver>,
     /// The version the Update control offers while it is Ready.
     update: Option<&'a str>,
+    /// Whether the Session's terminals are served, or the Server is replacing a lost Worker or
+    /// gave up on it.
+    terminal_runtime: TerminalRuntimeState,
 }
 
 pub(crate) use crate::localization::LaunchFailure;
@@ -374,6 +377,12 @@ impl<'a> WorkbenchClientView<'a> {
     /// The version the Update control offers, while it is Ready.
     pub(crate) const fn update_version(&self) -> Option<&'a str> {
         self.update
+    }
+
+    /// Whether the Session's terminals are served, or the Server is replacing a lost Worker or
+    /// gave up on it; serving where the Server does not publish it.
+    pub(crate) const fn terminal_runtime(&self) -> TerminalRuntimeState {
+        self.terminal_runtime
     }
 
     pub(crate) fn launch_failure(
@@ -1391,6 +1400,7 @@ impl<'a> WorkbenchClientView<'a> {
             notice_context: None,
             popup: None,
             update: None,
+            terminal_runtime: TerminalRuntimeState::Serving,
         }
     }
 
@@ -1435,6 +1445,7 @@ impl<'a> WorkbenchClientView<'a> {
             notice_context: None,
             popup: None,
             update: None,
+            terminal_runtime: TerminalRuntimeState::Serving,
         }
     }
 }
@@ -1565,6 +1576,13 @@ pub(super) struct WorkbenchClientUi {
     start_jobs: crate::agent_board::start::jobs::Jobs,
     /// The Session's Agent catalog stream; its reports settle into `board`'s start state.
     agent_catalog: super::agent_catalog::Lane,
+    /// The Session's terminal-runtime stream and the state it last reported.
+    terminal_runtime: super::terminal_runtime::Lane,
+    terminal_runtime_state: TerminalRuntimeState,
+    /// The Server serves again after a replacement: the shown Tab re-attaches at once.
+    runtime_reattach: bool,
+    /// The Server serves again: the composition reopens the title streams it closed.
+    runtime_served: bool,
     worktrees: worktree_launch::Coordinator,
     attention: super::agent_attention::AgentAttention,
     reports: super::panel_reports::PanelReports,
@@ -1705,6 +1723,10 @@ impl WorkbenchClientUi {
             ),
             start_jobs: Default::default(),
             agent_catalog: Default::default(),
+            terminal_runtime: Default::default(),
+            terminal_runtime_state: TerminalRuntimeState::Serving,
+            runtime_reattach: false,
+            runtime_served: false,
             worktrees: worktree_launch::Coordinator::default(),
             menus: action_menus::MenuEpisode::default(),
             configured_commands: Vec::new(),
@@ -1820,6 +1842,7 @@ impl WorkbenchClientUi {
             notice_context: self.command_notice.context(),
             popup: Some(&self.popup),
             update: self.update_version.as_deref(),
+            terminal_runtime: self.terminal_runtime_state,
             worktree: Some(&self.worktrees.launcher),
             menu: Some(&self.menus),
             settings: Some(&self.settings),
@@ -2031,6 +2054,7 @@ impl WorkbenchClientUi {
         }
         self.start_jobs.request_stop();
         self.agent_catalog.close();
+        self.terminal_runtime.close();
         self.attention.request_stop();
         self.reports.request_stop();
         self.graphics.request_stop();
@@ -2201,6 +2225,7 @@ impl WorkbenchClientUi {
             // A held invocation takes the refresh slot its background read just released,
             // before the next background read can.
             changed |= self.replay_held_intent();
+            changed |= self.drive_terminal_runtime();
             // A lost focused viewer re-attaches before a background read can take the slot.
             changed |= self.drive_viewer_recovery(&mailbox);
             // So does the selection leaving a Tab whose close the Server accepted.
@@ -2586,6 +2611,11 @@ impl WorkbenchClientUi {
         // A held restore has no terminal; its focused placeholder owns its own keys.
         if let Some(consumed) = self.held_restore_key(input) {
             return consumed;
+        }
+        // While the Server replaces its Worker, or once it gave up, what is typed is dropped,
+        // never held or sent; the status already says why, so no refusal notice follows.
+        if self.terminal_runtime_state != TerminalRuntimeState::Serving {
+            return true;
         }
         if let Some(admitted) = self.hold_focus_input(input) {
             return admitted;

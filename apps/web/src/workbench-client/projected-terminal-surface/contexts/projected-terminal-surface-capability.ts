@@ -35,6 +35,17 @@ type ProjectedTerminalLaunchFailure =
 			readonly kind: 'directory-unavailable';
 	  };
 
+/**
+ * Whether the Session's terminals are served, the Server is replacing a lost Worker, or it gave up,
+ * as its `workbench.terminal-runtime` State stream says.
+ */
+export type ProjectedTerminalRuntimeState = 'given-up' | 'reconnecting' | 'serving';
+
+interface ProjectedTerminalRuntimeSource {
+	getSnapshot(): ProjectedTerminalRuntimeState;
+	subscribe(listener: () => void): () => void;
+}
+
 export interface ProjectedTerminalSurfaceCapability {
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly applicationLocaleSource?: ApplicationLocaleSource | undefined;
@@ -69,6 +80,13 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly presentationConfigurationSource: TerminalPresentationConfigurationSource;
 	readonly inputConfigurationSource?: TerminalInputConfigurationSource | undefined;
 	readonly interactionConfigurationSource?: TerminalInteractionConfigurationSource | undefined;
+	/** Opens the Quit All confirmation; absent where this Client offers no Quit All. */
+	readonly quitAll?: (() => void) | undefined;
+	/**
+	 * The Session's terminal-runtime state, where its Server publishes one. Without it, every terminal
+	 * keeps its own recovery and Retry.
+	 */
+	readonly terminalRuntimeSource?: ProjectedTerminalRuntimeSource | undefined;
 	observeTerminalMetadata(
 		presentationId: TerminalPresentationId,
 		metadata: Pick<ProjectedTerminalMetadata, 'currentDirectory' | 'revision' | 'title'>,

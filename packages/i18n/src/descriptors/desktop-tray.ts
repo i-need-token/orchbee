@@ -20,7 +20,7 @@ export const desktopTrayMessages = defineMessages({
 	),
 	quitAll: message(
 		'desktop.tray.quitAll',
-		'Menu item of the Windows notification-area icon, the macOS Dock menu, and the macOS application menu that asks to stop the Session, ending every terminal and Agent, and then quit Orchbee.',
+		'Menu item of the Windows notification-area icon, the macOS Dock menu, and the macOS application menu, and the button a terminal shows once Orchbee cannot reconnect to it, that asks to stop the Session, ending every terminal and Agent, and then quit Orchbee.',
 	),
 	quitAllCancel: message(
 		'desktop.tray.quitAll.cancel',

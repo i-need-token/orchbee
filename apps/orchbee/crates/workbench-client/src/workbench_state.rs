@@ -3854,6 +3854,60 @@ impl WorkbenchClientState {
         self.target_for_switch_for_panel(index, key, deadlines, &panel)
     }
 
+    /// Whether the shown Tab has a terminal without its viewer that a same-Tab attach would bring
+    /// back once the Server serves again after replacing a lost Worker: a focus parked after a lost
+    /// viewer or an attach refused meanwhile, or a pane of a ready Tab in either fault.
+    pub(crate) fn runtime_reattach_needed(&self) -> bool {
+        let Some(selected) = self.active() else {
+            return false;
+        };
+        let anchor = selected.key().anchor();
+        match &self.phase {
+            ClientPhase::RetryableAttachUnavailable(parked) => {
+                self.desired.as_ref() == Some(&parked.key)
+            }
+            ClientPhase::Ready(_) => self.panes.iter().any(|record| {
+                record.key.anchor() == anchor
+                    && !record.departing
+                    && !record.attached()
+                    && matches!(
+                        record.fault,
+                        Some(PaneFault::ViewerLost | PaneFault::AttachUnavailable)
+                    )
+            }),
+            _ => false,
+        }
+    }
+
+    /// The same-Tab attach target that re-attaches the shown Tab, with its focused panel still
+    /// focused, once the Server serves again after replacing a lost Worker. `None` while
+    /// [`Self::runtime_reattach_needed`] does not hold, while close work or a close confirmation
+    /// that a new attachment generation would make stale is open, or while the planner would not
+    /// switch now.
+    pub(crate) fn target_for_runtime_reattach(
+        &mut self,
+        generation: u64,
+        deadlines: OperationDeadlines,
+    ) -> Option<AttachTarget> {
+        if !self.runtime_reattach_needed()
+            || self.pending_refresh.is_some()
+            || !self.close.permits_retired_membership()
+            || self.panel_close.confirmation().is_some()
+        {
+            return None;
+        }
+        let selected = self.active()?;
+        let index = selected.index();
+        let panel = selected.key().panel().clone();
+        if matches!(&self.phase, ClientPhase::RetryableAttachUnavailable(_))
+            && !matches!(self.plan_selection_index(index), SelectionPlan::Switch { index: planned } if planned == index)
+        {
+            return None;
+        }
+        let key = AttachmentKey::new(generation, self.cache.tabs().get(index)?.tab_id().clone());
+        self.target_for_switch_for_panel(index, key, deadlines, &panel)
+    }
+
     /// Installs a local focus move approved by [`plan_panel_focus_local`]: the
     /// focus pane, its observed geometry, and its controller mode swap without
     /// touching any attachment. Queued input/resize commands keep their frozen

@@ -62,6 +62,8 @@ export class ProjectedTerminalRecoveryController {
 	#disposed = false;
 	readonly #disposedPromise: Promise<void>;
 	#frozen: ManagedProjectedTerminalSession | undefined;
+	/** The Server is replacing its Worker: no attachment is attempted and none takes input. */
+	#held = false;
 	#opening: symbol | undefined;
 	#pending: ManagedProjectionRequest | undefined;
 	#resolveDisposed: (() => void) | undefined;
@@ -130,9 +132,47 @@ export class ProjectedTerminalRecoveryController {
 		this.#beginAttempt('initial');
 	}
 
+	/**
+	 * The Server is replacing a lost Worker or gave up: the live attachment freezes behind its last
+	 * frame, so nothing typed reaches the terminal, and no attempt starts until {@link release}.
+	 */
+	hold(): void {
+		if (this.#disposed || this.#held) return;
+		this.#held = true;
+		this.#opening = undefined;
+		if (this.#retryTimer !== undefined) globalThis.clearTimeout(this.#retryTimer);
+		this.#retryTimer = undefined;
+		const candidate = this.#candidate;
+		const pending = this.#pending;
+		this.#candidate = undefined;
+		this.#pending = undefined;
+		if (candidate !== undefined) disposeManagedSession(candidate);
+		else pending?.release();
+		const active = this.#active;
+		if (active === undefined) return;
+		this.#active = undefined;
+		this.#freezeProjection(active, 'recovery');
+		if (this.#disposed) return;
+		this.#notifyMobileInputState();
+		this.#notifyControlPresentation();
+	}
+
+	/**
+	 * The Server serves again: a shown terminal attaches at once with a fresh retry budget, behind
+	 * its last frame and without announcing it; one that never attached starts as it would have.
+	 */
+	release(): void {
+		if (this.#disposed || !this.#held) return;
+		this.#held = false;
+		this.#automaticRetryIndex = 0;
+		if (this.#retained || this.#active !== undefined) return;
+		this.#beginAttempt(this.#frozen === undefined ? 'initial' : 'automatic');
+	}
+
 	retry(): void {
 		if (
 			this.#disposed ||
+			this.#held ||
 			this.#retained ||
 			this.#active !== undefined ||
 			this.#opening !== undefined ||
@@ -246,6 +286,7 @@ export class ProjectedTerminalRecoveryController {
 	#beginAttempt(source: RecoveryAttemptSource): void {
 		if (
 			this.#disposed ||
+			this.#held ||
 			this.#retained ||
 			this.#active !== undefined ||
 			this.#opening !== undefined ||
@@ -384,6 +425,7 @@ export class ProjectedTerminalRecoveryController {
 	#handleAttemptFailure(source: RecoveryAttemptSource): void {
 		if (
 			this.#disposed ||
+			this.#held ||
 			this.#retained ||
 			this.#pending !== undefined ||
 			this.#opening !== undefined ||
@@ -400,6 +442,7 @@ export class ProjectedTerminalRecoveryController {
 	#scheduleAutomaticRetry(): void {
 		if (
 			this.#disposed ||
+			this.#held ||
 			this.#retained ||
 			this.#pending !== undefined ||
 			this.#opening !== undefined ||
@@ -431,7 +474,7 @@ export class ProjectedTerminalRecoveryController {
 	}
 
 	#ownsPending(pending: ManagedProjectionRequest): boolean {
-		return !this.#disposed && !this.#retained && this.#pending === pending;
+		return !this.#disposed && !this.#held && !this.#retained && this.#pending === pending;
 	}
 
 	#ownsActive(managed: ManagedProjectedTerminalSession): boolean {

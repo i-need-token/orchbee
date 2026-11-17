@@ -450,6 +450,49 @@ impl Locale {
         format!("{label} · {}", self.connecting_status())
     }
 
+    /// The state every terminal shows while the Server replaces a lost Worker, after its Tab's
+    /// label when it has one.
+    pub(crate) fn terminal_reconnecting(self, label: Option<&str>) -> String {
+        let state = self.status().reconnecting;
+        label.map_or_else(|| state.to_owned(), |label| format!("{label} · {state}"))
+    }
+
+    /// The state every terminal shows once the Server gave up replacing a lost Worker, after its
+    /// Tab's label when it has one.
+    pub(crate) fn terminal_cant_reconnect(self, label: Option<&str>) -> String {
+        let state = match self {
+            Self::EnUs => "Can't reconnect",
+            Self::ZhCn => "无法重新连接",
+        };
+        label.map_or_else(|| state.to_owned(), |label| format!("{label} · {state}"))
+    }
+
+    /// What reconnecting means for the programs and for what the person types.
+    pub(crate) const fn terminal_reconnecting_description(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "Orchbee lost contact with its terminals and is reconnecting. Programs keep running; anything you type until then isn't sent."
+            }
+            Self::ZhCn => {
+                "Orchbee 与终端失去联系，正在重新连接。程序会继续运行；在此之前输入的内容不会发送。"
+            }
+        }
+    }
+
+    /// The status notice once the Server gave up; the key that leaves the view fills its slot when
+    /// the status line is drawn.
+    pub(crate) fn terminal_given_up_notice(self) -> String {
+        let detach = super::shell::EXIT_KEY_SLOT;
+        match self {
+            Self::EnUs => format!(
+                "Programs keep running, but Orchbee can't reach them. To stop them, leave with {detach} and run orchbee server stop; the next start reopens your layout."
+            ),
+            Self::ZhCn => format!(
+                "程序仍在运行，但 Orchbee 无法连接它们。如需停止，按 {detach} 离开后运行 orchbee server stop，下次启动时恢复布局。"
+            ),
+        }
+    }
+
     fn native_terminal_unavailable(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("{label} · terminal unavailable"),

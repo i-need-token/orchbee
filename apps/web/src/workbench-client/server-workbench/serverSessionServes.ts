@@ -6,7 +6,7 @@
  */
 
 /** A window action that only a Session listing a certain capability can serve. */
-type ServerSessionAction = 'check-for-updates';
+type ServerSessionAction = 'check-for-updates' | 'follow-terminal-runtime';
 
 /** Every capability this build's `client-server` offer lists, with the window actions that need it. */
 const NEEDED_BY: readonly (readonly [string, readonly ServerSessionAction[]])[] = [
@@ -16,6 +16,8 @@ const NEEDED_BY: readonly (readonly [string, readonly ServerSessionAction[]])[] 
 	['compatibility-window', []],
 	// Only the TUI's start in the focused Panel needs it, which the window lacks.
 	['prompt-gated-input', []],
+	// The terminal surface follows the Session's terminal-runtime read only where it is listed.
+	['terminal-runtime', ['follow-terminal-runtime']],
 	['update-check', ['check-for-updates']],
 ];
 

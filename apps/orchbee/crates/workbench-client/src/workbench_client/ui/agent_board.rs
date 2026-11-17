@@ -46,6 +46,7 @@ impl WorkbenchClientUi {
         self.duplication.set_origin(origin.clone());
         self.held_restore.set_origin(origin.clone());
         self.start_jobs.set_origin(origin.clone());
+        self.terminal_runtime.set_origin(origin.clone());
         self.agent_catalog.set_origin(origin);
     }
 
@@ -155,6 +156,9 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn release_agent_lane(&mut self) {
         self.start_jobs.close();
         self.agent_catalog.close();
+        self.terminal_runtime.close();
+        self.terminal_runtime_state = orchbee_workbench_protocol::TerminalRuntimeState::Serving;
+        self.runtime_reattach = false;
         self.board.retire_start_catalog();
         self.settings.close();
         if !self.worktrees.close() {

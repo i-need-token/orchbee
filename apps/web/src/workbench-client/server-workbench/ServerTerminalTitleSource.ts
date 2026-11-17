@@ -84,6 +84,17 @@ export class ServerTerminalTitleSource {
 		this.#follow(session.snapshot);
 	}
 
+	/** Opens again every stream the Server closed, as it does after replacing a lost Worker. */
+	reopenClosed(): void {
+		if (this.#ended) return;
+		for (const stream of this.#streams) {
+			if (stream.subscription !== null) continue;
+			if (stream.retry !== null) clearTimeout(stream.retry);
+			stream.retry = null;
+			this.#open(stream);
+		}
+	}
+
 	/** Closes every stream; nothing arrives afterwards. */
 	dispose(): void {
 		if (this.#ended) return;

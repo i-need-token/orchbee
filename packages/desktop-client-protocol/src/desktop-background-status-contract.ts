@@ -37,8 +37,8 @@ const DesktopSessionStopAnswerSchema = z.enum([
 
 /**
  * What the page sends Main over the background-status port: the summary whenever it changes, a
- * request to show the window, which a page cannot do for a window Main hid, and its answer to a
- * Session stop.
+ * request to show the window, which a page cannot do for a window Main hid, a request for Quit All,
+ * which a terminal offers once its Server gave up on it, and its answer to a Session stop.
  */
 export const DesktopBackgroundStatusRendererMessageSchema = z.discriminatedUnion('type', [
 	z.strictObject({
@@ -46,6 +46,7 @@ export const DesktopBackgroundStatusRendererMessageSchema = z.discriminatedUnion
 		type: z.literal('desktop-background-status-changed'),
 	}),
 	z.strictObject({ type: z.literal('desktop-background-window-requested') }),
+	z.strictObject({ type: z.literal('desktop-background-quit-all-requested') }),
 	z.strictObject({
 		answer: DesktopSessionStopAnswerSchema,
 		stopId: DesktopSessionStopIdSchema,

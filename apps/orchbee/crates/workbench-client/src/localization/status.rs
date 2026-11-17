@@ -12,6 +12,8 @@ pub(crate) struct StatusText {
     pub(crate) focus_sidebar: &'static str,
     pub(crate) directory_missing: &'static str,
     pub(crate) disconnected: &'static str,
+    /// The Server is replacing a lost Worker.
+    pub(crate) reconnecting: &'static str,
     pub(crate) terminal_exited: &'static str,
     pub(crate) resize_pending: &'static str,
     pub(crate) divider: &'static str,
@@ -43,6 +45,7 @@ const EN_US: StatusText = StatusText {
     focus_sidebar: "sidebar",
     directory_missing: "Directory missing",
     disconnected: "Disconnected",
+    reconnecting: "Reconnecting…",
     terminal_exited: "Terminal exited",
     resize_pending: "Resizing",
     divider: "Divider",
@@ -73,6 +76,7 @@ const ZH_CN: StatusText = StatusText {
     focus_sidebar: "边栏",
     directory_missing: "目录不存在",
     disconnected: "已断开",
+    reconnecting: "正在重新连接…",
     terminal_exited: "终端已退出",
     resize_pending: "正在调整",
     divider: "分隔线",
@@ -143,5 +147,7 @@ pub(crate) enum PersistentStatus {
     /// placeholder offers the actions.
     DirectoryUnavailable,
     Disconnected,
+    /// The Server is replacing a lost Worker.
+    Reconnecting,
     TerminalEnded(super::TerminalEnd),
 }

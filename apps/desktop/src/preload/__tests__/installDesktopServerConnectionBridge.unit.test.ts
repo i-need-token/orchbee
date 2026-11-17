@@ -21,6 +21,7 @@ const BOOTSTRAP = {
 	distribution: 'release',
 	loginShellAvailable: false,
 	negotiatedCapabilities: ['update-check'],
+	quitAllAvailable: true,
 	relaunchPlace: null,
 	sessionRefusal: null,
 	terminalHostName: 'host',

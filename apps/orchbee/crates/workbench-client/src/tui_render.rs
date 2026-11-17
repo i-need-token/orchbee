@@ -112,6 +112,7 @@ mod tooltip;
 #[cfg(any(test, feature = "test-support"))]
 pub use terminal_cells::render as render_terminal_cells;
 mod terminal_failure;
+mod terminal_runtime;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) mod test_capture;
 mod viewport;
@@ -1892,6 +1893,15 @@ fn render_native_workbench(
                 );
             }
         }
+        terminal_runtime::render(
+            frame,
+            content_area,
+            active_tab.and_then(|tab| tab.active_panel().and_then(|i| tab.panel(i))),
+            native,
+            phase_status,
+            locale,
+            theme,
+        );
         if let Some(panel) =
             active_tab.and_then(|tab| tab.active_panel().and_then(|i| tab.panel(i)))
             && graphics_uncovered
@@ -2370,6 +2380,7 @@ fn render_leaf(
             content,
         );
     }
+    terminal_runtime::render(frame, content, panel, native, phase_status, locale, theme);
     if active
         && input_enabled
         && let Some(copy) = native.copy_mode()
@@ -2618,7 +2629,10 @@ fn status_overlay_visible(
                         .and_then(|panel| native.terminal_end(panel))
                         .is_some()
                     || native.controller() == Some(DisplayController::ReadOnly));
+            // While the Server replaces its Worker, or once it gave up, the status says so.
             let visible = automatic
+                || native.terminal_runtime()
+                    != orchbee_workbench_protocol::TerminalRuntimeState::Serving
                 || native.notice().is_some()
                 || native.takeover_status().is_some()
                 || native.setup_status().is_some()

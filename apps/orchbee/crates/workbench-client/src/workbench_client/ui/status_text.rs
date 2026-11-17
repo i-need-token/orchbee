@@ -5,6 +5,7 @@ use super::WorkbenchClientView;
 pub(crate) use crate::localization::PersistentStatus;
 use crate::localization::{Locale, WorkbenchClientNotice};
 use crate::workbench_state::workspace_setup::{LocationLabelStatus, SetupStatus};
+use orchbee_workbench_protocol::TerminalRuntimeState;
 
 /// One selected status fact, with its short form when it names a lasting state.
 #[derive(Debug, Eq, PartialEq)]
@@ -47,6 +48,24 @@ impl WorkbenchClientView<'_> {
     /// Select one current status without changing the retained operation or its outcome.
     pub(crate) fn status(&self, locale: Locale, columns: u16) -> NativeStatus {
         let view = self;
+        // The Server's state speaks for every terminal ahead of any one operation's.
+        if view.retirement().is_none() {
+            match view.terminal_runtime() {
+                TerminalRuntimeState::Serving => {}
+                TerminalRuntimeState::Reconnecting => {
+                    return NativeStatus {
+                        text: view.phase_status_text(locale),
+                        persistent: Some(PersistentStatus::Reconnecting),
+                        ordinary: false,
+                        shorter: vec![locale.status().reconnecting.to_owned()],
+                        notice: false,
+                    };
+                }
+                TerminalRuntimeState::GivenUp => {
+                    return NativeStatus::notice([locale.terminal_given_up_notice()]);
+                }
+            }
+        }
         if let Some(notice) = view.worktree_stated_notice() {
             if notice == crate::localization::WorktreeNotice::Failed
                 && matches!(
@@ -186,6 +205,17 @@ impl WorkbenchClientView<'_> {
     /// Describe the selected presentation after the feature-owned recovery precedence.
     pub(crate) fn phase_status_text(&self, locale: Locale) -> String {
         let view = self;
+        if view.retirement().is_none() {
+            match view.terminal_runtime() {
+                TerminalRuntimeState::Serving => {}
+                TerminalRuntimeState::Reconnecting => {
+                    return locale.terminal_reconnecting(view.safe_tab_label(locale).as_deref());
+                }
+                TerminalRuntimeState::GivenUp => {
+                    return locale.terminal_cant_reconnect(view.safe_tab_label(locale).as_deref());
+                }
+            }
+        }
         if view.retirement().is_none()
             && view.phase() == crate::localization::DisplayPhase::Ready
             && let Some(end) = view
@@ -214,20 +244,23 @@ impl WorkbenchClientView<'_> {
             }
             .to_owned();
         }
-        let tab = view
-            .active_position()
-            .and_then(|position| view.tab(position - 1));
-        let label = tab.map(|tab| tab.display_label(locale));
-        let safe_label = label
-            .as_deref()
-            .map(crate::terminal_text::sanitize_terminal_text);
         locale.native_phase_status_values(
             view.phase(),
-            safe_label.as_deref(),
+            view.safe_tab_label(locale).as_deref(),
             view.controller(),
             view.selected_provenance(),
             view.retirement(),
         )
+    }
+
+    /// The shown Tab's label, safe to draw, which a phase status names first.
+    fn safe_tab_label(&self, locale: Locale) -> Option<String> {
+        self.active_position()
+            .and_then(|position| self.tab(position - 1))
+            .map(|tab| {
+                crate::terminal_text::sanitize_terminal_text(&tab.display_label(locale))
+                    .into_owned()
+            })
     }
 }
 

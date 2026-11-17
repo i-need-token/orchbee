@@ -4,9 +4,13 @@ use crate::workbench_client::mailbox::{
     CommandLease, EventDeadline, MutationResult, QueuedCommand, UiReply, WorkerEvent,
 };
 use crate::workbench_client::ui::tests::publication_hint::{
-    attach_split_peer, ready_split_ui, split_snapshot, split_survivor_snapshot, starting_split_ui,
+    attach_split_peer, ready_split_ui, ready_split_ui_with_mode, split_snapshot,
+    split_survivor_snapshot, starting_split_ui,
 };
-use crate::workbench_state::{ClientPhaseKind, OPERATION_TOTAL, PaneFault, RefreshDecision};
+use crate::workbench_state::{
+    ClientPhaseKind, ControllerMode, OPERATION_TOTAL, PaneFault, RefreshDecision,
+};
+use orchbee_client_server_protocol::ControllerId;
 use orchbee_workbench_protocol::WorkbenchSnapshotOutcome;
 use std::sync::atomic::Ordering;
 
@@ -69,6 +73,108 @@ fn queued_switch(mailbox: &CommandMailbox) -> Option<CommandLease> {
         }
     }
     None
+}
+
+/// While the Server replaces its Worker, what is typed is dropped and no re-attach starts however
+/// long it takes; serving again re-attaches the shown Tab at once, without the automatic pause.
+#[test]
+fn reconnecting_drops_typed_keys_and_serving_reattaches_at_once() {
+    let controller = ControllerMode::Controlling(ControllerId::parse(&"33".repeat(16)).unwrap());
+    let (mut ui, mailbox, clock, elapsed) = ready_split_ui_with_mode(controller);
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
+
+    ui.terminal_runtime
+        .observe(TerminalRuntimeState::Reconnecting);
+    ui.tick();
+    assert!(
+        ui.forward(b"typed while reconnecting"),
+        "the keys are taken without a refusal notice"
+    );
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        assert!(
+            !matches!(lease.record(), QueuedCommand::Input(_)),
+            "nothing typed while reconnecting is sent"
+        );
+        mailbox.finish_lease(lease).unwrap();
+    }
+
+    let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::PaneFailed {
+                key: focus.clone(),
+                fault: PaneFault::ViewerLost,
+            },
+            clock.now() + OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(ui.state.as_ref().unwrap().focused_viewer_lost());
+    let lost_at = elapsed.load(Ordering::SeqCst);
+    elapsed.store(lost_at + 10_000, Ordering::SeqCst);
+    ui.tick();
+    assert!(
+        queued_switch(&mailbox).is_none(),
+        "no attempt starts while the Worker is replaced"
+    );
+
+    ui.terminal_runtime.observe(TerminalRuntimeState::Serving);
+    ui.tick();
+    let lease = queued_switch(&mailbox).expect("the re-attach once the Server serves");
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        unreachable!("queued_switch answers a Switch");
+    };
+    let selected = marker.target().selected().key();
+    assert_eq!(selected.tab_id(), focus.pane().tab_id());
+    assert_eq!(selected.panel(), focus.pane().panel());
+    assert!(selected.generation() > focus.pane().generation());
+    assert!(ui.state.as_ref().unwrap().invariant_holds());
+}
+
+/// Serving again also re-attaches a shown Tab whose focus kept its viewer while a sibling lost
+/// its own, and the Client goes on.
+#[test]
+fn serving_again_reattaches_a_tab_whose_sibling_lost_its_viewer() {
+    let (mut ui, mailbox, clock, _elapsed) = ready_split_ui();
+    attach_split_peer(&mut ui, &mailbox, &clock);
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
+    let state = ui.state.as_ref().unwrap();
+    let focus = state.focus_pane_ref().unwrap();
+    let peer = state.cache().tabs()[0].panel(1).unwrap().panel_id().clone();
+    let peer = state.pane_by_panel(&peer).unwrap().pane_ref();
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::PaneFailed {
+                key: peer,
+                fault: PaneFault::ViewerLost,
+            },
+            clock.now() + OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(!ui.retirement_requested());
+
+    ui.terminal_runtime
+        .observe(TerminalRuntimeState::Reconnecting);
+    ui.tick();
+    ui.terminal_runtime.observe(TerminalRuntimeState::Serving);
+    ui.tick();
+    let lease = queued_switch(&mailbox).expect("the re-attach once the Server serves");
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        unreachable!("queued_switch answers a Switch");
+    };
+    assert_eq!(
+        marker.target().selected().key().panel(),
+        focus.pane().panel()
+    );
+    assert!(!ui.retirement_requested());
+    assert!(ui.state.as_ref().unwrap().invariant_holds());
 }
 
 /// The lost pane's split sibling keeps its viewer, so the re-attach first cleans up that live
@@ -542,4 +648,73 @@ fn a_focused_viewer_lost_under_a_rename_draft_parks() {
         mailbox.finish_lease(lease).unwrap();
     }
     assert!(switched, "the re-attach follows the cancelled draft");
+}
+
+/// Each running terminal names the runtime state after its Tab's label, and once the Server gave
+/// up, the status notice names the key that leaves the view as dispatch resolves it, in both
+/// locales. `ORCHBEE_TUI_CAPTURE_DIR` keeps each screen as evidence.
+#[test]
+fn reconnecting_and_given_up_name_their_state_in_each_locale() {
+    use crate::client_view::ClientView;
+    use crate::localization::Locale;
+    use crate::tui_hit_map::HitMapBuilder;
+    use ratatui::{Terminal, backend::TestBackend};
+
+    let (mut ui, _, _, _) = ready_split_ui();
+    let (width, height) = (160, 30);
+    for state in [
+        TerminalRuntimeState::Reconnecting,
+        TerminalRuntimeState::GivenUp,
+    ] {
+        ui.terminal_runtime.observe(state);
+        ui.tick();
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let view = ClientView::new(width);
+            let theme = crate::tui_theme::Theme::terminal_native();
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            let mut hits = HitMapBuilder::new();
+            terminal
+                .draw(|frame| {
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &view,
+                        locale,
+                        Some(ui.view()),
+                        &theme,
+                        &mut hits,
+                    );
+                })
+                .unwrap();
+            let buffer = terminal.backend().buffer();
+            let screen: String = (0..height)
+                .flat_map(|y| (0..width).map(move |x| (x, y)))
+                .map(|position| buffer[position].symbol())
+                .collect::<String>()
+                .replace(' ', "");
+            let stated = |text: &str| screen.contains(&text.replace(' ', ""));
+            match state {
+                TerminalRuntimeState::Reconnecting => {
+                    assert!(stated(&locale.terminal_reconnecting(None)), "{screen}");
+                    // The description wraps inside each pane; its opening words lead its first row.
+                    let opening: String = locale
+                        .terminal_reconnecting_description()
+                        .chars()
+                        .take(12)
+                        .collect();
+                    assert!(stated(&opening), "{screen}");
+                }
+                _ => {
+                    assert!(stated(&locale.terminal_cant_reconnect(None)), "{screen}");
+                    let exit = view.bindings().shell_bindings("").exit;
+                    assert!(!exit.is_empty() && stated(&exit), "{screen}");
+                }
+            }
+            crate::tui_render::test_capture::capture_screen(
+                &mut terminal,
+                &format!("terminal-runtime-{state:?}-{locale:?}"),
+                locale,
+                &theme,
+            );
+        }
+    }
 }

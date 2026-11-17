@@ -32,6 +32,11 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.disconnected': '已断开',
 	'terminal.projected.exited': '终端已退出',
 	'terminal.projected.connectionRetry': '重试',
+	'terminal.projected.runtime.givenUp': '无法重新连接',
+	'terminal.projected.runtime.givenUpDescription':
+		'程序仍在运行，但 Orchbee 无法连接它们。“全部退出”会停止这些程序，下次启动时恢复布局。',
+	'terminal.projected.runtime.reconnectingDescription':
+		'Orchbee 与终端失去联系，正在重新连接。程序会继续运行；在此之前输入的内容不会发送。',
 	'terminal.projected.control.outcomeUnknown': '不确定是否完成，请先看一下再重试。',
 	'terminal.projected.control.refused': '没能把输入切换到这个窗口。',
 	'terminal.projected.control.take': '在这里输入',

@@ -187,6 +187,12 @@ function containBackgroundSink(
 	if (sink === undefined) return undefined;
 	const site = 'port-background-status';
 	return {
+		quitAllRequested: containListenerFault(
+			recordEvent,
+			site,
+			sink.quitAllRequested.bind(sink),
+			undefined,
+		),
 		sessionStopAnswered: containListenerFault(
 			recordEvent,
 			site,
@@ -423,6 +429,7 @@ export class DesktopServerClientApplication {
 							// negotiates the names this start reported.
 							negotiatedCapabilities:
 								negotiatedCapabilities.length === 0 ? null : [...negotiatedCapabilities],
+							quitAllAvailable: options.background !== undefined,
 							relaunchPlace: everConnected ? null : options.relaunchPlace,
 							sessionRefusal: refusal,
 							terminalHostName: hostname(),

@@ -39,6 +39,11 @@ export class DesktopBackgroundStatusClient {
 		this.#post({ summary, type: 'desktop-background-status-changed' });
 	}
 
+	/** Asks Main for Quit All's confirmation, as its menu item does. */
+	requestQuitAll(): void {
+		if (!this.#disposed) this.#post({ type: 'desktop-background-quit-all-requested' });
+	}
+
 	/** Asks Main to show the window and bring it forward, as a notification click does. */
 	requestWindow(): void {
 		if (!this.#disposed) this.#post({ type: 'desktop-background-window-requested' });

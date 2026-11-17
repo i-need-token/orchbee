@@ -10,6 +10,7 @@ const BOOTSTRAP = {
 	distribution: 'release',
 	loginShellAvailable: true,
 	negotiatedCapabilities: ['compatibility-window', 'update-check'],
+	quitAllAvailable: true,
 	relaunchPlace: null,
 	sessionRefusal: null,
 	terminalHostName: 'host',

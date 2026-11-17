@@ -1,0 +1,10 @@
+.text {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-1);
+	min-inline-size: 0;
+}
+
+.description {
+	color: var(--ob-sys-color-text-secondary);
+}

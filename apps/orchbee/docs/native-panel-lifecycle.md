@@ -218,6 +218,31 @@ the switch's own snapshot and attach: when that snapshot no longer holds the Pan
 lands on the Tab's surviving leaf, and a failed attach parks as an ordinary attach fault and is not
 retried automatically. A reselection still retries at once.
 
+### Worker replacement
+
+While the Session's Server replaces a lost Worker, the Client follows its
+[terminal-runtime read](../../../schemas/workbench/README.md#session-terminal-runtime-reads), which
+it asks only of a Server whose handshake answer lists `terminal-runtime`; a Server without it keeps
+the behavior above.
+
+- `reconnecting`: every running terminal shows `{label} · Reconnecting…` and the description across
+  its top rows, and the status line shows Reconnecting…. Keys typed meanwhile are dropped without a
+  notice and never sent, and no automatic re-attach starts or spends its budget.
+- `serving` again: the Client re-attaches the shown Tab at once through the same switch, under fresh
+  deadlines and without the pause, also when the focus kept its viewer but a sibling lost its own.
+  The automatic budget starts over, closed Agent and title streams reopen, and nothing announces the
+  return. A later serving revision counts as serving again even when the frames between never
+  arrived, since the revision advances only with a change.
+- `given-up`: every running terminal shows `{label} · Can't reconnect`, the status notice explains
+  with the key that leaves the view, and Exit still leaves it.
+
+A Panel without a running terminal, an ended terminal, a held restore and a failed launch show what
+they showed before. An ended or refused stream counts as serving and opens again after two seconds;
+the capability is checked again every two seconds, because a reconnect may reach another Server.
+`viewer_recovery::tests::reconnecting_drops_typed_keys_and_serving_reattaches_at_once` is the rule
+evidence, and `reconnecting_and_given_up_name_their_state_in_each_locale` renders both states in
+both locales, writing each screen when `ORCHBEE_TUI_CAPTURE_DIR` names a directory.
+
 The maximized state is a Client-local per-Tab flag, and it belongs to the leaf it draws: the focus in the selected
 Tab, the remembered Panel in a background Tab. Focus moving inside the Tab carries the maximized state along.
 When the drawn Panel leaves the Tab by any route, such as the close action, its shell exiting or

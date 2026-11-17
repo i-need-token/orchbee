@@ -15,6 +15,7 @@ mod configuration;
 mod integration_lane;
 mod settings_lane;
 mod settings_notice;
+mod terminal_runtime;
 mod terminal_titles;
 mod window_title;
 mod worktree_lane;
@@ -645,6 +646,9 @@ impl WorkbenchClient {
                     ));
                 }
                 if let Some(titles) = &mut self.terminal_titles {
+                    if native.take_runtime_served() {
+                        titles.reopen_now();
+                    }
                     let rows = titles.poll(native.title_presentations());
                     configuration_changed |= native.receive_presentation_titles(rows);
                 }

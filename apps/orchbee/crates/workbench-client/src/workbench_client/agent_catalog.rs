@@ -123,6 +123,14 @@ impl Lane {
             .ok();
     }
 
+    /// Opens a stream the Server ended at the next poll instead of after [`REOPEN_DELAY`], as it
+    /// does once it serves again after replacing a lost Worker.
+    pub(super) fn reopen_now(&mut self, clock: &LocalOperationClock) {
+        if self.open.is_none() && self.reopen_at.is_some() {
+            self.reopen_at = Some(clock.now());
+        }
+    }
+
     /// Closes the stream and forgets the origin; the composition's connection ended.
     pub(super) fn close(&mut self) {
         self.open = None;

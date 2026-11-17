@@ -26,6 +26,8 @@ import { confirmDesktopQuitAll, reportDesktopQuitAllFailure } from './quit-all-d
 
 /** What a document's background-status port delivers. */
 export interface DesktopBackgroundStatusSink {
+	/** Opens Quit All's confirmation, as its menu item does; the page asks once its Server gave up. */
+	quitAllRequested(): void;
 	/** The page's answer to the Session stop Quit All asked it for. */
 	sessionStopAnswered(stopId: string, answer: DesktopSessionStopAnswer): void;
 	summaryChanged(summary: DesktopBackgroundStatusSummary): void;

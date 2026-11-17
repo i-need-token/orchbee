@@ -124,6 +124,9 @@ impl ShellBindings {
         if notice.contains(START_AGENT_KEY_SLOT) {
             *notice = notice.replace(START_AGENT_KEY_SLOT, &self.start_agent);
         }
+        if notice.contains(EXIT_KEY_SLOT) {
+            *notice = notice.replace(EXIT_KEY_SLOT, &self.exit);
+        }
     }
 }
 
@@ -131,6 +134,8 @@ impl ShellBindings {
 /// [`ShellBindings::fill_notice`] fills it when the status line is drawn. Private-use characters
 /// keep it apart from any text a person typed.
 pub(crate) const START_AGENT_KEY_SLOT: &str = "\u{e000}start-agent\u{e001}";
+/// The slot for the key that leaves the view, which [`ShellBindings::fill_notice`] fills.
+pub(crate) const EXIT_KEY_SLOT: &str = "\u{e000}exit\u{e001}";
 
 /// Temporary render-owned strings; the borrowed shell text remains cheap to copy.
 pub(crate) struct BoundShellText<'a> {

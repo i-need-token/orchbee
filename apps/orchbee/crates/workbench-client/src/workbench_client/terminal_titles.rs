@@ -97,6 +97,20 @@ impl Subscription {
         rows
     }
 
+    /// Opens every stream the Server ended at the next poll instead of after [`REOPEN_DELAY`], as
+    /// it does once it serves again after replacing a lost Worker.
+    pub(super) fn reopen_now(&mut self) {
+        let Some((_, clock, _)) = &self.source else {
+            return;
+        };
+        let now = clock.now();
+        for group in &mut self.groups {
+            if group.open.is_none() && group.reopen_at.is_some() {
+                group.reopen_at = Some(now);
+            }
+        }
+    }
+
     /// Whether these open streams follow a Session other than `session`, so they must be
     /// replaced. Closed streams follow none and stay closed.
     pub(super) fn follows_another(&self, session: &SessionId) -> bool {

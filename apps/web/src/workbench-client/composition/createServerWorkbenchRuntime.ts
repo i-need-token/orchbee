@@ -67,6 +67,7 @@ import {
 	ServerTerminalAgentSource,
 	ServerTerminalEndObserver,
 	ServerTerminalProjectionClient,
+	ServerTerminalRuntime,
 	ServerTerminalTitleSource,
 	type ServerLaunchProfileSource,
 	type ServerTerminalTitle,
@@ -121,6 +122,8 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	readonly launchProfiles?: ServerLaunchProfileSource | undefined;
 	/** A publication this Client cannot read leaves it behind the Server, so it must stop. */
 	readonly onPublicationFailure: (error: unknown) => void;
+	/** Opens the Quit All confirmation, which a terminal offers once its Server gave up on it. */
+	readonly quitAll?: (() => void) | undefined;
 	readonly preferredLocales: readonly string[];
 	/**
 	 * Where a window relaunched by Update opens, which takes the place of focus recovery; absent or
@@ -143,6 +146,11 @@ export interface CreateServerWorkbenchRuntimeOptions {
 		| TerminalPresentationConfigurationSource
 		| undefined;
 	/**
+	 * Whether the Session's Server publishes `workbench.terminal-runtime`, as its handshake answer
+	 * lists `terminal-runtime`. Without it, every terminal keeps its own recovery.
+	 */
+	readonly terminalRuntime?: boolean | undefined;
+	/**
 	 * The window named after the Session's title policy, as the TUI names its outer terminal; absent
 	 * where this Client names no window.
 	 */
@@ -163,6 +171,7 @@ export function createServerWorkbenchRuntime({
 	launchProfiles,
 	onPublicationFailure,
 	preferredLocales,
+	quitAll,
 	relaunchPlace,
 	session,
 	shortcutBindingSource,
@@ -175,6 +184,7 @@ export function createServerWorkbenchRuntime({
 	terminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	terminalPlatformEffects = {},
 	terminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+	terminalRuntime = false,
 	titleWindow,
 }: CreateServerWorkbenchRuntimeOptions): ServerWorkbenchRuntime {
 	let disposed = false;
@@ -384,6 +394,18 @@ export function createServerWorkbenchRuntime({
 			});
 		}
 	});
+	const terminalRuntimeSource = terminalRuntime
+		? new ServerTerminalRuntime({ connection, sessionId: session.snapshot.sessionId })
+		: undefined;
+	// The Server closes Agent streams while it replaces a lost Worker; serving again reopens them.
+	let terminalRuntimeState = terminalRuntimeSource?.getSnapshot() ?? 'serving';
+	const stopTerminalRuntimeObservation = terminalRuntimeSource?.subscribe(() => {
+		const previous = terminalRuntimeState;
+		terminalRuntimeState = terminalRuntimeSource.getSnapshot();
+		if (disposed || previous === 'serving' || terminalRuntimeState !== 'serving') return;
+		agentObservationSource.reopenClosed();
+		titleSource.reopenClosed();
+	});
 	const windowTitle =
 		titleWindow === undefined
 			? null
@@ -460,6 +482,7 @@ export function createServerWorkbenchRuntime({
 		),
 		presentationSnapshots,
 		projectionClient,
+		quitAll,
 		readTerminalLaunchFailure: (presentationId) => {
 			const failure = findServerPresentation(session.snapshot, presentationId)?.launchFailure;
 			if (failure === undefined) return null;
@@ -477,6 +500,7 @@ export function createServerWorkbenchRuntime({
 		...(terminalCompletionReminderObserver === undefined
 			? {}
 			: { terminalCompletionReminderObserver }),
+		terminalRuntimeSource,
 	};
 
 	return {
@@ -504,6 +528,8 @@ export function createServerWorkbenchRuntime({
 					() => stopFocusRecoveryViewObservation?.(),
 					() => actionRuntime.dispose(),
 					() => agentNameSource.dispose(),
+					() => stopTerminalRuntimeObservation?.(),
+					() => terminalRuntimeSource?.dispose(),
 					() => agentObservationSource.dispose(),
 					() => titleSource.dispose(),
 					() => workspaceLocationSource.dispose(),

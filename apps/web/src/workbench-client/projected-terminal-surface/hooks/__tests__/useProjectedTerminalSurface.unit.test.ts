@@ -131,10 +131,9 @@ function TestHarness({
 	return createElement(
 		'div',
 		{
-			'data-failure-message': view.failureMessage,
+			'data-connection-status': view.connectionStatus?.kind,
 			'data-paste-review-text': view.pasteReview?.originalText,
 			'data-projection-state': view.projectionState,
-			'data-recovery-available': view.recoveryAvailable,
 			ref: view.root,
 		},
 		view.pasteReview === null
@@ -144,10 +143,10 @@ function TestHarness({
 					{ 'data-approve-paste': true, onClick: view.approvePaste },
 					'Approve paste',
 				),
-		view.recoveryAvailable
+		view.connectionStatus?.kind === 'disconnected'
 			? createElement(
 					'button',
-					{ 'data-retry-projection': true, onClick: view.retryProjection },
+					{ 'data-retry-projection': true, onClick: view.connectionStatus.onRetry },
 					'Retry projection',
 				)
 			: null,
@@ -674,8 +673,9 @@ describe('useProjectedTerminalSurface', () => {
 		});
 
 		expect(open).toHaveBeenCalledTimes(4);
-		expect(container.firstElementChild?.getAttribute('data-recovery-available')).toBe('true');
-		expect(container.firstElementChild?.getAttribute('data-failure-message')).toBe('Disconnected');
+		expect(container.firstElementChild?.getAttribute('data-connection-status')).toBe(
+			'disconnected',
+		);
 		await act(async () => {
 			(container.querySelector('[data-retry-projection]') as HTMLButtonElement).click();
 			await Promise.resolve();

@@ -197,6 +197,7 @@ pub(super) fn render(
                 (locale.held_restore_title().to_owned(), Role::StatusWarning)
             }
             PersistentStatus::Disconnected => (copy.disconnected.to_owned(), Role::StatusError),
+            PersistentStatus::Reconnecting => (copy.reconnecting.to_owned(), Role::StatusWarning),
             PersistentStatus::TerminalEnded(TerminalEnd::Exited(_)) => {
                 (copy.terminal_exited.to_owned(), Role::StatusWarning)
             }

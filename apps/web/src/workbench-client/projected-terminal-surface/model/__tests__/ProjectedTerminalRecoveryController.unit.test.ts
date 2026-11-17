@@ -744,6 +744,49 @@ describe('ProjectedTerminalRecoveryController', () => {
 		controller.dispose();
 		vi.useRealTimers();
 	});
+
+	it('takes no input and attempts nothing while held, and attaches at once on release', async () => {
+		const firstUnavailable = deferred<void>();
+		const first = rendererSession({ transportUnavailable: firstUnavailable.promise });
+		const second = rendererSession();
+		const firstRequest = projectionRequest();
+		const secondRequest = projectionRequest();
+		const states: ProjectedTerminalRecoveryState[] = [];
+		const open = vi
+			.fn<() => TerminalProjectionRequest>()
+			.mockReturnValueOnce(firstRequest.request)
+			.mockReturnValueOnce(secondRequest.request);
+		const startRenderer = vi
+			.fn<ProjectedTerminalRecoveryControllerOptions['startRenderer']>()
+			.mockResolvedValueOnce(first.session)
+			.mockResolvedValueOnce(second.session);
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: (state) => states.push(state),
+			open,
+			startRenderer,
+		});
+		controller.start();
+		firstRequest.resolve();
+		await vi.waitFor(() => expect(states.at(-1)).toEqual({ kind: 'ready' }));
+
+		vi.useFakeTimers();
+		controller.hold();
+		// A frozen renderer has retired its input, so nothing typed meanwhile is sent.
+		expect(first.freeze).toHaveBeenCalledOnce();
+		firstUnavailable.resolve();
+		await drainMicrotasks();
+		expect(vi.getTimerCount()).toBe(0);
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(open).toHaveBeenCalledOnce();
+
+		controller.release();
+		expect(open).toHaveBeenCalledTimes(2);
+		vi.useRealTimers();
+		secondRequest.resolve();
+		await vi.waitFor(() => expect(startRenderer).toHaveBeenCalledTimes(2));
+		controller.dispose();
+		expect(second.dispose).toHaveBeenCalledOnce();
+	});
 });
 
 function rendererSession(overrides: Partial<ProjectedTerminalRendererSession> = {}): {

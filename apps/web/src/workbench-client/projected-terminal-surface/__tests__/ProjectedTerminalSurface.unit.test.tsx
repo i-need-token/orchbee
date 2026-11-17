@@ -29,9 +29,9 @@ function surfaceView(
 		approvePaste: () => undefined,
 		cancelPaste: () => undefined,
 		closeTerminal: () => undefined,
+		connectionStatus: null,
 		controlPresentation: 'none',
 		createTab: () => undefined,
-		failureMessage: null,
 		launchFailure: null,
 		launchFailureRoot: { current: null },
 		liveCropped: false,
@@ -43,9 +43,7 @@ function surfaceView(
 			readiness: { kind: 'unavailable' },
 		},
 		projectionState: 'requested',
-		recoveryAvailable: false,
 		restoreTerminal: null,
-		retryProjection: () => undefined,
 		root: { current: null },
 		sendMobileKey: () => false,
 		takeControl: () => undefined,
@@ -85,7 +83,10 @@ function renderSurface(
 describe('ProjectedTerminalSurface', () => {
 	it('renders an acquisition failure through the visible terminal status overlay', () => {
 		vi.mocked(useProjectedTerminalSurface).mockReturnValue(
-			surfaceView({ failureMessage: 'Disconnected', projectionState: 'failed' }),
+			surfaceView({
+				connectionStatus: { kind: 'disconnected', onRetry: () => undefined },
+				projectionState: 'failed',
+			}),
 		);
 
 		const markup = renderSurface(presentation, { autoFocus: true, focusRequest: 3 });

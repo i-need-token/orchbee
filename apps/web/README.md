@@ -100,6 +100,21 @@ Transport loss also races font and GPU startup explicitly: it aborts that candid
 can stall recovery, and promotion checks the candidate's current transport availability both before
 and after its first-frame wait.
 
+When the Session's Server lists the `terminal-runtime` capability, which Desktop reads from its
+bootstrap's negotiated capability names, the surface also follows the Session's
+[terminal-runtime read](../../schemas/workbench/README.md#session-terminal-runtime-reads); without it,
+the behavior above stays. While the Server replaces a lost Worker, every shown terminal reads
+Reconnecting… with a description saying that programs keep running and that nothing typed is sent:
+the surface freezes as on an attachment loss, so typed input is dropped, and pauses its own retries.
+Serving again attaches each shown terminal at once without announcing it, and the Agent and title
+streams that closed meanwhile reopen. Once the Server gave up, each terminal reads Can't reconnect
+with the explanation as its description, and Quit All… replaces Retry and asks Desktop to open its
+existing [Quit All confirmation](../desktop/docs/window-lifecycle.md); where Desktop offers no Quit
+All, the button is absent. A closed or refused stream counts as serving and opens again after two
+seconds. The Stories under `Applications/Web/Projected Terminal/Connection Status` show both states
+in both locales, and the recovery controller's rule test covers dropped input while held and the
+attach on release.
+
 The recovery controller reserves each opening attempt before notifying observers or acquiring its
 request. Synchronous retention, resumption, or disposal cannot overwrite a replacement attempt,
 leak a late request result, or continue promotion after its owner retires. Resource ownership moves

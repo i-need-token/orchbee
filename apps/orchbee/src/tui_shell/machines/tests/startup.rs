@@ -573,6 +573,12 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                     action: AgentCatalogAction::Current {},
                     ..
                 }) => assert_eq!(session_id, snapshot.session_id),
+                // The terminal-runtime read observes the destination Session's Worker state.
+                WorkbenchRequest::TerminalRuntime(TerminalRuntimeRequest {
+                    session_id, ..
+                }) => {
+                    assert_eq!(session_id, snapshot.session_id)
+                }
                 WorkbenchRequest::PanelMetadata(PanelMetadataRequest {
                     action:
                         PanelMetadataAction::Read { .. } | PanelMetadataAction::ReadPresentations { .. },

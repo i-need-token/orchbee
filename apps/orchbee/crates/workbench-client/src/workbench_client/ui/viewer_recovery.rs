@@ -4,11 +4,17 @@
 //! terminal that ended settles through the switch's own snapshot and attach. Attempts for one
 //! pane are spaced out and bounded per window, so a viewer that keeps failing settles on the
 //! unavailable status instead of cycling; a reselection still retries at once.
+//!
+//! While the Session's Server replaces a lost Worker, or once it gave up, no attach can succeed,
+//! so no attempt starts. When it serves again, the shown Tab re-attaches at once under a fresh
+//! recovery deadline, the attempt budget starts over, and the Agent streams the Server closed open
+//! again; nothing announces the return.
 
 use super::{
     ActionBuildError, AdmissionError, CarrierFailure, CommandMailbox, OperationDeadlines,
     SwitchMarker, WorkbenchClientState, WorkbenchClientUi, WorkbenchPanelId, WorkbenchTabId,
 };
+use orchbee_workbench_protocol::TerminalRuntimeState;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -89,10 +95,46 @@ impl ViewerRecovery {
 }
 
 impl WorkbenchClientUi {
+    /// Settles the Session's terminal-runtime stream. Serving again after a replacement arms the
+    /// shown Tab's re-attach and reopens the Agent streams the Server closed.
+    pub(super) fn drive_terminal_runtime(&mut self) -> bool {
+        let session = self
+            .state
+            .as_ref()
+            .map(|state| state.cache().session_id().clone());
+        let state = self.terminal_runtime.poll(session.as_ref(), &self.clock);
+        let previous = std::mem::replace(&mut self.terminal_runtime_state, state);
+        // A replacement too quick for its frames to arrive still ends in a later serving revision.
+        let served_again = self.terminal_runtime.take_served_again();
+        if previous == state && !served_again {
+            return false;
+        }
+        self.runtime_reattach = state == TerminalRuntimeState::Serving;
+        if self.runtime_reattach {
+            self.agent_catalog.reopen_now(&self.clock);
+            self.runtime_served = true;
+        }
+        true
+    }
+
+    /// Whether the Server served again since the composition last asked, so it reopens the title
+    /// streams the Server closed.
+    pub(in crate::workbench_client) fn take_runtime_served(&mut self) -> bool {
+        std::mem::take(&mut self.runtime_served)
+    }
+
     /// Admits the due re-attach of a lost focused viewer. A refusal by local work asks again
     /// shortly without spending an attempt and never shows a busy notice; only a broken Client
     /// invariant, identity, or carrier ends the Client.
     pub(super) fn drive_viewer_recovery(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
+        if self.terminal_runtime_state != TerminalRuntimeState::Serving {
+            // Spent attempts belonged to a Worker that is gone; the replacement starts afresh.
+            self.viewer_recovery = ViewerRecovery::default();
+            return false;
+        }
+        if self.runtime_reattach {
+            return self.drive_runtime_reattach(mailbox);
+        }
         let now = self.clock.now();
         let focus = self
             .state
@@ -152,6 +194,82 @@ impl WorkbenchClientUi {
             }
         }
     }
+}
+
+impl WorkbenchClientUi {
+    /// Admits the shown Tab's re-attach once the Server serves again. Nothing to re-attach ends
+    /// it; a refusal by local work asks again on the next tick.
+    fn drive_runtime_reattach(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
+        if !self
+            .state
+            .as_ref()
+            .is_some_and(WorkbenchClientState::runtime_reattach_needed)
+        {
+            self.runtime_reattach = false;
+            return false;
+        }
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+            self.retire(CarrierFailure::Deadline);
+            return true;
+        };
+        let Some(state) = self.state.as_mut() else {
+            return false;
+        };
+        let result = mailbox.try_enqueue_switch_for(
+            state,
+            |state, generation| build_runtime_reattach(state, generation, deadlines),
+            |state, result, facts| {
+                if result.is_ok() {
+                    state.finish_switch_membership_admission(
+                        facts.discarded(),
+                        facts.inherited(),
+                        facts.authorized_cleanup(),
+                    );
+                }
+            },
+        );
+        match result {
+            Ok(_generation) => {
+                self.runtime_reattach = false;
+                self.viewer_recovery = ViewerRecovery::default();
+                self.pending_draws.clear();
+                self.ordinary_poll_serial = None;
+                true
+            }
+            Err(
+                AdmissionError::BootstrapPending
+                | AdmissionError::Busy
+                | AdmissionError::Full
+                | AdmissionError::StaleAttachment
+                | AdmissionError::Build(
+                    ActionBuildError::Busy
+                    | ActionBuildError::NoOp
+                    | ActionBuildError::OutOfRange(_),
+                ),
+            ) => false,
+            Err(error) => {
+                self.retire_for_admission(&error);
+                true
+            }
+        }
+    }
+}
+
+fn build_runtime_reattach(
+    state: &mut WorkbenchClientState,
+    generation: u64,
+    deadlines: OperationDeadlines,
+) -> Result<SwitchMarker, ActionBuildError> {
+    if !state.invariant_holds() {
+        return Err(ActionBuildError::Protocol);
+    }
+    let target = state
+        .target_for_runtime_reattach(generation, deadlines)
+        .ok_or(ActionBuildError::Busy)?;
+    if !state.begin_switch(target.clone()) {
+        return Err(ActionBuildError::Protocol);
+    }
+    Ok(SwitchMarker::new(target))
 }
 
 fn build_recovery(

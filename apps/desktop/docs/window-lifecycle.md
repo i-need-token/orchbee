@@ -114,6 +114,9 @@ port, `desktop-background-surface.ts`, which the Windows icon and the macOS Dock
   included. A stop that was refused, never sent, failed, or not proven within 75 seconds shows the
   window with the reason in plain words, records the reason in the diagnostic log, and nothing
   quits.
+  Once the Server gave up reconnecting a lost Worker's terminals, each terminal's Quit All… button
+  opens the same confirmation: the page asks for it over the background-status port, and the
+  bootstrap's `quitAllAvailable` offers the button only to a window whose Main keeps Quit All.
   While the stop runs, the menu holds only its status line and Reopen Orchbee.
 - Only a release icon has a fixed GUID, so Windows remembers whether it is shown in the taskbar.
   Test and Dev run from changing paths, to which Windows ties an unsigned executable's GUID.

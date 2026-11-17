@@ -645,6 +645,11 @@ replacement.
 - The release CLI's stop prompt adds the terminal count from `query`, ahead of the existing request
   to type the Session name.
 
+Built: the read is
+[Session terminal-runtime reads](../../schemas/workbench/README.md#session-terminal-runtime-reads);
+the TUI follows it as [Worker replacement](../../apps/orchbee/docs/native-panel-lifecycle.md#worker-replacement)
+says, and the window as the [web guide](../../apps/web/README.md#composition-boundary) says.
+
 | Text                           | `en-US`                                                                                                                                                 | `zh-CN`                                                                                                           |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | Reconnecting state             | Reconnecting…                                                                                                                                           | 正在重新连接…                                                                                                     |

@@ -116,6 +116,20 @@ export class ServerTerminalAgentSource implements WorkbenchAgentSource {
 		return TERMINAL_BINDINGS.get(observation);
 	}
 
+	/**
+	 * Opens again every stream the Server closed, as it does after replacing a lost Worker; each
+	 * keeps showing what it last reported until it answers.
+	 */
+	reopenClosed(): void {
+		if (this.#ended) return;
+		for (const stream of this.#streams) {
+			if (stream.subscription !== null) continue;
+			if (stream.retry !== null) clearTimeout(stream.retry);
+			stream.retry = null;
+			this.#open(stream);
+		}
+	}
+
 	/** Closes every stream. Nothing is observed afterwards, so no Agent stays shown. */
 	dispose(): void {
 		if (this.#ended) return;

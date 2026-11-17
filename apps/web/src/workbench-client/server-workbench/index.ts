@@ -18,6 +18,7 @@ export { ServerTerminalAgentSource } from './ServerTerminalAgentSource';
 export { ServerTerminalDefaultSettingsClient } from './ServerTerminalDefaultSettingsClient';
 export { ServerTerminalLaunchProfileClient } from './ServerTerminalLaunchProfileClient';
 export { ServerTerminalProjectionClient } from './ServerTerminalProjectionClient';
+export { ServerTerminalRuntime } from './ServerTerminalRuntime';
 export { ServerTerminalTitleSource } from './ServerTerminalTitleSource';
 export { ServerUserSettingsClient } from './ServerUserSettingsClient';
 export { ServerWindowTitle } from './ServerWindowTitle';
