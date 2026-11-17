@@ -206,7 +206,8 @@
 				"AbandonPublication",
 				"Disconnect",
 				"ReplaceWorker",
-				"CompleteRejected"
+				"CompleteRejected",
+				"ImportBinding"
 			]
 		},
 		{
@@ -435,7 +436,8 @@
 				"Reject",
 				"Handoff",
 				"ExpireDispatch",
-				"ClientLoss"
+				"ClientLoss",
+				"ReplaceWorker"
 			]
 		},
 		{
@@ -514,7 +516,15 @@
 				"Refuse",
 				"Ready",
 				"Abort",
-				"Retry"
+				"Retry",
+				"ReplaceWorker",
+				"AdmitStop",
+				"StopEndsHost",
+				"CompleteStop"
+			],
+			"variants": [
+				{ "name": "recovery", "constants": { "MaxGeneration": 2, "MaxIncarnation": 1 } },
+				{ "name": "replacement", "constants": { "MaxGeneration": 1, "MaxIncarnation": 2 } }
 			]
 		},
 		{

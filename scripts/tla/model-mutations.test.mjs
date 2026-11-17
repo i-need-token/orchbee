@@ -187,6 +187,27 @@ const cases = [
 		/Invariant FallbackAboveFloor is violated/u,
 		'config',
 	],
+	[
+		'session-crash-recovery',
+		'a replacement Worker starts before the Worker it replaces is proven gone',
+		'workers[generation][incarnation] \\in {"none", "dead"}',
+		'TRUE',
+		/Invariant (?:SingleOwner|OnlyCurrentWorkerRuns|IdentityBeforeExecution) is violated/u,
+	],
+	[
+		'local-session-startup',
+		'a replacement Worker starts a Host for the Launch authorized to the Worker it replaced',
+		'\n  /\\ dispatchWorker = incarnation\n',
+		'\n',
+		/Invariant HostAnswersItsOwnLaunch is violated/u,
+	],
+	[
+		'local-terminal-coordinator',
+		'a replacement imports a binding whose operation is still in flight',
+		'/\\ phase \\in {"awaiting", "started"}',
+		'/\\ TRUE',
+		/Action property ExactCommitWasIssuedToCurrentWorker is violated/u,
+	],
 ];
 
 describe('protocol mutation counterexamples', { concurrency: 3 }, () => {

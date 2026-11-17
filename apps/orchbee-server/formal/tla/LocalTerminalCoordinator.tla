@@ -10,9 +10,11 @@ EXTENDS Naturals, FiniteSets, TLC
 CONSTANTS Clients, MaxOperation, MaxGeneration
 ResponseValues == {"none", "accepted", "unknown", "unavailable", "server-busy"}
 VARIABLES phase, workerGeneration, bindingGeneration, operation, nextOperation,
-  fence, issued, pendingClient, connected, response, published, committedOperation, responseOperation
+  fence, issued, pendingClient, connected, response, published, committedOperation, responseOperation,
+  operationGeneration
 vars == <<phase, workerGeneration, bindingGeneration, operation, nextOperation,
-  fence, issued, pendingClient, connected, response, published, committedOperation, responseOperation>>
+  fence, issued, pendingClient, connected, response, published, committedOperation, responseOperation,
+  operationGeneration>>
 Pending == phase \in {"creating", "starting"}
 Init ==
   /\ phase = "absent"
@@ -28,6 +30,7 @@ Init ==
   /\ published = [client \in Clients |-> "none"]
   /\ committedOperation = [client \in Clients |-> 0]
   /\ responseOperation = [client \in Clients |-> 0]
+  /\ operationGeneration = 0
 
 IssueCreate(client) ==
   /\ client \in connected
@@ -41,6 +44,7 @@ IssueCreate(client) ==
   /\ issued' = issued \cup {nextOperation}
   /\ fence' = 1
   /\ pendingClient' = client
+  /\ operationGeneration' = workerGeneration
   /\ UNCHANGED <<workerGeneration, connected, response, published, committedOperation, responseOperation>>
 IssueStart(client) ==
   /\ client \in connected
@@ -54,6 +58,7 @@ IssueStart(client) ==
   /\ issued' = issued \cup {nextOperation}
   /\ fence' = fence + 1
   /\ pendingClient' = client
+  /\ operationGeneration' = workerGeneration
   /\ UNCHANGED <<bindingGeneration, workerGeneration, connected, response, published, committedOperation, responseOperation>>
 RejectConcurrent(client) ==
   /\ client \in connected
@@ -64,7 +69,7 @@ RejectConcurrent(client) ==
   /\ responseOperation' = [responseOperation EXCEPT ![client] = 0]
   /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
        nextOperation, fence, issued, pendingClient, connected, published,
-       committedOperation>>
+       committedOperation, operationGeneration>>
 CompleteExact ==
   /\ Pending
   /\ workerGeneration = bindingGeneration
@@ -73,28 +78,28 @@ CompleteExact ==
   /\ committedOperation' = [committedOperation EXCEPT ![pendingClient] = operation]
   /\ responseOperation' = [responseOperation EXCEPT ![pendingClient] = operation]
   /\ UNCHANGED <<workerGeneration, bindingGeneration, operation, nextOperation,
-       fence, issued, pendingClient, connected, published>>
+       fence, issued, pendingClient, connected, published, operationGeneration>>
 CompleteUnknown ==
   /\ Pending
   /\ phase' = "unknown"
   /\ response' = [response EXCEPT ![pendingClient] = "unknown"]
   /\ responseOperation' = [responseOperation EXCEPT ![pendingClient] = operation]
   /\ UNCHANGED <<workerGeneration, bindingGeneration, operation, nextOperation,
-       fence, issued, pendingClient, connected, published, committedOperation>>
+       fence, issued, pendingClient, connected, published, committedOperation, operationGeneration>>
 CompleteNotDelivered ==
   /\ Pending
   /\ phase' = IF phase = "creating" THEN "unavailable" ELSE "awaiting"
   /\ response' = [response EXCEPT ![pendingClient] = "unavailable"]
   /\ responseOperation' = [responseOperation EXCEPT ![pendingClient] = operation]
   /\ UNCHANGED <<workerGeneration, bindingGeneration, operation, nextOperation,
-       fence, issued, pendingClient, connected, published, committedOperation>>
+       fence, issued, pendingClient, connected, published, committedOperation, operationGeneration>>
 CompleteRejected ==
   /\ Pending
   /\ phase' = "unavailable"
   /\ response' = [response EXCEPT ![pendingClient] = "unavailable"]
   /\ responseOperation' = [responseOperation EXCEPT ![pendingClient] = operation]
   /\ UNCHANGED <<workerGeneration, bindingGeneration, operation, nextOperation,
-       fence, issued, pendingClient, connected, published, committedOperation>>
+       fence, issued, pendingClient, connected, published, committedOperation, operationGeneration>>
 CompleteStale ==
   /\ Pending
   /\ workerGeneration # bindingGeneration
@@ -105,29 +110,38 @@ Publish(client) ==
   /\ published' = [published EXCEPT ![client] = response[client]]
   /\ response' = [response EXCEPT ![client] = "none"]
   /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
-       nextOperation, fence, issued, connected, pendingClient, committedOperation, responseOperation>>
+       nextOperation, fence, issued, connected, pendingClient, committedOperation, responseOperation, operationGeneration>>
 AbandonPublication(client) ==
   /\ response[client] # "none"
   /\ client \notin connected
   /\ response' = [response EXCEPT ![client] = "none"]
   /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
-       nextOperation, fence, issued, connected, pendingClient, published, committedOperation, responseOperation>>
+       nextOperation, fence, issued, connected, pendingClient, published, committedOperation, responseOperation, operationGeneration>>
 Disconnect(client) ==
   /\ client \in connected
   /\ connected' = connected \ {client}
   /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
-       nextOperation, fence, issued, pendingClient, response, published, committedOperation, responseOperation>>
+       nextOperation, fence, issued, pendingClient, response, published, committedOperation, responseOperation, operationGeneration>>
 ReplaceWorker ==
   /\ workerGeneration < MaxGeneration
   /\ workerGeneration' = workerGeneration + 1
   /\ UNCHANGED <<phase, bindingGeneration, operation, nextOperation, fence,
-       issued, pendingClient, connected, response, published, committedOperation, responseOperation>>
+       issued, pendingClient, connected, response, published, committedOperation, responseOperation, operationGeneration>>
+\* A replacement that adopted the Host imports each settled binding into its generation, keeping
+\* its fence and issued operations. A binding with an operation in flight at the loss is not
+\* imported: that operation settles as unknown against the generation it was issued to.
+ImportBinding ==
+  /\ phase \in {"awaiting", "started"}
+  /\ bindingGeneration < workerGeneration
+  /\ bindingGeneration' = workerGeneration
+  /\ UNCHANGED <<phase, workerGeneration, operation, nextOperation, fence, issued, pendingClient,
+       connected, response, published, committedOperation, responseOperation, operationGeneration>>
 Next ==
   \/ \E client \in Clients: IssueCreate(client) \/ IssueStart(client)
        \/ RejectConcurrent(client) \/ Disconnect(client)
   \/ CompleteExact \/ CompleteUnknown \/ CompleteNotDelivered \/ CompleteRejected \/ CompleteStale
   \/ (\E client \in Clients: Publish(client) \/ AbandonPublication(client))
-  \/ ReplaceWorker
+  \/ ReplaceWorker \/ ImportBinding
 Settle == CompleteExact \/ CompleteUnknown \/ CompleteNotDelivered \/ CompleteRejected \/ CompleteStale
 FinishPublication(client) == Publish(client) \/ AbandonPublication(client)
 Spec == Init /\ [][Next]_vars /\ WF_vars(Settle) /\ (\A client \in Clients: WF_vars(FinishPublication(client)))
@@ -145,11 +159,14 @@ TypeOK ==
   /\ committedOperation \in [Clients -> 0..MaxOperation]
   /\ responseOperation \in [Clients -> 0..MaxOperation]
   /\ fence \in 0..MaxOperation
+  /\ operationGeneration \in 0..MaxGeneration
 FreshIssuance == [][(\E client \in Clients: IssueCreate(client) \/ IssueStart(client)) =>
   /\ operation' \notin issued
   /\ operation' = nextOperation
   /\ fence' > fence]_vars
 ExactCommitIsCurrent == [][CompleteExact => bindingGeneration = workerGeneration]_vars
+\* An operation commits exactly only against the Worker generation it was issued to.
+ExactCommitWasIssuedToCurrentWorker == [][CompleteExact => operationGeneration = workerGeneration]_vars
 UnknownCannotDispatch == [][phase = "unknown" =>
   /\ phase' = "unknown"
   /\ issued' = issued]_vars
@@ -171,14 +188,14 @@ ConcurrentRequestReturnsServerBusy ==
     /\ responseOperation' = [responseOperation EXCEPT ![client] = 0]
     /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
          nextOperation, fence, issued, pendingClient, connected, published,
-         committedOperation>>]_vars
+         committedOperation, operationGeneration>>]_vars
 PublicationCopiesExactPredecessor ==
   [][\A client \in Clients: Publish(client) =>
     /\ published' = [published EXCEPT ![client] = response[client]]
     /\ response' = [response EXCEPT ![client] = "none"]
     /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
          nextOperation, fence, issued, pendingClient, connected,
-         committedOperation, responseOperation>>]_vars
+         committedOperation, responseOperation, operationGeneration>>]_vars
 PendingEventuallySettles == Pending ~> ~Pending
 ResultEventuallySettles == \A client \in Clients: (response[client] # "none") ~> (response[client] = "none")
 =============================================================================

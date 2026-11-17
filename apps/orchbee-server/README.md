@@ -903,7 +903,11 @@ IssueCreate/IssueStart, complete maps to exact/not-delivered/rejected/unknown/st
 Connection's independent publication can interleave another Connection's operation. Progress assumes
 bounded carrier completion and weak fairness for settlement and publication/abandonment; it does
 not promise delivery to a disconnected Client. Geometry, capacity, type conversion and real PTY
-behavior belong to deterministic tests and the process witness.
+behavior belong to deterministic tests and the process witness. `ImportBinding` moves a settled
+binding, awaiting or started, into a replacement Worker's generation with its fence and issued
+operations; a binding whose operation was in flight at the loss stays behind and settles as stale.
+`ExactCommitWasIssuedToCurrentWorker` keeps any operation from committing against a generation other
+than the one it was issued to.
 
 `RejectConcurrent` uses the other peer Connection's one-outstanding-request slot as the bounded
 correlation surrogate, queues an explicit `server-busy` result, and preserves the original

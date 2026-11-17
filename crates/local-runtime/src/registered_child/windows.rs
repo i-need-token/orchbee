@@ -42,11 +42,39 @@ pub fn spawn_session_child(
         Ok((runtime_pin, directory, scope))
     })()
     .map_err(|error| at_step(SessionChildStep::Registration, error))?;
-    let role = match child {
-        SessionChild::Worker => ProcessRole::Worker,
-        SessionChild::Host => ProcessRole::Host,
+    let reservation = match child {
+        SessionChild::Worker => Reservation::Fresh(ProcessRole::Worker),
+        SessionChild::ReplacementWorker => Reservation::ReplacementWorker,
+        SessionChild::Host => Reservation::Fresh(ProcessRole::Host),
     };
-    spawn_registered(&directory, scope, role, executable, arguments, deadline)
+    spawn_reserved_with(
+        &directory,
+        scope,
+        reservation,
+        executable,
+        arguments,
+        deadline,
+        |path, words| RetainedChild::spawn_suspended(path, words).map(|child| (child, ())),
+    )
+    .map(|(child, ())| child)
+}
+
+/// How a registered child's slot is reserved before its creation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Reservation {
+    /// A slot never started in this generation.
+    Fresh(ProcessRole),
+    /// The Worker slot, returned to spawning for a replacement of a Worker proven gone.
+    ReplacementWorker,
+}
+
+impl Reservation {
+    fn role(self) -> ProcessRole {
+        match self {
+            Self::Fresh(role) => role,
+            Self::ReplacementWorker => ProcessRole::Worker,
+        }
+    }
 }
 
 pub(crate) fn spawn_registered(
@@ -80,6 +108,27 @@ pub(crate) fn spawn_registered_with<T>(
     deadline: Instant,
     create: impl FnOnce(&Path, &[&OsStr]) -> io::Result<(RetainedChild, T)>,
 ) -> io::Result<(RetainedChild, T)> {
+    spawn_reserved_with(
+        directory,
+        scope,
+        Reservation::Fresh(role),
+        executable,
+        arguments,
+        deadline,
+        create,
+    )
+}
+
+fn spawn_reserved_with<T>(
+    directory: &Directory,
+    scope: &str,
+    reservation: Reservation,
+    executable: &Path,
+    arguments: &[&OsStr],
+    deadline: Instant,
+    create: impl FnOnce(&Path, &[&OsStr]) -> io::Result<(RetainedChild, T)>,
+) -> io::Result<(RetainedChild, T)> {
+    let role = reservation.role();
     let (_writer, mut record) = (|| -> io::Result<_> {
         let initial = directory.read(scope)?.ok_or(io::ErrorKind::NotFound)?;
         if initial.lifecycle != Lifecycle::Active {
@@ -109,10 +158,11 @@ pub(crate) fn spawn_registered_with<T>(
                 Creator::Process(process_observation::current_identity()?)
             }
         };
-        record
-            .processes
-            .reserve(role, creator)
-            .map_err(|_| io::ErrorKind::InvalidData)?;
+        match reservation {
+            Reservation::Fresh(role) => record.processes.reserve(role, creator),
+            Reservation::ReplacementWorker => record.processes.reserve_replacement_worker(creator),
+        }
+        .map_err(|_| io::ErrorKind::InvalidData)?;
         directory.publish(scope, &record)?;
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());

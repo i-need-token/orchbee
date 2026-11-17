@@ -187,3 +187,105 @@ fn strict_deserialization_admits_only_nonzero_distinct_identities_with_registere
         assert!(serde_json::from_value::<SessionProcesses>(invalid).is_err());
     }
 }
+
+#[test]
+fn only_the_recorded_server_returns_a_gone_worker_to_spawning_and_the_host_keeps_its_identity() {
+    let mut processes = enrolled();
+    let before = processes.clone();
+    for creator in [
+        Creator::Activator,
+        Creator::Process(identity(2, 20)),
+        Creator::Process(identity(1, 11)),
+    ] {
+        assert_eq!(
+            processes.reserve_replacement_worker(creator),
+            Err(RegistrationError::WrongCreator)
+        );
+        assert_eq!(processes, before);
+    }
+    let server = Creator::Process(identity(1, 10));
+    processes.reserve_replacement_worker(server).unwrap();
+    assert_eq!(
+        processes.registration(ProcessRole::Worker),
+        Registration::Spawning
+    );
+    assert_eq!(
+        processes.registration(ProcessRole::Host),
+        before.registration(ProcessRole::Host)
+    );
+    // A crash before identity publication leaves a state recovery already refuses.
+    assert_eq!(
+        processes.status([ProcessObservation::Gone; 3]),
+        RecoveryVerdict::Uncertain(ProcessRole::Worker)
+    );
+    let reread: SessionProcesses =
+        serde_json::from_value(serde_json::to_value(&processes).unwrap()).unwrap();
+    assert_eq!(reread, processes);
+    // A failed replacement that left no process may be replaced again.
+    processes.reserve_replacement_worker(server).unwrap();
+    processes
+        .identify(ProcessRole::Worker, identity(4, 40))
+        .unwrap();
+    assert_eq!(
+        processes.registration(ProcessRole::Host).identity(),
+        Some(identity(3, 30))
+    );
+    // The adopted Host's identity is never reused, and only the new Worker may reserve a Host.
+    assert_eq!(
+        processes.reserve(ProcessRole::Host, Creator::Process(identity(4, 40))),
+        Err(RegistrationError::AlreadyStarted)
+    );
+}
+
+#[test]
+fn a_replacement_needs_a_worker_and_a_settled_host() {
+    let server = Creator::Process(identity(1, 10));
+    let mut processes = SessionProcesses::default();
+    processes
+        .reserve(ProcessRole::Server, Creator::Activator)
+        .unwrap();
+    processes
+        .identify(ProcessRole::Server, identity(1, 10))
+        .unwrap();
+    assert_eq!(
+        processes.reserve_replacement_worker(server),
+        Err(RegistrationError::NoWorker)
+    );
+    processes.reserve(ProcessRole::Worker, server).unwrap();
+    processes
+        .identify(ProcessRole::Worker, identity(2, 20))
+        .unwrap();
+    processes
+        .reserve(ProcessRole::Host, Creator::Process(identity(2, 20)))
+        .unwrap();
+    let before = processes.clone();
+    assert_eq!(
+        processes.reserve_replacement_worker(server),
+        Err(RegistrationError::HostSpawning)
+    );
+    assert_eq!(processes, before);
+}
+
+#[test]
+fn a_spawning_host_needs_an_identified_worker_and_an_identified_host_a_registered_one() {
+    let mut replaced = enrolled();
+    replaced
+        .reserve_replacement_worker(Creator::Process(identity(1, 10)))
+        .unwrap();
+    let valid = serde_json::to_value(&replaced).unwrap();
+    assert!(serde_json::from_value::<SessionProcesses>(valid.clone()).is_ok());
+    for invalid in [
+        {
+            let mut value = valid.clone();
+            value["host"] = serde_json::json!({"state":"spawning"});
+            value
+        },
+        {
+            let mut value = valid;
+            value["worker"] = serde_json::json!({"state":"not-started"});
+            value
+        },
+    ] {
+        assert!(serde_json::from_value::<SessionProcesses>(invalid).is_err());
+    }
+}

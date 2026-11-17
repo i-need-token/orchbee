@@ -25,6 +25,7 @@ must be idle and all Client, Worker, Host and observation endpoints absent befor
 | Transition             | Guard                                                                                       | Publication and effect                                                |
 | ---------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | Reserve child          | Active generation; slot NotStarted; exact registered parent, or activation owner for Server | Flush Spawning before CreateProcess                                   |
+| Reserve replacement    | Active generation; exact registered Server; Worker slot registered; Host not Spawning       | Flush Worker Spawning before CreateProcess; Host registration kept    |
 | Create child           | Same reserved generation and writer guard                                                   | Create suspended, detached child without inherited handles            |
 | Identify child         | Exact retained child handle                                                                 | Flush PID and creation FILETIME before execution                      |
 | Release child          | Identity publication succeeded                                                              | Resume its retained initial thread; release writer guard              |
@@ -34,6 +35,18 @@ A successfully created child is never released when identity publication fails. 
 to terminate and confirm exit through the exact owned handle. Unconfirmed cleanup remains an
 uncertain generation. This startup cleanup authority does not authorize terminating an orphan or
 a process discovered by PID. Server/Worker effects must not bypass registered creation.
+
+A replacement Worker reuses the generation's Worker slot. Only the recorded Server reserves it, and
+only after it has proved the recorded Worker gone through the handle it created that Worker with,
+or knows a failed replacement left no process; the record holds no such proof, so the Server
+carries it. The adopted Host keeps its identity, and a Host still Spawning refuses the reservation.
+The record therefore admits a Spawning Host only under an identified Worker, and an identified Host
+under any registered Worker. A record written while a replacement is Spawning reads as Uncertain,
+the same as any incomplete creation; a reader that predates the rule refuses it as malformed.
+[`SessionCrashRecovery`](../formal/tla/SessionCrashRecovery.tla) checks the replacement: its
+`replacement` configuration gives one generation two Worker incarnations, and `SingleOwner` and
+`OnlyCurrentWorkerRuns` hold only while a replacement waits for its predecessor's proven exit. An
+admitted stop starts no replacement, and a stopped Session runs no Worker or Host.
 
 ## Cold recovery transitions
 

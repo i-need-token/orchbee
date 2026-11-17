@@ -82,8 +82,13 @@ impl<'de> Deserialize<'de> for SessionProcesses {
             worker: wire.worker,
             host: wire.host,
         };
+        // A Host is reserved only by an identified Worker. A replacement Worker returns its slot to
+        // spawning while the Host it adopts keeps its identity, so an identified Host needs only a
+        // registered Worker; an older reader refuses that combination instead of misreading it.
         if (processes.worker != Registration::NotStarted && processes.server.identity().is_none())
-            || (processes.host != Registration::NotStarted && processes.worker.identity().is_none())
+            || (processes.host == Registration::Spawning && processes.worker.identity().is_none())
+            || (processes.host != Registration::NotStarted
+                && processes.worker == Registration::NotStarted)
         {
             return Err(de::Error::custom(
                 "child registration requires its identified parent",
@@ -109,6 +114,10 @@ pub(crate) enum RegistrationError {
     AlreadyStarted,
     NoReservation,
     DuplicateIdentity,
+    /// A replacement needs a Worker to replace.
+    NoWorker,
+    /// A Host still spawning blocks a replacement Worker.
+    HostSpawning,
 }
 
 #[cfg_attr(
@@ -169,6 +178,27 @@ impl SessionProcesses {
             return Err(RegistrationError::AlreadyStarted);
         }
         *self.registration_mut(role) = Registration::Spawning;
+        Ok(())
+    }
+    /// Returns the Worker slot to spawning for a replacement Worker. Only the recorded Server takes
+    /// it, and only once the recorded Worker is proven gone through the Server's own handle, or a
+    /// failed replacement is known to have left no process: the caller holds that proof. The Host
+    /// keeps its registration, identified or not started; a Host still spawning blocks it.
+    #[cfg(any(windows, test))]
+    pub(crate) fn reserve_replacement_worker(
+        &mut self,
+        creator: Creator,
+    ) -> Result<(), RegistrationError> {
+        if self.server.identity().map(Creator::Process) != Some(creator) {
+            return Err(RegistrationError::WrongCreator);
+        }
+        if self.worker == Registration::NotStarted {
+            return Err(RegistrationError::NoWorker);
+        }
+        if self.host == Registration::Spawning {
+            return Err(RegistrationError::HostSpawning);
+        }
+        self.worker = Registration::Spawning;
         Ok(())
     }
     #[cfg(any(windows, test))]
