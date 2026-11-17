@@ -68,28 +68,33 @@ export async function writeMacDiskImage({ application, volumeName, image, worksp
 	const mount = path.join(workspace, 'mount');
 	await mkdir(mount);
 	// Mounted without Finder: hidden from the sidebar and the desktop, with no window.
-	hdiutil([
-		'attach',
-		writable,
-		'-readwrite',
-		'-nobrowse',
-		'-noautoopen',
-		'-noverify',
-		'-mountpoint',
-		mount,
-	]);
+	const attached = execFileSync(
+		'/usr/bin/hdiutil',
+		[
+			'attach',
+			writable,
+			'-readwrite',
+			'-nobrowse',
+			'-noautoopen',
+			'-noverify',
+			'-plist',
+			'-mountpoint',
+			mount,
+		],
+		{ encoding: 'utf8' },
+	);
+	// The whole disk, whose ejection also unmounts its volume.
+	const device = /<string>(\/dev\/disk\d+)<\/string>/u.exec(attached)?.[1];
 	let failure;
 	try {
+		if (device === undefined) throw new Error('hdiutil attach named no disk.');
 		await writeLayout(mount, volumeName, path.basename(application));
 		await rm(path.join(mount, '.Trashes'), { force: true, recursive: true });
 	} catch (error) {
 		failure = error;
 	}
 	execFileSync('/bin/sync');
-	await retry(
-		async () => hdiutil(['detach', mount]),
-		() => hdiutil(['detach', mount, '-force']),
-	);
+	await detach(device ?? mount);
 	if (failure !== undefined) throw failure;
 	hdiutil(['convert', writable, '-format', 'UDZO', '-ov', '-o', image]);
 	hdiutil(['verify', image]);
@@ -99,14 +104,35 @@ function hdiutil(arguments_) {
 	execFileSync('/usr/bin/hdiutil', arguments_, { stdio: 'inherit' });
 }
 
-/** Runs `attempt` up to three times, five seconds apart; `last` replaces the third attempt. */
-async function retry(attempt, last = attempt) {
+/** Runs `attempt` up to three times, five seconds apart. */
+async function retry(attempt) {
 	for (let count = 1; ; count += 1) {
 		try {
-			return await (count === 3 ? last() : attempt());
+			return await attempt();
 		} catch (error) {
 			if (count === 3) throw error;
 			await new Promise((resolve) => setTimeout(resolve, 5000));
+		}
+	}
+}
+
+/**
+ * Detaches the writable image. A just-written volume can be busy for a moment, and GitHub's runners
+ * have answered "Resource busy" after unmounting the volume but before ejecting the disk; the disk
+ * is gone once `hdiutil info` no longer lists it, which ends the attempts as done. The last two
+ * attempts force it.
+ */
+async function detach(device) {
+	const attempts = 8;
+	for (let count = 1; ; count += 1) {
+		const listed = execFileSync('/usr/bin/hdiutil', ['info'], { encoding: 'utf8' });
+		if (!new RegExp(`${device}(?![0-9])`, 'u').test(listed)) return;
+		try {
+			hdiutil(['detach', device, ...(count > attempts - 2 ? ['-force'] : [])]);
+			return;
+		} catch (error) {
+			if (count === attempts) throw error;
+			await new Promise((resolve) => setTimeout(resolve, 1000 * 1.5 ** count));
 		}
 	}
 }
