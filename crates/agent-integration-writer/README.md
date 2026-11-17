@@ -58,15 +58,19 @@ excludes, so every copy a provider makes of `bundle/` names the environment that
 
 An Agent entry belongs to the environment whose Capsule root it names. A root in another data
 root's Capsule folder is that environment's. A folder of `~/.orchbee/agent-observation-adapters`,
-where every environment installed before each kept its own, counts as release's for every other
-build, and release reports an entry naming it as `conflict`; either way the entry stays as it is,
-and no environment ever deletes the shared folder. A copied scripts folder belongs to the
-environment its owner record names, and to release when it has none. `owned_by_another_environment`
+where every environment installed before each kept its own, belongs to no build: every build leaves
+an entry naming it as it is, and no environment ever deletes the shared folder. A copied scripts
+folder belongs to the environment its owner record names, and to release when it has none.
+`owned_by_another_environment`
 is the one predicate every provider uses for this. Enable and disable add, update and remove only
 this environment's entries. Hook-configuration documents keep other environments' entries in
 place beside this environment's. A provider that admits one entry, such as the Antigravity named
-block or a plugin registered under the shared `orchbee-local` marketplace name, reports another
-environment's entry as `conflict`, and enable and disable both refuse it.
+block or Cline's copied package, reports another environment's entry as `conflict`, and enable and
+disable both refuse it. A command-line registration of Claude Code, Codex, Grok or GitHub Copilot
+whose every named Capsule root belongs to another environment also reads `conflict`, and enable
+refuses it; disable treats it as absent and completes without a command, so `uninstall` is not
+stopped. A registration that also names this environment's or a foreign root stays a conflict for
+disable too.
 
 ### Whole-file entries
 
@@ -88,15 +92,14 @@ writer keeps no record of what it wrote, so it judges each such entry by what th
   told from content that was never Orchbee's. Both read `conflict`; enable and disable refuse them
   and leave them unchanged.
 
-On Windows another environment's entry is left exactly as it is. Its row still reads `conflict`,
-so no Client shows the integration as enabled for this environment, and enable refuses before any
-effect instead of replacing it; the person enables it from the environment that owns it, or
-removes it there. Disable, and so `uninstall`, treats it as absent: it removes only this
+On every platform another environment's entry is left exactly as it is. Its row still reads
+`conflict`, so no Client shows the integration as enabled for this environment, and enable refuses
+before any effect instead of replacing it; the person enables it from the environment that owns it,
+or removes it there. Disable, and so `uninstall`, treats it as absent: it removes only this
 environment's targets of the provider and completes without an effect when none is left. A folder
 or file pair whose members belong to different owners is `conflict`, and Hermes counts as another
 environment's only when every entry file present is, which leaves its activation to that
-environment too. Other platforms still read another environment's whole-file entry as `conflict`,
-Hermes's entry files on macOS included.
+environment too.
 
 At hook time the transport reads the owner record beside it and reports only when the inherited
 `ORCHBEE_ENVIRONMENT` equals the owner, or when the variable is absent and the owner is release;

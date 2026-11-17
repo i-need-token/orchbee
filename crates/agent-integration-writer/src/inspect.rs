@@ -84,32 +84,14 @@ pub(crate) fn owned_elsewhere(root: &Path, options: &ResourceOptions) -> bool {
     let root = normalize(root);
     root.is_absolute()
         && root != current
-        && crate::hook_configuration::owned_by_another_environment(
-            &root,
-            current.parent(),
-            orchbee_local_runtime::is_release(),
-        )
+        && crate::hook_configuration::owned_by_another_environment(&root, current.parent())
 }
 
-/// Whether this platform leaves an exact whole-file entry naming `root` as another environment's.
-/// Only Windows does; other platforms keep reading it as a conflict.
-pub(crate) fn left_elsewhere(root: &Path, options: &ResourceOptions) -> bool {
-    #[cfg(windows)]
-    let left = owned_elsewhere(root, options);
-    #[cfg(unix)]
-    let left = {
-        let _ = (root, options);
-        false
-    };
-    left
-}
-
-/// Whether a proven extension's copied owner record names another environment, which this
+/// Whether a proven extension's copied owner record names another environment, which every
 /// platform leaves as that environment's. An unreadable record proves no owner.
 fn recorded_elsewhere(scripts: &Path) -> bool {
-    cfg!(windows)
-        && super::capsule::recorded_owner(scripts)
-            .is_some_and(|owner| owner != orchbee_local_runtime::environment_stem())
+    super::capsule::recorded_owner(scripts)
+        .is_some_and(|owner| owner != orchbee_local_runtime::environment_stem())
 }
 
 /// A whole-file entry as this environment reads it, following the crate README's whole-file
@@ -491,6 +473,105 @@ pub(crate) fn inspect_copilot(
             State::Disabled
         },
     })
+}
+
+/// The only record whose `key` is `name`; a duplicate is no registration this module judges.
+fn sole_named<'a>(records: &'a [Value], key: &str, name: &str) -> Option<&'a Value> {
+    let mut matches = records
+        .iter()
+        .filter(|record| read_string(record, key) == Some(name));
+    match (matches.next(), matches.next()) {
+        (Some(record), None) => Some(record),
+        _ => None,
+    }
+}
+
+/// Whether the `orchbee-local` marketplace `plugin marketplace list` reports names another
+/// environment's Capsule, which makes the Claude Code registration that environment's.
+pub(crate) fn claude_registration_elsewhere(
+    marketplace_stdout: &[u8],
+    options: &ResourceOptions,
+) -> bool {
+    record_array(marketplace_stdout).is_some_and(|marketplaces| {
+        sole_named(&marketplaces, "name", MARKETPLACE_NAME).is_some_and(|entry| {
+            matches!(read_string(entry, "source"), Some("directory" | "local"))
+                && read_string(entry, "path")
+                    .is_some_and(|path| owned_elsewhere(Path::new(path), options))
+        })
+    })
+}
+
+/// Whether the Grok plugin's source names another environment's Capsule.
+pub(crate) fn grok_registration_elsewhere(plugin_stdout: &[u8], options: &ResourceOptions) -> bool {
+    record_array(plugin_stdout).is_some_and(|plugins| {
+        sole_named(&plugins, "name", GROK_PLUGIN_NAME).is_some_and(|entry| {
+            read_string(entry, "source")
+                .map(Path::new)
+                .and_then(Path::parent)
+                .is_some_and(|root| owned_elsewhere(root, options))
+        })
+    })
+}
+
+/// Whether every Capsule root a Copilot registration names belongs to another environment: the
+/// `Local:` marketplace and, while the plugin is present, the root it was installed from.
+pub(crate) fn copilot_registration_elsewhere(
+    plugin_stdout: &[u8],
+    marketplace_stdout: &[u8],
+    options: &ResourceOptions,
+) -> bool {
+    #[cfg(unix)]
+    let plugins = serde_json::from_slice::<Value>(plugin_stdout)
+        .ok()
+        .and_then(|root| root.get("plugins")?.as_array().cloned());
+    #[cfg(windows)]
+    let plugins = record_array(plugin_stdout);
+    let (Some(plugins), Some(marketplaces)) = (plugins, record_array(marketplace_stdout)) else {
+        return false;
+    };
+    let roots = [
+        sole_named(&marketplaces, "name", MARKETPLACE_NAME).map(|entry| {
+            read_string(entry, "source").and_then(|source| source.strip_prefix("Local: "))
+        }),
+        sole_named(&plugins, "name", GROK_PLUGIN_NAME)
+            .map(|entry| read_string(entry, "installedFrom")),
+    ];
+    let mut named = roots.into_iter().flatten().peekable();
+    named.peek().is_some()
+        && named.all(|root| root.is_some_and(|root| owned_elsewhere(Path::new(root), options)))
+}
+
+/// Whether the Codex marketplace table names another environment's Capsule root, which makes the
+/// plugin registration that environment's too.
+#[cfg(unix)]
+pub(crate) fn codex_marketplace_elsewhere(home: &Path, options: &ResourceOptions) -> bool {
+    let Ok(Some(bytes)) = bounded_file_follow(
+        &home.join(".codex/config.toml"),
+        MAX_CODEX_CONFIGURATION_BYTES,
+    ) else {
+        return false;
+    };
+    let text = String::from_utf8_lossy(&bytes);
+    let lines: Vec<&str> = text.lines().map(str::trim).collect();
+    let header = format!("[marketplaces.{MARKETPLACE_NAME}]");
+    if lines.iter().filter(|line| **line == header).count() != 1 {
+        return false;
+    }
+    let source = lines
+        .iter()
+        .skip_while(|line| **line != header)
+        .skip(1)
+        .take_while(|line| !line.starts_with('['))
+        .filter_map(|line| line.split_once('='))
+        .find(|(key, _)| key.trim() == "source")
+        .and_then(|(_, value)| parse_basic_string(value.trim()));
+    source.is_some_and(|source| owned_elsewhere(Path::new(&source), options))
+}
+
+/// Windows Codex marketplace table: the same question over the parsed TOML document.
+#[cfg(windows)]
+pub(crate) fn codex_marketplace_elsewhere(home: &Path, options: &ResourceOptions) -> bool {
+    windows::codex_marketplace_elsewhere(home, options)
 }
 
 /// codex — the bounded `~/.codex/config.toml` line scanner, verbatim from
@@ -1160,7 +1241,7 @@ fn inspect_module_file(
         classify_resource_root(&root.to_string_lossy(), options),
         template,
     ) {
-        (ResourceOwnership::Foreign, _) if left_elsewhere(&root, options) => {
+        (ResourceOwnership::Foreign, _) if owned_elsewhere(&root, options) => {
             GuardedTarget::Elsewhere
         }
         (ResourceOwnership::Foreign, _) => Here(TargetState::Conflict),

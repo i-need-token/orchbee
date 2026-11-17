@@ -104,23 +104,19 @@ pub enum CapsuleLocation {
     /// environment of that data root owns the entry.
     DataRoot,
     /// A folder of `~/.orchbee/agent-observation-adapters`, which every environment shared before
-    /// each kept its own Capsules. Release, whose folder it is, owns the entry.
+    /// each kept its own Capsules. No build owns it, so every build leaves its entries as they are.
     Shared,
     /// Anywhere else: content Orchbee does not own.
     Other,
 }
 
 /// Whether an Agent entry naming `root` belongs to another environment than the one whose
-/// Capsules sit in `own_capsules`: a Capsule folder of another data root, or, outside release, a
-/// folder of the shared location release owns. Such an entry stays as it is.
-pub fn owned_by_another_environment(
-    root: &Path,
-    own_capsules: Option<&Path>,
-    release: bool,
-) -> bool {
+/// Capsules sit in `own_capsules`: a Capsule folder of another data root, or the shared location
+/// no build owns. Such an entry stays as it is, in every build and on every platform.
+pub fn owned_by_another_environment(root: &Path, own_capsules: Option<&Path>) -> bool {
     match capsule_location(root) {
         CapsuleLocation::DataRoot => root.parent() != own_capsules,
-        CapsuleLocation::Shared => !release,
+        CapsuleLocation::Shared => true,
         CapsuleLocation::Other => false,
     }
 }

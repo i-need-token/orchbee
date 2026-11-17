@@ -666,6 +666,11 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
                 (ReadOutcome::Stdout(plugin), Some(ReadOutcome::Stdout(marketplace))) => {
                     match inspect::inspect_claude(&plugin, &marketplace, &options) {
                         Some(inspection) => {
+                            if inspection.state == State::Conflict
+                                && inspect::claude_registration_elsewhere(&marketplace, &options)
+                            {
+                                own = Some(State::NotInstalled);
+                            }
                             (inspection.state, false, cli_detail(Some(&inspection)))
                         }
                         None => (State::Unknown, true, cli_detail(None)),
@@ -680,6 +685,11 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
                 ReadOutcome::Stdout(stdout) => {
                     match inspect::inspect_grok(&stdout, &options, context.home) {
                         Some(inspection) => {
+                            if inspection.state == State::Conflict
+                                && inspect::grok_registration_elsewhere(&stdout, &options)
+                            {
+                                own = Some(State::NotInstalled);
+                            }
                             (inspection.state, false, cli_detail(Some(&inspection)))
                         }
                         None => (State::Unknown, true, cli_detail(None)),
@@ -703,6 +713,15 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
                 (ReadOutcome::Stdout(plugin), Some(ReadOutcome::Stdout(marketplace))) => {
                     match inspect::inspect_copilot(&plugin, &marketplace, &options) {
                         Some(inspection) => {
+                            if inspection.state == State::Conflict
+                                && inspect::copilot_registration_elsewhere(
+                                    &plugin,
+                                    &marketplace,
+                                    &options,
+                                )
+                            {
+                                own = Some(State::NotInstalled);
+                            }
                             (inspection.state, false, cli_detail(Some(&inspection)))
                         }
                         None => (State::Unknown, true, cli_detail(None)),
@@ -713,6 +732,11 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
         }
         Kind::Codex => {
             let inspection: CodexInspection = inspect::inspect_codex(context.home, &options);
+            if inspection.state == State::Conflict
+                && inspect::codex_marketplace_elsewhere(context.home, &options)
+            {
+                own = Some(State::NotInstalled);
+            }
             (
                 inspection.state,
                 inspection.state == State::Unknown,

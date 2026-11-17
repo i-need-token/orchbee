@@ -659,6 +659,43 @@
 				}
 			},
 			"anchors": ["guarded-adapter:190-192", "disposition55:29-31"]
+		},
+		{
+			"id": "gemini.disable.other-environment-copy-noop",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["noop", "disable", "other-environment", "no-else-uninstall"],
+			"dims": {
+				"target": "extension copy whose owner record names another environment"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/gemini",
+				"capsule": "ready",
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"ownerEnvironment": "ob-dev-0123456789abcdef"
+					}
+				],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [],
+				"mustNotMutate": true,
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
+			},
+			"anchors": ["guarded-adapter:127-151,330-345"],
+			"notes": "The copied scripts name another environment as owner, so the copy is that environment's: disable leaves it and completes."
 		}
 	]
 }

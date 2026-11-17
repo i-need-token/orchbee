@@ -11,7 +11,7 @@ use super::{
     CODEX_PLUGIN_ID, CodexInspection, GROK_PLUGIN_NAME, MARKETPLACE_NAME,
     MAX_CODEX_CONFIGURATION_BYTES, Marketplace, PluginInspection, ResourceOptions,
     ResourceOwnership, State, TargetState, bounded_file_follow, classify_resource_root,
-    read_string, record_array,
+    owned_elsewhere, read_string, record_array,
 };
 
 fn configuration_home(home: &Path, variable: &str, default: &str) -> Option<PathBuf> {
@@ -72,6 +72,21 @@ fn entry_table<'a>(root: &'a Table, group: &str, name: &str) -> Result<Option<&'
         .get(name)
         .map(|entry| entry.as_table().ok_or(()))
         .transpose()
+}
+
+/// Whether the Codex marketplace table names another environment's Capsule root.
+pub(super) fn codex_marketplace_elsewhere(home: &Path, options: &ResourceOptions) -> bool {
+    codex_home(home)
+        .map(|root| root.join("config.toml"))
+        .and_then(|path| read_configuration(&path))
+        .is_some_and(|configuration| {
+            entry_table(&configuration, "marketplaces", MARKETPLACE_NAME)
+                .ok()
+                .flatten()
+                .and_then(|marketplace| marketplace.get("source"))
+                .and_then(toml::Value::as_str)
+                .is_some_and(|source| owned_elsewhere(Path::new(source), options))
+        })
 }
 
 fn codex_configuration(root: &Table, options: &ResourceOptions) -> CodexInspection {

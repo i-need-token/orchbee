@@ -11,6 +11,8 @@
 		"ENVIRONMENT": "ob-test-0123456789abcdef",
 		"FOREIGN_ROOT": "/third-party/agent-observation-adapters",
 		"BUNDLE_URL": "file:///home/person/.ob-test-0123456789abcdef/internal/integrations/agent-observation/0.5.0/bundle",
+		"OTHER_BUNDLE_URL": "file:///home/person/.ob-dev-0123456789abcdef/internal/integrations/agent-observation/0.5.0/bundle",
+		"OTHER_CAPSULE_ROOT": "/home/person/.ob-dev-0123456789abcdef/internal/integrations/agent-observation/0.5.0",
 		"VERSION": "1.0.0",
 		"OLDER_VERSION": "0.3.0",
 		"MARKETPLACE": "orchbee-local",
@@ -88,6 +90,13 @@
 			{
 				"name": "${MARKETPLACE}",
 				"path": "${OTHER_SIBLING}",
+				"source": "directory"
+			}
+		],
+		"claude.marketplace.otherEnvironment": [
+			{
+				"name": "${MARKETPLACE}",
+				"path": "${OTHER_CAPSULE_ROOT}",
 				"source": "directory"
 			}
 		],
@@ -312,6 +321,7 @@
 		"codex.toml.pluginOnly": "[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
 		"codex.toml.outdated": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${OUTDATED_ROOT}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
 		"codex.toml.foreign": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${FOREIGN_ROOT}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
+		"codex.toml.otherEnvironment": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${OTHER_CAPSULE_ROOT}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
 		"codex.toml.duplicateSection": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n\n[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n",
 		"codex.toml.duplicateKey": "[plugins.\"${PLUGIN_ID}\"]\nenabled = true\nenabled = false\n\n[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n",
 		"codex.toml.enabledNotBoolean": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = \"true\"\n",
@@ -353,6 +363,7 @@
 			}
 		},
 		"guarded.bootstrap.opencode": "// orchbee-agent-observation-bootstrap-v1:opencode\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/opencode/orchbee-agent-observation.mjs\";\nconst orchbeeAgentObservationCall = async (name, arguments_, fallback) => {\n\ttry {\n\t\tconst definition = (await import(orchbeeAgentObservationModuleUrl)).orchbeeAgentObservationPlugin;\n\t\treturn typeof definition?.[name] === 'function'\n\t\t\t? await definition[name](...arguments_)\n\t\t\t: fallback;\n\t} catch {\n\t\treturn fallback;\n\t}\n};\nexport default {\n\tid: 'orchbee-agent-observation',\n\tserver: (...arguments_) => orchbeeAgentObservationCall('server', arguments_, {}),\n\tsetup: (...arguments_) => orchbeeAgentObservationCall('setup', arguments_, undefined),\n};\n",
+		"guarded.bootstrap.opencode.otherEnvironment": "// orchbee-agent-observation-bootstrap-v1:opencode\nconst orchbeeAgentObservationModuleUrl = \"${OTHER_BUNDLE_URL}/opencode/orchbee-agent-observation.mjs\";\nconst orchbeeAgentObservationCall = async (name, arguments_, fallback) => {\n\ttry {\n\t\tconst definition = (await import(orchbeeAgentObservationModuleUrl)).orchbeeAgentObservationPlugin;\n\t\treturn typeof definition?.[name] === 'function'\n\t\t\t? await definition[name](...arguments_)\n\t\t\t: fallback;\n\t} catch {\n\t\treturn fallback;\n\t}\n};\nexport default {\n\tid: 'orchbee-agent-observation',\n\tserver: (...arguments_) => orchbeeAgentObservationCall('server', arguments_, {}),\n\tsetup: (...arguments_) => orchbeeAgentObservationCall('setup', arguments_, undefined),\n};\n",
 		"guarded.bootstrap.pi": "// orchbee-agent-observation-bootstrap-v1:pi\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/pi/orchbee-agent-observation.cjs\";\nmodule.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n",
 		"guarded.bootstrap.omp": "// orchbee-agent-observation-bootstrap-v1:omp\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/omp/orchbee-agent-observation.cjs\";\nmodule.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n",
 		"cline.package.noncurrent": {

@@ -203,6 +203,24 @@ fn substitutions(dirs: &Dirs, id: IntegrationId) -> Vec<(String, String)> {
             "${FOREIGN_ROOT}".into(),
             "/third-party/agent-observation-adapters".into(),
         ),
+        // Another environment's Capsule in this home, which its owner records name.
+        (
+            "${OTHER_BUNDLE_URL}".into(),
+            format!(
+                "file://{}",
+                dirs.home
+                    .join(".ob-dev-0123456789abcdef/internal/integrations/agent-observation/0.5.0/bundle")
+                    .display()
+            ),
+        ),
+        // Another environment's Capsule root in this home, which its registrations name.
+        (
+            "${OTHER_CAPSULE_ROOT}".into(),
+            dirs.home
+                .join(".ob-dev-0123456789abcdef/internal/integrations/agent-observation/0.5.0")
+                .display()
+                .to_string(),
+        ),
         ("${VERSION}".into(), "1.0.0".to_owned()),
         ("${OLDER_VERSION}".into(), "0.3.0".into()),
         (
@@ -385,11 +403,18 @@ fn materialize_owned_dir(
     }
     if let Some(runtime) = spec.runtime_relative {
         copy_contents(&dirs.capsule_root.join(runtime), &target.join("scripts"));
-        // The copy this environment installed carries its owner record.
+        // The copy carries the owner record of the environment that installed it: this one unless
+        // the case names another.
+        let owner = match entry["ownerEnvironment"].as_str() {
+            Some(name) => serde_json::json!({ "environment": name, "version": 1 })
+                .to_string()
+                .into_bytes(),
+            None => capsule::owner_record(),
+        };
         fs::create_dir_all(target.join("scripts")).unwrap();
         fs::write(
             target.join("scripts").join(capsule::OWNER_RECORD_NAME),
-            capsule::owner_record(),
+            owner,
         )
         .unwrap();
     }

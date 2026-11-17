@@ -1,15 +1,14 @@
 use super::*;
 use crate::tests::host_path;
 /// Entry files Orchbee writes for another environment's Capsule are that environment's; an edited
-/// byte, or a member of this environment's, proves no other owner. Only Windows leaves whole-file
-/// entries to another environment.
-#[cfg(windows)]
+/// byte, or a member of this environment's, proves no other owner. Every platform leaves
+/// whole-file entries to another environment.
 #[test]
 fn entry_files_of_another_environment_are_left_to_it() {
-    let own = Path::new(
+    let own = host_path(
         r"C:\Users\u\.ob-test-0123456789abcdef\internal\integrations\agent-observation\0.4.17",
     );
-    let theirs = Path::new(
+    let theirs = host_path(
         r"C:\Users\u\.ob-dev-fedcba9876543210\internal\integrations\agent-observation\0.4.17",
     );
     let options = ResourceOptions { resource_root: own };

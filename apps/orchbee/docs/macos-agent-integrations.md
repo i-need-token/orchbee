@@ -81,9 +81,10 @@ original is removed only once the published bytes verify, and restored otherwise
   own `/tmp` and `/var` are.
 - Reads are bounded to 512 KiB, and a FIFO never blocks the read.
 
-Hook documents keep other environments' entries beside this environment's, as on Windows. Hermes's
-two entry files are a whole-file entry, so on macOS another environment's files read `conflict` and
-both enable and disable refuse them; see the writer's
+Hook documents keep other environments' entries beside this environment's, as on Windows. Whole-file
+entries, Hermes's two entry files included, follow the same rule: another environment's files read
+`conflict` and enable refuses them, while disable leaves them as they are and does not stop, as on
+Windows; see the writer's
 [whole-file rule](../../../crates/agent-integration-writer/README.md#whole-file-entries).
 
 ## Finding Agent programs

@@ -1075,6 +1075,39 @@
 				}
 			},
 			"anchors": ["codex-adapter:111"]
+		},
+		{
+			"id": "codex.disable.other-environment-noop",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["noop", "disable", "other-environment", "no-else-uninstall"],
+			"dims": {
+				"state": "conflict",
+				"registration": "another environment's marketplace table"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/codex",
+				"capsule": "ready",
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.otherEnvironment"
+					}
+				],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
+			},
+			"notes": "The marketplace table names another environment's Capsule: disable leaves the file byte for byte and completes."
 		}
 	]
 }

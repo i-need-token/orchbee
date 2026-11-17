@@ -1,7 +1,7 @@
 //! Hermes owns activation; Orchbee owns exactly two independently recoverable entry files.
 use super::{
     files, hook_configuration_files,
-    inspect::{ResourceOptions, ResourceOwnership, classify_resource_root, left_elsewhere},
+    inspect::{ResourceOptions, ResourceOwnership, classify_resource_root, owned_elsewhere},
     model::State,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -98,7 +98,7 @@ fn elsewhere(entry: Option<&[u8]>, manifest: Option<&[u8]>, options: &ResourceOp
         .peekable();
     present.peek().is_some()
         && present.all(|(member, bytes)| {
-            member_root(member, bytes).is_some_and(|root| left_elsewhere(&root, options))
+            member_root(member, bytes).is_some_and(|root| owned_elsewhere(&root, options))
         })
 }
 pub(super) struct Local {

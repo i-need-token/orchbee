@@ -605,6 +605,74 @@
 				}
 			},
 			"anchors": ["guarded-adapter:190-192", "disposition55:29-31"]
+		},
+		{
+			"id": "opencode.inspect.other-environment-bootstrap",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["other-environment", "conflict"],
+			"dims": {
+				"target": "exact bootstrap naming another environment's Capsule"
+			},
+			"given": {
+				"capsule": "ready",
+				"commands": [],
+				"exe": "/usr/bin/opencode",
+				"fs": [
+					{
+						"content": "@guarded.bootstrap.opencode.otherEnvironment",
+						"kind": "file",
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs"
+					}
+				],
+				"managementMode": "managed-local"
+			},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": ["guarded-adapter:203-216"],
+			"notes": "Byte-exact bootstrap for another environment's Capsule: the row reads conflict, as on Windows, and no build owns it."
+		},
+		{
+			"id": "opencode.disable.other-environment-noop",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["noop", "disable", "other-environment", "no-else-uninstall"],
+			"dims": {
+				"target": "another environment's bootstrap"
+			},
+			"given": {
+				"capsule": "ready",
+				"commands": [],
+				"exe": "/usr/bin/opencode",
+				"fs": [
+					{
+						"content": "@guarded.bootstrap.opencode.otherEnvironment",
+						"kind": "file",
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs"
+					}
+				],
+				"managementMode": "managed-local"
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [],
+				"mustNotMutate": true,
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
+			},
+			"anchors": ["guarded-adapter:189"],
+			"notes": "Disable leaves another environment's bootstrap byte for byte and completes, so uninstall is not stopped by it."
 		}
 	]
 }

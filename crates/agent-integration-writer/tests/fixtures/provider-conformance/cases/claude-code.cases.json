@@ -1979,6 +1979,47 @@
 				}
 			},
 			"anchors": ["state-parsers:65-66"]
+		},
+		{
+			"id": "claude-code.disable.other-environment-noop",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["noop", "disable", "other-environment", "no-else-uninstall"],
+			"dims": {
+				"state": "conflict",
+				"registration": "another environment's marketplace"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": ["plugin", "marketplace", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.otherEnvironment"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
+			},
+			"notes": "The marketplace and its plugin belong to another environment: disable issues no command and completes, so uninstall is not stopped. The row still reads conflict."
 		}
 	]
 }
