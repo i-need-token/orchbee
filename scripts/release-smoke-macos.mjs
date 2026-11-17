@@ -8,11 +8,14 @@
 //   node scripts/release-smoke-macos.mjs archive    <artifacts> --work <absolute new directory>
 //   node scripts/release-smoke-macos.mjs install-script <artifacts> --work <absolute new directory>
 //   node scripts/release-smoke-macos.mjs npm        <artifacts> --work <absolute new directory>
+//   node scripts/release-smoke-macos.mjs update     v<version> --release <assets address>
+//     --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]
 //
 // <artifacts> is a directory `node scripts/release-artifacts.mjs collect` wrote on macOS; its release
 // directory names the version, the platform and the program stem, so the same lines serve the test
 // and the release identity. The platform must be this Mac's own, `macos-aarch64` on Apple silicon
-// and `macos-x86_64` on Intel, so a row is never proven on the other architecture.
+// and `macos-x86_64` on Intel, so a row is never proven on the other architecture; `update` reads
+// that platform's feed, tracked update pair and archives.
 //
 // - disk-image: `hdiutil attach -readonly -nobrowse` mounts the `.dmg` on a folder inside the work
 //   folder; the volume holds one application and a link to /Applications; `codesign --verify
@@ -35,13 +38,27 @@
 // - npm: `npm install --global --offline` of the tarballs into a prefix; the first start installs
 //   the carried version, `--version` answers it again, the program's `uninstall` removes the store
 //   root, and `npm rm --global` removes the carrier.
+// - update: a published release can be updated to, the check that runs before the update channel
+//   moves, with the contract of the Windows script's `update` (scripts/release-update-check.mjs).
+//   The version people have now is the one the website's tracked update pair of this Mac's platform
+//   names (apps/website/public/update/stable/<platform>/, or the folder `--current` names). Its
+//   `.tar.gz`, fetched from the address the pair signs and checked against the signed size and
+//   SHA-256, is unpacked by the system tar and installed by its own `install` into
+//   `~/.local/share/<stem>` with the link `~/.local/bin/<stem>`; then `update` runs through that
+//   link with `ORCHBEE_UPDATE_FEED` naming the release's `<stem>-<version>-<platform>.feed.json` in
+//   the assets folder, and must activate the release: the pointer names it, the version's Client
+//   and the link answer `--version` with it, and the link names that Client. Without an older
+//   tracked version, the release's `update` fills an empty scratch store beside the store root.
+//   TMPDIR is a folder in the work folder too, and nothing is uninstalled: the work folder goes. A
+//   failure names the stage and tells the owner not to move the update channel.
 //
 // A test build's `uninstall` takes `--confirm`. A release build refuses it and asks a person to type
 // `orchbee` on a terminal, so its `uninstall` runs on a terminal that python3's pty module opens,
 // and the word is typed once the prompt shows. script(1) cannot stand in: it refuses Node's socket
 // as its input, and on macOS it passes the end of a closed input ahead of a line not yet read.
 //
-// The archive, install-script and npm steps then require that no process runs from the work folder.
+// The archive, install-script, npm and update steps then require that no process runs from the work
+// folder.
 // Exit codes: 0 the step passed; 1 it failed; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
 import {
@@ -62,9 +79,17 @@ import { fileURLToPath } from 'node:url';
 
 import { readRelease } from './package-npm.mjs';
 import { feedName, gateFeed } from './release-feed.mjs';
+import {
+	parseUpdateArguments,
+	StepFailure,
+	updateCheck,
+	updateFailureAdvice,
+	UsageError,
+} from './release-update-check.mjs';
 
 const usage =
-	'Usage: node scripts/release-smoke-macos.mjs <disk-image|archive|install-script|npm> <artifacts> --work <absolute new directory>';
+	'Usage: node scripts/release-smoke-macos.mjs <disk-image|archive|install-script|npm> <artifacts> --work <absolute new directory>\n' +
+	'       node scripts/release-smoke-macos.mjs update v<version> --release <assets address> --work <absolute new directory> [--stem <stem>] [--current <absolute folder>]';
 const installScript = fileURLToPath(new URL('../apps/website/public/install.sh', import.meta.url));
 // Each command gets this long; an install, an npm run or a mount gets longer.
 const commandDeadline = 120_000;
@@ -74,6 +99,7 @@ const settleDeadline = 15_000;
 // The soft open-file limit a Terminal or SSH shell starts with on macOS.
 const shellOpenFileLimit = 256;
 const hostPlatforms = { arm64: 'macos-aarch64', x64: 'macos-x86_64' };
+const hostPlatform = hostPlatforms[process.arch];
 // The release stem, whose builds ask for this word in place of `uninstall --confirm`.
 const releaseStem = 'orchbee';
 // The release prompt in the locale the typed run sets.
@@ -101,9 +127,6 @@ while True:
         typed = True
 sys.exit(os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]))
 `;
-
-class UsageError extends Error {}
-class StepFailure extends Error {}
 
 // The mount the disk image step has not detached; the work folder stays while one is left.
 const pending = { mount: undefined };
@@ -135,10 +158,9 @@ function readIdentity(artifacts) {
 	const manifestBytes = readFileSync(path.join(releaseDirectory, 'release.json'));
 	const { version } = JSON.parse(manifestBytes.toString('utf8'));
 	const { stem, manifest, platform, programs } = readRelease(releaseDirectory, version);
-	const host = hostPlatforms[process.arch];
-	if (manifest.platform !== host)
+	if (manifest.platform !== hostPlatform)
 		throw new StepFailure(
-			`${manifest.platform} is not this Mac's platform ${host ?? process.arch}`,
+			`${manifest.platform} is not this Mac's platform ${hostPlatform ?? process.arch}`,
 		);
 	const archiveFile = path.join(artifacts, `${releaseName}.tar.gz`);
 	if (!existsSync(archiveFile))
@@ -519,7 +541,57 @@ function npm(identity, work) {
 	expectNoProcesses(work);
 }
 
+/**
+ * Requires the store `root` to run `version`: its pointer names it, the version's Client answers
+ * `--version` with it, and the link `~/.local/bin/<stem>`, when it names a Client of this store,
+ * names that one and answers the same. The link must name this store unless `ORCHBEE_INSTALL_DIR`
+ * points the run at a scratch store.
+ */
+function expectRunning(root, stem, version, env) {
+	expectActive({ version }, root);
+	const client = path.join(root, 'versions', version, stem);
+	expectVersion({ version }, run(client, ['--version'], { env }), `${client} --version`);
+	const link = path.join(env.HOME, '.local', 'bin', stem);
+	const named = lstatSync(link, { throwIfNoEntry: false })?.isSymbolicLink()
+		? realpathSync(link)
+		: undefined;
+	if (named === undefined || !inside(realpathSync(root), named)) {
+		if (env.ORCHBEE_INSTALL_DIR === undefined)
+			throw new StepFailure(`${link} names no Client of ${root}`);
+		return;
+	}
+	if (named !== realpathSync(client))
+		throw new StepFailure(`${link} names ${named}, not ${client}`);
+	expectVersion({ version }, run(link, ['--version'], { env }), `${link} --version`);
+	log(`${link} names the Client of ${version}.`);
+}
+
+/**
+ * How the update check installs and updates on this Mac: HOME and TMPDIR in the work folder, so the
+ * store root, the command link and the data root lie inside it.
+ */
+const updatePort = {
+	platform: hostPlatform,
+	tar: '/usr/bin/tar',
+	client: (directory, stem) => path.join(directory, stem),
+	environment(work) {
+		const home = path.join(work, 'home');
+		const temporary = path.join(work, 'tmp');
+		for (const folder of [home, temporary]) mkdirSync(folder);
+		return { ...scratchEnvironment(home), TMPDIR: temporary };
+	},
+	storeRoot: (stem, env) => env.ORCHBEE_INSTALL_DIR ?? storeRoot({ stem }, env.HOME),
+	updater: (_root, stem, env) => path.join(env.HOME, '.local', 'bin', stem),
+	expectActive: expectRunning,
+};
+
+function update(options, work, progress) {
+	updateCheck({ ...options, work }, progress, updatePort, usage);
+	expectNoProcesses(work);
+}
+
 function parseArguments(argv) {
+	if (argv[0] === 'update') return parseUpdateArguments(argv.slice(1), usage, hostPlatform);
 	const [step, artifacts, option, work, ...rest] = argv;
 	if (
 		!['disk-image', 'archive', 'install-script', 'npm'].includes(step) ||
@@ -538,20 +610,31 @@ if (
 	path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
 	let work;
+	let options;
+	const progress = { stage: 'starting' };
 	try {
 		if (process.platform !== 'darwin') throw new StepFailure('This smoke test runs on macOS');
-		const options = parseArguments(process.argv.slice(2));
-		const identity = readIdentity(options.artifacts);
+		if (hostPlatform === undefined)
+			throw new StepFailure(`${process.arch} is not a macOS release platform`);
+		options = parseArguments(process.argv.slice(2));
+		const identity = options.step === 'update' ? undefined : readIdentity(options.artifacts);
 		if (existsSync(options.work))
 			throw new StepFailure(`Refusing to work in an existing ${options.work}`);
 		mkdirSync(options.work, { recursive: true });
 		// The real path, so the process scan compares the start paths ps reports.
 		work = realpathSync(options.work);
-		const steps = { 'disk-image': diskImage, archive, 'install-script': installScriptStep, npm };
-		steps[options.step](identity, work);
+		if (options.step === 'update') {
+			update(options, work, progress);
+		} else {
+			const steps = { 'disk-image': diskImage, archive, 'install-script': installScriptStep, npm };
+			steps[options.step](identity, work);
+		}
 	} catch (error) {
 		process.stderr.write(`${error.message}\n`);
 		process.exitCode = error instanceof UsageError ? 2 : 1;
+		// The channel must not move to a release nobody could update to.
+		if (options?.step === 'update' && !(error instanceof UsageError))
+			process.stderr.write(updateFailureAdvice(options.version, progress.stage));
 	} finally {
 		if (work !== undefined && pending.mount === undefined)
 			rmSync(work, { recursive: true, force: true });

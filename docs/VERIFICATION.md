@@ -417,26 +417,43 @@ check.
   answer 404 to an anonymous request, so no check can run before publication.
 - Needs: `permissions: contents: read`, no secret and no environment; every request is an anonymous
   HTTPS GET to the public release with the system curl.
-- Does, in one job on a fresh `windows-latest` runner:
-  `node scripts/release-smoke-windows.mjs update <tag> --release <release download folder> --work <runner temp>`.
-  The version people have now is the one the tracked update pair names
-  (`apps/website/public/update/stable/windows-x86_64/` at the checked-out commit: the tag for a
-  release run, the chosen branch for a manual one), whose signature must verify with
-  `RELEASE_KEYS`. Its archive is fetched from the address the pair signs, checked against the
-  signed size and SHA-256, unpacked and installed by its own `install`; then
-  `<store root>\bin\orchbee.exe update` runs with `ORCHBEE_UPDATE_FEED` naming the release's
-  `orchbee-<version>-windows-x86_64.feed.json` asset and must report `activated` with the release's
-  version, after which `active.json` and the launcher's `--version` name it. Without a tracked pair
-  (the first update-capable release), or when the pair already names the release, the release
-  itself is installed from its archive and its `update` fills an empty scratch store through
-  `ORCHBEE_INSTALL_DIR`, which still exercises feed, download, unpacking, publication and activation
-  from GitHub. The scratch store sits beside the store root: the store refuses to create a missing
-  root below a folder other accounts can read, such as the runner's temporary folder.
+- Does, in one job per platform whose release builds update themselves, each on a fresh runner of
+  the one `release.yml` builds that row on (`windows-x86_64` on `windows-latest`, `macos-aarch64`
+  on `macos-15`, `macos-x86_64` on `macos-15-intel`; Linux release builds withhold `update`):
+  `node scripts/release-smoke-<windows|macos>.mjs update <tag> --release <release download folder> --work <runner temp>`,
+  whose shared flow is `scripts/release-update-check.mjs`. The rows run independently, so one
+  platform's failure leaves the others' results.
+- The version people have now is the one the row's tracked update pair names
+  (`apps/website/public/update/stable/<platform>/` at the checked-out commit: the tag for a release
+  run, the chosen branch for a manual one), whose signature must verify with `RELEASE_KEYS`. Its
+  archive (the `.zip` on Windows, the `.tar.gz` on macOS) is fetched from the address the pair
+  signs, checked against the signed size and SHA-256, unpacked with the system tar and installed by
+  its own `install`; then the installed command runs `update` with `ORCHBEE_UPDATE_FEED` naming
+  the release's `orchbee-<version>-<platform>.feed.json` asset and must report `activated` with
+  the release's version.
+  - Windows runs `<store root>\bin\orchbee.exe update`, after which `active.json` and the
+    launcher's `--version` name the release.
+  - macOS works with HOME and TMPDIR in the work folder, so the store root
+    `~/.local/share/orchbee`, the command link `~/.local/bin/orchbee` and the data root lie inside
+    it. It runs `update` through the link, after which `active.json` names the release, the
+    version's Client and the link answer `--version` with it, and the link names that Client; no
+    process may run from the work folder afterwards, and the work folder is deleted. The release
+    must be this Mac's own platform, so a row is never proven on the other architecture.
+- Without a tracked pair (the first update-capable release of a platform), or when the pair
+  already names the release, the release itself is installed from its archive and its `update`
+  fills an empty scratch store through `ORCHBEE_INSTALL_DIR`, which still exercises feed,
+  download, unpacking, publication and activation from GitHub. The scratch store sits beside the
+  store root: the store refuses to create a missing root below a folder other accounts can read,
+  such as the runner's temporary folder.
+- A release that publishes no row of a platform fails that platform's row at its feed, which
+  answers 404; move the channel only for the platforms the release published.
 - A failure names the stage that failed and tells the owner not to run `pnpm website:release`.
-  The step installs for real, so run it only on a disposable Windows machine. Its stand-in for a
-  rehearsal on one computer is a test build's stem with `--stem`, a loopback address for
-  `--release` serving the release's assets, and `--current` naming a folder with a test-signed
-  pair; only a test stem admits a loopback address.
+  The Windows step installs for real, so run it only on a disposable Windows machine; the macOS
+  step touches nothing outside its work folder. Their stand-in for a rehearsal on one computer is
+  a test build's stem with `--stem`, a loopback address for `--release` serving the release's
+  assets, and `--current` naming a folder with a test-signed pair; only a test stem admits a
+  loopback address. Either script refuses a release stem with a loopback address (exit 2), an
+  existing work folder, and a feed that is not public yet, which is how a draft answers.
 
 ## External-source audits
 

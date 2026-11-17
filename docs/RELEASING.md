@@ -82,10 +82,11 @@ repository>`. Print each public half with the command in
    is not a pre-release even for a beta: GitHub shows a Latest release on the repository page, and
    answers `/releases/latest`, only for a release that is not one.
 6. Wait for the update check: the publication job starts Actions › Update check for the tag,
-   which on a fresh runner installs the version people have now and updates it to the release
-   through `orchbee update` from the published assets
-   ([Update check workflow](VERIFICATION.md#update-check-workflow)). Go on only when it passes; to
-   run it again, Run workflow with the tag, or
+   which on a fresh runner of each platform whose release builds update themselves, Windows and
+   both macOS rows, installs the version people have now and updates it to the release through
+   `orchbee update` from the published assets
+   ([Update check workflow](VERIFICATION.md#update-check-workflow)). Go on only when every row
+   passes; to run it again, Run workflow with the tag, or
    `gh workflow run update-check.yml --ref main -f tag=v0.1.0-beta.1`. A release published by
    hand starts it too.
 7. Move the website to the release once the update check passed: on `main`, run

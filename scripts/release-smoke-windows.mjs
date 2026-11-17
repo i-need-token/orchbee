@@ -32,20 +32,15 @@
 // - leftovers: once the removal has settled, nothing of the identity remains in %LOCALAPPDATA%,
 //   %APPDATA% or %TEMP%, among the uninstall registrations, or in the user `Path`; the data root stays.
 // - update: a published release can be updated to, the check that runs before the update channel
-//   moves. The version people have now is the one the website's tracked update pair names
-//   (apps/website/public/update/stable/windows-x86_64/, or the folder `--current` names), whose
-//   signature must verify. Its archive, fetched from the address that pair signs and checked against
-//   the signed size and SHA-256, is unpacked and installed by its own `install`; then
-//   `<store root>\bin\<stem>.exe update` runs with `ORCHBEE_UPDATE_FEED` naming the release's
-//   `<stem>-<version>-windows-x86_64.feed.json` in the assets folder, and must activate the
-//   release, which the pointer and the launcher's `--version` then name. Without a tracked pair, or
-//   when the pair already names the release, no older version can update: the release is installed
-//   from its own archive and its `update` fills an empty scratch store (`ORCHBEE_INSTALL_DIR`) beside
-//   the store root, which still proves feed, download, unpacking, publication and activation. Every request is an
-//   anonymous GET with the system curl. The assets address is the release's download folder over
-//   HTTPS; only a test build's stem admits `http://127.0.0.1:<port>/…/`, a loopback server standing
-//   in for it, together with feeds that name their archive by a path relative to that address. A
-//   failure names the stage and tells the owner not to move the update channel.
+//   moves (scripts/release-update-check.mjs). The version people have now is the one the website's
+//   tracked update pair names (apps/website/public/update/stable/windows-x86_64/, or the folder
+//   `--current` names). It is installed from its published archive by its own `install` into the
+//   store root (`ORCHBEE_INSTALL_DIR`, or the default); then `<store root>\bin\<stem>.exe update`
+//   runs with `ORCHBEE_UPDATE_FEED` naming the release's `<stem>-<version>-windows-x86_64.feed.json`
+//   in the assets folder, and must activate the release, which the pointer and the launcher's
+//   `--version` then name. Without an older tracked version, the release's `update` fills an empty
+//   scratch store beside the store root. A failure names the stage and tells the owner not to move
+//   the update channel.
 // - gate: one path of the release gate (proposals/platform/automatic-updates.md#the-release-gate),
 //   from an older published release to the release being made, before Publish. `--release` is the
 //   older release's assets address, read as `update` reads one; `--feed` is the new release's signed
@@ -87,11 +82,24 @@ import {
 	FEED_LIMIT,
 	feedName,
 	GATE_FEED_SUFFIX,
-	readFeed,
 	validVersion,
 } from './release-feed.mjs';
-import { FEED_DOMAIN, keyTable, verifySignature } from './sign-release-manifest.mjs';
-import { curl, fileFacts } from './website-release.mjs';
+import {
+	admittedStem,
+	assetsSource,
+	fetchArchive,
+	fetchAsset,
+	installRelease,
+	parseUpdateArguments,
+	SIGNATURE_LIMIT,
+	StepFailure,
+	unpackRelease,
+	updateCheck,
+	updateFailureAdvice,
+	UsageError,
+	verifiedFeed,
+} from './release-update-check.mjs';
+import { fileFacts } from './website-release.mjs';
 
 const usage =
 	'Usage: node scripts/release-smoke-windows.mjs <install|uninstall> <artifacts> --logs <absolute directory>\n' +
@@ -116,22 +124,8 @@ const silentSwitches = ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'];
 // Bounds of the name scan below each profile folder.
 const scanDepth = 8;
 const scanEntries = 500_000;
-// The update check: the one platform the release workflow publishes, the website's tracked pair of
-// its stable channel, and the updater's bound on a signature document.
+// The one Windows platform the update check and the release gate update.
 const updatePlatform = 'windows-x86_64';
-const trackedPair = fileURLToPath(
-	new URL(`../apps/website/public/update/stable/${updatePlatform}/`, import.meta.url),
-);
-const signatureSource = fileURLToPath(
-	new URL('../apps/orchbee/src/cli/update/signature.rs', import.meta.url),
-);
-const signatureLimit = 4 * 1024;
-const updateStem = /^(?:orchbee|ob-test-[0-9a-f]{16})$/u;
-const loopbackAssets = /^http:\/\/127\.0\.0\.1:\d{1,5}\/(?:[^\s?#]*\/)?$/u;
-const httpsAssets = /^https:\/\/[^\s?#]+\/$/u;
-
-class UsageError extends Error {}
-class StepFailure extends Error {}
 
 function system32(program) {
 	return path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', program);
@@ -720,93 +714,12 @@ function leftovers(identity) {
 	log(`Nothing of ${identity.stem} remains${kept}.`);
 }
 
-/** Where the update check's requests go: the release's download folder, or a loopback stand-in. */
-function assetsSource(address, stem) {
-	if (loopbackAssets.test(address)) {
-		if (stem === 'orchbee')
-			throw new UsageError('Only a test build reads a loopback stand-in for the release assets');
-		return { kind: 'loopback', base: address };
-	}
-	if (httpsAssets.test(address)) return { kind: 'https', base: address };
-	throw new UsageError(usage);
-}
-
-/** Downloads `url` into `output`, at most `limit` bytes; `missing` says what a 404 means. */
-function fetchAsset(source, url, output, limit, missing) {
-	const { status, tooLarge } = curl(source, url, { output, limit });
-	if (tooLarge) throw new StepFailure(`${url} is longer than ${limit} bytes`);
-	if (status === 404) throw new StepFailure(missing);
-	if (status !== 200) throw new StepFailure(`${url} answered ${status}`);
-}
-
-/** The archive `feed` names, downloaded into `work` and checked against its signed size and SHA-256. */
-function fetchArchive(source, feed, work, name) {
-	const { url, size, sha256: digest } = feed.archive;
-	// A release names its archive absolutely; a stand-in's lies beside its assets.
-	if (absoluteArchive(url) === (source.kind === 'loopback'))
-		throw new StepFailure(
-			`The feed of ${feed.version} names its archive by ${url}, which a ${source.kind === 'loopback' ? 'stand-in' : 'release'} check does not fetch`,
-		);
-	const address = new URL(url, source.base).href;
-	const output = path.join(work, `${name}.zip`);
-	fetchAsset(
-		source,
-		address,
-		output,
-		size,
-		`The archive of ${feed.version} is not public at ${address}`,
-	);
-	const facts = fileFacts(output);
-	if (facts.size !== size || facts.sha256 !== digest)
-		throw new StepFailure(
-			`The archive of ${feed.version} at ${address} does not match the size and SHA-256 its feed signs`,
-		);
-	log(`Fetched ${address}: ${size} bytes, SHA-256 as signed`);
-	return output;
-}
-
-/** Unpacks `archive` with the system tar into `work\<name>` and reads its one release directory. */
-function unpackRelease(archive, work, name, version) {
-	const folder = path.join(work, name);
-	mkdirSync(folder);
-	expectStatus(
-		run(system32('tar.exe'), ['-x', '-f', archive, '-C', folder]),
-		0,
-		`tar -x ${path.basename(archive)}`,
-	);
-	const entries = readdirSync(folder, { withFileTypes: true });
-	if (entries.length !== 1 || !entries[0].isDirectory())
-		throw new StepFailure(`${path.basename(archive)} does not hold exactly one release directory`);
-	const directory = path.join(folder, entries[0].name);
-	return { directory, ...readRelease(directory, version) };
-}
-
 /** The store root `stem` installs into, as the program computes it. */
 function storeRootOf(stem, environment) {
 	return (
 		environment.ORCHBEE_INSTALL_DIR ??
 		path.join(environment.LOCALAPPDATA ?? '', 'Programs', stem === 'orchbee' ? 'Orchbee' : stem)
 	);
-}
-
-/** Runs `program <argv> --format json`; `document` is the parsed output, or null. */
-function runDocument(program, argv, env) {
-	log(`> ${program} ${argv.join(' ')} --format json`);
-	const result = run(program, [...argv, '--format', 'json'], { env, deadline: setupDeadline });
-	try {
-		return { ...result, document: JSON.parse(result.stdout) };
-	} catch {
-		return { ...result, document: null };
-	}
-}
-
-/** What a failed `install` or `update` document says, for the failure sentence. */
-function documentFailure(what, ran) {
-	const result = ran.document?.result ?? {};
-	const facts = ['error', 'phase', 'activated', 'upToDate', 'releaseVersion']
-		.filter((member) => member in result)
-		.map((member) => `${member} ${JSON.stringify(result[member])}`);
-	return `${what} exited ${ran.status}${facts.length > 0 ? ` (${facts.join(', ')})` : ''}`;
 }
 
 /** Requires `storeRoot` to run `version`: its pointer and its launcher's `--version` name it. */
@@ -826,127 +739,22 @@ function expectActive(storeRoot, stem, version, env) {
 	log(`${storeRoot} runs ${version}: active.json and ${stem}.exe --version agree.`);
 }
 
-/** Installs an unpacked release directory into a store root that does not exist yet. */
-function installRelease(release, storeRoot, env) {
-	if (existsSync(storeRoot))
-		throw new StepFailure(`Refusing to install into an existing ${storeRoot}`);
-	const installed = runDocument(
-		path.join(release.directory, `${release.stem}.exe`),
-		['install'],
-		env,
-	);
-	if (installed.status !== 0 || installed.document?.result?.activated !== true)
-		throw new StepFailure(documentFailure('install', installed));
-	expectActive(storeRoot, release.stem, release.manifest.version, env);
-}
-
 /**
- * The feed document `feed` with its signature `signature`, verified with the key table of `stem`'s
- * build and read; `what` names the pair in a failure.
+ * How the update check and the release gate install and update on Windows: in the user's own store
+ * root, or the one `ORCHBEE_INSTALL_DIR` names, with this process's environment.
  */
-function verifiedFeed(feed, signature, stem, what) {
-	if (feed.length > FEED_LIMIT || signature.length > signatureLimit)
-		throw new StepFailure(`${what} exceeds the updater's bounds`);
-	const table = keyTable(
-		readFileSync(signatureSource, 'utf8'),
-		stem === 'orchbee' ? 'RELEASE_KEYS' : 'TEST_KEYS',
-	);
-	const { outcome: verified } = verifySignature(feed, signature, table ?? [], FEED_DOMAIN);
-	if (verified !== 'trusted') throw new StepFailure(`${what} does not verify (${verified})`);
-	const admitted = readFeed(feed, { platform: updatePlatform });
-	if (admitted.problems.length > 0)
-		throw new StepFailure(`${what}: ${admitted.problems.join('; ')}`);
-	return admitted.feed;
-}
-
-/** The feed of the tracked update pair in `folder`, verified, or undefined when none is tracked. */
-function trackedFeed(folder, stem) {
-	const feedFile = path.join(folder, 'feed.json.signed');
-	if (!existsSync(feedFile)) return undefined;
-	return verifiedFeed(
-		readFileSync(feedFile),
-		readFileSync(path.join(folder, 'feed.json.sig')),
-		stem,
-		`The tracked update pair in ${folder}`,
-	);
-}
-
-/** The update check after publication; `progress.stage` names what a failed step was doing. */
-function updateCheck(options, progress) {
-	const { version, stem, work } = options;
-	const source = assetsSource(options.release, stem);
-	if (existsSync(work)) throw new StepFailure(`Refusing to work in an existing ${work}`);
-	mkdirSync(work, { recursive: true });
-	const name = feedName(stem, version, updatePlatform);
-	const feedAddress = new URL(name, source.base).href;
-
-	progress.stage = `fetching ${name}`;
-	const feedFile = path.join(work, name);
-	fetchAsset(
-		source,
-		feedAddress,
-		feedFile,
-		FEED_LIMIT,
-		`${name} is not public at ${feedAddress}. If v${version} is still a draft, re-run the failed jobs of its release run, which also starts this check again`,
-	);
-	fetchAsset(
-		source,
-		`${feedAddress}.sig`,
-		`${feedFile}.sig`,
-		signatureLimit,
-		`${name}.sig is not public at ${feedAddress}.sig`,
-	);
-	// `update` verifies the feed itself; the check reads it only to find the archive.
-	const offered = readFeed(readFileSync(feedFile), { platform: updatePlatform });
-	if (offered.problems.length > 0 || offered.feed.version !== version)
-		throw new StepFailure(
-			`${feedAddress} is not a feed of ${version}: ${offered.problems.join('; ') || `it names ${offered.feed.version}`}`,
-		);
-
-	progress.stage = 'reading the version people have now from the tracked update pair';
-	const current = trackedFeed(options.current, stem);
-	const env = Object.fromEntries(
-		Object.entries(process.env).filter(([variable]) => variable !== 'ORCHBEE_UPDATE_FEED'),
-	);
-	const storeRoot = storeRootOf(stem, env);
-	let updated = { root: storeRoot, env: { ...env, ORCHBEE_UPDATE_FEED: feedAddress } };
-	if (current !== undefined && current.version !== version) {
-		log(`The tracked update pair names ${current.version}, the version people have now.`);
-		progress.stage = `installing ${current.version}, the version people have now`;
-		const archive = fetchArchive(source, current, work, 'current');
-		installRelease(unpackRelease(archive, work, 'current', current.version), storeRoot, env);
-	} else {
-		log(
-			current === undefined
-				? `No update pair is tracked, so no older version can update: ${version} updates an empty store.`
-				: `The tracked update pair already names ${version}: it updates an empty store.`,
-		);
-		progress.stage = `installing ${version} from its own archive`;
-		const archive = fetchArchive(source, offered.feed, work, 'release');
-		installRelease(unpackRelease(archive, work, 'release', version), storeRoot, env);
-		// Beside the store root, below the folder its install just admitted as private: the store
-		// refuses to create a missing root below a folder other accounts can read, such as the
-		// runner's temporary folder.
-		const empty = `${storeRoot}-update-check`;
-		if (existsSync(empty)) throw new StepFailure(`Refusing to update into an existing ${empty}`);
-		updated = { root: empty, env: { ...updated.env, ORCHBEE_INSTALL_DIR: empty } };
-	}
-
-	progress.stage = `running orchbee update to ${version}`;
-	const ran = runDocument(path.join(storeRoot, 'bin', `${stem}.exe`), ['update'], updated.env);
-	const result = ran.document?.result;
-	if (
-		ran.status !== 0 ||
-		result?.activated !== true ||
-		result?.upToDate === true ||
-		result?.releaseVersion !== version
-	)
-		throw new StepFailure(documentFailure('update', ran));
-
-	progress.stage = `checking that ${version} is active`;
-	expectActive(updated.root, stem, version, updated.env);
-	log(`${version} can be updated to. Move the update channel: pnpm website:release ${version}`);
-}
+const windowsPort = {
+	platform: updatePlatform,
+	tar: system32('tar.exe'),
+	client: (directory, stem) => path.join(directory, `${stem}.exe`),
+	environment: () =>
+		Object.fromEntries(
+			Object.entries(process.env).filter(([variable]) => variable !== 'ORCHBEE_UPDATE_FEED'),
+		),
+	storeRoot: storeRootOf,
+	updater: (storeRoot, stem) => path.join(storeRoot, 'bin', `${stem}.exe`),
+	expectActive,
+};
 
 /** A Client run by its path with `--format json`; `document` is the parsed output, or null. */
 function clientDocument(program, argv, env, quiet = false) {
@@ -1099,7 +907,7 @@ function probeFacts(entries) {
  */
 function gatePath(options, progress) {
 	const { older, stem, work } = options;
-	const source = assetsSource(options.release, stem);
+	const source = assetsSource(options.release, stem, usage);
 	if (existsSync(work)) throw new StepFailure(`Refusing to work in an existing ${work}`);
 
 	progress.stage = 'reading the gate feed';
@@ -1109,6 +917,7 @@ function gatePath(options, progress) {
 		gateBytes,
 		readFileSync(`${options.feed}.sig`),
 		stem,
+		updatePlatform,
 		`The gate feed ${options.feed}`,
 	);
 	const version = offered.version;
@@ -1129,9 +938,7 @@ function gatePath(options, progress) {
 		throw new StepFailure(`${beside} is not the archive the gate feed signs`);
 	options.version = version;
 
-	const env = Object.fromEntries(
-		Object.entries(process.env).filter(([variable]) => variable !== 'ORCHBEE_UPDATE_FEED'),
-	);
+	const env = windowsPort.environment();
 	const storeRoot = storeRootOf(stem, env);
 	const dataRoot = env.ORCHBEE_HOME ?? path.join(env.USERPROFILE ?? '', `.${stem}`);
 	if (existsSync(dataRoot))
@@ -1161,19 +968,25 @@ function gatePath(options, progress) {
 			source,
 			`${feedAddress}.sig`,
 			`${feedFile}.sig`,
-			signatureLimit,
+			SIGNATURE_LIMIT,
 			`${name}.sig is not public at ${feedAddress}.sig`,
 		);
 		const olderFeed = verifiedFeed(
 			readFileSync(feedFile),
 			readFileSync(`${feedFile}.sig`),
 			stem,
+			updatePlatform,
 			`The feed of ${older} at ${feedAddress}`,
 		);
 		if (olderFeed.version !== older)
 			throw new StepFailure(`${feedAddress} names ${olderFeed.version}, not ${older}`);
 		const archive = fetchArchive(source, olderFeed, work, 'older');
-		installRelease(unpackRelease(archive, work, 'older', older), storeRoot, env);
+		installRelease(
+			windowsPort,
+			unpackRelease(windowsPort, archive, work, 'older', older),
+			storeRoot,
+			env,
+		);
 
 		progress.stage = `starting the Session of ${older}`;
 		sessionStarted = true;
@@ -1334,7 +1147,7 @@ function parseGateArguments(argv) {
 		!path.isAbsolute(options.feed) ||
 		options.work === undefined ||
 		!path.isAbsolute(options.work) ||
-		!updateStem.test(stem)
+		!admittedStem(stem)
 	)
 		throw new UsageError(usage);
 	return {
@@ -1347,39 +1160,9 @@ function parseGateArguments(argv) {
 	};
 }
 
-function parseUpdateArguments(argv) {
-	const [tag, ...rest] = argv;
-	const options = {};
-	for (let index = 0; index < rest.length; index += 2) {
-		const [option, value] = [rest[index], rest[index + 1]];
-		if (!['--release', '--work', '--stem', '--current'].includes(option) || value === undefined)
-			throw new UsageError(usage);
-		options[option.slice(2)] = value;
-	}
-	const version = tag?.startsWith('v') ? tag.slice(1) : undefined;
-	const stem = options.stem ?? 'orchbee';
-	if (
-		!validVersion(version) ||
-		options.release === undefined ||
-		options.work === undefined ||
-		!path.isAbsolute(options.work) ||
-		!updateStem.test(stem) ||
-		(options.current !== undefined && !path.isAbsolute(options.current))
-	)
-		throw new UsageError(usage);
-	return {
-		step: 'update',
-		version,
-		stem,
-		release: options.release,
-		work: options.work,
-		current: options.current ?? trackedPair,
-	};
-}
-
 function parseArguments(argv) {
 	const [step, artifacts, ...rest] = argv;
-	if (step === 'update') return parseUpdateArguments(argv.slice(1));
+	if (step === 'update') return parseUpdateArguments(argv.slice(1), usage, updatePlatform);
 	if (step === 'gate') return parseGateArguments(argv.slice(1));
 	const options = {};
 	for (let index = 0; index < rest.length; index += 2) {
@@ -1415,7 +1198,10 @@ if (
 		if (process.platform !== 'win32') throw new StepFailure('This smoke test runs on Windows');
 		options = parseArguments(process.argv.slice(2));
 		if (options.step === 'update') {
-			updateCheck(options, progress);
+			if (existsSync(options.work))
+				throw new StepFailure(`Refusing to work in an existing ${options.work}`);
+			mkdirSync(options.work, { recursive: true });
+			updateCheck(options, progress, windowsPort, usage);
 		} else if (options.step === 'gate') {
 			gatePath(options, progress);
 		} else {
@@ -1434,9 +1220,7 @@ if (
 		process.exitCode = error instanceof UsageError ? 2 : 1;
 		// The channel must not move to a release nobody could update to.
 		if (options?.step === 'update' && !(error instanceof UsageError))
-			process.stderr.write(
-				`The update check of ${options.version} failed while ${progress.stage}. Do not run pnpm website:release ${options.version}. If a download failed for a passing reason, run this check again; otherwise leave the update channel where it is and release the next version.\n`,
-			);
+			process.stderr.write(updateFailureAdvice(options.version, progress.stage));
 		// A failing path stops the release before Publish.
 		if (options?.step === 'gate' && !(error instanceof UsageError))
 			process.stderr.write(
