@@ -15,7 +15,7 @@ pub use crate::rendezvous_types::{
 use crate::rendezvous_types::{
     SessionHolderObservation, SocketRole, endpoint_id, socket_leaf, socket_root,
 };
-use crate::{AdmissionRefusal, RefusalReason};
+use crate::{AdmissionRefusal, HeldLock, RefusalReason};
 use std::{
     ffi::OsStr,
     fs::{File, TryLockError},
@@ -65,7 +65,7 @@ pub enum LockAttempt {
 
 #[derive(Debug)]
 pub struct ModeCheckedSessionLock {
-    _file: File,
+    _file: HeldLock,
     runtime: PathBuf,
     /// The runtime lock this is, or `None` for the shared hold on the socket folder.
     kind: Option<LockKind>,
@@ -292,9 +292,8 @@ impl ModeCheckedLocalSessionRendezvous {
         let sockets = self.sockets.as_ref().ok_or(std::io::ErrorKind::NotFound)?;
         // A descriptor of its own, so dropping the lock releases it.
         let file = File::from(openat(sockets, ".", DIRECTORY_OPEN_FLAGS, Mode::empty())?);
-        file.lock_shared()?;
         Ok(ModeCheckedSessionLock {
-            _file: file,
+            _file: HeldLock::shared(file)?,
             runtime: self.paths.runtime_directory.clone(),
             kind: None,
         })
@@ -579,9 +578,8 @@ impl ModeCheckedLocalSessionRendezvous {
         };
         validate_lock_file(&descriptor, kind, &lock_path, expected_uid, created)?;
 
-        let file = File::from(descriptor);
-        match file.try_lock() {
-            Ok(()) => Ok(LockAttempt::Acquired(ModeCheckedSessionLock {
+        match HeldLock::try_exclusive(File::from(descriptor)) {
+            Ok(file) => Ok(LockAttempt::Acquired(ModeCheckedSessionLock {
                 _file: file,
                 runtime: self.paths.runtime_directory.clone(),
                 kind: Some(kind),
@@ -721,8 +719,8 @@ impl ModeCheckedLocalSessionRendezvous {
         {
             return Ok(SessionLifetimeObservation::Unsafe);
         }
-        let file = File::from(descriptor);
-        match file.try_lock() {
+        // A free lock is taken for the probe and released at once.
+        match HeldLock::try_exclusive(File::from(descriptor)).map(drop) {
             Ok(()) => Ok(SessionLifetimeObservation::Free),
             Err(TryLockError::WouldBlock) => Ok(SessionLifetimeObservation::Held),
             Err(TryLockError::Error(source)) => Err(source),
@@ -752,16 +750,17 @@ impl ModeCheckedLocalSessionRendezvous {
             false,
         )
         .map_err(std::io::Error::other)?;
-        let activation = File::from(descriptor);
-        let observation = match activation.try_lock() {
-            Ok(()) => self
-                .observe_session_lifetime_lock()
-                .map(SessionHolderObservation::Lifetime),
+        match HeldLock::try_exclusive(File::from(descriptor)) {
+            Ok(activation) => {
+                let observation = self
+                    .observe_session_lifetime_lock()
+                    .map(SessionHolderObservation::Lifetime);
+                drop(activation);
+                observation
+            }
             Err(TryLockError::WouldBlock) => Ok(SessionHolderObservation::ActivationHeld),
             Err(TryLockError::Error(source)) => Err(source),
-        };
-        drop(activation);
-        observation
+        }
     }
 
     /// Creates this environment's socket folder for the effective user when it is missing, admits
@@ -775,12 +774,11 @@ impl ModeCheckedLocalSessionRendezvous {
             openat(&sockets, ".", DIRECTORY_OPEN_FLAGS, Mode::empty())
                 .map_err(|error| system_error("open socket folder", &path, error))?,
         );
-        file.lock_shared()
-            .map_err(|source| RendezvousError::System {
-                operation: "hold socket folder",
-                path: path.clone(),
-                source,
-            })?;
+        let file = HeldLock::shared(file).map_err(|source| RendezvousError::System {
+            operation: "hold socket folder",
+            path: path.clone(),
+            source,
+        })?;
         Ok(ModeCheckedSessionLock {
             _file: file,
             runtime: path,
@@ -844,7 +842,7 @@ fn effective_uid() -> u32 {
 /// The Terminal Host lock of a runtime directory: free, and then held by the caller for as long
 /// as the file lives (none when no Host ever created it), or held by a Host.
 enum HostLock {
-    Free { _held: Option<File> },
+    Free { _held: Option<HeldLock> },
     Held,
 }
 
@@ -883,9 +881,8 @@ fn host_lock(runtime_directory: &Path, expected_uid: u32) -> std::io::Result<Hos
             "invalid Terminal Host lock",
         ));
     }
-    let file = File::from(descriptor);
-    match file.try_lock() {
-        Ok(()) => Ok(HostLock::Free { _held: Some(file) }),
+    match HeldLock::try_exclusive(File::from(descriptor)) {
+        Ok(held) => Ok(HostLock::Free { _held: Some(held) }),
         Err(TryLockError::WouldBlock) => Ok(HostLock::Held),
         Err(TryLockError::Error(source)) => Err(source),
     }

@@ -2,7 +2,7 @@
 //! and kept terminal output. The Server owns the retained document's meaning; the
 //! private filesystem adapter owns admission and atomic publication.
 use crate::{
-    DataRoot, ModeCheckedLocalSessionRendezvous,
+    DataRoot, HeldLock, ModeCheckedLocalSessionRendezvous,
     checkpoint_rotation::{self as rotation, Candidate, HEADER_BYTES, SLOTS},
     private_filesystem as permissions,
 };
@@ -30,7 +30,7 @@ pub struct CheckpointLoad<T> {
 pub struct SessionStore {
     pub(crate) directory: PathBuf,
     maximum_bytes: usize,
-    _lock: File,
+    _lock: HeldLock,
     _directories: Vec<File>,
 }
 
@@ -56,11 +56,11 @@ impl SessionStore {
             }
             Err(error) => return Err(error),
         };
-        match lock.try_lock() {
-            Ok(()) => {}
+        let lock = match HeldLock::try_exclusive(lock) {
+            Ok(lock) => lock,
             Err(TryLockError::WouldBlock) => return Err(io::ErrorKind::WouldBlock.into()),
             Err(TryLockError::Error(error)) => return Err(error),
-        }
+        };
         let store = Self {
             directory,
             maximum_bytes,

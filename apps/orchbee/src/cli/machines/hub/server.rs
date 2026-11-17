@@ -18,14 +18,14 @@ use orchbee_connection_handshake::{
     DrainResult, ExitResult, Extensions, ProcessRole, ProcessState, ReadError, RejectionReason,
     RequestKind, read_initiator_message,
 };
-use orchbee_local_runtime::{DataRoot, create_private_directory, machine_hub_endpoint};
+use orchbee_local_runtime::{DataRoot, HeldLock, create_private_directory, machine_hub_endpoint};
 use orchbee_machine_protocol::ByeReason;
 use orchbee_workbench_client::application::{
     machine_endpoint::{LocalListener, LocalStream, bind_locked, hold_folder},
     machine_hub,
 };
 use std::{
-    fs::{File, TryLockError},
+    fs::TryLockError,
     io::{self, Read},
     path::Path,
     sync::{
@@ -160,7 +160,7 @@ fn end_on_panic() {
 
 /// Opens `hub.lock` and takes it, or `None` when another hub holds it. The file is created when
 /// missing and never removed; the directories that pin it are released once it is open.
-fn take_lock(root: &DataRoot) -> io::Result<Option<File>> {
+fn take_lock(root: &DataRoot) -> io::Result<Option<HeldLock>> {
     let pins = create_private_directory(&root.machines())?;
     let path = root.machine_hub_lock();
     let file = match orchbee_local_runtime::private_filesystem::open_file(&path, false, true) {
@@ -175,8 +175,8 @@ fn take_lock(root: &DataRoot) -> io::Result<Option<File>> {
         opened => opened,
     }?;
     drop(pins);
-    match file.try_lock() {
-        Ok(()) => Ok(Some(file)),
+    match HeldLock::try_exclusive(file) {
+        Ok(lock) => Ok(Some(lock)),
         Err(TryLockError::WouldBlock) => Ok(None),
         Err(TryLockError::Error(error)) => Err(error),
     }

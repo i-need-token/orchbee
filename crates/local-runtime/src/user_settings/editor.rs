@@ -12,7 +12,7 @@ use super::{
     registry::{SETTING_KEYS, SettingDefault, SettingValue, find_setting, recognized_path},
     unknown_field, user_settings_path,
 };
-use crate::DataRoot;
+use crate::{DataRoot, HeldLock};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
@@ -20,8 +20,7 @@ use std::{
     fs::{self, File, OpenOptions, TryLockError},
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 use toml_edit::{DocumentMut, Item, TableLike};
 
@@ -554,7 +553,7 @@ fn commented(item: &Item) -> bool {
         .any(|raw| raw.as_str().is_none_or(|text| text.contains('#')))
 }
 
-fn acquire_lock(directory: &Path) -> Result<File, SettingsEditError> {
+fn acquire_lock(directory: &Path) -> Result<HeldLock, SettingsEditError> {
     platform::create_lock_directory(directory).map_err(io_failure)?;
     let lock = OpenOptions::new()
         .create(true)
@@ -562,16 +561,10 @@ fn acquire_lock(directory: &Path) -> Result<File, SettingsEditError> {
         .write(true)
         .open(directory.join(LOCK_NAME))
         .map_err(io_failure)?;
-    let deadline = Instant::now() + LOCK_WAIT;
-    loop {
-        match lock.try_lock() {
-            Ok(()) => return Ok(lock),
-            Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
-                thread::sleep(RETRY_PAUSE);
-            }
-            Err(TryLockError::WouldBlock) => return Err(SettingsEditError::Locked),
-            Err(TryLockError::Error(error)) => return Err(io_failure(error)),
-        }
+    match HeldLock::try_exclusive_within(lock, LOCK_WAIT, RETRY_PAUSE) {
+        Ok(lock) => Ok(lock),
+        Err(TryLockError::WouldBlock) => Err(SettingsEditError::Locked),
+        Err(TryLockError::Error(error)) => Err(io_failure(error)),
     }
 }
 

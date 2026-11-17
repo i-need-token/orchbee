@@ -3,13 +3,12 @@
 //! The CLI owns each record's fields and which platforms write them; this owner keeps the file
 //! private and bounded. Writing is best effort: a caller reports nothing and changes nothing when
 //! an append fails.
-use crate::private_filesystem as permissions;
+use crate::{HeldLock, private_filesystem as permissions};
 use std::{
     fs::{File, TryLockError},
     io::{self, Read, Seek, SeekFrom, Write},
     path::Path,
-    thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 const CURRENT: &str = "destructive-commands.jsonl";
@@ -34,10 +33,10 @@ pub fn append_destructive_request(record: &serde_json::Value) -> io::Result<()> 
         .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?
         .logs();
     let _pins = crate::data_root::create_state_directory(&directory)?;
-    let mut log = open_or_create(&directory.join(CURRENT))?;
-    lock(&log)?;
+    let held = lock(open_or_create(&directory.join(CURRENT))?)?;
+    let mut log: &File = &held;
     if log.metadata()?.len() + length > DESTRUCTIVE_LOG_ROTATION_BYTES {
-        rotate(&mut log, &directory.join(PREVIOUS))?;
+        rotate(log, &directory.join(PREVIOUS))?;
     }
     log.seek(SeekFrom::End(0))?;
     log.write_all(&line)
@@ -53,29 +52,23 @@ fn open_or_create(path: &Path) -> io::Result<File> {
 }
 
 /// Serializes concurrent invocations on the current log's own handle; the lock ends when the
-/// handle closes.
-fn lock(file: &File) -> io::Result<()> {
-    let deadline = Instant::now() + LOCK_WAIT;
-    loop {
-        match file.try_lock() {
-            Ok(()) => return Ok(()),
-            Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
-                thread::sleep(Duration::from_millis(10));
-            }
-            Err(TryLockError::WouldBlock) => return Err(io::ErrorKind::WouldBlock.into()),
-            Err(TryLockError::Error(error)) => return Err(error),
-        }
+/// returned owner drops.
+fn lock(file: File) -> io::Result<HeldLock> {
+    match HeldLock::try_exclusive_within(file, LOCK_WAIT, Duration::from_millis(10)) {
+        Ok(held) => Ok(held),
+        Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
+        Err(TryLockError::Error(error)) => Err(error),
     }
 }
 
 /// Copies the current lines over the previous generation, then empties the current log in place,
 /// so no rename has to wait for another reader's handle.
-fn rotate(log: &mut File, previous: &Path) -> io::Result<()> {
+fn rotate(mut log: &File, previous: &Path) -> io::Result<()> {
     let mut kept = open_or_create(previous)?;
     kept.set_len(0)?;
     log.seek(SeekFrom::Start(0))?;
     io::copy(
-        &mut Read::by_ref(log).take(DESTRUCTIVE_LOG_ROTATION_BYTES),
+        &mut Read::by_ref(&mut log).take(DESTRUCTIVE_LOG_ROTATION_BYTES),
         &mut kept,
     )?;
     log.set_len(0)

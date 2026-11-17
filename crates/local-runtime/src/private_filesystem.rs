@@ -46,7 +46,7 @@ pub(crate) use windows::{move_aside, open_ancestors, replace, require_exact_abso
 pub(crate) const MOMENTARY_HOLD: Duration = Duration::from_millis(500);
 
 /// How often a held operation tries again.
-const MOMENTARY_HOLD_POLL: Duration = Duration::from_millis(5);
+pub(crate) const MOMENTARY_HOLD_POLL: Duration = Duration::from_millis(5);
 
 /// Runs `attempt` again while `held` judges its outcome to be another handle's momentary hold, until
 /// [`MOMENTARY_HOLD`] passes; then that outcome stands, as does any other at once.

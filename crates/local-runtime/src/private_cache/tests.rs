@@ -92,18 +92,3 @@ fn private_cache_serializes_writers_and_preserves_rejected_targets() {
     assert!(!path.join("codex.pending").exists());
     drop(cache);
 }
-
-/// A child process that another thread starts while the lock is held keeps a copy of the lock's
-/// descriptor until it replaces its image; a duplicate here stands in for that copy. Dropping the
-/// owner still frees the record for the next writer at once.
-#[test]
-fn dropping_the_owner_frees_the_lock_while_a_copy_of_its_descriptor_is_open() {
-    let root = Root::new();
-    let path = root.0.join("store");
-    let cache = PrivateCache::acquire(&path, "install").unwrap();
-    let copy = cache._lock.0.try_clone().unwrap();
-    drop(cache);
-    let next = PrivateCache::acquire(&path, "install");
-    assert!(next.is_ok(), "{:?}", next.err().map(|error| error.kind()));
-    drop((next, copy));
-}

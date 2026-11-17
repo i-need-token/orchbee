@@ -33,6 +33,22 @@ Applications decide action visibility and localized feedback through their
 
 Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules. The Session catalog, durable and activation records, checkpoint store and persisted-data versions share one implementation over the [private storage seam](#private-storage-on-macos-and-linux); unimplemented registered-child operations return `io::ErrorKind::Unsupported` before effects. `CommandChild` retains one command and everything it starts: a Job on Windows, its own process group on Unix (see [retained commands](#retained-commands)). `NamedSessionDeleteReason::Unsupported` stays for a host without a catalog, which no supported host is now; keybinding reset uses the stable `platform` / `unsupported-platform` settings diagnosis. Existing Unix rendezvous, cohort and retained-child implementations remain with their own adapters.
 
+## File locks
+
+Every advisory file lock this crate takes, and the machine hub's `hub.lock`, is owned by a
+`HeldLock`, which unlocks the file with `File::unlock` before its descriptor closes: the record and
+cache writer locks, the Session namespace, record, checkpoint and TUI position locks, the activation
+and lifetime locks with their probes, the probe of the Terminal Host's lock, the shared hold on the
+POSIX socket folder, `version.lock`, `config.lock`, and the diagnostic and destructive logs. On
+macOS and Linux the lock is an `flock`, which belongs to the open file description and lasts while
+any descriptor of it is open, and a child process that another thread starts holds a copy of every
+descriptor until it replaces its image: closing alone left the lock held for that moment after its
+owner let go, and the next taker, in the same process or another, read `WouldBlock` with no other
+owner. A thread that starts its own child is not exposed, since the spawn returns only after the
+child closed its close-on-exec copies. A Windows handle is never inherited, and the same unlock
+releases its lock at once. The unlock is best effort; when it fails, the close releases the lock as
+before.
+
 ## Shared launch and notification policy
 
 `default_interactive_launch` owns pure platform shell selection and native executable admission,
@@ -412,13 +428,8 @@ Windows mechanism maps to a POSIX one:
 | Consistent reader           | A snapshot handle without delete sharing blocks a replacement while it is open                                                                                                   | A held descriptor keeps reading the version it opened, since no writer changes a published file in place; a reader never blocks a writer                                                                         |
 | Other platform checks       | None                                                                                                                                                                             | macOS also refuses an extended ACL and a volume mounted to ignore ownership; Linux checks no ACL                                                                                                                 |
 
-The writer lock's owner unlocks it with `File::unlock` before its descriptor closes. A child process
-that another thread starts while the lock is held keeps a copy of that descriptor until it replaces
-its image, and an `flock` lasts while any copy is open: closing alone left the lock held for a
-moment after its owner let go, and the next writer in the same process read `WouldBlock` with no
-other writer. A thread that starts its own child is not exposed, since the spawn returns only after
-the child closed its close-on-exec copies. A Windows handle is never inherited, and the same unlock
-releases its lock at once.
+The writer lock's owner is a [`HeldLock`](#file-locks), which unlocks it before its descriptor
+closes.
 
 Windows admits SYSTEM and Administrators as owners beside the token user because an elevated
 session of the same account owns what it creates through Administrators, and an elevated installer

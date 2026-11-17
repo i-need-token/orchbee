@@ -42,7 +42,9 @@ pub(super) fn append_in(
     capped: &[u8],
     stamp: Stamp,
 ) -> io::Result<()> {
-    let mut file = platform::open_daily(&directory.join(file_name(stamp.day)))?;
+    // The opened day holds the platform's writer exclusion until it drops; writes go through it.
+    let daily = platform::open_daily(&directory.join(file_name(stamp.day)))?;
+    let mut file: &fs::File = &daily;
     let first_today = PRUNED_DAY
         .lock()
         .map(|mut pruned| pruned.replace(stamp.day) != Some(stamp.day))

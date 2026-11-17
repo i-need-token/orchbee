@@ -1,9 +1,9 @@
 //! Native Windows refinement of the lock/marker state machine; pipes are not
 //! filesystem socket leaves and are authenticated only at connection admission.
-use crate::private_filesystem as permissions;
 use crate::rendezvous_types::{
     LockKind, RendezvousError, SessionHolderObservation, SessionLifetimeObservation, SessionScope,
 };
+use crate::{HeldLock, private_filesystem as permissions};
 use sha2::{Digest, Sha256};
 use std::{
     fs::{File, TryLockError},
@@ -25,7 +25,7 @@ pub enum LockAttempt {
 }
 #[derive(Debug)]
 pub struct ModeCheckedSessionLock {
-    _file: File,
+    _file: HeldLock,
     runtime: PathBuf,
     kind: LockKind,
 }
@@ -170,8 +170,8 @@ impl ModeCheckedLocalSessionRendezvous {
             }
             Err(error) => return Err(failure(&path, error)),
         };
-        match file.try_lock() {
-            Ok(()) => Ok(LockAttempt::Acquired(ModeCheckedSessionLock {
+        match HeldLock::try_exclusive(file) {
+            Ok(file) => Ok(LockAttempt::Acquired(ModeCheckedSessionLock {
                 _file: file,
                 runtime: self.runtime.clone(),
                 kind,
@@ -294,7 +294,8 @@ impl ModeCheckedLocalSessionRendezvous {
             }
             Err(error) => return Err(error),
         };
-        match file.try_lock() {
+        // A free lock is taken for the probe and released at once.
+        match HeldLock::try_exclusive(file).map(drop) {
             Ok(()) => Ok(SessionLifetimeObservation::Free),
             Err(TryLockError::WouldBlock) => Ok(SessionLifetimeObservation::Held),
             Err(TryLockError::Error(error)) => Err(error),
@@ -316,15 +317,17 @@ impl ModeCheckedLocalSessionRendezvous {
             }
             Err(error) => return Err(error),
         };
-        let observation = match activation.try_lock() {
-            Ok(()) => self
-                .observe_session_lifetime_lock()
-                .map(SessionHolderObservation::Lifetime),
+        match HeldLock::try_exclusive(activation) {
+            Ok(activation) => {
+                let observation = self
+                    .observe_session_lifetime_lock()
+                    .map(SessionHolderObservation::Lifetime);
+                drop(activation);
+                observation
+            }
             Err(TryLockError::WouldBlock) => Ok(SessionHolderObservation::ActivationHeld),
             Err(TryLockError::Error(error)) => Err(error),
-        };
-        drop(activation);
-        observation
+        }
     }
     pub fn client_socket_exists(&self) -> io::Result<bool> {
         orchbee_local_ipc::endpoint_exists(&self.client)

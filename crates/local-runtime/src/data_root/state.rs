@@ -6,7 +6,7 @@ use super::{
     platform::create_below_roots,
     version_record::{VersionRecord, read_record},
 };
-use crate::private_filesystem as permissions;
+use crate::{HeldLock, private_filesystem as permissions};
 use std::{
     fs::{self, File},
     io::{self, Write},
@@ -65,7 +65,7 @@ pub(crate) fn settle_version_record(root: &DataRoot) -> io::Result<()> {
 }
 
 /// Takes the record's writer lock, `internal/version.lock`, waiting for another writer.
-fn version_lock(root: &DataRoot) -> io::Result<File> {
+fn version_lock(root: &DataRoot) -> io::Result<HeldLock> {
     let lock_path = root.internal().join("version.lock");
     let lock = match permissions::open_file(&lock_path, true, true) {
         Ok(file) => file,
@@ -74,8 +74,7 @@ fn version_lock(root: &DataRoot) -> io::Result<File> {
         }
         Err(error) => return Err(error),
     };
-    lock.lock()?;
-    Ok(lock)
+    HeldLock::exclusive(lock)
 }
 
 /// The record at `path`, refused when this build cannot read its layout.

@@ -2,8 +2,8 @@
 //! `internal/sessions.lock`. Each Session keeps its records in `sessions/<session>/` and its
 //! runtime in `<base>/<session>/`, both folders named by the Session.
 use crate::{
-    ActivationState, DataRoot, LockAttempt, ModeCheckedLocalSessionRendezvous as Rendezvous,
-    SessionName,
+    ActivationState, DataRoot, HeldLock, LockAttempt,
+    ModeCheckedLocalSessionRendezvous as Rendezvous, SessionName,
     durable_sessions::{self as durable, CatalogRecord, Directory, Lifecycle, Record},
     private_filesystem as permissions,
     process_observation::ProcessSnapshot,
@@ -70,7 +70,7 @@ const TUI_POSITION_LOCK: &str = "tui-position.lock";
 pub struct SessionCatalog {
     base: PathBuf,
     durable: Directory,
-    _lock: File,
+    _lock: HeldLock,
     _directories: Vec<File>,
 }
 
@@ -116,11 +116,12 @@ impl SessionCatalog {
         };
         // A `session list` probes this lock for an instant; only a lock still held past that has
         // an owner.
-        match permissions::outlast_momentary_hold(
-            |attempt| matches!(attempt, Err(TryLockError::WouldBlock)),
-            || lock.try_lock(),
+        match HeldLock::try_exclusive_within(
+            lock,
+            permissions::MOMENTARY_HOLD,
+            permissions::MOMENTARY_HOLD_POLL,
         ) {
-            Ok(()) => Ok(Self {
+            Ok(lock) => Ok(Self {
                 durable: Directory::create(root)?,
                 base,
                 _lock: lock,
@@ -795,14 +796,14 @@ impl NamedSessionEntry {
     }
 }
 
-fn existing_lock(path: &Path, required: bool) -> io::Result<Option<File>> {
+fn existing_lock(path: &Path, required: bool) -> io::Result<Option<HeldLock>> {
     let file = match permissions::open_file(path, false, true) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound && !required => return Ok(None),
         Err(error) => return Err(error),
     };
-    match file.try_lock() {
-        Ok(()) => Ok(Some(file)),
+    match HeldLock::try_exclusive(file) {
+        Ok(lock) => Ok(Some(lock)),
         Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
         Err(TryLockError::Error(error)) => Err(error),
     }
@@ -876,7 +877,7 @@ struct IdleStorage {
     /// The Session folder holds checkpoint storage: its lock, a slot or a corrupt original.
     exists: bool,
     _pins: Vec<File>,
-    _lock: Option<File>,
+    _lock: Option<HeldLock>,
 }
 fn storage_guard(path: &Path) -> io::Result<IdleStorage> {
     let pins = match permissions::open_tree(path) {
@@ -906,11 +907,11 @@ fn storage_guard(path: &Path) -> io::Result<IdleStorage> {
         }
         Err(error) => return Err(error),
     };
-    match file.try_lock() {
-        Ok(()) => Ok(IdleStorage {
+    match HeldLock::try_exclusive(file) {
+        Ok(lock) => Ok(IdleStorage {
             exists: true,
             _pins: pins,
-            _lock: Some(file),
+            _lock: Some(lock),
         }),
         Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
         Err(TryLockError::Error(error)) => Err(error),
@@ -1027,14 +1028,14 @@ impl OwnedDirectory {
         }))
     }
 
-    fn try_existing_lock(&self, name: &str) -> io::Result<Option<File>> {
+    fn try_existing_lock(&self, name: &str) -> io::Result<Option<HeldLock>> {
         let file = match permissions::open_file(&self.path.join(name), false, true) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
         };
-        match file.try_lock() {
-            Ok(()) => Ok(Some(file)),
+        match HeldLock::try_exclusive(file) {
+            Ok(lock) => Ok(Some(lock)),
             Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
             Err(TryLockError::Error(error)) => Err(error),
         }

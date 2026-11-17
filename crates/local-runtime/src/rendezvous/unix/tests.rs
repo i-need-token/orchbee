@@ -847,13 +847,14 @@ fn lifetime_owner_removes_stale_sockets_but_not_a_held_hosts() -> TestResult {
         "{}.l",
         ModeCheckedLocalSessionRendezvous::host_endpoint_id(&runtime)
     ));
-    let held = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&host_lock)?;
-    held.try_lock()?;
+    let held = HeldLock::try_exclusive(
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&host_lock)?,
+    )?;
     assert!(host_lock_held(&runtime)?);
 
     let lifetime = acquired(session.try_acquire_session_lifetime_lock()?)?;

@@ -2,8 +2,8 @@
 //! publication. Private lifecycle records, one `session.json` in each Session's folder, outlive the
 //! runtime folder. Effects derive their paths from admission.
 use crate::{
-    ActivationState, DataRoot, ModeCheckedLocalSessionRendezvous as Rendezvous, SessionName,
-    private_filesystem as permissions, process_registration::SessionProcesses,
+    ActivationState, DataRoot, HeldLock, ModeCheckedLocalSessionRendezvous as Rendezvous,
+    SessionName, private_filesystem as permissions, process_registration::SessionProcesses,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -285,7 +285,7 @@ impl Directory {
         Ok(Some(record))
     }
     /// Acquires the record's writer lock, creating the Session folder and the lock on first use.
-    pub(crate) fn try_writer(&self, scope: &str) -> io::Result<File> {
+    pub(crate) fn try_writer(&self, scope: &str) -> io::Result<HeldLock> {
         let path = self.record_path(scope, RECORD_LOCK)?;
         let _folder = crate::data_root::create_state_directory(&self.folder(scope))?;
         let file = match permissions::open_file(&path, true, true) {
@@ -295,21 +295,21 @@ impl Directory {
             }
             Err(error) => return Err(error),
         };
-        match file.try_lock() {
-            Ok(()) => Ok(file),
+        match HeldLock::try_exclusive(file) {
+            Ok(writer) => Ok(writer),
             Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
             Err(TryLockError::Error(error)) => Err(error),
         }
     }
-    pub(crate) fn existing_writer(&self, scope: &str) -> io::Result<Option<File>> {
+    pub(crate) fn existing_writer(&self, scope: &str) -> io::Result<Option<HeldLock>> {
         let path = self.record_path(scope, RECORD_LOCK)?;
         let file = match permissions::open_file(&path, false, true) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
         };
-        match file.try_lock() {
-            Ok(()) => Ok(Some(file)),
+        match HeldLock::try_exclusive(file) {
+            Ok(writer) => Ok(Some(writer)),
             Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
             Err(TryLockError::Error(error)) => Err(error),
         }

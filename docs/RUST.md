@@ -278,6 +278,10 @@ native types; do not reproduce TypeScript file-count or syntax conventions.
   external effect; preserve its identity and the contract's reconciliation or failure outcome.
 - Bound input lengths, decoded collections, queues, retries, concurrency, and per-dispatch work.
   Every bound has an observable rejection, backpressure, truncation, or cancellation outcome.
+- An advisory file lock is held through `orchbee-local-runtime`'s `HeldLock`, which unlocks it
+  before its descriptor closes. On macOS and Linux an `flock` lasts while any copy of its
+  descriptor is open, and a child that another thread starts holds copies until it replaces its
+  image, so a lock released by closing alone can still refuse the next taker.
 - State which invariant each lock protects, the order for acquiring multiple locks, and the
   failure policy for a poisoned lock. Never hold a synchronous lock across `.await`, IPC,
   filesystem or process waits, callbacks, or blocking computation. Isolate unavoidable blocking

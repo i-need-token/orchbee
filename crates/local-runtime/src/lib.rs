@@ -33,6 +33,8 @@ mod host_name;
 pub use host_name::local_host_name;
 mod local_clock;
 pub use local_clock::{LocalClock, local_clock};
+mod file_lock;
+pub use file_lock::HeldLock;
 mod private_cache;
 pub use private_cache::PrivateCache;
 mod release_store;

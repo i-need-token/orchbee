@@ -518,7 +518,7 @@ fn symlink_file(target: &Path, link: &Path) -> io::Result<()> {
 #[cfg(windows)]
 #[test]
 fn a_file_held_open_is_retried_then_reported() {
-    use std::os::windows::fs::OpenOptionsExt;
+    use std::{os::windows::fs::OpenOptionsExt, thread};
     let fixture = Fixture::new();
     fixture.write("[terminal]\nrestore_output = true\n");
     let hold = || {
