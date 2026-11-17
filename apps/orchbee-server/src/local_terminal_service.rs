@@ -64,6 +64,7 @@ mod tab_create;
 mod tab_duplicate;
 mod tab_set_close;
 mod terminal_output;
+mod terminal_runtime;
 mod viewer_connection;
 mod workspace_directory;
 mod workspace_git;
@@ -193,7 +194,7 @@ impl LocalTerminalService {
 
     /// The Session's terminal-runtime state, which the Worker replacement sets and the
     /// `workbench.terminal-runtime` read answers from.
-    #[expect(dead_code, reason = "the Worker replacement and the read reach it")]
+    #[expect(dead_code, reason = "the Worker replacement reaches it")]
     pub(crate) fn terminal_runtime(&self) -> &Arc<crate::terminal_runtime::TerminalRuntime> {
         &self.terminal_runtime
     }

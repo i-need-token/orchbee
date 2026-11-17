@@ -21,6 +21,8 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         | WorkbenchRequest::CurrentDirectory(_) => true,
         // A refresh changes only the catalog, which publishes its own revisions.
         WorkbenchRequest::AgentCatalog(_) => true,
+        // The state publishes its own revisions.
+        WorkbenchRequest::TerminalRuntime(_) => true,
         WorkbenchRequest::Configuration(request) => {
             matches!(request.action, ConfigurationAction::Current)
         }

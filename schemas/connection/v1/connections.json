@@ -6,7 +6,8 @@
 			"capabilities": [
 				{ "name": "agent-input-area", "addedIn": "0.1.0" },
 				{ "name": "compatibility-window", "addedIn": "0.1.0-beta.14" },
-				{ "name": "prompt-gated-input", "addedIn": "0.1.0" }
+				{ "name": "prompt-gated-input", "addedIn": "0.1.0" },
+				{ "name": "terminal-runtime", "addedIn": "0.1.0-beta.14" }
 			],
 			"fingerprintInputs": [
 				"crates/agent-observation-protocol/src",
@@ -261,6 +262,9 @@
 		{
 			"path": "schemas/workbench/v1/workbench-tab-set-close-conformance-v1.json",
 			"sha256": "175b5c401db50aefec8daa44befdd9c9fbe8e0077a5d878144c749df717d2ab8"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-terminal-runtime-conformance-v1.json"
 		},
 		{
 			"path": "schemas/workbench/v1/workbench-window-title-conformance-v1.json",

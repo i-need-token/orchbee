@@ -357,6 +357,18 @@ catalog. The integration tests also check that the
 [Agent start rows corpus](../../schemas/workbench/README.md#cross-client-parity-sources) is well
 formed; the row model that must produce its rows belongs to the native Client.
 
+## Terminal-runtime reads
+
+`TerminalRuntimeRequest`/`TerminalRuntimeResult` add `workbench.terminal-runtime` and its
+`.result`, OBWP kinds 77/78. The request names only the Session; an outcome is `current` with a
+`WorkbenchTerminalRuntime` (a nonzero revision and a `TerminalRuntimeState` of `serving`,
+`reconnecting` or `given-up`) or `failed` with `denied` or `unavailable`.
+`TerminalRuntimeResult::validate` refuses revision zero; both keep the 16 KiB intent cap. Exact
+request/Session correlation is mandatory, and the read changes no Workbench state. The
+[schema and shared corpus](../../schemas/workbench/README.md#session-terminal-runtime-reads) cover
+both Rust and TypeScript; the [Server](../../apps/orchbee-server/README.md#terminal-runtime) owns
+the state.
+
 ## Plugin overlay observation and Client return identity
 
 Read-only `PanelObserve` carries exact `PluginPaneInfo`; `PanelObserved` echoes it with a nonzero canonical revision and a boolean settlement fact. Correlation includes selector, context/Tab/Panel/Presentation and binding. It grants no lifecycle mutation. Private Client `Overlay` control carries the created bound member, exact nullable return member and previous zoom. Validation rejects self-return identities; Applied requires the requested focused member, zoom and multiple leaves. Required nullability and semantic failures share the Rust/TypeScript corpus. [Windows plugins](../../apps/orchbee/docs/windows-plugins.md#overlay-lifecycle-model) owns runtime records, observation cleanup and canonical Close. These extensions require the matched native cohort and add no Desktop command.

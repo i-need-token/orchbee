@@ -77,22 +77,11 @@ impl TerminalRuntime {
     }
 
     /// The state as it stands.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the workbench.terminal-runtime read answers from it"
-        )
-    )]
     pub(crate) fn current(&self) -> TerminalRuntimeSnapshot {
         *self.lock()
     }
 
     /// Wakes `signal` after every later revision, so a State stream rereads the state then.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the workbench.terminal-runtime stream watches it")
-    )]
     pub(crate) fn watch(&self, signal: &Arc<SessionChangeSignal>) {
         self.watchers.watch(signal);
     }

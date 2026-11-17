@@ -422,6 +422,16 @@ also checks that the
 [Agent start rows corpus](../../schemas/workbench/README.md#cross-client-parity-sources) is well
 formed against the catalog schema; the row model that must produce its rows belongs to the GUI.
 
+## Terminal-runtime reads
+
+`workbench-terminal-runtime-contract.ts` joins the main request/response unions with
+`workbench.terminal-runtime`, which names only the Session, and its `current`/`failed` outcomes. A
+`current` outcome carries a nonzero revision and a `serving`, `reconnecting` or `given-up` state,
+read through the parsed response union. It consumes the
+[shared corpus](../../schemas/workbench/v1/workbench-terminal-runtime-conformance-v1.json) and
+[schema](../../schemas/workbench/v1/workbench-terminal-runtime.schema.json) with the independent
+Rust binding. The [Server](../../apps/orchbee-server/README.md#terminal-runtime) owns the state.
+
 ## Agent integration jobs
 
 `workbench-agent-integration-contract.ts` joins the main request/response unions with the job

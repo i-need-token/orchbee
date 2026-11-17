@@ -1,0 +1,95 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-terminal-runtime.schema.json",
+	"title": "Session terminal-runtime read",
+	"$defs": {
+		"runtime": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["revision", "state"],
+			"properties": {
+				"revision": {
+					"$comment": "Starts at 1 and advances on each change of the state.",
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision",
+					"not": {
+						"const": "0"
+					}
+				},
+				"state": {
+					"$comment": "serving: a Worker serves the terminals. reconnecting: the Server is replacing a lost Worker. given-up: it stopped trying until the Session stops.",
+					"enum": ["serving", "reconnecting", "given-up"]
+				}
+			}
+		}
+	},
+	"oneOf": [
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "sessionId"],
+			"properties": {
+				"kind": {
+					"const": "workbench.terminal-runtime"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				}
+			}
+		},
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
+			"properties": {
+				"kind": {
+					"const": "workbench.terminal-runtime.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "runtime"],
+							"properties": {
+								"kind": {
+									"const": "current"
+								},
+								"runtime": {
+									"$ref": "#/$defs/runtime"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": ["denied", "unavailable"]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	]
+}

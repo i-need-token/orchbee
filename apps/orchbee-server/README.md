@@ -1294,6 +1294,14 @@ Server replaces a lost Worker, or `GivenUp` once it stops trying until the Sessi
 wakes its watchers, held weakly and woken after its lock is released, so a change never waits on a
 Client connection. The Worker replacement is its only writer.
 
+The read-only [`workbench.terminal-runtime`](../../schemas/workbench/README.md#session-terminal-runtime-reads)
+answers from it: `current` for the Session's own Workbench, `denied` for another Session and
+`unavailable` before the Workbench exists. Its State streams follow only this state's revisions,
+never commits or terminal output; a change wakes every watching connection, which rereads the state
+once and sends a frame only when the bytes changed, so a slow Client receives the latest state
+rather than a backlog. The Server advertises the read as the `client-server` capability
+`terminal-runtime`.
+
 ## Agent start delivery
 
 Every Tab, split, Workspace or Worktree creation that carried `agentStart` hands its started

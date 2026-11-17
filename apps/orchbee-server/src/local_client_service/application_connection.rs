@@ -255,6 +255,10 @@ impl ApplicationRequest {
     pub(super) fn follows_agent_catalog(&self) -> bool {
         matches!(self.workbench(), Some(WorkbenchRequest::AgentCatalog(_)))
     }
+    /// A terminal-runtime read, whose value changes only with that state's own revisions.
+    pub(super) fn follows_terminal_runtime(&self) -> bool {
+        matches!(self.workbench(), Some(WorkbenchRequest::TerminalRuntime(_)))
+    }
     pub(super) fn requires_sampling(&self) -> bool {
         // Host output and external filesystem/process state currently expose snapshot reads,
         // not change notifications. Commit-backed state, settings included, uses notifications.

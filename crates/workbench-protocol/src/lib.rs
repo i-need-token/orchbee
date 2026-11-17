@@ -75,6 +75,10 @@ pub use command::{
     PaneGraphicsResult, PaneGraphicsStreamImage, PaneGraphicsTarget, PaneGraphicsTransport,
     graphics_base64_bytes, graphics_layer_id, graphics_rgba_bytes,
 };
+pub use command::{
+    TerminalRuntimeFailure, TerminalRuntimeOutcome, TerminalRuntimeRequest, TerminalRuntimeResult,
+    TerminalRuntimeState, WorkbenchTerminalRuntime,
+};
 mod directory;
 mod identity;
 mod layout_template;

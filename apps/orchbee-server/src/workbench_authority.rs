@@ -191,6 +191,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorkspaceGit(_)
             | WorkbenchRequest::CurrentDirectory(_)
             | WorkbenchRequest::AgentCatalog(_)
+            | WorkbenchRequest::TerminalRuntime(_)
             | WorkbenchRequest::ConfiguredCommand(_)
             | WorkbenchRequest::Events(_)
             | WorkbenchRequest::PaneGraphics(_)) => Err(request),

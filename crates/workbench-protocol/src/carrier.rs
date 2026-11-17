@@ -89,6 +89,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::TerminalRuntime(_) => 77,
         WorkbenchRequest::AgentCatalog(_) => 75,
         WorkbenchRequest::SessionStop(_) => 73,
         WorkbenchRequest::TabDuplicate(_) => 69,
@@ -143,6 +144,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::TerminalRuntime(_) => 78,
         WorkbenchResponse::AgentCatalog(_) => 76,
         WorkbenchResponse::SessionStop(_) => 74,
         WorkbenchResponse::TabDuplicate(_) => 70,
@@ -233,6 +235,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 69
                     | 73
                     | 75
+                    | 77
             ))
         || (!request
             && !matches!(
@@ -271,6 +274,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 70
                     | 74
                     | 76
+                    | 78
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);

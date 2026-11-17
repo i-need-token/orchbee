@@ -854,6 +854,22 @@ product names of at most 64 UTF-8 bytes, and the 32 KiB result limit; the reques
 intent cap. The [Server](../../apps/orchbee-server/README.md#agent-catalog) owns the lookup and
 publication.
 
+## Session terminal-runtime reads
+
+[`workbench-terminal-runtime.schema.json`](v1/workbench-terminal-runtime.schema.json) owns
+`workbench.terminal-runtime` and its `.result`, OBWP kinds 77/78. The request names only the
+Session; it opens a State stream, whose first frame is the current state and which sends one frame
+per later revision. An outcome is `current` with a `runtime` or `failed` with `denied` or
+`unavailable`. A runtime carries a nonzero `revision` that advances on each change and a `state`:
+`serving` while a Worker serves the terminals, `reconnecting` while the Server replaces a lost one,
+or `given-up` once it stopped trying until the Session stops. A Client sends the read only to a
+Server whose `client-server` answer lists the
+[`terminal-runtime` capability](../connection/README.md#generation-registry). The
+[shared corpus](v1/workbench-terminal-runtime-conformance-v1.json) checks closed shapes, the
+vocabulary and the revision bounds in Rust, TypeScript and JSON Schema; the request and result keep
+the 16 KiB intent cap. The [Server](../../apps/orchbee-server/README.md#terminal-runtime) owns the
+state.
+
 ## Agent integration jobs
 
 [`workbench-agent-integration.schema.json`](v1/workbench-agent-integration.schema.json) owns

@@ -38,6 +38,10 @@ import {
 	WORKBENCH_MAXIMUM_ENCODED_AGENT_CATALOG_BYTES,
 } from './workbench-agent-catalog-contract';
 import {
+	TerminalRuntimeRequestSchema,
+	TerminalRuntimeResultSchema,
+} from './workbench-terminal-runtime-contract';
+import {
 	AgentIntegrationRequestSchema,
 	AgentIntegrationResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES,
@@ -665,6 +669,7 @@ export const WorkbenchRequestSchema = z
 		WorkspaceGitRequestSchema,
 		CurrentDirectoryRequestSchema,
 		AgentCatalogRequestSchema,
+		TerminalRuntimeRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
 		CloseOperationReadSchema,
@@ -803,6 +808,7 @@ export const WorkbenchResponseSchema = z
 		WorkspaceGitResultSchema,
 		CurrentDirectoryResultSchema,
 		AgentCatalogResultSchema,
+		TerminalRuntimeResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
 		CloseOperationResultSchema,

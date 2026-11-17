@@ -766,7 +766,7 @@ fn dispatch(
 /// deliver semantic values, so a printing terminal cannot make one Client reread its checkpoints.
 /// A published-title read follows commits, which move bindings, and title changes, never output;
 /// no other stream follows title changes. An Agent catalog read follows only the catalog's own
-/// changes.
+/// changes, and a terminal-runtime read only that state's.
 fn stream_revision(
     signal: &SessionChangeSignal,
     mode: StreamMode,
@@ -774,6 +774,8 @@ fn stream_revision(
 ) -> u64 {
     if request.follows_agent_catalog() {
         signal.agent_catalog_revision()
+    } else if request.follows_terminal_runtime() {
+        signal.terminal_runtime_revision()
     } else if request.follows_titles() {
         signal
             .commit_revision()

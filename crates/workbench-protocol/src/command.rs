@@ -175,6 +175,11 @@ pub use agent_catalog::{
     AgentCatalogResult, MAXIMUM_AGENT_CATALOG_ROWS, MAXIMUM_ENCODED_AGENT_CATALOG_BYTES,
     MAXIMUM_RECENT_AGENTS, WorkbenchAgentCatalog,
 };
+mod terminal_runtime;
+pub use terminal_runtime::{
+    TerminalRuntimeFailure, TerminalRuntimeOutcome, TerminalRuntimeRequest, TerminalRuntimeResult,
+    TerminalRuntimeState, WorkbenchTerminalRuntime,
+};
 mod current_directory;
 pub use current_directory::{
     CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryPanel,
@@ -1107,6 +1112,8 @@ pub enum WorkbenchRequest {
     CurrentDirectory(CurrentDirectoryRequest),
     #[serde(rename = "workbench.agent-catalog")]
     AgentCatalog(AgentCatalogRequest),
+    #[serde(rename = "workbench.terminal-runtime")]
+    TerminalRuntime(TerminalRuntimeRequest),
     #[serde(rename = "workbench.client-view")]
     ClientView(WorkbenchClientViewRequest),
     #[serde(rename = "workbench.workspace-group-close")]
@@ -1549,6 +1556,8 @@ pub enum WorkbenchResponse {
     CurrentDirectory(CurrentDirectoryResult),
     #[serde(rename = "workbench.agent-catalog.result")]
     AgentCatalog(AgentCatalogResult),
+    #[serde(rename = "workbench.terminal-runtime.result")]
+    TerminalRuntime(TerminalRuntimeResult),
     #[serde(rename = "workbench.client-view.result")]
     ClientView(WorkbenchClientViewResult),
     #[serde(rename = "workbench.workspace-group-close.result")]
@@ -1915,6 +1924,7 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_AGENT_CATALOG_BYTES)?;
             result.validate()
         }
+        WorkbenchResponse::TerminalRuntime(result) => result.validate(),
         WorkbenchResponse::WorkspaceMetadata(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES)?;
             result.validate()

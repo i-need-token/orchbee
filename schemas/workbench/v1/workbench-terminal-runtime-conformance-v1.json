@@ -1,0 +1,352 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "current-read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.terminal-runtime",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002"
+			}
+		},
+		{
+			"name": "serving",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "1",
+						"state": "serving"
+					}
+				}
+			}
+		},
+		{
+			"name": "reconnecting",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "2",
+						"state": "reconnecting"
+					}
+				}
+			}
+		},
+		{
+			"name": "given-up",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "9",
+						"state": "given-up"
+					}
+				}
+			}
+		},
+		{
+			"name": "largest-revision",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "18446744073709551615",
+						"state": "serving"
+					}
+				}
+			}
+		},
+		{
+			"name": "failed-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "denied"
+				}
+			}
+		},
+		{
+			"name": "failed-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unavailable"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "request-with-action",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.terminal-runtime",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "current"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "request-without-session",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.terminal-runtime",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "request-zero-identity",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.terminal-runtime",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000000",
+				"sessionId": "00000000000000000000000000000002"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "request-other-protocol-version",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.terminal-runtime",
+				"protocolVersion": 2,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-state",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "3",
+						"state": "stopped"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-state",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "3"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "runtime-with-member",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "3",
+						"state": "serving",
+						"attempts": 1
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-runtime",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "revision-zero",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "0",
+						"state": "serving"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "revision-not-canonical",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "01",
+						"state": "serving"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "revision-as-number",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": 3,
+						"state": "serving"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "revision-beyond-uint64",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "18446744073709551616",
+						"state": "serving"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-failure",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "timeout"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "failure-with-runtime",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "denied",
+					"runtime": {
+						"revision": "1",
+						"state": "serving"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "result-with-member",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.terminal-runtime.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"runtime": {
+						"revision": "1",
+						"state": "serving"
+					}
+				},
+				"terminals": 2
+			},
+			"boundary": "schema"
+		}
+	]
+}

@@ -101,6 +101,7 @@ impl RenameServer {
                             | WorkbenchRequest::WorkspaceGit(_)
                             | WorkbenchRequest::CurrentDirectory(_)
                             | WorkbenchRequest::AgentCatalog(_)
+                            | WorkbenchRequest::TerminalRuntime(_)
                             | WorkbenchRequest::ClientView(_)
                             | WorkbenchRequest::WorkspaceGroupClose(_)
                             | WorkbenchRequest::TabSetClose(_)

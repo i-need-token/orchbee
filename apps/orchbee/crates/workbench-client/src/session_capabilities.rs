@@ -4,7 +4,7 @@
 //! owner still checks the answer again at its effect boundary.
 
 use orchbee_connection_handshake::{
-    AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CapabilitySet, PROMPT_GATED_INPUT,
+    AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CapabilitySet, PROMPT_GATED_INPUT, TERMINAL_RUNTIME,
 };
 
 /// A TUI action that only a Session listing a certain capability can serve.
@@ -22,6 +22,8 @@ const NEEDED_BY: &[(&str, &[SessionAction])] = &[
     // Update reads it itself: without it, a press waits instead of leaving for the new version.
     (COMPATIBILITY_WINDOW, &[]),
     (PROMPT_GATED_INPUT, &[SessionAction::StartInThisPanel]),
+    // The terminal-runtime follower reads it itself: without it, the TUI keeps its own recovery.
+    (TERMINAL_RUNTIME, &[]),
 ];
 
 /// Whether `action` is available under the Session's handshake answer. Without an answer, as

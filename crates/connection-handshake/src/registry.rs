@@ -20,6 +20,11 @@ pub const AGENT_INPUT_AREA: &str = "agent-input-area";
 /// release as its `addedIn`.
 pub const COMPATIBILITY_WINDOW: &str = "compatibility-window";
 
+/// The `client-server` capability before a Client may read `workbench.terminal-runtime`, the
+/// Session's Serving, Reconnecting, or Given-up state while the Server replaces a lost Worker. A
+/// Client whose Server lacks it never sends the read.
+pub const TERMINAL_RUNTIME: &str = "terminal-runtime";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {
@@ -80,7 +85,12 @@ impl ConnectionKind {
     #[must_use]
     pub fn capabilities(self) -> CapabilitySet {
         let names: &[&str] = match self {
-            Self::ClientServer => &[AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, PROMPT_GATED_INPUT],
+            Self::ClientServer => &[
+                AGENT_INPUT_AREA,
+                COMPATIBILITY_WINDOW,
+                PROMPT_GATED_INPUT,
+                TERMINAL_RUNTIME,
+            ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT],
             Self::MachineHub | Self::MachineLink => &[],
         };

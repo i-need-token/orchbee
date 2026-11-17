@@ -85,6 +85,7 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
         | WorkbenchRequest::CurrentDirectory(_)
         // A refresh only renews the cached lookup of what this machine has installed.
         | WorkbenchRequest::AgentCatalog(_)
+        | WorkbenchRequest::TerminalRuntime(_)
         | WorkbenchRequest::WorktreeQuery(_)
         | WorkbenchRequest::SnapshotRead(_)
         | WorkbenchRequest::TabCloseRead(_)
