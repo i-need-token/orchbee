@@ -225,11 +225,12 @@ capture, and Linux without them; [their startup](#managed-linux-and-macos-sessio
 describes what differs.
 
 A Worker that already exited can neither sample a directory nor stop its Host, and the final
-capture keeps each terminal's last cached directory. On Windows the stop then continues only once
-the retained record observes that Worker's Host gone, or never started. While that Host runs, the
-attempt fails in its host-exit phase as refused: nothing here may end the Host, which waits for Host
-adoption. Linux and macOS, where no later Server adopts a Host, end it instead, as their
-[stop](#managed-linux-and-macos-session-startup) describes.
+capture keeps each terminal's last cached directory. The stop then ends that Worker's Host itself,
+on Windows exactly as on Linux and macOS: after the final capture it sends the Host's `exit`
+control request, which ends every terminal the Worker would have disposed, and continues once the
+retained record observes the Host's registered identity gone, within 45 seconds. A failed or
+unanswered request fails the attempt in its host-exit phase; the Host is never ended by force. A
+stop is therefore never refused only because its Worker is gone.
 The managed Session never enrolls a replacement Worker, so a Server whose Worker exited and whose
 Host is gone, with no stop admitted, begins its own stop under a fresh identity, checking once a
 second. It publishes the same Stopped record, and a later start restores from its final capture.

@@ -471,26 +471,17 @@ fn begin_own(shutdown: &SessionShutdown, own: StopId) {
 }
 
 /// After its Worker exited, nothing can sample a terminal's directory, and the final capture keeps
-/// each terminal's last sampled directory. On Windows the stop finishes only when that Worker's Host
-/// is gone too; a live Host is refused, because nothing here may end it while it waits for Host
-/// adoption. No later POSIX Server adopts a Host, so there the stop ends that Host after the final
-/// capture, as the Worker's own disposal would have.
+/// each terminal's last sampled directory. The stop then ends that Worker's Host after the final
+/// capture, as the Worker's own disposal would have, on every platform alike: a stop is never
+/// refused only because its Worker is gone.
 fn settle_without_worker(
     owners: &Owners,
-    #[cfg_attr(windows, allow(unused_variables))] shutdown: &SessionShutdown,
-    #[cfg_attr(windows, allow(unused_variables))] attempt: Attempt,
+    shutdown: &SessionShutdown,
+    attempt: Attempt,
     deadline: Instant,
 ) -> Result<(), Failure> {
     let worker = checkpoint_worker(&owners.handle)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    #[cfg(windows)]
-    if !host_absent(owners) {
-        return Err(Failure {
-            phase: StopPhase::HostExit,
-            failure: StopFailure::Refused,
-            disposed: 0,
-        });
-    }
     owners
         .terminals
         .finish_process_observer_after_worker_exit(&owners.handle)
@@ -509,24 +500,20 @@ fn settle_without_worker(
         kept.publish_final(&owners.terminals, &bytes)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     }
-    #[cfg(unix)]
-    {
-        shutdown.phase(attempt, StopPhase::HostExit);
-        end_orphaned_host(owners, deadline).map_err(|error| failure(StopPhase::HostExit, error))?;
-    }
+    shutdown.phase(attempt, StopPhase::HostExit);
+    end_orphaned_host(owners, deadline).map_err(|error| failure(StopPhase::HostExit, error))?;
     Ok(())
 }
 
-/// The longest a POSIX stop or `exit` waits for an orphaned Host to end every terminal and exit.
-#[cfg(unix)]
+/// The longest a stop, or a POSIX `exit`, waits for an orphaned Host to end every terminal and exit.
 const ORPHANED_HOST_BUDGET: Duration = WORKER_STOP_BUDGET;
 
-/// Ends the Host a POSIX Worker left behind, the only way left to end its terminals: the Host's
+/// Ends the Host a lost Worker left behind, the only way left to end its terminals: the Host's
 /// `exit` control request ends every retained terminal through the Host's ordinary teardown and
-/// then the Host. It returns once no process holds the Host's lock, which [`host_absent`] observes,
-/// and fails at `deadline` or [`ORPHANED_HOST_BUDGET`], whichever comes first. A Host that is
-/// already gone, or that ends while the request is lost, counts as ended.
-#[cfg(unix)]
+/// then the Host. It returns once [`host_absent`] observes the Host gone, its lock free on Linux and
+/// macOS and its registered identity gone on Windows, and fails at `deadline` or
+/// [`ORPHANED_HOST_BUDGET`], whichever comes first. A Host that is already gone, or that ends while
+/// the request is lost, counts as ended; the Host is never ended by force.
 fn end_orphaned_host(owners: &Owners, deadline: Instant) -> io::Result<()> {
     if host_absent(owners) {
         return Ok(());
