@@ -987,6 +987,31 @@ and shared frame lifetime. The refinement obligations are:
 | Retained pixels match canonical identity and confer no readiness or feedback.                                                               | Owned retained-pixel implementation tests; fresh Beta → Alpha → Alpha-2 bank handoff, active/cached exact-endpoint and replacement gates, candidate-newer precedence, wrong-binding/HostEpoch/geometry rejection, and real renderer isolation checks. |
 | Shared pixels are immutable, bounded and released by their final consumer.                                                                  | Projection Arc lifetime, membership pruning, cache count and aggregate byte-eviction tests.                                                                                                                                                           |
 
+## Refused projection records
+
+A projection record the Client refuses never retires the Session or the connection; it stays with
+its pane. The record is dropped. A program effect (bell, clipboard write) changes nothing else.
+Any other refused record invalidates the pane's frame and its frame proof, and the pane waits for
+a full frame. A refused frame whose route is still readable is answered with `NeedSnapshot` naming
+that frame's sequence, which is the Server's current flight. Any other refused record sends no
+feedback, because the Server holds no flight for it; the next frame then requests the snapshot
+through the ordinary unappliable-frame path.
+
+Each pane counts its resyncs since its last applied frame. A refused record that would exceed three
+resyncs, or one the Client cannot read at all (it may be a frame the Server still waits on), stops
+that pane alone: its frame and retained pixels go, it takes no further polls, a result already in
+flight for it is dropped, and it shows `Terminal disconnected`. Other panes and the Session keep
+running, and a new attachment of the pane starts with a fresh count. Every refusal writes a
+`client-record-contained` log record with the record family, validation stage and containment
+(`dropped`, `resynced` or `stopped`). A stop always writes; drops and resyncs write at most once a
+minute per stage. Answers that break the viewer contract still retire the connection.
+
+[`ProjectionRecordResync`](../formal/tla/ProjectionRecordResync.tla) checks that every answer names
+the Server's flight, so a refused record never escalates to refused feedback and a released viewer;
+that the resync count stays bounded; and that a running pane always answers the frame the Server
+waits on. Its mutation controls remove the stop on an unreadable record and the bound. The
+classification and containment are tested at the UI owner.
+
 ## Client state and bounded mailbox
 
 `WorkbenchClient` owns the typed state shared by the native Windows and Unix shells. Platform
@@ -2060,7 +2085,7 @@ establish other operating systems, installation, restart recovery or Close.
 
 ## Model scope
 
-Formal evidence for this owner is the pane-incarnation core described in [Native Panel lifecycle evidence](native-panel-lifecycle.md#finite-model-evidence), plus the separate viewport and explicit control-takeover protocols. It does not enumerate every Create, Close, Move, Rename, refresh or context-removal combination.
+Formal evidence for this owner is the pane-incarnation core described in [Native Panel lifecycle evidence](native-panel-lifecycle.md#finite-model-evidence), plus the separate viewport, explicit control-takeover and refused-projection-record protocols. It does not enumerate every Create, Close, Move, Rename, refresh or context-removal combination.
 
 The production state and mailbox generated tests, deterministic connection completions, workbench-projection traces and process tests own those operation-specific contracts. Keep stale identity, unknown outcome without replay, committed-result publication and cleanup-before-replacement cases in these suites when changing an operation. A retained protocol pass does not replace the corresponding implementation test.
 

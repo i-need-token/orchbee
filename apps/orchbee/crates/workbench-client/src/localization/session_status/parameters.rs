@@ -143,6 +143,9 @@ pub(crate) enum ClientProjectionStatus {
     FrameAvailable,
     WaitingForFullFrame,
     Blocked,
+    /// The pane's records kept failing past their resync bound, or one could not be read: this
+    /// pane alone stopped updating until it is attached again.
+    Stopped,
 }
 
 /// Why display freshness was retired; unknown never authorizes replay.

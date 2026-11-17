@@ -132,6 +132,7 @@ pub(in crate::workbench_client) fn install_projection(
         tail: None,
         tail_attempted: None,
         history_sequence: 0,
+        resyncs: 0,
         read_watermark,
         selection: None,
     });

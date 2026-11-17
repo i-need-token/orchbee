@@ -208,6 +208,20 @@ const cases = [
 		'/\\ TRUE',
 		/Action property ExactCommitWasIssuedToCurrentWorker is violated/u,
 	],
+	[
+		'native-projection-record-resync',
+		'a record the Client cannot read resyncs while the Server waits on its flight',
+		'[] r.bad = "envelope" \\/ count > Bound ->',
+		'[] count > Bound ->',
+		/Temporal properties were violated/u,
+	],
+	[
+		'native-projection-record-resync',
+		'rejected records resync without a bound',
+		'[] r.bad = "envelope" \\/ count > Bound ->',
+		'[] r.bad = "envelope" ->',
+		/Invariant BoundedResyncs is violated/u,
+	],
 ];
 
 describe('protocol mutation counterexamples', { concurrency: 3 }, () => {

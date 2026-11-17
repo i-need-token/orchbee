@@ -34,6 +34,19 @@ pub struct TerminalProjection {
 
 pub(crate) use crate::localization::TerminalEnd;
 
+/// What a refused record lets the Client do to resync its pane.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum RejectedRecord {
+    /// Nothing in the record is readable, so it may be a frame the Server still waits on.
+    Unreadable,
+    /// A program effect, which never touches the frame.
+    Effect,
+    /// A frame whose route names the Server's flight; this snapshot request answers it.
+    Frame(Feedback),
+    /// Any other record; the next frame brings the snapshot.
+    Other,
+}
+
 impl TerminalProjection {
     pub const fn new(attachment: AttachmentId, epoch: HostEpoch) -> Self {
         Self {
@@ -293,6 +306,40 @@ impl TerminalProjection {
                 }))
             }
         }
+    }
+    /// Classifies a record this projection or the pane's effect stream refused, and invalidates
+    /// the frame unless the record is a program effect. Only a frame whose route is still
+    /// readable can be answered, with a snapshot request naming that flight.
+    pub(crate) fn resync_after_rejection(&mut self, record: &[u8]) -> RejectedRecord {
+        let Ok(envelope) = decode_transport_envelope(record) else {
+            return RejectedRecord::Unreadable;
+        };
+        if matches!(envelope.kind, 55 | 56) {
+            return RejectedRecord::Effect;
+        }
+        self.clear_frame();
+        if !matches!(envelope.kind, 41 | 42)
+            || envelope.payload_encoding != PayloadEncoding::TerminalFrame
+        {
+            return RejectedRecord::Other;
+        }
+        let (Ok(route), Ok(attachment_id)) = (
+            inspect_terminal_frame_route(envelope.payload),
+            self.viewer_id(Operation::Frame),
+        ) else {
+            return RejectedRecord::Unreadable;
+        };
+        self.last_sequence = self.last_sequence.max(route.sequence.get());
+        let reason = if route.attachment_id == self.attachment && route.host_epoch == self.epoch {
+            Reason::DecoderRejected
+        } else {
+            Reason::IdentityMismatch
+        };
+        RejectedRecord::Frame(Feedback::NeedSnapshot {
+            attachment_id,
+            sequence: route.sequence,
+            reason,
+        })
     }
     fn viewer_id(&self, operation: Operation) -> Result<ViewerId, ProjectionRejection> {
         ViewerId::parse(&self.attachment.to_text())

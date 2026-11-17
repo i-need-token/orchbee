@@ -1,8 +1,9 @@
 //! The Workbench Client's diagnostic log records: its connection retiring on a failure, so a
-//! disconnect leaves a trace, and one request's fault that the Client contained to its Panel. The
-//! retirement names the failure, the kind of command it interrupted and the source location that
-//! closed the mailbox, by directory, file stem and line; a contained fault names the command and
-//! the answer. Neither holds terminal content, input or paths.
+//! disconnect leaves a trace, and one request's fault or one refused projection record that the
+//! Client contained to its Panel. The retirement names the failure, the kind of command it
+//! interrupted and the source location that closed the mailbox, by directory, file stem and line; a
+//! contained fault names the command and the answer, and a contained record its family, validation
+//! stage and containment. None holds terminal content, input or paths.
 use super::mailbox::ClosedSite;
 use crate::workbench_state::CarrierFailure;
 use orchbee_client_server_protocol::{
@@ -26,6 +27,8 @@ pub(super) enum ContainedCommand {
     /// The demand pair that asks for a fresh frame after a takeover.
     ControlFrame,
     Clear,
+    /// A projection record the Client refused and contained to its Panel.
+    ProjectionRecord,
 }
 
 impl ContainedCommand {
@@ -38,6 +41,7 @@ impl ContainedCommand {
             Self::FrameFeedback => "frame-feedback",
             Self::ControlFrame => "control-frame",
             Self::Clear => "clear",
+            Self::ProjectionRecord => "projection-record",
         }
     }
 }
@@ -65,6 +69,55 @@ fn record(command: ContainedCommand, answer: &'static str) {
         &[
             ("command", LogValue::Token(command.token())),
             ("answer", LogValue::Token(answer)),
+            ("suppressed", LogValue::Count(suppressed)),
+        ],
+    );
+}
+
+/// What the Client did with one projection record it refused.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(super) enum RecordContainment {
+    /// The record was dropped alone; a program effect never touches the frame.
+    Dropped,
+    /// The record was dropped and the Panel's frame invalidated until a snapshot replaces it.
+    Resynced,
+    /// The Panel alone stopped updating: past its resync bound, or on a record it could not read.
+    Stopped,
+}
+
+impl RecordContainment {
+    const fn token(self) -> &'static str {
+        match self {
+            Self::Dropped => "dropped",
+            Self::Resynced => "resynced",
+            Self::Stopped => "stopped",
+        }
+    }
+}
+
+/// Records the class of a projection record the Client refused (the record family and the
+/// validation stage) and how it contained the refusal to the Panel. A stop always writes, so every
+/// stopped Panel's class stays in the log; drops and resyncs share the once-a-minute bound per stage.
+pub(super) fn record_contained(
+    operation: &'static str,
+    stage: &'static str,
+    containment: RecordContainment,
+) {
+    let suppressed = if containment == RecordContainment::Stopped {
+        0
+    } else {
+        match admit_once_a_minute(ContainedCommand::ProjectionRecord, stage) {
+            Some(suppressed) => suppressed,
+            None => return,
+        }
+    };
+    log_event(
+        LogLevel::Warning,
+        "client-record-contained",
+        &[
+            ("operation", LogValue::Token(operation)),
+            ("stage", LogValue::Token(stage)),
+            ("containment", LogValue::Token(containment.token())),
             ("suppressed", LogValue::Count(suppressed)),
         ],
     );

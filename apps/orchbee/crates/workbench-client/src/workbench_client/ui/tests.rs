@@ -14,6 +14,7 @@ pub(in crate::workbench_client::ui) mod panel_input;
 pub(in crate::workbench_client::ui) mod panel_reports;
 pub(in crate::workbench_client::ui) mod presentation_titles;
 pub(in crate::workbench_client::ui) mod program_effect;
+pub(in crate::workbench_client::ui) mod projection_resync;
 pub(in crate::workbench_client) mod publication_hint;
 pub(in crate::workbench_client::ui) mod quick_workspace;
 pub(in crate::workbench_client::ui) mod refresh_gating;

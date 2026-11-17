@@ -1847,14 +1847,15 @@ fn render_native_workbench(
         }) {
             terminal_cells::render(frame, content_area, retained, false, theme);
         } else {
-            let panel_status = if matches!(
+            let panel_status = if native.projection_status() == ClientProjectionStatus::Stopped {
+                locale.terminal_status(TerminalStatus::Unavailable)
+            } else if matches!(
                 native.phase(),
                 DisplayPhase::Ready
                     | DisplayPhase::MoveProjectionUnavailable
                     | DisplayPhase::PanelProjectionUnavailable
                     | DisplayPhase::RenameProjectionUnavailable
-            ) && native.projection_status()
-                != ClientProjectionStatus::FrameAvailable
+            ) && native.projection_status() != ClientProjectionStatus::FrameAvailable
             {
                 locale.terminal_status(TerminalStatus::Blocked)
             } else {
@@ -2348,6 +2349,10 @@ fn render_leaf(
     } else {
         let status = if panel.is_some_and(|p| native.panel_is_unbound(p.panel_id())) {
             locale.native_unbound_terminal()
+        } else if panel.is_some_and(|p| {
+            native.pane_projection_status(p.panel_id()) == ClientProjectionStatus::Stopped
+        }) {
+            locale.terminal_status(TerminalStatus::Unavailable)
         } else if matches!(
             native.phase(),
             DisplayPhase::Ready

@@ -48,6 +48,32 @@
 			]
 		},
 		{
+			"id": "native-projection-record-resync",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/ProjectionRecordResync.tla",
+			"config": "apps/orchbee/formal/tla/ProjectionRecordResync.cfg",
+			"claims": ["apps/orchbee/docs/workbench-client-runtime.md"],
+			"triggers": [
+				"apps/orchbee/crates/workbench-client/src/terminal_projection*",
+				"apps/orchbee/crates/workbench-client/src/terminal_projection/**",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/projection_resync*",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/connection*",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/**",
+				"apps/orchbee-server/src/local_terminal_service/projection*",
+				"apps/orchbee-server/src/local_terminal_service/projection/**",
+				"crates/terminal-protocol/src/projection_feedback.rs"
+			],
+			"requiredCoverage": [
+				"SendFrame",
+				"SendOther",
+				"CorruptPayload",
+				"CorruptEnvelope",
+				"Receive",
+				"Deliver"
+			]
+		},
+		{
 			"id": "native-settings-save",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",

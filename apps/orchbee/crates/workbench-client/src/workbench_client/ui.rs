@@ -117,6 +117,7 @@ pub(crate) use worktree_launch::{WorktreeMode, WorktreeNotice, WorktreeToken};
 mod copy_mode;
 mod find_bar;
 mod tab_rename;
+mod projection_resync;
 mod terminal_effects;
 mod terminal_selection;
 pub use super::input::CaptureContext;
@@ -1455,6 +1456,8 @@ pub(crate) struct KeyedProjection {
     /// Strict per-incarnation kind-53 sequence cursor: the next
     /// `HistoryChanged` must exceed this or the stream is malformed.
     history_sequence: u64,
+    /// Resyncs after refused records since the last applied frame; see `projection_resync`.
+    resyncs: u8,
     /// Per-incarnation history read watermark: the highest `request_sequence`
     /// ever staged for this attachment. The host's
     /// `last_row_request_sequence` is attachment-scoped and survives
@@ -1500,6 +1503,7 @@ impl KeyedProjection {
             tail: None,
             tail_attempted: None,
             history_sequence: 0,
+            resyncs: 0,
             read_watermark: 0,
             selection: None,
         }
@@ -1927,8 +1931,10 @@ impl WorkbenchClientUi {
                 None => TerminalStatus::Connecting,
             };
         };
-        if self.view().projection_status() == ClientProjectionStatus::Blocked {
-            return TerminalStatus::Blocked;
+        match self.view().projection_status() {
+            ClientProjectionStatus::Blocked => return TerminalStatus::Blocked,
+            ClientProjectionStatus::Stopped => return TerminalStatus::Unavailable,
+            _ => {}
         }
         match (state.phase_kind(), state.controller_mode()) {
             (
@@ -4355,6 +4361,7 @@ impl WorkbenchClientUi {
                             tail: None,
                             tail_attempted: None,
                             history_sequence: 0,
+                            resyncs: 0,
                             read_watermark: 0,
                             selection: None,
                         });
@@ -4665,6 +4672,16 @@ impl WorkbenchClientUi {
             });
             return true;
         };
+        if self.projections[index].status == ClientProjectionStatus::Stopped {
+            // A stopped pane takes no further records; a result already in flight is dropped.
+            self.pending_draws.push(PendingDraw {
+                poll_key,
+                settlement: CausalSettlement::NoFeedback,
+                frame: None,
+                ordinary,
+            });
+            return true;
+        }
         match self.apply_program_effect(index, &record) {
             Ok(true) => {
                 self.pending_draws.push(PendingDraw {
@@ -4677,8 +4694,8 @@ impl WorkbenchClientUi {
             }
             Ok(false) => {}
             Err(()) => {
-                self.retire(CarrierFailure::Protocol);
-                return true;
+                let class = projection_resync::RecordClass::effect(&record);
+                return self.contain_rejected_record(index, poll_key, &record, class, ordinary);
             }
         }
         match self.apply_selection_event(index, &record) {
@@ -4727,9 +4744,9 @@ impl WorkbenchClientUi {
                 return true;
             }
             Ok(false) => {}
-            Err(_) => {
-                self.retire(CarrierFailure::Protocol);
-                return true;
+            Err(rejection) => {
+                let class = projection_resync::RecordClass::of(rejection);
+                return self.contain_rejected_record(index, poll_key, &record, class, ordinary);
             }
         }
         let result = self.projections[index]
@@ -4751,10 +4768,13 @@ impl WorkbenchClientUi {
                     Ok(Some(changed)) => {
                         if changed.sequence.get() <= self.projections[index].history_sequence {
                             // Kind-53 sequences are strictly monotonic per
-                            // incarnation: a repeat or regression makes the
-                            // stream undecidable.
-                            self.retire(CarrierFailure::Protocol);
-                            return true;
+                            // incarnation: a repeat or regression is refused.
+                            let class = projection_resync::RecordClass::new(
+                                "history-changed",
+                                "stale-revision",
+                            );
+                            return self
+                                .contain_rejected_record(index, poll_key, &record, class, ordinary);
                         }
                         self.projections[index].history_sequence = changed.sequence.get();
                         if let Some(viewport) = self.projections[index].viewport.as_mut() {
@@ -4766,11 +4786,13 @@ impl WorkbenchClientUi {
                         }
                     }
                     // The projection already accepted this event, so the viewport's
-                    // identical decode can only succeed; anything else is a
-                    // fault, not a silent skip.
+                    // identical decode can only succeed; anything else refuses
+                    // the record rather than skipping it silently.
                     _ => {
-                        self.retire(CarrierFailure::Protocol);
-                        return true;
+                        let class =
+                            projection_resync::RecordClass::new("history-changed", "payload-decode");
+                        return self
+                            .contain_rejected_record(index, poll_key, &record, class, ordinary);
                     }
                 }
                 (
@@ -4779,11 +4801,15 @@ impl WorkbenchClientUi {
                     self.projections[index].status,
                 )
             }
-            Ok(Some(feedback @ TerminalViewerAction::FrameApplied { .. })) => (
-                CausalSettlement::Feedback(feedback),
-                Some(FrameIdentity::new(poll_key.serial())),
-                ClientProjectionStatus::FrameAvailable,
-            ),
+            Ok(Some(feedback @ TerminalViewerAction::FrameApplied { .. })) => {
+                // An applied frame ends the pane's resync episode.
+                self.projections[index].resyncs = 0;
+                (
+                    CausalSettlement::Feedback(feedback),
+                    Some(FrameIdentity::new(poll_key.serial())),
+                    ClientProjectionStatus::FrameAvailable,
+                )
+            }
             Ok(Some(feedback @ TerminalViewerAction::NeedSnapshot { .. })) => {
                 if self
                     .state
@@ -4814,13 +4840,13 @@ impl WorkbenchClientUi {
                     ClientProjectionStatus::Blocked,
                 )
             }
-            Err(_) => {
-                self.retire(CarrierFailure::Protocol);
-                return true;
+            Err(rejection) => {
+                let class = projection_resync::RecordClass::of(rejection);
+                return self.contain_rejected_record(index, poll_key, &record, class, ordinary);
             }
             Ok(Some(_)) => {
-                self.retire(CarrierFailure::Protocol);
-                return true;
+                let class = projection_resync::RecordClass::new("record", "unexpected-message");
+                return self.contain_rejected_record(index, poll_key, &record, class, ordinary);
             }
         };
         self.projections[index].status = status;
@@ -4979,7 +5005,8 @@ impl WorkbenchClientUi {
         if state.ready().is_none() && !state.focus_parked() {
             return;
         }
-        let pollable = state.pollable_panes();
+        let mut pollable = state.pollable_panes();
+        pollable.retain(|key| !self.pane_stopped(key));
         if pollable.is_empty() {
             self.poll_cursor = 0;
             return;

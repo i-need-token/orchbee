@@ -740,11 +740,12 @@ retains VT and history authority.
 
 A refused record returns `ProjectionRejection`: the record family (`operation`), the validation
 `stage`, and the static protocol decoder error as its `source`, never record bytes or terminal text.
-Callers keep their external classification — `protocol-invalid` for CLI reads and the protocol
-carrier failure for the Workbench Client — and print none of it, because the Client's standard
-error and machine documents are product surfaces. The Workbench Client's only diagnostic exits are
-the `client-retired` and `client-fault-contained` records of the daily log described under the
-[diagnostic bundle](#diagnostic-bundle).
+CLI reads keep their external classification, `protocol-invalid`; the Workbench Client contains
+the refusal to its pane ([refused projection records](docs/workbench-client-runtime.md#refused-projection-records)).
+Neither prints any of it, because the Client's standard error and machine documents are product
+surfaces. The Workbench Client's only diagnostic exits are the `client-retired`,
+`client-fault-contained` and `client-record-contained` records of the daily log described under
+the [diagnostic bundle](#diagnostic-bundle).
 
 [Workbench Client lifecycle regressions](crates/workbench-client/src/workbench_client/tests.rs) cover interrupted Drop/join,
 unknown-input retirement and read-only input refusal. [Native transport regressions](crates/workbench-client/src/workbench_client/connection/native/tests.rs)
@@ -1072,8 +1073,11 @@ source directory, file stem and line of the mailbox check or Client step that cl
 path. A process exit's close writes nothing. When the TUI contains one request's fault to its
 Panel instead, such as a refused input, resize, poll or frame acknowledgement, it writes
 `client-fault-contained`: the command, the Server's answer token and the number of records
-suppressed since, at most once a minute for each command and answer. The TUI has no entry of its
-own: the command is one line in any terminal, and Desktop offers it as an Action.
+suppressed since, at most once a minute for each command and answer. When it refuses one
+projection record and contains it to the Panel, it writes `client-record-contained`: the record
+family, the validation stage and whether the record was dropped, the Panel resynced or the Panel
+stopped. A stop always writes; the others write at most once a minute for each stage. The TUI has
+no entry of its own: the command is one line in any terminal, and Desktop offers it as an Action.
 
 ## Windows Panel layout queries
 

@@ -141,7 +141,10 @@ impl RetainedFrames {
             return;
         }
         for pane in panes {
-            if pane.status == ClientProjectionStatus::Blocked {
+            if matches!(
+                pane.status,
+                ClientProjectionStatus::Blocked | ClientProjectionStatus::Stopped
+            ) {
                 self.invalidate(state, pane.key.pane().panel());
                 continue;
             }
