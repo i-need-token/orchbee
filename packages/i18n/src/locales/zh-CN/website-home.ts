@@ -37,7 +37,7 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.multiplexing.kicker': '多路复用',
 	'website.home.multiplexing.title': '会话多路复用',
 	'website.home.multiplexing.lead':
-		'会话在窗口关闭后继续在后台运行，其中的 Shell 与 Agent 不会中断。终端界面、桌面应用与命令行可以同时接入同一个会话，在一处输入，其他各处同步可见。',
+		'会话在窗口关闭后继续在后台运行，其中的 Shell 与 Agent 不会中断。终端界面、桌面应用与命令行可以同时接入同一个会话，在一处输入，其他各处同步可见。即使承载终端的进程崩溃，也会有新进程接管它们，通常只需一两秒。',
 	'website.home.multiplexing.input': '在此输入',
 	'website.home.multiplexing.session': '同一个会话',
 	'website.home.multiplexing.reader': '每次按下回车，从外部读取同一个终端',

@@ -38,7 +38,7 @@ export const enUSWebsiteHomeMessages = {
 	'website.home.multiplexing.kicker': 'multiplexing',
 	'website.home.multiplexing.title': 'Multiplexed Sessions',
 	'website.home.multiplexing.lead':
-		'A Session keeps running in the background after its window is closed, along with the shells and agents in it. The terminal interface, the desktop application, and the command line can attach to the same Session at the same time, and input from one is visible in the others.',
+		'A Session keeps running in the background after its window is closed, along with the shells and agents in it. The terminal interface, the desktop application, and the command line can attach to the same Session at the same time, and input from one is visible in the others. If the process serving the terminals crashes, a new one takes them over, usually within a second or two.',
 	'website.home.multiplexing.input': 'Type here',
 	'website.home.multiplexing.session': 'One Session',
 	'website.home.multiplexing.reader':
