@@ -44,6 +44,7 @@ const CONFIGURED_COMMAND_REFUSALS = {
 	'invalid-intent': workbenchMessages.configuredCommandInvalidIntent,
 	'not-found': workbenchMessages.configuredCommandNotFound,
 	'session-mismatch': workbenchMessages.configuredCommandSessionMismatch,
+	'source-exited': workbenchMessages.configuredCommandSourceExited,
 	'stale-source': workbenchMessages.configuredCommandStaleSource,
 	unavailable: workbenchMessages.configuredCommandUnavailable,
 } as const satisfies Record<

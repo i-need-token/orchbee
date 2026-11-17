@@ -210,6 +210,9 @@ impl Locale {
                 "Popup connection or cleanup uncertain",
                 "popup 连接或清理状态不确定",
             )),
+            N::CommandRefused(
+                orchbee_workbench_protocol::ConfiguredCommandFailure::SourceExited,
+            ) => Some(self.say("Terminal exited.", "终端已退出。")),
             _ => None,
         }
     }
@@ -288,6 +291,12 @@ impl Locale {
             N::PanelNotApplied => say("Couldn't change the Panel.", "没能更改面板。"),
             N::DialogRefused => self.presentation_notice(false).to_owned(),
             N::ModalOwnsInput => say("Close the open dialog first.", "请先关闭当前对话框。"),
+            N::CommandRefused(
+                orchbee_workbench_protocol::ConfiguredCommandFailure::SourceExited,
+            ) => say(
+                "Terminal exited. Focus a running Panel.",
+                "终端已退出，请聚焦运行中的面板。",
+            ),
             N::CommandFailed | N::CommandRefused(_) => {
                 say("Couldn't run the command.", "没能运行命令。")
             }

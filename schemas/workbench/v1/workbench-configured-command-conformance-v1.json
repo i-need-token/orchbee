@@ -437,6 +437,20 @@
 			}
 		},
 		{
+			"name": "source-exited",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "source-exited"
+				}
+			}
+		},
+		{
 			"name": "popup-command-opened-control",
 			"direction": "response",
 			"document": {

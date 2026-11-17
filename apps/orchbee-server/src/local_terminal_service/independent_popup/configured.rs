@@ -19,6 +19,7 @@ impl From<Failure> for CommandFailure {
             Failure::Conflict => Self::Conflict,
             Failure::NotFound => Self::NotFound,
             Failure::StaleSource => Self::StaleSource,
+            Failure::SourceExited => Self::SourceExited,
         }
     }
 }
@@ -33,6 +34,7 @@ impl From<CommandFailure> for Failure {
             CommandFailure::Conflict => Self::Conflict,
             CommandFailure::NotFound => Self::NotFound,
             CommandFailure::StaleSource => Self::StaleSource,
+            CommandFailure::SourceExited => Self::SourceExited,
         }
     }
 }

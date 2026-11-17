@@ -23,14 +23,17 @@ use std::thread;
 mod worker;
 pub(super) use worker::Effect;
 #[cfg(windows)]
-pub(super) use worker::{POPUP_INVENTORY_PAGES, static_codex_process};
+pub(super) use worker::{
+    POPUP_INVENTORY_PAGES, SOURCE_EXITED, SOURCE_EXITED_UNREAD, SOURCE_UNPAINTED,
+    static_codex_process,
+};
 
 pub(super) struct Fixture {
     pub(super) service: Arc<LocalTerminalService>,
     targets: Vec<WorkbenchCommand>,
     pub(super) effects: Arc<Mutex<Vec<Effect>>>,
     pub(super) detach_refusals: Arc<std::sync::atomic::AtomicUsize>,
-    pub(super) popup_fault: Arc<std::sync::atomic::AtomicU8>,
+    pub(super) fault: Arc<std::sync::atomic::AtomicU8>,
     static_codex: bool,
     stop: Mutex<UnixStream>,
     marker_sequence: std::sync::atomic::AtomicU64,
@@ -112,8 +115,8 @@ impl Fixture {
         let observation = Arc::clone(&effects);
         let detach_refusals = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let refusals = Arc::clone(&detach_refusals);
-        let popup_fault = Arc::new(std::sync::atomic::AtomicU8::new(0));
-        let faults = Arc::clone(&popup_fault);
+        let fault = Arc::new(std::sync::atomic::AtomicU8::new(0));
+        let faults = Arc::clone(&fault);
         let peer =
             thread::spawn(move || worker::run(peer, observation, refusals, faults, static_codex));
         let mut service = LocalTerminalService::session_workspace_fixture(
@@ -127,7 +130,7 @@ impl Fixture {
             targets: Vec::new(),
             effects,
             detach_refusals,
-            popup_fault,
+            fault,
             static_codex,
             stop: Mutex::new(stop),
             marker_sequence: std::sync::atomic::AtomicU64::new(1),
@@ -283,7 +286,7 @@ impl Fixture {
         *self.owner.lock().unwrap() = Some(thread::spawn(move || owner.run(server)));
         let effects = Arc::clone(&self.effects);
         let refusals = Arc::clone(&self.detach_refusals);
-        let faults = Arc::clone(&self.popup_fault);
+        let faults = Arc::clone(&self.fault);
         let static_codex = self.static_codex;
         *self.peer.lock().unwrap() = Some(thread::spawn(move || {
             worker::run(peer, effects, refusals, faults, static_codex)

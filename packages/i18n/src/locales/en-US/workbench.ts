@@ -430,6 +430,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.configuredCommands.refused.notFound': "Couldn't run {command}: it changed.",
 	'workbench.configuredCommands.refused.sessionMismatch':
 		"Couldn't run {command}: the Session changed.",
+	'workbench.configuredCommands.refused.sourceExited':
+		"Couldn't run {command}: this Panel's terminal exited. Focus a running Panel.",
 	'workbench.configuredCommands.refused.staleSource':
 		"Couldn't run {command}: something changed first.",
 	'workbench.configuredCommands.refused.unavailable':

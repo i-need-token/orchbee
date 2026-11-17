@@ -82,6 +82,7 @@ impl PopupRunner {
                 | F::Unavailable
                 | F::Conflict
                 | F::NotFound
+                | F::SourceExited
                 | F::PhysicalUnknown => Reason::TargetUnavailable,
             })),
             // This phase consumes its requested plugin/popup receipt; other receipt kinds cannot confirm that operation.

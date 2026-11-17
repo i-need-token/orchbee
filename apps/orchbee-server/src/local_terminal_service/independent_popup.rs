@@ -60,6 +60,7 @@ enum Failure {
     Conflict,
     NotFound,
     StaleSource,
+    SourceExited,
 }
 impl From<PluginFailure> for Failure {
     fn from(value: PluginFailure) -> Self {
@@ -89,7 +90,7 @@ impl From<Failure> for PluginFailure {
             Failure::Busy => Self::Busy,
             Failure::Conflict => Self::Conflict,
             Failure::NotFound => Self::NotFound,
-            Failure::StaleSource => Self::SourceUnavailable,
+            Failure::StaleSource | Failure::SourceExited => Self::SourceUnavailable,
             Failure::Unavailable => Self::Unavailable,
         }
     }

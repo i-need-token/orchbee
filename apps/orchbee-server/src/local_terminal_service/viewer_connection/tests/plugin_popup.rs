@@ -266,7 +266,7 @@ fn popup_lost_launch_or_force_receipt_retains_ownership_without_replaying() {
         let fixture = Fixture::new();
         fixture.service.start_close_maintenance().unwrap();
         fixture
-            .popup_fault
+            .fault
             .store(fault, std::sync::atomic::Ordering::Release);
         let request = open(&fixture);
         let snapshot = read_snapshot(&fixture.service);
@@ -351,7 +351,7 @@ fn popup_close_walks_every_inventory_page_before_it_disposes() {
     let fixture = Fixture::new();
     fixture.service.start_close_maintenance().unwrap();
     fixture
-        .popup_fault
+        .fault
         .store(12, std::sync::atomic::Ordering::Release);
     let request = open(&fixture);
     assert!(matches!(

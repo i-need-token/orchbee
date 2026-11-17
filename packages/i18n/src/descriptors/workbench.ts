@@ -1491,6 +1491,12 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.sessionMismatch'],
 		description: 'Status notice when the Session changed under a configured command.',
 	},
+	configuredCommandSourceExited: {
+		id: 'workbench.configuredCommands.refused.sourceExited',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.sourceExited'],
+		description:
+			'Status notice when the Panel a configured command starts from has a terminal that already exited.',
+	},
 	configuredCommandStaleSource: {
 		id: 'workbench.configuredCommands.refused.staleSource',
 		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.staleSource'],

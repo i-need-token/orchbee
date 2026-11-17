@@ -141,6 +141,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             F::Conflict,
             F::NotFound,
             F::StaleSource,
+            F::SourceExited,
             F::PhysicalUnknown,
         ]
         .map(N::CommandRefused),
@@ -198,6 +199,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
                 | F::Conflict
                 | F::NotFound
                 | F::StaleSource
+                | F::SourceExited
                 | F::PhysicalUnknown,
             )
             | N::AgentNotResumed(_, Why::PromptUnconfirmed | Why::TerminalTooOld)

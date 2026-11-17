@@ -18,6 +18,7 @@ export type WorkbenchConfiguredCommandRefusal =
 	| 'invalid-intent'
 	| 'not-found'
 	| 'session-mismatch'
+	| 'source-exited'
 	| 'stale-source'
 	| 'unavailable';
 

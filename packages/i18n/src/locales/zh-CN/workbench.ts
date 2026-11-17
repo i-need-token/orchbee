@@ -398,6 +398,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.configuredCommands.refused.invalidIntent': '没能运行 {command}：它的配置无效。',
 	'workbench.configuredCommands.refused.notFound': '没能运行 {command}：它已变化。',
 	'workbench.configuredCommands.refused.sessionMismatch': '没能运行 {command}：会话已变化。',
+	'workbench.configuredCommands.refused.sourceExited':
+		'没能运行 {command}：此面板的终端已退出，请聚焦运行中的面板。',
 	'workbench.configuredCommands.refused.staleSource': '没能运行 {command}：别处先改了。',
 	'workbench.configuredCommands.refused.unavailable': '没能运行 {command}：Orchbee 不可用。',
 	'workbench.heldRestore.directoryUnavailable': '没能启动终端：它的文件夹仍不可用。',

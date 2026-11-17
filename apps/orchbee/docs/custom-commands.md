@@ -26,9 +26,16 @@ acknowledged Client/view revision. An older in-flight Busy observation from the 
 reject or authorize that invocation. A newer or different source refuses without retargeting. This
 same path applies to initial and reloaded bindings and needs no prior CLI catalog or invocation.
 Server-side command, source and permission checks remain unchanged. Refusal feedback includes the
-command ID and distinguishes busy, stale source, changed command/configuration, permission,
-unavailability and unknown effects, with the corresponding wait, return-live, reload, reconnect or
-inspect-before-retry guidance. Controlled lane witnesses live in
+command ID and distinguishes busy, stale source, exited source, changed command/configuration,
+permission, unavailability and unknown effects, with the corresponding wait, return-live,
+focus-a-running-Panel, reload, reconnect or inspect-before-retry guidance.
+
+A source Panel whose terminal has exited or failed is refused with `source-exited` before any
+effect, for every action: its retained output is not a source, and nothing runs. The Server names
+that cause only when its source read finds no frame and the Host's inventory says the terminal
+ended; a source whose state it cannot learn stays `unavailable`, and a running source is never
+refused for it. The CLI exits 3 and points to `--panel` with a running Panel; the TUI and the GUI
+say the Panel's terminal exited and to focus a running Panel. Controlled lane witnesses live in
 `crates/workbench-client/src/workbench_client/client_control/lane/tests/configured_invocation.rs`; popup input, close and
 return behavior remains with the existing independent-popup owner.
 

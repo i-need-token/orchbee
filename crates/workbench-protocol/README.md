@@ -291,7 +291,8 @@ popup control; nested receipts preserve their original uncertainty.
 Configured popup controls carry a separate typed selector, source, display
 context and configured dimensions. Open/read/close are owned by the authenticated
 Client connection and use the existing independent terminal lifecycle. A stale
-catalog, selection, membership or source refuses before dispatch. No configured
+catalog, selection, membership or source refuses before dispatch, and a source
+whose terminal has exited or failed refuses with `source-exited`. No configured
 command is represented as an installed plugin. [Native command behavior](../../apps/orchbee/docs/custom-commands.md)
 owns configuration, dispatch and process lifetime on each platform.
 

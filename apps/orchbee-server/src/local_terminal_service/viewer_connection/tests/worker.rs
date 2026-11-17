@@ -10,6 +10,13 @@ use std::collections::BTreeMap;
 /// More pages than any fixed allowance, within a popup's lifecycle step ceiling.
 pub(in crate::local_terminal_service::viewer_connection::tests) const POPUP_INVENTORY_PAGES: u64 =
     12;
+/// Fault: every viewer's terminal has exited, so a poll answers its exit record and the Host's
+/// inventory says it ended, as a real Worker attaches an ended terminal.
+pub(in crate::local_terminal_service::viewer_connection::tests) const SOURCE_EXITED: u8 = 20;
+/// Fault: the exit record arrives, but the Host's inventory read is refused.
+pub(in crate::local_terminal_service::viewer_connection::tests) const SOURCE_EXITED_UNREAD: u8 = 21;
+/// Fault: the terminal runs but paints no frame in time.
+pub(in crate::local_terminal_service::viewer_connection::tests) const SOURCE_UNPAINTED: u8 = 22;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::local_terminal_service::viewer_connection::tests) enum Effect {
@@ -37,7 +44,7 @@ pub(super) fn run(
     mut peer: UnixStream,
     effects: Arc<Mutex<Vec<Effect>>>,
     detach_refusals: Arc<std::sync::atomic::AtomicUsize>,
-    popup_fault: Arc<std::sync::atomic::AtomicU8>,
+    fault: Arc<std::sync::atomic::AtomicU8>,
     static_codex: bool,
 ) {
     let mut viewers: BTreeMap<[u8; 16], (usize, u64, bool)> = BTreeMap::new();
@@ -78,7 +85,13 @@ pub(super) fn run(
                         }
                         WorkerAction::Poll => {
                             effects.lock().unwrap().push(Effect::Poll(id));
-                            if let Some((_, sequence, flight)) = viewers.get_mut(&id) {
+                            let source = fault.load(std::sync::atomic::Ordering::Acquire);
+                            let ended = matches!(source, SOURCE_EXITED | SOURCE_EXITED_UNREAD);
+                            if source == SOURCE_UNPAINTED {
+                                WorkerOutcome::Empty
+                            } else if let (true, Some((target, ..))) = (ended, viewers.get(&id)) {
+                                WorkerOutcome::Record(exited_record(*target))
+                            } else if let Some((_, sequence, flight)) = viewers.get_mut(&id) {
                                 // The record slot stays occupied until its
                                 // feedback: a poll during flight sees Empty.
                                 if *flight {
@@ -104,7 +117,11 @@ pub(super) fn run(
                         WorkerAction::ReadLifecycle { target } => {
                             assert!(viewers.contains_key(&id));
                             effects.lock().unwrap().push(Effect::Lifecycle(id));
-                            WorkerOutcome::LifecycleObserved { target, revision: 42, settled: true }
+                            match fault.load(std::sync::atomic::Ordering::Acquire) {
+                                SOURCE_EXITED_UNREAD => WorkerOutcome::Rejected(ViewerRejection::HostRejected),
+                                SOURCE_UNPAINTED => WorkerOutcome::LifecycleObserved { target, revision: 42, settled: false },
+                                _ => WorkerOutcome::LifecycleObserved { target, revision: 42, settled: true },
+                            }
                         },
                         WorkerAction::NeedSnapshot { sequence, reason } if static_codex => {
                             effects.lock().unwrap().push(Effect::Feedback(id));
@@ -252,7 +269,7 @@ pub(super) fn run(
                 let outcome = match request.action {
                     TerminalLifecycleAction::Force if target >= 10 => {
                         effects.lock().unwrap().push(Effect::PopupForce(target));
-                        if popup_fault.load(std::sync::atomic::Ordering::Acquire) == 2 {
+                        if fault.load(std::sync::atomic::Ordering::Acquire) == 2 {
                             return;
                         }
                         TerminalLifecycleOutcome::ForceAccepted
@@ -268,7 +285,7 @@ pub(super) fn run(
                         // one entry, its target on the last.
                         let offset = cursor.map_or(0, |cursor| cursor.offset);
                         let pending = target >= 10
-                            && popup_fault.load(std::sync::atomic::Ordering::Acquire) == 12
+                            && fault.load(std::sync::atomic::Ordering::Acquire) == 12
                             && offset + 1 < POPUP_INVENTORY_PAGES;
                         TerminalLifecycleOutcome::InventoryPage(LifecycleInventoryPage {
                             inventory_generation: NonZeroU64::MIN,
@@ -306,7 +323,7 @@ pub(super) fn run(
                 effects.lock().unwrap().push(Effect::PopupLaunch(
                     launch.authorization().terminal_id().as_bytes(),
                 ));
-                if popup_fault.load(std::sync::atomic::Ordering::Acquire) == 1 {
+                if fault.load(std::sync::atomic::Ordering::Acquire) == 1 {
                     return;
                 }
                 let identity = HostTerminalIdentity::new(
@@ -467,6 +484,38 @@ fn row_window_record(
         })
         .unwrap(),
     )
+}
+
+/// The exit record a Worker delivers first to a viewer of an ended terminal. The exit code is not
+/// zero, so no Shell Panel closes on its account.
+fn exited_record(target: usize) -> Vec<u8> {
+    use orchbee_terminal_protocol::{
+        CURRENT_PROTOCOL_VERSION, CreationId, Envelope, ExitResult, HostEpoch, LifecycleControl,
+        PayloadEncoding, TerminalExited, TerminalId, TerminalIdentity, encode_lifecycle_control,
+        encode_transport_envelope,
+    };
+    let index = u8::try_from(target).expect("fixture target fits in one byte");
+    let control = encode_lifecycle_control(&LifecycleControl::TerminalExited(TerminalExited {
+        exit: ExitResult::ExitCode(1),
+        final_revision: 1,
+        identity: TerminalIdentity {
+            creation_id: CreationId::from_bytes([3 + index; 16]).unwrap(),
+            host_epoch: HostEpoch::from_bytes([4; 16]).unwrap(),
+            terminal_id: TerminalId::from_bytes([5 + index; 16]).unwrap(),
+        },
+    }))
+    .unwrap();
+    encode_transport_envelope(&Envelope {
+        correlation_id: None,
+        host_epoch: Some(HostEpoch::from_bytes([4; 16]).unwrap()),
+        kind: control.kind,
+        optional_message: false,
+        payload: &control.payload,
+        payload_encoding: PayloadEncoding::ControlJson,
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: control.role,
+    })
+    .unwrap()
 }
 
 fn frame(id: [u8; 16], sequence: u64, static_codex: bool) -> Vec<u8> {

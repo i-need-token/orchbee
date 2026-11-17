@@ -4262,6 +4262,7 @@
 										"conflict",
 										"not-found",
 										"stale-source",
+										"source-exited",
 										"physical-unknown"
 									]
 								}

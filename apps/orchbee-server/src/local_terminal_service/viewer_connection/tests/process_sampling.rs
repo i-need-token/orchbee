@@ -1,4 +1,6 @@
-use super::fixture::{Effect, Fixture, static_codex_process};
+use super::fixture::{
+    Effect, Fixture, SOURCE_EXITED, SOURCE_EXITED_UNREAD, SOURCE_UNPAINTED, static_codex_process,
+};
 use std::{
     sync::atomic::Ordering,
     time::{Duration, Instant},
@@ -105,6 +107,42 @@ fn periodic_turns_observe_lifecycle_and_content_before_process_refusal_and_relea
         })
         .collect();
     assert_eq!(targets.len(), 10);
+}
+
+#[test]
+fn configured_source_capture_names_an_ended_terminal_only_on_the_hosts_word() {
+    use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
+    let fixture = Fixture::new();
+    let target = fixture
+        .service
+        .coordinator
+        .lock()
+        .unwrap()
+        .process_observation_targets()
+        .unwrap()
+        .remove(0);
+    assert!(
+        fixture
+            .service
+            .configured_command_capture(&target, None)
+            .is_ok(),
+        "a running source that paints is captured"
+    );
+    for (fault, expected) in [
+        (SOURCE_EXITED, F::SourceExited),
+        (SOURCE_EXITED_UNREAD, F::Unavailable),
+        (SOURCE_UNPAINTED, F::Unavailable),
+    ] {
+        fixture.fault.store(fault, Ordering::Release);
+        assert_eq!(
+            fixture
+                .service
+                .configured_command_capture(&target, None)
+                .err(),
+            Some(expected),
+            "fault {fault}"
+        );
+    }
 }
 
 #[test]

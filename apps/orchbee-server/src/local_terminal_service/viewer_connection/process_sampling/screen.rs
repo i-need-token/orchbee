@@ -214,6 +214,17 @@ pub(super) fn resume_facts(
     }
 }
 
+/// Whether the Host's inventory says the viewer's terminal has ended, exited or failed. A refused,
+/// unrelated or missing answer is not that word.
+fn ended(viewer: &ViewerAttachment<'_>, template: WorkerRequest, stop: &AtomicBool) -> bool {
+    let target = viewer.target.identity;
+    matches!(
+        request(viewer, template, stop, WorkerAction::ReadLifecycle { target }),
+        Some((_, WorkerOutcome::LifecycleObserved { target: observed, settled: true, .. }))
+            if observed == target
+    )
+}
+
 pub(in crate::local_terminal_service) fn configured_capture(
     viewer: &mut ViewerAttachment<'_>,
     template: WorkerRequest,
@@ -224,7 +235,15 @@ pub(in crate::local_terminal_service) fn configured_capture(
     orchbee_workbench_protocol::ConfiguredCommandFailure,
 > {
     use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
-    let frame = fresh_frame(viewer, template, stop).ok_or(F::Unavailable)?;
+    let Some(frame) = fresh_frame(viewer, template, stop) else {
+        // An ended terminal answers its lifecycle record, not a frame. Only the Host's word that
+        // it ended names that cause; a source whose state is unknown stays unavailable.
+        return Err(if ended(viewer, template, stop) {
+            F::SourceExited
+        } else {
+            F::Unavailable
+        });
+    };
     let mut directory = frame
         .current_directory
         .as_deref()

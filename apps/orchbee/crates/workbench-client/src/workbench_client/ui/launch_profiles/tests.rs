@@ -364,6 +364,7 @@ fn command_refusals_keep_the_command_identity_and_distinct_localized_recovery() 
             F::Conflict,
             F::NotFound,
             F::StaleSource,
+            F::SourceExited,
             F::PhysicalUnknown,
         ] {
             ui.configured_command_completed(CommandCompletion::refused(

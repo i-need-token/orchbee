@@ -231,6 +231,9 @@ pub enum ConfiguredCommandFailure {
     Conflict,
     NotFound,
     StaleSource,
+    /// The source Panel's terminal has exited or failed, so nothing ran; a running source never
+    /// answers this.
+    SourceExited,
     PhysicalUnknown,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

@@ -153,6 +153,7 @@ export const ConfiguredCommandResultSchema = z
 					'conflict',
 					'not-found',
 					'stale-source',
+					'source-exited',
 					'physical-unknown',
 				]),
 			}),

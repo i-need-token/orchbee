@@ -510,6 +510,14 @@ fn emit(
             _ => status,
         };
     }
+    let source_exited = reply.as_ref().is_some_and(|reply| {
+        matches!(
+            reply.outcome,
+            Outcome::Failed {
+                reason: Reason::SourceExited
+            }
+        )
+    });
     let document = serde_json::json!({"schema":"orchbee.command","version":1,"source":{"kind":"local-runtime"},"result":{"operation":operation,"reply":reply,"followup":followup.map(|answer| answer.document),"complete":complete && status==0}});
     let stdout = match format {
         OutputFormat::Json => output::encode_document(&document),
@@ -547,6 +555,9 @@ fn emit(
                         })
                         .collect::<Vec<_>>(),
                 ),
+                None if source_exited => CliText::new(locale)
+                    .configured_command_source_exited()
+                    .into(),
                 None => CliText::new(locale)
                     .configured_command_status(status)
                     .into(),

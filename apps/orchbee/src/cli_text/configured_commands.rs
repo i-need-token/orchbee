@@ -39,4 +39,15 @@ impl super::CliText {
             (Locale::ZhCn, _) => "命令被拒绝或执行失败。\n",
         }
     }
+    /// A refusal whose source Panel's terminal had already ended, with the one way forward.
+    pub(crate) fn configured_command_source_exited(self) -> &'static str {
+        match self.locale {
+            Locale::EnUs => {
+                "Command was refused: the source Panel's terminal has exited. Choose a running Panel with --panel <id>.\n"
+            }
+            Locale::ZhCn => {
+                "命令被拒绝：来源面板的终端已退出。请用 --panel <id> 选择运行中的面板。\n"
+            }
+        }
+    }
 }
