@@ -899,9 +899,12 @@ result write, the reply leaves by seventeen seconds, three seconds inside the Se
 twenty-second result wait. Work that no longer fits is never sent and never counts against the
 Host; the request gets the answer below, which neither the Worker nor the Server retries. Unless
 noted below, the Worker keeps the viewer and any grant, and the Server keeps the viewer and its
-controller lease. Both Clients treat these refusals as transient: each loses only the refused
-action and never replays it, keeps control, and shows that action's failure notice. A refused
-resize sends its size again on the next layout change.
+controller lease. A refused input or resize loses only that action, keeps control, and shows its
+failure notice. A refused frame feedback is different: the TUI client releases the pane's viewer
+and parks that pane, and the window client shows one failure notice. A refused resize sends its
+size again on the next layout change. The client rules are owned by the
+[TUI workbench client runtime](../orchbee/docs/workbench-client-runtime.md) and the
+[window client](../web/README.md#composition-boundary).
 
 | Request                           | Answer when its exchange cannot start           |
 | --------------------------------- | ----------------------------------------------- |
@@ -925,9 +928,11 @@ controller keeps its terminal's resize lease until that Host Detach, so an Acqui
 sends every deferred Detach before its own exchanges; one with no room for them answers
 `ControllerBusy`, and any incumbent keeps control. A Takeover whose
 incumbent Detach went ahead but whose Attach cannot start leaves no grant at either end, and the
-Client may ask again. After a refused viewer request the Server keeps the viewer only for demand,
-history, rows-applied and selection requests; after frame feedback or a process read it releases
-the viewer and its lease with it.
+Client may ask again. After a `HostRejected` answer the Server keeps the viewer only for demand,
+history, rows-applied and selection requests; after `FrameApplied`, `NeedSnapshot` or any read
+request it releases the viewer and its lease with it. The reason is that a `HostRejected` answer
+can come from containment, which has already closed that viewer in the Worker, and the Server
+cannot tell that apart from a request that never started.
 
 A request reaches its first exchange within its two-second record read, so these answers need a
 Worker stalled for seconds; later steps of one request and its cleanup meet the limit sooner, and a
