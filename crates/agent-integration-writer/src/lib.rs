@@ -59,6 +59,7 @@ pub use model::{Issue, SnapshotItem, State};
 #[cfg(any(unix, windows))]
 mod imp {
     use std::{
+        cell::Cell,
         ffi::OsString,
         path::{Path, PathBuf},
         time::{Duration, Instant},
@@ -134,6 +135,9 @@ mod imp {
         pub(crate) payload_sha256: String,
         pub(crate) source: AdapterSource,
         pub(crate) deadline: Instant,
+        /// The slowest provider command finished so far in this invocation; the reserve for
+        /// later re-inspection reads is measured from it.
+        pub(crate) slowest_command: Cell<Option<Duration>>,
         path_env: Option<OsString>,
         /// The armed termination source — `None` when the caller never
         /// installed one (unit tests, non-unix fallbacks).
@@ -148,6 +152,7 @@ mod imp {
                 adapter_source: self.source.directory(),
                 path_env: self.path_env.as_deref(),
                 deadline: self.deadline,
+                slowest_command: &self.slowest_command,
                 cancel: self.cancel.as_deref(),
                 // The provider registry further restricts platform capabilities;
                 // Provider policy admits only the supported Windows entries.
@@ -262,6 +267,7 @@ mod imp {
             payload_sha256,
             source,
             deadline,
+            slowest_command: Cell::new(None),
             path_env: std::env::var_os("PATH"),
             cancel,
         })

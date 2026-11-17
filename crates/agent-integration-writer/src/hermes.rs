@@ -215,7 +215,7 @@ pub(super) fn read(
         &["plugins".into(), "list".into(), "--json".into()],
         context.home,
         context.path_env,
-        context.deadline,
+        context.command_budget(),
         context.cancel,
     ) {
         exec::CommandResult::Completed { stdout } => ReadOutcome::Stdout(stdout),

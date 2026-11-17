@@ -1218,12 +1218,14 @@ fn drive_provider(case: &Case, dirs: &Dirs) -> mutation::MutationReport {
 
     let deadline = inject::now() + PROVIDER_BUDGET;
     let cancel = InjectCancel;
+    let slowest = std::cell::Cell::new(None);
     let context = ProviderContext {
         home: &dirs.home,
         capsule_root: &dirs.capsule_root,
         adapter_source: Some(dirs.adapter_source.as_path()),
         path_env: Some(dirs.bin.as_os_str()),
         deadline,
+        slowest_command: &slowest,
         cancel: Some(&cancel),
         management_mode: super::super::model::ManagementMode::ManagedLocal,
         variables: |_| None,
@@ -2088,12 +2090,14 @@ fn run_static(case: &Case, cli_status: CliStatus) {
                 plan
             });
             let cancel = InjectCancel;
+            let slowest = std::cell::Cell::new(None);
             let context = ProviderContext {
                 home: &dirs.home,
                 capsule_root: &dirs.capsule_root,
                 adapter_source: Some(dirs.adapter_source.as_path()),
                 path_env: Some(dirs.bin.as_os_str()),
                 deadline: inject::now() + PROVIDER_BUDGET,
+                slowest_command: &slowest,
                 cancel: Some(&cancel),
                 management_mode: super::super::model::ManagementMode::ManagedLocal,
                 variables: |_| None,
@@ -2153,12 +2157,14 @@ fn drive_provider_at(
         materialize_capsule(&dirs.adapter_source, false);
     }
     let cancel = InjectCancel;
+    let slowest = std::cell::Cell::new(None);
     let context = ProviderContext {
         home: &dirs.home,
         capsule_root: &dirs.capsule_root,
         adapter_source: Some(dirs.adapter_source.as_path()),
         path_env: Some(dirs.bin.as_os_str()),
         deadline: inject::now() + PROVIDER_BUDGET,
+        slowest_command: &slowest,
         cancel: Some(&cancel),
         management_mode: super::super::model::ManagementMode::ManagedLocal,
         variables: |_| None,

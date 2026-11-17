@@ -18,6 +18,7 @@
 //! and the temporary root always leaves with the test.
 
 use std::{
+    cell::Cell,
     fs, io,
     os::{
         fd::{AsFd, OwnedFd},
@@ -39,6 +40,7 @@ use nix::{
 use rustix::process::{Pid as RustixPid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
 
 use super::super::exec::{self, CommandResult};
+use super::super::exec_budget::CommandBudget;
 use crate::TerminationSource;
 
 /// A `TerminationSource` backed by a plain flag — the witness arms it only
@@ -259,12 +261,16 @@ fn cancelled_command_group_still_takes_the_kill_path() {
         // panic arms the flag before `scope` joins the command thread.
         let _arm = ArmFlag(&flag);
         let command = scope.spawn(|| {
+            let slowest = Cell::new(None);
             exec::run_command(
                 &script,
                 &[],
                 &home,
                 None,
-                Instant::now() + exec::SLOT,
+                CommandBudget {
+                    deadline: Instant::now() + exec::SLOT,
+                    slowest: &slowest,
+                },
                 Some(&cancel),
             )
         });
@@ -376,8 +382,12 @@ fn timed_out_command_is_launched_and_reaped_inside_its_slot() {
     let (result, elapsed, leader) = thread::scope(|scope| {
         let command = scope.spawn(|| {
             let start = Instant::now();
-            let result =
-                exec::run_command(&script, &[], &home, None, Instant::now() + exec::SLOT, None);
+            let slowest = Cell::new(None);
+            let budget = CommandBudget {
+                deadline: Instant::now() + exec::SLOT,
+                slowest: &slowest,
+            };
+            let result = exec::run_command(&script, &[], &home, None, budget, None);
             (result, start.elapsed())
         });
         let leader = read_pidfile(&leader_pidfile, Duration::from_secs(2));
@@ -400,8 +410,9 @@ fn timed_out_command_is_launched_and_reaped_inside_its_slot() {
         "launched timeout witness returned {result:?}"
     );
     assert!(
-        elapsed < Duration::from_secs(5),
-        "one command exceeded its 3.6s slot: {elapsed:?}"
+        elapsed < exec::SLOT + Duration::from_secs(2),
+        "one command exceeded its {:?} slot: {elapsed:?}",
+        exec::SLOT
     );
     assert!(
         guard.leader.as_ref().unwrap().exited().unwrap(),

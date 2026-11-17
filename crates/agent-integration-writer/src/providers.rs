@@ -6,14 +6,16 @@
 //! Agent's program: providers read only through it stay not checked.
 
 use std::{
+    cell::Cell,
     ffi::OsStr,
     path::{Path, PathBuf},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use super::capsule;
 use super::copilot::Command as CopilotCommand;
 use super::exec::{self, CommandResult};
+use super::exec_budget::{CommandBudget, reserve_estimate};
 use super::inspect::{
     self, BootstrapKind, ClinePackage, CodexInspection, GuardedTarget, PluginInspection,
     ResourceOptions, TargetState,
@@ -34,6 +36,9 @@ pub(crate) struct ProviderContext<'a> {
     pub(crate) path_env: Option<&'a OsStr>,
     /// The invocation's single monotonic deadline.
     pub(crate) deadline: Instant,
+    /// The slowest provider command this invocation has finished, timed-out ones included;
+    /// `None` until one finishes. Later re-inspection reads reserve at this measured pace.
+    pub(crate) slowest_command: &'a Cell<Option<Duration>>,
     /// The armed termination source — `None` in contexts that cannot be
     /// cancelled (tests drive their own flag through this same slot).
     pub(crate) cancel: Option<&'a dyn crate::TerminationSource>,
@@ -43,6 +48,23 @@ pub(crate) struct ProviderContext<'a> {
     pub(crate) management_mode: ManagementMode,
     /// The environment the providers' own override variables are read from.
     pub(crate) variables: crate::provider_roots::Variables,
+}
+
+impl ProviderContext<'_> {
+    /// This invocation's command budget, which every provider command clips to.
+    pub(crate) fn command_budget(&self) -> CommandBudget<'_> {
+        CommandBudget {
+            deadline: self.deadline,
+            slowest: self.slowest_command,
+        }
+    }
+
+    /// The time `reads` later re-inspection reads reserve at this invocation's measured
+    /// pace. Every reserve check uses it: pre-mutation refusal, the step gate, the
+    /// completion claim, an uncertain re-inspection and Codex home preparation.
+    pub(crate) fn reinspection_reserve(&self, reads: usize) -> Duration {
+        reserve_estimate(self.slowest_command.get()) * (reads as u32)
+    }
 }
 
 /// Build the classifier's content-addressed resource options.
@@ -239,8 +261,8 @@ const fn spec(id: IntegrationId) -> Spec {
     }
 }
 
-/// Command slots a single inspection consumes — the final re-inspection
-/// reserve a mutation must hold back.
+/// Command reads a single inspection consumes — the final re-inspection reads a
+/// mutation reserves for, each at the measured pace.
 pub(crate) fn inspect_slots(id: IntegrationId) -> usize {
     spec(id).inspect_slots
 }
@@ -442,7 +464,7 @@ fn read(executable: &Path, arguments: &[&str], context: &ProviderContext) -> Rea
         &argv,
         context.home,
         context.path_env,
-        context.deadline,
+        context.command_budget(),
         context.cancel,
     ) {
         CommandResult::Completed { stdout } => ReadOutcome::Stdout(stdout),

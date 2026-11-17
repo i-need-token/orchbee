@@ -1,7 +1,8 @@
 //! Windows adapter witnesses. Every fixture owns its directory and every
 //! provider tree is owned by the production Job runner under test.
-use super::super::{exec, files};
+use super::super::{exec, exec_budget::CommandBudget, files};
 use std::{
+    cell::Cell,
     fs,
     path::PathBuf,
     time::{Duration, Instant},
@@ -46,12 +47,16 @@ impl Fixture {
         script: &str,
         cancel: Option<&dyn crate::TerminationSource>,
     ) -> exec::CommandResult {
+        let slowest = Cell::new(None);
         exec::run_command(
             &self.node(),
             &["-e".into(), script.into()],
             &self.0,
             None,
-            Instant::now() + exec::SLOT,
+            CommandBudget {
+                deadline: Instant::now() + exec::SLOT,
+                slowest: &slowest,
+            },
             cancel,
         )
     }
@@ -331,7 +336,7 @@ fn cancellation_and_timeout_kill_descendants() {
         start.elapsed(),
         fixture.node().display()
     );
-    assert!(start.elapsed() < Duration::from_secs(5));
+    assert!(start.elapsed() < exec::SLOT + Duration::from_secs(2));
 }
 
 #[test]
@@ -377,12 +382,16 @@ fn batch_shim_preserves_arguments_without_shell_interpolation() {
     .into_iter()
     .map(str::to_owned)
     .collect();
+    let slowest = Cell::new(None);
     let result = exec::run_command(
         &shim,
         &arguments,
         &fixture.0,
         None,
-        Instant::now() + exec::SLOT,
+        CommandBudget {
+            deadline: Instant::now() + exec::SLOT,
+            slowest: &slowest,
+        },
         None,
     );
     let exec::CommandResult::Completed { stdout } = result else {

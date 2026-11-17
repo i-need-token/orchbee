@@ -90,7 +90,7 @@
 		"backupRemovalGuard": "backup removal only while backup digest == the inspect-time captured digest; mismatch -> retained -> conflict (53§5 step 5)",
 		"restoreGuard": "on ANY install failure, when THIS invocation owns the moved backup, attempt NO-REPLACE restore rename(backup->target) inside the same deadline; no unbounded rollback phase (53§5 step 3, C-3)",
 		"attemptedVsObserved": "attempted[] is the fact list of steps run; observed.provenance declares which snapshot the reported state comes from. A skipped/failed re-inspection can NEVER fabricate a current combined snapshot (53§6, C-6)",
-		"reserveRule": "a provider command slot launches only if remaining >= 3.6s AND the provider's re-inspection reserve (its inspect-read count, 0|1|2 slots) still holds; otherwise stop -> timed-out verdict, no partial slot (53§6)"
+		"reserveRule": "a provider command slot launches only if remaining >= its 8.6s slot PLUS the provider's re-inspection reserve (its inspect-read count, 0|1|2 reads) still holds; otherwise stop -> timed-out verdict, no partial slot (53§6). Every re-inspection reserve (pre-mutation refusal, step gate, completion claim, uncertain re-inspection, Codex home preparation) uses the measured estimate: each read reserves this invocation's slowest finished command x 1.5 + 0.6s, capped at 8.6s, and a full 8.6s until a command finishes"
 	},
 	"cases": [
 		{
@@ -1523,10 +1523,10 @@
 		{
 			"id": "budget.slot-not-admitted-mid-effect",
 			"area": "budget",
-			"summary": "Mid provider-command sequence: remaining < 3.6s for the next slot -> stop, timed-out verdict, NO partial slot. Earlier commands may have applied -> undetermined post-effect -> 8; attempted[] names the completed steps exactly.",
+			"summary": "Mid provider-command sequence: remaining < 8.6s for the next slot -> stop, timed-out verdict, NO partial slot. Earlier commands may have applied -> undetermined post-effect -> 8; attempted[] names the completed steps exactly.",
 			"execution": "delivery-injected",
 			"setup": {
-				"clock": "remaining < 3.6s after k>=1 provider mutations completed"
+				"clock": "remaining < 8.6s after k>=1 provider mutations completed"
 			},
 			"drive": {
 				"op": "enable-provider",
@@ -1656,7 +1656,7 @@
 		{
 			"id": "budget.reserve-1",
 			"area": "budget",
-			"summary": "Provider with 1 inspect read: mutation admission requires remaining >= 3.6s for the next mutation slot AND 1x3.6s held in reserve.",
+			"summary": "Provider with 1 inspect read: mutation admission requires remaining >= 8.6s for the next mutation slot AND one re-inspection read's measured reserve held (a full 8.6s until a command finishes).",
 			"execution": "static",
 			"setup": {
 				"provider": "inspect-reads=1"
@@ -1668,7 +1668,7 @@
 			"expect": {
 				"verdict": "applied",
 				"exit": 0,
-				"assertion": "admission arithmetic: slot launched iff remaining >= 3.6s with the 1-slot reserve intact; reserve consumed only by the final read",
+				"assertion": "admission arithmetic: slot launched iff remaining >= 8.6s plus the 1-read measured reserve, held intact; reserve consumed only by the final read",
 				"forbidden": ["mutation slot funded by consuming the reserve"],
 				"allowedNext": []
 			},
@@ -1677,7 +1677,7 @@
 		{
 			"id": "budget.reserve-2",
 			"area": "budget",
-			"summary": "Provider with 2 inspect reads: reserve = 2x3.6s; a mid-sequence budget that would starve the reserve stops further mutation slots instead.",
+			"summary": "Provider with 2 inspect reads: reserve = two re-inspection reads at the measured pace (a full 8.6s each until a command finishes); a mid-sequence budget that would starve the reserve stops further mutation slots instead.",
 			"execution": "static",
 			"setup": {
 				"provider": "inspect-reads=2"
@@ -1689,7 +1689,7 @@
 			"expect": {
 				"verdict": "applied",
 				"exit": 0,
-				"assertion": "admission arithmetic: next mutation slot requires remaining >= 3.6 + 2x3.6; starvation -> timed-out verdict rather than reserve violation",
+				"assertion": "admission arithmetic: next mutation slot requires remaining >= 8.6s plus two measured reserves; starvation -> timed-out verdict rather than reserve violation",
 				"forbidden": ["reserve overrun", "re-inspection crowded out"],
 				"allowedNext": []
 			},

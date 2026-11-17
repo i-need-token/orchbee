@@ -97,7 +97,9 @@ pub(super) fn prepare_home(
     if cancelled(context) {
         return Err(Attempt::Cancelled);
     }
-    if now() + SLOT * (reserve_slots.saturating_add(1) as u32) > context.deadline {
+    // The next Codex command keeps its full slot; the later re-inspection reads are
+    // reserved at this invocation's measured pace.
+    if now() + SLOT + context.reinspection_reserve(reserve_slots) > context.deadline {
         return Err(Attempt::Refused(Refusal::Deadline));
     }
     // Explicit nonempty overrides were required to exist during selection.

@@ -11,32 +11,16 @@
 //! * The single monotonic deadline gates admission: no budget for the
 //!   provider's own re-inspection reserve → refused before any effect.
 
-use std::{
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::path::{Path, PathBuf};
 
 use super::capsule::{self, CapsuleValidity};
 use super::copilot::Command as CopilotCommand;
 use super::exec::{self, CommandResult, SLOT};
+use super::exec_budget::now;
 use super::files::{self, FsStep};
 use super::inspect::{self, BootstrapKind, ClinePackage, Marketplace, TargetState};
 use super::model::{Availability, IntegrationId, ManagementMode, Provenance, SnapshotItem, State};
 use super::providers::{self, ProviderContext};
-
-/// The wall the frontier consults — tests inject a clock skew so deadline
-/// and reserve math is exercised without real sleeps.
-#[cfg(not(all(any(test, feature = "test-support"), unix)))]
-#[inline]
-fn now() -> Instant {
-    Instant::now()
-}
-
-#[cfg(all(any(test, feature = "test-support"), unix))]
-#[inline]
-fn now() -> Instant {
-    super::test_support::fault_injection::now()
-}
 
 pub use orchbee_agent_integration::{
     AttemptedStep, Direction, FailureCode, MutationReport, PlannedStep, Refusal, StepKind,
@@ -284,11 +268,12 @@ pub(crate) fn mutate(
             verdict: Verdict::Completed,
         };
     }
-    // The deadline must cover the provider's own re-inspection reserve
-    // before the first mutation step — the honest pre-mutation timeout. A
-    // provider whose re-inspection issues no commands reserves nothing.
+    // The deadline must cover the provider's own re-inspection reserve, at this
+    // invocation's measured pace, before the first mutation step — the honest
+    // pre-mutation timeout. A provider whose re-inspection issues no commands
+    // reserves nothing.
     let reserve = providers::inspect_slots(id);
-    if now() + SLOT * (reserve as u32) >= context.deadline {
+    if now() + context.reinspection_reserve(reserve) >= context.deadline {
         return MutationReport {
             integration_id: id,
             direction,
@@ -327,9 +312,23 @@ pub(crate) fn mutate(
     };
 
     match attempt {
-        // The mid-window re-inspection gate aborted on a changed state —
-        // the refusal family, recorded against a post-effect frontier.
         Attempt::Refused(refusal) => {
+            // A deadline refusal before any effect is the honest pre-mutation
+            // timeout, whichever gate refused.
+            if refusal == Refusal::Deadline && !effect_begun {
+                return MutationReport {
+                    integration_id: id,
+                    direction,
+                    attempted,
+                    residuals,
+                    observed: Some(initial),
+                    provenance: initial_provenance,
+                    effect_begun,
+                    verdict: Verdict::Refused(Refusal::Deadline),
+                };
+            }
+            // The mid-window re-inspection gate aborted on a changed state —
+            // the refusal family, recorded against a post-effect frontier.
             return MutationReport {
                 integration_id: id,
                 direction,
@@ -427,7 +426,7 @@ pub(crate) fn mutate(
         // observation — but completion is only claimed while the
         // re-inspection reserve was still affordable: `provider exit 0
         // alone` never claims success against an exhausted budget.
-        let verdict = if now() + SLOT * (reserve as u32) >= context.deadline {
+        let verdict = if now() + context.reinspection_reserve(reserve) >= context.deadline {
             Verdict::Failed(FailureCode::TimedOut)
         } else {
             Verdict::Completed
@@ -450,11 +449,11 @@ pub(crate) fn mutate(
     }
 
     // An uncertain attempt re-inspects while the deadline covers the
-    // provider's full read reserve — the re-inspection may issue provider
+    // provider's measured read reserve — the re-inspection may issue provider
     // reads, which is exactly what the pre-vector reserve was held for. A
     // timed-out step already consumed the observation budget, so nothing
     // further is owed: the provenance stays unavailable.
-    let reserve_deadline_ok = now() + SLOT * (reserve as u32) < context.deadline
+    let reserve_deadline_ok = now() + context.reinspection_reserve(reserve) < context.deadline
         && attempt != Attempt::Failed(FailureCode::TimedOut);
     let (observed, reached, provenance) = if reserve_deadline_ok {
         #[cfg(all(any(test, feature = "test-support"), unix))]
@@ -715,8 +714,6 @@ pub(crate) fn publish_capsule(source: &Path, target: &Path) -> PublishResult {
     }
 }
 
-/// Run one provider command as an attempted step; the slot is clipped by
-/// both the provider's re-inspection reserve and the invocation deadline.
 /// The termination source check shared by every frontier boundary — absent
 /// in contexts that cannot be cancelled (tests, `--adapter-source` drives
 /// without an armed signal owner).
@@ -727,6 +724,9 @@ fn cancelled(context: &ProviderContext) -> bool {
         .unwrap_or(false)
 }
 
+/// Run one provider command as an attempted step. Its slot is clipped to the
+/// invocation deadline; the admission gate has already reserved the later
+/// re-inspection reads.
 fn run_step(
     executable: &Path,
     argv: &[&str],
@@ -748,7 +748,7 @@ fn run_step(
                 argv_owned,
                 context.home,
                 context.path_env,
-                context.deadline,
+                context.command_budget(),
                 context.cancel,
             )
         },
@@ -763,7 +763,10 @@ fn run_step_with(
     effect: &mut bool,
     execute: impl FnOnce(&[String]) -> CommandResult,
 ) -> Attempt {
-    let deadline_ok = now() + SLOT * (reserve_slots.saturating_add(1) as u32) <= context.deadline;
+    // The command about to start keeps its full slot; each later re-inspection
+    // read is reserved at this invocation's measured pace.
+    let deadline_ok =
+        now() + SLOT + context.reinspection_reserve(reserve_slots) <= context.deadline;
     if !deadline_ok {
         // Slot admission refused: the command was never spawned, so the
         // log entry is a planned-step record, not an effect — the refusal
@@ -883,7 +886,7 @@ fn run_codex_sequence(
                         executable,
                         arguments,
                         context.home,
-                        context.deadline,
+                        context.command_budget(),
                         context.cancel,
                     )
                 },

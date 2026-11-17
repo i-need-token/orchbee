@@ -83,7 +83,7 @@ pub(super) fn update(
                 argv,
                 context.home,
                 context.path_env,
-                context.deadline,
+                context.command_budget(),
                 context.cancel,
             )
         },

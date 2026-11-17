@@ -30,12 +30,14 @@ fn changed_preimages_arrivals_and_cancellation_preserve_user_data() {
         fs::write(&target, original).unwrap();
         let capsule = fixture.0.join("capsules/0.4.17");
         let cancel = Cancel(Cell::new(false));
+        let slowest = Cell::new(None);
         let context = ProviderContext {
             home: &fixture.0,
             capsule_root: &capsule,
             adapter_source: None,
             path_env: None,
             deadline: Instant::now() + Duration::from_secs(10),
+            slowest_command: &slowest,
             cancel: Some(&cancel),
             management_mode: ManagementMode::ManagedLocal,
             variables: |_| None,

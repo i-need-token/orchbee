@@ -13,8 +13,8 @@ use orchbee_local_ipc::ChildOutputReader;
 use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject};
 use windows::Win32::System::Threading::CREATE_NO_WINDOW;
 
-use super::exec_budget::CommandDeadlines;
 pub(crate) use super::exec_budget::SLOT;
+use super::exec_budget::{CommandBudget, CommandDeadlines, now};
 
 const POLL: Duration = Duration::from_millis(10);
 const OUTPUT_LIMIT: usize = 256 * 1024;
@@ -68,17 +68,17 @@ pub(crate) fn run_command(
     arguments: &[String],
     home: &Path,
     _path_env: Option<&OsStr>,
-    deadline: Instant,
+    budget: CommandBudget<'_>,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {
-    run_scoped_command(executable, arguments, home, None, deadline, cancel)
+    run_scoped_command(executable, arguments, home, None, budget, cancel)
 }
 pub(crate) fn run_hermes_command(
     executable: &Path,
     arguments: &[String],
     home: &Path,
     _path_env: Option<&OsStr>,
-    deadline: Instant,
+    budget: CommandBudget<'_>,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {
     let Some(profile) = crate::configuration::hermes_home(home) else {
@@ -92,7 +92,7 @@ pub(crate) fn run_hermes_command(
         arguments,
         home,
         Some(("HERMES_HOME", &profile)),
-        deadline,
+        budget,
         cancel,
     )
 }
@@ -101,7 +101,7 @@ pub(crate) fn run_codex_command(
     executable: &Path,
     arguments: &[String],
     home: &Path,
-    deadline: Instant,
+    budget: CommandBudget<'_>,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {
     let Some(profile) = super::inspect::codex_home(home) else {
@@ -114,12 +114,35 @@ pub(crate) fn run_codex_command(
         arguments,
         home,
         Some(("CODEX_HOME", &profile)),
-        deadline,
+        budget,
         cancel,
     )
 }
 
+/// Runs one command in its slot and records the span it occupied. A command that
+/// timed out or was killed counts with its full span, since it held the invocation.
 fn run_scoped_command(
+    executable: &Path,
+    arguments: &[String],
+    home: &Path,
+    provider_home: Option<(&str, &Path)>,
+    budget: CommandBudget<'_>,
+    cancel: Option<&dyn crate::TerminationSource>,
+) -> CommandResult {
+    let started = now();
+    let result = run_in_slot(
+        executable,
+        arguments,
+        home,
+        provider_home,
+        budget.deadline,
+        cancel,
+    );
+    budget.record(now().saturating_duration_since(started));
+    result
+}
+
+fn run_in_slot(
     executable: &Path,
     arguments: &[String],
     home: &Path,

@@ -21,8 +21,8 @@ use nix::{
     unistd::Pid,
 };
 
-use super::exec_budget::CommandDeadlines;
 pub(crate) use super::exec_budget::SLOT;
+use super::exec_budget::{CommandBudget, CommandDeadlines, now};
 
 const TERM_GRACE: Duration = Duration::from_millis(500);
 const REAP_BOUND: Duration = Duration::from_millis(100);
@@ -98,7 +98,7 @@ pub(crate) fn resolve_executable(
     None
 }
 
-/// Run one bounded command inside a slot clipped to `invocation_deadline`.
+/// Run one bounded command inside a slot clipped to the budget's deadline.
 /// Preparation/run and grace/reap consume their preallocated phases and
 /// never stretch the slot. `home` is the process working directory, and
 /// `path_env`, when present, the command's `PATH`.
@@ -107,18 +107,10 @@ pub(crate) fn run_command(
     arguments: &[String],
     home: &Path,
     path_env: Option<&std::ffi::OsStr>,
-    invocation_deadline: Instant,
+    budget: CommandBudget<'_>,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {
-    run_scoped_command(
-        executable,
-        arguments,
-        home,
-        path_env,
-        None,
-        invocation_deadline,
-        cancel,
-    )
+    run_scoped_command(executable, arguments, home, path_env, None, budget, cancel)
 }
 
 /// Runs Hermes with `HERMES_HOME` pinned to the profile root that filesystem admission read, so
@@ -128,7 +120,7 @@ pub(crate) fn run_hermes_command(
     arguments: &[String],
     home: &Path,
     path_env: Option<&std::ffi::OsStr>,
-    invocation_deadline: Instant,
+    budget: CommandBudget<'_>,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {
     let Some(profile) = crate::configuration::hermes_home(home) else {
@@ -143,12 +135,37 @@ pub(crate) fn run_hermes_command(
         home,
         path_env,
         Some(("HERMES_HOME", &profile)),
-        invocation_deadline,
+        budget,
         cancel,
     )
 }
 
+/// Runs one command in its slot and records the span it occupied. A command that
+/// timed out or was killed counts with its full span, since it held the invocation.
 fn run_scoped_command(
+    executable: &Path,
+    arguments: &[String],
+    home: &Path,
+    path_env: Option<&std::ffi::OsStr>,
+    provider_home: Option<(&str, &Path)>,
+    budget: CommandBudget<'_>,
+    cancel: Option<&dyn crate::TerminationSource>,
+) -> CommandResult {
+    let started = now();
+    let result = run_in_slot(
+        executable,
+        arguments,
+        home,
+        path_env,
+        provider_home,
+        budget.deadline,
+        cancel,
+    );
+    budget.record(now().saturating_duration_since(started));
+    result
+}
+
+fn run_in_slot(
     executable: &Path,
     arguments: &[String],
     home: &Path,
