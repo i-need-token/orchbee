@@ -718,7 +718,8 @@ effect line "Switch to Orchbee {version}. Terminals keep running." (`切换到 O
 A development build never shows it. Each claim on the row takes only what the claims before it
 leave, in the order Settings, Update, Help, then the [marker](#environment-marker): as the row
 narrows Help gives way first, then Update, which stays reachable in the action menu. Help returns
-in the cells Update gave up when they hold it.
+in the cells Update gave up when they hold it. Settings'
+[About Updates row](native-settings.md#about) offers the same switch, beside Check for updates.
 
 ```text
 [ Settings ] [ Update ]  Test  [?]    room for all four

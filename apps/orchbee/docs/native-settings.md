@@ -138,8 +138,9 @@ the row then offers `[Update]`. Only a run this TUI asked for reports its end: a
 saw under way returns the row to its idle description, and returning to About clears an earlier
 result. A lost or unmatched answer ends an asked check as failed and never closes the TUI or the
 connection. The row is unavailable, with the reason on its description line, in a development
-build, where no update writes this platform's release store, on a saved-machine origin, when the
-Session's handshake lacks `update-check`, or after the Server answers `unavailable`.
+build, where no update writes this platform's release store, on a saved-machine origin, while the
+Session's handshake answer is unknown or lacks `update-check`, or after the Server answers
+`unavailable`; no request reaches a Server that has not listed the capability.
 
 ## Agent integrations
 

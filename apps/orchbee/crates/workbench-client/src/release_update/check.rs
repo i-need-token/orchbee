@@ -286,9 +286,12 @@ impl Check {
         if !build.offers_updates() || origin.is_none() || self.refused {
             return Some(CheckUnavailable::Installation);
         }
-        let answer = origin.and_then(LocalClientOrigin::session_capabilities);
-        (!serves(answer.as_ref(), SessionAction::CheckForUpdates))
-            .then_some(CheckUnavailable::Session)
+        // Unlike other actions, an unknown handshake answer counts as missing: a request an older
+        // Server cannot read must never reach it.
+        let served = origin
+            .and_then(LocalClientOrigin::session_capabilities)
+            .is_some_and(|answer| serves(Some(&answer), SessionAction::CheckForUpdates));
+        (!served).then_some(CheckUnavailable::Session)
     }
 
     fn settle_unavailable(&mut self, reason: CheckUnavailable) {
