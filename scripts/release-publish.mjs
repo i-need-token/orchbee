@@ -620,10 +620,7 @@ function releaseNotes({ version, tag, repositoryName, names, changes }) {
 				`- ${label} disk image, with the window and the command line: ${address}`,
 		),
 		`- Command line only: ${archives.length === 0 ? npm : `${archives.join(', ')}, or ${npm}`}`,
-		// Only Windows release builds update themselves so far.
-		diskImages.length === 0
-			? '- Already installed: `orchbee update`'
-			: '- Already installed on Windows: `orchbee update`',
+		'- Already installed: `orchbee update`',
 		'',
 		'The `.feed.json`, `.sig`, `orchbee-desktop-*.zip` and `.tgz` files serve updates and npm; `SHA256SUMS` holds the checksums.',
 		'',

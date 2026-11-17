@@ -40,7 +40,7 @@ repository>`. Print each public half with the command in
    pre-release is `<version>-beta.<n>`.
 2. Optional rehearsal: Actions › Release › Run workflow on `main` with `version` `0.1.0-beta.1`, or
    `gh workflow run release.yml --ref main -f version=0.1.0-beta.1`. It builds, signs and smoke-tests
-   the release identity on every row with `build` set, macOS rows not yet published included, runs
+   the release identity on every row with `build` set, runs
    the release gate's paths a tag run would select, joins the rows the way a tag run would, and
    publishes nothing. Its artifacts are a different build of the same version: never install them.
 3. Write the release notes in Markdown in a file outside the repository, with their own headings;
@@ -61,7 +61,7 @@ repository>`. Print each public half with the command in
 
 4. The run then needs no human step. To stop a release, cancel the run (Cancel workflow on the run
    page) before its job "Publish v0.1.0-beta.1" starts; until then nothing is public.
-5. After packaging, the job "Release feed windows-x86_64" signs the update feed document and the
+5. After packaging, each job "Release feed <platform>" signs its row's update feed document and the
    release gate's copy of it with the release key, in a rehearsal too; the gate copy names the
    archives by their file names and is never published. Then the jobs "Release gate from
    v<older>" each install an older release from its published archive on a fresh Windows runner
@@ -71,11 +71,14 @@ repository>`. Print each public half with the command in
    lets publication go on. Publication places the feed's signature beside it, then creates
    a draft release `v0.1.0-beta.1` holding the setup file, the `.zip`, the
    window archive `orchbee-desktop-0.1.0-beta.1-windows-x86_64.zip`, the feed
-   document `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, the npm tarballs and
-   `SHA256SUMS`, then publishes `@orchbee/cli-win32-x64` and `orchbee` under the dist-tag `next`
-   and moves their `latest` to this version while `latest` is still an older beta, and then
+   document `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, for each macOS row
+   the disk image, the `.tar.gz`, the window archive, the feed document and its `.sig`, the npm
+   tarballs and `SHA256SUMS`, then publishes the platform packages (`@orchbee/cli-win32-x64`,
+   `@orchbee/cli-darwin-arm64` and `@orchbee/cli-darwin-x64`) and `orchbee` under the dist-tag
+   `next` and moves their `latest` to this version while `latest` is still an older beta, and then
    publishes the draft as the Latest release. Its notes are an Install section that links the
-   setup file and the `.zip` and gives the npm command, followed by the tag message. The release
+   setup file, the disk images and the archives and gives the npm command, followed by the tag
+   message. The release
    is not a pre-release even for a beta: GitHub shows a Latest release on the repository page, and
    answers `/releases/latest`, only for a release that is not one.
 6. Wait for the update check: the publication job starts Actions › Update check for the tag,
@@ -163,13 +166,14 @@ Each platform row stages its cohort with `--artifact-stem orchbee` and writes `r
 runner's own token, such as `windows-x86_64` or `macos-aarch64`, never an argument. A Windows
 directory holds `orchbee.exe` and its peers, both launchers and the pinned ConPTY bundle; a macOS
 directory holds `orchbee`, `orchbee-server`, `orchbee-worker` and `orchbee-terminal-host`, the
-adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. The Windows row builds and
-publishes. The macOS rows build in rehearsals only: a macOS release adds the disk image
-`Orchbee-<version>-macos-<cpu>.dmg`, the `.tar.gz` and its feed document, and the platform package
-`@orchbee/cli-darwin-<cpu>`. The macOS floor is macOS 13: the Terminal Host and the desktop application's `Info.plist` name it as their minimum, whatever release the runner has. To publish them, after a rehearsal in which `release-build-macos`,
-`release-package-macos`, `release-smoke-macos` and `release-join` passed for both rows, set
-`"publish": true` on the `macos-aarch64` and `macos-x86_64` rows of `RELEASE_PLATFORMS` in
-`.github/workflows/release.yml`.
+adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. The Windows row and
+both macOS rows build and publish, so a failure on any of them stops the tag. A macOS row adds the
+disk image `Orchbee-<version>-macos-<cpu>.dmg`, the `.tar.gz`, the window archive
+`orchbee-desktop-<version>-macos-<cpu>.zip`, the feed document, and the platform package
+`@orchbee/cli-darwin-<cpu>`. The macOS floor is macOS 13: the Terminal Host and the desktop
+application's `Info.plist` name it as their minimum, whatever release the runner has. A platform
+row is published only after a rehearsal in which its build, package, smoke and join jobs passed;
+then set `"publish": true` on its row of `RELEASE_PLATFORMS` in `.github/workflows/release.yml`.
 
 ## What clients rely on
 
@@ -194,7 +198,7 @@ publishes. The macOS rows build in rehearsals only: a macOS release adds the dis
 ## Moving npm to trusted publishing
 
 The token is for the first publication, which creates the package names. Afterwards, add a trusted
-publisher for `orchbee` and `@orchbee/cli-win32-x64` on npmjs.com (repository, workflow
+publisher for `orchbee` and each `@orchbee/cli-*` platform package on npmjs.com (repository, workflow
 `release.yml`, environment `release`), then in one commit: install npm 11.5.1 or newer in
 `release-publish` before publishing, remove the `NODE_AUTH_TOKEN` line of its npm step, and remove
 the npm token check of `release-preconditions`. Provenance stays, and the `NPM_TOKEN` secret can then

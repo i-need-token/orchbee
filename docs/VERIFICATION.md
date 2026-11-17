@@ -332,9 +332,9 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   selects the Windows `build` rows. `node scripts/release-publish.mjs plan` gives the release path
   every `build` row on a rehearsal and the rows with both flags on a tag run, split into a Windows
   matrix and a macOS matrix, and refuses a run without a Windows row or a row of a platform family
-  the workflow has no jobs for. `windows-x86_64` has both flags; `macos-aarch64` (`macos-15`) and
-  `macos-x86_64` (`macos-15-intel`) have `build` only, so a rehearsal builds and smokes them and a
-  tag run leaves them out until their `publish` flag is set.
+  the workflow has no jobs for. `windows-x86_64`, `macos-aarch64` (`macos-15`) and `macos-x86_64`
+  (`macos-15-intel`) have both flags, so a tag run builds, smokes and publishes all three, and a
+  failure on any of them stops the tag.
 - Dry run: `build` installs the pinned toolchains, with Zig and Inno Setup 6.7.1 downloaded and
   checked by digest, runs `pnpm desktop:installer:test --build-id <commit>.<run number>`, and then
   `node scripts/release-artifacts.mjs collect`, which gathers the signed release directory, its

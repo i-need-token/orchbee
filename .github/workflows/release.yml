@@ -35,14 +35,14 @@ concurrency:
 env:
   # One row per release platform token. `build` builds, packages and smoke-tests the row on its
   # runner, in a rehearsal and, for Windows rows, in the dry run; a tag takes the rows with `build`
-  # and `publish`. Windows and macOS rows have jobs. The macOS rows set `publish` once a rehearsal
-  # passed; from then on a macOS failure stops the whole tag.
+  # and `publish`. Windows and macOS rows have jobs. The macOS rows publish since the rehearsal for
+  # 0.1.0-beta.14 passed, so a macOS failure stops the whole tag.
   RELEASE_PLATFORMS: >-
     [
     {"platform": "windows-x86_64", "runner": "windows-latest", "build": true, "publish": true},
     {"platform": "windows-aarch64", "runner": "windows-11-arm", "build": false, "publish": false},
-    {"platform": "macos-aarch64", "runner": "macos-15", "build": true, "publish": false},
-    {"platform": "macos-x86_64", "runner": "macos-15-intel", "build": true, "publish": false},
+    {"platform": "macos-aarch64", "runner": "macos-15", "build": true, "publish": true},
+    {"platform": "macos-x86_64", "runner": "macos-15-intel", "build": true, "publish": true},
     {"platform": "linux-x86_64", "runner": "ubuntu-24.04", "build": false, "publish": false},
     {"platform": "linux-aarch64", "runner": "ubuntu-24.04-arm", "build": false, "publish": false}
     ]
