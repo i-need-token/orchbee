@@ -1,7 +1,8 @@
 #[cfg(target_os = "linux")]
 use std::process::Command;
 use std::{
-    fs, io,
+    fs,
+    io::{self, Read},
     num::NonZeroU64,
     os::unix::{fs::PermissionsExt, net::UnixStream},
     path::{Path, PathBuf},
@@ -1252,26 +1253,61 @@ fn a_request_this_platform_does_not_serve_is_declined_and_the_worker_keeps_servi
     Ok(())
 }
 
-/// A Host start that leaves no Host process fails only its Launch: the Worker answers it and
-/// keeps serving, the next Launch starts a Host again, and each failed start is recorded with its
-/// stage. The fixture cohort's Host artifact is not a program, so each start fails at the spawn,
-/// or when the interpreter a platform falls back to exits at once.
-#[test]
-fn a_host_start_that_leaves_no_host_fails_only_its_launch_and_the_worker_keeps_serving()
--> TestResult {
+/// A record the Worker noted: its event name and fields.
+type Noted = (&'static str, Vec<orchbee_local_runtime::LogField>);
+
+/// The lazy loop's thread: whether the loop failed, and the records it noted.
+type LazyWorker = thread::JoinHandle<(bool, Vec<Noted>)>;
+
+/// Sends one immediate Launch and requires its definite pre-handoff failure.
+fn launch_fails_before_handoff(server: &mut UnixStream, id: u8) -> TestResult {
     use orchbee_capability_node_protocol::{
         AuthorizedTerminalLaunch, LeaseExpiresAtUnixMilliseconds, LeaseId,
         TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence, TerminalId, TerminalLaunchFailure,
         TerminalLaunchMode, TerminalLaunchOutcome, TerminalOperationAuthorization,
         TerminalOperationLease, TerminalPixelGeometry,
     };
-    use orchbee_local_runtime::LogValue;
+    let authorization = TerminalOperationAuthorization::new(
+        TerminalId::from_bytes([id; 16])?,
+        OperationId::from_bytes([10 + id; 16])?,
+        CapabilityWorkerId::from_bytes(WORKER_ID.as_bytes())?,
+        WorkerGeneration::new(GENERATION),
+        TerminalFence::new(NonZeroU64::MIN),
+        TerminalOperationLease::new(
+            LeaseId::from_bytes([20 + id; 16])?,
+            LeaseExpiresAtUnixMilliseconds::new(NonZeroU64::MAX),
+        ),
+        TERMINAL_LAUNCH_CAPABILITY_VERSION,
+    );
+    write_message(
+        server,
+        &CapabilityNodeMessage::AuthorizedTerminalLaunch(AuthorizedTerminalLaunch::new(
+            authorization,
+            None,
+            TerminalLaunchMode::Immediate(TerminalPixelGeometry::new(100, 30, 8, 16)?),
+            None,
+        )),
+    )?;
+    let CapabilityNodeMessage::TerminalLaunchResult(result) = read_message(server)? else {
+        return Err(io::Error::other("missing Launch result").into());
+    };
+    assert_eq!(
+        result.outcome(),
+        TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff)
+    );
+    Ok(())
+}
+
+/// Runs the lazy loop over a fixture cohort, whose Host artifact is not a program, and returns
+/// the Server end, the Session runtime folder, and the thread that yields whether the loop
+/// failed together with its noted records.
+fn lazy_worker_over_fixture() -> TestResult<(UnixStream, TestCohort, PathBuf, LazyWorker)> {
     let fixture = TestCohort::new()?;
     let cohort = Cohort::load(fixture.path(), Instant::now() + FIXTURE_TIMEOUT)?;
     let session_runtime = fixture.path().join("runtime");
     fs::create_dir(&session_runtime)?;
     fs::set_permissions(&session_runtime, fs::Permissions::from_mode(0o700))?;
-    let (mut server, worker) = UnixStream::pair()?;
+    let (server, worker) = UnixStream::pair()?;
     server.set_read_timeout(Some(FIXTURE_TIMEOUT))?;
     server.set_write_timeout(Some(FIXTURE_TIMEOUT))?;
     let worker_runtime = session_runtime.clone();
@@ -1287,46 +1323,12 @@ fn a_host_start_that_leaves_no_host_fails_only_its_launch_and_the_worker_keeps_s
         .is_err();
         (ended, crate::diagnostic_events::take_noted())
     });
-    for id in [1, 2] {
-        let authorization = TerminalOperationAuthorization::new(
-            TerminalId::from_bytes([id; 16])?,
-            OperationId::from_bytes([10 + id; 16])?,
-            CapabilityWorkerId::from_bytes(WORKER_ID.as_bytes())?,
-            WorkerGeneration::new(GENERATION),
-            TerminalFence::new(NonZeroU64::MIN),
-            TerminalOperationLease::new(
-                LeaseId::from_bytes([20 + id; 16])?,
-                LeaseExpiresAtUnixMilliseconds::new(NonZeroU64::MAX),
-            ),
-            TERMINAL_LAUNCH_CAPABILITY_VERSION,
-        );
-        write_message(
-            &mut server,
-            &CapabilityNodeMessage::AuthorizedTerminalLaunch(AuthorizedTerminalLaunch::new(
-                authorization,
-                None,
-                TerminalLaunchMode::Immediate(TerminalPixelGeometry::new(100, 30, 8, 16)?),
-                None,
-            )),
-        )?;
-        let CapabilityNodeMessage::TerminalLaunchResult(result) = read_message(&mut server)? else {
-            return Err(io::Error::other("missing Launch result").into());
-        };
-        assert_eq!(
-            result.outcome(),
-            TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff)
-        );
-    }
-    // A request of another kind is still answered.
-    let mut mint = TokenMint(0);
-    assert!(drain(&mut server, &mut mint, 0)?.entries().is_empty());
+    Ok((server, fixture, session_runtime, worker_thread))
+}
 
-    drop(server);
-    let (ended, noted) = worker_thread
-        .join()
-        .map_err(|_panic| io::Error::other("lazy Worker test thread panicked"))?;
-    assert!(ended);
-    let stages: Vec<LogValue> = noted
+/// The `stage` of every `host-start-failed` record.
+fn failed_start_stages(noted: &[Noted]) -> Vec<orchbee_local_runtime::LogValue> {
+    noted
         .iter()
         .filter(|(event, _)| *event == "host-start-failed")
         .filter_map(|(_, fields)| {
@@ -1334,14 +1336,80 @@ fn a_host_start_that_leaves_no_host_fails_only_its_launch_and_the_worker_keeps_s
                 .iter()
                 .find_map(|(name, value)| (*name == "stage").then_some(*value))
         })
-        .collect();
-    assert_eq!(stages.len(), 2, "{noted:?}");
+        .collect()
+}
+
+/// Requires the Worker to have closed its end of the Server connection on its own.
+fn require_worker_ended(server: &mut UnixStream) -> TestResult {
+    let mut byte = [0_u8; 1];
+    assert_eq!(server.read(&mut byte)?, 0, "the Worker kept its connection");
+    Ok(())
+}
+
+/// A Host start that leaves no Host process fails only its Launch: the Worker answers it and
+/// keeps serving, and the next Launch starts a Host again, up to the Worker's start bound. The
+/// last start's failure is answered, then the Worker ends, so the Server stops the Session. Each
+/// failed start is recorded with its stage. The fixture cohort's Host artifact is not a program,
+/// so each start fails at the spawn, or when the interpreter a platform falls back to exits at
+/// once.
+#[test]
+fn host_start_failures_fail_only_their_launches_until_the_start_bound_ends_the_worker() -> TestResult
+{
+    use orchbee_local_runtime::LogValue;
+    let (mut server, _fixture, _runtime, worker_thread) = lazy_worker_over_fixture()?;
+    for id in [1, 2] {
+        launch_fails_before_handoff(&mut server, id)?;
+    }
+    // A request of another kind is still answered.
+    let mut mint = TokenMint(0);
+    assert!(drain(&mut server, &mut mint, 0)?.entries().is_empty());
+    launch_fails_before_handoff(&mut server, 3)?;
+    require_worker_ended(&mut server)?;
+    let (ended, noted) = worker_thread
+        .join()
+        .map_err(|_panic| io::Error::other("lazy Worker test thread panicked"))?;
+    assert!(ended);
+    let stages = failed_start_stages(&noted);
+    assert_eq!(stages.len(), 3, "{noted:?}");
     for stage in stages {
         assert!(
             matches!(stage, LogValue::Token("spawn" | "exited")),
             "{stage:?}"
         );
     }
+    Ok(())
+}
+
+/// An endpoint already at the Host's address, such as one a Host left when it ended, would fail
+/// every later start too: the Launch is answered, then the Worker ends at once.
+#[test]
+fn an_endpoint_present_before_the_start_ends_the_worker_after_its_answer() -> TestResult {
+    use orchbee_local_runtime::LogValue;
+    let (mut server, _fixture, session_runtime, worker_thread) = lazy_worker_over_fixture()?;
+    let endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&session_runtime);
+    let socket_root = ModeCheckedLocalSessionRendezvous::socket_root_path();
+    if !socket_root.exists() {
+        fs::create_dir_all(&socket_root)?;
+        fs::set_permissions(&socket_root, fs::Permissions::from_mode(0o700))?;
+    }
+    // A listener dropped without removing its path leaves the socket a Host that died leaves.
+    drop(std::os::unix::net::UnixListener::bind(&endpoint)?);
+    let outcome = (|| -> TestResult {
+        launch_fails_before_handoff(&mut server, 1)?;
+        require_worker_ended(&mut server)?;
+        Ok(())
+    })();
+    let _ = fs::remove_file(&endpoint);
+    outcome?;
+    let (ended, noted) = worker_thread
+        .join()
+        .map_err(|_panic| io::Error::other("lazy Worker test thread panicked"))?;
+    assert!(ended);
+    assert_eq!(
+        failed_start_stages(&noted),
+        [LogValue::Token("endpoint")],
+        "{noted:?}"
+    );
     Ok(())
 }
 

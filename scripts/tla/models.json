@@ -436,6 +436,7 @@
 				"Reject",
 				"Handoff",
 				"ExpireDispatch",
+				"RefusedStart",
 				"ClientLoss",
 				"ReplaceWorker"
 			]

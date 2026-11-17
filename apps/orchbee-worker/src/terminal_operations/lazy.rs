@@ -60,6 +60,8 @@ pub(crate) fn run(
         crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
     // Where the pre-Host loop was when it ended; the admitted loop classifies its own end.
     let site = crate::diagnostic_events::ServingSite::new(Site::ServerReceive);
+    // Host starts that failed so far; every one is consecutive, since a started Host leaves this loop.
+    let mut failed_starts = 0_u32;
     let outcome = (|| {
         loop {
             site.set(Site::ServerReceive);
@@ -319,9 +321,11 @@ pub(crate) fn run(
                     kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
                     let result = super::take_result(&mut kernel)?;
                     // The failure fails only this Launch while a later one can start a Host. A
-                    // Worker that can start none again can serve no terminal: it ends after its
-                    // answer, so the Server stops this Session.
-                    if !failure.retryable {
+                    // Worker that can start none again, or has used its starts, can serve no
+                    // terminal: it ends after its answer, so the Server stops this Session and
+                    // cleans up what the start left.
+                    failed_starts += 1;
+                    if !failure.retryable || failed_starts >= HOST_START_ATTEMPTS {
                         let _delivery = server_transport::send(&server, None, &result);
                         return Err(failure.into_exit_cause());
                     }
@@ -443,15 +447,16 @@ struct HostStartFailure {
     elapsed: Duration,
     host_exit: Option<u32>,
     error: Box<dyn Error>,
-    /// No Host process was registered or created, or the one created has exited, so a later start
-    /// cannot meet it. A Windows Host's registration outlives its process, so there only a failure
-    /// before registration leaves a retry.
+    /// No Host process was registered or created, or the one created has exited and left no
+    /// endpoint, so a later start cannot meet it; and the failure is not one every later start
+    /// would repeat, such as an endpoint present before the start. A Windows Host's registration
+    /// outlives its process, so there only a failure before registration leaves a retry.
     retryable: bool,
 }
 
 impl HostStartFailure {
-    /// The loop's end after a failure that leaves no retry: the Host never answered in time, ended
-    /// before it was reached, or a local step failed.
+    /// The loop's end after a failure that leaves no retry, or the last of its starts: the Host
+    /// never answered in time, ended before it was reached, or a local step failed.
     fn into_exit_cause(self) -> Box<dyn Error> {
         let (reason, peer) = match self.stage {
             HostStartStage::Deadline => (Reason::Deadline, Peer::Host),
@@ -474,6 +479,11 @@ impl HostStartFailure {
 /// Host that ended the connection by ending itself.
 const HOST_EXIT_GRACE: Duration = Duration::from_millis(250);
 
+/// Host starts a Worker makes. A start that fails in a way a later one could pass leaves a retry,
+/// but only this many in a row: the last failure ends the Worker after its answer, as a permanent
+/// one does.
+const HOST_START_ATTEMPTS: u32 = 3;
+
 fn start_host(
     cohort: &Cohort,
     runtime: &Path,
@@ -492,9 +502,14 @@ fn start_host(
     // connects through the derived absolute path; validate that address before the Host
     // directory or process can appear.
     let endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime);
+    // A failure no later start could pass leaves no retry: the address is the same every time.
+    let permanent = |stage, error: Box<dyn Error>| HostStartFailure {
+        retryable: false,
+        ..failed(stage, error)
+    };
     #[cfg(unix)]
     nix::sys::socket::UnixAddr::new(&endpoint)
-        .map_err(|error| failed(HostStartStage::Endpoint, error.into()))?;
+        .map_err(|error| permanent(HostStartStage::Endpoint, error.into()))?;
     let directory = SessionScope::parse(HOST_SCOPE_NAME)
         .map_err(Box::<dyn Error>::from)
         .and_then(|scope| {
@@ -502,19 +517,21 @@ fn start_host(
                 .map_err(Box::<dyn Error>::from)
         })
         .map_err(|error| failed(HostStartStage::Directory, error))?;
+    // An endpoint already present belongs to a Host this Worker did not start, live or dead, and
+    // stays until the Session cleans up: every later start would meet it too.
     let recovery_required = || -> Box<dyn Error> {
         io::Error::new(io::ErrorKind::AlreadyExists, "Host recovery is required").into()
     };
     #[cfg(unix)]
     match std::fs::symlink_metadata(&endpoint) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Ok(_) => return Err(failed(HostStartStage::Endpoint, recovery_required())),
+        Ok(_) => return Err(permanent(HostStartStage::Endpoint, recovery_required())),
         Err(error) => return Err(failed(HostStartStage::Endpoint, error.into())),
     }
     #[cfg(windows)]
     match orchbee_local_ipc::endpoint_exists(&endpoint) {
         Ok(false) => {}
-        Ok(true) => return Err(failed(HostStartStage::Endpoint, recovery_required())),
+        Ok(true) => return Err(permanent(HostStartStage::Endpoint, recovery_required())),
         Err(error) => return Err(failed(HostStartStage::Endpoint, error.into())),
     }
     let host_endpoint_id = ModeCheckedLocalSessionRendezvous::host_endpoint_id(runtime);
@@ -647,13 +664,27 @@ fn start_host(
     })();
     match ready {
         Ok(host) => Ok((host, child)),
-        // A Host still running could later bind the endpoint a second start dials, and a Windows
-        // registration outlives the process; either leaves this Worker no further start.
+        // A Host still running could later bind the endpoint a second start dials, one that bound
+        // its endpoint before it ended leaves that endpoint behind, and a Windows registration
+        // outlives the process; each leaves this Worker no further start.
         Err(failure) => Err(HostStartFailure {
-            retryable: cfg!(not(windows)) && matches!(child.try_wait(), Ok(Some(_))),
+            retryable: cfg!(not(windows))
+                && matches!(child.try_wait(), Ok(Some(_)))
+                && endpoint_absent(&endpoint),
             ..failure
         }),
     }
+}
+
+/// Whether no endpoint, not even one a Host that ended left behind, is at the Host's address.
+#[cfg(unix)]
+fn endpoint_absent(endpoint: &Path) -> bool {
+    matches!(std::fs::symlink_metadata(endpoint), Err(error) if error.kind() == io::ErrorKind::NotFound)
+}
+
+#[cfg(windows)]
+fn endpoint_absent(endpoint: &Path) -> bool {
+    matches!(orchbee_local_ipc::endpoint_exists(endpoint), Ok(false))
 }
 
 /// The Host's exit code once it exits within [`HOST_EXIT_GRACE`]; a Host still running keeps none.

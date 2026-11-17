@@ -891,12 +891,16 @@ has the separate [generation and process registration contract](docs/windows-cra
 | LS05 startup readiness includes a valid first frame within one budget                      | Client deadline, TerminalSession projection, same TTY handoff                            | Admission/submission deadline tests and bare TTY process tests             |
 
 `formal/tla/LocalSessionStartup.tla` bounds one activation generation: two Clients, one Server
-launch attempt, two Host attempts, each for its own authorized Launch, and one Worker replacement.
-`ReplaceWorker` keeps the Host, the dispatch and the launch counts: a replacement adopts a live Host
-or serves with none, and never starts or hands off a Host for a Launch authorized to the Worker it
-replaced (`HostAnswersItsOwnLaunch`). Its `Recovery` is an attempt that launches nothing in that
-generation; the [catalog](#durable-session-catalog) closes a generation that ended without its stop
-and the next one starts as a fresh instance. It abstracts filesystem checks as admitted facts,
+launch attempt, two Host starts, each for its own authorized Launch, and one Worker replacement.
+Each Worker counts its own starts against `MaxHostStarts`, the Worker's start bound (three in the
+Worker, two in the checked configuration). A failed start that leaves no further one, because the
+Host still runs, an endpoint is left at its address, or it was the Worker's last start, ends the
+Worker after its answer, and a start that meets an endpoint already there does the same
+(`StartableAfterFailure`). `ReplaceWorker` keeps the Host, the dispatch and the launch counts: a
+replacement adopts a live Host or serves with none, and never starts or hands off a Host for a
+Launch authorized to the Worker it replaced (`HostAnswersItsOwnLaunch`). Its `Recovery` is an attempt that
+launches nothing in that generation; the [catalog](#durable-session-catalog) closes a generation
+that ended without its stop and the next one starts as a fresh instance. It abstracts filesystem checks as admitted facts,
 abstracts deadline observation as an expiry event, and checks safety without scheduler fairness.
 Per-Client timeout fairness supports bounded-attempt termination only, not service availability.
 Real kernel locks, peers, hashing, PTYs, signals and cancellation are exercised by Linux and macOS

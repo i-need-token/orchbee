@@ -177,14 +177,16 @@ next Launch. A kernel refusal of that Launch is declined with cause `state`, and
 under a prepared Windows handoff with cause `handoff`, as in the admitted loop.
 A preparation failure refuses only its Launch. A Host start failure answers its Launch with the
 definite pre-handoff failure, which reaches the person who asked for the terminal as
-`terminal-runtime-unavailable`. When the failed start leaves no Host process, because it failed
-before one was created or the one created has already exited, the Worker keeps serving and a later
-authorized Launch starts a Host again. Otherwise the Worker sends that answer, then exits with the
-start failure's cause, and the Session stops by the
-[Server's Worker-exit rule](../orchbee-server/README.md): a macOS or Linux Host still running when
-the start window ends could later bind the endpoint a second start dials, and a Windows Host's
-registration in the Session record outlives its process, so every Windows start failure from
-registration on exits. Uncertain handed-off outcomes are never replayed. Later operations use the
+`terminal-runtime-unavailable`. When the failed start leaves no Host process and no endpoint,
+because it failed before one was created or the one created has already exited without binding,
+the Worker keeps serving and a later authorized Launch starts a Host again, up to three starts in
+all. Otherwise the Worker sends that answer, then exits with the start failure's cause, and the
+Session stops and cleans up by the [Server's Worker-exit rule](../orchbee-server/README.md): a
+macOS or Linux Host still running when the start window ends could later bind the endpoint a
+second start dials; an endpoint already at the Host's address before the start, or one a Host left
+when it ended, fails every later start the same way; a Windows Host's registration in the Session
+record outlives its process, so every Windows start failure from registration on exits; and the
+third failed start leaves no further one. Uncertain handed-off outcomes are never replayed. Later operations use the
 same serialized loop and replay cache.
 
 Every Launch on this managed path also propagates the local Agent observation channel through the
