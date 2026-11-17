@@ -193,6 +193,15 @@ pub fn writeTerminalConfigurationAccepted(writer: *std.Io.Writer, update: anytyp
     );
 }
 
+/// The holdings of a connection that did not negotiate `keeper`: no summary names one.
+pub const no_holdings: NoHoldings = .{};
+
+const NoHoldings = struct {
+    pub fn holdingId(_: NoHoldings, _: anytype) ?[16]u8 {
+        return null;
+    }
+};
+
 pub fn terminalList(
     allocator: std.mem.Allocator,
     host_epoch: anytype,
@@ -200,6 +209,20 @@ pub fn terminalList(
     terminals: anytype,
     offset: usize,
     maximum_terminals: usize,
+) ![]u8 {
+    return terminalListHeld(allocator, host_epoch, inventory_generation, terminals, offset, maximum_terminals, no_holdings);
+}
+
+/// `terminalList` whose summaries name each held terminal's `holdingId`, which
+/// `holdings.holdingId(terminal_id)` returns.
+pub fn terminalListHeld(
+    allocator: std.mem.Allocator,
+    host_epoch: anytype,
+    inventory_generation: u64,
+    terminals: anytype,
+    offset: usize,
+    maximum_terminals: usize,
+    holdings: anytype,
 ) ![]u8 {
     std.debug.assert(offset <= terminals.len);
     std.debug.assert(maximum_terminals > 0);
@@ -211,7 +234,7 @@ pub fn terminalList(
     }
     var summaries_bytes: usize = 0;
     for (terminals[offset .. offset + requested_length]) |terminal| {
-        const summary = try terminalSummary(allocator, host_epoch, terminal);
+        const summary = try terminalSummaryHeld(allocator, host_epoch, terminal, holdings.holdingId(terminal.terminal_id));
         errdefer allocator.free(summary);
         const candidate_end = offset + summaries.items.len + 1;
         const framing_bytes = terminalListFramingLength(
@@ -293,6 +316,22 @@ pub fn terminalSummary(
     host_epoch: anytype,
     terminal: anytype,
 ) ![]u8 {
+    return terminalSummaryHeld(allocator, host_epoch, terminal, null);
+}
+
+/// `terminalSummary` with `holdingId` while `holding_id` names the terminal's holding.
+pub fn terminalSummaryHeld(
+    allocator: std.mem.Allocator,
+    host_epoch: anytype,
+    terminal: anytype,
+    holding_id: ?[16]u8,
+) ![]u8 {
+    var holding_buffer: [32]u8 = undefined;
+    var holding_member: [48]u8 = undefined;
+    const holding_json: []const u8 = if (holding_id) |bytes|
+        std.fmt.bufPrint(&holding_member, ",\"holdingId\":\"{s}\"", .{identifierText(.{ .bytes = bytes }, &holding_buffer)}) catch unreachable
+    else
+        "";
     var creation_buffer: [32]u8 = undefined;
     var epoch_buffer: [32]u8 = undefined;
     var terminal_buffer: [32]u8 = undefined;
@@ -322,7 +361,7 @@ pub fn terminalSummary(
     defer allocator.free(theme_json);
     return std.fmt.allocPrint(
         allocator,
-        "{{\"columns\":{s},\"configuration\":{{\"scrollbackBytes\":{d}}},\"configurationRevision\":\"{d}\",\"exit\":{s},\"failure\":{s},\"failureContainment\":{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"process\":{s},\"revision\":\"{d}\",\"rows\":{s},\"terminateRequested\":{},\"theme\":{s}}}",
+        "{{\"columns\":{s},\"configuration\":{{\"scrollbackBytes\":{d}}},\"configurationRevision\":\"{d}\",\"exit\":{s},\"failure\":{s},\"failureContainment\":{s}{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"process\":{s},\"revision\":\"{d}\",\"rows\":{s},\"terminateRequested\":{},\"theme\":{s}}}",
         .{
             columns_json,
             configuration.scrollback_bytes,
@@ -330,6 +369,7 @@ pub fn terminalSummary(
             exit_json,
             failure_json,
             containment_json,
+            holding_json,
             identifierText(terminal.creation_id, &creation_buffer),
             identifierText(host_epoch, &epoch_buffer),
             identifierText(terminal.terminal_id, &terminal_buffer),

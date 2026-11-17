@@ -5,6 +5,7 @@ const control_decode = control.decode;
 const control_encode = control.encode;
 const core_module = @import("terminal-host-core").state;
 const host_failure = @import("../failure.zig");
+const host_keepers = @import("../keepers.zig");
 const host_outgoing = @import("../outgoing.zig");
 const host_request_context = @import("../request_context.zig");
 const host_response = @import("../response.zig");
@@ -76,14 +77,23 @@ pub fn handleList(
         offset,
         request.maximum_terminals,
     ) catch unreachable;
-    const payload = control_encode.terminalList(
+    // A session that negotiated `keeper` reads each held terminal's `holdingId`.
+    const payload = (if (self.context.keepers != null) control_encode.terminalListHeld(
         self.context.allocator,
         inventory.host_epoch,
         inventory.generation,
         inventory.terminals,
         offset,
         request.maximum_terminals,
-    ) catch |err| switch (err) {
+        host_keepers.Holdings{ .aggregate = self.context.runtime_aggregate },
+    ) else control_encode.terminalList(
+        self.context.allocator,
+        inventory.host_epoch,
+        inventory.generation,
+        inventory.terminals,
+        offset,
+        request.maximum_terminals,
+    )) catch |err| switch (err) {
         error.InventoryTerminalTooLarge => {
             try self.context.addFailure(
                 outgoing,

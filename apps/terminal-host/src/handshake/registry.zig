@@ -4,6 +4,7 @@
 //! `build.zig` from the registry's inputs.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const options = @import("handshake-options");
 
 const admission = @import("admission.zig");
@@ -14,9 +15,13 @@ pub const worker_host = struct {
     pub const generations: message.GenerationRange = .{ .lowest = 1, .highest = 1 };
     /// Every capability the registry declares for `worker-host`, in its order.
     pub const declared_capabilities: []const []const u8 = &.{ "handover", "keeper", "prompt-gated-input" };
-    /// The declared capabilities this Host implements and offers. `prompt-gated-input`: this Host
-    /// types a `PromptLineInput` only at a confirmed idle prompt.
-    pub const capabilities: []const []const u8 = &.{"prompt-gated-input"};
+    /// The declared capabilities this Host implements and offers. `keeper`, on Windows only: this
+    /// Host attaches Keepers, holds its running terminals there, and releases them first.
+    /// `prompt-gated-input`: this Host types a `PromptLineInput` only at a confirmed idle prompt.
+    pub const capabilities: []const []const u8 = if (builtin.os.tag == .windows)
+        &.{ "keeper", "prompt-gated-input" }
+    else
+        &.{"prompt-gated-input"};
     pub const development_fingerprint: []const u8 = options.worker_host_fingerprint;
 };
 

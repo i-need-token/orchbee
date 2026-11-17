@@ -67,7 +67,8 @@ pub fn cleanupFailure(
 ) core_module.RuntimeCleanupFailure {
     return switch (err) {
         error.ProcessContainmentFailed => .contain_process,
-        error.OutputReleaseFailed => .release_output,
+        // The console close waits for a Keeper's release.
+        error.KeeperReleasePending, error.OutputReleaseFailed => .release_output,
         error.ProcessIdentityReleaseFailed => .release_process_identity,
     };
 }

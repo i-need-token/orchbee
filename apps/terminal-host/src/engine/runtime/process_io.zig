@@ -44,8 +44,19 @@ pub fn containmentConfirmed(self: *const state.State) bool {
 }
 
 pub fn forceTerminate(self: *state.State) !void {
+    self.forced_end_pending = false;
     if (self.containment_confirmed.load(.acquire)) return;
-    try self.process.forceTerminate();
+    self.process.forceTerminate() catch |err| {
+        if (err != error.KeeperReleasePending) return err;
+        // The whole-Job fallback waits for a Keeper's release. The end stands, and the owner
+        // retries it, so its dispatch thread never waits for a Keeper.
+        self.forced_end_pending = true;
+    };
+}
+
+/// Retries a forced end that waited for a Keeper's release; nothing when none waits.
+pub fn continueForcedEnd(self: *state.State) !void {
+    if (self.forced_end_pending) try forceTerminate(self);
 }
 
 pub fn hasActiveCommand(self: *state.State) !bool {

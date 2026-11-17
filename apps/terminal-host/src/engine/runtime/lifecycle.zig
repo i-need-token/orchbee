@@ -62,9 +62,17 @@ pub fn shutdown(self: *state.State) contracts.ShutdownError!void {
             containment_ops.completeFirstContainmentAttempt(self, .host_running);
         }
     }
+    // Release first, started before containment so the Keepers release while the tree is
+    // contained. Neither the whole-Job fallback nor the console close waits for it: each step
+    // that needs it returns KeeperReleasePending, and the owner retries the shutdown.
+    _ = self.process.releaseKeepers();
     if (!self.containment_confirmed.load(.acquire)) {
-        containment_ops.containProcessTree(self) catch return error.ProcessContainmentFailed;
+        containment_ops.containProcessTree(self) catch |err| return if (err == error.KeeperReleasePending)
+            error.KeeperReleasePending
+        else
+            error.ProcessContainmentFailed;
     }
+    if (!self.process.releaseKeepers()) return error.KeeperReleasePending;
     // On Windows, closing the pseudoconsole is the operation that releases
     // blocked input and output pipe calls. Containment makes that close safe
     // even when process observation failed before the wait worker could do it.

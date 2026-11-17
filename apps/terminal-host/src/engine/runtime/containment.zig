@@ -48,6 +48,8 @@ pub fn containProcessTree(self: *state.State) !void {
         } else {
             consecutive_contained = 0;
             self.process.forceTerminate() catch |err| {
+                // The whole-Job fallback waits for a Keeper's release; the caller retries.
+                if (err == error.KeeperReleasePending) return err;
                 last_failure = err;
                 if (observation + 1 < contracts.max_process_containment_observations) {
                     monotonic.sleep(contracts.process_containment_observation_delay_ns);

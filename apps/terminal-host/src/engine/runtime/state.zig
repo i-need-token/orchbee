@@ -97,6 +97,9 @@ pub const State = struct {
     mouse_input_epoch: u64 = 1,
     mouse_input_epoch_exhausted: bool = false,
     // Distinguishes an owner-requested read interruption from a normal PTY EOF.
+    /// A forced end whose whole-Job fallback waits for a Keeper's release; the owner's dispatch
+    /// thread alone sets it and retries the end with `continueForcedEnd`.
+    forced_end_pending: bool = false,
     // Only the reader may publish pty_drained, and only after a non-aborted EOF.
     output_abort_requested: std.atomic.Value(bool) = .init(false),
     // One terminal atomic classification makes normal completion and fatal

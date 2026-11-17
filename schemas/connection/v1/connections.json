@@ -108,12 +108,21 @@
 			"path": "schemas/connection/v1/fixtures/dispatch-progress.json"
 		},
 		{
+			"path": "schemas/connection/v1/fixtures/host-handover.json"
+		},
+		{
 			"path": "schemas/connection/v1/fixtures/invalid.json",
 			"sha256": "3d6d9a0fb8864e6fa35c6e3cbab8de4e4469ab9644743512030e95a2f83fe12d"
 		},
 		{
 			"path": "schemas/connection/v1/fixtures/valid.json",
 			"sha256": "ae53f043efb489ed56914789ae78df933dba81734b7e472cfe70236e271d1f9a"
+		},
+		{
+			"path": "schemas/keeper/v1/fixtures/owner-sequences.json"
+		},
+		{
+			"path": "schemas/keeper/v1/fixtures/owner.json"
 		},
 		{
 			"path": "schemas/machine/v1/fixtures/boundary.json",

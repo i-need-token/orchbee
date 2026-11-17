@@ -2,6 +2,7 @@ const builtin = @import("builtin");
 
 pub const diagnostic_log = @import("diagnostic_log.zig");
 pub const fatal_record = @import("fatal_record.zig");
+pub const keeper = @import("keeper.zig");
 pub const process = @import("process.zig");
 pub const monotonic = @import("monotonic.zig");
 pub const output_wake = @import("output_wake.zig");

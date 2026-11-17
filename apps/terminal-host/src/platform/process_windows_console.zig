@@ -134,28 +134,45 @@ pub const ConsoleTree = if (builtin.os.tag != .windows) void else struct {
             if (active == 0) return;
             if (!termination.wholeJob() and (holders_at != active or unchanged_polls >= recheck_polls)) {
                 unchanged_polls = 0;
-                if (self.quiet(job, root, termination)) {
-                    holders_at = null;
-                    quiet_readings += 1;
-                    if (quiet_readings == 2) return;
-                } else {
-                    holders_at = active;
-                    quiet_readings = 0;
+                switch (self.quiet(job, root, termination)) {
+                    .detached => {
+                        holders_at = null;
+                        quiet_readings += 1;
+                        if (quiet_readings == 2) return;
+                    },
+                    .attached => {
+                        holders_at = active;
+                        quiet_readings = 0;
+                    },
+                    // The next poll reads again and retries the fallback.
+                    .fallback_pending => {
+                        holders_at = null;
+                        quiet_readings = 0;
+                    },
                 }
             } else unchanged_polls += 1;
             monotonic.sleep(10 * std.time.ns_per_ms);
         }
     }
 
+    const Reading = enum {
+        detached,
+        attached,
+        /// The whole-Job fallback waits for a Keeper's release.
+        fallback_pending,
+    };
+
     /// After containment, or force termination, has observed no holder, a holder or a
     /// failed reading is a race, so closing falls back to the whole Job instead of
     /// waiting on a late holder that may never exit.
-    fn quiet(self: *ConsoleTree, job: windows.HANDLE, root: windows.HANDLE, termination: *Termination) bool {
+    fn quiet(self: *ConsoleTree, job: windows.HANDLE, root: windows.HANDLE, termination: *Termination) Reading {
         const settled = self.contained.load(.acquire) or self.holders_ended.load(.acquire);
         const found = self.members(job, root, .observe) catch null;
-        const none = if (found) |value| value.empty() else false;
-        if (!none and settled) termination.terminateJob(job) catch {};
-        return none;
+        if (found) |value| if (value.empty()) return .detached;
+        if (settled) termination.terminateJob(job) catch |err| {
+            if (err == error.KeeperReleasePending) return .fallback_pending;
+        };
+        return .attached;
     }
 
     /// Before the last Job handle closes: clear kill-on-close, so the members without

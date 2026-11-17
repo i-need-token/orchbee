@@ -426,7 +426,11 @@ its request's kind unless it names another.
 | `ClaimTerminal`       | `terminalId`                                                  | `terminalId`                                                              |
 | `DiscardImport`       | Exactly one of `creationId` (an import) or `terminalId`       | `outcome`, `discarded`, or `claimed` when the Keeper already moved it     |
 
-The events carry `keeper`; `TerminalUnheld` adds the `terminalId` that runs unheld and a `reason`.
+The events carry `keeper`; `TerminalUnheld` adds the `terminalId` that runs unheld and a `reason`:
+the Keeper's refusal reason, such as `draining` or `capacity`; `unsupported` when the Keeper answers
+`hold` as unsupported; `unanswered` when the hold missed its deadline; `system-console` for a
+terminal on the system's console; or `hold-failed` when the Host could not take the terminal's
+handles.
 
 A handover-record payload (encoding `handover-record`) is a 32-byte header and then the chunk:
 bytes `0-15` carry the terminal id of an export or the creation id of an import, bytes `16-23` the

@@ -284,6 +284,9 @@ pub const Maintenance = struct {
         }
         _ = runtime_observation.observeRuntime(core, terminal_id, runtime);
         runtime.shutdown() catch |err| {
+            // Containment stays stopping, and each synchronization retries it until the Keeper's
+            // release is answered or its deadline passes.
+            if (err == error.KeeperReleasePending) return err;
             _ = core.failureContainmentBlocked(
                 terminal_id,
                 runtime_observation.cleanupFailure(err),
@@ -463,6 +466,14 @@ pub const Maintenance = struct {
             // outcome without the engine classifying its own completion.
             .failed => std.debug.assert(terminal.settledFinalRevision().? == terminal.observedRevision()),
             else => {
+                runtime.continueForcedEnd() catch {
+                    // Fails as a failed termination dispatch does: the engine's fence, then Core.
+                    self.failRuntime(core, terminal_id, runtime, switch (runtime.fenceHostFailure()) {
+                        .host_won => .dispatch_termination,
+                        .engine_won => |failure| runtime_observation.runtimeFailureFromEngineKind(failure),
+                    });
+                    return;
+                };
                 const completion = runtime.completion();
                 if (runtime_observation.runtimeFailureFromObservation(completion)) |failure| {
                     self.failRuntime(core, terminal_id, runtime, failure);

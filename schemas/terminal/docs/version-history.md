@@ -69,3 +69,6 @@ fixtures, not a compatibility artifact.
 - 0.1.0-beta.16: the wire protocol declares the capabilities `keeper` and `handover` with the
   [Host handover](../references/protocol.md#host-handover) kinds 90 to 105, the payload encoding
   `handover-record` (6), and its 4 MiB + 32 B bound. Generations stay at 1.
+- 0.1.0-beta.22: a Windows Terminal Host offers `keeper` and serves `AttachKeeper`, `DetachKeeper`,
+  `KeeperLost`, `KeeperUnresponsive`, `TerminalUnheld`, and `holdingId`, which this release
+  freezes; no release Worker offers `keeper`. Generations stay at 1.

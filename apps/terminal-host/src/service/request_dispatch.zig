@@ -149,9 +149,12 @@ pub const Dispatcher = struct {
                 correlation_id,
                 outgoing,
             ),
-            // This Host offers neither `keeper` nor `handover`, so no connection negotiated them.
             .attach_keeper,
             .detach_keeper,
+            => if (self.context.keepers) |keepers| {
+                try keepers.handle(&self.context, request_contract.operation, connection_id, envelope, correlation_id, outgoing);
+            } else try self.notNegotiated(correlation_id, outgoing),
+            // This Host does not offer `handover`, so no connection negotiated it.
             .quiesce_terminal,
             .read_handover_record,
             .resume_terminal,
@@ -161,13 +164,17 @@ pub const Dispatcher = struct {
             .restore_terminal,
             .claim_terminal,
             .discard_import,
-            => try self.context.addFailure(
-                outgoing,
-                correlation_id,
-                "not-negotiated",
-                "The connection did not negotiate this request's capability",
-                false,
-            ),
+            => try self.notNegotiated(correlation_id, outgoing),
         }
+    }
+
+    fn notNegotiated(self: *Dispatcher, correlation_id: WireIdentifier, outgoing: *Outgoing) !void {
+        try self.context.addFailure(
+            outgoing,
+            correlation_id,
+            "not-negotiated",
+            "The connection did not negotiate this request's capability",
+            false,
+        );
     }
 };

@@ -13,6 +13,7 @@ const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_request_dispatch = @import("request_dispatch.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
+const keepers_module = @import("keepers.zig");
 const request_failure = @import("request_failure.zig");
 const terminal_configuration = @import("terminal-host-model").configuration;
 
@@ -44,6 +45,8 @@ pub const HostService = struct {
     /// The turns the dispatch loop has completed; only the dispatch thread advances it.
     dispatch_turns: u64 = 0,
     event_delivery: host_event_delivery.Workflow = .{},
+    /// The Keeper attachments; their links run until teardown has ended every terminal.
+    keepers: keepers_module.Keepers,
     lifecycle: ServiceLifecycle = .running,
     /// The `drain` and `exit` lifecycle that queries report; only the dispatch thread changes it.
     process_state: host_lifecycle.State = .ready,
@@ -61,6 +64,7 @@ pub const HostService = struct {
         std.debug.assert(terminal_configuration.valid(options.terminal_defaults));
         return .{
             .allocator = allocator,
+            .keepers = .init(allocator),
             .runtime_aggregate = .initWithDefaults(allocator, options.terminal_defaults),
             .trace_interactions = options.trace_interactions,
         };
@@ -82,6 +86,7 @@ pub const HostService = struct {
         // A creation in progress settles first: a runtime its build made joins the terminals the
         // aggregate's teardown contains, and no terminal record it borrows goes before it.
         self.creations.shutdown(&self.runtime_aggregate);
+        self.keepers.releaseAll(&self.runtime_aggregate);
         try self.runtime_aggregate.deinitChecked(first_attempt);
         try self.finishTeardown();
     }
@@ -112,6 +117,8 @@ pub const HostService = struct {
     /// returned may own a process the Host could not contain, so teardown fails instead of
     /// reporting a clean release.
     fn finishTeardown(self: *HostService) error{CreationBuildAbandoned}!void {
+        // Every terminal has ended and released first, so no link still holds one.
+        self.keepers.stop();
         if (self.creations.abandoned_build) {
             self.lifecycle = .released_after_abandoned_build;
             return error.CreationBuildAbandoned;
@@ -130,7 +137,17 @@ pub const HostService = struct {
             .active => |active| self.creations.detach(self.allocator, active.connection_id),
             .awaiting_hello, .closing => {},
         }
+        self.keepers.disconnect(switch (connection.*) {
+            .active => |active| active.connection_id,
+            .awaiting_hello, .closing => null,
+        });
         self.connection_workflow.disconnect(&self.runtime_aggregate, connection);
+    }
+
+    /// A Worker session was admitted on the broker endpoint; `keeper` tells whether its handshake
+    /// negotiated that capability.
+    pub fn admitSession(self: *HostService, keeper: bool) void {
+        self.keepers.admit(keeper);
     }
 
     /// The facts a handshake reply reports, read on the dispatch thread.
@@ -185,6 +202,8 @@ pub const HostService = struct {
             reply.deinit();
         }
         self.runtime_aggregate.synchronizeRuntimes();
+        // Notices wait for a session's delivery, which may answer one of its requests.
+        self.keepers.offer(&self.runtime_aggregate);
         diagnostic_log.flush();
     }
 
@@ -219,11 +238,17 @@ pub const HostService = struct {
 
     pub fn pollEvents(self: *HostService, connection: *const ConnectionState) !Outgoing {
         if (self.lifecycle == .shutting_down) return error.ServiceShuttingDown;
-        return self.event_delivery.pollEvents(
+        var outgoing = try self.event_delivery.pollEvents(
             self.allocator,
             &self.runtime_aggregate,
             connection,
         );
+        // Infallible: what does not fit stays for the next pass, so the committed batch stands.
+        self.keepers.deliver(&self.runtime_aggregate, switch (connection.*) {
+            .active => |active| .{ .connection_id = active.connection_id, .outgoing = &outgoing },
+            .awaiting_hello, .closing => null,
+        });
+        return outgoing;
     }
 
     /// Handles one record. A request of an active session that depends on a creation still in
@@ -260,6 +285,7 @@ pub const HostService = struct {
             self.trace_interactions,
             host_lifecycle.terminalAdmission(self.process_state),
             &self.creations,
+            self.keepers.forSession(),
             connection,
             record,
         );

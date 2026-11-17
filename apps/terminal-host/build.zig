@@ -305,6 +305,11 @@ pub fn build(builder: *std.Build) void {
         .optimize = optimize,
     });
     keeper_protocol_module.addImport("terminal-host-handshake", handshake_module);
+    const keeper_link_module = builder.createModule(.{
+        .root_source_file = builder.path("src/keeper_link/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
     const service_module = builder.createModule(.{
         .root_source_file = builder.path("src/service/root.zig"),
         .target = target,
@@ -412,9 +417,15 @@ pub fn build(builder: *std.Build) void {
     service_module.addImport("terminal-host-model", model_module);
     service_module.addImport("terminal-host-platform", platform_module);
     service_module.addImport("terminal-host-handshake", handshake_module);
-    // The service and the Keeper share one options module, since both link into the executable.
+    service_module.addImport("terminal-host-keeper-link", keeper_link_module);
+    // The service, the Keeper link, and the Keeper share one options module, since all link into
+    // the executable.
     const build_options_module = build_options.createModule();
     service_module.addImport("build-options", build_options_module);
+    keeper_link_module.addImport("terminal-host-handshake", handshake_module);
+    keeper_link_module.addImport("terminal-host-keeper-protocol", keeper_protocol_module);
+    keeper_link_module.addImport("terminal-host-platform", platform_module);
+    keeper_link_module.addImport("build-options", build_options_module);
     transport_module.addImport("terminal-protocol", protocol_module);
     transport_module.addImport("terminal-host-platform", platform_module);
     transport_module.addImport("terminal-host-handshake", handshake_module);
@@ -863,6 +874,61 @@ pub fn build(builder: *std.Build) void {
         );
         keeper_test_step.dependOn(&run_keeper_test.step);
         test_step.dependOn(&run_keeper_test.step);
+
+        // The Host's Keeper link runs its service in the test, with real terminals on the pinned
+        // conpty that the runner stages beside it; the Keeper and the stand-in claimant are the
+        // built executables.
+        const keeper_support_module = builder.createModule(.{
+            .root_source_file = builder.path("src/__tests__/keeper_black_box_support.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        keeper_support_module.addImport("build-options", build_options_module);
+        keeper_support_module.addImport("terminal-host-handshake", handshake_module);
+        keeper_support_module.addImport("terminal-host-keeper-protocol", keeper_protocol_module);
+        keeper_support_module.addImport("terminal-host-platform", platform_module);
+        const keeper_link_test_module = builder.createModule(.{
+            .root_source_file = builder.path("src/service/__tests__/keeper_link_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        keeper_link_test_module.addImport("terminal-protocol", protocol_module);
+        keeper_link_test_module.addImport("terminal-host-control", control_module);
+        keeper_link_test_module.addImport("terminal-host-core", core_module);
+        keeper_link_test_module.addImport("terminal-host-engine", engine_module);
+        keeper_link_test_module.addImport("terminal-host-model", model_module);
+        keeper_link_test_module.addImport("terminal-host-platform", platform_module);
+        keeper_link_test_module.addImport("terminal-host-service", service_module);
+        keeper_link_test_module.addImport("terminal-host-keeper-protocol", keeper_protocol_module);
+        keeper_link_test_module.addImport("keeper-support", keeper_support_module);
+        const keeper_link_test_options = builder.addOptions();
+        keeper_link_test_options.addOptionPath("keeper_executable", executable.getEmittedBin());
+        keeper_link_test_options.addOptionPath("stand_in_executable", keeper_test.getEmittedBin());
+        keeper_link_test_module.addOptions("keeper_link_test_options", keeper_link_test_options);
+        keeper_link_test_module.addIncludePath(builder.path("src/transport"));
+        keeper_link_test_module.addCSourceFile(.{
+            .file = builder.path("src/transport/local_ipc_windows.c"),
+            .flags = authored_c_flags,
+        });
+        keeper_link_test_module.linkSystemLibrary("advapi32", .{});
+        const keeper_link_tests = builder.addTest(.{
+            .name = "terminal-host-keeper-link-tests",
+            .root_module = keeper_link_test_module,
+        });
+        keeper_link_tests.root_module.link_libc = true;
+        test_compile_step.dependOn(&keeper_link_tests.step);
+        const run_keeper_link_tests = builder.addSystemCommand(&.{
+            "node",
+            builder.pathFromRoot("scripts/run-keeper-link-test.mjs"),
+            "--test-executable",
+        });
+        run_keeper_link_tests.addArtifactArg(keeper_link_tests);
+        const keeper_link_test_step = builder.step(
+            "test-keeper-link",
+            "Run the Host's Keeper link witnesses against a real Keeper",
+        );
+        keeper_link_test_step.dependOn(&run_keeper_link_tests.step);
+        test_step.dependOn(&run_keeper_link_tests.step);
     }
     const focused_cli_tests = builder.addTest(.{
         .name = "terminal-host-cli-tests",

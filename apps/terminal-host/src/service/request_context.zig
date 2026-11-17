@@ -4,6 +4,7 @@ const control_decode = @import("terminal-host-control").decode;
 const core_module = @import("terminal-host-core").state;
 const creation_pipeline = @import("creation_pipeline.zig");
 const host_failure = @import("failure.zig");
+const host_keepers = @import("keepers.zig");
 const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_response = @import("response.zig");
@@ -69,6 +70,8 @@ pub const Context = struct {
     terminal_admission: host_lifecycle.TerminalAdmission,
     /// Builds a creation's process and engine off the dispatch thread.
     creations: *creation_pipeline.Pipeline,
+    /// The Keeper attachments, present only for a session that negotiated `keeper`.
+    keepers: ?*host_keepers.Keepers = null,
 
     pub fn hostEpoch(self: *const Context) core_module.HostEpoch {
         return self.runtime_aggregate.hostEpoch();

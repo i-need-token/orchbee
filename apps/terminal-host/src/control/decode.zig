@@ -1,6 +1,7 @@
 const common = @import("decode_common.zig");
 const host = @import("decode_host.zig");
 const interaction = @import("decode_interaction.zig");
+const keeper = @import("decode_keeper.zig");
 const projection = @import("decode_projection.zig");
 const selection = @import("decode_selection.zig");
 const terminal = @import("decode_terminal.zig");
@@ -18,6 +19,11 @@ pub const ListTerminals = host.ListTerminals;
 pub const decodeHello = host.decodeHello;
 pub const decodeListTerminals = host.decodeListTerminals;
 pub const validHello = host.validHello;
+
+pub const KeeperProcess = keeper.KeeperProcess;
+pub const AttachKeeper = keeper.AttachKeeper;
+pub const decodeAttachKeeper = keeper.decodeAttachKeeper;
+pub const decodeDetachKeeper = keeper.decodeDetachKeeper;
 
 pub const CreateTerminal = terminal.CreateTerminal;
 pub const StartTerminal = terminal.StartTerminal;

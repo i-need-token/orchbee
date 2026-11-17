@@ -142,19 +142,7 @@ pub fn windowsSearchCandidates(
     return candidates.toOwnedSlice(arena);
 }
 
-/// The spelling a child receives as its current directory. Launch paths stay literal on the wire,
-/// and a canonical verbatim spelling is valid for CreateProcess, but the child inherits it as its
-/// own current directory and cmd.exe then refuses it as a UNC path. The child gets the ordinary
-/// spelling when that names the same directory within the MAX_PATH current-directory limit of a
-/// process without long-path support; otherwise the requested spelling stays unchanged.
-pub fn childCurrentDirectory(arena: std.mem.Allocator, directory: []const u8) ![]const u8 {
-    const ordinary = (try @import("windows_command_line.zig").ordinaryPath(arena, directory)) orelse
-        return directory;
-    // SetCurrentDirectory appends the missing trailing separator and needs room for NUL.
-    const separator: usize = if (std.mem.endsWith(u8, ordinary, "\\")) 0 else 1;
-    const units = std.unicode.calcUtf16LeLen(ordinary) catch return directory;
-    return if (units + separator < std.os.windows.MAX_PATH) ordinary else directory;
-}
+pub const childCurrentDirectory = @import("windows_command_line.zig").childCurrentDirectory;
 
 pub const Process = if (builtin.os.tag != .windows) void else struct {
     const windows = std.os.windows;
@@ -303,6 +291,8 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn deinit(self: *Process) void {
+        // Release first: no Keeper still holds the handles closed below; after a shutdown, at once.
+        self.termination.keepers.pass();
         self.console.releaseMembers(self.job_handle, self.process_handle, &self.termination);
         _ = windows.CloseHandle(self.process_handle);
         _ = windows.CloseHandle(self.job_handle);
@@ -353,6 +343,12 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
 
     pub fn forceTerminate(self: *Process) !void {
         try self.console.forceTerminate(self.job_handle, self.process_handle, &self.termination);
+    }
+
+    /// Release first, without waiting: from now on no Keeper holds the terminal anew, and each
+    /// holding it releases it. True once none holds it.
+    pub fn releaseKeepers(self: *Process) bool {
+        return self.termination.keepers.tryPass();
     }
 
     pub fn processTreeContained(self: *Process) !bool {
@@ -409,6 +405,9 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         // Job is the complete descendant authority, and only its members that
         // hold this console are attached, so closing waits for those alone.
         try self.console.awaitDetached(self.job_handle, self.process_handle, &self.termination);
+        // Release first: a Keeper still holding the console would keep it open after the close.
+        // Only the wait thread waits here; a shutdown comes once `releaseKeepers` is true.
+        self.termination.keepers.pass();
         self.pty.closeConsole();
     }
 

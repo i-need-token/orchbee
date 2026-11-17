@@ -110,6 +110,7 @@ pub fn admit(allocator: std.mem.Allocator, transport: anytype, options: Options)
     };
     defer allocator.free(reply.frame);
     try connection.writeOutgoing(transport, &.{reply.frame});
+    if (reply.kind == .session) if (source.service) |service| service.admitSession(reply.keeper);
     if (reply.kind != .session) awaitPeerClose(transport, source.service);
     return switch (reply.kind) {
         .session => .session,

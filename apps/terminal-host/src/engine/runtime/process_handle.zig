@@ -37,6 +37,18 @@ pub fn Type(comptime Runtime: type) type {
             return process_io_ops.forceTerminate(stateFrom(self));
         }
 
+        /// Goes on with a forced end that waited for a Keeper's release. The owner calls it from
+        /// its maintenance, and an error fails the end as a failed dispatch would.
+        pub fn continueForcedEnd(self: *Runtime) !void {
+            return process_io_ops.continueForcedEnd(stateFrom(self));
+        }
+
+        /// The platform process, for the Keeper link alone: it reads the release-first gate and
+        /// takes a hold's snapshot of the handles, and the gate keeps them open while it does.
+        pub fn keeperSubject(self: *Runtime) *pty_process.Process {
+            return &stateFrom(self).process;
+        }
+
         fn stateFrom(runtime: *Runtime) *state.State {
             return @ptrCast(@alignCast(runtime));
         }

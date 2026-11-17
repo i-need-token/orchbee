@@ -96,6 +96,8 @@ pub const Reply = struct {
     /// The caller-owned frame to send.
     frame: []u8,
     kind: Kind,
+    /// Whether an accepted session's answer lists `keeper`.
+    keeper: bool = false,
 
     pub const Kind = enum {
         /// The connection continues as the Worker session.
@@ -182,7 +184,16 @@ pub fn respond(
             .request, .unknown_request => .request_answered,
         },
     };
-    return .{ .reply = .{ .frame = try encodeReply(allocator, reply), .kind = kind } };
+    const keeper = switch (decision) {
+        .accept => |answer| listsKeeper(answer.capabilities),
+        else => false,
+    };
+    return .{ .reply = .{ .frame = try encodeReply(allocator, reply), .kind = kind, .keeper = keeper } };
+}
+
+fn listsKeeper(capabilities: []const []const u8) bool {
+    for (capabilities) |capability| if (std.mem.eql(u8, capability, "keeper")) return true;
+    return false;
 }
 
 /// The one reply to a `drain` or `exit` request, once `state` shows it applied.

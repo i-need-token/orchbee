@@ -95,6 +95,19 @@ pub fn ordinaryPath(allocator: std.mem.Allocator, path: []const u8) !?[]u8 {
     return if (unc) try std.fmt.allocPrint(allocator, "\\\\{s}", .{rest}) else try allocator.dupe(u8, rest);
 }
 
+/// The spelling a child receives as its current directory. Launch paths stay literal on the wire,
+/// and a canonical verbatim spelling is valid for CreateProcess, but the child inherits it as its
+/// own current directory and cmd.exe then refuses it as a UNC path. The child gets the ordinary
+/// spelling when that names the same directory within the MAX_PATH current-directory limit of a
+/// process without long-path support; otherwise the requested spelling stays unchanged.
+pub fn childCurrentDirectory(arena: std.mem.Allocator, directory: []const u8) ![]const u8 {
+    const ordinary = (try ordinaryPath(arena, directory)) orelse return directory;
+    // SetCurrentDirectory appends the missing trailing separator and needs room for NUL.
+    const separator: usize = if (std.mem.endsWith(u8, ordinary, "\\")) 0 else 1;
+    const units = std.unicode.calcUtf16LeLen(ordinary) catch return directory;
+    return if (units + separator < std.os.windows.MAX_PATH) ordinary else directory;
+}
+
 fn appendBatchArgument(writer: *std.Io.Writer, argument: []const u8) !void {
     if (std.mem.indexOfAny(u8, argument, "\x00\r\n") != null) return error.InvalidBatchArgument;
     try writer.writeByte('"');

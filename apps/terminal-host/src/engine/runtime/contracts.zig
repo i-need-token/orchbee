@@ -320,6 +320,9 @@ pub const Completion = terminal_runtime_completion.Snapshot;
 /// Semantic owner-cleanup failures. Platform errors are classified at this
 /// boundary so HostCore never has to infer which shutdown phase failed.
 pub const ShutdownError = error{
+    /// Not a failure: a Keeper still holds the terminal, and its link answers or gives up within
+    /// the Keeper's reply deadline. The owner retries the shutdown.
+    KeeperReleasePending,
     OutputReleaseFailed,
     ProcessContainmentFailed,
     ProcessIdentityReleaseFailed,

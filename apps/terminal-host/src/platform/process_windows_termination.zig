@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const keeper_gate = @import("keeper_gate.zig");
 const thread_sync = @import("thread_sync.zig");
 const windows_api = @import("windows_api.zig");
 
@@ -14,6 +15,9 @@ pub const Termination = if (builtin.os.tag != .windows) void else struct {
     /// Set once force termination targets the whole Job; from then on
     /// kill-on-close stays and every member counts.
     whole_job: std.atomic.Value(bool) = .init(false),
+    /// Release first: every Keeper holding the terminal releases it before its Job is
+    /// terminated or its handles close.
+    keepers: keeper_gate.Gate = .{},
 
     pub fn terminate(self: *Termination, process: windows.HANDLE) !void {
         const failure = submission: {
@@ -50,8 +54,11 @@ pub const Termination = if (builtin.os.tag != .windows) void else struct {
         self.root_submitted = true;
     }
 
-    /// Terminates every Job member: the fallback of the console-holder close.
+    /// Terminates every Job member: the fallback of the console-holder close. Release first: while
+    /// a Keeper still holds the terminal this terminates nothing and returns
+    /// `KeeperReleasePending`, and the caller tries again once the release is answered.
     pub fn terminateJob(self: *Termination, job: windows.HANDLE) !void {
+        if (!self.keepers.tryPass()) return error.KeeperReleasePending;
         const failure = submission: {
             self.mutex.lock();
             defer self.mutex.unlock();

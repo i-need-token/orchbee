@@ -32,6 +32,8 @@ const Seam = enum(u8) {
     synchronized_output_deadline_release,
     mouse_input_epoch_retirement,
     reader_pause,
+    keeper_hold,
+    keeper_release,
 };
 
 const Disposition = enum {
@@ -95,6 +97,8 @@ const matrix = [_]Entry{
     entry(.synchronized_output_deadline_release, "CS-028", "SynchronizedOutputDeadlineRelease", .preserve_for_retry, .deterministic_interleaving, "src/engine/__tests__/runtime_state_test.zig", "synchronized output suppresses capture only until its monotonic deadline"),
     entry(.mouse_input_epoch_retirement, "CS-029", "MouseInputEpochRetirement", .reject_without_commit, .deterministic_interleaving, "src/engine/__tests__/runtime_input_test.zig", "mouse input epoch rejects stale preparation and retires only unstarted hover"),
     entry(.reader_pause, "CS-030", "ReaderPause", .rollback, .deterministic_interleaving, "src/engine/__tests__/reader_pause_test.zig", "reader pause the platform refuses is withdrawn and the reader reads on"),
+    entry(.keeper_hold, "CS-031", "KeeperHold", .commit_and_drop, .native_boundary, "src/service/__tests__/keeper_link_test.zig", "keeper hold the Keeper refuses leaves the terminal running unheld and reported"),
+    entry(.keeper_release, "CS-032", "KeeperRelease", .contain_and_retain, .native_boundary, "src/service/__tests__/keeper_link_test.zig", "keeper release the Keeper leaves unanswered holds the end until its deadline and fails the link at once"),
 };
 
 test "commit seam matrix is exhaustive unique documented and backed by named tests" {
