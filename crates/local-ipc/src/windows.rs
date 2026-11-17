@@ -2,9 +2,13 @@
 //! writes consult the kernel's pipe counters first, so a blocking-mode pipe never blocks a caller;
 //! that mode is what lets one zero-byte read wait for the peer's next byte.
 use std::{
+    ffi::OsStr,
     io::{self, Read, Write},
     net::Shutdown,
-    os::windows::io::{AsHandle, OwnedHandle},
+    os::windows::{
+        fs::OpenOptionsExt,
+        io::{AsHandle, OwnedHandle},
+    },
     path::Path,
     sync::{
         Arc, Mutex, MutexGuard,
@@ -14,22 +18,25 @@ use std::{
     time::{Duration, Instant},
 };
 
-use interprocess::{
-    ConnectWaitMode,
-    os::windows::{
-        named_pipe::{PipeListener, PipeListenerOptions, PipeStream, pipe_mode::Bytes},
-        security_descriptor::SecurityDescriptor,
-    },
+use interprocess::os::windows::{
+    named_pipe::{PipeListener, PipeListenerOptions, PipeStream, pipe_mode::Bytes},
+    security_descriptor::SecurityDescriptor,
 };
 use widestring::U16CString;
 use winsafe::{HPROCESS, TokenInfo, co};
 
-use crate::windows_native::{ReadWatch, WatchArm, pipe_counters};
+use crate::windows_native::{ReadWatch, WatchArm, pipe_counters, wait_for_instance};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(2);
 const UNBOUNDED_WAIT_SLICE: Duration = Duration::from_secs(1);
 const NONBLOCKING_WRITE_LIMIT: usize = 4096;
 const ERROR_PIPE_BUSY: i32 = 231;
+const FILE_SHARE_READ_WRITE: u32 = 0x3;
+const FILE_FLAG_OVERLAPPED: u32 = 0x4000_0000;
+// Security Quality of Service for every client open: the server may identify this client by
+// reading its token, but it cannot impersonate the client.
+const SECURITY_SQOS_PRESENT: u32 = 0x0010_0000;
+const SECURITY_IDENTIFICATION: u32 = 0x0001_0000;
 type Pipe = PipeStream<Bytes, Bytes>;
 
 mod connection;
@@ -141,6 +148,47 @@ fn pipe_name(path: &Path) -> io::Result<&std::ffi::OsStr> {
     Ok(path.as_os_str())
 }
 
+/// Opens the endpoint for this client, waiting within `wait` while every server instance is busy.
+/// The open limits the server to identifying this client, so a server that squats the name cannot
+/// impersonate it; the same-user proof still runs after the open.
+fn connect_identified(name: &OsStr, wait: Duration) -> io::Result<Pipe> {
+    let deadline = Instant::now()
+        .checked_add(wait)
+        .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+    loop {
+        match open_identified(name) {
+            Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY) => {
+                let remaining = deadline
+                    .checked_duration_since(Instant::now())
+                    .filter(|remaining| !remaining.is_zero())
+                    .ok_or_else(|| io::Error::from(io::ErrorKind::TimedOut))?;
+                wait_for_instance(name, remaining)?;
+            }
+            result => return result,
+        }
+    }
+}
+
+/// One identifying open of the endpoint, without waiting for a busy instance.
+fn open_identified(name: &OsStr) -> io::Result<Pipe> {
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .share_mode(FILE_SHARE_READ_WRITE)
+        .custom_flags(FILE_FLAG_OVERLAPPED)
+        .security_qos_flags(SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION)
+        .open(name)?;
+    let pipe = Pipe::try_from(OwnedHandle::from(file)).map_err(|error| {
+        error
+            .cause
+            .unwrap_or_else(|| io::Error::other(error.details.to_string()))
+    })?;
+    // A fresh connection is clean. A wrapped handle starts dirty, which would linger on drop, so
+    // clear it as a connect does.
+    pipe.assume_flushed();
+    Ok(pipe)
+}
+
 /// Advisory byte-read readiness; probing never consumes a byte.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Readiness {
@@ -241,10 +289,7 @@ impl LocalStream {
         let remaining = deadline
             .checked_duration_since(Instant::now())
             .ok_or_else(|| io::Error::from(io::ErrorKind::TimedOut))?;
-        let pipe = Pipe::connect_by_path_with_wait_mode(
-            pipe_name(path)?,
-            ConnectWaitMode::Timeout(remaining),
-        )?;
+        let pipe = connect_identified(pipe_name(path)?, remaining)?;
         let stream = Self::admit(pipe)?;
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());
@@ -531,6 +576,7 @@ impl ChildInputWriter {
         let reader = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
+            .security_qos_flags(SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION)
             .open(&path)?;
         let (writer, ()) = listener.accept()?;
         writer.set_nonblocking(true)?;

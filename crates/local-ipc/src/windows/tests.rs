@@ -66,6 +66,26 @@ fn short_kernel_wait_limit_retains_a_real_same_user_connection() {
     assert_eq!(&bytes, b"authenticated");
 }
 
+// SecurityIdentification: the server may read the client's token but cannot act as the client.
+const IDENTIFICATION_LEVEL: u32 = 1;
+
+#[test]
+fn client_open_limits_a_server_impersonation_to_identification() {
+    let path = endpoint();
+    let listener = LocalListener::bind(&path).unwrap();
+    let mut client = LocalStream::connect(&path).unwrap();
+    let (mut server, ()) = listener.accept().unwrap();
+    client.write_all(b"x").unwrap();
+    let mut byte = [0u8];
+    server.read_exact(&mut byte).unwrap();
+    let connection = server.lock().unwrap();
+    let pipe = connection.pipe.as_ref().expect("accepted pipe");
+    assert_eq!(
+        crate::windows_native::impersonated_client_level(pipe.as_handle()).unwrap(),
+        IDENTIFICATION_LEVEL
+    );
+}
+
 #[test]
 fn bounded_namespace_observation_never_connects_or_invents_absence() {
     let path = endpoint();

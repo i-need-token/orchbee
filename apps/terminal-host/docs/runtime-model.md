@@ -221,10 +221,12 @@ event, one byte of prefetch storage, and at most one overlapped readiness read
 per pipe instance. The listen stays armed across accept timeouts, so a client
 that connects between two accept waits is accepted by the next one, and
 accepting reads nothing. A pipe server can impersonate its client only after
-reading from the pipe, so the connection's first byte arrives through the
-readiness wait, which keeps it only if the client runs as the Host's user; the
-Host writes nothing to a connection before that check, and a mismatch closes
-only that connection. Each control lane waits on its own pipe instance until the
+reading from the pipe, and a client this repository opens grants identification
+level only, so the server reads the client's token user but never acts as it.
+The connection's first byte arrives through the readiness wait, which keeps it
+only if the client runs as the Host's user; the Host writes nothing to a
+connection before that check, and a mismatch closes only that connection. Each
+control lane waits on its own pipe instance until the
 dispatch thread stops the lanes, so an idle lane never wakes. From `idle`, a
 wait on a checked connection first probes the pipe: queued bytes stay available
 for a bulk framed read, while an empty pipe arms exactly one one-byte read and
