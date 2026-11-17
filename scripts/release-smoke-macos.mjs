@@ -23,18 +23,20 @@
 //   directory's; its bundled Client answers `--version` with the version. The image is detached
 //   even after a failure, before the work folder goes.
 // - archive: the system tar unpacks the `.tar.gz` into one folder named like it, whose four programs
-//   are executable; its Client's `install` activates the version in `~/.local/share/<stem>` and
-//   links `~/.local/bin/<stem>`, which answers `--version`; `uninstall` through the link removes the
-//   store root and the link.
+//   are executable; its Client's `install` activates the version in `~/.local/share/<stem>`,
+//   links `~/.local/bin/<stem>`, which answers `--version`, and adds the PATH lines to
+//   `~/.zshenv`, which uninstall removes; `uninstall` through the link removes the store root and
+//   the link.
 // - install-script: runs apps/website/public/install.sh with `--desktop` as `curl … | sh -s --` does,
 //   the script on the standard input of /bin/sh, against a copy of the row's feed that names its
 //   archives by file name, in a folder beside the `.tar.gz` and the window archive, reached
 //   through the script's test variables: ORCHBEE_INSTALL_SH_FEED, a file: address, and
 //   ORCHBEE_INSTALL_SH_APPLICATIONS, a folder in the work folder, under a shell's soft open-file
-//   limit of 256. It must activate the version, link the command, print the line that puts
-//   ~/.local/bin on PATH, copy the application with a valid signature and the row's release.json,
-//   store the window version with the application in the store's `desktop` folder, and leave its
-//   temporary folder empty; `uninstall` through the link then removes the store root and the link.
+//   limit of 256. It must activate the version, link the command, add the PATH lines to
+//   ~/.zshenv, which uninstall removes, copy the application with a valid signature and the
+//   row's release.json, store the window version with the application in the store's `desktop`
+//   folder, and leave its temporary folder empty; `uninstall` through the link then removes the
+//   store root and the link.
 // - npm: `npm install --global --offline` of the tarballs into a prefix; the first start installs
 //   the carried version, `--version` answers it again, the program's `uninstall` removes the store
 //   root, and `npm rm --global` removes the carrier.
@@ -190,7 +192,13 @@ function scratchEnvironment(home) {
 	const kept = Object.entries(process.env).filter(
 		([name]) => !/^(?:ORCHBEE_|npm_config_|NPM_CONFIG_)/u.test(name),
 	);
-	return { ...Object.fromEntries(kept), HOME: home, npm_config_cache: path.join(home, '.npm') };
+	// zsh, so install's PATH lines go to ~/.zshenv whatever shell the runner has.
+	return {
+		...Object.fromEntries(kept),
+		HOME: home,
+		SHELL: '/bin/zsh',
+		npm_config_cache: path.join(home, '.npm'),
+	};
 }
 
 /** Runs one program with captured output, which it prints; a missing program or a timeout fails. */
@@ -426,9 +434,16 @@ function archive(identity, work) {
 	if (!inside(realpathSync(root), realpathSync(link)))
 		throw new StepFailure(`${link} names ${readlinkSync(link)}, outside ${root}`);
 	expectVersion(identity, run(link, ['--version'], { env }), `${identity.stem} --version`);
+	const zshenv = path.join(home, '.zshenv');
+	if (
+		!existsSync(zshenv) ||
+		!readFileSync(zshenv, 'utf8').includes('export PATH="$HOME/.local/bin:$PATH"')
+	)
+		throw new StepFailure(`install added no line that puts ~/.local/bin on PATH to ${zshenv}`);
 	uninstall(identity, link, env);
 	expectGone(root, 'The store root');
 	expectGone(link, 'The command link');
+	expectGone(path.join(home, '.zshenv'), 'The ~/.zshenv install made');
 	expectNoProcesses(work);
 }
 
@@ -486,8 +501,12 @@ function installScriptStep(identity, work) {
 	if (result.error !== undefined) throw new StepFailure(`/bin/sh: ${result.error.message}`);
 	process.stdout.write(`${result.stdout ?? ''}${result.stderr ?? ''}`);
 	expectStatus(result, 0, 'install.sh --desktop');
-	if (!result.stdout.includes('export PATH="$HOME/.local/bin:$PATH"'))
-		throw new StepFailure('install.sh printed no line that puts ~/.local/bin on PATH');
+	const zshenv = path.join(home, '.zshenv');
+	if (
+		!existsSync(zshenv) ||
+		!readFileSync(zshenv, 'utf8').includes('export PATH="$HOME/.local/bin:$PATH"')
+	)
+		throw new StepFailure(`install.sh added no line that puts ~/.local/bin on PATH to ${zshenv}`);
 	const left = readdirSync(temporary);
 	if (left.length > 0)
 		throw new StepFailure(`install.sh left ${left.join(', ')} in its temporary folder`);
@@ -506,6 +525,7 @@ function installScriptStep(identity, work) {
 	uninstall(identity, link, env);
 	expectGone(root, 'The store root');
 	expectGone(link, 'The command link');
+	expectGone(zshenv, 'The ~/.zshenv install.sh made');
 	expectNoProcesses(work);
 }
 

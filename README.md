@@ -103,17 +103,15 @@ curl -fsSL https://orchbee.com/install.sh | sh -s -- --desktop  # the desktop ap
 
 - The desktop app goes into `/Applications` when you can write to it, otherwise into
   `~/Applications`.
-- The command is linked at `~/.local/bin/orchbee`. When your `PATH` lacks that folder, as zsh's does
-  on a new Mac, the installer prints the line to add to `~/.zshrc`. Add it and open a new terminal:
-
-  ```sh
-  export PATH="$HOME/.local/bin:$PATH"
-  ```
+- The command is linked at `~/.local/bin/orchbee`, and the installer puts that folder on `PATH` for
+  new terminals: two lines in `~/.zshenv` for zsh, or in bash's login file. Open a new terminal to
+  use `orchbee`; `orchbee uninstall` removes those lines. For another shell it prints the line to
+  add.
 
 Or download the disk image from the
 [releases page](https://github.com/i-need-token/orchbee/releases):
 `Orchbee-<version>-macos-aarch64.dmg` for Apple silicon, `Orchbee-<version>-macos-x86_64.dmg` for
-Intel. Open it and drag **Orchbee** to Applications.
+Intel. Open it and drag **Orchbee** to Applications. Its first start installs the command the same way.
 
 - The app is not notarized by Apple yet, so macOS blocks the first open of a browser download. Click
   **Done**, then **Open Anyway** in **System Settings › Privacy & Security**; the

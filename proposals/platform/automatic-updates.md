@@ -874,7 +874,8 @@ unpacking, and a bundle the launcher swaps at the click.
   updates are not switched on answers the helper word as a usage error; its bundle is copied alone.
 - Chosen: an application copied from the disk image plays Setup's part at its first start. While
   the store has no active runtime version, each Session start of its bundled Client first runs that
-  Client's `install --no-path`, which installs the bundle's release directory and makes an empty
+  Client's `install`, which installs the bundle's release directory, links the command with the
+  PATH step as Setup does, and makes an empty
   window store, and then hands the start to the store as above. An install that fails leaves the
   start with the bundle's own cohort, as before, writes one log record and is tried again at the
   next start; nothing asks the person. The copy's own version is not stored as a window version: the

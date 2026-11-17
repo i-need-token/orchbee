@@ -372,22 +372,22 @@ Windows 和 macOS 正式版要求在控制台中输入 orchbee；开发和测试
             // macOS and Linux install into the release store and link the command in ~/.local/bin.
             (Locale::EnUs, CommandPath::Install) => crate::cli_text::HelpDetails::new(
                 "orchbee install [--no-path] [--allow-downgrade] [--format text|json]",
-                "Install the signed release directory this orchbee runs from and make it the active version.\nCopies every file to versions/<version> under ORCHBEE_INSTALL_DIR (default ~/.local/share/orchbee; a development or test build uses its own folder), verifies it, then moves active.json.\nAn installed version is verified and reused, never overwritten. A version lower than the active one is refused unless --allow-downgrade.\nUnless --no-path, the PATH step links ~/.local/bin/orchbee (a development or test build uses its own name) to the version's orchbee; when PATH lacks ~/.local/bin, install prints the line that adds it. No shell profile is read or edited.\nTotal deadline: 600 seconds. Ctrl+C cancels.",
+                "Install the signed release directory this orchbee runs from and make it the active version.\nCopies every file to versions/<version> under ORCHBEE_INSTALL_DIR (default ~/.local/share/orchbee; a development or test build uses its own folder), verifies it, then moves active.json.\nAn installed version is verified and reused, never overwritten. A version lower than the active one is refused unless --allow-downgrade.\nUnless --no-path, the PATH step links ~/.local/bin/orchbee (a development or test build uses its own name) to the version's orchbee; when PATH lacks ~/.local/bin, on macOS it adds two lines that put it there to your shell's startup file (~/.zshenv for zsh; ~/.bash_profile, ~/.bash_login or ~/.profile for bash), which uninstall removes; otherwise install prints the line that adds it.\nTotal deadline: 600 seconds. Ctrl+C cancels.",
             ),
             (Locale::ZhCn, CommandPath::Install) => crate::cli_text::HelpDetails::new(
                 "orchbee install [--no-path] [--allow-downgrade] [--format text|json]",
-                "安装当前 orchbee 所在的已签名发布目录，并设为当前版本。\n把每个文件复制到 ORCHBEE_INSTALL_DIR（默认 ~/.local/share/orchbee；开发和测试构建使用自己的目录）下的 versions/<版本>，校验后更新 active.json。\n已安装的版本校验后复用，绝不覆盖。低于当前版本时拒绝，除非加 --allow-downgrade。\n除非加 --no-path，PATH 步骤会让 ~/.local/bin/orchbee（开发和测试构建使用自己的名称）链接到该版本的 orchbee；PATH 缺少 ~/.local/bin 时，install 会打印添加它的命令行。不读取也不修改任何 shell 配置文件。\n总时限 600 秒。Ctrl+C 取消。",
+                "安装当前 orchbee 所在的已签名发布目录，并设为当前版本。\n把每个文件复制到 ORCHBEE_INSTALL_DIR（默认 ~/.local/share/orchbee；开发和测试构建使用自己的目录）下的 versions/<版本>，校验后更新 active.json。\n已安装的版本校验后复用，绝不覆盖。低于当前版本时拒绝，除非加 --allow-downgrade。\n除非加 --no-path，PATH 步骤会让 ~/.local/bin/orchbee（开发和测试构建使用自己的名称）链接到该版本的 orchbee；PATH 缺少 ~/.local/bin 时，在 macOS 上会在你的 shell 启动文件（zsh 为 ~/.zshenv；bash 为 ~/.bash_profile、~/.bash_login 或 ~/.profile）中加入两行把它加入 PATH，uninstall 会移除这两行；其他情况下 install 会打印添加它的命令行。\n总时限 600 秒。Ctrl+C 取消。",
             ),
             (Locale::EnUs, CommandPath::Uninstall) => crate::cli_text::HelpDetails::new(
                 "orchbee uninstall [--delete-data] [--confirm] [--format text|json]",
-                "Remove the installed Orchbee of this environment completely, in this order: list what goes and confirm; stop every Session; disable every Agent integration; remove the command link ~/.local/bin/orchbee while it names a version of this installation; remove logs, internal/integrations, internal/cache, internal/runtime and internal/tmp from the data folder; remove the program folder (ORCHBEE_INSTALL_DIR, default ~/.local/share/orchbee) last.
+                "Remove the installed Orchbee of this environment completely, in this order: list what goes and confirm; stop every Session; disable every Agent integration; remove the command link ~/.local/bin/orchbee while it names a version of this installation, and on macOS the two PATH lines install added to your shell's startup file; remove logs, internal/integrations, internal/cache, internal/runtime and internal/tmp from the data folder; remove the program folder (ORCHBEE_INSTALL_DIR, default ~/.local/share/orchbee) last.
 Settings, Sessions and the rest of the data folder stay unless --delete-data, which removes the whole data folder.
 The Windows and macOS release builds ask a person in a console to type orchbee; development and test builds require --confirm.
 A failure says what was done and what remains; running the command again continues.",
             ),
             (Locale::ZhCn, CommandPath::Uninstall) => crate::cli_text::HelpDetails::new(
                 "orchbee uninstall [--delete-data] [--confirm] [--format text|json]",
-                "完整移除本环境已安装的 Orchbee，顺序为：列出将移除的内容并确认；停止所有会话；停用所有智能体集成；命令链接 ~/.local/bin/orchbee 指向本安装的版本时移除它；从数据文件夹移除 logs、internal/integrations、internal/cache、internal/runtime 和 internal/tmp；最后移除程序文件夹（ORCHBEE_INSTALL_DIR，默认 ~/.local/share/orchbee）。
+                "完整移除本环境已安装的 Orchbee，顺序为：列出将移除的内容并确认；停止所有会话；停用所有智能体集成；命令链接 ~/.local/bin/orchbee 指向本安装的版本时移除它，在 macOS 上还会移除 install 加入 shell 启动文件的两行 PATH 设置；从数据文件夹移除 logs、internal/integrations、internal/cache、internal/runtime 和 internal/tmp；最后移除程序文件夹（ORCHBEE_INSTALL_DIR，默认 ~/.local/share/orchbee）。
 除非加 --delete-data（删除整个数据文件夹），否则设置、会话和数据文件夹中的其余内容都会保留。
 Windows 和 macOS 正式版要求在控制台中输入 orchbee；开发和测试构建需要 --confirm。
 失败时会说明已完成和尚余的内容；再次运行命令即可继续。",

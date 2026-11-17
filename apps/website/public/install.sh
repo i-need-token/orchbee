@@ -14,7 +14,8 @@
 # 3. Downloads the .tar.gz the feed names, checks its size and SHA-256 against the feed, unpacks
 #    it into a temporary folder and runs its `orchbee install`, which verifies the signed
 #    release.json, activates the version under ~/.local/share/orchbee, links ~/.local/bin/orchbee,
-#    and prints the line that puts ~/.local/bin on PATH when the shell lacks it. --no-path is
+#    and, when the shell lacks ~/.local/bin, on macOS adds the lines that put it on PATH to the
+#    shell's startup file, elsewhere prints the line. --no-path is
 #    passed on.
 # 4. With --desktop on macOS, it first downloads the window archive the feed names in
 #    extensions.desktop and checks its size and SHA-256 against the feed; after the install it

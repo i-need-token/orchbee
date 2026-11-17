@@ -102,16 +102,13 @@ curl -fsSL https://orchbee.com/install.sh | sh -s -- --desktop  # 同时安装�
 ```
 
 - 桌面应用装进 `/Applications`（有写权限时），否则装进 `~/Applications`。
-- 命令链接在 `~/.local/bin/orchbee`。`PATH` 里没有这个文件夹时（新 Mac 上 zsh 默认就没有），安装程序会
-  打印要加到 `~/.zshrc` 的那一行。加上后新开一个终端：
-
-  ```sh
-  export PATH="$HOME/.local/bin:$PATH"
-  ```
+- 命令链接在 `~/.local/bin/orchbee`，安装程序会把这个文件夹加入新终端的 `PATH`：zsh 写在
+  `~/.zshenv`，bash 写在它的登录文件中，各两行。新开一个终端即可使用 `orchbee`；`orchbee uninstall`
+  会移除这两行。其他 shell 会打印要加入的那一行。
 
 也可以从[发布页](https://github.com/i-need-token/orchbee/releases)下载磁盘映像：Apple 芯片下载
 `Orchbee-<version>-macos-aarch64.dmg`，Intel 下载 `Orchbee-<version>-macos-x86_64.dmg`。打开后把
-**Orchbee** 拖到“应用程序”。
+**Orchbee** 拖到“应用程序”。首次启动时会以同样方式安装命令。
 
 - 应用暂未经过 Apple 公证，所以从浏览器下载的副本第一次打开时会被 macOS 拦下。点**完成**，再到
   **系统设置 › 隐私与安全性**中点**仍要打开**；[官网](https://orchbee.com/#install)有详细步骤。用终端安装

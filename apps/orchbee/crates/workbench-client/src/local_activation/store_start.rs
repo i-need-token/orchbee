@@ -10,10 +10,11 @@
 //!
 //! On macOS the window application's bundled Client is the only installer a copy dragged from the
 //! disk image has. Where no store version is active, it first installs its own release directory
-//! with its public `install --no-path`, the route Setup and install.sh take, which also makes the
-//! window store, and hands the start to the version it installed; one `store-install` record says
-//! how that went. An install that fails or outlasts its share of the deadline changes nothing about
-//! this start: the Client starts its own cohort as before and tries again at the next start.
+//! with its public `install`, the route Setup and install.sh take, which also links the command,
+//! makes the window store, and hands the start to the version it installed; one `store-install`
+//! record says how that went. An install that fails or outlasts its share of the deadline
+//! changes nothing about this start: the Client starts its own cohort as before and tries again
+//! at the next start.
 use super::{ActivationFailure, StartupFailure};
 use crate::local_client::CLIENT_VERSION;
 use orchbee_local_ipc::ChildOutputReader;
@@ -297,7 +298,7 @@ fn run(client: &Path, explicit: Option<&str>, deadline: Instant) -> Run {
     wait_for(command, pins, deadline)
 }
 
-/// Runs this Client's own `install --no-path --format json`, as [`wait_for`] runs a command, and
+/// Runs this Client's own `install --format json`, as [`wait_for`] runs a command, and
 /// waits for it until the deadline leaves [`INSTALL_RESERVE`]. Answers whether it exited 0 with an
 /// `orchbee.install` document that reports the version activated, and writes one `store-install`
 /// record: `installed`; `failed` with the document's `error` token and the exit `status`, or with
@@ -306,7 +307,7 @@ fn run(client: &Path, explicit: Option<&str>, deadline: Instant) -> Run {
 /// Client's start does. Its own folder needs no admission: it is the program this process runs.
 fn install_own(own_client: &Path, deadline: Instant) -> bool {
     let mut command = Command::new(own_client);
-    command.args(["install", "--no-path", "--format", "json"]);
+    command.args(["install", "--format", "json"]);
     let until = deadline
         .checked_sub(INSTALL_RESERVE)
         .unwrap_or_else(Instant::now);

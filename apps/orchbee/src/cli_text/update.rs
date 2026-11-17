@@ -46,6 +46,10 @@ impl super::CliText {
                 "~/.local/bin is not on your PATH, so a terminal does not find orchbee yet. Add this line to your shell profile, such as ~/.zshrc, then open a new terminal:\nexport PATH=\"$HOME/.local/bin:$PATH\"",
                 "~/.local/bin 不在 PATH 中，终端暂时找不到 orchbee。请把下面这行加入 shell 配置文件（例如 ~/.zshrc），然后打开新终端：\nexport PATH=\"$HOME/.local/bin:$PATH\"",
             ),
+            "path-profile" => (
+                "New terminals find orchbee: two lines in your shell's startup file, such as ~/.zshenv, put ~/.local/bin on PATH, and orchbee uninstall removes them. Open a new terminal to use orchbee.",
+                "新终端可以找到 orchbee：shell 启动文件（例如 ~/.zshenv）中新加的两行把 ~/.local/bin 加入了 PATH，orchbee uninstall 会移除它们。请打开新终端使用 orchbee。",
+            ),
             "path-new-terminal" => (
                 "Open a new terminal to use orchbee; if it is not found there, sign out and back in.",
                 "请打开新终端使用 orchbee；如果仍找不到该命令，请注销后重新登录。",

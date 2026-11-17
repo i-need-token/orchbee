@@ -111,7 +111,8 @@ place, or installs into `~/Applications` when its folder cannot be written, and 
 running. Window versions reach the macOS store through `orchbee update` and install.sh's
 `--desktop` in test and release builds. An application dragged from the disk image makes its store
 on its own: while the store has no active runtime version, every Session start of its bundled
-Client first installs that bundle's release directory, as `orchbee install --no-path` does, and the
+Client first installs that bundle's release directory, as `orchbee install` does with its PATH
+step, so the command works in new terminals, and the
 install also makes the window store `desktop/`, empty, since a copy from the image carries no
 window list to store its own version with. The bundle stays the entry, the Session runs from the
 store, and the window part of each later update installs the next window version there. An

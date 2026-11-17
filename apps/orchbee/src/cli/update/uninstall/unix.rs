@@ -1,5 +1,6 @@
 //! macOS and Linux effects of uninstall outside the two roots: the command link install's PATH step
-//! placed, `~/.local/bin/<stem>`, removed only while it names a version of this store; the
+//! placed, `~/.local/bin/<stem>`, removed only while it names a version of this store, and on macOS the
+//! two lines it added to the person's shell startup file; the
 //! processes running from the store, through the shared process scan; the npm carrier; and the
 //! machine hub, through its client's ending path. No installer leaves files, entries or a
 //! registration here. A running program's files can be deleted here, so the removal never waits
@@ -94,14 +95,19 @@ impl Locations {
     }
 }
 
-/// Whether the command link names a version of the store `root`; a link elsewhere, or anything
-/// else at its name, is not install's and stays.
+/// Whether the command link names a version of the store `root`, or on macOS a startup file holds
+/// the PATH lines install added; a link elsewhere, or anything else at its name, is not install's
+/// and stays.
 pub(super) fn path_entry_present(locations: &Locations, root: &Path) -> io::Result<bool> {
-    path_step::store_link(&locations.link, root)
+    let linked = path_step::store_link(&locations.link, root)?;
+    #[cfg(target_os = "macos")]
+    let linked = linked || path_step::profile_present();
+    Ok(linked)
 }
 
-/// Removes the command link while it still names a version of the store `root`; one that no longer
-/// does is left. The folder stays.
+/// Removes the command link while it still names a version of the store `root`, and on macOS the
+/// PATH lines install added to the person's shell startup file; a link that no longer names this
+/// store is left. The folder stays.
 pub(super) fn remove_path_entry(locations: &Locations, root: &Path) -> io::Result<()> {
     if path_step::store_link(&locations.link, root)? {
         match fs::remove_file(&locations.link) {
@@ -109,6 +115,8 @@ pub(super) fn remove_path_entry(locations: &Locations, root: &Path) -> io::Resul
             _ => {}
         }
     }
+    #[cfg(target_os = "macos")]
+    path_step::remove_profile()?;
     Ok(())
 }
 
