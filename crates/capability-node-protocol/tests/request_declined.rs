@@ -103,3 +103,28 @@ fn malformed_declines_are_refused() {
         assert!(read_message(&mut Cursor::new(bad)).is_err(), "{case}");
     }
 }
+
+/// The answer to a request the Worker could not decode is the kind alone: it echoes nothing, and
+/// as a message only a Worker sends it has no decline of its own.
+#[test]
+fn an_unreadable_answer_is_the_kind_alone() {
+    let frame = encode_message(&Message::WorkerRequestUnreadable).unwrap();
+    assert_eq!(frame[8..], [42]);
+    assert_eq!(
+        decode_message(&frame).unwrap(),
+        Message::WorkerRequestUnreadable
+    );
+    assert_eq!(
+        read_message(&mut Cursor::new(frame.clone())).unwrap(),
+        Message::WorkerRequestUnreadable
+    );
+    assert_eq!(
+        WorkerRequestDeclined::of(&Message::WorkerRequestUnreadable),
+        None
+    );
+    let mut trailing = frame;
+    trailing.push(0);
+    trailing[7] += 1;
+    assert!(decode_message(&trailing).is_err());
+    assert!(read_message(&mut Cursor::new(trailing)).is_err());
+}

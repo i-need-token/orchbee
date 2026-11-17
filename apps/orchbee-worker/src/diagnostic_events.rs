@@ -445,17 +445,33 @@ pub(crate) fn request_declined(
     }
 }
 
-/// A message only a Worker sends, received from the Server and dropped unanswered: no Server
-/// request waits for it. At most one record a minute, with the number suppressed since the last.
-pub(crate) fn server_unexpected() {
+/// What a Worker received from the Server that was no request it could serve or decline.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ServerUnexpected {
+    /// A message only a Worker sends, dropped unanswered: no Server request waits for it.
+    WorkerOnly,
+    /// A whole frame this Worker could not decode, answered as unreadable.
+    Unreadable,
+}
+
+/// A Server message this Worker could neither serve nor decline. At most one record a minute,
+/// with the number suppressed since the last.
+pub(crate) fn server_unexpected(message: ServerUnexpected) {
     static SLOTS: SiteSlots = SiteSlots::new();
+    let message = (
+        "message",
+        LogValue::Token(match message {
+            ServerUnexpected::WorkerOnly => "worker-only",
+            ServerUnexpected::Unreadable => "unreadable",
+        }),
+    );
     #[cfg(test)]
-    note("server-unexpected", &[]);
+    note("server-unexpected", &[message]);
     if let Some(suppressed) = SLOTS.admit(Site::ServerReceive) {
         log_event(
             LogLevel::Warning,
             "server-unexpected",
-            &[("suppressed", LogValue::Count(suppressed))],
+            &[message, ("suppressed", LogValue::Count(suppressed))],
         );
     }
 }

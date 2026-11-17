@@ -595,6 +595,17 @@ did nothing for that request; a message only a Worker sends, arriving at a Worke
 request, so the Worker drops it unanswered. The kind follows this protocol's
 exact-cohort rule: frame version 1 stays, and older cohorts reject the new tag.
 
+Kind 42 `WorkerRequestUnreadable`, with no body, is the Worker's answer to a whole request frame it
+cannot decode: an unknown kind, such as a request newer than this Worker, an unknown enum tag, a
+malformed value or a trailing byte. `read_framed_message` leaves the stream at the next frame, so
+the Worker answers and keeps serving. The frame names no identity the Worker can trust, so the
+answer matches by position: the Server writes one request at a time and writes no other while a
+reply is owed, so it answers the request in flight, or the reply owed if that request's window has
+passed. Like a decline, it means the Worker did nothing for that request. A header that cannot
+locate the next frame still ends the connection. Any byte after the kind is refused. Older cohorts
+reject this tag too: an older Server reads it as an invalid reply to that one request, and an older
+Worker still ends its connection on a whole frame it cannot decode.
+
 ## AdoptHost messages
 
 Kind 40 `AdoptHostRequest` and kind 41 `AdoptHostResult` carry a replacement Worker's adoption of

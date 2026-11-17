@@ -568,7 +568,9 @@ fn decline(
     cause: DeclineCause,
 ) -> Result<(), Box<dyn Error>> {
     let Some(declined) = WorkerRequestDeclined::of(request) else {
-        crate::diagnostic_events::server_unexpected();
+        crate::diagnostic_events::server_unexpected(
+            crate::diagnostic_events::ServerUnexpected::WorkerOnly,
+        );
         return Ok(());
     };
     send_decline(server, host, declined, cause)

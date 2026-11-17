@@ -3,7 +3,9 @@
 //! any effect. Like JSON-RPC's "method not
 //! found" or gRPC's `UNIMPLEMENTED`, it is generic, so a request kind that reaches no Worker branch
 //! is still answered and never ends the Worker. It echoes the request's kind and identity, so the
-//! Server completes exactly that request and knows the Worker did nothing for it.
+//! Server completes exactly that request and knows the Worker did nothing for it. A whole request
+//! frame the Worker cannot decode has no kind or identity to echo, so
+//! [`CapabilityNodeMessage::WorkerRequestUnreadable`] answers it by position instead.
 
 use std::num::NonZeroU64;
 
@@ -128,7 +130,8 @@ impl WorkerRequestDeclined {
             | Message::AgentIntegrationJobResult(_)
             | Message::AgentProbeJobResult(_)
             | Message::HostQueryResult(_)
-            | Message::WorkerRequestDeclined(_) => return None,
+            | Message::WorkerRequestDeclined(_)
+            | Message::WorkerRequestUnreadable => return None,
         };
         Some(Self::operation(kind, id))
     }

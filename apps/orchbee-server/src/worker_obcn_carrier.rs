@@ -1590,10 +1590,17 @@ impl WorkerWireOwner {
                     if self.drop_late_reply(&message).is_some() {
                         continue;
                     }
-                    let consumed = key.answered_by(&message);
-                    // A decline that echoes this request is a known answer: the Worker did
-                    // nothing for it. One that echoes another request is a mismatched reply.
-                    if matches!(message, CapabilityNodeMessage::WorkerRequestDeclined(_)) {
+                    // A Worker that could not decode this request answers it by position: this
+                    // request is the only one it has not answered.
+                    let unreadable =
+                        matches!(message, CapabilityNodeMessage::WorkerRequestUnreadable);
+                    let consumed = unreadable || key.answered_by(&message);
+                    // A decline that echoes this request, or an unreadable answer, is a known
+                    // answer: the Worker did nothing for it. A decline that echoes another request
+                    // is a mismatched reply.
+                    if unreadable
+                        || matches!(message, CapabilityNodeMessage::WorkerRequestDeclined(_))
+                    {
                         let response = if consumed {
                             Err(WorkerRequestError::Declined)
                         } else {
@@ -1675,12 +1682,19 @@ impl WorkerWireOwner {
     }
 
     /// Drops a reply to a request that already failed, recording how late it came, so it never
-    /// stands in for another request's result. Returns the request it answered.
+    /// stands in for another request's result. Returns the request it answered. An unreadable
+    /// answer echoes no request; by position it answers the reply owed, and no other.
     fn drop_late_reply(&mut self, message: &CapabilityNodeMessage) -> Option<ReplyKey> {
-        let index = self
-            .abandoned
-            .iter()
-            .position(|abandoned| abandoned.key.answered_by(message))?;
+        let index = if matches!(message, CapabilityNodeMessage::WorkerRequestUnreadable) {
+            let owed = self.owed?;
+            self.abandoned
+                .iter()
+                .position(|abandoned| abandoned.key == owed.key)?
+        } else {
+            self.abandoned
+                .iter()
+                .position(|abandoned| abandoned.key.answered_by(message))?
+        };
         let abandoned = self.abandoned.remove(index)?;
         crate::fault_records::worker_reply_dropped(
             crate::fault_records::DroppedReply::Late(abandoned.failed.elapsed()),
@@ -2106,10 +2120,13 @@ fn validate_response(
     response: CapabilityNodeMessage,
 ) -> Result<WorkerOperationResult, WorkerResponseFailure> {
     match (request, response) {
-        // The exchange completes a decline before validation; one reaching here answers nothing.
-        (_, CapabilityNodeMessage::WorkerRequestDeclined(_)) => {
-            Err(WorkerResponseFailure::WrongResultKind)
-        }
+        // The exchange completes a decline or an unreadable answer before validation; one
+        // reaching here answers nothing.
+        (
+            _,
+            CapabilityNodeMessage::WorkerRequestDeclined(_)
+            | CapabilityNodeMessage::WorkerRequestUnreadable,
+        ) => Err(WorkerResponseFailure::WrongResultKind),
         #[cfg(any(windows, test))]
         (
             WorkerOperationRequest::Handoff(expected),

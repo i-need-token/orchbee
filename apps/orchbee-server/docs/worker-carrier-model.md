@@ -107,7 +107,10 @@ its window, a whole frame with invalid content, a wrong kind or direction, and a
 complete that request with `PostDeliveryOutcomeUnknown`. A Worker
 [decline](../../../crates/capability-node-protocol/README.md#declined-requests) that echoes the
 request completes it with `Declined` instead, a known answer: the Worker did nothing, and retrying
-never helps. A decline echoing another request is an echo mismatch. The carrier retires only when the frame
+never helps. A decline echoing another request is an echo mismatch. A Worker that cannot decode a
+whole request answers it with `WorkerRequestUnreadable`, which echoes nothing: by the strict
+alternation below it answers the request in flight, which completes with `Declined` too, or, while
+idle, the reply owed, which it settles like that late reply. The carrier retires only when the frame
 boundary is lost (a bad header or length, or a started frame unfinished by the later of the
 response window and its I/O timeout after the first byte), the transport closes or fails, a request
 write is incomplete, an in-flight `Required` completion cannot be delivered, or a written `Handoff`

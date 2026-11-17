@@ -592,10 +592,13 @@ semantic unknown outcome, is preserved; the carrier does not interpret launch ca
 lifecycle outcome variants. Viewer results additionally match the attachment identity and
 action/outcome kind. A Worker decline that echoes the request completes it with the distinct
 `Declined` error, known unchanged and recorded with failure `declined`; callers treat it as not
-delivered, the Worker being unavailable for that request, and never as an unknown outcome. A request that failed while the connection kept serving is recorded as
-`worker-request-failed`. The owner remembers the last eight such requests: a reply that echoes one
-of them, whether it arrives while another request waits or between requests, is dropped and
-recorded as a late `worker-reply-dropped`, never taken as another request's result. The owner
+delivered, the Worker being unavailable for that request, and never as an unknown outcome. A
+Worker that cannot decode a whole request answers it with `WorkerRequestUnreadable`, which echoes
+nothing and so answers by position: it declines the request in flight, or settles the reply owed.
+A request that failed while the connection kept serving is recorded as `worker-request-failed`.
+The owner remembers the last eight such requests: a reply that echoes one of them, whether it
+arrives while another request waits or between requests, is dropped and recorded as a late
+`worker-reply-dropped`, never taken as another request's result. The owner
 writes a request only while the Worker owes no reply, because the Worker ends its session if it sees
 the next request while it still runs one. After a missed window it writes nothing until the late
 reply arrives, and a request queued meanwhile fails unwritten with `NotDelivered` once its window

@@ -108,6 +108,9 @@ pub enum CapabilityNodeMessage {
     HostQueryRequest(crate::HostQueryRequest),
     HostQueryResult(crate::HostQueryResult),
     WorkerRequestDeclined(crate::WorkerRequestDeclined),
+    /// The Worker's answer to a whole request frame it could not decode, which answers the one
+    /// request the Server has outstanding.
+    WorkerRequestUnreadable,
 }
 
 pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, ProtocolError> {
@@ -354,6 +357,7 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::HostQueryRequest(value) => host_query::encode_request(*value),
         CapabilityNodeMessage::HostQueryResult(_) => unreachable!("Host query results use OBNH"),
         CapabilityNodeMessage::WorkerRequestDeclined(value) => request_declined::encode(*value),
+        CapabilityNodeMessage::WorkerRequestUnreadable => request_declined::encode_unreadable(),
     }
 }
 
@@ -464,6 +468,8 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
         Some(request_declined::KIND) => {
             request_declined::decode(payload).map(CapabilityNodeMessage::WorkerRequestDeclined)
         }
+        Some(request_declined::UNREADABLE_KIND) => request_declined::decode_unreadable(payload)
+            .map(|()| CapabilityNodeMessage::WorkerRequestUnreadable),
         Some(AUTHORIZED_TERMINAL_LAUNCH_KIND) => decode_authorized_terminal_launch(payload)
             .map(CapabilityNodeMessage::AuthorizedTerminalLaunch),
         Some(TERMINAL_LAUNCH_RESULT_KIND) => {

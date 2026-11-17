@@ -1231,16 +1231,18 @@ fn a_whole_invalid_frame_fails_only_its_request() -> TestResult {
 }
 
 /// A Worker that does not serve a request declines it: that request alone completes as declined,
-/// a decline echoing another request is a mismatched reply, and the wire keeps serving.
+/// a decline echoing another request is a mismatched reply, an unreadable answer declines the
+/// request in flight, and the wire keeps serving.
 #[test]
-fn a_decline_completes_only_the_request_it_echoes() -> TestResult {
+fn a_decline_completes_only_the_request_it_answers() -> TestResult {
     let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
     let (exit_sender, exit_receiver) = mpsc::channel();
     let owner_thread = spawn_owner(owner, server, exit_sender);
     let first = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
     let second = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
     let third = launch_request(authorization(3, 3, GENERATION.get(), LOCAL_WORKER_ID)?)?;
-    let (worker_first, worker_third) = (first.clone(), third.clone());
+    let fourth = launch_request(authorization(4, 4, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let (worker_first, worker_fourth) = (first.clone(), fourth.clone());
     let worker_thread = thread::spawn(move || -> TestResult {
         let declined = |request: &CapabilityNodeMessage| {
             CapabilityNodeMessage::WorkerRequestDeclined(
@@ -1257,13 +1259,15 @@ fn a_decline_completes_only_the_request_it_echoes() -> TestResult {
                 worker_first.clone(),
             )),
         )?;
+        let _third = read_message(&mut worker)?;
+        write_message(&mut worker, &CapabilityNodeMessage::WorkerRequestUnreadable)?;
         assert_eq!(
             read_message(&mut worker)?,
-            CapabilityNodeMessage::AuthorizedTerminalLaunch(worker_third.clone())
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(worker_fourth.clone())
         );
         write_message(
             &mut worker,
-            &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&worker_third)),
+            &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&worker_fourth)),
         )?;
         Ok(())
     });
@@ -1278,8 +1282,12 @@ fn a_decline_completes_only_the_request_it_echoes() -> TestResult {
         ))
     );
     assert_eq!(
-        handle.request(WorkerOperationRequest::Launch(third.clone()))?,
-        WorkerOperationResult::Launch(launch_result(&third))
+        handle.request(WorkerOperationRequest::Launch(third)),
+        Err(WorkerRequestError::Declined)
+    );
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Launch(fourth.clone()))?,
+        WorkerOperationResult::Launch(launch_result(&fourth))
     );
     worker_thread
         .join()

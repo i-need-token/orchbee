@@ -13,7 +13,7 @@ use std::{
 
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, ReadMessageError, TerminalViewerRecordReady, WriteMessageError,
-    encode_message, read_message, write_message,
+    encode_message, read_framed_message, write_message,
 };
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 
@@ -39,31 +39,69 @@ pub(super) fn receive_timed(
 }
 
 /// Only an idle cutoff can return None. Once input is readable, a partial record
-/// remains a fatal record-budget failure and cannot be discarded as lease expiry.
+/// remains a fatal record-budget failure and cannot be discarded as lease expiry. A whole frame
+/// this Worker cannot decode is answered as unreadable here, and the wait goes on to the next
+/// request.
 pub(super) fn receive_until_timed(
     server: &UnixStream,
     host: Option<&HostBrokerConnection>,
     idle_deadline: Option<Instant>,
 ) -> Result<Option<(CapabilityNodeMessage, Instant)>, ReadMessageError> {
-    let mut transport = ServerRecord {
+    loop {
+        let mut transport = ServerRecord {
+            server,
+            host,
+            deadline: idle_deadline,
+            host_closed: false,
+            readable: None,
+        };
+        // Idle has no deadline. Once a record begins, every fragment shares one budget.
+        if let Err(error) = transport.wait(PollFlags::POLLIN) {
+            if error.kind() == io::ErrorKind::TimedOut
+                && idle_deadline.is_some_and(|deadline| Instant::now() >= deadline)
+            {
+                return Ok(None);
+            }
+            return Err(error.into());
+        }
+        let readable = transport.readable.unwrap_or_else(Instant::now);
+        transport.deadline = Some(readable + RECORD_BUDGET);
+        match read_framed_message(&mut transport)? {
+            Ok(request) => return Ok(Some((request, readable))),
+            // The frame ended where its header said, so the stream sits at the next one: one
+            // record fails, not the connection.
+            Err(_undecodable) => answer_unreadable(server, host)?,
+        }
+    }
+}
+
+/// Answers a whole frame this Worker could not decode, such as a request kind newer than it. The
+/// frame names no identity to trust, so the answer matches by position: the Server waits on one
+/// request at a time, and this is the only one this Worker has not answered.
+fn answer_unreadable(
+    server: &UnixStream,
+    host: Option<&HostBrokerConnection>,
+) -> Result<(), ReadMessageError> {
+    crate::diagnostic_events::server_unexpected(
+        crate::diagnostic_events::ServerUnexpected::Unreadable,
+    );
+    match send(
         server,
         host,
-        deadline: idle_deadline,
-        host_closed: false,
-        readable: None,
-    };
-    // Idle has no deadline. Once a record begins, every fragment shares one budget.
-    if let Err(error) = transport.wait(PollFlags::POLLIN) {
-        if error.kind() == io::ErrorKind::TimedOut
-            && idle_deadline.is_some_and(|deadline| Instant::now() >= deadline)
-        {
-            return Ok(None);
-        }
-        return Err(error.into());
+        &CapabilityNodeMessage::WorkerRequestUnreadable,
+    ) {
+        // The Host ended while the answer was written, which a receive treats as Host loss.
+        // Before the first Launch there is no Host, and the send reports it as closed.
+        Ok(true) if host.is_some() => return Err(super::peer_closed().into()),
+        Ok(_) => {}
+        Err(WriteMessageError::Io(error)) => return Err(error.into()),
+        Err(WriteMessageError::Protocol(error)) => return Err(ReadMessageError::Protocol(error)),
     }
-    let readable = transport.readable.unwrap_or_else(Instant::now);
-    transport.deadline = Some(readable + RECORD_BUDGET);
-    read_message(&mut transport).map(|request| Some((request, readable)))
+    if let Some(host) = host {
+        host.pacing
+            .set_site(crate::diagnostic_events::Site::ServerReceive);
+    }
+    Ok(())
 }
 
 pub(super) fn send(

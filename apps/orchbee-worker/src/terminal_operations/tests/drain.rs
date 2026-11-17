@@ -14,8 +14,8 @@ use std::{
 
 use orchbee_capability_node_protocol::{
     AgentDrainEntry, AgentDrainRequest, CapabilityNodeMessage, OperationId,
-    TerminalViewerRecordReady, WorkerGeneration, WorkerRequestDeclined, read_message,
-    write_message,
+    TerminalViewerRecordReady, WorkerGeneration, WorkerRequestDeclined, encode_message,
+    read_message, write_message,
 };
 use orchbee_local_runtime::LogValue;
 use orchbee_terminal_protocol::{
@@ -190,10 +190,41 @@ fn pre_host_request_gets_truthful_empty_reply() -> TestResult {
     Ok(())
 }
 
+/// Before any Host exists, a whole frame the Worker cannot decode is answered as unreadable and the
+/// wait goes on to the next request: the absent Host's closed flag ends nothing.
+#[test]
+fn pre_host_unreadable_frame_is_answered_and_the_next_request_arrives() -> TestResult {
+    let (server, mut peer) = UnixStream::pair()?;
+    peer.set_read_timeout(Some(Duration::from_secs(3)))?;
+    let next = CapabilityNodeMessage::AgentDrainRequest(request(13, 0));
+    let sent = next.clone();
+    // Like the Server, the peer writes its next request only once the first is answered.
+    let server_peer = thread::spawn(move || -> Result<CapabilityNodeMessage, String> {
+        let mut run = || -> TestResult<CapabilityNodeMessage> {
+            let mut unknown =
+                encode_message(&CapabilityNodeMessage::AgentDrainRequest(request(12, 0)))?;
+            unknown[8] = 0xfe;
+            peer.write_all(&unknown)?;
+            let answer = read_message(&mut peer)?;
+            write_message(&mut peer, &sent)?;
+            Ok(answer)
+        };
+        run().map_err(|error| error.to_string())
+    });
+    let (received, _readable) = super::super::server_transport::receive_timed(&server, None)?;
+    assert_eq!(received, next);
+    assert_eq!(
+        server_peer.join().map_err(|_panic| "peer panicked")??,
+        CapabilityNodeMessage::WorkerRequestUnreadable
+    );
+    Ok(())
+}
+
 /// A Server request that breaks its contract fails only itself: through the real admitted loop, a
 /// drain fenced to another Worker or generation and one acknowledging more than was offered are
-/// each declined, a message only a Worker sends is dropped unanswered, and the next drain is
-/// served from the unchanged queue. Each is recorded with its cause.
+/// each declined, a message only a Worker sends is dropped unanswered, a whole frame the Worker
+/// cannot decode is answered as unreadable, and the next drain is served from the unchanged queue.
+/// Each is recorded with its cause.
 #[test]
 fn server_contract_breaks_are_declined_while_the_loop_serves_on() -> TestResult {
     let (mut connection, drain, mut host_peer, directory) = scripted_host_peer()?;
@@ -227,6 +258,15 @@ fn server_contract_breaks_are_declined_while_the_loop_serves_on() -> TestResult 
                     attachment_id: OperationId::from_bytes([7; 16])?,
                 }),
             )?;
+            // A whole frame whose kind no message has, as from a newer Server.
+            let mut unknown =
+                encode_message(&CapabilityNodeMessage::AgentDrainRequest(request(35, 0)))?;
+            unknown[8] = 0xfe;
+            server_peer.write_all(&unknown)?;
+            assert_eq!(
+                read_message(&mut server_peer)?,
+                CapabilityNodeMessage::WorkerRequestUnreadable
+            );
             write_message(
                 &mut server_peer,
                 &CapabilityNodeMessage::AgentDrainRequest(request(34, 0)),
@@ -290,8 +330,13 @@ fn server_contract_breaks_are_declined_while_the_loop_serves_on() -> TestResult 
         (2, 1),
         "{noted:?}"
     );
+    let unexpected = |message: &'static str| {
+        noted.iter().any(|(event, fields)| {
+            *event == "server-unexpected" && fields.contains(&("message", LogValue::Token(message)))
+        })
+    };
     assert!(
-        noted.iter().any(|(event, _)| *event == "server-unexpected"),
+        unexpected("worker-only") && unexpected("unreadable"),
         "{noted:?}"
     );
     Ok(())

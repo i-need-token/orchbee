@@ -1,10 +1,11 @@
 //! Carries a Worker's decline as kind 39: the declined request's kind as one byte, then its
-//! 16-byte identity.
+//! 16-byte identity. Kind 42, with no body, answers a whole request the Worker could not decode.
 
 use super::PayloadReader;
 use crate::{DeclinedRequestKind, ProtocolError, WorkerRequestDeclined};
 
 pub(super) const KIND: u8 = 39;
+pub(super) const UNREADABLE_KIND: u8 = 42;
 
 pub(super) fn encode(value: WorkerRequestDeclined) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(18);
@@ -12,6 +13,14 @@ pub(super) fn encode(value: WorkerRequestDeclined) -> Vec<u8> {
     bytes.push(kind_code(value.kind));
     bytes.extend(value.identity);
     bytes
+}
+
+pub(super) fn encode_unreadable() -> Vec<u8> {
+    vec![UNREADABLE_KIND]
+}
+
+pub(super) fn decode_unreadable(payload: &[u8]) -> Result<(), ProtocolError> {
+    PayloadReader::after_kind(payload, UNREADABLE_KIND)?.finish()
 }
 
 pub(super) fn decode(payload: &[u8]) -> Result<WorkerRequestDeclined, ProtocolError> {

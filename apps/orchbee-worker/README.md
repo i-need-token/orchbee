@@ -57,11 +57,13 @@ or a terminal request before the first Launch), `fence` (addressed to another Wo
 generation), `watermark` (an Agent drain acknowledgement above what this Worker offered), `handoff`
 (an ordinary request while a Server handoff is prepared), `unavailable` (a request to a replacement
 Worker before its adoption, or an adoption page that breaks the pages before it) or `state` (the
-operation kernel refused it before anything reached the Host); it is written at most once a minute for each cause, with
-`suppressed`. `server-unexpected` records a message only a Worker sends that arrived from the Server
-and was dropped unanswered. `request-unprepared` records, with its `site` and `error` kind, a
-terminal operation that failed before handoff because the Worker could not prepare it, such as a
-home folder lookup past its bound or a request too large for one Host record. Each of these two is
+operation kernel refused it before anything reached the Host); it is written at most once a minute
+for each cause, with `suppressed`. `server-unexpected` records, with its `message`, a Server frame
+the Worker could neither serve nor decline: `worker-only`, a message only a Worker sends, dropped
+unanswered, or `unreadable`, a whole frame it could not decode, answered as unreadable.
+`request-unprepared` records, with its `site` and `error` kind, a terminal operation that failed
+before handoff because the Worker could not prepare it, such as a home folder lookup past its bound
+or a request too large for one Host record. Each of these two is
 written at most once a minute, the second for each site, with `suppressed`. `panicked`
 records the `file` stem and `line` of a Worker panic, never its message. A panic on the serving
 thread ends the Worker, so it also writes the run's `exited` record, with `error` `other`, the site
@@ -855,10 +857,15 @@ message only a Worker sends answers no Server request, so it is dropped unanswer
 `server-unexpected` record. Once a request is dispatched, the kernel's own phase checks and the
 taking of its result stay fatal: every dispatched path settles the slot before it returns, the loop
 is serialized, and Host events never touch the kernel, so a failure there is the Worker's own broken
-invariant, not a peer's. Malformed, oversized and partial-timeout frames still close the
-attachment: each loses the frame boundary, so the next frames cannot be trusted either. Bytes the
-Server writes while a result is being delivered close it too, since this carrier admits one request
-at a time and the Worker cannot read a frame in the middle of writing one. The codec bounds OBCN
+invariant, not a peer's. A whole frame the Worker cannot decode, such as a request kind newer
+than this Worker, an unknown tag, a malformed value or a trailing byte, keeps the frame boundary:
+the Worker answers it with `WorkerRequestUnreadable`, which the Server matches to its one
+outstanding request and reads as a decline, writes a `server-unexpected` record and serves on. A
+header whose magic, version or length cannot locate the next frame, and a frame that stops
+arriving within its budget, still close the attachment: each loses the frame boundary, so the next
+frames cannot be trusted either. Bytes the Server writes while a result is being delivered close it
+too, since this carrier admits one request at a time and the Worker cannot read a frame in the
+middle of writing one. The codec bounds OBCN
 payload allocation to 8 KiB. Idle waits have no timeout; once the first byte
 of a record is readable, all its fragments share one hard two-second monotonic budget from that
 moment, readiness hints the Worker was writing then included. Result writes also share one
