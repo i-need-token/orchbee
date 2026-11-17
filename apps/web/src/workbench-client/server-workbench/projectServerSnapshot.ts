@@ -15,6 +15,7 @@ import type {
 
 import type { ServerLeavingView } from './ServerLeaving';
 import { observedServerTerminalEnd, type ObservedServerTerminalEnds } from './server-terminal-ends';
+import { sameDirectorySpelling } from './worktree-paths';
 import { nameServerTerminalProgram } from './server-terminal-names';
 
 type Navigation = WorkbenchSnapshot['navigation'];
@@ -70,20 +71,25 @@ export function projectServerSnapshot(
 	const directories = new Map(
 		navigation.directories.map((directory) => [directory.directoryId, directory]),
 	);
+	const workspaces = inDisplayOrder(
+		navigation.workspaces.filter((workspace) => !isLeaving(workspace)),
+		navigation.workspaceOrder,
+		(workspace) => workspace.workspaceId,
+	);
 	return {
 		projects: inDisplayOrder(
 			navigation.projects,
 			navigation.projectOrder,
 			(project) => project.projectId,
-		).map((project) => ({ id: project.projectId, name: project.label })),
+		).map((project) => ({
+			folders: projectFolders(project.projectId, workspaces, directories),
+			id: project.projectId,
+			name: project.label,
+		})),
 		terminalContexts: snapshot.terminalContexts
 			.filter((context) => !leavingContextIds.has(context.terminalContextId))
 			.map((context) => projectTerminalContext(context, intl, observedEnds, leaving)),
-		workspaces: inDisplayOrder(
-			navigation.workspaces.filter((workspace) => !isLeaving(workspace)),
-			navigation.workspaceOrder,
-			(workspace) => workspace.workspaceId,
-		).map((workspace) => ({
+		workspaces: workspaces.map((workspace) => ({
 			directory: projectWorkspaceDirectory(workspace, directories),
 			id: workspace.workspaceId,
 			name: workspace.label,
@@ -103,6 +109,27 @@ function inDisplayOrder<Item>(
 	const positions = new Map(order.map((identity, position) => [identity, position]));
 	const positionOf = (item: Item): number => positions.get(identityOf(item)) ?? order.length;
 	return [...items].sort((left, right) => positionOf(left) - positionOf(right));
+}
+
+/**
+ * A Project's folders: each member Workspace's current directory, its first terminal's while that
+ * differs from its primary Directory, in display order, each directory spelling once. Mirrors
+ * `Navigation::project_folders` in the Rust Workbench protocol.
+ */
+function projectFolders(
+	projectId: string,
+	workspaces: readonly Workspace[],
+	directories: ReadonlyMap<string, Directory>,
+): readonly string[] {
+	const folders: string[] = [];
+	for (const workspace of workspaces) {
+		if (workspace.projectId !== projectId || workspace.primaryDirectoryId === null) continue;
+		const primary = directories.get(workspace.primaryDirectoryId);
+		if (primary === undefined) continue;
+		const path = workspace.terminalDirectory ?? primary.path;
+		if (!folders.some((folder) => sameDirectorySpelling(folder, path))) folders.push(path);
+	}
+	return folders;
 }
 
 function projectWorkspaceDirectory(

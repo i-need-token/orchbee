@@ -1,8 +1,4 @@
-import type {
-	ProjectWorkspaceState,
-	WorkbenchDirectory,
-	WorkbenchProject,
-} from '../../../../../../project-workspace';
+import type { WorkbenchProject } from '../../../../../../project-workspace';
 import type {
 	WorkbenchActionMenuCommand,
 	WorkbenchActionMenuEntry,
@@ -17,11 +13,10 @@ interface ProjectNewWorkspaceMenuOptions {
 	readonly createWorkspace: (input: WorkbenchSidebarWorkspaceCreation) => void;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly project: WorkbenchProject;
-	readonly state: ProjectWorkspaceState;
 	readonly worktrees: ProjectWorktreeRows;
 }
 
-/** Recorded paths may differ only in ASCII case on hosts that ignore it, as the TUI compares them. */
+/** Folder names may differ only in ASCII case on hosts that ignore it, as the TUI compares them. */
 function asciiLowerCase(value: string): string {
 	return value.replaceAll(/[A-Z]/gu, (letter) => letter.toLowerCase());
 }
@@ -34,45 +29,26 @@ function folderName(path: string): string {
 	return name === undefined || name === '' ? path : name;
 }
 
-/** The directory each of the Project's Workspaces records, in navigation order, each path once. */
-function recordedFolders(state: ProjectWorkspaceState, projectId: string): WorkbenchDirectory[] {
-	const folders: WorkbenchDirectory[] = [];
-	for (const workspace of state.workspaces) {
-		const directory = workspace.directory;
-		if (workspace.projectId !== projectId || directory === null) continue;
-		const key = asciiLowerCase(directory.path);
-		if (folders.some((folder) => asciiLowerCase(folder.path) === key)) continue;
-		folders.push(directory);
-	}
-	return folders;
-}
-
 /**
- * A Project's New Workspace submenu, as the TUI composes it: New Worktree from the repository of the
- * Project's first Workspace, a Folders group with the directories its Workspaces record, and a Git
- * Worktrees group once Git answers. While the Project records no folder, New Workspace leads it, so
- * the submenu always holds a row that works.
+ * A Project's New Workspace submenu, as the TUI composes it: New Workspace, the directory choice,
+ * New Worktree from the repository of the Project's first Workspace, a Folders group with the
+ * Project's folders, where its Workspaces stand, and a Git Worktrees group once Git answers.
  */
 export function projectNewWorkspaceMenu({
 	createWorkspace,
 	messages,
 	project,
-	state,
 	worktrees,
 }: ProjectNewWorkspaceMenuOptions): WorkbenchActionMenuEntry {
-	const folders = recordedFolders(state, project.id);
-	const names = folders.map((folder) => asciiLowerCase(folderName(folder.path)));
-	const folderRows = folders.map(
+	const names = project.folders.map((folder) => asciiLowerCase(folderName(folder)));
+	const folderRows = project.folders.map(
 		(folder, index): WorkbenchActionMenuCommand => ({
 			icon: 'folder',
-			id: `folder-${folder.id}`,
+			id: `folder-${index}`,
 			kind: 'command',
 			// A shared folder name is ambiguous, so those rows show their whole path.
-			label:
-				names.filter((name) => name === names[index]).length > 1
-					? folder.path
-					: folderName(folder.path),
-			onSelect: () => createWorkspace({ directoryId: folder.id, projectId: project.id }),
+			label: names.filter((name) => name === names[index]).length > 1 ? folder : folderName(folder),
+			onSelect: () => createWorkspace({ path: folder, projectId: project.id }),
 		}),
 	);
 	const leadingRows: WorkbenchActionMenuCommand[] = [

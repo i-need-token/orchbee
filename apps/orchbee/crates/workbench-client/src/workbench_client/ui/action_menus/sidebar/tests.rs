@@ -99,8 +99,8 @@ fn project_creation_submenu_and_button_share_choices_before_and_after_discovery(
             let id = ui.menus.discovery().unwrap().id();
             ui.settle_sidebar_worktrees(id, Ok(Box::new(discovery)));
         }
-        let submenu_rows = actions(&submenu, Vec::new(), ui.menus.discovery(), |_| true);
-        let button_rows = actions(&button, Vec::new(), ui.menus.discovery(), |_| true);
+        let submenu_rows = actions(&submenu, Vec::new(), ui.menus.discovery(), &[], |_| true);
+        let button_rows = actions(&button, Vec::new(), ui.menus.discovery(), &[], |_| true);
         assert_eq!(submenu_rows, button_rows);
         assert!(submenu_rows.contains(&MenuAction::QuickWorkspace));
         assert!(submenu_rows.contains(&MenuAction::WorkspaceAtDirectory));
@@ -317,7 +317,7 @@ fn creation_menu_has_no_orphan_worktree_separator_when_the_checkout_list_is_empt
         unreachable!()
     };
     let entry = MenuTarget::Create(Some(project));
-    let composed = actions(&entry, Vec::new(), ui.menus.discovery(), |_| true);
+    let composed = actions(&entry, Vec::new(), ui.menus.discovery(), &[], |_| true);
     assert_eq!(
         composed,
         vec![MenuAction::QuickWorkspace, MenuAction::WorkspaceAtDirectory]

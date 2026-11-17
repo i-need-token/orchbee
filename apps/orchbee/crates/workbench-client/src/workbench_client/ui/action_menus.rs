@@ -888,17 +888,24 @@ impl WorkbenchClientUi {
             }
         }
         let facts = self.row_facts(&target);
-        actions = sidebar::actions(&entry, actions, self.menus.discovery(), |action| {
-            !action_availability(
-                self.capabilities,
-                state,
-                &target,
-                action.clone(),
-                pointer_released,
-                facts,
-            )
-            .is_hidden()
-        });
+        let folders = sidebar::creation_folders(&entry, state);
+        actions = sidebar::actions(
+            &entry,
+            actions,
+            self.menus.discovery(),
+            &folders,
+            |action| {
+                !action_availability(
+                    self.capabilities,
+                    state,
+                    &target,
+                    action.clone(),
+                    pointer_released,
+                    facts,
+                )
+                .is_hidden()
+            },
+        );
         // A single profile without Agents is the button's own click, so it opens no menu.
         if tab_profiles && actions.len() < 2 {
             return false;

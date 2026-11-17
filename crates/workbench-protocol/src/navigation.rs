@@ -1,7 +1,7 @@
 //! Identity-based resource lookup, independent of mutable Project organization.
 use crate::{
-    Directory, Navigation, Project, WorkbenchDirectoryId, WorkbenchLabel, WorkbenchProjectId,
-    WorkbenchWorkspaceId, Workspace,
+    Directory, Navigation, Project, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel,
+    WorkbenchProjectId, WorkbenchWorkspaceId, WorkerId, Workspace, same_directory_spelling,
 };
 use serde::{Deserialize, Serialize};
 
@@ -61,6 +61,56 @@ impl Navigation {
                 .primary_directory_id
                 .as_ref()?,
         )
+    }
+
+    /// Where a Workspace stands: its first terminal's directory while that differs from its
+    /// primary Directory, otherwise the primary Directory's path. `None` without a primary
+    /// Directory, where no terminal can start.
+    #[must_use]
+    pub fn workspace_current_path(
+        &self,
+        workspace_id: &WorkbenchWorkspaceId,
+    ) -> Option<&WorkbenchDirectoryPath> {
+        let workspace = self.workspace(workspace_id)?;
+        let primary = self.directory(workspace.primary_directory_id.as_ref()?)?;
+        Some(
+            workspace
+                .terminal_directory
+                .as_ref()
+                .unwrap_or(&primary.path),
+        )
+    }
+
+    /// A Project's folders: each member Workspace's current path in display order, one entry per
+    /// directory spelling, with the Worker of that Workspace's primary Directory. Empty when the
+    /// display order is invalid.
+    #[must_use]
+    pub fn project_folders(
+        &self,
+        project_id: &WorkbenchProjectId,
+    ) -> Vec<(&WorkerId, &WorkbenchDirectoryPath)> {
+        let Ok(ordered) = self.ordered_workspaces() else {
+            return Vec::new();
+        };
+        let mut folders: Vec<(&WorkerId, &WorkbenchDirectoryPath)> = Vec::new();
+        for (_, workspace) in ordered
+            .into_iter()
+            .filter(|(project, _)| project.is_some_and(|project| &project.project_id == project_id))
+        {
+            let (Some(directory), Some(path)) = (
+                self.workspace_directory(&workspace.workspace_id),
+                self.workspace_current_path(&workspace.workspace_id),
+            ) else {
+                continue;
+            };
+            if !folders
+                .iter()
+                .any(|(_, folder)| same_directory_spelling(folder.as_str(), path.as_str()))
+            {
+                folders.push((&directory.worker_id, path));
+            }
+        }
+        folders
     }
 
     /// Iterate canonical members of a Project, or all ungrouped Workspaces for `None`.

@@ -140,7 +140,6 @@ export function ProjectNavigationItem({
 					createWorkspace,
 					messages,
 					project,
-					state,
 					worktrees: projectWorktreeRows(worktreeSourceId),
 				});
 	const projectMenuEntries: readonly WorkbenchActionMenuEntry[] =

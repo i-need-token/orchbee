@@ -171,10 +171,33 @@ fn checkouts(
         .collect()
 }
 
+/// The folders a Project's creation menu offers: its Workspaces' current directories.
+pub(super) fn creation_folders(
+    entry: &MenuTarget,
+    state: Option<&WorkbenchClientState>,
+) -> Vec<orchbee_workbench_protocol::WorkbenchDirectoryPath> {
+    let (MenuTarget::WorkspaceCreation(project) | MenuTarget::Create(Some(project))) = entry else {
+        return Vec::new();
+    };
+    state
+        .map(|state| {
+            state
+                .cache()
+                .canonical_snapshot()
+                .navigation
+                .project_folders(project)
+                .into_iter()
+                .map(|(_, path)| path.clone())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 pub(super) fn actions(
     entry: &MenuTarget,
     actions: Vec<MenuAction>,
     episode: Option<&Discovery>,
+    folders: &[orchbee_workbench_protocol::WorkbenchDirectoryPath],
     visible: impl Fn(&MenuAction) -> bool,
 ) -> Vec<MenuAction> {
     let episode = episode.filter(|episode| belongs(entry, episode));
@@ -210,6 +233,10 @@ pub(super) fn actions(
                 MenuAction::NewWorkspace
             }];
             actions.push(MenuAction::WorkspaceAtDirectory);
+            // A Project offers its folders, where its Workspaces stand, before its checkouts.
+            if project {
+                actions.extend(folders.iter().cloned().map(MenuAction::WorkspaceInFolder));
+            }
             // Creation's checkout list is independent of New Workspace's New Worktree… row.
             // No entries means no list and no preceding separator.
             if let Some(ready) = ready {
@@ -457,7 +484,8 @@ impl WorkbenchClientUi {
         } else {
             view.actions.to_vec()
         };
-        let actions = actions(intent.entry(), base, discovery, |action| {
+        let folders = creation_folders(intent.entry(), state);
+        let actions = actions(intent.entry(), base, discovery, &folders, |action| {
             !intent_availability(intent, state, discovery, action.clone(), facts).is_hidden()
         });
         let labels = ChoiceLabels::new(&actions, discovery);

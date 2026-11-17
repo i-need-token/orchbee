@@ -1429,9 +1429,9 @@ describe('Workbench Project and Workspace management', () => {
 				?.getAttribute('aria-current'),
 		).toBe('page');
 		expect(create).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
-			directoryId: fixtureDirectoryId(1),
+			path: '/workspace/orchbee',
 			projectId: fixtureProjectId(1),
-			type: 'workspace-created',
+			type: 'workspace-created-at-path',
 		});
 	});
 

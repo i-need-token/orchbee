@@ -1,5 +1,5 @@
-/** The folder a Workspace records, where its new terminals start. */
-export interface WorkbenchDirectory {
+/** The primary Directory a Workspace records; its new terminals start where its first terminal stands, else here. */
+interface WorkbenchDirectory {
 	readonly id: string;
 	readonly path: string;
 }
@@ -14,6 +14,11 @@ export interface WorkbenchWorkspace {
 }
 
 export interface WorkbenchProject {
+	/**
+	 * Where the Project's Workspaces stand: each one's current directory, its first terminal's while
+	 * that differs from its primary Directory, in display order, each directory once.
+	 */
+	readonly folders: readonly string[];
 	readonly id: string;
 	readonly name: string;
 }

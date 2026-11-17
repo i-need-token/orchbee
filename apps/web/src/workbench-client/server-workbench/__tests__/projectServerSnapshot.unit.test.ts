@@ -8,12 +8,15 @@ import {
 	FIXTURE_WORKER_ID,
 	fixtureBinding,
 	fixtureId,
+	fixtureProjectId,
+	fixtureWorkspaceId,
 	oneWorkspaceSnapshot,
 	publishSnapshot,
 	snapshotContext,
 	snapshotDirectory,
 	snapshotPanel,
 	snapshotPresentation,
+	snapshotProject,
 	snapshotTab,
 	snapshotWorkspace,
 	workbenchSnapshot,
@@ -133,6 +136,54 @@ describe('projectServerSnapshot', () => {
 
 		expect(runtime.getSnapshot().workspaces).toMatchObject([{ directory: null }]);
 		expect(activeTerminalContext(runtime).tabModel.getSnapshot().tabs).toEqual([]);
+	});
+
+	it("lists a Project's folders where its Workspaces stand, each directory once", () => {
+		const publication = projectServerSnapshot(
+			workbenchSnapshot(
+				1,
+				{
+					directories: [snapshotDirectory(1), snapshotDirectory(2), snapshotDirectory(3)],
+					projects: [snapshotProject(1)],
+					workspaceOrder: [
+						fixtureWorkspaceId(3),
+						fixtureWorkspaceId(1),
+						fixtureWorkspaceId(2),
+						fixtureWorkspaceId(4),
+					],
+					workspaces: [
+						// Its first terminal stands elsewhere, so that is its folder.
+						snapshotWorkspace(1, {
+							projectId: fixtureProjectId(1),
+							terminalDirectory: 'C:\\work\\moved',
+						}),
+						// The same directory spelled in other case adds no row.
+						snapshotWorkspace(2, {
+							projectId: fixtureProjectId(1),
+							terminalDirectory: 'C:\\WORK\\Moved',
+						}),
+						snapshotWorkspace(3, { projectId: fixtureProjectId(1) }),
+						// Without a primary Directory no terminal starts, so it adds nothing.
+						snapshotWorkspace(4, { primaryDirectoryId: null, projectId: fixtureProjectId(1) }),
+					],
+				},
+				[
+					snapshotContext(1, []),
+					snapshotContext(2, []),
+					snapshotContext(3, []),
+					snapshotContext(4, []),
+				],
+			),
+			FIXTURE_INTL,
+		);
+
+		expect(publication.projects).toEqual([
+			{
+				folders: ['C:\\work\\directory-3', 'C:\\work\\moved'],
+				id: fixtureProjectId(1),
+				name: 'Project 1',
+			},
+		]);
 	});
 
 	it('lets a name a person chose outrank what the terminal reports', () => {

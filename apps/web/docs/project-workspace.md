@@ -145,7 +145,7 @@ so the name, folder, and facts change together; the row menu keeps naming the Wo
 ## Project navigation action menus
 
 A Project's New Workspace submenu and its right-side `+` button share one menu model. Both always
-start with New Workspace and Choose directory for new Workspace…, followed by the recorded Folder and
+start with New Workspace and Choose directory for new Workspace…, followed by the Project's folders, its Workspaces' current directories, and the
 available Worktree choices. Directory creation uses the host's existing Folder picker, or the
 existing path form when no picker is available, and launches directly in the addressed Project.
 It never creates another Project. Cancellation creates nothing. Successful creation from a button,
@@ -203,7 +203,7 @@ tests do not establish CSS reachability. Capability-dependent entries and locali
 the existing action model's responsibility. This synchronous adapter introduces no async owner or
 additional TLA+ model.
 
-Row menus take the TUI's compositions, which [native-action-menus.md](../../../apps/orchbee/docs/native-action-menus.md) owns. The Project menu holds New Workspace ▸ and Rename, then a separated Ungroup. New Workspace ▸ holds New Worktree… from the repository of the Project's first Workspace, a Folders group with each available directory the Project's Workspaces record, and a Git Worktrees group once Git answers. Folders follow navigation order, compare ignoring ASCII case, and show their folder name, or their full path where folder names repeat; each creates a Workspace in that directory inside the Project. While the Project records no folder, New Workspace leads and creates a Workspace in the Project at the default directory. Opening the Project menu starts Worktree discovery.
+Row menus take the TUI's compositions, which [native-action-menus.md](../../../apps/orchbee/docs/native-action-menus.md) owns. The Project menu holds New Workspace ▸ and Rename, then a separated Ungroup. New Workspace ▸ holds New Worktree… from the repository of the Project's first Workspace, a Folders group with the Project's folders, each member Workspace's current directory (its first terminal's directory, else its primary Directory), and a Git Worktrees group once Git answers. Folders follow navigation order, one per directory spelling as the TUI compares them, and show their folder name, or their full path where folder names repeat; each creates a Workspace in that directory inside the Project. New Workspace leads and creates a Workspace in the Project at the default directory. Opening the Project menu starts Worktree discovery.
 
 The Workspace menu holds Move to Project ▸ and Rename, then New Worktree… and Open Worktree ▸ where the authority provides them, then a separated destructive Close and, once discovery allows it, Remove Worktree…. Move to Project ▸ lists the other Projects, then New Project… and, for a grouped Workspace, Remove from Project.
 

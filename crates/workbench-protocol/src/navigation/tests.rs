@@ -123,3 +123,70 @@ fn membership_limits_and_order_are_independent_of_identity_and_resources() {
     value.navigation.workspace_order.pop();
     assert!(validate_snapshot(&value).is_err());
 }
+
+#[test]
+fn project_folders_are_member_current_paths_in_display_order_once_each() {
+    let id = |value: u128| format!("{value:032x}");
+    let path = |text: &str| WorkbenchDirectoryPath::parse(text).unwrap();
+    let project_id = WorkbenchProjectId::parse(&id(1)).unwrap();
+    let worker_id = WorkerId::parse(&id(2)).unwrap();
+    let directory = |value: u128, text: &str| Directory {
+        directory_id: WorkbenchDirectoryId::parse(&id(value)).unwrap(),
+        worker_id: worker_id.clone(),
+        path: path(text),
+    };
+    let workspace =
+        |value: u128, member: bool, primary: Option<u128>, terminal: Option<&str>| Workspace {
+            terminal_directory: terminal.map(path),
+            automatic_label: false,
+            workspace_id: WorkbenchWorkspaceId::parse(&id(value)).unwrap(),
+            terminal_context_id: WorkbenchTerminalContextId::parse(&id(value)).unwrap(),
+            project_id: member.then(|| project_id.clone()),
+            primary_directory_id: primary
+                .map(|primary| WorkbenchDirectoryId::parse(&id(primary)).unwrap()),
+            label: "Workspace".into(),
+        };
+    let navigation = Navigation {
+        projects: vec![Project {
+            project_id: project_id.clone(),
+            label: "Group".into(),
+        }],
+        directories: vec![
+            directory(31, "/repo"),
+            directory(32, "/other"),
+            directory(33, "/third"),
+        ],
+        workspaces: vec![
+            // Its first terminal stands below its primary Directory, so that is its folder.
+            workspace(41, true, Some(31), Some("/repo/src")),
+            // A member standing in the same directory adds no second folder.
+            workspace(42, true, Some(32), Some("/repo/src")),
+            workspace(43, true, Some(33), None),
+            // A member without a primary Directory starts no terminal and has no folder.
+            workspace(44, true, None, None),
+            // A Workspace outside the Project adds nothing.
+            workspace(45, false, Some(32), None),
+        ],
+        workspace_order: [43, 41, 42, 44, 45]
+            .into_iter()
+            .map(|value| WorkbenchWorkspaceId::parse(&id(value)).unwrap())
+            .collect(),
+        project_order: Vec::new(),
+    };
+
+    assert_eq!(
+        navigation.workspace_current_path(&WorkbenchWorkspaceId::parse(&id(43)).unwrap()),
+        Some(&path("/third"))
+    );
+    assert_eq!(
+        navigation.workspace_current_path(&WorkbenchWorkspaceId::parse(&id(44)).unwrap()),
+        None
+    );
+    assert_eq!(
+        navigation.project_folders(&project_id),
+        vec![
+            (&worker_id, &path("/third")),
+            (&worker_id, &path("/repo/src"))
+        ]
+    );
+}

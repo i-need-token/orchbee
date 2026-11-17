@@ -11,7 +11,7 @@ function oneProjectState(): ProjectWorkspaceState {
 		...createProjectWorkspaceState(),
 		activeLocation: { kind: 'workspace', workspaceId: 'workspace-1' },
 		expandedProjectIds: ['project-1'],
-		projects: [{ id: 'project-1', name: 'Project' }],
+		projects: [{ folders: [], id: 'project-1', name: 'Project' }],
 		workspaces: [
 			{
 				directory: { id: 'directory-a', path: '/projects/directory-a' },

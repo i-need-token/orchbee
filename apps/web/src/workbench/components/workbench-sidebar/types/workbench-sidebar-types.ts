@@ -56,13 +56,10 @@ export interface WorkbenchProjectNavigationMessages {
 }
 
 /**
- * A Workspace a sidebar menu creates: a default one in a Project, or one in a directory a Workspace
- * recorded.
+ * A Workspace a sidebar menu creates in a Project: a default one, one in a directory the person
+ * chooses, or one in one of the Project's folders.
  */
 export type WorkbenchSidebarWorkspaceCreation =
 	| { readonly projectId: string; readonly selectDirectory: true }
 	| { readonly projectId: string }
-	| {
-			readonly directoryId: string;
-			readonly projectId: string | null;
-	  };
+	| { readonly path: string; readonly projectId: string };

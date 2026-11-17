@@ -296,6 +296,11 @@ drive path the `\` spelling Windows reports, for a writer recording a Git-report
 and `\\?\` verbatim spellings stay unchanged, and it is equally lexical. Wire syntax and runtime
 execution ownership remain unchanged.
 
+`Navigation::workspace_current_path` names where a Workspace stands: its `terminalDirectory`
+while present, else its primary Directory's path. `Navigation::project_folders` lists those
+paths for a Project's members in display order, one per `same_directory_spelling`, each with its
+primary Directory's Worker; both Clients' Project New Workspace menus show them as Folders.
+
 ## Configured command invocation
 
 Matched cohorts use closed `workbench.configured-command` request/result kinds

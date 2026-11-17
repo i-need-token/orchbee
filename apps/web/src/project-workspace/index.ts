@@ -9,7 +9,6 @@ export type {
 	ProjectWorkspaceState,
 	ProjectWorkspaceTransition,
 	WorkbenchActiveLocation,
-	WorkbenchDirectory,
 	WorkbenchProject,
 	WorkbenchWorkspace,
 } from './project-workspace-state';
