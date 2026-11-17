@@ -33,7 +33,7 @@ export function DesktopPage({
 				address='orchbee.com/desktop'
 				title={t(shellMessages.clientDesktop)}
 				lead={t(messages.lead)}
-				action={<GetOrchbee release={release} offer='installer' />}
+				action={<GetOrchbee locale={locale} release={release} offer='installer' />}
 				note={release.published ? t(shellMessages.installerNote, richText) : undefined}
 			>
 				<DesktopStage />

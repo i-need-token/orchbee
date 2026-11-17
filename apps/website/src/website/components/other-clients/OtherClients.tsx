@@ -32,7 +32,7 @@ export function OtherClients({
 			</div>
 			<ClientIndex locale={locale} current={current} />
 			<div className={styles['action']}>
-				<GetOrchbee release={release} offer='both' />
+				<GetOrchbee locale={locale} release={release} offer='both' />
 			</div>
 		</section>
 	);

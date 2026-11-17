@@ -22,7 +22,7 @@ export function HomePage({
 }): ReactElement {
 	return (
 		<>
-			<Hero release={release} />
+			<Hero locale={locale} release={release} />
 			<Statement release={release} />
 			<Multiplexing />
 			<Collaboration />

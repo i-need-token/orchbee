@@ -31,7 +31,7 @@ export function TerminalPage({
 				address='orchbee.com/terminal'
 				title={t(shellMessages.clientTerminal)}
 				lead={t(messages.lead)}
-				action={<GetOrchbee release={release} offer='npm' />}
+				action={<GetOrchbee locale={locale} release={release} offer='npm' />}
 				note={release.published ? t(messages.note, richText) : undefined}
 			>
 				<TerminalStage />

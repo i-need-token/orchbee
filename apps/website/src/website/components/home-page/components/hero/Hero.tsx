@@ -1,4 +1,4 @@
-import { useOrchbeeIntl, websiteHomeMessages as messages } from '@orchbee/i18n';
+import { useOrchbeeIntl, websiteHomeMessages as messages, type OrchbeeLocale } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
 import { offersMacos, type Release } from '../../../../release';
@@ -11,7 +11,13 @@ import styles from './Hero.module.css';
 
 // The top of the home page: the status line, the headline, the lead, the way to get Orchbee, and
 // the drawn Session. The status line follows the Session as it plays.
-export function Hero({ release }: { release: Release }): ReactElement {
+export function Hero({
+	locale,
+	release,
+}: {
+	locale: OrchbeeLocale;
+	release: Release;
+}): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	const frame = useSessionFrame();
 	return (
@@ -27,7 +33,7 @@ export function Hero({ release }: { release: Release }): ReactElement {
 					</div>
 					<div>
 						<p className={styles['lead']}>{t(messages.lead)}</p>
-						<GetOrchbee release={release} offer='both' />
+						<GetOrchbee locale={locale} release={release} offer='both' />
 						<p className={styles['beta']}>
 							{t(offersMacos(release) ? messages.betaMacos : messages.beta)}
 						</p>

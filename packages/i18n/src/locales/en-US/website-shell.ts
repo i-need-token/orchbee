@@ -25,6 +25,7 @@ export const enUSWebsiteShellMessages = {
 		'Every operation available to a person is equally available to an agent through the <code>orchbee</code> command line.',
 	'website.shell.otherClients': 'other clients',
 	'website.shell.downloadForWindows': 'Download for Windows',
+	'website.shell.downloadForMac': 'Download for Mac',
 	'website.shell.getSource': 'Get the source',
 	'website.shell.installerNote':
 		'Installs for the current user only; no administrator rights needed. Adds the <code>orchbee</code> command to your <code>Path</code>.',

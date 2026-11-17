@@ -24,6 +24,7 @@ export const zhCNWebsiteShellMessages = {
 		'人可以执行的每一项操作，Agent 都可以通过 <code>orchbee</code> 命令行完成。',
 	'website.shell.otherClients': '其他客户端',
 	'website.shell.downloadForWindows': '下载 Windows 版',
+	'website.shell.downloadForMac': '下载 Mac 版',
 	'website.shell.getSource': '获取源码',
 	'website.shell.installerNote':
 		'只为当前用户安装，不需要管理员权限。会把 <code>orchbee</code> 命令加入 <code>Path</code>。',

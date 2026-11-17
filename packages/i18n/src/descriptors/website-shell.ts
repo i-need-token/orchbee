@@ -76,6 +76,10 @@ export const websiteShellMessages = defineMessages({
 		'website.shell.downloadForWindows',
 		'Button that downloads the Windows installer.',
 	),
+	downloadForMac: message(
+		'website.shell.downloadForMac',
+		'Button that leads to the macOS downloads in the install section once a release offers macOS.',
+	),
 	getSource: message(
 		'website.shell.getSource',
 		'Button to the build instructions while no release is published.',

@@ -32,7 +32,7 @@ export function CliPage({
 				address='orchbee.com/cli'
 				title={t(shellMessages.clientCli)}
 				lead={t(messages.lead, richText)}
-				action={<GetOrchbee release={release} offer='npm' />}
+				action={<GetOrchbee locale={locale} release={release} offer='npm' />}
 			>
 				<CliStage />
 			</PageHead>

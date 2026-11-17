@@ -46,8 +46,11 @@
 .detail code {
 	color: var(--ob-sys-color-website-fg2);
 }
+/* One column no wider than the row, so a long command shortens with an ellipsis instead of
+   widening the page. */
 .commands {
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	justify-items: start;
 	gap: var(--ob-ref-length-website-8);
 }
