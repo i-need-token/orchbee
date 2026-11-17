@@ -140,6 +140,14 @@ const cases = [
 		'config',
 	],
 	[
+		'terminal-host-handover',
+		'drop sent once the old Host has seen claimed but before the new Host has',
+		'DropAfterNewClaimed = TRUE',
+		'DropAfterNewClaimed = FALSE',
+		/Invariant ReaderRemains is violated/u,
+		'config',
+	],
+	[
 		'release-store-fallback',
 		'a recorder writes from the pointer it read before the lock',
 		'LockedUpdate = TRUE',

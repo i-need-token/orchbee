@@ -7,7 +7,8 @@ EXTENDS Naturals, Sequences
 \* protocol", "The Host's side", and "The move's model"). It covers that
 \* section's invariants: one reader, no loss or repeat with records that end
 \* only at ground, each held key once, an abort that restores the old Host,
-\* only a claim committing, and holdings that name only Hosts that may read.
+\* only a claim committing, holdings that name only Hosts that may read, and a
+\* reader that remains while both Hosts run.
 \*
 \* Transition vocabulary: Quiesce is the Worker's hold and QuiesceTerminal;
 \* Park and Withdraw are the reader parking at ground and a quiesce refused as
@@ -16,17 +17,27 @@ EXTENDS Naturals, Sequences
 \* RestoreTerminal with `inspect`; Claim and Decline are `claim` and `decline`,
 \* the latter on DiscardImport or at the import's deadline; OldReply and
 \* NewReply read a Keeper answer; Hold is `hold` after AttachKeeper or a
-\* resume; Drop is DropTerminal; ResumeWithoutKeeper is ResumeTerminal made
-\* without the Keeper; Release sends the Worker's held input.
+\* resume; Drop is DropTerminal, from the Worker or from a replacement that
+\* adopted the Hosts; ResumeWithoutKeeper is ResumeTerminal made without the
+\* Keeper; Release sends the Worker's held input.
+\*
+\* The old Host's `exit` and both teardowns settle a quiesced terminal by the
+\* same `resume`: after `resumed` they end it as its owner, which is the
+\* terminal's own end, and after any other answer or none they drop it; then
+\* the Host ends. Resume and OldReply followed by OldCrash stand for them, as
+\* Resume alone stands for the deadline and ResumeTerminal. The new Host's
+\* teardown discards an import and then ends that Host, which NewCrash
+\* stands for.
 \*
 \* The Keeper applies one request at a time, so each request is applied in the
 \* step that sends it. Its answer travels separately: it arrives, it is lost
 \* with its connection, which fails that link, or it cannot be decoded, which
 \* leaves the link up. A request may also be lost before the Keeper applies
-\* it. Every Host deadline may pass at any moment, and the new Host may claim
-\* or decline whenever it holds an import, which covers every order in which
-\* the Worker's requests and the deadlines arrive. The Worker acts on facts the
-\* Hosts publish, so a lost Worker request only delays it.
+\* it. Both deadlines are members of the Worker's requests and may pass at any
+\* moment, and the new Host may claim or decline whenever it holds an import,
+\* which covers every order in which the Worker's requests and the deadlines
+\* arrive. The Worker acts on facts the Hosts publish, so a lost
+\* Worker request only delays it.
 \*
 \* The pipe holds the program's whole output from the start. No reader has to
 \* read, so this covers every moment at which the program writes it.
@@ -40,12 +51,15 @@ EXTENDS Naturals, Sequences
 \* DetachKeeper and the Keeper change's status comparison, so a Keeper leaves
 \* only by ending; the writer and signal waits and the size limits, which
 \* refuse a quiesce like a withdrawn pause; a third Keeper; moves started by
-\* a replacement Worker or back to the old Host; and lost Worker requests.
+\* a replacement Worker or back to the old Host; lost Worker requests; an
+\* AttachKeeper that fails, which leaves that Host without the second Keeper;
+\* and settled terminals, which move as a record with no mark, Keeper, or
+\* claim.
 \*
 \* Claims: the proposal's TH-028 to TH-034 join the runtime model with the
 \* behavior they state; until then this model maps to no runtime claim.
 \*
-\* The eight design flags are TRUE in the checked configuration; each mutant
+\* The nine design flags are TRUE in the checked configuration; each mutant
 \* configuration sets one to FALSE.
 
 CONSTANTS
@@ -60,7 +74,8 @@ CONSTANTS
   ParkAtGround,             \* the reader parks only at ground
   ReadAfterClaimed,         \* the new Host reads only after seeing claimed
   ResumeNeedsAnswer,        \* the old Host reads again only on resumed
-  HoldOnlyRead              \* a Host holds only a terminal it reads
+  HoldOnlyRead,             \* a Host holds only a terminal it reads
+  DropAfterNewClaimed       \* the drop follows the new Host's claimed
 
 Hosts == {"old", "new"}
 Keepers == {"k1", "k2"}
@@ -458,9 +473,11 @@ Release ==
                  worker, quiesces, typed>>
 
 \* DropTerminal, only after the new Host has seen claimed, whether or not the
-\* old Host has seen it too.
+\* old Host has seen it too. A replacement Worker drops once the holding's new
+\* owner reports the terminal running, which it does only after it has seen
+\* claimed.
 Drop ==
-  /\ nSaw
+  /\ IF DropAfterNewClaimed THEN nSaw ELSE nSaw \/ oStep = "moved"
   /\ alive["old"]
   /\ answer["old"] = "none"
   /\ oStep \in {"quiesced", "stopped", "moved"}
@@ -639,6 +656,17 @@ HoldingsNameReaders ==
            \/ nStep = "reading"
            \/ nStep \in {"restored", "claiming", "refused", "declining", "discarded"}
                 /\ nKeeper = k
+
+\* A Host keeps a copy of the terminal through which it reads it or may read
+\* it later: the old Host until it drops the terminal, and the new Host from
+\* its restore until it discards the import.
+Keeps(h) ==
+  /\ alive[h]
+  /\ IF h = "old" THEN oStep # "dropped" ELSE nStep \notin {"none", "discarded"}
+
+\* While both Hosts run, one of them keeps a copy, so no drop or discard
+\* leaves a terminal that neither can read.
+ReaderRemains == alive["old"] /\ alive["new"] => Keeps("old") \/ Keeps("new")
 
 HasReader == Reads("old") \/ Reads("new")
 HostEnded == ~alive["old"] \/ ~alive["new"]
