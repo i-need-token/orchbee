@@ -28,9 +28,9 @@ interface ServerWindowTitleBinding {
 
 /**
  * Keeps a window named after the Session's title policy, as the TUI keeps its outer terminal. It
- * listens with the window's focus and the TUI's display context: the active Workspace's and Tab's
- * labels as the Server holds them, the focused terminal's own label, and the title its program set.
- * It listens anew whenever any of them changes.
+ * listens with the window's focus and the TUI's display context: the active Workspace's label, the
+ * active Tab's name as its strip shows it, the focused terminal's own label, and the title its
+ * program set. It listens anew whenever any of them changes.
  */
 export function bindServerWindowTitle({
 	connection,
@@ -64,9 +64,11 @@ export function bindServerWindowTitle({
 		const context =
 			workspace === undefined ? null : runtime.getTerminalContext(workspace.terminalContextId);
 		const activeTabId = context?.tabModel.getSnapshot().activeTabId ?? null;
-		const tab = snapshot.terminalContexts
-			.find(({ terminalContextId }) => terminalContextId === workspace?.terminalContextId)
-			?.tabs.find(({ tabId }) => tabId === activeTabId);
+		// The name the Tab strip shows, not the stored label.
+		const tabName =
+			context === null || activeTabId === null
+				? null
+				: context.panelWorkspaceStore.getTabTitle(activeTabId);
 		const presentationId = context === null ? null : resolveActiveTerminalPresentationId(runtime);
 		namedPresentationId = presentationId;
 		windowTitle.update(titleWindow.document.hasFocus(), {
@@ -74,13 +76,15 @@ export function bindServerWindowTitle({
 				(presentationId === null
 					? null
 					: findServerPresentation(snapshot, presentationId)?.customLabel) ?? '',
-			tab: tab?.label ?? '',
+			tab: tabName ?? '',
 			terminalTitle: (presentationId === null ? null : terminalTitle(presentationId)) ?? '',
 			workspace: workspace?.label ?? '',
 		});
 	};
 	const stopPublication = session.subscribe(refresh);
 	const stopNavigation = runtime.subscribeNavigation(refresh);
+	// A Tab's name follows its focused Panel and terminal titles, which the topology holds.
+	const stopTopology = runtime.subscribeTerminalTopology(refresh);
 	// Losing focus counts too: the Server brings a window forward only when its focus turns on.
 	titleWindow.addEventListener('focus', refresh);
 	titleWindow.addEventListener('blur', refresh);
@@ -91,6 +95,7 @@ export function bindServerWindowTitle({
 			disposed = true;
 			stopPublication();
 			stopNavigation();
+			stopTopology();
 			titleWindow.removeEventListener('focus', refresh);
 			titleWindow.removeEventListener('blur', refresh);
 			windowTitle.dispose();

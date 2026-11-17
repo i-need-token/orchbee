@@ -21,7 +21,7 @@ after move or close; it never renames a survivor or commits another revision. Ra
 identities, Presentation labels and bindings remain unchanged by reordering. Duplicate display
 names are permitted.
 
-Native Tab-strip, navigator, status, Tab-menu and close-confirmation chrome share one display name. Fixed names remain
+Native Tab-strip, navigator, status, Tab-menu and close-confirmation chrome and the window title's `{tab}` share one display name. Fixed names remain
 exact. An automatic name comes from one Panel of the Tab: the focused Panel while the Tab is selected,
 otherwise the Panel selecting it would focus, which is the one this Client last left focused, else the first.
 Selecting another Tab therefore never changes a Tab's name; moving focus inside the selected Tab does.
@@ -117,7 +117,7 @@ Both Clients name each Presentation by one rule:
   row, so no name changes until the person leaves or a new connection replaces the view.
 - A title marks nothing unread and changes no notification or Agent state.
 
-The window title's `{tab}` and terminal title placeholders still read the live frame only.
+The window title's `{terminal_title}` placeholder still reads the live frame only; `{tab}` names the Tab as the strip does.
 
 ## Consumers and model
 

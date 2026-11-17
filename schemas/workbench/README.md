@@ -762,7 +762,7 @@ The [Windows notification owner](../../apps/orchbee/docs/windows-notifications.m
 
 ## Window title template inputs
 
-The matched-cohort `workbench.window-title` listen action requires `context` with workspace/tab/panel/terminalTitle, each a control-free string of at most 200 Unicode scalars (empty allowed). Only foreground rendering consumes these display values; they never confer selection authority. `ConfigurationSnapshot.windowTitle` is a required raw string bounded to 4096 UTF-8 bytes, allowing empty and malformed templates for the documented advisory policy. Rust/TypeScript bindings enforce byte/scalar bounds; schema and corpus keep field presence and closed shapes. Public configuration, check, failure and API catalog documents use their sole version-1 contracts.
+The matched-cohort `workbench.window-title` listen action requires `context` with workspace/tab/panel/terminalTitle, each a control-free string of at most 200 Unicode scalars (empty allowed); `tab` is the Tab's name as its strip shows it, not its stored label. Only foreground rendering consumes these display values; they never confer selection authority. `ConfigurationSnapshot.windowTitle` is a required raw string bounded to 4096 UTF-8 bytes, allowing empty and malformed templates for the documented advisory policy. Rust/TypeScript bindings enforce byte/scalar bounds; schema and corpus keep field presence and closed shapes. Public configuration, check, failure and API catalog documents use their sole version-1 contracts.
 
 ## Custom-notification policy projection
 

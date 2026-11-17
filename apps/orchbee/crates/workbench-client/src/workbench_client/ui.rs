@@ -495,7 +495,11 @@ impl<'a> WorkbenchClientView<'a> {
             .active_position()
             .and_then(|position| position.checked_sub(1))
             .and_then(|index| self.tab(index));
-        let label = tab.as_ref().map(|tab| tab.tab_label()).unwrap_or_default();
+        // The name the Tab strip shows, so an automatic Tab is not named by its ordinal.
+        let label = tab
+            .as_ref()
+            .map(|tab| tab.display_label(locale))
+            .unwrap_or_default();
         let pane = tab.as_ref().and_then(|tab| {
             self.focus_panel_id().and_then(|id| {
                 (0..tab.panel_count())
