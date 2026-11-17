@@ -13,7 +13,10 @@
 .prompt {
 	color: var(--ob-sys-color-website-fg3);
 }
+/* The command takes any width the chip is given beyond its text, so a chip stretched across a row
+   keeps its copy button at the row's end. */
 .command {
+	flex: 1 1 auto;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	font: var(--ob-sys-typography-website-command);
