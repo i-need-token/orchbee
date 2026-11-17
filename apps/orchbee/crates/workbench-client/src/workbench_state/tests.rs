@@ -336,11 +336,10 @@ fn focused_viewer_loss_preserves_sibling_geometry_frames_and_selection() {
     );
 }
 
-/// Close work, local drafts, an explicit refresh and a submitted Tab or Panel mutation keep their
-/// own premises and complete against a parked focus, so a focused viewer loss parks beside them;
-/// an exchange whose completion needs `Ready` keeps its retirement contract.
+/// A Ready focus parks beside whatever owns the Client, and the owner stays to settle against the
+/// parked focus.
 #[test]
-fn focused_viewer_loss_parks_beside_owners_that_accept_a_parked_focus() {
+fn focused_viewer_loss_parks_beside_every_owner_and_keeps_the_owner() {
     for owner in [
         "tab close",
         "panel close",
@@ -349,9 +348,20 @@ fn focused_viewer_loss_parks_beside_owners_that_accept_a_parked_focus() {
         "setup draft",
         "move",
         "panel split",
+        "setup in flight",
+        "workspace close in flight",
+        "context selection",
+        "takeover",
     ] {
-        let mut state = ready(2);
+        let mut state = if owner == "context selection" {
+            ready_with_cache(
+                project_preferred_workspace(&workspace_setup::workspace_snapshot(1, 0)).unwrap(),
+            )
+        } else {
+            ready(2)
+        };
         let focus = state.focus_pane_ref().unwrap();
+        let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
         match owner {
             "tab close" => {
                 state.open_close_confirmation().unwrap();
@@ -387,6 +397,34 @@ fn focused_viewer_loss_parks_beside_owners_that_accept_a_parked_focus() {
                     .unwrap();
                 assert!(state.begin_panel(operation));
             }
+            "setup in flight" => {
+                let intent = workspace_setup::group_intent(&state, "Group");
+                let token = state.open_setup_draft(intent).unwrap();
+                state.acknowledge_setup_draw(Some(token));
+                let operation = state
+                    .plan_setup(token, workbench_request_id(803), 7, deadlines)
+                    .unwrap();
+                state.begin_setup(operation);
+            }
+            "workspace close in flight" => {
+                let token = state.open_workspace_close().unwrap();
+                state.acknowledge_workspace_close_draw(Some(token));
+                let operation = state
+                    .plan_workspace_close(token, workbench_request_id(804), 7, deadlines)
+                    .unwrap();
+                assert!(state.begin_workspace_close(operation));
+            }
+            "context selection" => assert!(state.start_context_selection(7, true, deadlines)),
+            "takeover" => {
+                let operation = state
+                    .plan_takeover(
+                        orchbee_client_server_protocol::RequestId::parse(&id(802)).unwrap(),
+                        7,
+                        deadlines,
+                    )
+                    .unwrap();
+                assert!(state.begin_takeover(operation));
+            }
             _ => unreachable!(),
         }
         assert!(
@@ -398,49 +436,25 @@ fn focused_viewer_loss_parks_beside_owners_that_accept_a_parked_focus() {
         let kept = match owner {
             "tab close" => state.view().close_confirmation().is_some(),
             "panel close" => state.view().panel_close_confirmation().is_some(),
-            "explicit refresh" => state.pending_refresh_generation() == Some(7),
             "rename" => state.rename_draft().is_some(),
             "setup draft" => state.setup_draft().is_some(),
             "move" => state.pending_move().is_some(),
-            _ => state.pending_panel().is_some(),
+            "panel split" => state.pending_panel().is_some(),
+            "setup in flight" => state.setup_blocks_structure(),
+            "workspace close in flight" => state.workspace_close_blocks_structure(),
+            "context selection" => state.context_selection_pending(),
+            "takeover" => state.takeover_pending(),
+            _ => true,
+        } && match owner {
+            "explicit refresh"
+            | "setup in flight"
+            | "workspace close in flight"
+            | "context selection"
+            | "takeover" => state.pending_refresh_generation() == Some(7),
+            _ => true,
         };
         assert!(kept, "the owner stays: {owner}");
-        assert!(state.invariant_holds());
-    }
-    for owner in ["takeover", "create"] {
-        let mut state = ready(2);
-        let focus = state.focus_pane_ref().unwrap();
-        match owner {
-            "takeover" => {
-                let operation = state
-                    .plan_takeover(
-                        orchbee_client_server_protocol::RequestId::parse(&id(802)).unwrap(),
-                        2,
-                        OperationDeadlines::from_sample(Instant::now()).unwrap(),
-                    )
-                    .unwrap();
-                assert!(state.begin_takeover(operation));
-            }
-            "create" => {
-                let operation = create_operation(&state, 2, 20, "3");
-                assert!(state.begin_create(operation));
-            }
-            _ => unreachable!(),
-        }
-        let phase = state.phase_kind();
-        let active = state.active().cloned();
-        assert!(
-            !state.settle_pane_fault(&focus, PaneFault::ViewerLost),
-            "{owner}"
-        );
-        assert_eq!(state.phase_kind(), phase, "{owner}");
-        assert_eq!(state.active(), active.as_ref(), "{owner}");
-        assert!(
-            state.pane_attached(&focus),
-            "refusal leaves disposal to retirement: {owner}"
-        );
-        assert_eq!(state.focus_record().unwrap().fault, None);
-        assert!(state.invariant_holds());
+        assert!(state.invariant_holds(), "{owner}");
     }
     let unavailable = retryable_state(Instant::now());
     assert!(!unavailable.focused_viewer_lost());

@@ -184,12 +184,17 @@ slot under a state the Client can no longer name, so the worker sends `Detach` f
 the viewer once the Server proves the slot released
 ([native-terminal-viewport.md](native-terminal-viewport.md#commands-and-demand-legs)); each such
 refusal writes a throttled `client-fault-contained` record.
-For the focused pane this is allowed in `Ready` beside every owner that can itself begin
-from a parked focus and keeps its premises when one parks: close work (a Tab, Panel or Workspace
-close confirmation, a retained Tab close, or unresolved Workspace close evidence), a rename or
-Workspace setup draft, a publication or explicit refresh, and a submitted Move, Panel or Rename
-with its projection recovery. A takeover, whose completion needs `Ready`, a setup or Workspace
-close in flight, a recovery refresh or an uncertain Rename keeps the existing retirement boundary.
+For the focused pane this is allowed in `Ready` beside every owner. Close work (a Tab, Panel
+or Workspace close confirmation, a retained Tab close, unresolved Workspace close evidence), a
+rename or Workspace setup draft, a publication or explicit refresh, a submitted Move, Panel or
+Rename with its projection recovery, a Workspace setup or Workspace close in flight, a context
+selection, an uncertain Rename and a status-only close carrier read no focus viewer to complete:
+parking mid-flight leaves the state each of them reaches when it begins from a parked focus, and
+it completes against the parked focus. A pending takeover stays pending: its Worker lease runs
+after the lease that lost the viewer, finds no viewer, sends nothing and settles the takeover as
+refused, the one answer a parked focus accepts. A staged membership install lives inside the one
+Worker lease that runs its cleanup, where no focus viewer is lost, so a loss beside it breaks the
+Worker's contract and still retires.
 A pane notice the record has already moved past is stale and settles nothing, never retiring the
 Client: a viewer or grant loss for a record that holds no viewer, an attach failure for a record
 that has since attached, or a detach proof for an incarnation the state no longer holds (its
@@ -269,6 +274,22 @@ a plugin overlay still restores the maximized state of its return Panel.
 `workbench_state/tests/generated.rs` exercises `ReincarnationFence` against production reducers. `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` and `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` in `state/tests.rs` cover wrong-incarnation and wrong-pane effects. Mailbox, connection and workbench-projection tests own panel-operation results, receipt correlation, membership repair, draw acknowledgements and failure handling. Those detailed compositions are implementation-test claims, not exhaustive TLC claims.
 
 The maintained mutation controls remove the completion identity guard, which must fail `FramesAreCurrent` or `EffectsUseCurrentIncarnation`, and the pending-navigation input guard, which must fail `InputFollowsSettledNavigation`. Run `node scripts/tla/run-models.mjs --models native-client-pane-membership` and the owning Cargo tests.
+
+[`FocusViewerLossParking`](../formal/tla/FocusViewerLossParking.tla) checks the focused pane's
+viewer loss beside the operation that owns the Client. The Worker runs one lease at a time and
+publishes through one event cell the UI drains in order; only a lease that serves the projected
+focus loses its viewer, never an owner's own lease. `Queue`/`Lose`/`Drop` map to those focus
+commands and `dispose_lost_viewer`, `Begin` to an owner's plan and begin, `ApplyLost` to
+`settle_pane_fault`, `RunOwner` to the owner's Worker lease, `ApplyResult` to its UI settlement and
+`Reattach` to the bounded automatic re-attach, which waits for every owner. The owner `takeover`
+needs the focus viewer; `free` stands for every owner whose completion reads none. Three owner
+starts bound the run, enough to interleave a loss, a re-attach and a second owner. The model checks
+that no order of losses and owner leases retires the Client, that the UI parks exactly the focus
+whose viewer the Worker no longer holds, and that every owner settles; `RunOwner`, `ApplyLost` and
+`ApplyResult` use weak fairness. Its mutation controls retire on a loss beside an owner and let a
+takeover without a viewer fail; each must fail `NeverRetired`. Run
+`node scripts/tla/run-models.mjs --models native-focus-viewer-loss-parking`; the owners' completion
+against a parked focus is tested at `workbench_state`, and the takeover's skip at the Worker.
 
 ## Terminal settlement
 

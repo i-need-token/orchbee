@@ -3312,9 +3312,9 @@ impl ClientExecutor {
         self.dispose_lost_viewer(lease, key, deadline)
     }
 
-    /// Only a typed runtime-loss outcome reaches this path for the focus.
-    /// State-side settlement preserves structural owners by refusing to park
-    /// anything other than a quiescent Ready focus.
+    /// Only a typed runtime-loss outcome reaches this path for the focus. The
+    /// state parks a Ready focus beside whatever owns the Client; a takeover
+    /// queued behind this lease finds no viewer and settles as refused.
     fn dispose_lost_viewer(
         &mut self,
         lease: &CommandLease,

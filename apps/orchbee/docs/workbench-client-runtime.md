@@ -2085,7 +2085,7 @@ establish other operating systems, installation, restart recovery or Close.
 
 ## Model scope
 
-Formal evidence for this owner is the pane-incarnation core described in [Native Panel lifecycle evidence](native-panel-lifecycle.md#finite-model-evidence), plus the separate viewport, explicit control-takeover and refused-projection-record protocols. It does not enumerate every Create, Close, Move, Rename, refresh or context-removal combination.
+Formal evidence for this owner is the pane-incarnation core described in [Native Panel lifecycle evidence](native-panel-lifecycle.md#finite-model-evidence), plus the separate viewport, explicit control-takeover, refused-projection-record and focus-viewer-loss protocols. It does not enumerate every Create, Close, Move, Rename, refresh or context-removal combination.
 
 The production state and mailbox generated tests, deterministic connection completions, workbench-projection traces and process tests own those operation-specific contracts. Keep stale identity, unknown outcome without replay, committed-result publication and cleanup-before-replacement cases in these suites when changing an operation. A retained protocol pass does not replace the corresponding implementation test.
 
@@ -2107,15 +2107,10 @@ unresolved structural mutation, commit, setup or cleanup handoff excludes this e
 Close status recovery retains priority and all its facts.
 
 The same correlated `TerminalRuntimeUnavailable` on a Ready focus is pane-local beside every
-owner that can itself begin from a parked focus: close work (a Tab, Panel or Workspace close
-confirmation, a retained Tab close, or unresolved Workspace close evidence), a rename or Workspace
-setup draft, a publication or explicit refresh, and a submitted Move, Panel or Rename with its
-projection recovery keep their premises and complete against the parked focus. The lost viewer is
-disposed and the exact selection is precisely parked for the existing publication reconciliation,
-so the loss does not establish this retired origin. Every owner that still keeps the whole-Client
-retirement (a takeover, a setup or Workspace close in flight, a recovery refresh, an uncertain
-Rename) also excludes this entry, so a focused typed loss does not establish it either. A loss
-whose typed notice never reaches the UI still does. The worker records the Poll before it disposes
+owner, as [panel lifecycle](native-panel-lifecycle.md) states: each owner completes against the
+parked focus, and a pending takeover settles as refused. The lost viewer is disposed and the exact
+selection is precisely parked for the existing publication reconciliation, so the loss does not
+establish this retired origin. A loss whose typed notice never reaches the UI still does. The worker records the Poll before it disposes
 the viewer. When it cannot place the `ViewerLost` notice before the Poll's cutoff it exits with
 `Deadline`, and a later worker failure can close the mailbox before the UI takes a placed notice.
 If the Client then retires while the focus is still attached and that Poll is still the UI's

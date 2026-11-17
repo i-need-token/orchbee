@@ -437,3 +437,18 @@ fn rename_latest_ui_known_receipt_survives_b_admission_and_replaces_before_falli
     state.retire(CarrierFailure::Deadline);
     assert_eq!(state.rename_receipts_for_test().1, Some(&known));
 }
+
+#[test]
+fn an_uncertain_rename_stays_retained_beside_a_parked_focus() {
+    use crate::workbench_state::tab_rename::RenameWorkerEvidence;
+    let mut state = ready(2);
+    let focus = state.focus_pane_ref().unwrap();
+    let operation = rename_operation(&mut state, "Renamed");
+    assert!(state.begin_rename(operation.clone()));
+    assert!(state.retain_rename_worker(RenameWorkerEvidence::Unknown(operation)));
+    assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
+    assert!(state.focused_viewer_lost());
+    let (pending, _, uncertain) = state.rename_receipts_for_test();
+    assert!(pending.is_some() && uncertain.is_some());
+    assert!(state.invariant_holds());
+}

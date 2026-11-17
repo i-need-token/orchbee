@@ -41,6 +41,12 @@ impl ClientExecutor {
         }
         self.retain_takeover_result(&operation, TakeoverResult::NotSubmitted)?;
         let cutoff = self.effective_lease_cutoff(lease, operation.deadlines.forward_cutoff())?;
+        // A lease queued before this one lost the focus viewer and parked the focus; nothing is
+        // sent, and the takeover settles as refused.
+        if self.attached_ref(&operation.key).is_err() {
+            self.retain_takeover_result(&operation, TakeoverResult::Refused)?;
+            return self.finish_control_activation(lease, marker, cutoff);
+        }
         let viewer = self.viewer_id_for(&operation.key)?;
         self.ensure_before(cutoff)?;
         let observed_grant = if operation.automatic {

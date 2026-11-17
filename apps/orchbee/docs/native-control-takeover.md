@@ -29,8 +29,10 @@ A program-tracked press in a terminal being claimed this way reaches no program 
 failure: the claim may resize the terminal and move what the press pointed at.
 
 An activation submits at most one transfer. Refusal and uncertainty never rearm it; a later focus
-activation is a new intent that may reconcile Server ownership. The Panel menu's take-control row remains an explicit alternative; it has no default
-key. A known grant never regresses to unknown
+activation is a new intent that may reconcile Server ownership. A takeover whose focus lost its
+Viewer before the takeover's Worker lease ran sends nothing and settles as refused beside the
+parked focus ([panel lifecycle](native-panel-lifecycle.md)). The Panel menu's take-control row
+remains an explicit alternative; it has no default key. A known grant never regresses to unknown
 within its operation. Exact operation, pane incarnation and original deadlines qualify receipts.
 
 ## Input and display

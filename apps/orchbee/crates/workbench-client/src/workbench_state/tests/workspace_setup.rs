@@ -478,3 +478,43 @@ fn setup_child_escape_restores_the_project_picker_and_discards_only_child_edits(
     );
     assert_eq!(state.setup_draft().unwrap().text(), "");
 }
+
+#[test]
+fn a_setup_in_flight_completes_beside_a_focus_parked_mid_flight() {
+    let mut state = ready(1);
+    let focus = state.focus_pane_ref().unwrap();
+    state
+        .open_setup_draft(group_intent(&state, "Group"))
+        .unwrap();
+    let operation = label_operation(&mut state, "Group", 1);
+    assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
+    assert!(state.focused_viewer_lost());
+    let group_id = orchbee_workbench_protocol::WorkbenchTabGroupId::parse(&id(70)).unwrap();
+    let known = operation
+        .known_commit(WorkbenchSetupCommit::TabsConfigured {
+            revision: WorkbenchRevision::new(2),
+            group_id: Some(group_id.clone()),
+            unchanged: false,
+        })
+        .unwrap();
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+    let mut snapshot = snapshot(1, 2, None);
+    snapshot.terminal_contexts[0]
+        .groups
+        .push(orchbee_workbench_protocol::TabGroup {
+            group_id: group_id.clone(),
+            label: "Group".into(),
+            color: orchbee_workbench_protocol::TabGroupColor::Blue,
+        });
+    snapshot.terminal_contexts[0].tabs[0].group_id = Some(group_id);
+    assert_eq!(
+        finish(&mut state, snapshot, 1),
+        MembershipInstallDecision::Preserved
+    );
+    assert!(!state.setup_blocks_structure());
+    assert_eq!(state.setup_status(), Some(Status::TabsConfigured));
+    assert_eq!(state.pending_refresh_generation(), None);
+    assert_eq!(state.focus_pane_ref(), Some(focus));
+    assert!(state.focused_viewer_lost());
+    assert!(state.invariant_holds());
+}

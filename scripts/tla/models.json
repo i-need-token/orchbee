@@ -48,6 +48,34 @@
 			]
 		},
 		{
+			"id": "native-focus-viewer-loss-parking",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/FocusViewerLossParking.tla",
+			"config": "apps/orchbee/formal/tla/FocusViewerLossParking.cfg",
+			"claims": ["apps/orchbee/docs/native-panel-lifecycle.md"],
+			"triggers": [
+				"apps/orchbee/crates/workbench-client/src/workbench_state*",
+				"apps/orchbee/crates/workbench-client/src/workbench_state/**",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/connection*",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/**",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/mailbox*",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/mailbox/**",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/control_takeover*",
+				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/viewer_recovery*"
+			],
+			"requiredCoverage": [
+				"Queue",
+				"Lose",
+				"Drop",
+				"Begin",
+				"ApplyLost",
+				"RunOwner",
+				"ApplyResult",
+				"Reattach"
+			]
+		},
+		{
 			"id": "native-projection-record-resync",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",

@@ -244,6 +244,17 @@ impl WorkbenchClientState {
             if self.focus_pane_ref().as_ref() != Some(&evidence.operation.key) {
                 return false;
             }
+            // A focus that parked after the takeover began has no viewer for the Worker to use,
+            // so its lease settles the takeover as refused; any other answer breaks that contract.
+            if self.focus_parked() {
+                if evidence.result != TakeoverResult::Refused {
+                    return false;
+                }
+                self.pending_refresh = None;
+                self.takeover.pending = None;
+                self.takeover.status_until = sampled.checked_add(Duration::from_secs(5));
+                return true;
+            }
             if let TakeoverResult::Unchanged(id) = &evidence.result {
                 self.pending_refresh = None;
                 if !self.observe_controller(

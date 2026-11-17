@@ -2222,26 +2222,17 @@ impl WorkbenchClientState {
         ));
     }
 
-    /// A focus parks after a typed runtime-loss notice beside every owner that can itself begin
-    /// from a parked focus and keeps its premises when one parks: close work (a Tab, Panel or
-    /// Workspace close confirmation, a retained Tab close, Workspace close evidence), a rename or
-    /// Workspace setup draft, a publication or explicit refresh, and a submitted Move, Panel or
-    /// Rename with its projection recovery. A takeover, whose completion needs `Ready`, a setup or
-    /// Workspace close in flight, a recovery refresh, an uncertain Rename and a status-only close
-    /// carrier keep the retirement contract.
+    /// A Ready focus parks after a typed runtime-loss notice beside every owner. Close work,
+    /// drafts, refreshes, submitted mutations, a Workspace setup or close in flight, a context
+    /// selection, an uncertain Rename and a status-only close carrier read no focus viewer to
+    /// complete, so parking mid-flight leaves the state they reach when they begin from a parked
+    /// focus. A pending takeover stays and settles as refused: its Worker lease finds the viewer
+    /// gone. A staged membership install lives inside the one Worker lease that runs its cleanup,
+    /// where no focus viewer is lost, so a loss beside it breaks the Worker's contract.
     fn focus_runtime_loss_admissible(&self, key: &PaneRef) -> bool {
         matches!(&self.phase, ClientPhase::Ready(ready)
             if ready.selected.key == *key.pane() && self.desired.as_ref() == Some(key.pane()))
             && self.invariant_holds()
-            && self
-                .pending_refresh
-                .as_ref()
-                .is_none_or(|flight| flight.source != RefreshSource::Recovery)
-            && !self.takeover_pending()
-            && !self.setup_operation_in_progress()
-            && self.workspace_close.pending.is_none()
-            && !self.close_status_only()
-            && self.rename_uncertain.is_none()
             && self.pending_membership.is_none()
             && self
                 .live_pane_record(key)

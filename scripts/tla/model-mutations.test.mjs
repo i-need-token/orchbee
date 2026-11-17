@@ -222,6 +222,20 @@ const cases = [
 		'[] r.bad = "envelope" ->',
 		/Invariant BoundedResyncs is violated/u,
 	],
+	[
+		'native-focus-viewer-loss-parking',
+		'a focus loss beside an owner retires the Client',
+		'/\\ ui\' = IF ui.phase = "ready" THEN',
+		'/\\ ui\' = IF ui.phase = "ready" /\\ ui.owner = "none" THEN',
+		/Invariant NeverRetired is violated/u,
+	],
+	[
+		'native-focus-viewer-loss-parking',
+		'a takeover whose viewer is gone fails instead of settling as refused',
+		'IF worker.viewer THEN "granted" ELSE "refused"',
+		'"granted"',
+		/Invariant NeverRetired is violated/u,
+	],
 ];
 
 describe('protocol mutation counterexamples', { concurrency: 3 }, () => {

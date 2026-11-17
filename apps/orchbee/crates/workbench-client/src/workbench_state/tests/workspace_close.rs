@@ -1291,3 +1291,52 @@ fn closing_the_only_shown_workspace_announces_closed_with_its_landing_not_before
     assert_eq!(status(&state), CloseStatus::Closed);
     assert!(state.invariant_holds());
 }
+
+#[test]
+fn a_workspace_close_in_flight_completes_beside_a_focus_parked_mid_flight() {
+    let mut state = background_state(false);
+    let baseline = state.cache().clone();
+    let focus = state.focus_pane_ref().unwrap();
+    let selection = state.active().unwrap().clone();
+    let token = state.open_workspace_close_at(&workspace_id(2)).unwrap();
+    state.acknowledge_workspace_close_draw(Some(token));
+    let operation = plan(&state, token).unwrap();
+    assert!(state.begin_workspace_close(operation.clone()));
+    assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
+    assert!(state.focused_viewer_lost());
+    assert!(state.finish_workspace_close(&WorkspaceCloseEvidence {
+        operation: operation.clone(),
+        result: observed(&operation, true),
+    }));
+    let mut published = baseline.canonical_snapshot().clone();
+    published.revision = WorkbenchRevision::new(2);
+    published
+        .navigation
+        .workspaces
+        .retain(|workspace| workspace.workspace_id != workspace_id(2));
+    published
+        .navigation
+        .workspace_order
+        .retain(|id| id != &workspace_id(2));
+    published
+        .terminal_contexts
+        .retain(|context| context.terminal_context_id != context_id(374));
+    assert_eq!(
+        finish_refresh(
+            &mut state,
+            operation.generation,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: published.clone()
+            },
+            None,
+        ),
+        RefreshDecision::Continue
+    );
+    assert_eq!(state.cache().canonical_snapshot(), &published);
+    assert!(!state.workspace_close_blocks_membership());
+    assert_eq!(state.pending_refresh_generation(), None);
+    assert_eq!(state.active(), Some(&selection));
+    assert_eq!(state.focus_pane_ref(), Some(focus));
+    assert!(state.focused_viewer_lost());
+    assert!(state.invariant_holds());
+}

@@ -182,3 +182,53 @@ fn takeover_retains_grant_on_exit_and_rejects_replay_after_unknown() {
         assert!(state.invariant_holds());
     }
 }
+
+#[test]
+fn a_takeover_whose_focus_parks_settles_only_as_refused() {
+    let parked = || {
+        let mut state = ready(2);
+        let focus = state.focus_pane_ref().unwrap();
+        let operation = state
+            .plan_takeover(
+                RequestId::parse(&id(610)).unwrap(),
+                3,
+                OperationDeadlines::from_sample(Instant::now()).unwrap(),
+            )
+            .unwrap();
+        assert!(state.begin_takeover(operation.clone()));
+        assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
+        assert!(state.takeover_pending());
+        assert!(state.invariant_holds());
+        (state, focus, operation)
+    };
+    let controller = ControllerId::parse(&id(611)).unwrap();
+    for result in [
+        TakeoverResult::Ready(controller.clone()),
+        TakeoverResult::Unchanged(controller.clone()),
+        TakeoverResult::Lost(controller),
+        TakeoverResult::Unknown,
+    ] {
+        let (mut state, _, operation) = parked();
+        let evidence = TakeoverEvidence { operation, result };
+        assert!(
+            !state.finish_takeover(&evidence, Instant::now()),
+            "{:?}",
+            evidence.result
+        );
+    }
+    let (mut state, focus, operation) = parked();
+    let refused = TakeoverEvidence {
+        operation: operation.clone(),
+        result: TakeoverResult::Refused,
+    };
+    assert!(state.finish_takeover(&refused, Instant::now()));
+    assert!(!state.takeover_pending());
+    assert_eq!(state.pending_refresh_generation(), None);
+    assert_eq!(
+        state.takeover_status(),
+        Some((TakeoverStatus::Refused, &operation.request_id))
+    );
+    assert!(state.focused_viewer_lost());
+    assert_eq!(state.focus_pane_ref(), Some(focus));
+    assert!(state.invariant_holds());
+}

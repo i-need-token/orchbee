@@ -306,3 +306,60 @@ fn control_takeover_carrier_ready_survives_ui_delivery_loss() -> TestResult {
 fn control_takeover_carrier_peer_transfer_during_resize_is_read_only() -> TestResult {
     exercise(Cut::LostAgain)
 }
+/// A lease queued before the takeover lost the focus viewer; the takeover sends nothing and settles
+/// as refused beside the parked focus.
+#[test]
+fn control_takeover_without_a_viewer_settles_as_refused_beside_the_parked_focus() -> TestResult {
+    let (mut ui, mailbox, clock, _) = ready_ui();
+    ui.apply_client_action(ClientAction::RequestControlTakeover);
+    let lease = mailbox.try_recv().unwrap().expect("explicit operation");
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("one refresh barrier");
+    };
+    let marker = marker.clone();
+    let operation = marker.takeover().unwrap().clone();
+    mailbox
+        .publish_notice_before(
+            crate::workbench_client::mailbox::WorkerEvent::PaneFailed {
+                key: operation.key.clone(),
+                fault: crate::workbench_state::PaneFault::ViewerLost,
+            },
+            clock.now() + crate::workbench_state::OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    let server = FakeServer::start(move |mut stream| {
+        admit(&mut stream)?;
+        let mut trailing = [0];
+        assert_eq!(stream.read(&mut trailing)?, 0, "no takeover request");
+        Ok(())
+    })?;
+    let client = LocalClient::connect(server.endpoint())?;
+    let worker_mailbox = Arc::clone(&mailbox);
+    let worker = thread::spawn(move || {
+        let mut executor = ClientExecutor::new(client, Arc::clone(&worker_mailbox));
+        let result = executor.run_refresh(&lease, marker);
+        if result.is_ok() {
+            worker_mailbox.finish_lease(lease).unwrap();
+        }
+        result
+    });
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !worker.is_finished() && Instant::now() < deadline {
+        ui.tick();
+        thread::sleep(Duration::from_millis(1));
+    }
+    if !worker.is_finished() {
+        mailbox.close(CarrierFailure::Deadline);
+    }
+    assert_eq!(worker.join().unwrap(), Ok(()));
+    server.finish()?;
+    assert!(mailbox.is_closed().is_none());
+    assert!(mailbox.takeover_worker_loss().is_none());
+    assert_eq!(
+        ui.view().takeover_status().map(|(status, _)| status),
+        Some(crate::localization::TakeoverStatus::Refused)
+    );
+    Ok(())
+}

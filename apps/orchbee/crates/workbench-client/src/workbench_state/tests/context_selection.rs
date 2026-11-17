@@ -905,3 +905,30 @@ fn restored_workspace_unselected_split_replaces_anchor_before_reusing_panel_slot
     assert_ne!(peer.pane_ref(), old_peer);
     assert!(state.invariant_holds());
 }
+
+#[test]
+fn a_context_selection_lands_beside_a_focus_parked_mid_flight() {
+    let snapshot = super::workspace_setup::workspace_snapshot(1, 0);
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
+    let focus = state.focus_pane_ref().unwrap();
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+    assert!(state.start_context_selection(1, true, deadlines));
+    assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
+    assert!(state.focused_viewer_lost());
+    let PreparedRefresh::Membership { prepared, .. } =
+        state.prepare_refresh(1, WorkbenchSnapshotOutcome::Available { snapshot })
+    else {
+        panic!("Empty workspace selection");
+    };
+    assert!(!state.has_attachments());
+    assert_eq!(
+        state
+            .prepare_refresh_membership_install(1, prepared, None, Some(deadlines))
+            .unwrap()
+            .commit(),
+        MembershipInstallDecision::Empty
+    );
+    assert!(!state.context_selection_pending());
+    assert_eq!(state.pending_refresh_generation(), None);
+    assert!(state.invariant_holds());
+}
