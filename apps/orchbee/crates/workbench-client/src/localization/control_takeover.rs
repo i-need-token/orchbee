@@ -20,15 +20,17 @@ impl Locale {
             (Self::EnUs, TakeoverStatus::Refused) => "Couldn't type here.",
             (Self::ZhCn, TakeoverStatus::Refused) => "没能在这里输入。",
             (_, TakeoverStatus::Unknown | TakeoverStatus::Granted) => self.outcome_unknown(),
-            (_, TakeoverStatus::Lost) => self.another_window_typing(),
+            (_, TakeoverStatus::Lost) => self.send_typing_here(),
         }
     }
 
-    /// Another window holds the terminal's input and size.
-    pub(crate) const fn another_window_typing(self) -> &'static str {
+    /// What Type here does. A lost grant does not say who holds the terminal, so the TUI never
+    /// claims that another window types here, as the product language reserves that sentence for
+    /// a known holder.
+    pub(crate) const fn send_typing_here(self) -> &'static str {
         match self {
-            Self::EnUs => "Another window is typing here.",
-            Self::ZhCn => "另一个窗口正在这里输入。",
+            Self::EnUs => "Send your typing to this terminal.",
+            Self::ZhCn => "把键盘输入发到这个终端。",
         }
     }
 

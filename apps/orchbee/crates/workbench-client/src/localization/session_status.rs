@@ -27,7 +27,7 @@ impl Locale {
             (_, TerminalStatus::Connecting | TerminalStatus::Blocked) => self.connecting_status(),
             (Self::EnUs, TerminalStatus::Controlling) => "Terminal connected",
             (Self::ZhCn, TerminalStatus::Controlling) => "终端已连接",
-            (_, TerminalStatus::ReadOnly) => self.another_window_typing(),
+            (_, TerminalStatus::ReadOnly) => self.send_typing_here(),
             (Self::EnUs, TerminalStatus::Unavailable) => "Terminal disconnected",
             (Self::ZhCn, TerminalStatus::Unavailable) => "终端已断开",
             (_, TerminalStatus::OutcomeUnknown) => self.outcome_unknown(),
