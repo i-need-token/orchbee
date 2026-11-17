@@ -1,4 +1,5 @@
 comptime {
+    _ = @import("conpty_reader_pause_test.zig");
     _ = @import("conpty_signal_stall_test.zig");
     _ = @import("history_export_test.zig");
     _ = @import("history_rows_test.zig");
@@ -14,6 +15,7 @@ comptime {
     _ = @import("prompt_gate_test.zig");
     _ = @import("prompt_gate_witness_test.zig");
     _ = @import("projection_wrap_topology_test.zig");
+    _ = @import("reader_pause_test.zig");
     _ = @import("runtime_completion_test.zig");
     _ = @import("runtime_containment_test.zig");
     _ = @import("runtime_launch_test.zig");

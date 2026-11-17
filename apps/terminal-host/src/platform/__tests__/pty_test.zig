@@ -6,6 +6,9 @@ const posix_compat = platform_boundary.posix_compat;
 const subject = platform_boundary.testing.pty;
 
 const Pty = subject.Pty;
+const Read = platform_boundary.process.Read;
+const ReadMode = platform_boundary.process.ReadMode;
+const thread_sync = platform_boundary.thread_sync;
 
 extern "kernel32" fn CreatePipe(
     read_pipe: *std.os.windows.HANDLE,
@@ -130,4 +133,177 @@ test "PTY abort wakes a reader blocked without child output" {
     thread.join();
     try std.testing.expect(reader.failure == null);
     try std.testing.expectEqual(@as(usize, 0), reader.result.?);
+}
+
+/// One registered reader thread that reads only when the test asks, so a pause meets a read in
+/// a known place.
+const StepReader = struct {
+    pty: *Pty,
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
+    requested: usize = 0,
+    finished: usize = 0,
+    mode: ReadMode = .stop_at_pause,
+    result: ?Read = null,
+    bytes: [32]u8 = undefined,
+    failure: ?anyerror = null,
+    stopping: bool = false,
+    thread: std.Thread = undefined,
+
+    fn start(self: *StepReader) !void {
+        self.thread = try std.Thread.spawn(.{}, run, .{self});
+        self.pty.registerReaderThread(self.thread.getHandle());
+    }
+
+    /// Joins the thread once its last read has returned.
+    fn stop(self: *StepReader) void {
+        self.mutex.lock();
+        self.stopping = true;
+        self.condition.broadcast();
+        self.mutex.unlock();
+        self.thread.join();
+    }
+
+    fn run(self: *StepReader) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (true) {
+            while (self.requested == self.finished and !self.stopping) {
+                self.condition.wait(&self.mutex);
+            }
+            if (self.requested == self.finished) return;
+            const mode = self.mode;
+            self.mutex.unlock();
+            var buffer: [32]u8 = undefined;
+            const result = self.pty.readPausable(&buffer, mode);
+            self.mutex.lock();
+            if (result) |value| {
+                self.result = value;
+                switch (value) {
+                    .bytes => |count| @memcpy(self.bytes[0..count], buffer[0..count]),
+                    .end, .paused => {},
+                }
+            } else |err| self.failure = err;
+            self.finished += 1;
+            self.condition.broadcast();
+        }
+    }
+
+    fn read(self: *StepReader, mode: ReadMode) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.mode = mode;
+        self.requested += 1;
+        self.condition.broadcast();
+    }
+
+    fn pending(self: *StepReader) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.finished != self.requested;
+    }
+
+    fn wait(self: *StepReader) !Read {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (self.finished != self.requested) self.condition.wait(&self.mutex);
+        if (self.failure) |err| return err;
+        return self.result.?;
+    }
+
+    /// The next read stays blocked: a pause stands for none of it.
+    fn expectBlocked(self: *StepReader) !void {
+        monotonic.sleep(20 * std.time.ns_per_ms);
+        try std.testing.expect(self.pending());
+    }
+};
+
+/// Writes child output on POSIX, where the slave is held here; Windows has no child.
+fn writeChildOutput(instance: *Pty, bytes: []const u8) !bool {
+    if (builtin.os.tag == .windows) return false;
+    _ = try posix_compat.write(instance.slave.?, bytes);
+    return true;
+}
+
+test "PTY pause stops a blocked read, stands for reads that stop at it, and resumes" {
+    var instance = try Pty.open(std.testing.allocator, .{ .rows = 24, .columns = 80 });
+    defer instance.deinit();
+    var reader: StepReader = .{ .pty = &instance };
+    try reader.start();
+    defer reader.stop();
+
+    // A pause cancels a blocked read even when it reads through pauses.
+    reader.read(.through_pause);
+    try reader.expectBlocked();
+    try instance.pauseRead();
+    try std.testing.expectEqual(Read.paused, try reader.wait());
+    // A standing pause stops the next read before it reads; a second request changes nothing.
+    try instance.pauseRead();
+    reader.read(.stop_at_pause);
+    try std.testing.expectEqual(Read.paused, try reader.wait());
+    // A read through the standing pause reads, and a pause requested after a resume cancels it.
+    reader.read(.through_pause);
+    try reader.expectBlocked();
+    if (try writeChildOutput(&instance, "t")) {
+        try std.testing.expectEqual(Read{ .bytes = 1 }, try reader.wait());
+        try std.testing.expectEqual(@as(u8, 't'), reader.bytes[0]);
+        reader.read(.through_pause);
+        try reader.expectBlocked();
+    }
+    try instance.resumeRead();
+    try instance.pauseRead();
+    try std.testing.expectEqual(Read.paused, try reader.wait());
+    // Resume: a read that stops at pauses reads again.
+    try instance.resumeRead();
+    reader.read(.stop_at_pause);
+    try reader.expectBlocked();
+    if (try writeChildOutput(&instance, "r")) {
+        try std.testing.expectEqual(Read{ .bytes = 1 }, try reader.wait());
+        try std.testing.expectEqual(@as(u8, 'r'), reader.bytes[0]);
+    } else {
+        try instance.abortRead();
+        try std.testing.expectEqual(Read.end, try reader.wait());
+    }
+}
+
+test "PTY pause withdrawn before a read takes it leaves the next read reading" {
+    var instance = try Pty.open(std.testing.allocator, .{ .rows = 24, .columns = 80 });
+    defer instance.deinit();
+    var reader: StepReader = .{ .pty = &instance };
+    try reader.start();
+    defer reader.stop();
+
+    // On POSIX the resume drains the pause's marker, so the read neither reports a pause nor
+    // wakes for nothing.
+    try instance.pauseRead();
+    try instance.resumeRead();
+    reader.read(.stop_at_pause);
+    try reader.expectBlocked();
+    if (try writeChildOutput(&instance, "w")) {
+        try std.testing.expectEqual(Read{ .bytes = 1 }, try reader.wait());
+        try std.testing.expectEqual(@as(u8, 'w'), reader.bytes[0]);
+        reader.read(.stop_at_pause);
+        try reader.expectBlocked();
+    }
+    try instance.abortRead();
+    try std.testing.expectEqual(Read.end, try reader.wait());
+}
+
+test "PTY abort ends reads through a pause and a resume does not undo it" {
+    var instance = try Pty.open(std.testing.allocator, .{ .rows = 24, .columns = 80 });
+    defer instance.deinit();
+    var reader: StepReader = .{ .pty = &instance };
+    try reader.start();
+    defer reader.stop();
+
+    try instance.pauseRead();
+    try instance.abortRead();
+    reader.read(.stop_at_pause);
+    try std.testing.expectEqual(Read.end, try reader.wait());
+    try instance.resumeRead();
+    try instance.pauseRead();
+    for ([_]ReadMode{ .stop_at_pause, .through_pause }) |mode| {
+        reader.read(mode);
+        try std.testing.expectEqual(Read.end, try reader.wait());
+    }
 }

@@ -36,3 +36,22 @@ pub const ExitResult = union(enum) {
     signal: u32,
     unknown: u32,
 };
+
+/// Whether a PTY read honors a standing pause: the reader reads through one only while its
+/// parser is inside a sequence.
+pub const ReadMode = enum {
+    /// Reports `paused` without reading while a pause stands.
+    stop_at_pause,
+    /// Reads while a pause stands; a pause requested during the read still cancels it.
+    through_pause,
+};
+
+/// What one PTY read returned.
+pub const Read = union(enum) {
+    /// The byte count, never zero.
+    bytes: usize,
+    /// End of output, or the read was aborted.
+    end,
+    /// A pause cancelled the read or found it not started; nothing was read.
+    paused,
+};

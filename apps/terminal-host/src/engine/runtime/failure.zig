@@ -32,6 +32,8 @@ pub fn closeFailureFenceLocked(
     }
     self.input_condition.broadcast();
     self.animation_condition.broadcast();
+    // A parked reader ends, and a quiesce waiting for it to park learns that it did.
+    self.terminal_condition.broadcast();
     return true;
 }
 

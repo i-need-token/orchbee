@@ -395,7 +395,10 @@
 			"triggers": [
 				"proposals/platform/host-handover.md",
 				"schemas/keeper/**",
-				"apps/terminal-host/src/keeper_protocol/**"
+				"apps/terminal-host/src/keeper_protocol/**",
+				"apps/terminal-host/src/engine/runtime/reader_pause.zig",
+				"apps/terminal-host/src/platform/pty_posix.zig",
+				"apps/terminal-host/src/platform/pty_windows.zig"
 			],
 			"requiredCoverage": [
 				"Read",

@@ -23,6 +23,7 @@ const interaction_ops = @import("interaction.zig");
 const prepared_input = @import("prepared_input.zig");
 const prepared_attachment = @import("prepared_attachment.zig");
 const read_commit_guard = @import("read_commit_guard.zig");
+const reader_pause = @import("reader_pause.zig");
 
 pub const PreparedInput = prepared_input.Type(TerminalRuntime);
 pub const PreparedAttachment = prepared_attachment.Type(TerminalRuntime);
@@ -90,6 +91,21 @@ pub const TerminalRuntime = opaque {
 
     pub fn readableStateAvailable(self: *TerminalRuntime) bool {
         return failure_ops.readableStateAvailable(stateFrom(self));
+    }
+
+    /// The reader's undoable stop, for a quiesce alone: one caller at a time pauses, awaits the
+    /// park, and resumes or withdraws.
+    pub fn pauseReader(self: *TerminalRuntime) !void {
+        return reader_pause.pause(stateFrom(self));
+    }
+
+    pub fn awaitReaderParked(self: *TerminalRuntime, timeout_ns: u64) contracts.ReaderParkWait {
+        return reader_pause.awaitParked(stateFrom(self), timeout_ns);
+    }
+
+    /// Resumes a parked reader, or withdraws a pause it has not reached.
+    pub fn resumeReader(self: *TerminalRuntime) !void {
+        return reader_pause.resumeReader(stateFrom(self));
     }
 
     pub fn bellSequence(self: *TerminalRuntime) u64 {

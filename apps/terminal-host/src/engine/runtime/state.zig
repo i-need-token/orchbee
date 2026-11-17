@@ -135,6 +135,10 @@ pub const State = struct {
     // platform effect while the reader still owns the enclosing batch commit.
     // Shutdown and unrelated failure fencing wait for that exact transaction.
     reader_commit_in_progress: bool = false,
+    /// The undoable stop, owned by terminal_mutex. `reader_pause_pending` mirrors whether it is
+    /// requested, so the reader looks for it after each batch without the lock.
+    reader_pause: contracts.ReaderPause = .none,
+    reader_pause_pending: std.atomic.Value(bool) = .init(false),
     // terminal_mutex protects this one-shot epoch. Failure publication advances
     // it so a frame encoded before the fence cannot commit after containment
     // makes retained read-only state available again.

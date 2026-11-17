@@ -1,4 +1,5 @@
 const target_builtin = @import("builtin");
+const pty_process = @import("terminal-host-platform").process;
 const state = @import("state.zig");
 
 pub fn abortOutputRead(self: *state.State) !void {
@@ -9,6 +10,24 @@ pub fn abortOutputRead(self: *state.State) !void {
         }
     }
     try self.process.abortRead();
+}
+
+pub fn pauseOutputRead(self: *state.State) !void {
+    if (comptime target_builtin.is_test) {
+        if (self.testing_hooks.pause_read) |pause_read| {
+            return pause_read(self.testing_hooks.context.?);
+        }
+    }
+    try pty_process.pauseRead(&self.process);
+}
+
+pub fn resumeOutputRead(self: *state.State) !void {
+    if (comptime target_builtin.is_test) {
+        if (self.testing_hooks.resume_read) |resume_read| {
+            return resume_read(self.testing_hooks.context.?);
+        }
+    }
+    try pty_process.resumeRead(&self.process);
 }
 
 pub fn terminate(self: *state.State) !void {
@@ -38,13 +57,17 @@ pub fn hasActiveCommand(self: *state.State) !bool {
     return self.process.hasActiveCommand();
 }
 
-pub fn readPty(self: *state.State, buffer: []u8) !usize {
+pub fn readPty(self: *state.State, buffer: []u8, mode: pty_process.ReadMode) !pty_process.Read {
     if (comptime target_builtin.is_test) {
+        if (self.testing_hooks.read_pty_pausable) |read| {
+            return read(self.testing_hooks.context.?, buffer, mode);
+        }
         if (self.testing_hooks.read_pty) |read| {
-            return read(self.testing_hooks.context.?, buffer);
+            const count = try read(self.testing_hooks.context.?, buffer);
+            return if (count == 0) .end else .{ .bytes = count };
         }
     }
-    return self.process.read(buffer);
+    return pty_process.readPausable(&self.process, buffer, mode);
 }
 
 pub fn writePtySlice(self: *state.State, bytes: []const u8) !usize {

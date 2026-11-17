@@ -57,6 +57,7 @@ pub const Completion = contracts.Completion;
 pub const ShutdownError = contracts.ShutdownError;
 pub const ShutdownCleanupPhase = contracts.ShutdownCleanupPhase;
 pub const ScrollbackCompressionOutcome = contracts.ScrollbackCompressionOutcome;
+pub const ReaderParkWait = contracts.ReaderParkWait;
 
 pub const PreparedInput = handle.PreparedInput;
 pub const PreparedAttachment = handle.PreparedAttachment;

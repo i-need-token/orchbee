@@ -9,6 +9,8 @@ pub const EnvironmentDelta = process_types.EnvironmentDelta;
 pub const Launch = process_types.Launch;
 pub const ExitResult = process_types.ExitResult;
 pub const LaunchKind = process_types.LaunchKind;
+pub const ReadMode = process_types.ReadMode;
+pub const Read = process_types.Read;
 pub const ProcessSample = @import("process_sample.zig").Sample;
 pub const ProcessConsole = @import("process_sample.zig").Console;
 pub const environmentVariableOwned = process_common.environmentVariableOwned;
@@ -30,6 +32,23 @@ pub const Process = switch (builtin.os.tag) {
     .freebsd, .linux, .macos => posix_process.Process,
     else => @compileError("terminal-host has no process implementation for this target"),
 };
+
+/// The undoable stop of a terminal's reader is the same on every platform, so the PTY owns it.
+/// Reads one batch, reporting a standing pause apart from end of output and abort.
+pub fn readPausable(process: *Process, buffer: []u8, mode: ReadMode) !Read {
+    return process.pty.readPausable(buffer, mode);
+}
+
+/// Stands a pause: the read in progress, if any, reports it or returns the bytes it already
+/// has. A pause after an abort does nothing.
+pub fn pauseRead(process: *Process) !void {
+    return process.pty.pauseRead();
+}
+
+/// Withdraws a standing pause, so the next read reads.
+pub fn resumeRead(process: *Process) !void {
+    return process.pty.resumeRead();
+}
 
 pub const testing = if (builtin.is_test) struct {
     pub const interactiveShellLaunchFn = @import("interactive_shell.zig").isInteractive;

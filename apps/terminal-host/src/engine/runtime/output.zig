@@ -3,6 +3,7 @@ const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
 const fatal_record = @import("terminal-host-platform").fatal_record;
 const output_wake = @import("terminal-host-platform").output_wake;
+const pty_process = @import("terminal-host-platform").process;
 const terminal_stream = @import("../terminal_stream.zig");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
@@ -14,6 +15,7 @@ const process_io_ops = @import("process_io.zig");
 const metadata_ops = @import("metadata.zig");
 const mode_effects = @import("mode_effects.zig");
 const program_status_feed = @import("program_status_feed.zig");
+const reader_pause = @import("reader_pause.zig");
 const scrollback_compression_ops = @import("scrollback_compression.zig");
 const terminal_geometry_effects = @import("terminal_geometry_effects.zig");
 const terminal_reply = @import("terminal_reply.zig");
@@ -363,6 +365,8 @@ pub fn publishPtyDrained(self: *state.State) bool {
     self.pty_drained.store(true, .release);
     self.writer_stop = true;
     self.input_condition.broadcast();
+    // A quiesce waiting for the reader to park learns that it ended.
+    self.terminal_condition.broadcast();
     return true;
 }
 
@@ -371,19 +375,32 @@ pub fn readerThread(self: *state.State) void {
     defer notifyReaderStopped(self);
     if (!self.startup.await()) return;
     var buffer: [contracts.max_pty_read_batch_bytes]u8 = undefined;
+    var mode: pty_process.ReadMode = .stop_at_pause;
     while (true) {
         if (!beginReaderRead(self)) return;
-        const length = process_io_ops.readPty(self, &buffer) catch {
+        const read = process_io_ops.readPty(self, &buffer, mode) catch {
             if (self.output_abort_requested.load(.acquire)) return;
             failure_ops.recordReaderFailure(self);
             return;
         };
-        if (length == 0) {
-            if (self.output_abort_requested.load(.acquire)) return;
-            break;
+        var paused = false;
+        switch (read) {
+            .end => {
+                if (self.output_abort_requested.load(.acquire)) return;
+                break;
+            },
+            .paused => paused = true,
+            .bytes => |length| {
+                if (commitObservedReaderBatch(self, buffer[0..length]) != .committed) return;
+                output_wake.signal();
+            },
         }
-        if (commitObservedReaderBatch(self, buffer[0..length]) != .committed) return;
-        output_wake.signal();
+        mode = .stop_at_pause;
+        if (paused or self.reader_pause_pending.load(.acquire)) switch (reader_pause.settle(self)) {
+            .read_on => {},
+            .read_through => mode = .through_pause,
+            .stopped => return,
+        };
     }
     if (self.output_abort_requested.load(.acquire)) return;
     notifyPtyDrainPublicationStarting(self);

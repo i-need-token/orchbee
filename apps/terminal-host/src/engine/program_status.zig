@@ -42,6 +42,11 @@ pub const Scanner = struct {
 
     const Phase = enum { ground, escape, prefix, body, body_escape, other_osc };
 
+    /// Whether the scanner is outside every sequence, so a reader may stop here.
+    pub fn atGround(self: *const Scanner) bool {
+        return self.phase == .ground;
+    }
+
     /// Consumes `bytes` up to and including the terminator of the first complete OSC 7501
     /// sequence, or all of them. Always consumes at least one byte of a nonempty input.
     pub fn scan(self: *Scanner, bytes: []const u8) Step {

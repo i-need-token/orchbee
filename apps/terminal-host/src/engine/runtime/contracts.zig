@@ -66,6 +66,28 @@ pub const ReaderBatchOutcome = enum {
     runtime_failed,
 };
 
+/// The reader's undoable stop, which only a quiesce requests; terminal_mutex owns it.
+pub const ReaderPause = enum {
+    none,
+    /// Requested; the reader has not looked at its parser since.
+    requested,
+    /// The reader reads on, because a parser or scanner was inside a sequence.
+    reading_on,
+    /// The reader stopped after a batch that left every parser and scanner at ground, and waits
+    /// for resume or abort.
+    parked,
+};
+
+pub const ReaderParkWait = enum {
+    parked,
+    /// The deadline passed while the reader read on inside a sequence.
+    mid_sequence,
+    /// The deadline passed before the reader looked at its parser.
+    timed_out,
+    /// The reader ended: abort, failure, or end of output.
+    stopped,
+};
+
 pub const ScrollbackCompressionOutcome = enum {
     complete,
     dormant,
@@ -108,7 +130,14 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     host_containment_waiting: ?*const fn (*anyopaque) void = null,
     projection_capture_starting: ?*const fn (*anyopaque) void = null,
     pty_drain_publication_starting: ?*const fn (*anyopaque) void = null,
+    pause_read: ?*const fn (*anyopaque) anyerror!void = null,
     read_pty: ?*const fn (*anyopaque, []u8) anyerror!usize = null,
+    /// Replaces `read_pty` with a read that sees the pause mode and may report a pause.
+    read_pty_pausable: ?*const fn (
+        *anyopaque,
+        []u8,
+        pty_process.ReadMode,
+    ) anyerror!pty_process.Read = null,
     read_commit_checkpoint: ?*const fn (*anyopaque, ReadCommitCheckpoint) void = null,
     reader_commit_waiting: ?*const fn (*anyopaque) void = null,
     reader_resize_waiting: ?*const fn (*anyopaque) void = null,
@@ -116,6 +145,7 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     reader_stopped: ?*const fn (*anyopaque) void = null,
     monotonic_time_nanoseconds: ?*const fn (*anyopaque) u64 = null,
     resize_effect_returned: ?*const fn (*anyopaque) void = null,
+    resume_read: ?*const fn (*anyopaque) anyerror!void = null,
     resize_pty: ?*const fn (
         *anyopaque,
         terminal_geometry.Geometry,
