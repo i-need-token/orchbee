@@ -161,6 +161,24 @@ fn peer(snapshot: Snapshot) -> io::Result<FakeServer> {
         Ok(())
     })
 }
+/// Whether a fake peer's write failed only because the Client already closed the connection.
+/// Teardown can close a carrier while the peer is answering a request it already read, such as a
+/// periodic publication read, or is answering the offer of a lane the Client gave up on; that
+/// answer has no reader, and the connection has ended as at end of file.
+fn closed_by_client(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::BrokenPipe | io::ErrorKind::ConnectionReset
+    )
+}
+/// Writes one reply on a fake carrier and reports whether the carrier is still open.
+fn write_reply(stream: &mut impl io::Write, message: &MultiplexMessage) -> io::Result<bool> {
+    match write_multiplex_message(stream, message) {
+        Ok(()) => Ok(true),
+        Err(error) if closed_by_client(&error) => Ok(false),
+        Err(error) => Err(error),
+    }
+}
 fn attempt(server: &FakeServer, context: Option<ClientContextTarget>) -> Attempt {
     let endpoint = server.endpoint().to_path_buf();
     let (task, result) = spawn_attempt(crate::workbench_client::UiWakeup::current(), move || {
@@ -363,7 +381,16 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     // Origin, destination, Agent snapshot, Agent watch, and both native attention lanes.
     let server = FakeServer::start_optional_connections(6, move |index, mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
-        orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut stream)?;
+        match orchbee_workbench_client::test_support::local_client::handshake::answer_offer(
+            &mut stream,
+        ) {
+            Ok(()) => {}
+            Err(error) if closed_by_client(&error) => return Ok(()),
+            Err(error) => {
+                eprintln!("machine-local-workspace lane={index} stage=offer-answer: {error:?}");
+                return Err(error);
+            }
+        }
         assert!(matches!(
             read_message(&mut stream)
                 .inspect_err(|error| {
@@ -447,7 +474,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                         }),
                     )
                     .map_err(io::Error::other)?;
-                    write_multiplex_message(
+                    let open = write_reply(
                         &mut stream,
                         &MultiplexMessage::StreamFrame {
                             stream_id,
@@ -465,6 +492,9 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                             "machine-local-workspace lane={index} stage=snapshot-write: {error:?}"
                         );
                     })?;
+                    if !open {
+                        return Ok(());
+                    }
                 }
                 // A periodic refresh finds the destination unchanged.
                 WorkbenchRequest::PublicationRead(read) => {
@@ -480,7 +510,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                         }),
                     )
                     .map_err(io::Error::other)?;
-                    write_multiplex_message(
+                    let open = write_reply(
                         &mut stream,
                         &MultiplexMessage::StreamFrame {
                             stream_id,
@@ -488,7 +518,15 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                             kind: StreamFrameKind::Result,
                             record,
                         },
-                    )?;
+                    )
+                    .inspect_err(|error| {
+                        eprintln!(
+                            "machine-local-workspace lane={index} stage=publication-write: {error:?}"
+                        );
+                    })?;
+                    if !open {
+                        return Ok(());
+                    }
                 }
                 // Native physical attention reads the same Session's presentation states.
                 WorkbenchRequest::PanelAgent(PanelAgentRequest {
@@ -740,7 +778,7 @@ fn serve_reused_carrier(
         };
         let mut record = Vec::new();
         write_workbench_response(&mut record, &response).map_err(io::Error::other)?;
-        write_multiplex_message(
+        let open = write_reply(
             &mut stream,
             &MultiplexMessage::StreamFrame {
                 stream_id,
@@ -749,6 +787,10 @@ fn serve_reused_carrier(
                 record,
             },
         )?;
+        if !open {
+            let _sent = ended.send("eof");
+            return Ok(());
+        }
     }
 }
 
