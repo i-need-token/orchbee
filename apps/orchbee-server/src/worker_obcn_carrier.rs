@@ -296,8 +296,9 @@ pub(crate) enum WorkerRequestError {
     InvalidRequest(ProtocolError),
     NotDelivered(WorkerTransportFailure),
     PostDeliveryOutcomeUnknown(WorkerResponseFailure),
-    /// The Worker answered that it does not serve this request, on its platform or before its
-    /// first Launch, and did nothing for it; retrying never helps.
+    /// The Worker answered that it does not serve this request, on its platform, before its first
+    /// Launch, or because it refused the request before any effect, and did nothing for it. A
+    /// caller treats it as not delivered.
     Declined,
 }
 

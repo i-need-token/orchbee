@@ -212,12 +212,14 @@ impl<'service> LocalTerminalConnection<'service> {
                 viewer.cleanup = None;
                 unavailable(Unavailable::ServerBusy)
             }
+            // A declined attach attached nothing, so nothing is left to detach.
             Err(
                 WorkerRequestError::NotDelivered(_)
                 | WorkerRequestError::Unavailable
                 | WorkerRequestError::InvalidRequest(_)
                 | WorkerRequestError::WrongWorker
-                | WorkerRequestError::WrongGeneration,
+                | WorkerRequestError::WrongGeneration
+                | WorkerRequestError::Declined,
             ) => {
                 viewer.cleanup = None;
                 unavailable(Unavailable::TerminalRuntimeUnavailable)

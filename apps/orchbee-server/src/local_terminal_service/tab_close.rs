@@ -365,9 +365,12 @@ impl LocalTerminalService {
         self.run_close_result_hook();
         let observation = match &result {
             Ok(result) => CloseStepObservation::Result(result),
-            Err(WorkerRequestError::Unavailable | WorkerRequestError::NotDelivered(_)) => {
-                CloseStepObservation::NotDelivered
-            }
+            // A decline means the Worker did nothing for this step.
+            Err(
+                WorkerRequestError::Unavailable
+                | WorkerRequestError::NotDelivered(_)
+                | WorkerRequestError::Declined,
+            ) => CloseStepObservation::NotDelivered,
             Err(WorkerRequestError::PostDeliveryOutcomeUnknown(reason)) => {
                 CloseStepObservation::OutcomeUnknown(match reason {
                     WorkerResponseFailure::TimedOut => LifecycleUnknownReason::Deadline,

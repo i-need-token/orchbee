@@ -208,7 +208,8 @@ impl LocalTerminalService {
                 | WorkerRequestError::InvalidRequest(_)
                 | WorkerRequestError::WrongWorker
                 | WorkerRequestError::WrongGeneration
-                | WorkerRequestError::NotDelivered(_),
+                | WorkerRequestError::NotDelivered(_)
+                | WorkerRequestError::Declined,
             ) => {
                 issued.viewer.cleanup = None;
                 return None;
