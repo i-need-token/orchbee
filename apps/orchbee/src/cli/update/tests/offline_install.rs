@@ -43,6 +43,7 @@ fn install_with(root: &Path, source: &Path, keys: &[TrustedKey], allow_downgrade
         install_root: Ok(root.to_path_buf()),
         probe: print_probe,
         activation: in_process_completion,
+        window_store: false,
         completion: Completion {
             path: false,
             allow_downgrade,

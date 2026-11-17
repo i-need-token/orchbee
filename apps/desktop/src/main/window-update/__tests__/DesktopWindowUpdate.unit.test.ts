@@ -142,6 +142,38 @@ describe('DesktopWindowUpdate', () => {
 		).toHaveLength(1);
 	});
 
+	it('follows a window store that appears after start once a document is served', async () => {
+		let active: string | null = null;
+		let changed: (() => void) | undefined;
+		let watchable = false;
+		const update = new DesktopWindowUpdate({
+			desktopRoot: ROOT,
+			fallbackFrom: null,
+			onJoinable: () => Promise.resolve(),
+			ownVersion: '0.2.0',
+			readPointer: () => Promise.resolve(active),
+			recordEvent: () => undefined,
+			startVersionClient: () => Promise.resolve(started([])),
+			watchPointer: (_root, onChange) => {
+				if (!watchable) return null;
+				changed = onChange;
+				return () => undefined;
+			},
+		});
+		update.start();
+		await settle();
+		watchable = true;
+		const document = fakePort();
+		update.serve(document.port);
+		active = '0.3.0';
+		changed?.();
+		await settle();
+		expect(document.sent.at(-1)).toEqual({
+			type: 'desktop-window-update-offered',
+			version: '0.3.0',
+		});
+	});
+
 	it('offers nothing and checks nothing outside a version folder', async () => {
 		const readPointer = vi.fn<(root: string) => Promise<string | null>>(() =>
 			Promise.resolve('0.3.0'),

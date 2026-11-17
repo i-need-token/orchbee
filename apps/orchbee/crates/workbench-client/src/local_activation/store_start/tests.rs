@@ -55,10 +55,20 @@ fn decide_with(
     own_directory: &Path,
     active: impl FnOnce(&Path) -> io::Result<Option<ActiveRelease>>,
 ) -> Decision {
+    decide_installing(kind, own_directory, false, active)
+}
+
+fn decide_installing(
+    kind: EnvironmentKind,
+    own_directory: &Path,
+    installs: bool,
+    active: impl FnOnce(&Path) -> io::Result<Option<ActiveRelease>>,
+) -> Decision {
     decide(
         kind,
         own_directory,
         OWN_VERSION,
+        installs,
         || Ok(root()),
         active,
         |_| true,
@@ -95,6 +105,45 @@ fn without_a_pointer_the_client_starts_its_own_cohort() {
     assert_eq!(
         decide_with(EnvironmentKind::Test, &outside(), |_| Ok(None)),
         Decision::Own(Own::NoPointer)
+    );
+}
+
+/// Only "no active version" installs; every store with one keeps its decision, and a build or
+/// folder that never hands a start on never installs.
+#[test]
+fn only_a_store_without_an_active_version_is_installed_into() {
+    for kind in [EnvironmentKind::Release, EnvironmentKind::Test] {
+        assert_eq!(
+            decide_installing(kind, &outside(), true, |_| Ok(None)),
+            Decision::Install
+        );
+        assert_eq!(
+            decide_installing(kind, &outside(), true, active("0.1.0-beta.2")),
+            Decision::Own(Own::StoreLower)
+        );
+        assert_eq!(
+            decide_installing(kind, &outside(), true, |_| Err(
+                io::ErrorKind::InvalidData.into()
+            )),
+            Decision::Own(Own::PointerUnreadable)
+        );
+        assert!(matches!(
+            decide_installing(kind, &outside(), true, active(OWN_VERSION)),
+            Decision::Store(_)
+        ));
+        assert_eq!(
+            decide_installing(
+                kind,
+                &root().join("versions").join(OWN_VERSION),
+                true,
+                |_| Ok(None)
+            ),
+            Decision::Own(Own::StoreClient)
+        );
+    }
+    assert_eq!(
+        decide_installing(EnvironmentKind::Development, &outside(), true, |_| Ok(None)),
+        Decision::Own(Own::Development)
     );
 }
 

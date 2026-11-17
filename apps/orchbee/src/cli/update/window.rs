@@ -517,30 +517,39 @@ fn at(directory: &Path, relative: &str) -> PathBuf {
 /// bundle. A Client anywhere else has none.
 fn bundled_window() -> Result<PathBuf, Error> {
     let cohort = own_directory()?;
-    let folders: Vec<&Path> = cohort.ancestors().collect();
-    let named = |index: usize, name: &str| {
-        folders
-            .get(index)
-            .and_then(|folder| folder.file_name())
-            .is_some_and(|own| own == name)
-    };
-    let (shaped, depth) = if cfg!(target_os = "macos") {
-        let bundle = folders
-            .get(3)
-            .and_then(|folder| folder.extension())
-            .is_some_and(|extension| extension == "app");
-        (
-            named(0, "cohort") && named(1, "Resources") && named(2, "Contents") && bundle,
-            4,
-        )
+    let window = if cfg!(target_os = "macos") {
+        orchbee_local_runtime::bundle_of_cohort(&cohort).and_then(Path::parent)
     } else {
-        (named(0, "cohort") && named(1, "resources"), 2)
+        let mut folders = cohort.ancestors();
+        let named = |folder: Option<&Path>, name: &str| {
+            folder
+                .and_then(Path::file_name)
+                .is_some_and(|own| own == name)
+        };
+        let shaped = named(folders.next(), "cohort") && named(folders.next(), "resources");
+        folders.next().filter(|_| shaped)
     };
-    folders
-        .get(depth)
-        .filter(|_| shaped)
-        .map(|window| window.to_path_buf())
+    window
+        .map(Path::to_path_buf)
         .ok_or(Error::NotReleaseDirectory)
+}
+
+/// Whether `install` also makes the window store: on macOS, where window updates run, when the
+/// running Client is a window application's bundled one. A copy dragged from the disk image carries
+/// no window list, which sits beside the bundle because a file inside it would break its seal, so
+/// its version cannot be stored as a window version; the store gains the empty window store
+/// instead, and the window part of every later update installs the next window version there.
+pub(super) fn install_makes_store() -> bool {
+    cfg!(target_os = "macos") && window_updates_live() && bundled_window().is_ok()
+}
+
+/// Creates the window store `<root>/desktop/` with its lock and `versions/` when it is missing,
+/// under the store root's lock and then its own, as every window install takes them; a store that
+/// exists is left as it is.
+pub(super) fn make_store(root: &Path, context: &mut Context) -> Result<(), Error> {
+    context.check()?;
+    let _root = acquire(root, context)?;
+    acquire(&root.join(FOLDER), context).map(drop)
 }
 
 /// `--installer-window-v1`: installs the window directory the running Client is bundled in, as

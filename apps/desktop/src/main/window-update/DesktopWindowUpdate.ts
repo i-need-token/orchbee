@@ -38,8 +38,11 @@ export interface DesktopWindowUpdateOptions {
 	readonly recordEvent: DesktopDiagnosticRecorder;
 	/** Runs `server start --format json` through the bundled Client of window version `version`. */
 	readonly startVersionClient: (desktopRoot: string, version: string) => Promise<ServerStartAnswer>;
-	/** Calls back whenever the pointer may have changed; returns what ends the watch. */
-	readonly watchPointer: (desktopRoot: string, onChange: () => void) => () => void;
+	/**
+	 * Calls back whenever the pointer may have changed; returns what ends the watch, or null when the
+	 * folder cannot be watched now.
+	 */
+	readonly watchPointer: (desktopRoot: string, onChange: () => void) => (() => void) | null;
 }
 
 interface ServedPort {
@@ -73,13 +76,14 @@ export class DesktopWindowUpdate {
 
 	/** Reads the pointer and follows its changes; a window outside a version folder offers nothing. */
 	start(): void {
-		const root = this.#options.desktopRoot;
-		if (root === null || this.#disposed || this.#stopWatching !== undefined) return;
-		this.#stopWatching = this.#options.watchPointer(root, () => this.#refresh(root));
-		this.#refresh(root);
+		this.#follow();
 	}
 
-	/** Serves one document's port: the current offer at once and every change, and its requests. */
+	/**
+	 * Serves one document's port: the current offer at once and every change, and its requests. A
+	 * document is served once a Session start has answered, and on macOS the first start of a window
+	 * with no store makes the window store then, so a pointer folder not yet followed is tried again.
+	 */
 	serve(port: DesktopWindowUpdatePort): { close(): void } {
 		const served: ServedPort = { open: true, port };
 		this.#ports.add(served);
@@ -89,6 +93,7 @@ export class DesktopWindowUpdate {
 		});
 		port.start();
 		port.postMessage({ type: 'desktop-window-update-offered', version: this.#offer });
+		this.#follow();
 		return {
 			close: () => {
 				if (!served.open) return;
@@ -108,6 +113,17 @@ export class DesktopWindowUpdate {
 			served.port.close();
 		}
 		this.#ports.clear();
+	}
+
+	/**
+	 * Watches the pointer's folder unless it already does, and reads the pointer. A folder that cannot
+	 * be watched yet leaves the watch to the next call.
+	 */
+	#follow(): void {
+		const root = this.#options.desktopRoot;
+		if (root === null || this.#disposed || this.#stopWatching !== undefined) return;
+		this.#stopWatching = this.#options.watchPointer(root, () => this.#refresh(root)) ?? undefined;
+		this.#refresh(root);
 	}
 
 	/** One read at a time; a change seen during a read reads again once it ends. */

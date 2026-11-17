@@ -712,7 +712,8 @@ fn own_directory() -> Result<PathBuf, Error> {
 
 /// Installs the signed release directory this executable sits in and makes it the active version.
 /// A release build uses the release store root and keys; a test build its own root and the test
-/// key; a development build refuses.
+/// key; a development build refuses. Run from a macOS window application's bundled cohort, it also
+/// makes the window store, as the window's first start with no store does through it.
 pub(crate) fn install(
     no_path: bool,
     allow_downgrade: bool,
@@ -749,6 +750,7 @@ pub(crate) fn install(
             install_root: install_root.clone(),
             probe: install::version_probe,
             activation: install::run_completion,
+            window_store: window::install_makes_store(),
             completion: install::Completion {
                 path: requested,
                 allow_downgrade,

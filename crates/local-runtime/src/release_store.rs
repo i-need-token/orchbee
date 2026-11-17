@@ -121,3 +121,24 @@ pub fn is_release_version_directory(directory: &Path) -> bool {
             .and_then(name)
             .is_some_and(|parent| parent.eq_ignore_ascii_case(RELEASE_VERSIONS))
 }
+
+/// The application bundle whose bundled release directory `directory` is: `<name>.app` when
+/// `directory` is `<name>.app/Contents/Resources/cohort`, where a macOS window carries its Client.
+/// The shape alone decides, wherever the bundle lies.
+pub fn bundle_of_cohort(directory: &Path) -> Option<&Path> {
+    let mut folders = directory.ancestors();
+    let named = |folder: Option<&Path>, name: &str| {
+        folder
+            .and_then(Path::file_name)
+            .is_some_and(|own| own == name)
+    };
+    let shaped = named(folders.next(), "cohort")
+        && named(folders.next(), "Resources")
+        && named(folders.next(), "Contents");
+    folders.next().filter(|bundle| {
+        shaped
+            && bundle
+                .extension()
+                .is_some_and(|extension| extension == "app")
+    })
+}

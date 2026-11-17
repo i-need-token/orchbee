@@ -25,6 +25,7 @@ fn install(root: &Path, source: &Path) -> (Result<(), Error>, Report) {
         install_root: Ok(root.to_path_buf()),
         probe: print_probe,
         activation: in_process_completion,
+        window_store: false,
         completion: Completion {
             path: false,
             allow_downgrade: false,

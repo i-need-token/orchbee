@@ -7,6 +7,13 @@
 //! the refusal it meets, or starts its own Server as before. Each start decision writes one
 //! `session-start-source` record with tokens and counts only. Windows and macOS run it; Linux keeps
 //! starting its own cohort.
+//!
+//! On macOS the window application's bundled Client is the only installer a copy dragged from the
+//! disk image has. Where no store version is active, it first installs its own release directory
+//! with its public `install --no-path`, the route Setup and install.sh take, which also makes the
+//! window store, and hands the start to the version it installed; one `store-install` record says
+//! how that went. An install that fails or outlasts its share of the deadline changes nothing about
+//! this start: the Client starts its own cohort as before and tries again at the next start.
 use super::{ActivationFailure, StartupFailure};
 use crate::local_client::CLIENT_VERSION;
 use orchbee_local_ipc::ChildOutputReader;
@@ -40,6 +47,37 @@ const POLL: Duration = Duration::from_millis(10);
 /// `CREATE_NO_WINDOW`: the store's Client runs without a console window.
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+/// The part of the start deadline an install of this Client's own release directory leaves for
+/// the store Client's start and this Client's join; the install may use the rest.
+const INSTALL_RESERVE: Duration = Duration::from_secs(8);
+/// The `error` codes an `orchbee.install` document names (`apps/orchbee/src/cli/schemas/
+/// orchbee.install.json`), as the tokens its record carries; any other code, or another document,
+/// records `other`.
+const INSTALL_ERRORS: [&str; 23] = [
+    "development-build",
+    "not-release-directory",
+    "signing-keys-unavailable",
+    "signature-untrusted",
+    "signature-invalid",
+    "manifest-invalid",
+    "download",
+    "checksum",
+    "storage",
+    "install-location",
+    "busy",
+    "cohort-invalid",
+    "version-conflict",
+    "downgrade-refused",
+    "version-held",
+    "other-architecture",
+    "smoke-failed",
+    "activation",
+    "activation-unknown",
+    "cancelled",
+    "timeout",
+    "physical-unknown",
+    "internal",
+];
 
 /// Why a Session start stays with this Client's own cohort; each token names the reason in the log.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -82,10 +120,14 @@ impl Own {
     }
 }
 
-/// Which cohort starts the Session: the store Client at this absolute path, or this Client's own.
+/// Which cohort starts the Session: the store Client at this absolute path, the version this Client
+/// installs first, or this Client's own.
 #[derive(Debug, Eq, PartialEq)]
 pub(super) enum Decision {
     Store(PathBuf),
+    /// No store version is active and this Client may install its own release directory: the
+    /// Session then starts as the store's start rule decides afterwards.
+    Install,
     Own(Own),
 }
 
@@ -93,11 +135,14 @@ pub(super) enum Decision {
 /// own folder, which may be a store version folder; the store root; the active version the store's
 /// pointer names; this Client's version; and whether the store's Client is present in that
 /// version's folder. A fact is read only when every earlier one allows the store, so a development
-/// build or a store Client reads nothing.
+/// build or a store Client reads nothing. Without an active version, `installs` says whether this
+/// Client installs its own release directory first, as a macOS window application's bundled
+/// Client does.
 pub(super) fn decide(
     kind: EnvironmentKind,
     own_directory: &Path,
     own_version: &str,
+    installs: bool,
     store_root: impl FnOnce() -> io::Result<PathBuf>,
     active: impl FnOnce(&Path) -> io::Result<Option<ActiveRelease>>,
     client_present: impl FnOnce(&Path) -> bool,
@@ -113,6 +158,7 @@ pub(super) fn decide(
     };
     let release = match active(&root) {
         Ok(Some(release)) => release,
+        Ok(None) if installs => return Decision::Install,
         Ok(None) => return Decision::Own(Own::NoPointer),
         Err(_) => return Decision::Own(Own::PointerUnreadable),
     };
@@ -144,20 +190,30 @@ pub(super) fn start_if_absent(
     if !session_absent(base, scope) {
         return Ok(false);
     }
-    let decision = decide(
-        orchbee_local_runtime::environment_kind(),
-        own_client.parent().unwrap_or(own_client),
-        CLIENT_VERSION,
-        || orchbee_local_runtime::release_store_root(|name| std::env::var_os(name)),
-        read_active,
-        |client| admit(client).is_ok(),
-    );
+    let own_directory = own_client.parent().unwrap_or(own_client);
+    let decide_now = |installs: bool| {
+        decide(
+            orchbee_local_runtime::environment_kind(),
+            own_directory,
+            CLIENT_VERSION,
+            installs,
+            || orchbee_local_runtime::release_store_root(|name| std::env::var_os(name)),
+            read_active,
+            |client| admit(client).is_ok(),
+        )
+    };
+    let installs = cfg!(target_os = "macos")
+        && orchbee_local_runtime::bundle_of_cohort(own_directory).is_some();
+    let decision = match decide_now(installs) {
+        // The rule runs again over the store the install left, and never installs twice.
+        Decision::Install if install_own(own_client, deadline) => decide_now(false),
+        decided => decided,
+    };
     let client = match decision {
-        Decision::Own(reason) => {
-            record(reason.level(), "own", Some(reason.token()), None);
-            return Ok(false);
-        }
         Decision::Store(client) => client,
+        Decision::Own(reason) => return Ok(own(reason)),
+        // The install did not complete, so the store still has no active version.
+        Decision::Install => return Ok(own(Own::NoPointer)),
     };
     match run(&client, explicit, deadline) {
         Run::Exited(status, output) if status.success() => {
@@ -227,17 +283,83 @@ enum Run {
     Deadline,
 }
 
-/// Runs `[--session <name>] server start --format json` with the store's Client, which inherits
-/// this process's environment, so it selects the same Session, except the relaunch protocol's
-/// variable, which no process a Client starts receives. It gets null standard input and error, a
-/// bounded standard output, and a working folder no version owns, since a Session it starts
-/// outlives this Client: the system folder on Windows, where it also gets no console window, and
-/// `/` on macOS, where it leads a process group of its own, so a terminal's interrupt meant for
-/// this Client never reaches a Client that may be starting the Session.
+/// Runs `[--session <name>] server start --format json` with the store's Client, pinned while it
+/// starts, as [`wait_for`] runs a command.
 fn run(client: &Path, explicit: Option<&str>, deadline: Instant) -> Run {
     let Ok(pins) = admit(client) else {
         return Run::Failed;
     };
+    let mut command = Command::new(client);
+    if let Some(name) = explicit {
+        command.args(["--session", name]);
+    }
+    command.args(["server", "start", "--format", "json"]);
+    wait_for(command, pins, deadline)
+}
+
+/// Runs this Client's own `install --no-path --format json`, as [`wait_for`] runs a command, and
+/// waits for it until the deadline leaves [`INSTALL_RESERVE`]. Answers whether it exited 0 with an
+/// `orchbee.install` document that reports the version activated, and writes one `store-install`
+/// record: `installed`; `failed` with the document's `error` token and the exit `status`, or with
+/// `start-failed` when it could not be started or watched; or `unfinished` when its share of the
+/// deadline ran out first, in which case it keeps running and completes on its own, as a store
+/// Client's start does. Its own folder needs no admission: it is the program this process runs.
+fn install_own(own_client: &Path, deadline: Instant) -> bool {
+    let mut command = Command::new(own_client);
+    command.args(["install", "--no-path", "--format", "json"]);
+    let until = deadline
+        .checked_sub(INSTALL_RESERVE)
+        .unwrap_or_else(Instant::now);
+    let mut fields = Vec::with_capacity(3);
+    let installed = match wait_for(command, Vec::new(), until) {
+        Run::Exited(status, output) => {
+            let document = serde_json::from_slice::<serde_json::Value>(&output).ok();
+            let installed = status.success()
+                && document.as_ref().is_some_and(|document| {
+                    document["schema"] == "orchbee.install"
+                        && document["result"]["activated"] == true
+                });
+            if !installed {
+                let error = document
+                    .as_ref()
+                    .and_then(|document| document["result"]["error"].as_str())
+                    .and_then(|code| INSTALL_ERRORS.into_iter().find(|known| *known == code))
+                    .unwrap_or("other");
+                fields.push(("error", LogValue::Token(error)));
+                if let Some(code) = status.code() {
+                    fields.push(("status", LogValue::Count(u64::from(code.cast_unsigned()))));
+                }
+            }
+            installed
+        }
+        Run::Failed => {
+            fields.push(("error", LogValue::Token("start-failed")));
+            false
+        }
+        Run::Deadline => {
+            fields.insert(0, ("outcome", LogValue::Token("unfinished")));
+            orchbee_local_runtime::log_event(LogLevel::Warning, "store-install", &fields);
+            return false;
+        }
+    };
+    let (level, outcome) = if installed {
+        (LogLevel::Info, "installed")
+    } else {
+        (LogLevel::Warning, "failed")
+    };
+    fields.insert(0, ("outcome", LogValue::Token(outcome)));
+    orchbee_local_runtime::log_event(level, "store-install", &fields);
+    installed
+}
+
+/// Runs `command`, which inherits this process's environment, so it selects the same Session and
+/// store, except the relaunch protocol's variable, which no process a Client starts receives, and
+/// waits for it until `deadline`; `pins` hold its program in place until it exists. It gets null
+/// standard input and error, a bounded standard output, and a working folder no version owns, since
+/// a Session it starts outlives this Client: the system folder on Windows, where it also gets no
+/// console window, and `/` on macOS, where it leads a process group of its own, so a terminal's
+/// interrupt meant for this Client never reaches it.
+fn wait_for(mut command: Command, pins: Vec<File>, deadline: Instant) -> Run {
     #[cfg(windows)]
     let Ok(directory) = winsafe::GetSystemDirectory() else {
         return Run::Failed;
@@ -247,12 +369,7 @@ fn run(client: &Path, explicit: Option<&str>, deadline: Instant) -> Run {
     let Ok((mut reader, writer)) = ChildOutputReader::pipe() else {
         return Run::Failed;
     };
-    let mut command = Command::new(client);
-    if let Some(name) = explicit {
-        command.args(["--session", name]);
-    }
     command
-        .args(["server", "start", "--format", "json"])
         .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
         .current_dir(directory)
         .stdin(Stdio::null())
@@ -285,9 +402,10 @@ fn run(client: &Path, explicit: Option<&str>, deadline: Instant) -> Run {
             return Run::Failed;
         }
         if Instant::now() >= deadline {
-            // Ownership transfer: the store's Client keeps its own 20-second budget and exits by
-            // itself. Dropping `child` closes only this process's handle; it is never killed, since
-            // it may be the one starting the Session.
+            // Ownership transfer: the child keeps its own budget, a store Client's 20-second start
+            // or an install's own deadline, and exits by itself. Dropping `child` closes only this
+            // process's handle; it is never killed, since it may be the one starting the Session or
+            // completing an install.
             return Run::Deadline;
         }
         thread::sleep(POLL.min(deadline.saturating_duration_since(Instant::now())));
@@ -318,6 +436,13 @@ fn drain(reader: &mut impl Read, output: &mut Vec<u8>) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+/// Records that the start stays with this Client's own cohort for `reason`; answers that the store
+/// started nothing.
+fn own(reason: Own) -> bool {
+    record(reason.level(), "own", Some(reason.token()), None);
+    false
 }
 
 /// Whether the store Client's `orchbee.server.start` document says it started the Session.

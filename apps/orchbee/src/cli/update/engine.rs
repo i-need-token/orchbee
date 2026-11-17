@@ -64,6 +64,9 @@ pub(super) struct InstallInputs<'a> {
     pub(super) install_root: Result<PathBuf, Error>,
     pub(super) probe: Probe,
     pub(super) activation: Activation,
+    /// Whether the install also makes the window store, as it does from a macOS window
+    /// application's bundled cohort.
+    pub(super) window_store: bool,
     pub(super) completion: Completion,
 }
 
@@ -297,7 +300,9 @@ fn decide(
 
 /// Admits, verifies, publishes and activates the signed release directory the running Client sits
 /// in, of whichever channel it names. The held-version and lower-version refusals run before
-/// anything is copied.
+/// anything is copied. When `window_store` asks for it, the window store is made after those
+/// refusals and before the copy, so a run that fails afterwards leaves it for the next one, and a
+/// store whose runtime version is active never lacks it.
 ///
 /// # Errors
 /// Returns the first refusal or failure; `report` keeps the phase and every committed effect.
@@ -332,6 +337,9 @@ pub(super) fn install(
         Standing::Admitted | Standing::Active | Standing::Lower => {}
     }
     report.phase = "copy";
+    if inputs.window_store {
+        window::make_store(&root, context)?;
+    }
     let path = install::publish(
         &root,
         &source,

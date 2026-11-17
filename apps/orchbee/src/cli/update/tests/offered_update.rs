@@ -159,6 +159,7 @@ pub(super) fn install(fixture: &Fixture, source: &Path, allow_downgrade: bool) {
         install_root: Ok(fixture.0.join("install")),
         probe: print_probe,
         activation: in_process_completion,
+        window_store: false,
         completion: Completion {
             path: false,
             allow_downgrade,

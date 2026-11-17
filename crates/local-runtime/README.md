@@ -1427,7 +1427,10 @@ reads `active.json` through `PrivateCache::read_existing` and parses it with
 active version, and an unsafe root or pointer, or one over 16 KiB, is an error. A read that meets
 the writer's momentary rename fails like any other and may be retried. `is_release_version_directory`
 answers whether a folder has a store version folder's shape: a version name below a folder named
-`versions` in any letter case. The Client's install, update and uninstall commands and its Session
+`versions` in any letter case. `bundle_of_cohort` answers whether a folder is a macOS window's
+bundled release directory, `<name>.app/Contents/Resources/cohort`, and names the bundle; the
+Session start installs from such a folder when the store has no active version, and `install` then
+also makes the window store. The Client's install, update and uninstall commands and its Session
 start read the store through these, and the CLI's `release_store` writer takes the folder and
 pointer names and the bound from here. Reading takes no lock, creates nothing and starts no
 process.

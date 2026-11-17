@@ -109,7 +109,15 @@ same cohort, `<stem>-desktop-launcher`, with `--replace-application-v1=<this win
 third argument, before the place. Once the window has ended, the launcher replaces the bundle in
 place, or installs into `~/Applications` when its folder cannot be written, and leaves the Session
 running. Window versions reach the macOS store through `orchbee update` and install.sh's
-`--desktop` in test and release builds.
+`--desktop` in test and release builds. An application dragged from the disk image makes its store
+on its own: while the store has no active runtime version, every Session start of its bundled
+Client first installs that bundle's release directory, as `orchbee install --no-path` does, and the
+install also makes the window store `desktop/`, empty, since a copy from the image carries no
+window list to store its own version with. The bundle stays the entry, the Session runs from the
+store, and the window part of each later update installs the next window version there. An
+install that fails leaves the start to the bundle's own cohort, as before, and is tried again at
+the next start. Because `desktop/` may first appear during that start, the window follows
+`desktop/active.json` from the first document served after a start that found no folder to watch.
 
 The page has the Client authority of the Session it joined. That adds nothing to what it could
 already do by typing into a terminal. A link the page opens asks for a window, which Main refuses,
@@ -531,6 +539,9 @@ The release workflow's form, from a release directory staged and signed in a job
 `node apps/desktop/scripts/package.mjs --profile release --installer --cohort <signed cohort>`.
 An ad-hoc signed application is not notarized, so `spctl --assess` rejects it and a browser download
 meets Gatekeeper's Open Anyway steps; a download without the quarantine attribute opens directly.
+The image carries no window list beside the application, so the application's first start brings
+its runtime version into the store and makes an empty window store, as the window section above
+says, and updates reach it from then on.
 
 ### Verification
 

@@ -613,7 +613,8 @@ Citations name today's code; `orchbee.iss` is `apps/desktop/installer/windows/or
   ended, as Squirrel.Mac does, or installs into `~/Applications` when its folder cannot be written,
   and leaves the Session running ([the launcher](../../apps/orchbee-desktop-launcher/README.md#macos)).
   The window's bundled Client hands its Session start to the store as on Windows, so the swap
-  changes no program the Session starts later. The macOS window archive, its file list, the window
+  changes no program the Session starts later; with no active version it first installs its own,
+  as Setup would. The macOS window archive, its file list, the window
   part and install.sh follow in [macOS window versions](#macos-window-versions). Linux follows when
   it ships.
 
@@ -871,6 +872,16 @@ unpacking, and a bundle the launcher swaps at the click.
   `--installer-window-v1`, and copies the unpacked bundle into the Applications folder as it copied
   the disk image's, so the person's copy has the archive's modes. A release build whose window
   updates are not switched on answers the helper word as a usage error; its bundle is copied alone.
+- Chosen: an application copied from the disk image plays Setup's part at its first start. While
+  the store has no active runtime version, each Session start of its bundled Client first runs that
+  Client's `install --no-path`, which installs the bundle's release directory and makes an empty
+  window store, and then hands the start to the store as above. An install that fails leaves the
+  start with the bundle's own cohort, as before, writes one log record and is tried again at the
+  next start; nothing asks the person. The copy's own version is not stored as a window version: the
+  image carries no list beside the bundle, a list made on the person's Mac would be bound to nothing
+  the feed signed, and the launcher's fallback restores the bundle it replaced, so no stored copy is
+  needed. Rejected: Desktop Main running the install, because the bundled `orchbee` a terminal finds
+  would then start Sessions differently from the window.
 - Rejected: a tar.gz like the runtime archive, because the release check, the feed rule and the
   archive reader would split by platform; the code signature in place of the list, because a stored
   version must stay checkable against the signed feed without Apple's certificate chain, which an ad
