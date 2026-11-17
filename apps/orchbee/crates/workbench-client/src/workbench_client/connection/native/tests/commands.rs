@@ -4180,3 +4180,87 @@ fn reconcile_deadline_expiry_retains_unproven_detach_ownership() -> TestResult {
 fn identity(value: u128) -> String {
     format!("{value:032x}")
 }
+
+/// A focus poll the Server refuses settles on that pane: a viewer the Server holds no slot for is
+/// lost at once, and any other refusal releases the viewer first. A quiescent focus parks and the
+/// connection stays.
+#[test]
+fn refused_focus_poll_stays_with_the_pane() -> TestResult {
+    use crate::workbench_client::mailbox::WorkerEvent;
+    use orchbee_client_server_protocol::{ViewerRejectedReason, ViewerUnavailableReason};
+    for (outcome, releases) in [
+        (
+            TerminalViewerOutcome::Rejected {
+                reason: ViewerRejectedReason::TerminalUnavailable,
+            },
+            false,
+        ),
+        (
+            TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::WorkbenchUnavailable,
+            },
+            true,
+        ),
+    ] {
+        let geometry = fixture_geometry()?;
+        let mut kinds = vec![WireKind::Workbench];
+        kinds.extend([WireKind::Obcs; 6]);
+        if releases {
+            kinds.push(WireKind::Obcs);
+        }
+        let mut harness = Harness::start(kinds, geometry)?;
+        let (active, _controller) = drive_controlling_ready(&mut harness, geometry)?;
+        harness
+            .mailbox
+            .try_enqueue(QueuedCommand::Poll(Tagged::new(
+                harness.ui.pane_ref(&active)?,
+                (),
+            )))
+            .map_err(|error| test_error(&format!("focus Poll admission: {error:?}")))?;
+        let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
+            return Err(test_error("the focus Poll must reach the carrier"));
+        };
+        harness
+            .carrier
+            .respond_obcs(ServerMessage::TerminalViewerResult(
+                TerminalViewerResult::new(poll.request_id().clone(), outcome),
+            ))?;
+        if releases {
+            let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+                return Err(test_error("the refused Poll must release the viewer"));
+            };
+            assert!(matches!(
+                detach.action(),
+                TerminalViewerAction::Detach { .. }
+            ));
+            harness
+                .carrier
+                .respond_obcs(ServerMessage::TerminalViewerResult(
+                    TerminalViewerResult::new(
+                        detach.request_id().clone(),
+                        TerminalViewerOutcome::Detached {},
+                    ),
+                ))?;
+        }
+        let taken = harness.ui.take_next()?;
+        assert!(matches!(
+            taken.event(),
+            WorkerEvent::PaneFailed {
+                fault: crate::workbench_state::PaneFault::ViewerLost,
+                ..
+            }
+        ));
+        assert!(matches!(
+            harness.ui.settle_taken(taken, FrameCut::None)?,
+            UiEvent::PaneFailed
+        ));
+        assert_eq!(
+            harness.ui.state().phase_kind(),
+            ClientPhaseKind::RetryableAttachUnavailable
+        );
+        assert_eq!(harness.mailbox.is_closed(), None);
+        assert_eq!(harness.ui.state().desired().unwrap(), &active);
+        harness.finish()?;
+    }
+    Ok(())
+}

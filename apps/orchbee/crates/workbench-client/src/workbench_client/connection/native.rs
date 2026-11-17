@@ -323,9 +323,7 @@ enum InitialAttachResult {
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum DemandLeg {
     Applied,
-    /// The Host refused the demand; the Server keeps the viewer slot.
-    HostRefused,
-    /// Any other refusal or unavailability.
+    /// A refusal or unavailability, which can leave the viewer slot under the refused demand.
     Refused,
 }
 
@@ -1232,7 +1230,7 @@ impl ClientExecutor {
         let action = TerminalControlAction::Clear {
             attachment_id: self.viewer_id_for(key)?,
         };
-        let outcome = self.control_once_ready(lease, key, action, deadline, cutoff)?;
+        let mut outcome = self.control_once_ready(lease, key, action, deadline, cutoff)?;
         if !matches!(
             outcome,
             TerminalControlOutcome::Cleared { .. }
@@ -1240,7 +1238,9 @@ impl ClientExecutor {
                 | TerminalControlOutcome::Unavailable { .. }
                 | TerminalControlOutcome::OutcomeUnknown {}
         ) {
-            return Err(CarrierFailure::Protocol.into());
+            // An answer to another action says nothing of this clear; the pane alone hears so.
+            diagnostic_events::fault_contained(ContainedCommand::Clear, &outcome);
+            outcome = TerminalControlOutcome::OutcomeUnknown {};
         }
         self.mailbox
             .publish_notice_before(
@@ -1317,9 +1317,6 @@ impl ClientExecutor {
                 self.dispose_lost_viewer(lease, key, deadline)?;
                 Ok(None)
             }
-            TerminalViewerOutcome::Rejected {
-                reason: ViewerRejectedReason::HostRejected,
-            } => Ok(Some(DemandLeg::HostRefused)),
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
                 Ok(Some(DemandLeg::Refused))
             }
@@ -1357,9 +1354,7 @@ impl ClientExecutor {
         )?;
         let outcome = match applied {
             None => return Ok(None),
-            Some(DemandLeg::HostRefused | DemandLeg::Refused) => {
-                ViewportOutcome::Enter { applied: false }
-            }
+            Some(DemandLeg::Refused) => ViewportOutcome::Enter { applied: false },
             Some(DemandLeg::Applied) => match self.viewport_leg(
                 lease,
                 key,
@@ -1371,7 +1366,7 @@ impl ClientExecutor {
             )? {
                 None => return Ok(None),
                 Some(DemandLeg::Applied) => ViewportOutcome::Enter { applied: true },
-                Some(DemandLeg::HostRefused | DemandLeg::Refused) => match self.viewport_leg(
+                Some(DemandLeg::Refused) => match self.viewport_leg(
                     lease,
                     key,
                     TerminalViewerAction::SetHistoryDemand {
@@ -1381,8 +1376,8 @@ impl ClientExecutor {
                     deadline,
                 )? {
                     Some(DemandLeg::Applied) => ViewportOutcome::Enter { applied: false },
-                    Some(refusal) => {
-                        self.settle_refused_exit_leg(lease, key, refusal, deadline)?;
+                    Some(DemandLeg::Refused) => {
+                        self.release_refused_viewer(lease, key, deadline)?;
                         return Ok(None);
                     }
                     None => return Ok(None),
@@ -1414,8 +1409,8 @@ impl ClientExecutor {
         ] {
             match self.viewport_leg(lease, key, demand, deadline)? {
                 Some(DemandLeg::Applied) => {}
-                Some(refusal) => {
-                    self.settle_refused_exit_leg(lease, key, refusal, deadline)?;
+                Some(DemandLeg::Refused) => {
+                    self.release_refused_viewer(lease, key, deadline)?;
                     return Ok(None);
                 }
                 None => return Ok(None),
@@ -1424,55 +1419,52 @@ impl ClientExecutor {
         Ok(Some(ViewportOutcome::Recovered))
     }
 
-    /// A refused exit leg leaves the viewer outside live following. A Host
-    /// refusal keeps the Server slot under a demand the Client can no longer
-    /// name, so the viewer is released first; once the Server proves the
-    /// slot gone, the pane takes the typed loss path that parks a focus. Any
-    /// other refusal, or a release the Server does not prove, keeps the
-    /// non-typed loss boundary.
-    fn settle_refused_exit_leg(
+    /// A refused viewer request can leave the Server's slot under a demand or frame flight the
+    /// Client can no longer name: a refused exit leg leaves the viewer outside live following, and
+    /// refused frame feedback leaves frames waiting for it. The viewer is released first; once the
+    /// Server proves the slot gone, the pane takes the typed loss path, which parks a quiescent
+    /// focus and leaves every other Panel and the connection as they were. A release the Server
+    /// does not prove keeps the non-typed loss boundary.
+    fn release_refused_viewer(
         &mut self,
         lease: &CommandLease,
         key: &PaneRef,
-        refusal: DemandLeg,
         deadline: Instant,
     ) -> ReadyResult<()> {
-        if refusal == DemandLeg::HostRefused {
-            let Some((_, outcome)) = self.viewer_for_ready_lease(
-                lease,
-                key,
-                TerminalViewerAction::Detach {
-                    attachment_id: self.viewer_id_for(key)?,
-                },
-                deadline,
-            )?
-            else {
-                return Ok(());
-            };
-            match outcome {
-                TerminalViewerOutcome::Detached {}
-                | TerminalViewerOutcome::Unavailable {
-                    reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
-                } => return self.dispose_lost_viewer(lease, key, deadline),
-                TerminalViewerOutcome::Rejected { .. }
-                | TerminalViewerOutcome::Unavailable { .. } => {}
-                TerminalViewerOutcome::Attached { .. }
-                | TerminalViewerOutcome::Empty {}
-                | TerminalViewerOutcome::FeedbackAccepted {}
-                | TerminalViewerOutcome::Record(_)
-                | TerminalViewerOutcome::RowsRejected { .. } => {
-                    return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
-                }
+        let Some((_, outcome)) = self.viewer_for_ready_lease(
+            lease,
+            key,
+            TerminalViewerAction::Detach {
+                attachment_id: self.viewer_id_for(key)?,
+            },
+            deadline,
+        )?
+        else {
+            return Ok(());
+        };
+        match outcome {
+            TerminalViewerOutcome::Detached {}
+            | TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+            } => self.dispose_lost_viewer(lease, key, deadline),
+            TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
+                self.settle_pane_viewer_lost(lease, key, deadline)
+            }
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Empty {}
+            | TerminalViewerOutcome::FeedbackAccepted {}
+            | TerminalViewerOutcome::Record(_)
+            | TerminalViewerOutcome::RowsRejected { .. } => {
+                Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
             }
         }
-        self.settle_pane_viewer_lost(lease, key, deadline)
     }
 
     /// Polls run per pane incarnation: any exact member of the reconciled set
-    /// polls continuously, focused or not. Typed runtime loss disposes that
-    /// viewer; the state owner decides whether the focus may park or must
-    /// retire an active structural operation. Other focused refusals retain
-    /// the existing protocol retirement boundary.
+    /// polls continuously, focused or not; a busy Server is asked again within
+    /// the lease. A viewer the Server holds no slot for is lost, and any other
+    /// refusal releases the viewer first; either way the state owner decides
+    /// whether the focus may park or must retire an active structural operation.
     fn run_poll(&mut self, lease: &CommandLease, deadline: Instant) -> ReadyResult<()> {
         let poll_key = lease.poll_key().ok_or(CarrierFailure::Protocol)?;
         let key = poll_key.pane_ref().clone();
@@ -1523,9 +1515,14 @@ impl ClientExecutor {
             }
             TerminalViewerOutcome::Unavailable {
                 reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+            }
+            | TerminalViewerOutcome::Rejected {
+                reason: ViewerRejectedReason::TerminalUnavailable,
             } => return self.dispose_lost_viewer(lease, &key, deadline),
-            TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
-                return self.settle_pane_viewer_lost(lease, &key, deadline);
+            refused @ (TerminalViewerOutcome::Rejected { .. }
+            | TerminalViewerOutcome::Unavailable { .. }) => {
+                diagnostic_events::viewer_fault_contained(ContainedCommand::Poll, &refused);
+                return self.release_refused_viewer(lease, &key, deadline);
             }
             TerminalViewerOutcome::Attached { .. }
             | TerminalViewerOutcome::FeedbackAccepted {}
@@ -1583,13 +1580,22 @@ impl ClientExecutor {
             }
             TerminalViewerOutcome::Unavailable {
                 reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+            }
+            | TerminalViewerOutcome::Rejected {
+                reason: ViewerRejectedReason::TerminalUnavailable,
             } => {
                 self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
                 return self.dispose_lost_viewer(lease, &key, deadline);
             }
-            TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
+            // Refused feedback leaves the frame flight waiting for it.
+            refused @ (TerminalViewerOutcome::Rejected { .. }
+            | TerminalViewerOutcome::Unavailable { .. }) => {
+                diagnostic_events::viewer_fault_contained(
+                    ContainedCommand::FrameFeedback,
+                    &refused,
+                );
                 self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
-                return self.settle_pane_viewer_lost(lease, &key, deadline);
+                return self.release_refused_viewer(lease, &key, deadline);
             }
             TerminalViewerOutcome::Attached { .. }
             | TerminalViewerOutcome::Detached {}
@@ -2060,7 +2066,9 @@ impl ClientExecutor {
                 | crate::local_client::multiplex::StreamEvent::Disconnected,
             ))
             | Ok(None) => return Ok(false),
-            Err(_) => return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol)),
+            // The stream fails only when its carrier stops or closes, so the failure keeps the
+            // carrier's class, as a request on that carrier would.
+            Err(error) => return Err(ReadyFlowError::Carrier(io_failure(&error))),
         }
         let request_id = self
             .mailbox

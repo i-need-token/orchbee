@@ -6,7 +6,8 @@
 use super::mailbox::ClosedSite;
 use crate::workbench_state::CarrierFailure;
 use orchbee_client_server_protocol::{
-    ControlRejectedReason, ControlUnavailableReason, TerminalControlOutcome,
+    ControlRejectedReason, ControlUnavailableReason, TerminalControlOutcome, TerminalViewerOutcome,
+    ViewerRejectedReason, ViewerUnavailableReason,
 };
 use orchbee_local_runtime::{LogLevel, LogValue, log_event};
 use std::sync::Mutex;
@@ -18,6 +19,13 @@ pub(super) enum ContainedCommand {
     Input,
     Resize,
     HostColors,
+    /// A terminal poll the Server refused, which releases the viewer.
+    Poll,
+    /// Frame feedback the Server refused, which releases the viewer.
+    FrameFeedback,
+    /// The demand pair that asks for a fresh frame after a takeover.
+    ControlFrame,
+    Clear,
 }
 
 impl ContainedCommand {
@@ -26,6 +34,10 @@ impl ContainedCommand {
             Self::Input => "input",
             Self::Resize => "resize",
             Self::HostColors => "host-colors",
+            Self::Poll => "poll",
+            Self::FrameFeedback => "frame-feedback",
+            Self::ControlFrame => "control-frame",
+            Self::Clear => "clear",
         }
     }
 }
@@ -34,7 +46,16 @@ impl ContainedCommand {
 /// connection and every Panel. Each command and answer pair writes at most once a minute, with the
 /// number of records it suppressed since, so a refused key per keystroke cannot flood the log.
 pub(super) fn fault_contained(command: ContainedCommand, outcome: &TerminalControlOutcome) {
-    let answer = control_answer_token(outcome);
+    record(command, control_answer_token(outcome));
+}
+
+/// Records that a viewer request for `command` got `outcome` and the Client contained it to the
+/// Panel, under the same once-a-minute bound.
+pub(super) fn viewer_fault_contained(command: ContainedCommand, outcome: &TerminalViewerOutcome) {
+    record(command, viewer_answer_token(outcome));
+}
+
+fn record(command: ContainedCommand, answer: &'static str) {
     let Some(suppressed) = admit_once_a_minute(command, answer) else {
         return;
     };
@@ -76,6 +97,28 @@ const fn control_answer_token(outcome: &TerminalControlOutcome) -> &'static str 
         | TerminalControlOutcome::HostColorsAccepted {}
         | TerminalControlOutcome::Cleared { .. }
         | TerminalControlOutcome::ResetAccepted { .. } => "unexpected-answer",
+    }
+}
+
+const fn viewer_answer_token(outcome: &TerminalViewerOutcome) -> &'static str {
+    match outcome {
+        TerminalViewerOutcome::Rejected { reason } => match reason {
+            ViewerRejectedReason::AlreadyAttached => "already-attached",
+            ViewerRejectedReason::TerminalUnavailable => "terminal-unavailable",
+            ViewerRejectedReason::FeedbackMismatch => "feedback-mismatch",
+            ViewerRejectedReason::HostRejected => "host-rejected",
+        },
+        TerminalViewerOutcome::Unavailable { reason } => match reason {
+            ViewerUnavailableReason::ServerBusy => "server-busy",
+            ViewerUnavailableReason::TerminalRuntimeUnavailable => "terminal-runtime-unavailable",
+            ViewerUnavailableReason::WorkbenchUnavailable => "workbench-unavailable",
+        },
+        TerminalViewerOutcome::RowsRejected { .. } => "rows-rejected",
+        TerminalViewerOutcome::Attached { .. }
+        | TerminalViewerOutcome::FeedbackAccepted {}
+        | TerminalViewerOutcome::Detached {}
+        | TerminalViewerOutcome::Empty {}
+        | TerminalViewerOutcome::Record(_) => "unexpected-answer",
     }
 }
 

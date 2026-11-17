@@ -1063,10 +1063,10 @@ writes `link-rights` with the rights its token runs with or why it refused, and 
 token, the kind of command the connection worker held then, such as `poll` or `panel`, and the
 source directory, file stem and line of the mailbox check or Client step that closed it, never the
 path. A process exit's close writes nothing. When the TUI contains one request's fault to its
-Panel instead, such as a refused input or resize, it writes `client-fault-contained`: the command,
-the Server's answer token and the number of records suppressed since, at most once a minute for
-each command and answer. The TUI has no entry of its own: the command is one
-line in any terminal, and Desktop offers it as an Action.
+Panel instead, such as a refused input, resize, poll or frame acknowledgement, it writes
+`client-fault-contained`: the command, the Server's answer token and the number of records
+suppressed since, at most once a minute for each command and answer. The TUI has no entry of its
+own: the command is one line in any terminal, and Desktop offers it as an Action.
 
 ## Windows Panel layout queries
 

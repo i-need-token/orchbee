@@ -177,8 +177,13 @@ shared HostViewers capacity of 8 applies across all visible panes, and read-only
 acquire control or resize.
 
 A typed viewer `TerminalRuntimeUnavailable` response for an exact live pane disposes that viewer
-locally. So does a viewport exit leg the Host refuses, once `Detach` proves its Server slot
-released ([native-terminal-viewport.md](native-terminal-viewport.md#commands-and-demand-legs)).
+locally, as does `Rejected{TerminalUnavailable}`, which says the Server holds no slot for it; a
+busy Server is asked again within the command's lease. Any other refusal of a poll, of frame
+feedback, of the fresh-frame demand after a takeover or of a viewport exit leg leaves the Server
+slot under a state the Client can no longer name, so the worker sends `Detach` first and disposes
+the viewer once the Server proves the slot released
+([native-terminal-viewport.md](native-terminal-viewport.md#commands-and-demand-legs)); each such
+refusal writes a throttled `client-fault-contained` record.
 For the focused pane this is allowed in `Ready` beside every owner that can itself begin
 from a parked focus and keeps its premises when one parks: close work (a Tab, Panel or Workspace
 close confirmation, a retained Tab close, or unresolved Workspace close evidence), a rename or

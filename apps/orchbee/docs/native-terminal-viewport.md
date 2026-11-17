@@ -156,11 +156,11 @@ and recovery on reaching the live tail. Entry refusal leaves the pane Live witho
 - `Recover` — `SetHistoryDemand(FollowingBottom)` then `SetProjectionDemand(Active)`. A failed
   leg is a refused exit leg. Success publishes `ViewportOutcome::Recovered`.
 
-A refused exit leg leaves the viewer outside live following. `Rejected{HostRejected}` keeps the
-Server slot under a demand the Client can no longer name, so the worker sends `Detach` first. A
-`Detached` answer, or a typed runtime loss, disposes the viewer and publishes the typed
-`ViewerLost` fault, which parks a focused pane like any other typed runtime loss. Any other
-refusal, or a release the Server does not prove, faults the pane.
+A refused exit leg leaves the viewer outside live following, and a refusal can keep the Server
+slot under a demand the Client can no longer name, so the worker sends `Detach` first for every
+refused exit leg. A `Detached` answer, or a typed runtime loss, disposes the viewer and publishes
+the typed `ViewerLost` fault, which parks a focused pane like any other typed runtime loss. A
+release the Server does not prove faults the pane.
 
 Every outcome travels back as a fire-and-forget `WorkerEvent::ViewportOutcome` notice:
 `publish_notice_before` deposits it with no wait key and no expected reply, the UI's

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn wrong_id_transport_loss_and_other_unavailability_cannot_open_peer_recovery() -> TestResult {
+fn wrong_id_transport_loss_and_other_answers_cannot_open_peer_recovery() -> TestResult {
     for kind in 0..3 {
         let geometry = fixture_geometry()?;
         let server = FakeServer::start(move |stream| {
@@ -21,17 +21,18 @@ fn wrong_id_transport_loss_and_other_unavailability_cannot_open_peer_recovery() 
             } else {
                 poll.request_id().clone()
             };
-            let reason = if kind == 0 {
-                orchbee_client_server_protocol::ViewerUnavailableReason::TerminalRuntimeUnavailable
+            // A Poll answered as a Detach breaks the viewer contract and retires.
+            let outcome = if kind == 0 {
+                TerminalViewerOutcome::Unavailable {
+                    reason:
+                        orchbee_client_server_protocol::ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                }
             } else {
-                orchbee_client_server_protocol::ViewerUnavailableReason::WorkbenchUnavailable
+                TerminalViewerOutcome::Detached {}
             };
             write_server_message(
                 &mut stream,
-                &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
-                    id,
-                    TerminalViewerOutcome::Unavailable { reason },
-                )),
+                &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(id, outcome)),
             )
             .map_err(io::Error::other)?;
             let mut byte = [0; 1];

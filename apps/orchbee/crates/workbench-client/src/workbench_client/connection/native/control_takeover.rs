@@ -14,7 +14,8 @@ use crate::workbench_state::control_takeover::{
 use crate::workbench_state::{CarrierFailure, ControllerMode};
 use orchbee_client_server_protocol::{
     ControlRejectedReason, ProjectionDemand, TerminalControlAction, TerminalControlOutcome,
-    TerminalControlRequest, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalControlRequest, TerminalViewerAction, TerminalViewerOutcome, ViewerRejectedReason,
+    ViewerUnavailableReason,
 };
 
 /// How often an attachment that has held a grant or activated rereads published ownership.
@@ -157,7 +158,10 @@ impl ClientExecutor {
                         self.set_accepted_geometry(&operation.key, geometry)?;
                         // A self-grant or same-size handoff need not change terminal content.
                         // Re-arm this Viewer so the UI's handoff gate always has a fresh full
-                        // frame to draw and acknowledge, without replacing the attachment.
+                        // frame to draw and acknowledge, without replacing the attachment. The
+                        // grant and size already hold, so a refused re-arm leaves the frame
+                        // requested and the pane's next poll asks again.
+                        let mut rearmed = true;
                         for demand in [ProjectionDemand::Paused, ProjectionDemand::Active] {
                             self.ensure_before(cutoff)?;
                             match self.viewer_once(
@@ -168,19 +172,20 @@ impl ClientExecutor {
                                 cutoff,
                             )? {
                                 TerminalViewerOutcome::FeedbackAccepted {} => {}
-                                TerminalViewerOutcome::Attached { .. }
-                                | TerminalViewerOutcome::Empty { .. }
-                                | TerminalViewerOutcome::Detached { .. }
-                                | TerminalViewerOutcome::Rejected { .. }
-                                | TerminalViewerOutcome::RowsRejected { .. }
-                                | TerminalViewerOutcome::Unavailable { .. }
-                                | TerminalViewerOutcome::Record(..) => {
-                                    return Err(CarrierFailure::Transport);
+                                refused => {
+                                    diagnostic_events::viewer_fault_contained(
+                                        ContainedCommand::ControlFrame,
+                                        &refused,
+                                    );
+                                    rearmed = false;
+                                    break;
                                 }
                             }
                         }
-                        self.attached_mut(&operation.key)?.control_frame =
-                            Some(super::ControlFrame::Waiting);
+                        if rearmed {
+                            self.attached_mut(&operation.key)?.control_frame =
+                                Some(super::ControlFrame::Waiting);
+                        }
                         self.retain_takeover_result(
                             &operation,
                             TakeoverResult::Ready(controller_id),
@@ -328,8 +333,22 @@ impl ClientExecutor {
             else {
                 return Ok(());
             };
-            if !matches!(outcome, TerminalViewerOutcome::FeedbackAccepted {}) {
-                return Err(CarrierFailure::Protocol.into());
+            match outcome {
+                TerminalViewerOutcome::FeedbackAccepted {} => {}
+                TerminalViewerOutcome::Unavailable {
+                    reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                }
+                | TerminalViewerOutcome::Rejected {
+                    reason: ViewerRejectedReason::TerminalUnavailable,
+                } => return self.dispose_lost_viewer(lease, key, deadline),
+                // A refusal can leave the viewer paused: release it rather than wait for frames.
+                refused => {
+                    diagnostic_events::viewer_fault_contained(
+                        ContainedCommand::ControlFrame,
+                        &refused,
+                    );
+                    return self.release_refused_viewer(lease, key, deadline);
+                }
             }
         }
         self.attached_mut(key)?.control_frame = Some(super::ControlFrame::Waiting);

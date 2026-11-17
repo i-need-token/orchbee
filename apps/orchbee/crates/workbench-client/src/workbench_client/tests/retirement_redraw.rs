@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn poll_unavailable_retirement_during_geometry_requests_one_redraw() -> TestResult {
+fn poll_failure_retirement_during_geometry_requests_one_redraw() -> TestResult {
     for (refreshing, draw_before_tick) in
         [(false, false), (true, false), (false, true), (true, true)]
     {
@@ -31,6 +31,27 @@ fn poll_unavailable_retirement_during_geometry_requests_one_redraw() -> TestResu
                 &mut stream,
                 &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
                     poll.request_id().clone(),
+                    TerminalViewerOutcome::Unavailable {
+                        reason: orchbee_client_server_protocol::ViewerUnavailableReason::WorkbenchUnavailable,
+                    },
+                )),
+            )
+            .map_err(io::Error::other)?;
+            // The refused Poll releases the focus viewer; a release the Server does not prove
+            // keeps the retirement boundary.
+            let ClientMessage::TerminalViewer(detach) =
+                read_client_message(&mut stream).map_err(io::Error::other)?
+            else {
+                return Err(io::Error::other("expected the releasing Detach"));
+            };
+            assert!(matches!(
+                detach.action(),
+                TerminalViewerAction::Detach { .. }
+            ));
+            write_server_message(
+                &mut stream,
+                &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                    detach.request_id().clone(),
                     TerminalViewerOutcome::Unavailable {
                         reason: orchbee_client_server_protocol::ViewerUnavailableReason::WorkbenchUnavailable,
                     },
