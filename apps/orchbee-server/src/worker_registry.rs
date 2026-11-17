@@ -34,6 +34,9 @@ struct ActiveCarrier {
     _shutdown: WorkerCarrierShutdown,
     request_handle: WorkerRequestHandle,
     drain_mint: Arc<AgentDrainMint>,
+    /// Whether the Session's jobs may use this carrier. A replacement Worker serves only once it
+    /// has adopted its Host, so `AdoptHost` is the first request it receives.
+    serving: bool,
 }
 
 #[derive(Debug)]
@@ -203,7 +206,7 @@ impl WorkerRegistry {
         generation: NonZeroU64,
         carrier: WorkerCarrier,
     ) -> Option<RegisteredWorkerWireOwner> {
-        Self::register_carrier_impl(registry, generation, carrier, None)
+        Self::register_carrier_impl(registry, generation, carrier, None, true)
     }
 
     /// The managed consumer of the same registration path: identical checks and
@@ -220,7 +223,18 @@ impl WorkerRegistry {
         carrier: WorkerCarrier,
         agents: &Arc<AgentService>,
     ) -> Option<RegisteredWorkerWireOwner> {
-        Self::register_carrier_impl(registry, generation, carrier, Some(agents))
+        Self::register_carrier_impl(registry, generation, carrier, Some(agents), true)
+    }
+
+    /// [`Self::register_carrier_with_agents`] for a replacement Worker, whose carrier serves no
+    /// job until [`Self::serve_adopted`]: until then only [`Self::adopting_handle`] reaches it.
+    pub(crate) fn register_replacement_with_agents(
+        registry: &Arc<Mutex<Self>>,
+        generation: NonZeroU64,
+        carrier: WorkerCarrier,
+        agents: &Arc<AgentService>,
+    ) -> Option<RegisteredWorkerWireOwner> {
+        Self::register_carrier_impl(registry, generation, carrier, Some(agents), false)
     }
 
     fn register_carrier_impl(
@@ -228,6 +242,7 @@ impl WorkerRegistry {
         generation: NonZeroU64,
         carrier: WorkerCarrier,
         agents: Option<&Arc<AgentService>>,
+        serving: bool,
     ) -> Option<RegisteredWorkerWireOwner> {
         let mut registry_guard = registry.lock().ok()?;
         let viewer_ready = registry_guard.viewer_ready_routes();
@@ -283,6 +298,7 @@ impl WorkerRegistry {
             _shutdown: shutdown,
             request_handle,
             drain_mint,
+            serving,
         });
         drop(registry_guard);
         // Before the wire owner runs, so no note of this generation precedes it.
@@ -304,9 +320,38 @@ impl WorkerRegistry {
         self.active
             .as_ref()
             .and_then(|active| active.carrier.as_ref())
+            .filter(|carrier| carrier.serving)
             .map(|carrier| &carrier.request_handle)
             .filter(|request_handle| request_handle.is_active())
             .cloned()
+    }
+
+    /// The live carrier of a replacement Worker that has not adopted its Host yet.
+    pub(crate) fn adopting_handle(&self) -> Option<WorkerRequestHandle> {
+        self.active
+            .as_ref()
+            .and_then(|active| active.carrier.as_ref())
+            .filter(|carrier| !carrier.serving)
+            .map(|carrier| &carrier.request_handle)
+            .filter(|request_handle| request_handle.is_active())
+            .cloned()
+    }
+
+    /// Lets the Session's jobs use the replacement carrier of `generation` once it adopted its
+    /// Host. Returns whether that carrier is still the registered one; a carrier that ended since
+    /// still serves no job, since [`Self::request_handle`] skips an ended carrier.
+    pub(crate) fn serve_adopted(&mut self, generation: NonZeroU64) -> bool {
+        match self.active.as_mut() {
+            Some(ActiveWorker {
+                carrier: Some(carrier),
+                generation: active,
+                ..
+            }) if *active == generation => {
+                carrier.serving = true;
+                true
+            }
+            _ => false,
+        }
     }
 
     pub(crate) fn cancel_pending_admission(&mut self, generation: NonZeroU64) -> bool {
@@ -402,7 +447,7 @@ impl WorkerRegistry {
         let Some(carrier) = active.carrier.as_ref() else {
             return AgentDrainCarrier::CarrierUnavailable;
         };
-        if !carrier.request_handle.is_active() {
+        if !carrier.serving || !carrier.request_handle.is_active() {
             return AgentDrainCarrier::CarrierUnavailable;
         }
         let Ok(worker_id) = CapabilityWorkerId::from_bytes(active.worker_id.as_bytes()) else {

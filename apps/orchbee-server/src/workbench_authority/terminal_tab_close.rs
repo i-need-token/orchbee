@@ -27,6 +27,8 @@ mod coordination;
 mod operation_read;
 mod publication;
 mod reservation;
+mod worker_replacement;
+pub use worker_replacement::WorkbenchTabCloseInFlight;
 
 pub use admission::{
     PreparedWorkbenchTabClose, WorkbenchTabCloseAdmission, WorkbenchTabCloseBegin,

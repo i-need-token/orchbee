@@ -59,7 +59,30 @@ const EXIT_REPLY_WINDOW: std::time::Duration = std::time::Duration::from_secs(40
 #[derive(Clone, Debug)]
 pub(crate) struct ServerIdentity {
     profile: AcceptorProfile,
-    worker: Option<NonZeroU32>,
+    worker: ServingWorker,
+}
+
+/// The process identifier of the Worker that serves this Server now, shared with the owner that
+/// replaces a lost Worker: none while no Worker serves, so `query` lists none.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ServingWorker(Arc<std::sync::atomic::AtomicU32>);
+
+impl ServingWorker {
+    fn new(worker: Option<u32>) -> Self {
+        Self(Arc::new(std::sync::atomic::AtomicU32::new(
+            worker.unwrap_or(0),
+        )))
+    }
+
+    /// Records the Worker that serves now, or none.
+    pub(crate) fn set(&self, worker: Option<u32>) {
+        self.0
+            .store(worker.unwrap_or(0), std::sync::atomic::Ordering::Release);
+    }
+
+    pub(crate) fn get(&self) -> Option<NonZeroU32> {
+        NonZeroU32::new(self.0.load(std::sync::atomic::Ordering::Acquire))
+    }
 }
 
 impl ServerIdentity {
@@ -79,8 +102,13 @@ impl ServerIdentity {
                 build,
                 orchbee_local_runtime::environment_name(),
             ),
-            worker: worker.and_then(NonZeroU32::new),
+            worker: ServingWorker::new(worker),
         }
+    }
+
+    /// The shared record of the Worker this identity lists.
+    pub(crate) fn serving_worker(&self) -> ServingWorker {
+        self.worker.clone()
     }
 }
 

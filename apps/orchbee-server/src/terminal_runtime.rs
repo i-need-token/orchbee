@@ -13,13 +13,6 @@ use std::{
 };
 
 /// What the Session's terminals can do now.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the Worker replacement sets Reconnecting and GivenUp"
-    )
-)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TerminalRuntimeState {
     /// A Worker serves the terminals.
@@ -61,10 +54,6 @@ impl Default for TerminalRuntime {
 impl TerminalRuntime {
     /// Records `state`; when it differs from the current one, the revision advances and every
     /// watcher wakes.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the Worker replacement sets the state")
-    )]
     pub(crate) fn set(&self, state: TerminalRuntimeState) {
         let mut current = self.lock();
         if current.state == state {

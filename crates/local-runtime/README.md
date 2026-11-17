@@ -771,24 +771,25 @@ polling, and first-frame waiting consume this same budget. A delayed localized p
 appears after 500 ms; normal fast startup is silent. This is a cooperative deadline, excluding
 kernel/filesystem stalls and process suspension. Timeout closes only the Client connection.
 
-| State / observation                                                        | Action and next state                                                                        |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Admitted compatible Client socket                                          | Reuse that exact connection; no process launch                                               |
-| Definite absent/refused socket, activation lock contended                  | Wait and retry connection until the original deadline                                        |
-| Activation lock acquired                                                   | Recheck socket and lifetime before any launch                                                |
-| No marker, lifetime free                                                   | Client exclusively creates `activation.started`, then spawns Server once                     |
-| Marker present, lifetime held                                              | Wait for compatible Server + Worker readiness                                                |
-| Marker present, lifetime and Host lock free                                | Catalog records Crashed, then a fresh generation commits and spawns Server once              |
-| Marker present, lifetime free, Host lock held past 3 s                     | RecoveryRequired; never launch                                                               |
-| No marker, lifetime held                                                   | A Server is completing its stop; wait, then start again once it releases the lifetime lock   |
-| Socket refuses with `stopping`                                             | A stop is ending that Server; drop the activation lock, then start over once it ends         |
-| Invalid socket / cohort / permissions, incompatible or ambiguous admission | Explicit failure; no fallback                                                                |
-| Launch failure after marker creation                                       | Retain marker; this attempt reports RecoveryRequired and a later one recovers it as above    |
-| Server + Worker ready                                                      | Release activation lock, read Workspace membership, attach an existing binding when selected |
-| First validated frame applied before deadline                              | Enter TUI with the same inherited TTY and prepared Session                                   |
-| Client exit / deadline                                                     | Release Client resources; retain Server, Worker, Host, and terminal                          |
-| Worker / Host loss                                                         | Unavailable or unknown outcome; never respawn, adopt, or replay                              |
-| Server `SIGTERM` / `SIGINT`, Worker exited and Host gone                   | Server's normal stop; Stopped receipt, socket files removed, lifetime released               |
+| State / observation                                                        | Action and next state                                                                                                         |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Admitted compatible Client socket                                          | Reuse that exact connection; no process launch                                                                                |
+| Definite absent/refused socket, activation lock contended                  | Wait and retry connection until the original deadline                                                                         |
+| Activation lock acquired                                                   | Recheck socket and lifetime before any launch                                                                                 |
+| No marker, lifetime free                                                   | Client exclusively creates `activation.started`, then spawns Server once                                                      |
+| Marker present, lifetime held                                              | Wait for compatible Server + Worker readiness                                                                                 |
+| Marker present, lifetime and Host lock free                                | Catalog records Crashed, then a fresh generation commits and spawns Server once                                               |
+| Marker present, lifetime free, Host lock held past 3 s                     | RecoveryRequired; never launch                                                                                                |
+| No marker, lifetime held                                                   | A Server is completing its stop; wait, then start again once it releases the lifetime lock                                    |
+| Socket refuses with `stopping`                                             | A stop is ending that Server; drop the activation lock, then start over once it ends                                          |
+| Invalid socket / cohort / permissions, incompatible or ambiguous admission | Explicit failure; no fallback                                                                                                 |
+| Launch failure after marker creation                                       | Retain marker; this attempt reports RecoveryRequired and a later one recovers it as above                                     |
+| Server + Worker ready                                                      | Release activation lock, read Workspace membership, attach an existing binding when selected                                  |
+| First validated frame applied before deadline                              | Enter TUI with the same inherited TTY and prepared Session                                                                    |
+| Client exit / deadline                                                     | Release Client resources; retain Server, Worker, Host, and terminal                                                           |
+| Worker loss                                                                | The Server replaces the Worker, which adopts the running Host; in-flight outcomes stay unavailable or unknown, never replayed |
+| Host loss                                                                  | Unavailable or unknown outcome; never respawn or replay                                                                       |
+| Server `SIGTERM` / `SIGINT`, Worker exited and Host gone                   | Server's normal stop; Stopped receipt, socket files removed, lifetime released                                                |
 
 `activation.started` is an immutable, empty, regular, single-link, effective-user-owned 0600
 file. The Client is its sole writer, using descriptor-relative O_EXCL, CLOEXEC, and NOFOLLOW.
@@ -826,7 +827,10 @@ failed start that may leave a Host process is the exception: a Host still runnin
 window ends, or any Windows start failure from the Host's registration on, since that registration
 outlives the process. The Worker then answers the Launch and exits, so no later start can meet that
 Host. Any existing Host endpoint is an explicit recovery failure.
-No Host reconnect/adoption is allowed.
+A Worker reaches an existing Host only as the managed Server's replacement Worker, through
+`AdoptHost` (see the
+[Server's Worker replacement](../../apps/orchbee-server/README.md#managed-worker-replacement));
+nothing else reconnects to or adopts a Host.
 
 ## Development cohort contract
 
@@ -1022,9 +1026,15 @@ policy, retry, or grant recovery authority.
 
 ## Windows refinement
 
-`RetainedChild::terminate_before` explicitly terminates only the exact held process and confirms
-its exit before a cooperative deadline. It does not terminate descendants. Managed startup uses
-it only before the Worker can create a Host; later cleanup belongs to the Worker shutdown protocol.
+`RetainedChild::terminate_before` explicitly terminates only the exact held process, on POSIX the
+unreaped child by `SIGKILL`, and confirms its exit before a cooperative deadline. It does not
+terminate descendants. Managed startup uses it before the Worker can create a Host, and the
+Server's Worker supervision to prove a lost Worker gone and to end a replacement that will not
+serve; later cleanup belongs to the Worker shutdown protocol. `RetainedSessionRecord::host_presence`
+reports the current generation's Host for that supervision: on Windows not started, spawning, gone,
+running with its registered process ID and creation time, or unknown, where a live process with the
+registered ID but another creation time is gone; on POSIX running while a process holds the Host
+lock, and gone otherwise. It grants no termination authority.
 Dropping `RetainedChild` continues to release observation ownership without terminating anything.
 `RetainedChild::id` reports the held process identifier, which the Server lists for its Worker in
 the handshake's `query` reply.

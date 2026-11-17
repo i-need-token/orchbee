@@ -57,6 +57,31 @@ impl RetainedChild {
             None => Ok(None),
         }
     }
+    /// Terminates this exact process and waits for its exit until `deadline`; descendants remain
+    /// the caller's. The child is still unreaped while held, so its identifier cannot name another
+    /// process.
+    pub fn terminate_before(&mut self, deadline: std::time::Instant) -> io::Result<ExitStatus> {
+        if let Some(status) = self.try_wait()? {
+            return Ok(status);
+        }
+        let id = self.id().ok_or(io::ErrorKind::NotFound)?;
+        let pid = nix::unistd::Pid::from_raw(
+            i32::try_from(id).map_err(|_| io::Error::from(io::ErrorKind::InvalidData))?,
+        );
+        if let Err(error) = nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGKILL) {
+            // The child can exit between the first wait and the signal.
+            return self.try_wait()?.ok_or_else(|| io::Error::from(error));
+        }
+        loop {
+            if let Some(status) = self.try_wait()? {
+                return Ok(status);
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
 }
 impl Drop for RetainedChild {
     fn drop(&mut self) {

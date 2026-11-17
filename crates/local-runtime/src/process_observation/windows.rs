@@ -46,6 +46,23 @@ impl ProcessSnapshot {
     }
 }
 
+/// What the Host registration of `processes` names now. A live process with the registered ID but
+/// another creation time is another process, so the registered Host is gone.
+pub(crate) fn host_presence(processes: &SessionProcesses) -> crate::HostPresence {
+    match processes.registration(ProcessRole::Host) {
+        Registration::NotStarted => crate::HostPresence::NotStarted,
+        Registration::Spawning => crate::HostPresence::Spawning,
+        Registration::Identified { identity } => match observe(identity).0 {
+            ProcessObservation::Gone => crate::HostPresence::Gone,
+            ProcessObservation::Present(observed) if observed == identity => {
+                crate::HostPresence::Running(Some((identity.pid(), identity.creation_time())))
+            }
+            ProcessObservation::Present(_) => crate::HostPresence::Gone,
+            ProcessObservation::Unknown => crate::HostPresence::Unknown,
+        },
+    }
+}
+
 /// Whether `role`'s registration has no live process: never started, or exact identity gone.
 /// A reserved spawn and an unknown observation are not absence.
 pub(crate) fn role_absent(processes: &SessionProcesses, role: ProcessRole) -> bool {

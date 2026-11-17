@@ -5,8 +5,8 @@
 use std::num::NonZeroU64;
 
 use orchbee_capability_node_protocol::{
-    CapabilityNodeMessage, DeclinedRequestKind, LifecycleStepOrdinal, OperationId,
-    WorkerRequestDeclined,
+    AdoptHostPageKey, CapabilityNodeMessage, DeclinedRequestKind, LifecycleStepOrdinal,
+    OperationId, WorkerRequestDeclined,
 };
 
 use super::WorkerOperationRequest;
@@ -44,6 +44,7 @@ pub(super) enum ReplyKey {
     WorktreeJob(OperationId),
     AgentIntegrationJob(OperationId),
     AgentProbeJob(OperationId),
+    AdoptHost(AdoptHostPageKey),
 }
 
 impl ReplyKey {
@@ -92,6 +93,7 @@ impl ReplyKey {
             WorkerOperationRequest::AgentProbeJob(request) => {
                 Self::AgentProbeJob(request.operation_id)
             }
+            WorkerOperationRequest::AdoptHost(request) => Self::AdoptHost(request.key()),
         }
     }
 
@@ -168,6 +170,7 @@ impl ReplyKey {
             (Self::AgentProbeJob(id), Message::AgentProbeJobResult(result)) => {
                 result.operation_id == id
             }
+            (Self::AdoptHost(key), Message::AdoptHostResult(result)) => result.key() == key,
             (key, Message::WorkerRequestDeclined(declined)) => key.declined() == *declined,
             _ => false,
         }
@@ -201,6 +204,7 @@ impl ReplyKey {
             Self::WorktreeJob(id) => (Kind::WorktreeJob, id),
             Self::AgentIntegrationJob(id) => (Kind::AgentIntegrationJob, id),
             Self::AgentProbeJob(id) => (Kind::AgentProbeJob, id),
+            Self::AdoptHost(key) => (Kind::AdoptHost, key.adoption_id),
         };
         WorkerRequestDeclined::operation(kind, id)
     }

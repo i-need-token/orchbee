@@ -144,7 +144,7 @@ mod registered_child;
 pub use activation_record::{ActivationState, RetainedActivationRecord};
 pub use registered_child::{SessionChild, SessionChildStep, spawn_session_child};
 mod durable_sessions;
-pub use durable_sessions::RetainedSessionRecord;
+pub use durable_sessions::{HostPresence, RetainedSessionRecord};
 mod checkpoint_restore_notice;
 mod checkpoint_rotation;
 mod layout_history;

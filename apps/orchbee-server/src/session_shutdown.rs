@@ -117,6 +117,13 @@ impl SessionShutdown {
             .is_some()
     }
 
+    /// Whether a Session stop is recorded or an `exit` asked this Server to end. A Worker
+    /// replacement in progress ends at its next step boundary once either holds.
+    pub(crate) fn ending(&self) -> bool {
+        let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        state.entry.is_some() || state.course >= Course::Exiting
+    }
+
     /// The state a `query` or `drain` reports: `stopping` once a Session stop or an `exit` is
     /// recorded, `draining` after a `drain`, `ready` otherwise.
     pub(crate) fn process_state(&self) -> ProcessState {

@@ -22,16 +22,18 @@ Faults the Server survives, and the ones it cannot contain, are recorded too. A 
 tokens, counts and flags only: never a panic message, request or terminal content, a path, or an
 error's text.
 
-| Record                    | Written when                                                                                                                                                                                                                                                                                  | Fields                                                                                                                                                                                                       |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `listener-fault`          | The Client listener or the Agent observation endpoint fails to accept, admit or start a handler for one candidate, or its wait fails, and pauses before accepting again                                                                                                                       | `listener` (`client`, `agent-observation`), `stage`, `error` (I/O error kind or `none`), `pauseMs`, `suppressed`                                                                                             |
-| `candidate-dropped`       | A candidate is closed before it is served: Client handshake transport setup, peer credentials, a poisoned registry, an exhausted generation, an unencodable reply or query result; an observation connection that cannot be made nonblocking or arrives over capacity                         | `operation`, `stage`, `cause` (I/O error kind, `protocol` or `none`), `suppressed`                                                                                                                           |
-| `worker-request-failed`   | One Worker request failed while its connection kept serving: no reply within its window, an invalid whole frame, a mismatched reply, or a window that passed while it waited unwritten behind an owed reply; or a connection cleanup's caller stopped waiting while the cleanup stayed queued | `request`, `failure`, `error` (I/O error kind, protocol error or `none`), `elapsedMs`, `suppressed`                                                                                                          |
-| `worker-reply-dropped`    | The Worker connection dropped a whole frame that answered no request and kept serving: a late reply to a request that already failed, an unmatched reply, or invalid content                                                                                                                  | `cause` (`late`, `unmatched`, `invalid`), `request` (`none` when unknown), `error`, `lateMs` for a late reply, `suppressed`                                                                                  |
-| `client-stream-failed`    | The Server closed one Client stream while that Client's connection kept serving: its request did not decode, its read or intent failed, or its record could not be delivered                                                                                                                  | `stage` (`open`, `job-read`, `update`, `resnapshot`), `failure` (the connection stage, `invalid-request`, `record-size`, `budget`), `close` (`invalid-request`, `capacity`, `outcome-unknown`), `suppressed` |
-| `worker-connection-ended` | The Worker connection ends, or its thread cannot start                                                                                                                                                                                                                                        | `exit`, `failure`, `error`, `request` with `elapsedMs` since it was sent, `afterShutdown`, `workerProcess` (`not-held`, `running`, `exited`, `unknown`), `workerExitCode`                                    |
-| `panicked`                | Any Server thread panics; the panic still ends only that thread                                                                                                                                                                                                                               | `thread` (the program's own thread names, else `other` or `unnamed`), `file` stem, `line`, `suppressed`                                                                                                      |
-| `state-poisoned`          | The Session coordinator or the Agent fold lock is first observed poisoned                                                                                                                                                                                                                     | `lock` (`coordinator`, `agent-fold`)                                                                                                                                                                         |
+| Record                    | Written when                                                                                                                                                                                                                                                                                  | Fields                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `listener-fault`          | The Client listener or the Agent observation endpoint fails to accept, admit or start a handler for one candidate, or its wait fails, and pauses before accepting again                                                                                                                       | `listener` (`client`, `agent-observation`), `stage`, `error` (I/O error kind or `none`), `pauseMs`, `suppressed`                                                                                                                                                                                                                                                    |
+| `candidate-dropped`       | A candidate is closed before it is served: Client handshake transport setup, peer credentials, a poisoned registry, an exhausted generation, an unencodable reply or query result; an observation connection that cannot be made nonblocking or arrives over capacity                         | `operation`, `stage`, `cause` (I/O error kind, `protocol` or `none`), `suppressed`                                                                                                                                                                                                                                                                                  |
+| `worker-request-failed`   | One Worker request failed while its connection kept serving: no reply within its window, an invalid whole frame, a mismatched reply, or a window that passed while it waited unwritten behind an owed reply; or a connection cleanup's caller stopped waiting while the cleanup stayed queued | `request`, `failure`, `error` (I/O error kind, protocol error or `none`), `elapsedMs`, `suppressed`                                                                                                                                                                                                                                                                 |
+| `worker-reply-dropped`    | The Worker connection dropped a whole frame that answered no request and kept serving: a late reply to a request that already failed, an unmatched reply, or invalid content                                                                                                                  | `cause` (`late`, `unmatched`, `invalid`), `request` (`none` when unknown), `error`, `lateMs` for a late reply, `suppressed`                                                                                                                                                                                                                                         |
+| `client-stream-failed`    | The Server closed one Client stream while that Client's connection kept serving: its request did not decode, its read or intent failed, or its record could not be delivered                                                                                                                  | `stage` (`open`, `job-read`, `update`, `resnapshot`), `failure` (the connection stage, `invalid-request`, `record-size`, `budget`), `close` (`invalid-request`, `capacity`, `outcome-unknown`), `suppressed`                                                                                                                                                        |
+| `worker-connection-ended` | The Worker connection ends, or its thread cannot start                                                                                                                                                                                                                                        | `exit`, `failure`, `error`, `request` with `elapsedMs` since it was sent, `afterShutdown`, `workerProcess` (`not-held`, `running`, `exited`, `unknown`), `workerExitCode`                                                                                                                                                                                           |
+| `worker-lost`             | The managed Server lost its Worker and decided what follows, once per lost generation                                                                                                                                                                                                         | `generation`, `cause` (`exited`, or `disconnected` when the Server ended a process still running), `exitCode` or `exitSignal` when known, `attempts` in the cap's window, `action` (`replace`, `stop`, `give-up`), and for the last two `reason` (`stop-admitted`, `worker-not-gone`, `host-gone`, `host-spawning`, `host-unverified`, `cap-reached`)               |
+| `worker-replaced`         | One replacement attempt adopted the Host or failed                                                                                                                                                                                                                                            | `generation` once admitted, `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `stage` (`create`, `admit`, `adopt`), the `failure` (an `AdoptHost` failure, `timed-out`, `declined`, `exited`, `protocol`, `unavailable`, or an I/O error kind) and `next` (`retry`, `stop`, `give-up`); `elapsedMs` |
+| `panicked`                | Any Server thread panics; the panic still ends only that thread                                                                                                                                                                                                                               | `thread` (the program's own thread names, else `other` or `unnamed`), `file` stem, `line`, `suppressed`                                                                                                                                                                                                                                                             |
+| `state-poisoned`          | The Session coordinator or the Agent fold lock is first observed poisoned                                                                                                                                                                                                                     | `lock` (`coordinator`, `agent-fold`)                                                                                                                                                                                                                                                                                                                                |
 
 The [automatic update schedule](#automatic-update-schedule) writes two more records. A build that
 does not schedule automatic updates writes neither.
@@ -43,7 +45,9 @@ does not schedule automatic updates writes neither.
 
 `listener-fault`, `candidate-dropped`, `worker-request-failed`, `worker-reply-dropped`,
 `client-stream-failed` and `panicked` are written at most once a minute per site, and `suppressed`
-counts the records left out since the last one. `worker-connection-ended` is
+counts the records left out since the last one. `worker-lost` is `error`, and `worker-replaced` is
+`info` when adopted and `error` otherwise; neither is rate-limited, since the cap bounds them.
+`worker-connection-ended` is
 `info` when the Server ended the connection or the Worker left after answering a shutdown, and
 `error` otherwise. Only a Windows Session holds its Worker's handle after admission; there the
 record waits up to two seconds for a Worker that ended its own connection to exit, so it can carry
@@ -231,9 +235,10 @@ control request, which ends every terminal the Worker would have disposed, and c
 retained record observes the Host's registered identity gone, within 45 seconds. A failed or
 unanswered request fails the attempt in its host-exit phase; the Host is never ended by force. A
 stop is therefore never refused only because its Worker is gone.
-The managed Session never enrolls a replacement Worker, so a Server whose Worker exited and whose
-Host is gone, with no stop admitted, begins its own stop under a fresh identity, checking once a
-second. It publishes the same Stopped record, and a later start restores from its final capture.
+A Server whose Worker was lost with no replacement serving, and whose Host is gone, with no stop
+admitted, begins its own stop under a fresh identity, checking once a second;
+[Managed Worker replacement](#managed-worker-replacement) says when a loss comes to that. It
+publishes the same Stopped record, and a later start restores from its final capture.
 The first look that finds the Worker exited with no stop recorded, on every platform, first
 records a Session failure of the Server's own generation for the
 [fallback after a failed move](../../proposals/platform/automatic-updates.md#what-counts-and-who-records-it),
@@ -250,6 +255,55 @@ navigation authority and private projection kernel, the first POSIX local Server
 OBCN carrier, local Human Client/Client Connection admission, and an in-memory terminal coordinator. The emitted
 executable is named `orchbee-server`; it participates in the root Cargo verification gate and is
 consumed by bare Linux `orchbee` development cohorts, but not Desktop, packaging, an installer, or a service manager.
+
+## Managed Worker replacement
+
+The managed Server supervises its Worker alike on Windows, macOS and Linux. It sees a loss when the
+Worker connection ends; a Worker that misses a reply's response window but keeps its connection is
+not lost. It then proves the Worker gone through the handle it started that Worker with: up to 2
+seconds for its exit, then ended through that handle and up to 5 seconds more, and the lost
+connection's thread, which retires the generation, must finish within the same wait. The first
+action that applies follows:
+
+| Condition                                                  | Action                            |
+| ---------------------------------------------------------- | --------------------------------- |
+| A stop is admitted                                         | The stop goes on without a Worker |
+| The Worker cannot be proven gone, or the Host not observed | Give up                           |
+| The Host is gone, or still spawning                        | The Server stops itself           |
+| The cap allows no attempt                                  | Give up                           |
+| Otherwise                                                  | Replace the Worker                |
+
+On Windows the retained record observes the Host by its registered process ID and creation time,
+and a Host never started is adopted as no Host. POSIX registers no Host, so a Host lock no process
+holds reads as gone; there the Server stops itself only when the lost Worker held a settled binding,
+and otherwise replaces it with no Host. A Host still spawning never ran.
+
+The cap allows 3 attempts in any trailing 10 minutes of one Server process, and an attempt counts
+when it starts. Attempts run one at a time, the first at once and each later one a second after the
+previous failure. A replacement starts with `--worker-id` and the Session's Worker id, on Windows
+through the Session record's replacement transition, which keeps the Host's registration. The
+Worker listener stays open after the first admission; while a replacement is being started it
+admits only a Worker naming that id, within 20 seconds of its creation. The registry holds an
+admitted replacement out of every job until it adopts, so `AdoptHost`, sent in pages of at most 256
+bindings under a fresh adoption id, is its first request. Each binding of the lost generation that
+awaits its start or started goes with the Close that issued a step to it; a binding whose launch or
+start is unsettled stays behind and settles as stale.
+
+Once the last page answers `adopted`, one step under the registry and Session coordinator guards
+that every operation takes moves each imported binding into the replacement's generation with its
+operation, fence and lease, moves the retained Close targets with it, makes each missing binding
+unavailable, and lets the jobs use the replacement. Title reads and the Agent drain follow the
+serving carrier, process observation drops cleanup owed to the lost generation, and the checkpoint
+saver keeps the same Worker id. `query` lists no Worker from the loss until the replacement serves.
+The [terminal-runtime state](#terminal-runtime) reads `Reconnecting` from the decision to
+replace, `Serving` once a replacement serves, and `GivenUp` on giving up.
+
+`host-gone` makes the Server stop itself; `host-unverified`, `host-mismatch` and `host-refused`
+give up at once; every other failure, a timeout, a decline, and a creation or admission failure
+count against the cap. A replacement that cannot be proven gone after its failure gives up. A stop
+admitted, or an `exit` received, during a replacement ends it at the next step boundary through the
+Server's handle, and the stop goes on without a Worker. Giving up lasts until the Session stops; a
+Host that ends meanwhile makes the Server stop itself. The supervision never ends a Host.
 
 ## Workbench projection store
 

@@ -222,7 +222,7 @@ fn handle_candidate(
     agents: Option<&Arc<AgentService>>,
     worker: Option<u32>,
 ) {
-    let _owner = admit_candidate(stream, registry, expected_cohort, agents, worker);
+    let _owner = admit_candidate(stream, registry, expected_cohort, agents, worker, None);
 }
 
 /// `worker` is the process identifier of the Worker this Server started, while the Server still
@@ -233,6 +233,7 @@ fn admit_candidate(
     expected_cohort: &str,
     agents: Option<&Arc<AgentService>>,
     worker: Option<u32>,
+    replacing: Option<orchbee_local_worker_protocol::WorkerId>,
 ) -> Option<thread::JoinHandle<()>> {
     // The handshake waits through these timeouts, which only blocking mode honors. The managed
     // listener is nonblocking, and macOS hands that flag to every socket it accepts, so a hello
@@ -277,6 +278,11 @@ fn admit_candidate(
         send_rejection(&mut stream, RejectionReason::MalformedFrame);
         return None;
     }
+    // A replacement keeps the Session's Worker id, so no other Worker takes the lost one's place.
+    if replacing.is_some_and(|expected| expected != hello.worker_id()) {
+        send_rejection(&mut stream, RejectionReason::DuplicateWorker);
+        return None;
+    }
 
     // OBLW bounds a reported name exactly as the published launched program is bounded.
     let system_shell = hello
@@ -308,11 +314,14 @@ fn admit_candidate(
     // A managed Session admits the canonical Agent leaf inside the registry
     // guard before the Live record installs; the non-managed listener has
     // no AgentService, so it keeps the plain registration unchanged.
-    let Some(registered_owner) = (match agents {
-        Some(agents) => {
+    let Some(registered_owner) = (match (agents, replacing) {
+        (Some(agents), Some(_)) => {
+            WorkerRegistry::register_replacement_with_agents(registry, generation, carrier, agents)
+        }
+        (Some(agents), None) => {
             WorkerRegistry::register_carrier_with_agents(registry, generation, carrier, agents)
         }
-        None => WorkerRegistry::register_carrier(registry, generation, carrier),
+        (None, _) => WorkerRegistry::register_carrier(registry, generation, carrier),
     }) else {
         cancel_pending_admission(registry, generation);
         return None;

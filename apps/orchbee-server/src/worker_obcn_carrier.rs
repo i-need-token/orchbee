@@ -80,6 +80,8 @@ pub(crate) enum WorkerOperationRequest {
     Titles(orchbee_capability_node_protocol::TerminalTitlesRequest),
     TitleChanges(orchbee_capability_node_protocol::TerminalTitleChangesRequest),
     HostQuery(orchbee_capability_node_protocol::HostQueryRequest),
+    /// One page of a replacement Worker's adoption of its Host, its first request.
+    AdoptHost(orchbee_capability_node_protocol::AdoptHostRequest),
 }
 
 #[cfg(any(windows, test))]
@@ -126,6 +128,7 @@ impl WorkerOperationRequest {
             Self::Titles(request) => (request.worker_id, request.worker_generation),
             Self::TitleChanges(request) => (request.worker_id, request.worker_generation),
             Self::HostQuery(request) => (request.worker_id, request.worker_generation),
+            Self::AdoptHost(request) => (request.key().worker_id, request.key().worker_generation),
         }
     }
 
@@ -147,7 +150,7 @@ impl WorkerOperationRequest {
             Self::AgentDrain(_) | Self::Titles(_) | Self::HostQuery(_) => RequestLane::Low,
             Self::Viewer(_) | Self::GraphicsDecode(_) | Self::AgentProbeJob(_) => RequestLane::Low,
             Self::TitleChanges(_) => RequestLane::Idle,
-            Self::Shutdown(_) => RequestLane::High,
+            Self::Shutdown(_) | Self::AdoptHost(_) => RequestLane::High,
             Self::CwdValidation(_)
             | Self::Lifecycle(_)
             | Self::Control(_)
@@ -201,6 +204,7 @@ impl WorkerOperationRequest {
                 CapabilityNodeMessage::TerminalTitleChangesRequest(*request)
             }
             Self::HostQuery(request) => CapabilityNodeMessage::HostQueryRequest(*request),
+            Self::AdoptHost(request) => CapabilityNodeMessage::AdoptHostRequest(request.clone()),
         }
     }
 }
@@ -227,6 +231,7 @@ pub(crate) enum WorkerOperationResult {
     Titles(orchbee_capability_node_protocol::TerminalTitlesResult),
     TitleChanges(orchbee_capability_node_protocol::TerminalTitleChangesResult),
     HostQuery(orchbee_capability_node_protocol::HostQueryResult),
+    AdoptHost(orchbee_capability_node_protocol::AdoptHostResult),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -2149,10 +2154,17 @@ fn validate_response(
         | (_, CapabilityNodeMessage::AdoptHostRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
         }
-        // No request in this carrier is an adoption page yet.
-        (_, CapabilityNodeMessage::AdoptHostResult(_)) => {
-            Err(WorkerResponseFailure::WrongResultKind)
+        (
+            WorkerOperationRequest::AdoptHost(expected),
+            CapabilityNodeMessage::AdoptHostResult(actual),
+        ) => {
+            if actual.key() != expected.key() {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            Ok(WorkerOperationResult::AdoptHost(actual))
         }
+        (_, CapabilityNodeMessage::AdoptHostResult(_))
+        | (WorkerOperationRequest::AdoptHost(_), _) => Err(WorkerResponseFailure::WrongResultKind),
         (
             WorkerOperationRequest::HostQuery(expected),
             CapabilityNodeMessage::HostQueryResult(actual),

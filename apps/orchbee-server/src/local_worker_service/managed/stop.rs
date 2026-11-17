@@ -48,6 +48,12 @@ pub(super) struct Owners {
     pub(super) worker: RetainedChild,
     pub(super) carrier: thread::JoinHandle<()>,
     pub(super) handle: WorkerRequestHandle,
+    /// The Worker endpoint, which admits a replacement Worker only while one is being started.
+    pub(super) listener: orchbee_local_ipc::LocalListener,
+    pub(super) registry: Arc<std::sync::Mutex<crate::worker_registry::WorkerRegistry>>,
+    pub(super) worker_executable: std::path::PathBuf,
+    /// The Worker `query` lists: the serving one, or none.
+    pub(super) serving: local_client_service::ServingWorker,
     pub(super) ingress: AgentObservationEndpoint,
     pub(super) terminals: Arc<LocalTerminalService>,
     pub(super) agents: Arc<AgentService>,
@@ -111,16 +117,21 @@ pub(super) fn run(
     #[cfg(windows)]
     let mut idle = idle::IdleMove::default();
     let mut loss = worker_loss::WorkerLoss::default();
+    let mut supervision = super::replacement::Supervision::new(cohort);
     // Every stop a POSIX Server begins uses its one identity, the idle move's too.
     #[cfg(target_os = "macos")]
     let mut idle = idle::IdleMove::under(own);
     loop {
+        let watch = Watch {
+            loss: &mut loss,
+            supervision: &mut supervision,
+        };
         #[cfg(windows)]
-        let work = next_work(&mut owners, &shutdown, &clients, &mut idle, &mut loss);
+        let work = next_work(&mut owners, &shutdown, &clients, &mut idle, watch);
         #[cfg(target_os = "macos")]
-        let work = next_work(&mut owners, &shutdown, own, &clients, &mut idle, &mut loss);
+        let work = next_work(&mut owners, &shutdown, own, &clients, &mut idle, watch);
         #[cfg(all(unix, not(target_os = "macos")))]
-        let work = next_work(&mut owners, &shutdown, own, &mut loss);
+        let work = next_work(&mut owners, &shutdown, own, watch);
         let attempt = match work {
             Work::Stop(attempt) => attempt,
             Work::Exit => return exit(owners, clients, &shutdown),
@@ -230,6 +241,8 @@ fn start(
     if let Some(kept) = &mut owners.checkpoint {
         kept.start_saver(&owners.terminals, checkpoint_worker(&owners.handle)?)?;
     }
+    let identity = local_client_service::ServerIdentity::local(Some(cohort), owners.worker.id());
+    owners.serving = identity.serving_worker();
     local_client_service::start_managed(
         #[cfg(windows)]
         owners.session.client_socket_path(),
@@ -240,7 +253,7 @@ fn start(
                 owners.session.runtime_directory(),
             ),
         ),
-        local_client_service::ServerIdentity::local(Some(cohort), owners.worker.id()),
+        identity,
         Arc::clone(&owners.terminals),
         Arc::clone(&owners.agents),
         Arc::clone(shutdown),
@@ -398,30 +411,43 @@ fn settle(
     Ok(())
 }
 
-/// Waits for a stop request or an `exit`. The managed Session never enrolls a replacement Worker,
-/// so once its Worker has exited and that Worker's Host is gone too, no terminal can run here again
-/// and the Server begins its own stop. While that Host still runs, the Server keeps running beside
-/// it. Each tick also feeds the idle move, and a Worker exit no stop explains is recorded as this
-/// generation's failure first.
+/// What the stop loop watches its Worker with: the loss the fallback counts, and the supervision
+/// that replaces a lost Worker.
+struct Watch<'a> {
+    loss: &'a mut worker_loss::WorkerLoss,
+    supervision: &'a mut super::replacement::Supervision,
+}
+
+impl Watch<'_> {
+    /// One look at the Worker. Returns whether the Server should begin its own stop: its Worker
+    /// was lost without a serving replacement and that Worker's Host is gone, so no terminal can
+    /// run here again. While that Host still runs, the Server keeps running beside it.
+    fn look(&mut self, owners: &mut Owners, shutdown: &SessionShutdown) -> bool {
+        let exited = matches!(owners.worker.try_wait(), Ok(Some(_)));
+        self.loss.look(exited, shutdown.stopping(), || {
+            worker_loss::record(&owners.session_record);
+        });
+        self.supervision.look(owners, shutdown)
+    }
+}
+
+/// Waits for a stop request or an `exit`. Each tick looks at the Worker, which replaces a lost
+/// one, and feeds the idle move; a Worker exit no stop explains is recorded as this generation's
+/// failure first.
 #[cfg(windows)]
 fn next_work(
     owners: &mut Owners,
     shutdown: &SessionShutdown,
     clients: &local_client_service::ManagedClients,
     idle: &mut idle::IdleMove,
-    loss: &mut worker_loss::WorkerLoss,
+    mut watch: Watch<'_>,
 ) -> Work {
     loop {
         if let Some(work) = shutdown.take_within(Duration::from_secs(1)) {
             return work;
         }
-        let exited = matches!(owners.worker.try_wait(), Ok(Some(_)));
-        loss.look(exited, shutdown.stopping(), || {
-            worker_loss::record(&owners.session_record);
-        });
-        if !shutdown.stopping()
-            && exited
-            && host_absent(owners)
+        if watch.look(owners, shutdown)
+            && !shutdown.stopping()
             && let Some(id) = own_stop_id()
         {
             shutdown.begin(id);
@@ -440,17 +466,13 @@ fn next_work(
     own: StopId,
     #[cfg(target_os = "macos")] clients: &local_client_service::ManagedClients,
     #[cfg(target_os = "macos")] idle: &mut idle::IdleMove,
-    loss: &mut worker_loss::WorkerLoss,
+    mut watch: Watch<'_>,
 ) -> Work {
     loop {
         if let Some(work) = shutdown.take_within(Duration::from_secs(1)) {
             return work;
         }
-        let exited = matches!(owners.worker.try_wait(), Ok(Some(_)));
-        loss.look(exited, shutdown.stopping(), || {
-            worker_loss::record(&owners.session_record);
-        });
-        if exited && host_absent(owners) {
+        if watch.look(owners, shutdown) {
             begin_own(shutdown, own);
         }
         #[cfg(target_os = "macos")]
@@ -724,7 +746,7 @@ fn settle_for_exit(
 }
 
 /// Only an exact observation that the Host is gone, or that it never started, counts.
-fn host_absent(owners: &Owners) -> bool {
+pub(super) fn host_absent(owners: &Owners) -> bool {
     matches!(owners.session_record.host_absent(), Ok(true))
 }
 

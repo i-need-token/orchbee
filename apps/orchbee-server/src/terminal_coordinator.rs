@@ -22,9 +22,11 @@ use orchbee_client_server_protocol::{
 #[cfg(test)]
 use orchbee_workbench_protocol::PresentationBinding;
 
+mod adoption;
 mod create_inputs;
 mod launch_capture;
 mod outcomes;
+pub(crate) use adoption::AdoptionImport;
 pub(crate) use create_inputs::CreateInputs;
 pub(crate) use launch_capture::LaunchCapture;
 

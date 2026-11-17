@@ -66,6 +66,8 @@ mod tab_set_close;
 mod terminal_output;
 mod terminal_runtime;
 mod viewer_connection;
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+mod worker_replacement;
 mod workspace_directory;
 mod workspace_git;
 mod workspace_group_close;
@@ -194,7 +196,6 @@ impl LocalTerminalService {
 
     /// The Session's terminal-runtime state, which the Worker replacement sets and the
     /// `workbench.terminal-runtime` read answers from.
-    #[expect(dead_code, reason = "the Worker replacement reaches it")]
     pub(crate) fn terminal_runtime(&self) -> &Arc<crate::terminal_runtime::TerminalRuntime> {
         &self.terminal_runtime
     }
@@ -435,6 +436,7 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
         Ok(WorkerOperationResult::Titles(_))
         | Ok(WorkerOperationResult::TitleChanges(_))
         | Ok(WorkerOperationResult::HostQuery(_))
+        | Ok(WorkerOperationResult::AdoptHost(_))
         | Ok(WorkerOperationResult::AgentDrain(_)) => Completion::Unknown,
         Err(WorkerRequestError::Backpressure) => Completion::Busy,
         Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) => Completion::Unknown,

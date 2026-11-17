@@ -41,6 +41,11 @@ impl PendingCleanup {
         if service.target_lifecycle(self.target) == Some(TargetLifecycle::Disposed) {
             return true;
         }
+        // A replacement serves only once the Worker it replaced is proven gone, and that Worker's
+        // viewers ended with it.
+        if service.viewer_worker_replaced(&self.handle) {
+            return true;
+        }
         if !service.viewer_worker_is_current(&self.handle) {
             return false;
         }

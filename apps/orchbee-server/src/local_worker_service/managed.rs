@@ -22,6 +22,7 @@ use std::{
     time::{Duration, Instant},
 };
 mod checkpoint;
+mod replacement;
 #[cfg(unix)]
 mod signals;
 mod stop;
@@ -133,6 +134,7 @@ pub(super) fn run(
                         cohort.identity(),
                         Some(&agents),
                         worker.id(),
+                        None,
                     );
                 }
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
@@ -151,8 +153,7 @@ pub(super) fn run(
             }
         }
     })();
-    // The managed Session never enrolls a replacement Worker, even after this one disappears.
-    drop(listener);
+    // The listener stays open, admitting a replacement Worker only while the Server starts one.
     #[cfg(windows)]
     if let Err(error) = admitted {
         return Err(checkpoint::abort_before_launch(worker, carrier, error));
@@ -166,8 +167,11 @@ pub(super) fn run(
             .map_err(|_| io::Error::other("Worker registry failed"))?
             .request_handle()
             .ok_or_else(|| io::Error::other("Worker carrier disappeared"))?;
-        let (mut terminals, pending) =
-            LocalTerminalService::from_checkpoint(registry, checkpoint, &configuration)?;
+        let (mut terminals, pending) = LocalTerminalService::from_checkpoint(
+            Arc::clone(&registry),
+            checkpoint,
+            &configuration,
+        )?;
         terminals.configure_graphics_files(runtime);
         Ok::<_, io::Error>((handle, Arc::new(terminals), pending))
     })();
@@ -200,6 +204,10 @@ pub(super) fn run(
             worker,
             carrier,
             handle,
+            listener,
+            registry,
+            worker_executable: executable,
+            serving: crate::local_client_service::ServingWorker::default(),
             ingress: endpoint,
             terminals,
             agents,

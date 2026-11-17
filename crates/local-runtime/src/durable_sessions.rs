@@ -465,6 +465,21 @@ pub struct RetainedSessionRecord {
     scope: String,
     active: Record,
 }
+/// What [`RetainedSessionRecord::host_presence`] observed of a generation's Terminal Host.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HostPresence {
+    /// No Host was started (Windows only).
+    NotStarted,
+    /// The Host's creation is reserved but not identified, so it never ran (Windows only).
+    Spawning,
+    /// The registered Host is gone, or, on POSIX, no process holds the Host lock.
+    Gone,
+    /// A Host runs: on Windows its registered process ID and creation time; POSIX registers none.
+    Running(Option<(u32, u64)>),
+    /// The registered Host could not be observed.
+    Unknown,
+}
+
 impl RetainedSessionRecord {
     pub(crate) fn checkpoint_directory(&self) -> PathBuf {
         self.directory.folder(&self.scope)
@@ -521,6 +536,31 @@ impl RetainedSessionRecord {
         ));
         #[cfg(unix)]
         return Ok(!crate::rendezvous::host_lock_held(current.runtime())?);
+    }
+    /// What this generation's Terminal Host is now, for a Server that lost its Worker. A Spawning
+    /// Host never ran, since a child runs only once identified. On Windows a running Host carries
+    /// its registered process; a process with the registered ID but another creation time means
+    /// the registered Host is gone. POSIX registers no Host, so there a Host holding the Host lock
+    /// runs, and a free lock reads as gone, which also covers a Host that never started.
+    /// Observation grants no termination authority.
+    pub fn host_presence(&self) -> io::Result<HostPresence> {
+        let current = self
+            .directory
+            .read(&self.scope)?
+            .ok_or(io::ErrorKind::NotFound)?;
+        if !current.same_active_generation(&self.active) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        #[cfg(windows)]
+        return Ok(crate::process_observation::host_presence(
+            &current.processes,
+        ));
+        #[cfg(unix)]
+        return Ok(if crate::rendezvous::host_lock_held(current.runtime())? {
+            HostPresence::Running(None)
+        } else {
+            HostPresence::Gone
+        });
     }
     /// Only after confirmed child exit and listener cleanup, before the runtime stop receipt.
     pub fn complete(&mut self, request_id: [u8; 16]) -> io::Result<()> {

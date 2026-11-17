@@ -109,7 +109,7 @@ pub use terminal_tab_close::{
     CloseContinuationNext, CloseStepObservation, CloseStepPrequeueFailure, CloseStepToken,
     CloseStepTokenMismatch, PreparedWorkbenchTabClose, PreparedWorkbenchTabClosePublication,
     PreparedWorkbenchTabCloseResume, WorkbenchTabCloseAdmission, WorkbenchTabCloseBegin,
-    WorkbenchTabCloseMemberRuntime, WorkbenchTabClosePreparation,
+    WorkbenchTabCloseInFlight, WorkbenchTabCloseMemberRuntime, WorkbenchTabClosePreparation,
     WorkbenchTabClosePrimaryAdmission, WorkbenchTabClosePublicationError,
     WorkbenchTabCloseResolution, WorkbenchTabCloseResumeAdmission, WorkbenchTabCloseResumeBegin,
     WorkbenchTabCloseResumePreparation, WorkbenchTabCloseRuntimeTarget,

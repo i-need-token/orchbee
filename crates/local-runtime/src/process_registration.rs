@@ -20,7 +20,7 @@ impl ProcessIdentity {
     pub(crate) fn pid(self) -> u32 {
         self.pid.get()
     }
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     pub(crate) fn creation_time(self) -> u64 {
         self.creation_time.get()
     }

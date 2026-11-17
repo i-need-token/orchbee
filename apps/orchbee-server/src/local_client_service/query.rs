@@ -33,7 +33,7 @@ pub(super) fn respond(
     accepted: Instant,
 ) {
     // Hosts follow the Worker they are connected to, so a Server that lists no Worker lists none.
-    let hosts = if identity.worker.is_some() {
+    let hosts = if identity.worker.get().is_some() {
         terminals.connected_hosts(accepted + HOSTS_DUE)
     } else {
         Vec::new()
@@ -94,7 +94,7 @@ pub(super) fn result(
         worker.push(entry(format.name(), format.supported_generations(), None)?);
     }
     let mut processes = vec![process(ProcessRole::Server, server_pid, sorted(server))];
-    if let Some(pid) = identity.worker {
+    if let Some(pid) = identity.worker.get() {
         processes.push(process(ProcessRole::Worker, pid, sorted(worker)));
         let room = MAXIMUM_QUERY_PROCESSES - processes.len();
         processes.extend(hosts.into_iter().take(room).map(host));

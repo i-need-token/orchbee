@@ -97,7 +97,7 @@ fn release_server(generations: GenerationRange) -> ServerIdentity {
     profile.generations = generations;
     ServerIdentity {
         profile,
-        worker: None,
+        worker: super::super::ServingWorker::default(),
     }
 }
 

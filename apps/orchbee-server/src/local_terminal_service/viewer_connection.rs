@@ -297,6 +297,16 @@ impl LocalTerminalService {
             && placement(workers.request_handle().as_ref()) == placement(Some(handle))
     }
 
+    /// Whether a later generation of `handle`'s Worker serves now.
+    pub(super) fn viewer_worker_replaced(&self, handle: &WorkerRequestHandle) -> bool {
+        let Ok(workers) = self.workers.lock() else {
+            return false;
+        };
+        workers.request_handle().is_some_and(|current| {
+            current.worker_id() == handle.worker_id() && current.generation() > handle.generation()
+        })
+    }
+
     fn issue_viewer(&self, reference: &RequestId) -> Result<IssuedViewer<'_>, Outcome> {
         let workers = self
             .workers

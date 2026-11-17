@@ -226,6 +226,18 @@ impl CloseContinuation {
         self.pending.is_some()
     }
 
+    /// The highest step ordinal this attempt issued, and whether a step's effect is unknown: one
+    /// is still outstanding, or the last settled as unknown. None before the first step.
+    pub(super) fn issued(&self) -> Option<(LifecycleStepOrdinal, bool)> {
+        let pending = self
+            .pending
+            .as_ref()
+            .map(|pending| pending.seal.step_ordinal.get());
+        let highest = pending.unwrap_or(0).max(self.submitted_steps);
+        let ordinal = LifecycleStepOrdinal::new(highest).ok()?;
+        Some((ordinal, pending.is_some() || self.is_unknown()))
+    }
+
     pub(super) fn is_unknown(&self) -> bool {
         matches!(self.progress, Progress::Unknown { .. })
     }

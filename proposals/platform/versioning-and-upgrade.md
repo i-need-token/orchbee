@@ -555,7 +555,9 @@ it counts as gone. The restart cap allows 3 replacement attempts in any trailing
 Server process. An attempt counts when it starts; a creation or admission failure, an adoption
 failure, or a loss before the replacement serves ends it as a failure. Attempts run one at a time,
 the first at once and each later one a second after the previous failure. Giving up lasts until the
-Session stops; a Host that ends meanwhile makes the Server stop itself, as today.
+Session stops; a Host that ends meanwhile makes the Server stop itself, as today. Built: the
+Server owns these rules in
+[Managed Worker replacement](../../apps/orchbee-server/README.md#managed-worker-replacement).
 
 **Replacement.** The Server takes the record transition, starts the replacement with the Session's
 Worker id, admits it inside the existing 20-second admission deadline, and sends `AdoptHost` as its
@@ -565,7 +567,8 @@ starts a Host on the next launch, as today. Once it adopts, the Server rebinds e
 binding, restarts title reads, the Agent drain, and process observation on the new generation, and
 moves checkpoints to it. `query`, and with it `status server`, lists no Worker while none serves and
 the replacement once it serves, where today it keeps listing a lost Worker as ready. Viewers of the
-lost generation are already closed, so Clients reattach.
+lost generation are already closed, so Clients reattach. Built: the same Server section owns the
+replacement.
 
 **`AdoptHost`.** The request names the adoption, the Worker id and generation, and the recorded
 Host by process id, creation time, and Host epoch, or no Host. It carries, in pages of at most 256
@@ -619,7 +622,11 @@ time, connects to its endpoint, requires the endpoint's server process to be tha
 `exit`, and waits for the process to end inside the stop's existing 60-second attempt. A Host
 already gone, or still spawning, counts as gone. If `exit` fails, the stop fails at `host-exit` and
 may be retried; it never ends a Host by force. No replacement starts once a stop is admitted, and
-stops that arrive together share the one admitted attempt, as today.
+stops that arrive together share the one admitted attempt, as today. Built: the Server's
+[managed shutdown](../../apps/orchbee-server/README.md#managed-windows-session-shutdown) owns the
+stop without a Worker, and its
+[Worker replacement](../../apps/orchbee-server/README.md#managed-worker-replacement) a stop during a
+replacement.
 
 **Clients.** A Session read, `workbench.terminal-runtime`, built like the
 [Session Agent catalog read](../../schemas/workbench/README.md#session-agent-catalog-reads), states
@@ -665,6 +672,9 @@ counts, and flags only, never terminal content, a path, or an error's text:
   `create`, `admit`, or `adopt`, the `AdoptHost` failure or `timed-out`, and the action that
   follows, `retry`, `stop`, or `give-up`; the imported, quarantined, and missing counts; and the
   elapsed milliseconds.
+
+Built: the [Server's diagnostic records](../../apps/orchbee-server/README.md#diagnostic-log) own
+both records, and `worker-lost` also reports `host-unverified` when the Host cannot be observed.
 
 **Models.** `SessionCrashRecovery` gains Worker incarnations, the replacement, and an admitted stop:
 each role still has at most one live process across generations and incarnations, only the current
