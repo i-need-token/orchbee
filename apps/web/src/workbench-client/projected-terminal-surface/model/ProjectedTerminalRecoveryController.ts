@@ -10,6 +10,7 @@ import type {
 } from '../../projected-terminal-renderer';
 import type { TerminalProjection, TerminalProjectionRequest } from '../../terminal-projection';
 import { runApplicationCleanup } from '../../../runApplicationCleanup';
+import { ContainedClientFault, reportContainedClientFault } from '../../contained-client-fault';
 
 const AUTOMATIC_RETRY_DELAYS_MILLISECONDS = [250, 500, 1_000] as const;
 
@@ -408,6 +409,14 @@ export class ProjectedTerminalRecoveryController {
 			return;
 		const delay = AUTOMATIC_RETRY_DELAYS_MILLISECONDS[this.#automaticRetryIndex];
 		if (delay === undefined) {
+			// Every reopen since the last drawn frame failed, whether the viewer was lost or a record
+			// was refused, so this pane stops until the person asks again.
+			reportContainedClientFault(
+				new ContainedClientFault(
+					'terminal-recovery-stop',
+					new Error('Every automatic reopen since the last drawn frame failed.'),
+				),
+			);
 			this.#onStateChange({ kind: 'failed' });
 			return;
 		}

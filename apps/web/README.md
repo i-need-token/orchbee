@@ -84,8 +84,15 @@ A connection that stays lost reads Disconnected, and an automatic recovery reads
 An unexpected attachment loss freezes the last completed canvas and accessible rows while releasing
 its transport and interaction ownership. The shared surface retries a fresh attachment after 250,
 500, and 1,000 milliseconds, and replaces the frozen projection only after the candidate paints its
-first frame. Exhausting that budget leaves the honest last frame visible and exposes one localized
-manual Retry action; each attempt owns and releases exactly one projection request. A polled record that the projection or its renderer fails to take is reported and retires that attachment, which recovers the same way, and a failed step of its serial input or viewer work is reported without stalling the steps behind it. A typed
+first frame. A painted frame is the only progress that restores the budget, so a terminal whose
+attachments keep failing before one paints, whether its viewer was lost or a record was refused,
+stops after three reopens in a row. Exhausting that budget records a contained fault, leaves the
+honest last frame visible, and exposes one localized manual Retry action; each attempt owns and
+releases exactly one projection request. A polled record that the projection or its renderer fails
+to take is reported and dropped, as the TUI drops one, and polling continues: a dropped frame leaves
+a gap the renderer answers with NeedSnapshot, so the Server resyncs it from a snapshot. The third
+refusal with no frame applied since stops only that pane, which reads Disconnected and is not
+reopened on its own. A failed step of its serial input or viewer work is reported without stalling the steps behind it. A typed
 `renderer-backpressure`, `host-transport-backpressure`, or `host-connection-unavailable` failure settles the same attachment-local
 transport-unavailable signal after preserving its original operation and correlation diagnostics;
 the surface never retries the rejected command or keeps using the causally incomplete attachment.

@@ -15,6 +15,8 @@ export type ContainedClientFaultSite =
 	| 'subscription-frame'
 	| 'subscription-gap'
 	| 'terminal-poll-record'
+	| 'terminal-record-stop'
+	| 'terminal-recovery-stop'
 	| 'terminal-step'
 	| 'terminal-surface-render'
 	| 'viewer-ready-listener'

@@ -94,6 +94,8 @@ const BUSY_RETRY_DELAYS_MILLISECONDS = [4, 8, 16, 32, 64, 128, 256] as const;
 const MINIMUM_ROW_READ_BYTES = 112;
 const MAXIMUM_ROW_READ_BYTES = 8 * 1024 * 1024;
 const MAXIMUM_QUEUED_COMMANDS = 1_024;
+/** As in the TUI: the third record refused with no frame applied since stops the pane. */
+const MAXIMUM_REFUSED_RECORDS = 3;
 /** How long closing waits on queued input. The next surface for the terminal waits on this in turn. */
 const INPUT_DELIVERY_LIMIT_MILLISECONDS = 500;
 /**
@@ -242,6 +244,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	#pollInFlight = false;
 	#pollTimer: ReturnType<typeof setTimeout> | null = null;
 	#recordReady = false;
+	#refusedRecords = 0;
 	#unavailable: (() => void) | null = null;
 
 	constructor(
@@ -302,6 +305,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		const attachmentId = this.#bootstrap.attachmentId;
 		switch (command.kind) {
 			case 'frame-applied':
+				this.#refusedRecords = 0;
 				this.#viewerStep(command, { ...command.payload, kind: 'frame-applied' }, true);
 				return;
 			case 'need-snapshot':
@@ -1030,10 +1034,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				try {
 					this.#receivePoll(response);
 				} catch (error) {
-					// A record this transport or its renderer failed to take leaves no next Poll scheduled,
-					// so the attachment retires and the surface opens a fresh one.
-					reportContainedClientFault(new ContainedClientFault('terminal-poll-record', error));
-					this.#retire(true);
+					this.#refuseRecord(error);
 				}
 			},
 			() => {
@@ -1041,6 +1042,32 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				this.#retire(true);
 			},
 		);
+	}
+
+	/**
+	 * A record this transport or its renderer could not take is dropped, as the TUI drops one. A
+	 * dropped frame leaves a gap the renderer answers with NeedSnapshot, so the Server resyncs it from
+	 * a snapshot; any other record was only itself. The third refusal with no frame applied since
+	 * stops only this pane, as Disconnected, and nothing reopens it on its own.
+	 */
+	#refuseRecord(error: unknown): void {
+		reportContainedClientFault(new ContainedClientFault('terminal-poll-record', error));
+		if (this.#closed) return;
+		this.#refusedRecords += 1;
+		if (this.#refusedRecords < MAXIMUM_REFUSED_RECORDS) {
+			this.#pollNow();
+			return;
+		}
+		reportContainedClientFault(new ContainedClientFault('terminal-record-stop', error));
+		try {
+			this.#protocolFailure(
+				'records-refused',
+				'The window refused records with no frame applied between them.',
+			);
+		} catch {
+			// A renderer that refuses every record may refuse this one too; the pane stops either way.
+		}
+		this.#retire(false);
 	}
 
 	#receivePoll(response: ClientServerResponse): void {

@@ -24,6 +24,8 @@ const DESKTOP_WINDOW_FAULT_SITES = [
 	'subscription-frame',
 	'subscription-gap',
 	'terminal-poll-record',
+	'terminal-record-stop',
+	'terminal-recovery-stop',
 	'terminal-step',
 	'terminal-surface-render',
 	'uncaught-error',

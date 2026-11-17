@@ -625,26 +625,62 @@ describe('openServerTerminalProjection', () => {
 		projection.transport.close();
 	});
 
-	it('retires the attachment when its renderer fails to take a polled record', async () => {
+	it('drops a refused record and stops the pane at the third with no frame applied since', async () => {
 		const server = new ScriptedServer(accepted);
-		server.enqueuePollRecord(SNAPSHOT);
 		const projection = await openServerTerminalProjection(
 			new ServerConnection(server),
 			BINDING,
 			GEOMETRY,
 		);
-		let unavailable = false;
+		const events: { readonly kind: string; readonly [key: string]: unknown }[] = [];
+		let refused = 0;
 		projection.transport.subscribe(
-			() => {
-				throw new Error('renderer defect');
+			(event) => {
+				const typed = event as (typeof events)[number];
+				if (typed.kind === 'frame') {
+					refused += 1;
+					throw new Error('renderer defect');
+				}
+				events.push(typed);
 			},
-			() => {
-				unavailable = true;
-			},
+			() => events.push({ kind: 'unavailable' }),
 		);
+		const frameApplied = (): void =>
+			projection.transport.send({
+				kind: 'frame-applied',
+				payload: {
+					attachmentId: projection.bootstrap.attachmentId,
+					generation: CanonicalUint64TextSchema.parse('1'),
+					revision: CanonicalUint64TextSchema.parse('1'),
+					sequence: CanonicalUint64TextSchema.parse('1'),
+				},
+			});
 
-		await settled(() => unavailable);
-		expect(unavailable).toBe(true);
+		server.deliverPollRecord(SNAPSHOT);
+		server.deliverPollRecord(SNAPSHOT);
+		await settled(() => refused === 2);
+		// An applied frame is progress, so the count starts again.
+		frameApplied();
+		server.deliverPollRecord(SNAPSHOT);
+		server.deliverPollRecord(SNAPSHOT);
+		await settled(() => refused === 4);
+		expect(events.some((event) => event.kind === 'failure')).toBe(false);
+
+		server.deliverPollRecord(SNAPSHOT);
+		await settled(() => events.some((event) => event.kind === 'failure'));
+		expect(events.find((event) => event.kind === 'failure')?.['failure']).toMatchObject({
+			code: 'records-refused',
+			operation: 'protocol',
+			retryable: false,
+		});
+		// Stopped, not reopened: the surface hears no loss, and no further record is taken.
+		expect(events.some((event) => event.kind === 'unavailable')).toBe(false);
+		const polls = server.polls;
+		server.deliverPollRecord(SNAPSHOT);
+		await new Promise((resolve) => {
+			setTimeout(resolve, 20);
+		});
+		expect(server.polls).toBe(polls);
 	});
 
 	it('takes no record before anyone is subscribed, because Poll would lose it', async () => {
