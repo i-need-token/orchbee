@@ -274,8 +274,9 @@ consumed by bare Linux `orchbee` development cohorts, but not Desktop, packaging
 ## Managed Worker replacement
 
 The managed Server supervises its Worker alike on Windows, macOS and Linux. It sees a loss when the
-Worker connection ends; a Worker that misses a reply's response window but keeps its connection is
-not lost. It then proves the Worker gone through the handle it started that Worker with: up to 2
+Worker connection ends, at once: the ended connection's thread wakes the lifecycle owner instead of
+waiting for its once-a-second check. A Worker that misses a reply's response window but keeps its
+connection is not lost. It then proves the Worker gone through the handle it started that Worker with: up to 2
 seconds for its exit, then ended through that handle and up to 5 seconds more, and the lost
 connection's thread, which retires the generation, must finish within the same wait. The first
 action that applies follows:

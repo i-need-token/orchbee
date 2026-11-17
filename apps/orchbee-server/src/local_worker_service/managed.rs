@@ -27,6 +27,17 @@ mod replacement;
 mod signals;
 mod stop;
 
+/// Wakes the lifecycle owner when a Worker connection ends, so its loss is seen at once rather
+/// than at the owner's next tick.
+fn wake_on_end(shutdown: &std::sync::Weak<SessionShutdown>) -> Box<dyn FnOnce() + Send> {
+    let shutdown = shutdown.clone();
+    Box::new(move || {
+        if let Some(shutdown) = shutdown.upgrade() {
+            shutdown.wake();
+        }
+    })
+}
+
 pub(super) fn run(
     runtime: &Path,
     #[cfg(windows)] configuration: orchbee_local_runtime::UserSettingsLoad,
@@ -135,6 +146,7 @@ pub(super) fn run(
                         Some(&agents),
                         worker.id(),
                         None,
+                        Some(wake_on_end(&Arc::downgrade(&shutdown))),
                     );
                 }
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
@@ -206,6 +218,7 @@ pub(super) fn run(
             handle,
             listener,
             registry,
+            waker: Arc::downgrade(&shutdown),
             worker_executable: executable,
             serving: crate::local_client_service::ServingWorker::default(),
             ingress: endpoint,

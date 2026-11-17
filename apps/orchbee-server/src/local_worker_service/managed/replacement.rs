@@ -347,6 +347,7 @@ impl Supervision {
                         Some(&owners.agents),
                         child.id(),
                         Some(expected),
+                        Some(super::wake_on_end(&owners.waker)),
                     );
                 }
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => thread::sleep(POLL),

@@ -222,11 +222,20 @@ fn handle_candidate(
     agents: Option<&Arc<AgentService>>,
     worker: Option<u32>,
 ) {
-    let _owner = admit_candidate(stream, registry, expected_cohort, agents, worker, None);
+    let _owner = admit_candidate(
+        stream,
+        registry,
+        expected_cohort,
+        agents,
+        worker,
+        None,
+        None,
+    );
 }
 
 /// `worker` is the process identifier of the Worker this Server started, while the Server still
 /// holds that process's handle; the admitted wire then records the Worker's exit with its own end.
+/// `ended` runs on the wire's thread once that end is recorded.
 fn admit_candidate(
     mut stream: UnixStream,
     registry: &Arc<Mutex<WorkerRegistry>>,
@@ -234,6 +243,7 @@ fn admit_candidate(
     agents: Option<&Arc<AgentService>>,
     worker: Option<u32>,
     replacing: Option<orchbee_local_worker_protocol::WorkerId>,
+    ended: Option<Box<dyn FnOnce() + Send>>,
 ) -> Option<thread::JoinHandle<()>> {
     // The handshake waits through these timeouts, which only blocking mode honors. The managed
     // listener is nonblocking, and macOS hands that flag to every socket it accepts, so a hello
@@ -329,8 +339,12 @@ fn admit_candidate(
     let process = connection_end::WorkerProcess::open(worker);
     match thread::Builder::new()
         .name("orchbee-local-worker".to_owned())
-        .spawn(move || connection_end::serve(registered_owner, stream, process))
-    {
+        .spawn(move || {
+            connection_end::serve(registered_owner, stream, process);
+            if let Some(ended) = ended {
+                ended();
+            }
+        }) {
         Ok(wire) => Some(wire),
         Err(error) => {
             // The unstarted closure dropped the wire owner, which retired this generation.

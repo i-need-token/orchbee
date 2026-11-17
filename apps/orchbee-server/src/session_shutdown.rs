@@ -53,6 +53,8 @@ struct State {
     /// Whether a stop signal arrived; it stays set until the process ends.
     #[cfg(any(unix, test))]
     signalled: bool,
+    /// Whether the lifecycle owner should look at its Worker before its next tick.
+    woken: bool,
 }
 
 /// The lifecycle owner's next work: one Session stop attempt, or the requested `exit`.
@@ -280,8 +282,16 @@ impl SessionShutdown {
         self.changed.notify_all();
     }
 
+    /// Ends the lifecycle owner's current wait early, so it looks at its Worker now: the Worker
+    /// connection ended.
+    pub(crate) fn wake(&self) {
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).woken = true;
+        self.changed.notify_all();
+    }
+
     /// Waits up to `timeout` for one queued attempt, granting its execution ownership exactly once,
-    /// or for an `exit`. A queued attempt goes first, since it ends the process too.
+    /// or for an `exit`. A queued attempt goes first, since it ends the process too. A
+    /// [`wake`](Self::wake) ends the wait early with no work.
     pub(crate) fn take_within(&self, timeout: Duration) -> Option<Work> {
         let deadline = Instant::now() + timeout;
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
@@ -294,6 +304,9 @@ impl SessionShutdown {
             }
             if state.course >= Course::Exiting {
                 return Some(Work::Exit);
+            }
+            if std::mem::take(&mut state.woken) {
+                return None;
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {

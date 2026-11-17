@@ -51,6 +51,8 @@ pub(super) struct Owners {
     /// The Worker endpoint, which admits a replacement Worker only while one is being started.
     pub(super) listener: orchbee_local_ipc::LocalListener,
     pub(super) registry: Arc<std::sync::Mutex<crate::worker_registry::WorkerRegistry>>,
+    /// Wakes this owner's wait when an admitted Worker's connection ends.
+    pub(super) waker: std::sync::Weak<SessionShutdown>,
     pub(super) worker_executable: std::path::PathBuf,
     /// The Worker `query` lists: the serving one, or none.
     pub(super) serving: local_client_service::ServingWorker,
