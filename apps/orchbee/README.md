@@ -398,8 +398,8 @@ switching location. Workspace identity is independent of its optional Project. T
 Agents directly under each Workspace and supports several expanded Workspace lists at once.
 [Workspace setup](docs/native-workspace-setup.md) immediately creates an ungrouped Workspace and its
 first shell in the current directory of the focused Workspace's first terminal, else that Workspace's
-directory, or the launch directory when there is none; New
-Workspace in directory… opens the editable picker instead. A Project-menu creation explicitly targets
+directory, or the launch directory when there is none; Choose
+directory for new Workspace… opens the editable picker instead. A Project-menu creation explicitly targets
 that Project. Rename and organization are available afterwards; directory acceptance never starts
 a terminal. Known partial results remain inspectable with `orchbee workspace list`; unknown
 outcomes never replay, and late completion cannot override a newer selection.

@@ -566,9 +566,14 @@ impl WorkbenchAuthority {
                     WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
                 ));
             };
+            // The Workspace's current directory: where its first terminal stands, otherwise its
+            // primary Directory, always on that Directory's Worker.
             WorkbenchTabCreateTarget {
                 worker_id: directory.worker_id.clone(),
-                path: directory.path.clone(),
+                path: workspace
+                    .terminal_directory
+                    .clone()
+                    .unwrap_or_else(|| directory.path.clone()),
             }
         };
         // An open Context Close fences every membership change in its

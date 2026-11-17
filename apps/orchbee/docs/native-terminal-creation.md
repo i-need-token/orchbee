@@ -99,8 +99,8 @@ remain user-owned and are closed only by an explicit later action.
 
 `--cwd` accepts an absolute path or `follow`, `home`, `current`, `workspace`. Omission means
 `follow`. An absolute path, the CLI's home/current directory, or `workspace` explicitly bypasses
-source observation; `workspace` retains the existing Server Workspace-directory/Worker-home
-default. The CLI resolves a policy into existing launch options before submitting creation.
+source observation; `workspace` retains the existing Server default: the Workspace's current
+directory (its first terminal's directory, else its primary Directory), or the Worker home. The CLI resolves a policy into existing launch options before submitting creation.
 There is no new Server setting or retained directory policy.
 
 Follow uses the exact split source Panel. For a Tab it uses only the validated caller or already

@@ -168,7 +168,7 @@ replays it.
 
 ## Explicit directory and label editing
 
-The Windows and macOS creation menu and global action menu also offer **New Workspace in directory…**.
+The Windows and macOS creation menu and global action menu also offer **Choose directory for new Workspace…**.
 This uses the same read-only preparation, then displays the prepared path and generated name in
 the existing two-field draft with directory focus. It submits nothing until an explicit, drawn
 Submit/Enter; Esc cancels without creating resources and displays no pending item before then.
@@ -216,8 +216,8 @@ The launch folder default is the operating system's spelling, as in
 [directory startup](native-directory-startup.md).
 
 The TUI offers no way to give an existing Workspace its first directory; `orchbee workspace
-set-directory` remains that route for an Empty, unconfigured Workspace, and New Workspace in
-directory… covers the need in the TUI. For an Empty Workspace with a directory, the Empty-workbench
+set-directory` remains that route for an Empty, unconfigured Workspace, and Choose directory for new
+Workspace… covers the need in the TUI. For an Empty Workspace with a directory, the Empty-workbench
 guidance keeps the directory as a localized fact and renders the configured effective Create Tab
 chord through the shared key-hint component only while no capture owner is active. Its label is the
 action's shortcut-help title. Empty guidance appears only for a connected Client, so it never

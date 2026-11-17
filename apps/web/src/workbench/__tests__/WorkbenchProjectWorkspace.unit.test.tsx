@@ -1380,7 +1380,9 @@ describe('Workbench Project and Workspace management', () => {
 				fireEvent.contextMenu(row, { clientX: 120, clientY: 160 });
 				fireEvent.click(await screen.findByRole('menuitem', { name: /^New Workspace$/u }));
 			}
-			fireEvent.click(await screen.findByRole('menuitem', { name: 'New Workspace in directory…' }));
+			fireEvent.click(
+				await screen.findByRole('menuitem', { name: 'Choose directory for new Workspace…' }),
+			);
 			await waitFor(() =>
 				expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 					kind: 'workspace',

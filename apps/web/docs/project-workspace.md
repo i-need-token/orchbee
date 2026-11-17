@@ -145,7 +145,7 @@ so the name, folder, and facts change together; the row menu keeps naming the Wo
 ## Project navigation action menus
 
 A Project's New Workspace submenu and its right-side `+` button share one menu model. Both always
-start with New Workspace and New Workspace in directory, followed by the recorded Folder and
+start with New Workspace and Choose directory for new Workspace…, followed by the recorded Folder and
 available Worktree choices. Directory creation uses the host's existing Folder picker, or the
 existing path form when no picker is available, and launches directly in the addressed Project.
 It never creates another Project. Cancellation creates nothing. Successful creation from a button,

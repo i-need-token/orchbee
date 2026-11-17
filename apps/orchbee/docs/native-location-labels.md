@@ -46,7 +46,7 @@ same samples, for every Workspace whether its name is automatic or fixed. It dro
 separator except at a drive root and is present only while it differs from the primary Directory
 under the same comparison, so a sample back in the primary Directory omits it again. A new
 directory and any new automatic name commit in one revision, and the checkpoint retains both. It
-is an observation and never Directory identity; no Directory association changes. The sidebar's
+is an observation and never Directory identity; no Directory association changes. It is the Workspace's current directory: a Tab or Panel created without an explicit directory starts there, otherwise in the primary Directory, on the primary Directory's Worker. The sidebar's
 location line names its folder, otherwise the primary Directory's, and a followed name and its
 folder change together; [Machines](machines.md) owns how the row moves through a change.
 

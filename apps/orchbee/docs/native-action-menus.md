@@ -291,7 +291,7 @@ outcome from read-only machine observations.
 
 Project menus expose New Workspace and Rename Project, then a separated Ungroup, shown as Rename and Ungroup.
 The New Workspace submenu uses the same choices as the exact Project's sidebar `+` button: New Workspace,
-New Workspace in directory, and the discovered openable Worktree paths. Both creation entries
+Choose directory for new Workspace…, and the discovered openable Worktree paths. Both creation entries
 use the same composition and availability rules, including empty and noncurrent Projects. Directory
 entry runs the existing setup workflow; default creation runs the Project quick path. The submenu
 stays a submenu even when only one choice is enabled. Rename

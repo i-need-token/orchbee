@@ -259,6 +259,34 @@ fn configured_workspace_stages_exact_directory_and_commits_only_its_context() {
 }
 
 #[test]
+fn workspace_tab_starts_where_its_first_terminal_stands() {
+    let (mut authority, grant) = authority();
+    let (context_id, worker_id, _) = install_workspace(&mut authority, true);
+    let moved = WorkbenchDirectoryPath::parse("/tmp/moved").unwrap();
+    let mut snapshot = authority.projection.snapshot().clone();
+    snapshot
+        .navigation
+        .workspaces
+        .last_mut()
+        .unwrap()
+        .terminal_directory = Some(moved.clone());
+    let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot)).unwrap();
+    authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
+    let request = command(4, 0, context_id, "workspace tab", geometry(80));
+
+    let WorkbenchTabCreateBegin::Admitted(admission) =
+        authority.begin_terminal_tab_create(Some(&grant), request)
+    else {
+        panic!("configured Workspace was not admitted")
+    };
+
+    assert_eq!(
+        admission.staged_metadata().workspace_launch(),
+        (&worker_id, &moved)
+    );
+}
+
+#[test]
 fn unconfigured_workspace_rejection_is_retained_without_allocating_or_committing() {
     let (mut authority, grant) = authority();
     let (context_id, _worker_id, _path) = install_workspace(&mut authority, false);

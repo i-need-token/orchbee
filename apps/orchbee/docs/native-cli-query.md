@@ -2427,7 +2427,7 @@ This slice adds no Server state machine, persistence or retry. `terminal read` u
 
 `tab create` and `panel split` accept an absolute `--cwd` and repeated literal
 `--env NAME=VALUE`, independently of default shell, `--exec` or `--profile` selection.
-Explicit cwd overrides the accepted Workspace directory only for that launch; if neither
+Explicit cwd overrides the Workspace's current directory (its first terminal's directory, else its accepted directory) only for that launch; if neither
 is present the existing Worker-home default applies. Placement, Workspace membership,
 and stored profiles remain unchanged. The Host checks the actual directory and reports
 the existing failed-launch result without creating a directory or substituting a fallback.
