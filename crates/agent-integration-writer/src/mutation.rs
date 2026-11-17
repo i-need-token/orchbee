@@ -747,6 +747,7 @@ fn run_step(
                 executable,
                 argv_owned,
                 context.home,
+                context.path_env,
                 context.deadline,
                 context.cancel,
             )

@@ -86,6 +86,16 @@ two entry files are a whole-file entry, so on macOS another environment's files 
 both enable and disable refuse them; see the writer's
 [whole-file rule](../../../crates/agent-integration-writer/README.md#whole-file-entries).
 
+## Finding Agent programs
+
+`explain`, `enable` and `disable`, and the Agents page of Settings in either Client, run on the
+Session's Worker. A Session that the window started from Finder or the Dock inherits launchd's
+`PATH`, which has none of the folders a profile adds, so the Worker first searches the `PATH` a new
+terminal's login shell leaves, then its own, and starts every provider command with both; the
+[Worker's integration job](../../orchbee-worker/README.md#agent-integration-job) owns the lookup.
+`list` runs in the CLI's own process and searches only its `PATH`, which the terminal it runs in
+has set the same way.
+
 ## Evidence
 
 Unit tests run the shared grammar, launcher round trip and byte-preserving edits on macOS. Real
@@ -95,6 +105,11 @@ and its permission bits, and disable returns it byte for byte; a file enable cre
 object after disable. A malformed or linked configuration file is refused and left as it is, and
 each written command runs under `/bin/sh` and `/bin/zsh` with the expected output. Without the
 Agent's program on PATH, enable refuses with `agent-unavailable`. Those runs stood in for the
-absent Agent programs, and for Hermes's plugin commands, with stand-in executables. Real hook
+absent Agent programs, and for Hermes's plugin commands, with stand-in executables. A staged
+cohort whose Session started with launchd's `PATH` found stand-in `claude` and `codex` programs in
+a folder only the scratch HOME's `.zprofile` adds (`explain` read `available`, where the build
+before this change read `not-found`), and the test window opened the same way listed Codex as not
+enabled and Claude Code as not checked, the state of an available Agent whose state only starting
+it reads. Real hook
 execution by each Agent, Hermes's own activation, delivery to the Server and authenticated Agent
 sessions are not established.

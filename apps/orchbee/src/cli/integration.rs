@@ -2,8 +2,9 @@
 //! this process, with its own home directory and `PATH`, and never starts or contacts a Session.
 //! `explain`, `enable` and `disable` declare activation: each converges the selected local Session
 //! toward readiness, then runs one Server-authorized job on the Session's Worker, which resolves
-//! provider executables from its own `PATH` and home directory. Mutations are guarded and report
-//! the post-effect state they actually observed.
+//! provider executables from its own `PATH` and home directory, a macOS Worker after the `PATH` a
+//! new terminal's login shell leaves. Mutations are guarded and report the post-effect state they
+//! actually observed.
 
 use crate::cli_text::CliText;
 use serde_json::{Map, Value, json};
@@ -93,9 +94,11 @@ pub(super) fn list_facts() -> Option<Option<Value>> {
 }
 
 /// `list` runs the Worker job's files-only inspection in this process, under the writer's own
-/// budget. A Session this command once started inherited this process's environment, so the
-/// answer is the one its Worker gave. No handler is armed: the read has no effect to settle, so a
-/// termination signal ends it by its default disposition.
+/// budget. A Session this command once started inherited this process's environment, so its
+/// Worker gives the same answer, except that a macOS Worker also searches the `PATH` a new
+/// terminal's login shell leaves, which the terminal this command runs in normally has already.
+/// No handler is armed: the read has no effect to settle, so a termination signal ends it by its
+/// default disposition.
 #[cfg(any(unix, windows))]
 fn list_here(
     provider: Option<crate::agent_integrations::IntegrationId>,

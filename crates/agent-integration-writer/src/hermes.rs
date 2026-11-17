@@ -214,6 +214,7 @@ pub(super) fn read(
         executable,
         &["plugins".into(), "list".into(), "--json".into()],
         context.home,
+        context.path_env,
         context.deadline,
         context.cancel,
     ) {

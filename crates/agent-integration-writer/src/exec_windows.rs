@@ -62,10 +62,12 @@ impl Drop for OwnedJob {
     }
 }
 
+/// Windows commands inherit this process's `PATH`; `_path_env` serves the shared call sites.
 pub(crate) fn run_command(
     executable: &Path,
     arguments: &[String],
     home: &Path,
+    _path_env: Option<&OsStr>,
     deadline: Instant,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {
@@ -75,6 +77,7 @@ pub(crate) fn run_hermes_command(
     executable: &Path,
     arguments: &[String],
     home: &Path,
+    _path_env: Option<&OsStr>,
     deadline: Instant,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {

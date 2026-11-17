@@ -1,6 +1,6 @@
 //! The bounded provider-command runner — the Rust port of
 //! `NodeAgentIntegrationCommandRunner` with the CLI's hardened contract:
-//! ambient-PATH resolution only (no login-shell probe), one owned process
+//! resolution on the invocation's PATH, which each command also starts with, one owned process
 //! group per command, SIGTERM→grace→SIGKILL→bounded reap, a 256KiB stdout
 //! cap, stderr to /dev/null, and slot admission against the invocation's
 //! single monotonic deadline. Provider-side effects beyond the subprocess
@@ -48,7 +48,7 @@ pub(crate) enum CommandResult {
     Cancelled,
 }
 
-/// Resolve `name` on the ambient PATH — first absolute, regular, executable
+/// Resolve `name` on `path_env` — first absolute, regular, executable
 /// candidate wins. Bounds: ≤256 directories per source, ≤4096 chars each, absolute-only, no control
 /// characters; an invalid name shape resolves to nothing.
 pub(crate) fn resolve_executable(
@@ -100,11 +100,13 @@ pub(crate) fn resolve_executable(
 
 /// Run one bounded command inside a slot clipped to `invocation_deadline`.
 /// Preparation/run and grace/reap consume their preallocated phases and
-/// never stretch the slot. `home` is the process working directory.
+/// never stretch the slot. `home` is the process working directory, and
+/// `path_env`, when present, the command's `PATH`.
 pub(crate) fn run_command(
     executable: &Path,
     arguments: &[String],
     home: &Path,
+    path_env: Option<&std::ffi::OsStr>,
     invocation_deadline: Instant,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {
@@ -112,6 +114,7 @@ pub(crate) fn run_command(
         executable,
         arguments,
         home,
+        path_env,
         None,
         invocation_deadline,
         cancel,
@@ -124,6 +127,7 @@ pub(crate) fn run_hermes_command(
     executable: &Path,
     arguments: &[String],
     home: &Path,
+    path_env: Option<&std::ffi::OsStr>,
     invocation_deadline: Instant,
     cancel: Option<&dyn crate::TerminationSource>,
 ) -> CommandResult {
@@ -137,6 +141,7 @@ pub(crate) fn run_hermes_command(
         executable,
         arguments,
         home,
+        path_env,
         Some(("HERMES_HOME", &profile)),
         invocation_deadline,
         cancel,
@@ -147,6 +152,7 @@ fn run_scoped_command(
     executable: &Path,
     arguments: &[String],
     home: &Path,
+    path_env: Option<&std::ffi::OsStr>,
     provider_home: Option<(&str, &Path)>,
     invocation_deadline: Instant,
     cancel: Option<&dyn crate::TerminationSource>,
@@ -190,6 +196,9 @@ fn run_scoped_command(
         .process_group(0);
     if let Some((variable, profile)) = provider_home {
         command.env(variable, profile);
+    }
+    if let Some(path) = path_env {
+        command.env("PATH", path);
     }
     if cancel.map(|source| source.requested()).unwrap_or(false) {
         return CommandResult::Cancelled;

@@ -50,6 +50,7 @@ impl Fixture {
             &self.node(),
             &["-e".into(), script.into()],
             &self.0,
+            None,
             Instant::now() + exec::SLOT,
             cancel,
         )
@@ -380,6 +381,7 @@ fn batch_shim_preserves_arguments_without_shell_interpolation() {
         &shim,
         &arguments,
         &fixture.0,
+        None,
         Instant::now() + exec::SLOT,
         None,
     );

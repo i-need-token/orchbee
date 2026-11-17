@@ -30,7 +30,7 @@ pub(crate) struct ProviderContext<'a> {
     /// The declared adapter source: the cohort sidecar directory or the
     /// `--adapter-source` override — `None` when no source exists.
     pub(crate) adapter_source: Option<&'a Path>,
-    /// The ambient PATH for executable resolution.
+    /// The PATH provider programs are found on and each provider command starts with: this process's, after any folders the caller searches first.
     pub(crate) path_env: Option<&'a OsStr>,
     /// The invocation's single monotonic deadline.
     pub(crate) deadline: Instant,
@@ -441,6 +441,7 @@ fn read(executable: &Path, arguments: &[&str], context: &ProviderContext) -> Rea
         executable,
         &argv,
         context.home,
+        context.path_env,
         context.deadline,
         context.cancel,
     ) {

@@ -155,6 +155,20 @@ mod imp {
                 variables: crate::provider_roots::process,
             }
         }
+
+        /// This context with `folders`, a `PATH` value, searched before this process's `PATH`
+        /// for provider programs and joined with it as the `PATH` each provider command starts
+        /// with. The macOS Worker passes the `PATH` a new terminal's login shell leaves.
+        pub fn searching_first(mut self, folders: OsString) -> Self {
+            let mut path = folders;
+            // An empty entry would make a command search its working directory.
+            if let Some(own) = self.path_env.take().filter(|own| !own.is_empty()) {
+                path.push(if cfg!(windows) { ";" } else { ":" });
+                path.push(own);
+            }
+            self.path_env = Some(path);
+            self
+        }
     }
 
     pub use orchbee_agent_integration::CapsuleStatus;
@@ -197,7 +211,8 @@ mod imp {
     }
 
     /// Assemble the invocation context. `home`/`path_env` come from the ambient
-    /// environment — the tests isolate both. `cancel` is the armed termination
+    /// environment — the tests isolate both. A caller adds folders to search first with
+    /// `IntegrationContext::searching_first`. `cancel` is the armed termination
     /// source the frontier checks at every boundary.
     pub fn context(
         override_path: Option<&Path>,

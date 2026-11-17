@@ -263,6 +263,7 @@ fn cancelled_command_group_still_takes_the_kill_path() {
                 &script,
                 &[],
                 &home,
+                None,
                 Instant::now() + exec::SLOT,
                 Some(&cancel),
             )
@@ -375,7 +376,8 @@ fn timed_out_command_is_launched_and_reaped_inside_its_slot() {
     let (result, elapsed, leader) = thread::scope(|scope| {
         let command = scope.spawn(|| {
             let start = Instant::now();
-            let result = exec::run_command(&script, &[], &home, Instant::now() + exec::SLOT, None);
+            let result =
+                exec::run_command(&script, &[], &home, None, Instant::now() + exec::SLOT, None);
             (result, start.elapsed())
         });
         let leader = read_pidfile(&leader_pidfile, Duration::from_secs(2));

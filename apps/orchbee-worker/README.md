@@ -295,11 +295,25 @@ terminal outcome observable through `poll`.
 request loops and is the node's only Agent integration writer. Every action is fenced to this Worker
 ID and generation before owner access. Start decodes the contract request, then runs one writer
 thread; while it runs, another Start answers `Busy`, and a replayed Start with the same document
-answers `Accepted`. The writer uses this Worker's own home directory and `PATH`, under the request
-budget or the contract's 40-second ceiling. Cancel sets the cooperative termination the writer
-observes between bounded steps. Poll returns the encoded report; a job that panics or whose report
-exceeds the contract bound is `Abandoned`. Eight settled jobs stay pollable, and admission evicts
-the oldest settled one first.
+answers `Accepted`. The writer uses this Worker's own home directory and `PATH`, with the macOS
+addition below, under the request budget or the contract's 40-second ceiling. Cancel sets the
+cooperative termination the writer observes between bounded steps. Poll returns the encoded
+report; a job that panics or whose report exceeds the contract bound is `Abandoned`. Eight
+settled jobs stay pollable, and admission evicts the oldest settled one first.
+
+On macOS a Session that the window started from Finder or the Dock inherits launchd's `PATH`,
+`/usr/bin:/bin:/usr/sbin:/sbin`, which has none of the folders a profile adds, such as
+`~/.local/bin`, Homebrew's or npm's, so the writer would find no Agent installed there. Before each
+operation the job therefore runs the system shell a new terminal starts (`$SHELL`, the account
+shell, then `/bin/sh`) once as `-i -l -c 'exec /bin/sh -c "$ORCHBEE_LOGIN_PATH"'`, through
+`posix_spawn` with an empty signal mask, standard input from `/dev/null` and its own process group,
+as the Agent probe below does; `/bin/sh` prints a marker line and then the `PATH` the startup files
+left. The writer searches that value first, then this Worker's own `PATH`, and starts every provider
+command with the two joined, so a program an npm install put there finds `node`. The lookup gets
+six seconds within the budget and observes Cancel; a lookup that fails or prints no marker leaves
+this Worker's own `PATH`. An interactive shell takes a controlling terminal when it has one; this
+Worker has none, since the Server starts its own session. Other platforms search only this Worker's
+`PATH`.
 
 ## Agent probe job
 

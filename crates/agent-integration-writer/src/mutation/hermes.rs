@@ -82,6 +82,7 @@ pub(super) fn update(
                 &executable,
                 argv,
                 context.home,
+                context.path_env,
                 context.deadline,
                 context.cancel,
             )

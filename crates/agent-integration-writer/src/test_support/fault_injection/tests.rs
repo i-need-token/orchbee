@@ -98,6 +98,7 @@ fn pre_effect_cancel_does_not_consume_or_log_the_scripted_command() {
         executable,
         &[],
         home,
+        None,
         now() + exec::SLOT,
         Some(&InjectCancel),
     );
@@ -105,7 +106,7 @@ fn pre_effect_cancel_does_not_consume_or_log_the_scripted_command() {
     assert!(matches!(result, CommandResult::Cancelled));
     assert!(argv_log().is_empty());
     flag.store(false, std::sync::atomic::Ordering::Relaxed);
-    let retained = exec::run_command(executable, &[], home, now() + exec::SLOT, None);
+    let retained = exec::run_command(executable, &[], home, None, now() + exec::SLOT, None);
     assert!(matches!(
         retained,
         CommandResult::Completed { ref stdout } if stdout.as_slice() == b"retained"
@@ -128,6 +129,7 @@ fn mid_effect_cancel_consumes_exactly_one_scripted_command() {
         executable,
         &[],
         home,
+        None,
         now() + exec::SLOT,
         Some(&InjectCancel),
     );
@@ -136,7 +138,7 @@ fn mid_effect_cancel_consumes_exactly_one_scripted_command() {
     cancel_flag()
         .unwrap()
         .store(false, std::sync::atomic::Ordering::Relaxed);
-    let next = exec::run_command(executable, &[], home, now() + exec::SLOT, None);
+    let next = exec::run_command(executable, &[], home, None, now() + exec::SLOT, None);
     assert!(matches!(
         next,
         CommandResult::Completed { ref stdout } if stdout.as_slice() == b"next"
@@ -165,6 +167,7 @@ fn refused_frontier_cancel_does_not_leak_into_the_next_command() {
         executable,
         &[],
         home,
+        None,
         now() + Duration::from_millis(600),
         Some(&InjectCancel),
     );
@@ -174,7 +177,7 @@ fn refused_frontier_cancel_does_not_leak_into_the_next_command() {
     cancel_flag()
         .unwrap()
         .store(false, std::sync::atomic::Ordering::Relaxed);
-    let retained = exec::run_command(executable, &[], home, now() + exec::SLOT, None);
+    let retained = exec::run_command(executable, &[], home, None, now() + exec::SLOT, None);
     assert!(matches!(
         retained,
         CommandResult::Completed { ref stdout } if stdout.as_slice() == b"retained"
@@ -197,6 +200,7 @@ fn reset_clears_a_pending_frontier_cancel() {
         Path::new("/fake-provider"),
         &[],
         Path::new("/"),
+        None,
         now() + exec::SLOT,
         None,
     );
