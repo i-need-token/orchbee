@@ -276,6 +276,10 @@ fn asynchronous_worktree_completion_uses_the_sources_current_project_and_regroup
 
 /// A Workspace outside any Project whose own Directory is the opened checkout.
 fn ungrouped_holder(fixture: &Fixture, label: &str) -> WorkbenchWorkspaceId {
+    ungrouped_holder_at(fixture, label, "C:/new-checkout")
+}
+
+fn ungrouped_holder_at(fixture: &Fixture, label: &str, directory: &str) -> WorkbenchWorkspaceId {
     let WorkbenchCommandOutcome::WorkspaceCreated { workspace_id, .. } = navigation(
         &fixture.service,
         50,
@@ -294,7 +298,7 @@ fn ungrouped_holder(fixture: &Fixture, label: &str) -> WorkbenchWorkspaceId {
         expected_revision: snapshot.revision,
         action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
             workspace_id: workspace_id.clone(),
-            path: WorkbenchDirectoryPath::parse("C:/new-checkout").unwrap(),
+            path: WorkbenchDirectoryPath::parse(directory).unwrap(),
         },
     };
     let result = fixture
@@ -374,6 +378,90 @@ fn a_posix_checkout_differing_only_in_case_is_another_directory() {
         []
     );
     assert_eq!(authority.checkout_holders(&path("/trees/Foo"), &worker), []);
+}
+
+/// Removes its temporary folder, however the test ends.
+#[cfg(windows)]
+struct TemporaryFolder(std::path::PathBuf);
+
+#[cfg(windows)]
+impl Drop for TemporaryFolder {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// On Windows a Workspace whose directory is typed in 8.3 short form stands in that folder under its
+/// long spelling too, and the shell's long-form report of it records nothing and commits no
+/// revision. The test returns early where the volume writes no 8.3 alias for the folder.
+#[cfg(windows)]
+#[test]
+fn a_short_form_primary_and_its_shells_long_form_are_one_folder() {
+    const NAME: &str = "orchbee451longfoldername";
+    let root =
+        TemporaryFolder(std::env::temp_dir().join(format!("orchbee-451-{}", std::process::id())));
+    std::fs::create_dir_all(root.0.join(NAME)).unwrap();
+    // The System32 shell, by absolute path, so a PATH shim named cmd.exe cannot answer instead.
+    let shell = std::path::PathBuf::from(
+        std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into()),
+    )
+    .join("System32")
+    .join("cmd.exe");
+    let output = std::process::Command::new(shell)
+        .current_dir(&root.0)
+        .args([
+            "/D",
+            "/C",
+            "for %I in (orchbee451longfoldername) do @echo %~snI",
+        ])
+        .output()
+        .unwrap();
+    let short_name = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    assert!(
+        !short_name.is_empty(),
+        "the shell printed no short name: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    if short_name.eq_ignore_ascii_case(NAME) {
+        return;
+    }
+    let long_root = std::fs::canonicalize(&root.0)
+        .unwrap()
+        .to_string_lossy()
+        .trim_start_matches(r"\\?\")
+        .to_owned();
+    let (short, long) = (
+        format!(r"{long_root}\{short_name}"),
+        format!(r"{long_root}\{NAME}"),
+    );
+    assert!(
+        std::fs::metadata(&short).is_ok(),
+        "the short name {short} does not resolve"
+    );
+    let fixture = Fixture::new();
+    let holder = ungrouped_holder_at(&fixture, "holder", &short);
+    let worker = WorkerId::parse(&"09".repeat(16)).unwrap();
+    let long = WorkbenchDirectoryPath::parse(&long).unwrap();
+    let before = snapshot(&fixture.service).revision;
+    {
+        let mut coordinator = fixture.service.coordinator.lock().unwrap();
+        let authority = coordinator.worktree_authority().unwrap();
+        authority.follow_workspace_directory(&holder, &long);
+        assert_eq!(
+            authority.checkout_workspaces(&long, &worker),
+            std::slice::from_ref(&holder)
+        );
+    }
+    let after = snapshot(&fixture.service);
+    assert_eq!(after.revision, before);
+    assert_eq!(
+        after
+            .navigation
+            .workspace(&holder)
+            .unwrap()
+            .terminal_directory,
+        None
+    );
 }
 
 /// A Workspace created in the checkout has moved away: Open starts a new one there, while Remove

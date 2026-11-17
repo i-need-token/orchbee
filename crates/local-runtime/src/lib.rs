@@ -78,9 +78,10 @@ pub use user_settings::{
 };
 mod directory;
 pub use directory::{
-    AGENT_START_VARIABLE, posix_reported_directory, reported_directory,
-    windows_agent_start_command, windows_interactive_powershell_initialization,
-    windows_powershell_application, windows_reported_directory,
+    AGENT_START_VARIABLE, long_form_of_short_name, posix_reported_directory, reported_directory,
+    same_existing_folder, windows_agent_start_command,
+    windows_interactive_powershell_initialization, windows_powershell_application,
+    windows_reported_directory,
 };
 mod command_outcome;
 pub use command_outcome::{CommandFailure, CommandOutput};

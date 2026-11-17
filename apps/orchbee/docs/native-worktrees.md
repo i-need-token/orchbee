@@ -89,7 +89,9 @@ A Workspace's row menu appends **Remove Worktree…** after Close Workspace… w
 read-only listing proves that Workspace's exact primary directory is an associated linked,
 non-bare checkout on the same Worker. Project and creation menus do not infer a removal target.
 That directory proof compares spellings without touching the filesystem under
-`same_directory_spelling`, the rule every Server checkout association also uses: POSIX-rooted paths
+`same_directory_spelling`, the spelling rule the Server's checkout association also starts from; on
+Windows the Server's standing check also accepts an 8.3 short spelling of the same existing folder
+([native location labels](native-location-labels.md#automatic-workspace-names)). POSIX-rooted paths
 match byte for byte, because a Linux or macOS volume may be case sensitive; on Windows drive paths
 only separators, trailing separators and ASCII case (including the drive letter) may differ. A
 `\\?\` verbatim prefix, dot component, doubled separator, non-ASCII case difference or parent/child

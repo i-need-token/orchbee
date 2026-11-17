@@ -109,3 +109,69 @@ pub fn windows_reported_directory(value: &str) -> Option<String> {
     }
     Some(path)
 }
+
+/// The long-spelling equality behind [`super::same_existing_folder`]. An 8.3 short name always
+/// carries `~`, so a pair without one needs no file-system lookup.
+#[cfg(windows)]
+pub(super) fn same_existing_folder(left: &str, right: &str) -> bool {
+    if !left.contains('~') && !right.contains('~') {
+        return false;
+    }
+    match (long_drive_folder(left), long_drive_folder(right)) {
+        (Some(left), Some(right)) => {
+            trimmed_separator(&left).eq_ignore_ascii_case(trimmed_separator(&right))
+        }
+        _ => false,
+    }
+}
+
+/// The long spelling of an 8.3 short-name path, from [`long_drive_folder`]. A path without `~`
+/// is never resolved, so ordinary spellings never reach the file system.
+#[cfg(windows)]
+pub(super) fn long_form_of_short_name(path: &str) -> Option<String> {
+    if path.contains('~') {
+        long_drive_folder(path)
+    } else {
+        None
+    }
+}
+
+/// The long spelling Windows gives an absolute plain drive path on a local fixed disk or RAM disk,
+/// read with `\` separators. Any other prefix, a relative path, a network, removable, optical,
+/// unknown or missing drive, or a path Windows cannot resolve gives `None`.
+#[cfg(windows)]
+fn long_drive_folder(path: &str) -> Option<String> {
+    let native = path.replace('/', "\\");
+    let parsed = std::path::Path::new(&native);
+    let Some(std::path::Component::Prefix(prefix)) = parsed.components().next() else {
+        return None;
+    };
+    let std::path::Prefix::Disk(letter) = prefix.kind() else {
+        return None;
+    };
+    if !parsed.is_absolute() || !is_local_fixed_or_ram_drive(letter) {
+        return None;
+    }
+    winsafe::GetLongPathName(&native).ok()
+}
+
+/// Whether a drive's root is a fixed disk or a RAM disk. `GetDriveType` answers from the local
+/// mount manager without contacting a server, so a remote drive is refused before
+/// `GetLongPathName` could wait on its share.
+#[cfg(windows)]
+fn is_local_fixed_or_ram_drive(letter: u8) -> bool {
+    let root = format!("{}:\\", char::from(letter));
+    let drive = winsafe::GetDriveType(Some(root.as_str()));
+    drive == winsafe::co::DRIVE::FIXED || drive == winsafe::co::DRIVE::RAMDISK
+}
+
+/// Drops trailing separators, but keeps the one that makes a drive root.
+#[cfg(windows)]
+fn trimmed_separator(path: &str) -> &str {
+    let rest = path.trim_end_matches('\\');
+    if rest.is_empty() || rest.ends_with(':') {
+        path
+    } else {
+        rest
+    }
+}

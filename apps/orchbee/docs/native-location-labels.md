@@ -33,7 +33,8 @@ Panel. Server's existing process sampler supplies that terminal's directory (a v
 terminal-reported directory, otherwise the root process directory). The first directory the
 running Server samples for a Workspace, and each later sample that differs from the last one,
 ignoring ASCII case and trailing separators, names it: Server commits the directory's final name
-in one revision, adding ` (2)`, ` (3)` and onward while another Workspace uses it, exactly like
+(on Windows the long spelling, when the sample gives an 8.3 short name) in one revision, adding
+` (2)`, ` (3)` and onward while another Workspace uses it, exactly like
 generated names. At creation that name is already the label; after a restart it corrects a name
 the restored terminal's directory no longer matches. A repeated directory commits nothing, so
 another Workspace's rename never reshuffles a suffix. A root directory, a name the label rule refuses, or an
@@ -44,7 +45,9 @@ checkpoint like any other rename; nothing is retried and the label is never reve
 Server also owns optional `Workspace.terminalDirectory`, the first terminal's directory from the
 same samples, for every Workspace whether its name is automatic or fixed. It drops a trailing
 separator except at a drive root and is present only while it differs from the primary Directory
-under the same comparison, so a sample back in the primary Directory omits it again. A new
+under the same comparison, so a sample back in the primary Directory omits it again. On Windows that
+comparison also equates an 8.3 short spelling with the long spelling of the same existing folder, so a
+long-form report from a short-form primary Directory records nothing and commits no revision. A new
 directory and any new automatic name commit in one revision, and the checkpoint retains both. It
 is an observation and never Directory identity; no Directory association changes. It is the Workspace's current directory: a Tab or Panel created without an explicit directory starts there, otherwise in the primary Directory, on the primary Directory's Worker. The sidebar's
 location line names its folder, otherwise the primary Directory's, and a followed name and its

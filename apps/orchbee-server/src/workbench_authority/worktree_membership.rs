@@ -14,7 +14,7 @@ pub(super) struct Association {
 
 /// Whether the sidebar shows `workspace` at `path`: its first terminal's directory, recorded only
 /// while it differs from the primary Directory, leads. A Workspace created there that moved away
-/// is elsewhere.
+/// is elsewhere. On Windows an 8.3 short spelling of the same existing folder stands there too.
 fn stands_at(
     navigation: &Navigation,
     workspace: &Workspace,
@@ -27,7 +27,10 @@ fn stands_at(
             .terminal_directory
             .as_ref()
             .or(primary.map(|directory| &directory.path))
-            .is_some_and(|shown| same_directory_spelling(shown.as_str(), path.as_str()))
+            .is_some_and(|shown| {
+                same_directory_spelling(shown.as_str(), path.as_str())
+                    || orchbee_local_runtime::same_existing_folder(shown.as_str(), path.as_str())
+            })
 }
 
 impl WorkbenchAuthority {

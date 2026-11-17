@@ -21,12 +21,19 @@ pub fn without_trailing_separator(path: &str) -> &str {
     }
 }
 
+/// Whether two directory spellings name one folder: equal by [`same_directory`], or on Windows one
+/// 8.3 short spelling of the other's existing folder.
+fn same_folder(left: &str, right: &str) -> bool {
+    same_directory(left, right) || orchbee_local_runtime::same_existing_folder(left, right)
+}
+
 impl WorkbenchAuthority {
     /// Advances the projection with one Workspace's first terminal directory. The directory is
     /// recorded only while it differs from the primary Directory, so a sample matching it at
-    /// creation records nothing. An automatic Workspace also takes the directory's final name,
-    /// suffixed ` (2)`, ` (3)` and onward like generated names while another Workspace uses it; a
-    /// root directory or invalid name leaves the label. The caller holds the Session gate and
+    /// creation records nothing; on Windows a short-form spelling of the primary's folder matches
+    /// too. An automatic Workspace also takes the directory's final name, its long spelling on
+    /// Windows, suffixed ` (2)`, ` (3)` and onward like generated names while another Workspace uses
+    /// it; a root directory or invalid name leaves the label. The caller holds the Session gate and
     /// decides that the directory changed. No change or an exhausted projection budget commits
     /// nothing, and nothing is retried here.
     pub fn follow_workspace_directory(
@@ -46,7 +53,7 @@ impl WorkbenchAuthority {
         let observed = (!candidate
             .navigation
             .workspace_directory(workspace_id)
-            .is_some_and(|primary| same_directory(primary.path.as_str(), directory.as_str())))
+            .is_some_and(|primary| same_folder(primary.path.as_str(), directory.as_str())))
         .then(|| directory.clone());
         let label = Self::directory_label(&candidate, workspace_id, &directory);
         let Some(workspace) = candidate
@@ -90,7 +97,9 @@ impl WorkbenchAuthority {
         workspace_id: &WorkbenchWorkspaceId,
         directory: &WorkbenchDirectoryPath,
     ) -> Option<String> {
-        let name = std::path::Path::new(directory.as_str())
+        // Windows names a folder by its long spelling; an 8.3 short name is only an alias of it.
+        let long = orchbee_local_runtime::long_form_of_short_name(directory.as_str());
+        let name = std::path::Path::new(long.as_deref().unwrap_or(directory.as_str()))
             .file_name()
             .and_then(|name| name.to_str())
             .filter(|name| !name.trim().is_empty())?;
