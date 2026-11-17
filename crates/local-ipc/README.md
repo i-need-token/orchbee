@@ -42,17 +42,6 @@ owner must retain its existing unknown-outcome behavior. Kernel scheduling is ou
 the monotonic budget's real-time guarantee. The existing local submission/relay models
 continue to own request identity, at-most-once submission, and feedback semantics.
 
-Every client open passes `SECURITY_SQOS_PRESENT` with `SECURITY_IDENTIFICATION`, so a server
-that squats the endpoint's name receives a thread token at identification level: it can read the
-client's token user, as the Terminal Host's same-user check does, but it cannot impersonate the
-client. Anonymous would stop that token query, so identification is the lowest level that keeps
-every server check working. `interprocess` offers no flag parameter for its own connect, so the
-open is `std`'s `OpenOptions` with the flags, wrapped through `TryFrom<OwnedHandle>`; the native
-test `client_open_limits_a_server_impersonation_to_identification` confirms the level survives
-that wrap. A busy endpoint waits in `WaitNamedPipeW` through `windows_native::wait_for_instance`
-within the caller's budget. The same-user proof still runs after the open, and the reader that
-`ChildInputWriter::pipe` gives a child is opened the same way.
-
 `LocalStream::connect_before_with_wait_limit` separates one kernel connection wait from
 the caller's absolute admission deadline. `None` means only busy/wait exhaustion before
 a pipe was opened. An opened pipe must complete the same-user proof and nonblocking

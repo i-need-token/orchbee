@@ -1,10 +1,9 @@
 //! The crate's sole Win32 FFI: one exact namespace lookup, pipe counters, one zero-byte read
-//! watch per connection, one wait over the resulting events, and one bounded wait for a busy
-//! endpoint instance. Test builds add one impersonation probe that reverts before returning.
+//! watch per connection, and one wait over the resulting events.
 
 use std::{
     cell::{RefCell, UnsafeCell},
-    ffi::{OsStr, c_void},
+    ffi::c_void,
     fmt, io,
     marker::PhantomPinned,
     os::windows::io::{AsRawHandle, BorrowedHandle, FromRawHandle, OwnedHandle},
@@ -117,8 +116,6 @@ unsafe extern "system" {
         argument: *const c_void,
         resume: i32,
     ) -> i32;
-    #[link_name = "WaitNamedPipeW"]
-    fn wait_named_pipe(name: *const u16, timeout: u32) -> i32;
 }
 
 #[link(name = "ntdll")]
@@ -416,69 +413,6 @@ pub(super) fn wait_any(events: &[Arc<OwnedHandle>], timeout: Option<Duration>) -
         return Err(io::Error::last_os_error());
     }
     Ok(())
-}
-
-/// Blocks for at most `timeout` until a server instance of `name` has no connected client. The
-/// wake is advisory: the caller reopens the pipe, which may find the instance taken again.
-pub(super) fn wait_for_instance(name: &OsStr, timeout: Duration) -> io::Result<()> {
-    let name = U16CString::from_os_str(name).map_err(io::Error::other)?;
-    // Zero selects the system default wait, so a sub-millisecond remainder waits one millisecond.
-    let milliseconds = u32::try_from(timeout.as_millis())
-        .unwrap_or(u32::MAX - 1)
-        .max(1);
-    // SAFETY: `name` is a NUL-terminated UTF-16 string that outlives the call, and the call keeps
-    // no pointer to it.
-    if unsafe { wait_named_pipe(name.as_ptr(), milliseconds) } == 0 {
-        return Err(io::Error::last_os_error());
-    }
-    Ok(())
-}
-
-// Test probe: impersonates the client of a connected server-side pipe, reads the impersonation
-// level of that thread token, and reverts. Production code never impersonates a peer.
-#[cfg(test)]
-#[link(name = "advapi32")]
-unsafe extern "system" {
-    #[link_name = "ImpersonateNamedPipeClient"]
-    fn impersonate_named_pipe_client(pipe: *mut c_void) -> i32;
-    #[link_name = "RevertToSelf"]
-    fn revert_to_self() -> i32;
-}
-
-/// The raw `SECURITY_IMPERSONATION_LEVEL` a server thread gets when it impersonates the client of
-/// `pipe`: `1` is identification and `2` is impersonation.
-#[cfg(test)]
-pub(super) fn impersonated_client_level(pipe: BorrowedHandle<'_>) -> io::Result<u32> {
-    // SAFETY: `pipe` is a live server-side pipe handle borrowed for the call; the call retains nothing.
-    if unsafe { impersonate_named_pipe_client(pipe.as_raw_handle()) } == 0 {
-        return Err(io::Error::last_os_error());
-    }
-    let level = thread_impersonation_level();
-    // SAFETY: reverting takes no arguments. A thread left impersonating would act as the client,
-    // so a failed revert stops the probe instead of returning.
-    assert_ne!(
-        unsafe { revert_to_self() },
-        0,
-        "RevertToSelf failed after impersonation"
-    );
-    level
-}
-
-#[cfg(test)]
-fn thread_impersonation_level() -> io::Result<u32> {
-    let token = winsafe::HTHREAD::GetCurrentThread()
-        .OpenThreadToken(co::TOKEN::QUERY, true)
-        .map_err(|error| io::Error::from_raw_os_error(error.raw() as i32))?;
-    let info = token
-        .GetTokenInformation(co::TOKEN_INFORMATION_CLASS::ImpersonationLevel)
-        .map_err(|error| io::Error::from_raw_os_error(error.raw() as i32))?;
-    let winsafe::TokenInfo::ImpersonationLevel(level) = info else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "token impersonation level missing",
-        ));
-    };
-    Ok(level.raw())
 }
 
 #[cfg(test)]

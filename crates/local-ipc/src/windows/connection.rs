@@ -1,5 +1,5 @@
 //! One bounded kernel wait followed by same-user admission under the caller's whole deadline.
-use super::{LocalStream, connect_identified, pipe_name};
+use super::{ConnectWaitMode, LocalStream, Pipe, pipe_name};
 use std::{
     io,
     path::Path,
@@ -39,7 +39,12 @@ impl LocalStream {
             deadline,
             wait_limit,
             Instant::now,
-            |wait| connect_identified(pipe_name(path)?, wait),
+            |wait| {
+                Pipe::connect_by_path_with_wait_mode(
+                    pipe_name(path)?,
+                    ConnectWaitMode::Timeout(wait),
+                )
+            },
             Self::admit,
         )
     }
