@@ -1,1 +1,1 @@
-{"signatures":[{"keyId":"bb4defa597ab036b","algorithm":"ed25519","signature":"LIzfo8xpEG5xlMztjBXmWLZuQFleLS+m8GxJqCwp9PplEUvXMNFY29/umSJ1E8hasECfApL03VuTLfeOGI+oCw=="}]}
+{"signatures":[{"keyId":"bb4defa597ab036b","algorithm":"ed25519","signature":"TGSp/J/73GKZLCo/lodO6bhYPWMyt2jgk46hm+JdH14ZVX+WZ9Dt4JskP67yl2dv3Y8J7D+v9lpkLlh82sM6Cw=="}]}
