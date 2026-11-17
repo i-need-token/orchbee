@@ -508,8 +508,9 @@ application centred at (180, 180) and `Applications` at (480, 180); and the back
 `.background.tiff`, which `tiffutil -cathidpicheck` joins from the 1x and 2x pictures in
 `resources/brand/png/dmg/`. The picture carries only an arrow, since it cannot switch language,
 and is light because Finder draws a window with a background picture in its light appearance, so
-the black icon labels read in light and dark mode. The picture's arrow and the layout's positions
-form one contract: change the repository's `scripts/brand-assets.mjs` and this package's
+the black icon labels read in light and dark mode. The arrow is centred between the icons' visible
+art rather than their boxes, so the picture's arrow, the layout's positions and the two icons form
+one contract: change the repository's `scripts/brand-assets.mjs` and this package's
 `scripts/mac-disk-image.mjs` together.
 
 | Profile | Disk image                                       | Application        |

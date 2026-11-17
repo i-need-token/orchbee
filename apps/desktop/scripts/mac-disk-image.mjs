@@ -8,7 +8,8 @@ import { mkdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 // Cross-runtime contract: resources/brand/png/dmg/ draws its arrow for this window, these icon
-// centres and this icon size (scripts/brand-assets.mjs); change both together.
+// centres and this icon size, centred between the two icons' visible art (scripts/brand-assets.mjs);
+// change both together.
 const WINDOW = { x: 200, y: 120, width: 660, height: 400 };
 const ICON_SIZE = 128;
 const TEXT_SIZE = 12;

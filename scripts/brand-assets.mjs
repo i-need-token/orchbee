@@ -60,11 +60,13 @@ const SOCIAL_CARDS = [
 // switch language. Finder draws a window with a background picture in its light appearance, so the
 // black icon labels read in light and dark mode. Cross-runtime contract: the size, the icon centres
 // (180, 180) and (480, 180) and the 128 px icons are apps/desktop/scripts/mac-disk-image.mjs's
-// layout; change both together.
+// layout; change both together. The arrow is centred between the visible art, not the icon boxes:
+// the Orchbee squircle ends at x 231.5 and the Applications folder starts at x 421 (alpha above
+// half in their 2x images; the alias badge sits below the arrow's rows), leaving 46.5 and 46 points.
 const DISK_IMAGE_BACKGROUND = {
 	width: 660,
 	height: 400,
-	svg: `<svg xmlns="http://www.w3.org/2000/svg" width="660" height="400" viewBox="0 0 660 400"><rect width="660" height="400" fill="#EFEDE8"/><path d="M282 180h92m-20-20 20 20-20 20" fill="none" stroke="${INK}" stroke-opacity="0.42" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+	svg: `<svg xmlns="http://www.w3.org/2000/svg" width="660" height="400" viewBox="0 0 660 400"><rect width="660" height="400" fill="#EFEDE8"/><path d="M280.5 180h92m-20-20 20 20-20 20" fill="none" stroke="${INK}" stroke-opacity="0.42" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };
 
 const darwinSuffix = (variant) => (variant === 'release' ? '' : `-${variant}`);
