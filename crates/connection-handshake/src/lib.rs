@@ -43,7 +43,8 @@ pub use query::{
     QueryResult,
 };
 pub use registry::{
-    AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, ConnectionKind, Delivery, FrameFormat,
-    PROMPT_GATED_INPUT, STREAM_OUTCOME_UNKNOWN, TERMINAL_RUNTIME, UPDATE_CHECK,
+    AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CONFIGURED_COMMAND_SOURCE_EXITED, ConnectionKind,
+    Delivery, FrameFormat, PROMPT_GATED_INPUT, STREAM_OUTCOME_UNKNOWN, TERMINAL_RUNTIME,
+    UPDATE_CHECK,
 };
 pub use strict_json::parse_strict_object;

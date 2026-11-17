@@ -34,8 +34,10 @@ A source Panel whose terminal has exited or failed is refused with `source-exite
 effect, for every action: its retained output is not a source, and nothing runs. The Server names
 that cause only when its source read finds no frame and the Host's inventory says the terminal
 ended; a source whose state it cannot learn stays `unavailable`, and a running source is never
-refused for it. The CLI exits 3 and points to `--panel` with a running Panel; the TUI and the GUI
-say the Panel's terminal exited and to focus a running Panel. Controlled lane witnesses live in
+refused for it. The Server names the cause only to a Client whose handshake answer lists
+`configured-command-source-exited`, which every Client of this release offers; an older Client,
+which cannot read the reason, gets `unavailable`. The CLI exits 3 and points to `--panel` with a
+running Panel; the TUI and the GUI say the Panel's terminal exited and to focus a running Panel. Controlled lane witnesses live in
 `crates/workbench-client/src/workbench_client/client_control/lane/tests/configured_invocation.rs`; popup input, close and
 return behavior remains with the existing independent-popup owner.
 

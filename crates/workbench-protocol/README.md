@@ -309,8 +309,10 @@ Configured popup controls carry a separate typed selector, source, display
 context and configured dimensions. Open/read/close are owned by the authenticated
 Client connection and use the existing independent terminal lifecycle. A stale
 catalog, selection, membership or source refuses before dispatch, and a source
-whose terminal has exited or failed refuses with `source-exited`. The configured-command
-corpus is sealed, so that reason's case lives in a corpus of its own,
+whose terminal has exited or failed refuses with `source-exited`. A Server sends that reason
+only when the Client's handshake answer lists `configured-command-source-exited`; any other
+Client, such as 0.1.0-beta.14, cannot decode it and reads `unavailable` for the same refusal.
+The configured-command corpus is sealed, so that reason's case lives in a corpus of its own,
 `workbench-configured-command-source-exited-conformance-v1.json`, which every binding also
 checks. No configured command is represented as an installed plugin. [Native command behavior](../../apps/orchbee/docs/custom-commands.md)
 owns configuration, dispatch and process lifetime on each platform.

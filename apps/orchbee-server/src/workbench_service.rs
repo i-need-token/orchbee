@@ -94,6 +94,7 @@ impl WorkbenchService {
             events: std::sync::Mutex::new(std::collections::BTreeMap::new()),
             event_capture: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             view_lane: std::sync::Mutex::new(None),
+            names_source_exited: false,
         }
     }
 
@@ -1034,6 +1035,9 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
 pub(crate) struct WorkbenchClientConnection<'a> {
     service: &'a WorkbenchService,
     generation: std::num::NonZeroU64,
+    /// The Client's handshake answer lists `configured-command-source-exited`, so its configured
+    /// commands may be refused with `source-exited`; any other Client reads `unavailable`.
+    names_source_exited: bool,
     view_lane: std::sync::Mutex<Option<orchbee_workbench_protocol::MultiplexLaneId>>,
     event_capture: Arc<std::sync::atomic::AtomicBool>,
     events: std::sync::Mutex<
@@ -1044,6 +1048,11 @@ pub(crate) struct WorkbenchClientConnection<'a> {
     >,
 }
 impl WorkbenchClientConnection<'_> {
+    /// Records whether the Client's handshake answer lists `configured-command-source-exited`.
+    pub(crate) fn naming_source_exited(mut self, named: bool) -> Self {
+        self.names_source_exited = named;
+        self
+    }
     /// Forgets this connection's title listening. When it was in front, the Clients still listening
     /// are asked again, so the one now in front shows the current title without waiting for
     /// another change.

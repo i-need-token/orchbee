@@ -35,6 +35,11 @@ pub const UPDATE_CHECK: &str = "update-check";
 /// answer it understands.
 pub const STREAM_OUTCOME_UNKNOWN: &str = "stream-outcome-unknown";
 
+/// The `client-server` capability before a Server may refuse a configured command with
+/// `source-exited`, when its source Panel's terminal has exited or failed. A Client without it
+/// reads `unavailable` for that refusal, as its own release did.
+pub const CONFIGURED_COMMAND_SOURCE_EXITED: &str = "configured-command-source-exited";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {
@@ -98,6 +103,7 @@ impl ConnectionKind {
             Self::ClientServer => &[
                 AGENT_INPUT_AREA,
                 COMPATIBILITY_WINDOW,
+                CONFIGURED_COMMAND_SOURCE_EXITED,
                 PROMPT_GATED_INPUT,
                 STREAM_OUTCOME_UNKNOWN,
                 TERMINAL_RUNTIME,

@@ -25,7 +25,7 @@ impl WorkbenchClientConnection<'_> {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
             session_id: request.session_id,
-            outcome,
+            outcome: for_client(outcome, self.names_source_exited),
         }
     }
     fn configured_outcome(
@@ -173,5 +173,19 @@ impl WorkbenchClientConnection<'_> {
             // This step consumes its requested ClientView receipt class; other replies cannot confirm that observation.
             _ => Err(Failure::StaleSource),
         }
+    }
+}
+
+/// The outcome a Client reads. One whose handshake answer lacks `configured-command-source-exited`
+/// cannot decode `source-exited`, so it reads `unavailable`, its own release's answer to that
+/// refusal; nothing ran either way, and no other outcome changes.
+pub(super) fn for_client(outcome: Outcome, names_source_exited: bool) -> Outcome {
+    match outcome {
+        Outcome::Failed {
+            reason: Failure::SourceExited,
+        } if !names_source_exited => Outcome::Failed {
+            reason: Failure::Unavailable,
+        },
+        outcome => outcome,
     }
 }

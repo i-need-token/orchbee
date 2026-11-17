@@ -6,6 +6,7 @@
 			"capabilities": [
 				{ "name": "agent-input-area", "addedIn": "0.1.0" },
 				{ "name": "compatibility-window", "addedIn": "0.1.0-beta.14" },
+				{ "name": "configured-command-source-exited", "addedIn": "0.1.0-beta.15" },
 				{ "name": "prompt-gated-input", "addedIn": "0.1.0" },
 				{ "name": "stream-outcome-unknown", "addedIn": "0.1.0-beta.14" },
 				{ "name": "terminal-runtime", "addedIn": "0.1.0-beta.14" },

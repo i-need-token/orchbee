@@ -573,5 +573,7 @@ fn layout_structure_uses_navigation_only_without_a_worker() {
 
 mod window_title;
 
+mod configured_commands;
+
 #[cfg(all(test, windows))]
 mod plugins;
