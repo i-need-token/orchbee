@@ -25,6 +25,21 @@ impl LocalTerminalService {
         )
     }
 
+    /// The same creation for a configured Panel command, whose Panel presents `program`, the
+    /// program its command line starts, in place of the adapter its launch dispatches.
+    pub(in crate::local_terminal_service) fn execute_configured_panel_create(
+        &self,
+        command: WorkbenchCommand,
+        program: Option<orchbee_workbench_protocol::PresentationLaunchProgram>,
+    ) -> Result<WorkbenchCommandResult, PostcommitCoordinationError> {
+        self.execute_terminal_panel_create_with_candidates(
+            command,
+            super::create_reference(),
+            lease_expiry(),
+            self.launch_capture().presenting(program),
+        )
+    }
+
     fn execute_terminal_panel_create_with_candidates(
         &self,
         command: WorkbenchCommand,

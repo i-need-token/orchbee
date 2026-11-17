@@ -352,7 +352,10 @@ impl LocalTerminalService {
                 };
                 // A split is a Panel creation; Tab creation admits only new Tabs.
                 let result = self
-                    .execute_terminal_panel_create(command)
+                    .execute_configured_panel_create(
+                        command,
+                        shell_launch::presented_program(&prepared.command.command),
+                    )
                     .map_err(|_| Failure::PhysicalUnknown)?;
                 Ok(Outcome::Pane {
                     command_id: invocation.command_id.clone(),

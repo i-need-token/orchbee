@@ -1,7 +1,8 @@
-//! One creation's launch capture: the Session preferences read once before admission and the
-//! System shell of the Worker generation that launches it. The dispatched launch, the launched
-//! program published with its binding and whether that launch runs an interactive Shell all derive
-//! from this value; it performs no I/O.
+//! One creation's launch capture: the Session preferences read once before admission, the System
+//! shell of the Worker generation that launches it and, for a configured command's Panel, the
+//! program its launch presents. The dispatched launch, the launched program published with its
+//! binding and whether that launch runs an interactive Shell all derive from this value; it
+//! performs no I/O.
 
 use orchbee_capability_node_protocol::{DefaultLaunchProgram, LaunchPreferences, LaunchSelection};
 use orchbee_workbench_protocol::PresentationLaunchProgram;
@@ -13,6 +14,8 @@ pub(crate) struct LaunchCapture {
     /// What a default launch carries, including the default profile's program.
     default: LaunchPreferences,
     system_shell: Option<PresentationLaunchProgram>,
+    /// The program an explicit launch presents in place of the adapter it dispatches.
+    presented: Option<PresentationLaunchProgram>,
 }
 
 impl LaunchCapture {
@@ -21,6 +24,7 @@ impl LaunchCapture {
             explicit,
             default,
             system_shell: None,
+            presented: None,
         }
     }
 
@@ -49,6 +53,15 @@ impl LaunchCapture {
         self
     }
 
+    /// Names the program an explicit launch presents when its argv starts that program through an
+    /// adapter that hides it, as a Windows configured command's PowerShell adapter does; only that
+    /// configured-command Panel creation supplies it. A default launch never reads it.
+    #[must_use]
+    pub(crate) fn presenting(mut self, program: Option<PresentationLaunchProgram>) -> Self {
+        self.presented = program;
+        self
+    }
+
     pub(crate) fn preferences(&self, selection: Option<&LaunchSelection>) -> LaunchPreferences {
         if selection.is_some() {
             self.explicit.clone()
@@ -58,15 +71,18 @@ impl LaunchCapture {
     }
 
     /// The file name of the program a launch with this selection requests: the program an explicit
-    /// selection starts, else the default profile's custom executable, else this generation's
-    /// System shell. A default
-    /// launch whose capture is unavailable, which the Worker refuses, requests no known program.
+    /// selection presents or starts, else the default profile's custom executable, else this
+    /// generation's System shell. A default launch whose capture is unavailable, which the Worker
+    /// refuses, requests no known program.
     pub(super) fn launch_program(
         &self,
         selection: Option<&LaunchSelection>,
     ) -> Option<PresentationLaunchProgram> {
         if let Some(selection) = selection {
-            return explicit_program(selection.executable(), selection.arguments());
+            return self
+                .presented
+                .clone()
+                .or_else(|| explicit_program(selection.executable(), selection.arguments()));
         }
         match &self.default {
             LaunchPreferences::Available(preferences) => match preferences.program() {

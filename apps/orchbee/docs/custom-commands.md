@@ -40,12 +40,21 @@ exits, and a popup shows it in an independent terminal; a `shell` command has no
 output is discarded. When a `shell` command's processor exits, or the Session stops, everything
 else the command started is stopped too, within the Worker's five-second cleanup budget.
 
+Until a Panel command sets a title, its Panel is named by the program its command line starts, as
+a terminal names the process it shows: `npm` for `npm test`, on both platforms. A line whose first
+word is quoted or expanded, an assignment, an `@` that hides cmd's echo, or a builtin that starts no
+program of its name, such as `cd` or `exec` in a POSIX shell and `cd`, `call` or `start` in cmd, and
+a compound command are named by the processor that runs the line: the login shell on macOS,
+Command Prompt on Windows. Neither platform names the launch adapter around the processor.
+
 ### Windows
 
 `shell` runs `ComSpec`, else the system `cmd.exe`, as `/d /c <command>`, so its AutoRun commands do
 not run. Panel and popup commands run the same `/d /c` command from an encoded Windows PowerShell
-launch, which sets the command's environment, waits for it and exits with its code. A `shell`
-command's Job holds every process it starts.
+launch, which sets the command's environment, waits for it and exits with its code. `cmd /c` sets
+no console title, so the Server publishes the program the line starts, or `ComSpec` for a line
+named by its processor, as the Panel's launch program instead of that adapter. A `shell` command's
+Job holds every process it starts.
 
 ### macOS
 
@@ -57,10 +66,7 @@ names an absolute executable, else the account's shell, else `/bin/sh`. It runs 
 their `.cshrc` or `.tcshrc` as every csh does. Panel and popup commands start
 `/usr/bin/env NAME=value… <shell> -l -c <command>`, with the same exception for csh and tcsh, so
 environment values, such as the source terminal's folder, arrive as written and never as shell
-text; a shell path that holds `=` is refused as unavailable. Until the command sets a title, its
-Panel is named by the program its command line starts, as a terminal names the process it shows:
-`npm` for `npm test`. A line that starts with an assignment, a quoted or expanded word, a builtin
-such as `cd` or `exec`, or a compound command is named by the shell.
+text; a shell path that holds `=` is refused as unavailable.
 
 A `shell` command leads its own process group, and its owner thread unblocks every signal before it
 starts, so the command and its children can be stopped. When the shell exits, the members left in

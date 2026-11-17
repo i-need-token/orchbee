@@ -208,6 +208,43 @@ fn configured_launch_hands_its_environment_to_the_login_shell_as_written() {
     assert_eq!(lines[lines.len() - 2..], [hostile, "cmd_profile_0"]);
 }
 
+/// A Windows Panel command starts `cmd /d /c` inside a PowerShell adapter, and `cmd /c` sets no
+/// title, so the Panel presents the program its line starts, as a macOS one does, never the adapter.
+#[cfg(windows)]
+#[test]
+fn a_windows_command_panel_presents_the_program_its_line_starts() {
+    let presented = |command| {
+        shell_launch::presented_program(command).map(|program| program.as_str().to_owned())
+    };
+    assert_eq!(presented("npm test"), Some("npm".into()));
+    assert_eq!(
+        presented("  C:\\tools\\node.exe x"),
+        Some("node.exe".into())
+    );
+    assert_eq!(presented(".\\build.bat --all"), Some("build.bat".into()));
+    assert_eq!(presented("dir /b"), Some("dir".into()));
+    assert_eq!(presented("settings.exe"), Some("settings.exe".into()));
+    // Quoted or expanded words, compound and echo-off lines, drive changes, labels and internal
+    // commands that start no program of their name present the command processor.
+    for command in [
+        "cd src && make",
+        "CD..",
+        "cd\\tools",
+        "call build.bat",
+        "start notepad",
+        "set A=1 & npm test",
+        "@npm test",
+        "\"C:\\Program Files\\tool.exe\" x",
+        "%EDITOR% notes.txt",
+        "(npm test)",
+        "d:",
+        ":label",
+    ] {
+        let shell = presented(command).unwrap();
+        assert!(shell.eq_ignore_ascii_case("cmd.exe"), "{command}: {shell}");
+    }
+}
+
 fn snapshot(service: &LocalTerminalService) -> Snapshot {
     let request = WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
         protocol_version: ProtocolVersion,
