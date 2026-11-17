@@ -1,5 +1,7 @@
 import styles from './TabButton.module.css';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import {
+	useState,
 	type CSSProperties,
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
@@ -34,6 +36,13 @@ import { useTabButton } from './hooks/useTabButton';
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStatusAdornment } from '../../../../types/tab-strip-options';
 
+/** A Tab whose title is hidden or clipped names itself in its tooltip. */
+function tabTitleCutShort(tabView: HTMLElement | null): boolean {
+	if (tabView === null) return false;
+	const title = tabView.querySelector<HTMLElement>('[data-tab-title]');
+	return title === null || title.scrollWidth > title.clientWidth;
+}
+
 export function TabButton({
 	tab,
 	identityIcon,
@@ -57,6 +66,7 @@ export function TabButton({
 	frameCondensed = false,
 	slotState,
 	dragging = false,
+	titleTooltip = false,
 }: {
 	tab: Readonly<TabData>;
 	identityIcon?: ReactNode | undefined;
@@ -80,8 +90,11 @@ export function TabButton({
 	frameCondensed?: boolean;
 	slotState?: Readonly<TabSlotViewState> | undefined;
 	dragging?: boolean;
+	/** Names the Tab in the shared Tooltip while its title is hidden or cut short. */
+	titleTooltip?: boolean;
 }): ReactNode {
 	const messages = useTabStripMessages();
+	const [tooltipOpen, setTooltipOpen] = useState(false);
 	const { focused, hovered, measuredTabSize, setFocused, setHovered, tabViewRef } = useTabButton();
 	// Chromium's BoundsAnimator lays out a Tab at each animation frame. Observe
 	// the transitioning wrapper so child visibility uses that current width
@@ -168,6 +181,7 @@ export function TabButton({
 	});
 	const previousTabHovered = hoveredTabId === snapshot.tabs[tabPositionIndex - 1]?.id;
 	const nextTabHovered = hoveredTabId === snapshot.tabs[tabPositionIndex + 1]?.id;
+	const visibleTitle = getVisibleTabTitle(tab, messages);
 	const content = (
 		<span className={styles['ct-tab__content']} data-tab-content=''>
 			{childVisibility.showFavicon || hasStatusSymbol ? (
@@ -179,7 +193,9 @@ export function TabButton({
 				/>
 			) : null}
 			{childVisibility.showTitle ? (
-				<span className={styles['ct-tab__title']}>{getVisibleTabTitle(tab, messages)}</span>
+				<span className={styles['ct-tab__title']} data-tab-title=''>
+					{visibleTitle}
+				</span>
 			) : null}
 			{statusAdornment?.unreadLabel === undefined ? null : (
 				<span
@@ -203,7 +219,7 @@ export function TabButton({
 			) : null}
 		</span>
 	);
-	return (
+	const tabView = (
 		<div
 			ref={tabViewRef}
 			role='tab'
@@ -347,5 +363,22 @@ export function TabButton({
 				</>
 			)}
 		</div>
+	);
+	if (!titleTooltip) return tabView;
+	let tooltipSide: 'bottom' | 'right' = 'bottom';
+	let tooltipAlign: 'center' | 'start' = 'center';
+	if (orientation === TabStripOrientation.Vertical && collapsed) tooltipSide = 'right';
+	else if (orientation === TabStripOrientation.Vertical && !tab.pinned) tooltipAlign = 'start';
+	return (
+		<Tooltip
+			disabled={dragging || slotState?.dragging === true}
+			open={tooltipOpen}
+			onOpenChange={(next) => setTooltipOpen(next && tabTitleCutShort(tabViewRef.current))}
+		>
+			<TooltipTrigger render={tabView} />
+			<TooltipContent side={tooltipSide} align={tooltipAlign}>
+				{visibleTitle}
+			</TooltipContent>
+		</Tooltip>
 	);
 }

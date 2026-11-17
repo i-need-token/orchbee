@@ -30,6 +30,7 @@ export function TabStripView({
 		showHoverCardPreviews,
 		showHoverCardMemoryUsage,
 		showGroupHoverCards,
+		showTabHoverCards,
 		showNewTabButton,
 		touchUi,
 		verticalFill,
@@ -189,6 +190,7 @@ export function TabStripView({
 						onTabMouseEnter={onTabMouseEnter}
 						onGroupMouseEnter={onGroupMouseEnter}
 						showGroupHoverCards={showGroupHoverCards}
+						showTabHoverCards={showTabHoverCards}
 						clearHover={clearHover}
 						setMenu={setMenu}
 						onOpenGroupEditor={openGroupEditorFromControl}

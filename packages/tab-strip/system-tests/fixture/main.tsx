@@ -1,3 +1,4 @@
+import { TooltipProvider } from '@orchbee/ui/components';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@orchbee/ui/styles.css';
@@ -10,6 +11,8 @@ if (!rootElement) throw new Error('Expected the system-test fixture root element
 
 createRoot(rootElement).render(
 	<StrictMode>
-		<SystemTestFixture />
+		<TooltipProvider>
+			<SystemTestFixture />
+		</TooltipProvider>
 	</StrictMode>,
 );

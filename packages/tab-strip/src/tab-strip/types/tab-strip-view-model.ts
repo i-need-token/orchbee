@@ -32,6 +32,7 @@ export interface TabStripViewModel {
 	readonly showHoverCardPreviews: boolean;
 	readonly showHoverCardMemoryUsage: boolean;
 	readonly showGroupHoverCards: boolean;
+	readonly showTabHoverCards: boolean;
 	readonly showNewTabButton: boolean;
 	readonly horizontalFrameCondensed: boolean;
 	readonly touchUi: boolean;

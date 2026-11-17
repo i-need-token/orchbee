@@ -61,6 +61,7 @@ export function VerticalContents({
 	onTabMouseEnter,
 	onGroupMouseEnter,
 	showGroupHoverCards,
+	showTabHoverCards,
 	clearHover,
 	setMenu,
 	onOpenGroupEditor,
@@ -93,6 +94,7 @@ export function VerticalContents({
 	onTabMouseEnter: (event: ReactMouseEvent<HTMLDivElement>, tabId: string) => void;
 	onGroupMouseEnter: (event: ReactMouseEvent<HTMLDivElement>, groupId: string) => void;
 	showGroupHoverCards: boolean;
+	showTabHoverCards: boolean;
 	clearHover: () => void;
 	setMenu: (menu: MenuState) => void;
 	onOpenGroupEditor: (groupId: string, x: number, y: number) => void;
@@ -191,6 +193,7 @@ export function VerticalContents({
 					touchUi={touchUi}
 					closeButtonAllowed={closeButtonAllowed}
 					hoveredTabId={null}
+					titleTooltip={!showTabHoverCards}
 				/>
 			</div>
 		);

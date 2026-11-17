@@ -151,6 +151,7 @@ export function SystemTestFixture(): ReactNode {
 		[],
 	);
 	const activeTab = snapshot.tabs.find((tab) => tab.id === snapshot.activeTabId);
+	const tabTooltips = new URLSearchParams(window.location.search).has('tabTooltips');
 
 	return (
 		<div className='fixture-shell'>
@@ -182,6 +183,7 @@ export function SystemTestFixture(): ReactNode {
 					// A product host asks for the name; the fixture leaves every group it names unnamed.
 					onNameGroup={(request) => request.commit('')}
 					getHoverCardThumbnailSource={(tab) => thumbnailSources.get(tab.id) ?? null}
+					showTabHoverCards={!tabTooltips}
 				/>
 				<section className='fixture-page'>
 					<div className='fixture-content'>

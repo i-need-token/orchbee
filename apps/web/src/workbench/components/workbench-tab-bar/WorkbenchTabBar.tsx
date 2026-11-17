@@ -117,6 +117,7 @@ export function WorkbenchTabBar({
 					showGroupHoverCards={false}
 					showHoverCardMemoryUsage={false}
 					showHoverCardPreviews={false}
+					showTabHoverCards={false}
 					newTabSections={newTabSections}
 					showNewTabButton={!fill}
 					touchUi={touchUi}

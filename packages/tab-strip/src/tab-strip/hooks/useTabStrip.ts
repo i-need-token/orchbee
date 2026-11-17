@@ -123,6 +123,7 @@ export function useTabStrip(
 		showHoverCardPreviews = true,
 		showHoverCardMemoryUsage = true,
 		showGroupHoverCards = true,
+		showTabHoverCards = true,
 		showNewTabButton = true,
 		horizontalFrameCondensed = false,
 		touchUi = false,
@@ -1087,6 +1088,7 @@ export function useTabStrip(
 						: rect.right + 8,
 				y: horizontal || pinnedBelowAnchor ? rect.bottom + 6 : Math.max(8, rect.top),
 			});
+			if (kind === 'tab' && !showTabHoverCards) return;
 			hoverCardController.updateHoverCard(
 				{
 					id: `${kind}:${id}`,
@@ -2403,6 +2405,7 @@ export function useTabStrip(
 		showHoverCardPreviews,
 		showHoverCardMemoryUsage,
 		showGroupHoverCards,
+		showTabHoverCards,
 		showNewTabButton,
 		horizontalFrameCondensed,
 		touchUi,

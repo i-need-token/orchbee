@@ -179,6 +179,11 @@ export interface TabStripOptions {
 	showHoverCardMemoryUsage?: boolean;
 	/** Mirrors the feature-gated tab-group hover card; false uses native title tooltips. */
 	showGroupHoverCards?: boolean;
+	/**
+	 * Shows a Tab's hover card; false names a Tab whose title is cut short or hidden in the shared
+	 * Tooltip instead.
+	 */
+	showTabHoverCards?: boolean;
 	showNewTabButton?: boolean;
 	horizontalFrameCondensed?: boolean;
 	/**

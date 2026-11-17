@@ -42,6 +42,7 @@ export function HorizontalContents({
 		orientation,
 		statusAdornments,
 		showGroupHoverCards,
+		showTabHoverCards,
 		showNewTabButton,
 		horizontalFrameCondensed,
 		touchUi,
@@ -456,6 +457,7 @@ export function HorizontalContents({
 								closeButtonAllowed
 								declutterEnabled={tabStripDeclutter}
 								hoveredTabId={hover?.kind === 'tab' ? hover.id : null}
+								titleTooltip={!showTabHoverCards}
 								frameCondensed={horizontalFrameCondensed}
 								dragging={dragging}
 								slotState={slotState}
