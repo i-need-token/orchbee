@@ -83,6 +83,14 @@ impl Supervision {
 
     fn lost(&mut self, owners: &mut Owners, shutdown: &SessionShutdown) -> bool {
         owners.serving.set(None);
+        // Clients show Reconnecting from the loss itself, not after the seconds that proving the
+        // Worker gone may take; giving up then turns it to GivenUp, and a stop ends the Session.
+        if !shutdown.stopping() {
+            owners
+                .terminals
+                .terminal_runtime()
+                .set(TerminalRuntimeState::Reconnecting);
+        }
         let proof = prove_gone(&mut owners.worker, &owners.carrier);
         self.prune(Instant::now());
         let lost = WorkerPlacement::of(&owners.handle);
@@ -108,10 +116,6 @@ impl Supervision {
                 false
             }
             Decision::Replace(target) => {
-                owners
-                    .terminals
-                    .terminal_runtime()
-                    .set(TerminalRuntimeState::Reconnecting);
                 // `decide` replaces only a Worker it can place.
                 let Some(lost) = lost else {
                     give_up(owners);

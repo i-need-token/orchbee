@@ -295,8 +295,9 @@ operation, fence and lease, moves the retained Close targets with it, makes each
 unavailable, and lets the jobs use the replacement. Title reads and the Agent drain follow the
 serving carrier, process observation drops cleanup owed to the lost generation, and the checkpoint
 saver keeps the same Worker id. `query` lists no Worker from the loss until the replacement serves.
-The [terminal-runtime state](#terminal-runtime) reads `Reconnecting` from the decision to
-replace, `Serving` once a replacement serves, and `GivenUp` on giving up.
+The [terminal-runtime state](#terminal-runtime) reads `Reconnecting` from the loss itself, before
+the Worker is proven gone, unless a stop is admitted; `Serving` once a replacement serves, and
+`GivenUp` on giving up.
 
 `host-gone` makes the Server stop itself; `host-unverified`, `host-mismatch` and `host-refused`
 give up at once; every other failure, a timeout, a decline, and a creation or admission failure
