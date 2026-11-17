@@ -3,6 +3,7 @@ mod containment;
 mod drain;
 #[cfg(windows)]
 mod host_bound;
+mod record_bound;
 #[cfg(windows)]
 mod shell;
 #[cfg(windows)]

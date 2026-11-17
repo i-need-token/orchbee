@@ -31,18 +31,18 @@ use crate::{
     terminal_authorization::AuthorizedHostOperationKernel,
 };
 
-type TestResult<T = ()> = Result<T, Box<dyn Error>>;
+pub(super) type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 const LOCAL_WORKER_ID: orchbee_local_worker_protocol::WorkerId =
     orchbee_local_worker_protocol::WorkerId::from_bytes(*b"orchbee-local-v1");
 const GENERATION: u64 = 7;
 
-fn nz(value: u64) -> NonZeroU64 {
+pub(super) fn nz(value: u64) -> NonZeroU64 {
     NonZeroU64::new(value).expect("fixture nonzero")
 }
 
-fn request(token: u64, acknowledged: u64) -> AgentDrainRequest {
+pub(super) fn request(token: u64, acknowledged: u64) -> AgentDrainRequest {
     AgentDrainRequest {
         worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes(*b"orchbee-local-v1")
             .expect("worker id"),
@@ -91,7 +91,7 @@ fn signal_record(epoch: HostEpoch, payload: &str) -> TestResult<Vec<u8>> {
 /// thread validates the exact Hello and answers HelloAccepted, mirroring the
 /// lifecycle fixture. This is socket-level integration, not a real Host
 /// process — the peer is a test thread, not zig-out code.
-fn scripted_host_peer() -> TestResult<(
+pub(super) fn scripted_host_peer() -> TestResult<(
     HostBrokerConnection,
     Rc<RefCell<AgentDrain>>,
     UnixStream,
