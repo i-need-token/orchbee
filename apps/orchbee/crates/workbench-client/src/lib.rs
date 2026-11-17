@@ -408,7 +408,7 @@ pub mod application {
     pub mod terminal_text {
         pub use crate::terminal_text::{
             display_width, escape, is_forbidden_terminal_scalar, quoted, sanitize_terminal_symbol,
-            unquoted,
+            truncate_display, unquoted,
         };
     }
 

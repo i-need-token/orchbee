@@ -232,7 +232,7 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
     };
     use ratatui::{
         TerminalOptions, Viewport,
-        buffer::{Buffer, CellDiffOption},
+        buffer::{Buffer, CellDiffOption, CellWidth},
         layout::Rect,
         style::Modifier,
     };
@@ -453,7 +453,7 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
                             *cell,
                             "restored visible glyph: {case} ({x},{y})"
                         );
-                        x += u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
+                        x += cell.cell_width().max(1);
                     }
                 }
             }

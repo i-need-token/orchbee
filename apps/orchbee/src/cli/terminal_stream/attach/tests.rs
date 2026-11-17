@@ -209,3 +209,36 @@ fn cell_pointer_fallback_obeys_validated_geometry_and_mode_changes()
     );
     Ok(())
 }
+
+#[test]
+fn notice_cuts_on_whole_grapheme_clusters_within_its_columns() {
+    use crate::terminal_text::display_width;
+    use unicode_segmentation::UnicodeSegmentation;
+    // A family ZWJ sequence and a combining mark are each one cluster: a cut inside either
+    // strands the joiner or the mark at the end of the line.
+    let notice = "\u{1F468}\u{200D}\u{1F469}e\u{301}\u{4E2D}";
+    let cluster_starts = notice
+        .grapheme_indices(true)
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    for columns in 0..=8_u16 {
+        let budget = usize::from(columns).saturating_sub(1);
+        let fitted = fit_notice(notice, columns);
+        assert!(
+            display_width(&fitted) <= budget,
+            "{columns} columns: {fitted:?}"
+        );
+        assert!(notice.starts_with(&fitted), "{columns} columns: {fitted:?}");
+        assert!(
+            fitted.len() == notice.len() || cluster_starts.contains(&fitted.len()),
+            "{columns} columns cut inside a cluster: {fitted:?}"
+        );
+        // The cut is maximal: the next cluster would overflow the budget.
+        if let Some(next) = notice[fitted.len()..].graphemes(true).next() {
+            assert!(
+                display_width(&format!("{fitted}{next}")) > budget,
+                "{columns} columns stopped before the budget: {fitted:?}"
+            );
+        }
+    }
+}

@@ -16,6 +16,7 @@ use crate::{
         MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, encode_pane_report,
     },
     terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
+    terminal_text::truncate_display,
 };
 use orchbee_client_server_protocol::{Geometry, TerminalControlAction, TerminalControlOutcome};
 use orchbee_terminal_protocol::{MouseTracking, TerminalTextFrame};
@@ -319,14 +320,10 @@ impl<W: Write> Display for ConsoleDisplay<W> {
         }
         if record["kind"] == "notice" {
             let mut text = String::from("\x1b7\x1b[0m\x1b[H\x1b[2K");
-            let mut columns = 0;
-            for ch in CliText::new(self.locale).attach_input_unavailable().chars() {
-                columns += ratatui::text::Span::raw(ch.to_string()).width();
-                if columns >= usize::from(self.columns) {
-                    break;
-                }
-                text.push(ch);
-            }
+            text.push_str(&fit_notice(
+                CliText::new(self.locale).attach_input_unavailable(),
+                self.columns,
+            ));
             text.push_str("\x1b8");
             return self.write(text.as_bytes(), gate);
         }
@@ -353,6 +350,13 @@ impl<W: Write> Display for ConsoleDisplay<W> {
         self.write(&frame::render_history(window, columns, rows)?, gate)
     }
 }
+
+/// Leaves the last column clear and cuts on whole grapheme clusters, measured by the shared
+/// display-width rule.
+fn fit_notice(notice: &str, columns: u16) -> String {
+    truncate_display(notice, usize::from(columns).saturating_sub(1), "")
+}
+
 fn io_failure(_: io::Error) -> Failure {
     Failure::new(FailureKind::InternalFailure)
 }
