@@ -101,9 +101,10 @@ decoders only.
 - `connections` lists at most 64 entries in strictly ascending bytewise `kind` order. Each entry has
   `kind`, a connection or delivery name, and `generations`; entries of the first process also carry
   `capabilities`, and entries of later processes never do.
-- A Terminal Host that implements `handover` adds `dispatch-progress` to its `query-result`'s
-  `extensions`: an integer from 0 to 9,007,199,254,740,991 counting the turns its dispatch loop has
-  completed, which grows while the loop is not stopped. A reader that does not know it ignores it.
+- A Terminal Host adds `dispatch-progress` to its `query-result`'s `extensions`: an integer from 0
+  to 9,007,199,254,740,991 counting the turns its dispatch loop has completed, which grows while the
+  loop is not stopped, including while it waits on a Worker that is slow to send or take a record.
+  A reader that does not know it ignores it.
 
 ## Admission
 

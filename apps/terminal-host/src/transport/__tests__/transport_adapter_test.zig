@@ -121,6 +121,8 @@ test "accept timeouts continue Host maintenance without a broker" {
         pub fn controlExitDue(_: *const @This()) bool {
             return false;
         }
+
+        pub fn completeDispatchTurn(_: *@This()) void {}
     };
     const TimeoutServer = struct {
         calls: usize = 0,

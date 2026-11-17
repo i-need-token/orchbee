@@ -4,6 +4,8 @@ const builtin = harness.builtin;
 const candidate_admission = harness.candidate_admission;
 const handshake = harness.handshake;
 const host_service = harness.host_service;
+const host_runtime_aggregate = harness.host_runtime_aggregate;
+const monotonic = harness.monotonic;
 const LocalServer = harness.LocalServer;
 const Served = harness.Served;
 const ServeThreadContext = harness.ServeThreadContext;
@@ -14,6 +16,7 @@ const expectHandshakeAccepted = harness.expectHandshakeAccepted;
 const serveConnection = harness.serveConnection;
 const serveTestConnection = harness.serveTestConnection;
 const serveUntilIdleLoop = harness.serveUntilIdleLoop;
+const serviceAggregate = harness.serviceAggregate;
 const serviceCore = harness.serviceCore;
 const serveTestUntilIdle = harness.serveTestUntilIdle;
 const workerOffer = harness.workerOffer;
@@ -105,6 +108,8 @@ test "a control request before the Worker arrives keeps the Host waiting for it"
         pub fn controlExitDue(_: *const @This()) bool {
             return false;
         }
+
+        pub fn completeDispatchTurn(_: *@This()) void {}
     };
     const QueryFirstServer = struct {
         accepted: usize = 0,
@@ -357,14 +362,20 @@ const LiveSession = struct {
 
     const endpoint_id = "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd";
 
-    /// Admits the Worker; `self` must stay in place until `deinit`.
-    fn start(self: *LiveSession) !void {
+    /// Admits the Worker; `self` must stay in place until `deinit`. A `hold` is installed before
+    /// the dispatch thread starts.
+    fn start(self: *LiveSession, hold: ?*DispatchHold) !void {
         self.runtime = try TestRuntimeDirectory.init(std.testing.allocator);
         errdefer self.runtime.deinit();
         self.server = try LocalServer.init(std.testing.allocator, self.runtime.path(), endpoint_id);
         errdefer self.server.deinit();
         self.service = host_service.HostService.init(std.testing.allocator);
         errdefer self.service.deinit();
+        if (hold) |gate| host_runtime_aggregate.testing.setCleanupClockForTesting(
+            serviceAggregate(&self.service),
+            DispatchHold.read,
+            gate,
+        );
         self.epoch = serviceCore(&self.service).epoch.bytes;
         self.context = .{ .server = &self.server, .service = &self.service };
         self.thread = try std.Thread.spawn(.{}, serveTestUntilIdle, .{&self.context});
@@ -396,7 +407,7 @@ test "a drain on a control connection closes terminal admission and ends the Hos
     defer arena_state.deinit();
     const arena = arena_state.allocator();
     var live: LiveSession = undefined;
-    try live.start();
+    try live.start(null);
     defer live.deinit();
     const terminal_id = try createDeferredTerminal(arena, &live.worker, live.epoch, "33333333333333333333333333333333", 0x81);
 
@@ -436,7 +447,7 @@ test "an exit on a control connection ends the Worker session and the Host while
     defer arena_state.deinit();
     const arena = arena_state.allocator();
     var live: LiveSession = undefined;
-    try live.start();
+    try live.start(null);
     defer live.deinit();
     _ = try createDeferredTerminal(arena, &live.worker, live.epoch, "33333333333333333333333333333333", 0x84);
 
@@ -449,4 +460,81 @@ test "an exit on a control connection ends the Worker session and the Host while
     try std.testing.expectEqual(@as(usize, 1), serviceCore(&live.service).terminalCount());
     try std.testing.expectEqual(host_lifecycle.State.stopping, live.service.candidateFacts().state);
     try std.testing.expect(live.service.controlExitDue());
+}
+
+/// Holds the dispatch thread inside its maintenance while `held` is set. While a terminal is
+/// retained, each dispatch turn's maintenance reads the cleanup clock, which this replaces.
+const DispatchHold = struct {
+    held: std.atomic.Value(bool) = .init(false),
+    holding: std.atomic.Value(bool) = .init(false),
+
+    fn read(clock: *host_runtime_aggregate.testing.CleanupClockType) i128 {
+        const self: *DispatchHold = @ptrCast(@alignCast(clock.context.?));
+        while (self.held.load(.acquire)) {
+            self.holding.store(true, .release);
+            monotonic.sleep(std.time.ns_per_ms);
+        }
+        self.holding.store(false, .release);
+        return 0;
+    }
+};
+
+/// The Host's idle session turns about once per this wait.
+const turn_wait_ns = 20 * std.time.ns_per_ms;
+const turn_wait_attempts = 250;
+
+/// The `dispatch-progress` a control lane's `query` reports now.
+fn queryDispatchProgress(arena: std.mem.Allocator, live: *LiveSession) !u64 {
+    const reply = try requestOnControlConnection(arena, &live.server, LiveSession.endpoint_id, .query);
+    try std.testing.expect(reply == .query_result);
+    const extensions = reply.query_result.extensions;
+    try std.testing.expectEqual(@as(usize, 1), extensions.len);
+    try std.testing.expectEqualStrings("dispatch-progress", extensions[0].name);
+    try std.testing.expect(extensions[0].value == .number);
+    return std.fmt.parseInt(u64, extensions[0].value.number, 10);
+}
+
+/// Queries until the count passes `floor`, as the dispatch loop's turns raise it.
+fn awaitDispatchProgressAbove(arena: std.mem.Allocator, live: *LiveSession, floor: u64) !u64 {
+    for (0..turn_wait_attempts) |_| {
+        const progress = try queryDispatchProgress(arena, live);
+        if (progress > floor) return progress;
+        monotonic.sleep(turn_wait_ns);
+    }
+    return error.TestDispatchProgressStalled;
+}
+
+test "a control lane's query reports dispatch progress that grows with dispatch turns and stops while the dispatch thread is held" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    var hold: DispatchHold = .{};
+    var live: LiveSession = undefined;
+    try live.start(&hold);
+    defer live.deinit();
+    defer hold.held.store(false, .release);
+    // A retained terminal makes every dispatch turn read the clock the hold replaces.
+    _ = try createDeferredTerminal(arena, &live.worker, live.epoch, "55555555555555555555555555555555", 0x85);
+
+    const first = try queryDispatchProgress(arena, &live);
+    const turning = try awaitDispatchProgressAbove(arena, &live, first);
+
+    hold.held.store(true, .release);
+    for (0..turn_wait_attempts) |_| {
+        if (hold.holding.load(.acquire)) break;
+        monotonic.sleep(turn_wait_ns);
+    } else return error.TestDispatchThreadNotHeld;
+    const held = try queryDispatchProgress(arena, &live);
+    try std.testing.expect(held >= turning);
+    // An idle session would complete about twenty turns in this wait.
+    monotonic.sleep(20 * turn_wait_ns);
+    try std.testing.expectEqual(held, try queryDispatchProgress(arena, &live));
+
+    hold.held.store(false, .release);
+    _ = try awaitDispatchProgressAbove(arena, &live, held);
+
+    const exited = try requestOnControlConnection(arena, &live.server, LiveSession.endpoint_id, .exit);
+    try std.testing.expect(exited == .exit_result);
+    try expectHostClosed(&live.worker);
+    try live.joinHost();
 }

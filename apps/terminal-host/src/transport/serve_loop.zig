@@ -36,7 +36,8 @@ pub fn serveUntilIdleLoop(
 ) !void {
     var completed_accept = false;
     var backoff: AcceptBackoff = .{};
-    while (true) {
+    // Each accept turn counts toward `dispatch-progress`; a session counts its own turns.
+    while (true) : (service.completeDispatchTurn()) {
         // `drain` or `exit` can end the Host before its Worker arrives as well as after.
         if (service.controlExitDue()) return;
         if (!completed_accept) {

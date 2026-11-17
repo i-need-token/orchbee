@@ -33,7 +33,13 @@ pub fn profile() handshake.admission.Profile {
 pub const Facts = struct {
     terminals: u32,
     state: host_lifecycle.State,
+    /// The turns the dispatch loop has completed, which `query` reports as `dispatch-progress`.
+    dispatch_turns: u64,
 };
+
+/// The largest `dispatch-progress` a reply reports: the largest integer every reader holds exactly.
+const maximum_dispatch_progress: u64 = (1 << 53) - 1;
+const dispatch_progress_name = "dispatch-progress";
 
 /// TH-003 handoff between the control lanes and the dispatch thread. The dispatch thread
 /// publishes its latest `Facts`, and a lane replies from them, never from `HostService`, so a
@@ -44,6 +50,7 @@ pub const Facts = struct {
 pub const LaneHandoff = struct {
     terminals: std.atomic.Value(u32) = .init(0),
     state: std.atomic.Value(host_lifecycle.State) = .init(.ready),
+    dispatch_turns: std.atomic.Value(u64) = .init(0),
     /// One bit per request; lanes set them and only the dispatch thread clears them.
     posted: std.atomic.Value(u8) = .init(0),
 
@@ -51,12 +58,14 @@ pub const LaneHandoff = struct {
     pub fn publish(self: *LaneHandoff, facts: Facts) void {
         self.terminals.store(facts.terminals, .release);
         self.state.store(facts.state, .release);
+        self.dispatch_turns.store(facts.dispatch_turns, .release);
     }
 
     pub fn load(self: *const LaneHandoff) Facts {
         return .{
             .terminals = self.terminals.load(.acquire),
             .state = self.state.load(.acquire),
+            .dispatch_turns = self.dispatch_turns.load(.acquire),
         };
     }
 
@@ -144,12 +153,24 @@ pub fn respond(
         .terminals = facts.terminals,
         .connections = &connections,
     }};
+    const progress = [_]handshake.json.Member{.{
+        .name = dispatch_progress_name,
+        .value = .{ .number = try std.fmt.allocPrint(
+            arena,
+            "{d}",
+            .{@min(facts.dispatch_turns, maximum_dispatch_progress)},
+        ) },
+    }};
     const reply: message.AcceptorMessage = switch (decision) {
         .accept => |answer| .{ .answer = answer },
         .reject => |refusal| .{ .rejection = refusal },
         .unsupported => |unsupported| .{ .unsupported = unsupported },
         .serve => |request| switch (request) {
-            .query => .{ .query_result = .{ .processes = &processes, .restart_keeps_terminals = null } },
+            .query => .{ .query_result = .{
+                .processes = &processes,
+                .restart_keeps_terminals = null,
+                .extensions = &progress,
+            } },
             .drain => return .{ .perform = .drain },
             .exit => return .{ .perform = .exit },
         },

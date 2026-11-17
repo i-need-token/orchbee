@@ -101,6 +101,15 @@ fn serveWithLanes(
     return .worker;
 }
 
+/// One turn of the session's dispatch loop: it counts toward `dispatch-progress`, applies the
+/// control requests lanes posted, and publishes the facts they reply from. A wait step of a session
+/// read or write is a turn too, so a Worker that is slow to send or take a record never makes a
+/// dispatch thread that still turns look held.
+fn completeTurn(service: *host_service.HostService, lanes: anytype) void {
+    service.completeDispatchTurn();
+    lanes.serve(service);
+}
+
 fn serveSession(
     transport: anytype,
     service: *host_service.HostService,
@@ -115,7 +124,7 @@ fn serveSession(
     while (true) {
         if (connection.shouldClose()) return;
         // Control requests take effect here, between two Worker requests.
-        lanes.serve(service);
+        completeTurn(service, lanes);
         if (service.controlExitDue()) {
             // The Host ends this session itself; let the Worker read what was already written.
             candidate.awaitPeerClose(transport, service);
@@ -279,7 +288,7 @@ fn writeSession(
                 offset += written;
                 continue;
             }
-            lanes.serve(service);
+            completeTurn(service, lanes);
             service.maintain();
             if (service.controlExitDue()) return error.ConnectionClosed;
         }
@@ -353,7 +362,7 @@ fn readSessionBytes(
     while (offset < bytes.len) {
         service.maintain();
         if (!try transport.waitReadable()) {
-            lanes.serve(service);
+            completeTurn(service, lanes);
             if (service.controlExitDue()) return error.ConnectionClosed;
             continue;
         }

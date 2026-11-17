@@ -41,6 +41,8 @@ pub const HostService = struct {
     allocator: std.mem.Allocator,
     connection_workflow: host_connection.Workflow = .{},
     creations: creation_pipeline.Pipeline = .{},
+    /// The turns the dispatch loop has completed; only the dispatch thread advances it.
+    dispatch_turns: u64 = 0,
     event_delivery: host_event_delivery.Workflow = .{},
     lifecycle: ServiceLifecycle = .running,
     /// The `drain` and `exit` lifecycle that queries report; only the dispatch thread changes it.
@@ -140,7 +142,14 @@ pub const HostService = struct {
                 .running => self.process_state,
                 .shutting_down, .released_after_abandoned_build => .stopping,
             },
+            .dispatch_turns = self.dispatch_turns,
         };
+    }
+
+    /// Counts one completed turn of the dispatch loop, so a query can tell a Host whose dispatch
+    /// thread is held from one that is turning.
+    pub fn completeDispatchTurn(self: *HostService) void {
+        self.dispatch_turns +|= 1;
     }
 
     /// Applies a `drain` or `exit` control request on the dispatch thread and returns the

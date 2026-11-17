@@ -104,6 +104,9 @@
 			"sha256": "14036c4e76533894f3fd7dd98e39cbdcdd2644e5d1b0ed0dda84d51dad31564e"
 		},
 		{
+			"path": "schemas/connection/v1/fixtures/dispatch-progress.json"
+		},
+		{
 			"path": "schemas/connection/v1/fixtures/invalid.json",
 			"sha256": "3d6d9a0fb8864e6fa35c6e3cbab8de4e4469ab9644743512030e95a2f83fe12d"
 		},
