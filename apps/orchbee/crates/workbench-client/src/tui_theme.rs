@@ -439,6 +439,53 @@ enum DestructiveRest {
     Paired,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct SelectionAccents {
+    accent_action: Color,
+    accent_destructive: Color,
+    accent_focus: Color,
+    #[cfg(any(test, feature = "test-support"))]
+    accent_link: Color,
+    status_success: Color,
+    status_warning: Color,
+    status_error: Color,
+    status_info: Color,
+    status_unread: Color,
+}
+
+impl SelectionAccents {
+    fn color(self, role: Role) -> Option<Color> {
+        match role {
+            Role::AccentAction => Some(self.accent_action),
+            Role::AccentDestructive => Some(self.accent_destructive),
+            Role::AccentFocus => Some(self.accent_focus),
+            #[cfg(any(test, feature = "test-support"))]
+            Role::AccentLink => Some(self.accent_link),
+            Role::StatusSuccess => Some(self.status_success),
+            Role::StatusWarning => Some(self.status_warning),
+            Role::StatusError => Some(self.status_error),
+            Role::StatusInfo => Some(self.status_info),
+            Role::StatusUnread => Some(self.status_unread),
+            _ => None,
+        }
+    }
+
+    fn quantize(self, level: ColorLevel) -> Self {
+        Self {
+            accent_action: quantize_color(self.accent_action, level),
+            accent_destructive: quantize_color(self.accent_destructive, level),
+            accent_focus: quantize_color(self.accent_focus, level),
+            #[cfg(any(test, feature = "test-support"))]
+            accent_link: quantize_color(self.accent_link, level),
+            status_success: quantize_color(self.status_success, level),
+            status_warning: quantize_color(self.status_warning, level),
+            status_error: quantize_color(self.status_error, level),
+            status_info: quantize_color(self.status_info, level),
+            status_unread: quantize_color(self.status_unread, level),
+        }
+    }
+}
+
 /// A complete mapping of roles to concrete styles plus the uniform frame
 /// corner option and the resolved glyph set.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -458,6 +505,7 @@ pub struct Theme {
     terminal_defaults_known: bool,
     destructive_rest: DestructiveRest,
     styles: RoleStyles,
+    selection_accents: Option<SelectionAccents>,
     pub(crate) tab_groups: TabGroupPalette,
 }
 
@@ -632,6 +680,18 @@ impl Theme {
             .map_or_else(Style::new, |foreground| Style::new().fg(foreground))
     }
 
+    pub(crate) const fn tab_group_accent(
+        &self,
+        color: orchbee_workbench_protocol::TabGroupColor,
+        interaction: Option<Role>,
+    ) -> Color {
+        if matches!(interaction, Some(Role::SurfaceSelection)) {
+            self.tab_groups.accent_on_selection(color)
+        } else {
+            self.tab_groups.accent(color)
+        }
+    }
+
     /// The default theme for an unknown host appearance or color level.
     /// Text and surface roles sit on `Color::Reset`; accent, status, and frame
     /// roles use named ANSI-16 colors; `text-secondary` uses `DIM`, not a gray.
@@ -705,6 +765,7 @@ impl Theme {
                 hint_key: Style::new().fg(Color::Reset).add_modifier(Modifier::BOLD),
                 hint_label: dim,
             },
+            selection_accents: None,
             tab_groups: TabGroupPalette::TERMINAL,
         }
     }
@@ -776,6 +837,7 @@ impl Theme {
                     .add_modifier(Modifier::BOLD),
                 hint_label: Style::new().fg(Color::Rgb(133, 146, 171)),
             },
+            selection_accents: None,
             tab_groups: TabGroupPalette::TERMINAL,
         }
     }
@@ -904,6 +966,18 @@ impl Theme {
             content = content.patch(layer);
         }
 
+        // Named truecolor and 256-color selection fills carry pre-adjusted semantic
+        // foregrounds so hues stay legible on the selection fill without drawing a
+        // separate black/white background box for `AccentDestructive`.
+        if interaction == Some(Role::SurfaceSelection)
+            && let Some(accents) = self.selection_accents
+            && let Some(role) = content_role
+            && content_foreground == self.style(role).fg
+            && let Some(foreground) = accents.color(role)
+        {
+            content = content.fg(foreground);
+        }
+
         // Preserve a destructive label's semantic foreground in reverse-video
         // bands and on low-contrast fills; terminal-native red rests unpaired on
         // the host default background. The contrast pair belongs
@@ -971,9 +1045,12 @@ impl Theme {
         );
         // Disabled labels need the selection pair too: their resting foreground can collapse
         // into the selection fill after ANSI quantization. Availability still owns activation.
+        // Pending status shares `TextSecondary` and pairs with `text_selection` on selection.
+        let pair_selection_pending = content_role == Some(Role::StatusPending)
+            && interaction == Some(Role::SurfaceSelection);
         if self.color_level != ColorLevel::Monochrome
             && (self.polarity.is_none() || interaction == Some(Role::SurfaceSelection))
-            && ordinary
+            && (ordinary || pair_selection_pending)
             && let Some(role) = content_role
             && content_foreground == self.style(role).fg
             && let Some(foreground) = paired
@@ -982,7 +1059,11 @@ impl Theme {
             content = content.fg(foreground);
             if matches!(
                 role,
-                Role::TextSecondary | Role::TextMuted | Role::HintLabel | Role::StatusIdle
+                Role::TextSecondary
+                    | Role::TextMuted
+                    | Role::HintLabel
+                    | Role::StatusPending
+                    | Role::StatusIdle
             ) {
                 content = content.remove_modifier(Modifier::DIM);
             }
@@ -1053,11 +1134,16 @@ impl Theme {
                     | Role::TextSecondary
                     | Role::TextMuted
                     | Role::TextDisabled
+                    | Role::StatusPending
                     | Role::HintKey
                     | Role::HintLabel
             ) && let Some(foreground) = surface.fg
             {
                 style = style.fg(foreground).remove_modifier(Modifier::DIM);
+            } else if let Some(accents) = self.selection_accents
+                && let Some(foreground) = accents.color(role)
+            {
+                style = style.fg(foreground);
             }
             style = style
                 .bg(self.color(Role::SurfaceSelection))
@@ -1412,6 +1498,10 @@ impl Theme {
         }
         Self {
             styles,
+            selection_accents: self
+                .selection_accents
+                .filter(|_| matches!(level, ColorLevel::Truecolor | ColorLevel::Ansi256))
+                .map(|accents| accents.quantize(level)),
             tab_groups: self.tab_groups.quantize(level),
             color_level: level,
             terminal_colors: self.terminal_colors.map(|(foreground, background)| {

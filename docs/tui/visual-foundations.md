@@ -122,12 +122,14 @@ Theme rules:
   wording is the host palette's red directly on the host default background, without a backing
   fill: a destructive menu row reads as red text, and so does a destructive button, including its
   brackets and key hint. Every other theme keeps the destructive key hint in `text-secondary`. The
-  theme resolver retains the destructive foreground on a contrast pair when a native reverse band
-  or a known fill below 3:1 would obscure it; the surrounding
-  interaction band and navigation/focus markers remain. Monochrome retains the explicit localized
-  action wording and ordinary interaction cues, without introducing warning bold, underline, or
-  blink. Named ANSI contrast is checked against the reference palette and actual host evidence; a
-  customized host palette is not inferred from RGB tests.
+  theme resolver shifts semantic hues (including `accent-destructive`) via OKLab/OKLCH lightness on
+  named truecolor/256-color `surface-selection` fills so they meet their floor without a separate
+  black/white box, and retains `accent-destructive` on a contrast pair when a native reverse band
+  or a fill below 3:1 would obscure it; the surrounding interaction band and navigation/focus markers
+  remain. Monochrome retains the explicit localized action wording and ordinary interaction cues,
+  without introducing warning bold, underline, or blink. Named ANSI contrast is checked against
+  the reference palette and actual host evidence; a customized host palette is not inferred from
+  RGB tests.
 - `accent-action` identifies the one primary action in the current decision context, or the one
   ready-state chrome button that [`components.md`](components.md#action-controls) admits outside
   it, while it is at rest. It never identifies keyboard focus, selection, or a successful outcome;
@@ -174,9 +176,10 @@ Hierarchy describes information priority, not interaction state.
 - Use at most three hierarchy levels in one region. Disabled is an availability treatment applied
   to affected content, not a hierarchy level.
 - A theme derives `text-muted` as the quietest step from `text-secondary` toward its chrome that
-  still clears 4.5:1 on chrome. Muted text keeps that contrast only at rest: on any interaction,
-  current or related fill, it is `text-secondary`. Where a theme has no measurable step, as in `terminal-native` and Monochrome,
-  it equals `text-secondary`. Additional
+  still clears 4.5:1 across resting and subtle surfaces. Muted text keeps that contrast only at
+  rest: on any interaction, current or related fill, it is `text-secondary`, and `status-pending`
+  pairs with `text-selection` (without `DIM`) on `surface-selection`. Where a theme has no
+  measurable step, as in `terminal-native` and Monochrome, it equals `text-secondary`. Additional
   structure comes from spacing, grouping, or a frame, not from more colors or `ITALIC`.
 - `BOLD` marks a heading, a current item whose owner documents bold identity, such as the active
   Tab, or the label or glyph of a pressed enabled action; it never marks pointer hover or a warning.

@@ -528,7 +528,7 @@ fn paint_row(
             let text = if chip.is_some() {
                 theme.tab_group_chip_text(*color)
             } else {
-                Style::new().fg(theme.tab_groups.accent(*color))
+                Style::new().fg(theme.tab_group_accent(*color, fill))
             };
             // The arrow sits in the current Tab's close-glyph column, as the GUI's chevron sits at
             // the header's end.
@@ -610,7 +610,7 @@ fn paint_row(
                     frame,
                     inner.x + 1,
                     theme.glyphs.tree_guide,
-                    on(None, Style::new().fg(theme.tab_groups.accent(color))),
+                    on(None, Style::new().fg(theme.tab_group_accent(color, fill))),
                     inner.right(),
                 );
             }

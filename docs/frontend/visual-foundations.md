@@ -103,7 +103,7 @@ In the expressions below, `color @ N%` means
 | Primary       | `--ob-sys-color-text-primary`     | `#141414 @ 92%` | Task-critical content, row titles, values, user content, and control text |
 | Secondary     | `--ob-sys-color-text-secondary`   | `#141414 @ 70%` | Descriptions and supporting copy directly attached to primary content     |
 | Section label | `--ob-sys-color-text-label`       | `#141414 @ 70%` | Category and section labels                                               |
-| Tertiary      | `--ob-sys-color-text-muted`       | `#141414 @ 48%` | Timestamps, low-priority metadata, hints, and de-emphasized context       |
+| Tertiary      | `--ob-sys-color-text-muted`       | `#141414 @ 62%` | Timestamps, low-priority metadata, hints, and de-emphasized context       |
 | Placeholder   | `--ob-sys-color-text-placeholder` | `#141414 @ 32%` | Empty editable-control hints only                                         |
 | Disabled      | `--ob-sys-color-text-disabled`    | Theme-mapped    | Unavailable content or controls                                           |
 | Inverse       | `--ob-sys-color-text-inverse`     | Theme-mapped    | Text on an inverse semantic surface                                       |
@@ -296,17 +296,18 @@ shared form and footer owner instead of repeating cancellation, validation, or s
 
 ## Actions and status
 
-The light baseline uses `#2778c1` for primary action and focus, and `#007041` for success.
+The light baseline uses `#2778c1` for primary action and focus, and `#007041` mixed 90% with 10%
+black in OKLab for success text and solid fills.
 Primary action, selected navigation, and success are different meanings even when a reference
 interface makes them visually similar.
 
-| Variable                                | Light baseline  | Use when                                                      |
-| --------------------------------------- | --------------- | ------------------------------------------------------------- |
-| `--ob-sys-color-action-primary`         | `#2778c1`       | One primary action in the current context                     |
-| `--ob-sys-color-action-primary-hover`   | `#2778c1 @ 90%` | Primary action hover state                                    |
-| `--ob-sys-color-action-primary-pressed` | `#2778c1 @ 82%` | Primary action pressed state                                  |
-| `--ob-sys-color-action-primary-text`    | `#fcfcfc`       | Text and icon on the primary-action surface                   |
-| `--ob-sys-color-status-success`         | `#007041`       | Successful result or a state whose meaning is explicitly good |
+| Variable                                | Light baseline                           | Use when                                                      |
+| --------------------------------------- | ---------------------------------------- | ------------------------------------------------------------- |
+| `--ob-sys-color-action-primary`         | `#2778c1`                                | One primary action in the current context                     |
+| `--ob-sys-color-action-primary-hover`   | `color-mix(in oklab, #2778c1 90%, #000)` | Primary action hover state                                    |
+| `--ob-sys-color-action-primary-pressed` | `color-mix(in oklab, #2778c1 80%, #000)` | Primary action pressed state                                  |
+| `--ob-sys-color-action-primary-text`    | `#fcfcfc`                                | Text and icon on the primary-action surface                   |
+| `--ob-sys-color-status-success`         | `color-mix(in oklab, #007041 90%, #000)` | Successful result or a state whose meaning is explicitly good |
 
 Outside a decision context, a persistent chrome action that announces a ready state, such as
 Update, may take the primary action role under the

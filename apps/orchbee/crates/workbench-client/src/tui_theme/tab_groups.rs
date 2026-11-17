@@ -7,6 +7,7 @@ use orchbee_workbench_protocol::TabGroupColor;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct TabGroupPalette {
     accents: [Color; 9],
+    selection_accents: Option<[Color; 9]>,
     tints: [Option<Color>; 9],
 }
 
@@ -56,12 +57,18 @@ impl TabGroupPalette {
             Color::Red,
             Color::Yellow,
         ],
+        selection_accents: None,
         tints: [None; 9],
     };
 
-    pub(super) fn named(accents: [[u8; 3]; 9], strip: [u8; 3]) -> Self {
+    pub(super) fn named(
+        accents: [[u8; 3]; 9],
+        selection_accents: [[u8; 3]; 9],
+        strip: [u8; 3],
+    ) -> Self {
         Self {
             accents: accents.map(|[r, g, b]| Color::Rgb(r, g, b)),
+            selection_accents: Some(selection_accents.map(|[r, g, b]| Color::Rgb(r, g, b))),
             tints: tints(accents, strip),
         }
     }
@@ -74,6 +81,10 @@ impl TabGroupPalette {
                 (ColorLevel::Ansi16, Color::Rgb(r, g, b)) => nearest_text_ansi16(r, g, b),
                 _ => quantize_color(color, level),
             }),
+            selection_accents: self
+                .selection_accents
+                .filter(|_| matches!(level, ColorLevel::Truecolor | ColorLevel::Ansi256))
+                .map(|accents| accents.map(|color| quantize_color(color, level))),
             tints: self.tints.map(|tint| {
                 tint.filter(|_| matches!(level, ColorLevel::Truecolor | ColorLevel::Ansi256))
                     .map(|tint| quantize_color(tint, level))
@@ -83,6 +94,13 @@ impl TabGroupPalette {
 
     pub(crate) const fn accent(&self, color: TabGroupColor) -> Color {
         self.accents[slot(color)]
+    }
+
+    pub(crate) const fn accent_on_selection(&self, color: TabGroupColor) -> Color {
+        match self.selection_accents {
+            Some(accents) => accents[slot(color)],
+            None => self.accents[slot(color)],
+        }
     }
 
     pub(crate) const fn tint(&self, color: TabGroupColor) -> Option<Color> {

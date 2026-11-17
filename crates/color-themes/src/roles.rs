@@ -90,6 +90,34 @@ pub struct Roles {
     pub agent_error: Rgb,
     /// One accent per shared Tab-group color.
     pub tab_groups: TabGroups,
+    /// Semantic hues and Tab-group accents lightness-corrected onto `surface_selection`.
+    pub selection: SelectionAccents,
+}
+
+/// Semantic accents and Tab-group accents lightness-corrected onto `surface_selection`. Fixed
+/// traffic-light Agent glyph colors stay unshifted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SelectionAccents {
+    /// At least 3:1 on `surface_selection`.
+    pub accent_action: Rgb,
+    /// At least 3:1 on `surface_selection`.
+    pub accent_focus: Rgb,
+    /// At least 4.5:1 on `surface_selection`.
+    pub accent_link: Rgb,
+    /// At least 4.5:1 on `surface_selection`.
+    pub accent_destructive: Rgb,
+    /// At least 4.5:1 on `surface_selection`.
+    pub status_success: Rgb,
+    /// At least 4.5:1 on `surface_selection`.
+    pub status_warning: Rgb,
+    /// At least 4.5:1 on `surface_selection`.
+    pub status_error: Rgb,
+    /// At least 4.5:1 on `surface_selection`.
+    pub status_info: Rgb,
+    /// At least 3:1 on `surface_selection`.
+    pub status_unread: Rgb,
+    /// Each Tab-group accent raised to at least 4.5:1 on `surface_selection`.
+    pub tab_groups: TabGroups,
 }
 
 /// The Tab-group accents, one per shared group color, each at least 4.5:1 on chrome.
@@ -148,7 +176,24 @@ impl Roles {
             || oklab::mix(background, blue, 0.30),
             crate::PaletteColor::value,
         );
-        let surfaces = [
+        let (tint_rest, tint_hover) = match theme.polarity() {
+            Polarity::Light => (10_u8, 15_u8),
+            Polarity::Dark => (15_u8, 20_u8),
+        };
+        let resting = [background, chrome, overlay];
+        let subtle_over = |base| srgb_composite(foreground, base, 5);
+        let gui_alphas = resting.into_iter().flat_map(|base| {
+            let subtle = subtle_over(base);
+            [5, 6, 8, 11, 14]
+                .into_iter()
+                .map(move |percent| srgb_composite(foreground, base, percent))
+                .chain(
+                    [8, 11, 14]
+                        .into_iter()
+                        .map(move |percent| srgb_composite(foreground, subtle, percent)),
+                )
+        });
+        let surfaces: Vec<Rgb> = [
             background,
             chrome,
             overlay,
@@ -157,24 +202,119 @@ impl Roles {
             toward_text(0.08),
             toward_text(0.11),
             toward_text(0.14),
-        ];
+        ]
+        .into_iter()
+        .chain(gui_alphas)
+        .collect();
         // Pick the most demanding painted surface, preserving hue and all surface fills.
         let on_surfaces = |color: Rgb, floor: f64| {
-            surfaces.into_iter().fold(color, |color, surface| {
+            surfaces.iter().copied().fold(color, |color, surface| {
                 contrast::raise(color, surface, floor)
             })
         };
-        let text_secondary = on_surfaces(oklab::mix(foreground, chrome, 0.28), BODY_FLOOR);
-        let text_muted = quietest_toward(text_secondary, chrome, BODY_FLOOR, &[chrome]);
-        let text_primary = surfaces.into_iter().fold(foreground, |color, surface| {
-            contrast::raise(
-                color,
-                surface,
-                BODY_FLOOR.max(contrast::ratio(text_secondary, surface)),
-            )
-        });
-        let accent_action = on_surfaces(blue, NON_TEXT_FLOOR);
+        let on_tinted = |initial: Rgb| -> Rgb {
+            let mut color = on_surfaces(initial, BODY_FLOOR);
+            // Status fills mix `color` itself over canvas/chrome/overlay; iterate to a fixed point.
+            for _ in 0..4 {
+                for base in resting {
+                    for percent in [tint_rest, tint_hover] {
+                        color = contrast::raise(
+                            color,
+                            srgb_composite(color, base, percent),
+                            BODY_FLOOR,
+                        );
+                    }
+                }
+            }
+            color
+        };
+        let status_success = on_tinted(green);
+        let status_warning = on_tinted(yellow);
+        let status_error = on_tinted(red);
+        let status_info = on_tinted(cyan);
+        let status_fills: Vec<Rgb> = [status_info, status_success, status_warning, status_error]
+            .into_iter()
+            .flat_map(|fill| {
+                resting.into_iter().flat_map(move |base| {
+                    [tint_rest, tint_hover]
+                        .into_iter()
+                        .map(move |percent| srgb_composite(fill, base, percent))
+                })
+            })
+            .collect();
+        let on_all_gui = |color: Rgb, floor: f64| {
+            surfaces
+                .iter()
+                .chain(status_fills.iter())
+                .copied()
+                .fold(color, |color, surface| {
+                    contrast::raise(color, surface, floor)
+                })
+        };
+        let text_secondary = on_all_gui(oklab::mix(foreground, chrome, 0.28), BODY_FLOOR);
+        let muted_surfaces = [
+            background,
+            chrome,
+            overlay,
+            subtle_over(background),
+            subtle_over(chrome),
+            subtle_over(overlay),
+        ];
+        let text_muted = quietest_toward(text_secondary, chrome, BODY_FLOOR, &muted_surfaces);
+        let text_primary = surfaces.iter().chain(status_fills.iter()).copied().fold(
+            foreground,
+            |color, surface| {
+                contrast::raise(
+                    color,
+                    surface,
+                    BODY_FLOOR.max(contrast::ratio(text_secondary, surface)),
+                )
+            },
+        );
+        let accent_action = on_all_gui(blue, NON_TEXT_FLOOR);
+        let accent_focus = accent_action;
+        let accent_link = on_all_gui(blue, BODY_FLOOR);
+        let accent_destructive = on_all_gui(red, BODY_FLOOR);
+        let status_success = on_all_gui(status_success, BODY_FLOOR);
+        let status_warning = on_all_gui(status_warning, BODY_FLOOR);
+        let status_error = on_all_gui(status_error, BODY_FLOOR);
+        let status_info = on_all_gui(status_info, BODY_FLOOR);
+        let status_unread = accent_action;
         let group = |color: Rgb| on_surfaces(color, BODY_FLOOR);
+        let tab_groups = TabGroups {
+            blue: group(blue),
+            cyan: group(cyan),
+            green: group(green),
+            grey: group(grey),
+            orange: group(oklab::mix(red, yellow, 0.5)),
+            pink: group(oklab::mix(magenta, red, 0.3)),
+            purple: group(oklab::mix(magenta, blue, 0.5)),
+            red: group(red),
+            yellow: group(yellow),
+        };
+        let on_sel = |color: Rgb, floor: f64| contrast::raise(color, selection, floor);
+        let selection_accents = SelectionAccents {
+            accent_action: on_sel(accent_action, NON_TEXT_FLOOR),
+            accent_focus: on_sel(accent_focus, NON_TEXT_FLOOR),
+            accent_link: on_sel(accent_link, BODY_FLOOR),
+            accent_destructive: on_sel(accent_destructive, BODY_FLOOR),
+            status_success: on_sel(status_success, BODY_FLOOR),
+            status_warning: on_sel(status_warning, BODY_FLOOR),
+            status_error: on_sel(status_error, BODY_FLOOR),
+            status_info: on_sel(status_info, BODY_FLOOR),
+            status_unread: on_sel(status_unread, NON_TEXT_FLOOR),
+            tab_groups: TabGroups {
+                blue: on_sel(tab_groups.blue, BODY_FLOOR),
+                cyan: on_sel(tab_groups.cyan, BODY_FLOOR),
+                green: on_sel(tab_groups.green, BODY_FLOOR),
+                grey: on_sel(tab_groups.grey, BODY_FLOOR),
+                orange: on_sel(tab_groups.orange, BODY_FLOOR),
+                pink: on_sel(tab_groups.pink, BODY_FLOOR),
+                purple: on_sel(tab_groups.purple, BODY_FLOOR),
+                red: on_sel(tab_groups.red, BODY_FLOOR),
+                yellow: on_sel(tab_groups.yellow, BODY_FLOOR),
+            },
+        };
         Self {
             surface_canvas: background,
             surface_chrome: chrome,
@@ -200,33 +340,43 @@ impl Roles {
                 .selection_foreground
                 .map_or(foreground, crate::PaletteColor::value),
             accent_action,
-            accent_focus: accent_action,
-            accent_link: on_surfaces(blue, BODY_FLOOR),
-            accent_destructive: on_surfaces(red, BODY_FLOOR),
-            status_success: on_surfaces(green, BODY_FLOOR),
-            status_warning: on_surfaces(yellow, BODY_FLOOR),
-            status_error: on_surfaces(red, BODY_FLOOR),
-            status_info: on_surfaces(cyan, BODY_FLOOR),
-            status_unread: accent_action,
+            accent_focus,
+            accent_link,
+            accent_destructive,
+            status_success,
+            status_warning,
+            status_error,
+            status_info,
+            status_unread,
             status_pending: text_secondary,
             status_working: text_secondary,
             status_idle: on_surfaces(text_muted, NON_TEXT_FLOOR),
             agent_attention: AGENT_ATTENTION,
             agent_done: AGENT_DONE,
             agent_error: AGENT_ERROR,
-            tab_groups: TabGroups {
-                blue: group(blue),
-                cyan: group(cyan),
-                green: group(green),
-                grey: group(grey),
-                orange: group(oklab::mix(red, yellow, 0.5)),
-                pink: group(oklab::mix(magenta, red, 0.3)),
-                purple: group(oklab::mix(magenta, blue, 0.5)),
-                red: group(red),
-                yellow: group(yellow),
-            },
+            tab_groups,
+            selection: selection_accents,
         }
     }
+
+    /// Lightness-corrects `color` (preserving hue) onto `self.surface_selection` to `floor`.
+    #[must_use]
+    pub fn raise_on_selection(&self, color: Rgb, floor: f64) -> Rgb {
+        contrast::raise(color, self.surface_selection, floor)
+    }
+}
+
+fn srgb_composite(foreground: Rgb, background: Rgb, opacity_percent: u8) -> Rgb {
+    let p = u16::from(opacity_percent);
+    let channel = |fg: u8, bg: u8| {
+        let mixed = (u16::from(fg) * p + u16::from(bg) * (100 - p) + 50) / 100;
+        u8::try_from(mixed).expect("weighted mean of two channels stays a channel")
+    };
+    Rgb::new(
+        channel(foreground.red, background.red),
+        channel(foreground.green, background.green),
+        channel(foreground.blue, background.blue),
+    )
 }
 
 /// The step from `color` toward `surface` closest to the surface that still holds `floor` on it.

@@ -398,15 +398,46 @@ fn named_hint_labels_and_pending_status_are_secondary_text_below_primary() {
     }
 }
 
-/// Muted text is the quietest step from secondary toward chrome that still reads there; on any
-/// fill it is secondary text.
+/// Muted text is the quietest step from secondary toward chrome that still reads across resting
+/// and subtle GUI surfaces; on any fill it is secondary text.
 #[test]
 fn named_muted_text_is_the_quietest_readable_step_and_rises_to_secondary_on_fills() {
+    let subtle = |base: Color, fg: Color| match (base, fg) {
+        (Color::Rgb(br, bg, bb), Color::Rgb(fr, fg, fb)) => {
+            let mix = |a: u8, b: u8| {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    (f64::from(a) * 0.05 + f64::from(b) * 0.95).round() as u8
+                }
+            };
+            Color::Rgb(mix(fr, br), mix(fg, bg), mix(fb, bb))
+        }
+        _ => unreachable!("named themes emit RGB colors"),
+    };
     for theme in [Theme::orchbee_light(), Theme::orchbee_dark()] {
+        let canvas = theme.color(Role::SurfaceCanvas);
         let chrome = theme.color(Role::SurfaceChrome);
+        let overlay = theme.color(Role::SurfaceOverlay);
+        let primary = theme.color(Role::TextPrimary);
         let resting = theme.color(Role::TextMuted);
+        let min_contrast = [
+            canvas,
+            chrome,
+            overlay,
+            subtle(canvas, primary),
+            subtle(chrome, primary),
+            subtle(overlay, primary),
+        ]
+        .into_iter()
+        .map(|surface| contrast_ratio(resting, surface))
+        .fold(f64::INFINITY, f64::min);
+        assert!(
+            (4.5..4.6).contains(&min_contrast),
+            "{} {min_contrast}",
+            theme.name
+        );
         let contrast = contrast_ratio(resting, chrome);
-        assert!((4.5..4.6).contains(&contrast), "{} {contrast}", theme.name);
+        assert!(contrast >= 4.5, "{} chrome {contrast}", theme.name);
         assert!(contrast < contrast_ratio(theme.color(Role::TextSecondary), chrome));
         for fill in [
             Role::SurfaceHover,
@@ -1361,5 +1392,84 @@ fn selected_named_text_keeps_contrast_and_primary_hierarchy() {
             "{} selected hierarchy",
             palette.id()
         );
+    }
+}
+
+#[test]
+fn selected_named_semantic_hues_pending_and_tab_groups_keep_contrast_without_destructive_box() {
+    use orchbee_workbench_protocol::TabGroupColor;
+    const GROUP_COLORS: [TabGroupColor; 9] = [
+        TabGroupColor::Blue,
+        TabGroupColor::Cyan,
+        TabGroupColor::Green,
+        TabGroupColor::Grey,
+        TabGroupColor::Orange,
+        TabGroupColor::Pink,
+        TabGroupColor::Purple,
+        TabGroupColor::Red,
+        TabGroupColor::Yellow,
+    ];
+    for palette in orchbee_color_themes::shipped() {
+        let id = palette.id();
+        let theme = Theme::named(palette);
+        let selection_bg = theme.style(Role::SurfaceSelection).bg.unwrap();
+
+        for (role, floor) in [
+            (Role::AccentAction, 3.0),
+            (Role::AccentFocus, 3.0),
+            (Role::StatusUnread, 3.0),
+            (Role::AccentDestructive, 4.5),
+            (Role::AccentLink, 4.5),
+            (Role::StatusSuccess, 4.5),
+            (Role::StatusWarning, 4.5),
+            (Role::StatusError, 4.5),
+            (Role::StatusInfo, 4.5),
+        ] {
+            let content = theme.content_on_surface(
+                Role::SurfaceOverlay,
+                Some(Role::SurfaceSelection),
+                Some(role),
+                theme.style(role),
+            );
+            assert_eq!(content.bg, Some(selection_bg), "{id} {role:?} box");
+            assert!(
+                !content
+                    .add_modifier
+                    .intersects(Modifier::REVERSED | Modifier::BOLD),
+                "{id} {role:?} modifiers"
+            );
+            let ratio = contrast_ratio(content.fg.unwrap(), selection_bg);
+            assert!(ratio >= floor, "{id} {role:?}: {ratio}");
+        }
+
+        let pending = theme.content_on_surface(
+            Role::SurfaceOverlay,
+            Some(Role::SurfaceSelection),
+            Some(Role::StatusPending),
+            theme.style(Role::StatusPending),
+        );
+        assert_eq!(pending.fg, theme.style(Role::AccentSelection).fg, "{id}");
+        assert_eq!(pending.bg, Some(selection_bg), "{id}");
+        assert!(!pending.add_modifier.contains(Modifier::DIM), "{id}");
+        assert!(
+            contrast_ratio(pending.fg.unwrap(), selection_bg) >= 4.5,
+            "{id}"
+        );
+
+        for color in GROUP_COLORS {
+            let accent = theme.tab_group_accent(color, Some(Role::SurfaceSelection));
+            let ratio = contrast_ratio(accent, selection_bg);
+            assert!(ratio >= 4.5, "{id} tab group {color:?}: {ratio}");
+        }
+
+        for (role, ..) in AGENT_ROLES {
+            let content = theme.content_on_surface(
+                Role::SurfaceOverlay,
+                Some(Role::SurfaceSelection),
+                Some(role),
+                theme.style(role),
+            );
+            assert_eq!(content.fg, theme.style(role).fg, "{id} {role:?}");
+        }
     }
 }

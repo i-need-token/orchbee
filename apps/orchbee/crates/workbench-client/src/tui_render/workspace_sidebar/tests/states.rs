@@ -446,7 +446,17 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                     lines[1].style.sub_modifier.contains(Modifier::BOLD),
                     !band_emphasis
                 );
-                assert_eq!(lines[2].spans[0].style.fg, state.fg);
+                assert_eq!(
+                    lines[2].spans[0].style.fg,
+                    theme
+                        .content_on_surface(
+                            Role::SurfaceChrome,
+                            Some(surface),
+                            Some(Role::StatusSuccess),
+                            state,
+                        )
+                        .fg
+                );
                 assert_eq!(
                     lines[2].spans[0]
                         .style

@@ -1,7 +1,7 @@
 //! Named themes take every role from the shipped theme crate's resolver; no renderer owns colors.
 use super::{
-    Color, ColorLevel, DestructiveRest, GlyphSet, Modifier, Polarity, RoleStyles, Style,
-    TabGroupPalette, TerminalColorSource, Theme,
+    Color, ColorLevel, DestructiveRest, GlyphSet, Modifier, Polarity, RoleStyles, SelectionAccents,
+    Style, TabGroupPalette, TerminalColorSource, Theme,
 };
 use orchbee_color_themes::{Rgb, Roles};
 use ratatui::widgets::BorderType;
@@ -48,6 +48,22 @@ fn shared_orchbee_colors(polarity: orchbee_color_themes::Polarity, roles: &mut R
             roles.status_working = Rgb::new(0xe5, 0xe5, 0xe5);
         }
     }
+    roles.selection.accent_action = roles.raise_on_selection(roles.accent_action, 3.0);
+}
+
+fn group_channels(groups: orchbee_color_themes::TabGroups) -> [[u8; 3]; 9] {
+    [
+        groups.blue,
+        groups.cyan,
+        groups.green,
+        groups.grey,
+        groups.orange,
+        groups.pink,
+        groups.purple,
+        groups.red,
+        groups.yellow,
+    ]
+    .map(channels)
 }
 
 impl Theme {
@@ -61,7 +77,6 @@ impl Theme {
         let bg = |color: Rgb| Style::new().bg(rgb(color));
         let primary = fg(roles.text_primary);
         let secondary = fg(roles.text_secondary);
-        let groups = roles.tab_groups;
         Self {
             #[cfg(any(test, feature = "test-support"))]
             name: theme.id(),
@@ -120,19 +135,21 @@ impl Theme {
                 hint_key: primary.add_modifier(Modifier::BOLD),
                 hint_label: secondary,
             },
+            selection_accents: Some(SelectionAccents {
+                accent_action: rgb(roles.selection.accent_action),
+                accent_destructive: rgb(roles.selection.accent_destructive),
+                accent_focus: rgb(roles.selection.accent_focus),
+                #[cfg(any(test, feature = "test-support"))]
+                accent_link: rgb(roles.selection.accent_link),
+                status_success: rgb(roles.selection.status_success),
+                status_warning: rgb(roles.selection.status_warning),
+                status_error: rgb(roles.selection.status_error),
+                status_info: rgb(roles.selection.status_info),
+                status_unread: rgb(roles.selection.status_unread),
+            }),
             tab_groups: TabGroupPalette::named(
-                [
-                    groups.blue,
-                    groups.cyan,
-                    groups.green,
-                    groups.grey,
-                    groups.orange,
-                    groups.pink,
-                    groups.purple,
-                    groups.red,
-                    groups.yellow,
-                ]
-                .map(channels),
+                group_channels(roles.tab_groups),
+                group_channels(roles.selection.tab_groups),
                 channels(roles.surface_strip),
             ),
         }

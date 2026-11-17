@@ -102,10 +102,12 @@ block of the accent with black or white text, whichever contrasts more with it, 
 accent's own color space. An expanded group's members and the gaps between them rest on a band
 that mixes 20% of the accent into the theme's strip fill. Terminal-native has no concrete strip
 color to mix, and 16-color hosts cannot express a faint fill, so they paint no band and a resting
-member's label takes the accent instead. A current, hover or pressed surface replaces the block or
-the band on its own token, with the accent name readable on it, and leaving restores the block or
-band. Group color swatches in menus paint the same accent. Monochrome hosts show the header in
-reverse video and otherwise use the ordinary role resolver and interaction fallbacks.
+member's label takes the accent instead. A current, hover or pressed surface replaces the block or the band on its own
+token, with the accent name readable on it, and selection surfaces use the catalog's selection-raised
+Tab-group accent at truecolor and 256 colors so headers and group bars remain readable on
+`surface-selection`; leaving restores the block or band. Group color swatches in menus paint the
+same resting accent. Monochrome hosts show the header in reverse video and otherwise use the
+ordinary role resolver and interaction fallbacks.
 
 The theme contract also provides `accent-action`, `surface-hover` and `surface-pressed`. In
 Orchbee Light and Orchbee Dark these roles carry the
@@ -117,6 +119,8 @@ neither reads the other's source. Every other shipped theme keeps the catalog re
 These roles are available to renderers, but each surface still requires consumer render evidence
 before it can claim adoption.
 
+**Vetoable decision: keep `shared-theme-colors-v1.json` scoped to Orchbee action, hover, press, dark Agent idle/working, and traffic lights.** The shared contract does not unify TUI and GUI destructive, link, status, or Chrome's GUI Tab-group colors: Chrome's un-adapted solid-pill Tab-group colors (`#f9ab00` at 1.68:1, `#fa7b17` at 2.31:1, and dark grey `#5f6368` at 2.44:1 on Chrome surfaces) fall below TUI 4.5:1 text contrast, and GUI status tokens use Tailwind blue/orange rather than the ANSI cyan/yellow families shared by all 16 TUI themes. Both Orchbee TUI themes resolve those remaining roles directly from `crates/color-themes`, with `roles.selection.accent_action` recomputed after overriding `accent_action`.
+
 The sidebar's explicit red Delete intent uses independent `accent-destructive` metadata and palette
 ownership, never `status-error`. Named themes take the catalog's destructive accent, and
 terminal-native uses ANSI red. Disabled content resolves to `text-disabled` before action tone; it
@@ -126,20 +130,26 @@ destructive wording is ANSI red directly on the host default background without 
 a destructive menu row and a whole destructive confirmation button, including its brackets and key
 hint, read as red text. Reference contrast for ANSI red on the host default is about 3.2:1 in
 Campbell and VS Code Dark+ and 3.3:1 to 3.5:1 in One Half Light. Every named theme keeps the
-destructive key hint in `text-secondary`. Where reduced-color or native interaction uses reverse
-video, or a known fill falls below 3:1, the theme resolver removes reversal from the destructive
-content band and supplies its own contrasting backing pair. Components neither construct colors
-nor add warning bold, underline or blink. Monochrome retains the localized Delete verb and ordinary
-markers. Nominal palette tests cover the unpaired terminal-native rest state and the overlay,
-hover, pressed and selection surfaces at truecolor, ANSI-256 and ANSI-16; customized host palette
-appearance still requires real-window review.
+destructive key hint in `text-secondary`. On named truecolor and 256-color `surface-selection`, the
+theme resolver supplies pre-adjusted semantic hues (action, destructive, focus, link, and status
+roles) directly on `surface-selection` without giving `accent-destructive` a separate black/white
+background box, while fixed traffic-light Agent glyphs (`#febc2e`, `#28c840`, `#ff5f57`) keep
+their values and relative contrast rule. Where reduced-color or native interaction uses reverse
+video, or quantization drops a fill below 3:1, the theme resolver removes reversal from the
+destructive content band and supplies its own contrasting backing pair. Components neither construct
+colors nor add warning bold, underline or blink. Monochrome retains the localized Delete verb and
+ordinary markers. Nominal palette tests cover the unpaired terminal-native rest state and the
+overlay, hover, pressed and selection surfaces across shipped themes and truecolor/ANSI-256/ANSI-16
+levels; customized host palette appearance still requires real-window review.
 
 Named-theme supporting text, hint labels and pending status are the resolver's secondary text,
-which stays below primary text on the canvas, chrome, overlay and inactive surfaces. Muted text is
-its quietest step toward chrome that still clears 4.5:1 there, and it rises to secondary text on
-every fill. Disabled text stays quieter than primary text without faint intensity at truecolor and
-256 colors. Secondary text is not dimmed to create priority at the expense of its surface
-readability. The catalog's contrast floors cover chrome; its [README](../../../crates/color-themes/README.md)
+which stays below primary text on the canvas, chrome, overlay and inactive surfaces, and
+`status-pending` pairs with `text-selection` (without `DIM`) on `surface-selection` like secondary
+text. Muted text is the quietest step toward chrome that still clears 4.5:1 across canvas, chrome,
+overlay and their 5% subtle overlays, and it rises to secondary text on every fill. Disabled text
+stays quieter than primary text without faint intensity at truecolor and 256 colors. Secondary
+text is not dimmed to create priority at the expense of its surface readability. The catalog's
+contrast floors cover shared and derived surfaces; its [README](../../../crates/color-themes/README.md)
 records them. Real-window light/dark, en-US/zh-CN and 80x24/120x40 review supplies perceptual
 evidence.
 

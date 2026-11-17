@@ -64,11 +64,11 @@
 	flex: none;
 }
 
-/* Secondary text on the inverse surface, at the text hierarchy's 70% level. */
+/* Secondary text on the inverse surface, quieted just enough to keep 4.5:1 across all themes. */
 .rosterIdentity {
 	min-inline-size: 0;
 	overflow: hidden;
-	color: color-mix(in srgb, var(--ob-sys-color-text-inverse) 70%, transparent);
+	color: color-mix(in srgb, var(--ob-sys-color-text-inverse) 80%, transparent);
 	text-overflow: ellipsis;
 }
 

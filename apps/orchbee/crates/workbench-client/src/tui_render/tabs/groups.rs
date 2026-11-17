@@ -973,7 +973,7 @@ fn piece_style(
                 };
                 return theme.tab_group_chip_style(*color, role, content);
             };
-            let accent = Style::new().fg(theme.tab_groups.accent(*color));
+            let accent = Style::new().fg(theme.tab_group_accent(*color, Some(surface)));
             let (role, content) = match piece {
                 Piece::Label => (None, accent.add_modifier(Modifier::BOLD)),
                 Piece::Arrow if pointer_surface.is_some() => (None, theme.style(Role::TextPrimary)),

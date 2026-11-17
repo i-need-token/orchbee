@@ -170,9 +170,10 @@ fn declaration(text: &mut String, name: &str, value: &str) {
 
 /// Every system color of a named theme, in the registry's order. Surfaces, text, frames, accents,
 /// and statuses come from the resolver; states mix those roles as the hand-authored mapping does,
-/// with hover lighter and pressed darker in both polarities. The brand honey, the scrim, the Panels'
-/// overlay scrollbar thumb, and every Agent status glyph color keep their polarity's hand-authored
-/// reference.
+/// shifting text, link, and status foregrounds toward white on dark themes and black on light
+/// themes, and shifting primary-action fill states away from `text-inverse`. The brand honey, the
+/// scrim, the Panels' overlay scrollbar thumb, and every Agent status glyph color keep their
+/// polarity's hand-authored reference.
 fn system_colors(theme: &Theme) -> Vec<(String, String)> {
     let roles = Roles::resolve(theme);
     let dark = theme.polarity() == Polarity::Dark;
@@ -191,10 +192,18 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
     let toward = |color: Rgb, percent: u8, other: &str| {
         format!("color-mix(in oklab, {color} {percent}%, {other})")
     };
-    let lighter = |color: Rgb| toward(color, 85, "white");
-    let darker = |color: Rgb| toward(color, 85, "black");
+    let stronger = |color: Rgb, percent: u8| {
+        if dark {
+            toward(color, percent, "white")
+        } else {
+            toward(color, percent, "black")
+        }
+    };
+    let hover_fg = |color: Rgb| stronger(color, 85);
+    let pressed_fg = |color: Rgb| stronger(color, if dark { 70 } else { 72 });
     let chrome = roles.surface_chrome.to_string();
     let canvas = roles.surface_canvas.to_string();
+    let inverse = roles.text_inverse.to_string();
     let primary = roles.text_primary.to_string();
     let secondary = roles.text_secondary.to_string();
     let muted = roles.text_muted.to_string();
@@ -204,12 +213,16 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
     let focus = roles.accent_focus.to_string();
     let link = roles.accent_link;
     let action = roles.accent_action;
-    let on_action =
-        if contrast(roles.surface_canvas, action) >= contrast(roles.text_primary, action) {
-            canvas.clone()
+    let light_action_text = contrast(roles.text_inverse, Rgb::new(255, 255, 255))
+        < contrast(roles.text_inverse, Rgb::new(0, 0, 0));
+    let action_shift = |percent: u8| {
+        if light_action_text {
+            toward(action, percent, "black")
         } else {
-            primary.clone()
-        };
+            toward(action, percent, "white")
+        }
+    };
+    let on_action = roles.text_inverse.to_string();
     let (thumb, thumb_hover, thumb_pressed) = if dark { (28, 40, 52) } else { (40, 52, 64) };
     let (tint, tint_hover) = if dark { (15, 20) } else { (10, 15) };
     let mut colors: Vec<(String, String)> = [
@@ -241,15 +254,15 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
         ("text-muted", muted.clone()),
         ("text-placeholder", placeholder),
         ("text-disabled", disabled.clone()),
-        ("text-inverse", canvas.clone()),
+        ("text-inverse", inverse.clone()),
         ("text-link", link.to_string()),
-        ("text-link-hover", lighter(link)),
-        ("text-link-focus", lighter(link)),
-        ("text-link-pressed", darker(link)),
+        ("text-link-hover", hover_fg(link)),
+        ("text-link-focus", hover_fg(link)),
+        ("text-link-pressed", pressed_fg(link)),
         ("icon-primary", primary.clone()),
         ("icon-secondary", secondary),
         ("icon-muted", muted),
-        ("icon-inverse", canvas),
+        ("icon-inverse", inverse),
         ("icon-hover", primary.clone()),
         ("icon-disabled", disabled.clone()),
         ("border-subtle", guide.clone()),
@@ -267,8 +280,8 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
             fixed("overlay-scrollbar-gray", "overlay-scrollbar-gray"),
         ),
         ("action-primary", action.to_string()),
-        ("action-primary-hover", lighter(action)),
-        ("action-primary-pressed", darker(action)),
+        ("action-primary-hover", action_shift(88)),
+        ("action-primary-pressed", action_shift(76)),
         ("action-primary-text", on_action),
         ("action-secondary", roles.surface_hover.to_string()),
         ("action-secondary-hover", roles.surface_current.to_string()),
@@ -311,15 +324,15 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
         let tinted = |percent: u8| format!("color-mix(in oklch, {color} {percent}%, transparent)");
         for (variant, value) in [
             ("", color.to_string()),
-            ("-hover", lighter(color)),
-            ("-pressed", darker(color)),
+            ("-hover", hover_fg(color)),
+            ("-pressed", pressed_fg(color)),
             ("-surface", tinted(tint)),
             ("-surface-hover", tinted(tint_hover)),
             ("-border", toward(color, 50, &chrome)),
             ("-border-hover", toward(color, 65, &chrome)),
             ("-text", color.to_string()),
-            ("-text-hover", lighter(color)),
-            ("-text-pressed", darker(color)),
+            ("-text-hover", hover_fg(color)),
+            ("-text-pressed", pressed_fg(color)),
         ] {
             colors.push((format!("status-{status}{variant}"), value));
         }

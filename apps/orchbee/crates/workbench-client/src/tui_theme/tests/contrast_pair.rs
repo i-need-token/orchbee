@@ -82,7 +82,14 @@ fn destructive_intent_rests_as_ansi_red_on_the_host_default_and_keeps_contrast_i
                     Some(Role::AccentDestructive),
                     theme.style(Role::AccentDestructive),
                 );
-                assert_eq!(content.fg, theme.style(Role::AccentDestructive).fg);
+                let named_selection = interaction == Some(Role::SurfaceSelection)
+                    && !rests_on_host_default
+                    && matches!(level, ColorLevel::Truecolor | ColorLevel::Ansi256);
+                if named_selection {
+                    assert_eq!(content.bg, theme.style(Role::SurfaceSelection).bg);
+                } else {
+                    assert_eq!(content.fg, theme.style(Role::AccentDestructive).fg);
+                }
                 assert!(
                     !content.add_modifier.intersects(
                         Modifier::REVERSED
@@ -107,7 +114,12 @@ fn destructive_intent_rests_as_ansi_red_on_the_host_default_and_keeps_contrast_i
                     nominal_rgb(content.fg.unwrap()),
                     nominal_rgb(content.bg.unwrap()),
                 );
-                assert!(contrast >= 3.0, "{level:?} {interaction:?}: {contrast}");
+                let floor = if named_selection && level == ColorLevel::Truecolor {
+                    4.5
+                } else {
+                    3.0
+                };
+                assert!(contrast >= floor, "{level:?} {interaction:?}: {contrast}");
             }
         }
     }

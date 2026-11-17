@@ -47,6 +47,183 @@ function declaredValues(css: string): Map<string, string> {
 	);
 }
 
+interface RgbColor {
+	readonly r: number;
+	readonly g: number;
+	readonly b: number;
+}
+
+interface ParsedCssColor {
+	readonly rgb: RgbColor;
+	readonly alpha: number;
+}
+
+function srgbChannelToLinear(channel: number): number {
+	const value = channel / 255;
+	return value <= 0.040_45 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+}
+
+function linearToSrgbChannel(channel: number): number {
+	const clamped = Math.min(1, Math.max(0, channel));
+	const encoded = clamped <= 0.003_130_8 ? clamped * 12.92 : 1.055 * clamped ** (1 / 2.4) - 0.055;
+	return Math.round(Math.min(1, Math.max(0, encoded)) * 255);
+}
+
+function relativeLuminance(color: RgbColor): number {
+	return (
+		0.2126 * srgbChannelToLinear(color.r) +
+		0.7152 * srgbChannelToLinear(color.g) +
+		0.0722 * srgbChannelToLinear(color.b)
+	);
+}
+
+function contrastRatio(left: RgbColor, right: RgbColor): number {
+	const l1 = relativeLuminance(left);
+	const l2 = relativeLuminance(right);
+	return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+function rgbToOklab(color: RgbColor): readonly [number, number, number] {
+	const lr = srgbChannelToLinear(color.r);
+	const lg = srgbChannelToLinear(color.g);
+	const lb = srgbChannelToLinear(color.b);
+	const l = Math.cbrt(0.412_221_470_8 * lr + 0.536_332_536_3 * lg + 0.051_445_992_9 * lb);
+	const m = Math.cbrt(0.211_903_498_2 * lr + 0.680_699_545_1 * lg + 0.107_396_956_6 * lb);
+	const s = Math.cbrt(0.088_302_461_9 * lr + 0.281_718_837_6 * lg + 0.629_978_700_5 * lb);
+	const lightness = 0.210_454_255_3 * l + 0.793_617_785 * m - 0.004_072_046_8 * s;
+	if (color.r === color.g && color.g === color.b) return [lightness, 0, 0];
+	return [
+		lightness,
+		1.977_998_495_1 * l - 2.428_592_205 * m + 0.450_593_709_9 * s,
+		0.025_904_037_1 * l + 0.782_771_766_2 * m - 0.808_675_766 * s,
+	];
+}
+
+function oklabToRgb(lightness: number, a: number, b: number): RgbColor {
+	const l = (lightness + 0.396_337_777_4 * a + 0.215_803_757_3 * b) ** 3;
+	const m = (lightness - 0.105_561_345_8 * a - 0.063_854_172_8 * b) ** 3;
+	const s = (lightness - 0.089_484_177_5 * a - 1.291_485_548 * b) ** 3;
+	return {
+		r: linearToSrgbChannel(4.076_741_662_1 * l - 3.307_711_591_3 * m + 0.230_969_929_2 * s),
+		g: linearToSrgbChannel(-1.268_438_004_6 * l + 2.609_757_401_1 * m - 0.341_319_396_5 * s),
+		b: linearToSrgbChannel(-0.004_196_086_3 * l - 0.703_418_614_7 * m + 1.707_614_701 * s),
+	};
+}
+
+function parseHexRgb(hex: string): RgbColor {
+	const digits = hex.slice(1);
+	const expanded =
+		digits.length === 3
+			? digits
+					.split('')
+					.map((ch) => `${ch}${ch}`)
+					.join('')
+			: digits;
+	return {
+		r: Number.parseInt(expanded.slice(0, 2), 16),
+		g: Number.parseInt(expanded.slice(2, 4), 16),
+		b: Number.parseInt(expanded.slice(4, 6), 16),
+	};
+}
+
+function splitTopLevelMixArgs(args: string): readonly [string, string] {
+	let depth = 0;
+	for (let i = 0; i < args.length; i += 1) {
+		const ch = args.charAt(i);
+		if (ch === '(') depth += 1;
+		else if (ch === ')') depth -= 1;
+		else if (ch === ',' && depth === 0) {
+			return [args.slice(0, i).trim(), args.slice(i + 1).trim()];
+		}
+	}
+	throw new Error(`Invalid color-mix arguments: ${args}`);
+}
+
+function parseCssColor(value: string, vars: ReadonlyMap<string, string>): ParsedCssColor {
+	const trimmed = value.trim();
+	if (trimmed === 'transparent') return { rgb: { r: 0, g: 0, b: 0 }, alpha: 0 };
+	if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu.test(trimmed)) {
+		return { rgb: parseHexRgb(trimmed), alpha: 1 };
+	}
+	const refMatch = /^var\((?<name>--ob-[a-z0-9-]+)\)$/u.exec(trimmed);
+	if (refMatch?.groups?.['name'] !== undefined) {
+		const target = vars.get(refMatch.groups['name']);
+		if (target === undefined) throw new Error(`Missing token ${refMatch.groups['name']}.`);
+		return parseCssColor(target, vars);
+	}
+	const oklchMatch =
+		/^oklch\((?<lightness>[\d.]+)(?<pct>%?)\s+(?<chroma>[\d.]+)\s+(?<hue>none|[\d.]+)(?:\s*\/\s*(?<alpha>[\d.]+)%)?\)$/u.exec(
+			trimmed,
+		);
+	if (oklchMatch?.groups !== undefined) {
+		const rawLightness = Number(oklchMatch.groups['lightness']);
+		const lightness = oklchMatch.groups['pct'] === '%' ? rawLightness / 100 : rawLightness;
+		const chroma = Number(oklchMatch.groups['chroma']);
+		const hueRaw = oklchMatch.groups['hue'] ?? 'none';
+		const radians = hueRaw === 'none' ? 0 : (Number(hueRaw) * Math.PI) / 180;
+		const a = hueRaw === 'none' ? 0 : chroma * Math.cos(radians);
+		const b = hueRaw === 'none' ? 0 : chroma * Math.sin(radians);
+		const alphaRaw = oklchMatch.groups['alpha'];
+		return {
+			rgb: oklabToRgb(lightness, a, b),
+			alpha: alphaRaw === undefined ? 1 : Number(alphaRaw) / 100,
+		};
+	}
+	const mixMatch = /^color-mix\(\s*in\s+(?<space>srgb|oklab|oklch),\s*(?<args>.+)\s*\)$/u.exec(
+		trimmed,
+	);
+	if (mixMatch?.groups !== undefined) {
+		const [leftRaw, rightRaw] = splitTopLevelMixArgs(mixMatch.groups['args'] ?? '');
+		const parseStop = (stop: string): { color: ParsedCssColor; weight: number | null } => {
+			const m = /^(?<expr>.+?)\s+(?<pct>\d+(?:\.\d+)?)%$/u.exec(stop);
+			if (m?.groups !== undefined) {
+				return {
+					color: parseCssColor(m.groups['expr'] ?? '', vars),
+					weight: Number(m.groups['pct']) / 100,
+				};
+			}
+			return { color: parseCssColor(stop, vars), weight: null };
+		};
+		const left = parseStop(leftRaw);
+		const right = parseStop(rightRaw);
+		const w1 = left.weight ?? (right.weight === null ? 0.5 : 1 - right.weight);
+		const w2 = right.weight ?? 1 - w1;
+		if (left.color.alpha === 0) return { rgb: right.color.rgb, alpha: w2 * right.color.alpha };
+		if (right.color.alpha === 0) return { rgb: left.color.rgb, alpha: w1 * left.color.alpha };
+		if (mixMatch.groups['space'] === 'srgb') {
+			return {
+				rgb: {
+					r: Math.round(left.color.rgb.r * w1 + right.color.rgb.r * w2),
+					g: Math.round(left.color.rgb.g * w1 + right.color.rgb.g * w2),
+					b: Math.round(left.color.rgb.b * w1 + right.color.rgb.b * w2),
+				},
+				alpha: 1,
+			};
+		}
+		const [l1, a1, b1] = rgbToOklab(left.color.rgb);
+		const [l2, a2, b2] = rgbToOklab(right.color.rgb);
+		return {
+			rgb: oklabToRgb(l1 * w1 + l2 * w2, a1 * w1 + a2 * w2, b1 * w1 + b2 * w2),
+			alpha: 1,
+		};
+	}
+	throw new Error(`Unsupported color expression: ${value}`);
+}
+
+function paintOver(foreground: ParsedCssColor, background: RgbColor): RgbColor {
+	if (foreground.alpha >= 1) return foreground.rgb;
+	const a = foreground.alpha;
+	return {
+		r: Math.round(foreground.rgb.r * a + background.r * (1 - a)),
+		g: Math.round(foreground.rgb.g * a + background.g * (1 - a)),
+		b: Math.round(foreground.rgb.b * a + background.b * (1 - a)),
+	};
+}
+
+function compositeOpacity(foreground: RgbColor, background: RgbColor, alpha: number): RgbColor {
+	return paintOver({ rgb: foreground, alpha }, background);
+}
+
 /** The 8-bit sRGB channel of an achromatic OKLCH lightness. */
 function achromaticChannel(lightnessPercent: number): number {
 	const linear = (lightnessPercent / 100) ** 3;
@@ -231,5 +408,202 @@ describe('design tokens', () => {
 		]) {
 			expect(inventory).toContain(`--ob-sys-typography-${role}`);
 		}
+	});
+
+	it('satisfies GUI derived-state contrast floors in light and dark system themes', async () => {
+		const css = await readFile(new URL('../tokens.css', import.meta.url), 'utf8');
+		const references = new Map(
+			[...declaredValues(css)].filter(([name]) => name.startsWith('--ob-ref-')),
+		);
+		const failures: string[] = [];
+		const themes: readonly { readonly selector: ThemeSelector; readonly dark: boolean }[] = [
+			{ selector: "[data-theme='light']", dark: false },
+			{ selector: "[data-theme='dark']", dark: true },
+		];
+		for (const { selector, dark } of themes) {
+			const system = declaredValues(ruleBody(css, selector));
+			const vars = new Map<string, string>([...references, ...system]);
+			const get = (role: string): ParsedCssColor => {
+				const raw = vars.get(`--ob-sys-color-${role}`);
+				if (raw === undefined) throw new Error(`Missing --ob-sys-color-${role} in ${selector}`);
+				return parseCssColor(raw, vars);
+			};
+			const canvas = paintOver(get('surface-canvas'), { r: 255, g: 255, b: 255 });
+			const raised = paintOver(get('surface-raised'), canvas);
+			const overlay = paintOver(get('surface-overlay'), canvas);
+			const bases: readonly (readonly [string, RgbColor])[] = [
+				['canvas', canvas],
+				['raised', raised],
+				['overlay', overlay],
+			];
+			const surfaces: [string, RgbColor][] = [];
+			for (const [baseName, base] of bases) {
+				surfaces.push([baseName, base]);
+				const subtle = paintOver(get('surface-subtle'), base);
+				surfaces.push([`${baseName}+subtle`, subtle]);
+				for (const state of ['inactive', 'hovered', 'selected', 'pressed', 'selected-hover']) {
+					surfaces.push([`${baseName}+${state}`, paintOver(get(`surface-${state}`), base)]);
+				}
+				if (baseName !== 'overlay') {
+					for (const state of ['hovered', 'selected', 'selected-hover']) {
+						surfaces.push([
+							`${baseName}+subtle+${state}`,
+							paintOver(get(`surface-${state}`), subtle),
+						]);
+					}
+				}
+				if (dark) {
+					const inputBorder = get('border-default');
+					surfaces.push([
+						`${baseName}+input/30`,
+						compositeOpacity(inputBorder.rgb, base, inputBorder.alpha * 0.3),
+					]);
+				}
+				for (const pct of [0.05, 0.1]) {
+					const actionPrimary = get('action-primary');
+					surfaces.push([
+						`${baseName}+primary/${pct * 100}`,
+						compositeOpacity(actionPrimary.rgb, base, actionPrimary.alpha * pct),
+					]);
+				}
+				for (const pct of [0.05, 0.08, 0.8]) {
+					const actionSecondary = get('action-secondary');
+					surfaces.push([
+						`${baseName}+secondary/${pct * 100}`,
+						compositeOpacity(actionSecondary.rgb, base, actionSecondary.alpha * pct),
+					]);
+				}
+			}
+			for (const status of ['info', 'success', 'warning', 'danger']) {
+				for (const suffix of ['-surface', '-surface-hover']) {
+					const fillSpec = get(`status-${status}${suffix}`);
+					for (const [baseName, base] of bases) {
+						surfaces.push([`${baseName}+status-${status}${suffix}`, paintOver(fillSpec, base)]);
+					}
+				}
+			}
+
+			for (const [baseName, base] of bases) {
+				for (const [label, fill] of [
+					[baseName, base],
+					[`${baseName}+subtle`, paintOver(get('surface-subtle'), base)],
+				] as const) {
+					const fg = paintOver(get('text-muted'), fill);
+					const ratio = contrastRatio(fg, fill);
+					if (ratio < 4.5) {
+						failures.push(`${selector}: text-muted on ${label} = ${ratio.toFixed(3)} < 4.5`);
+					}
+				}
+			}
+
+			const foregrounds: readonly (readonly [string, number])[] = [
+				['text-primary', 4.5],
+				['text-secondary', 4.5],
+				['text-link', 4.5],
+				['text-link-hover', 4.5],
+				['text-link-focus', 4.5],
+				['text-link-pressed', 4.5],
+				['status-unread', 3.0],
+				...(['info', 'success', 'warning', 'danger'] as const).flatMap(
+					(status): readonly (readonly [string, number])[] => [
+						[`status-${status}`, 4.5],
+						[`status-${status}-text`, 4.5],
+						[`status-${status}-text-hover`, 4.5],
+						[`status-${status}-text-pressed`, 4.5],
+					],
+				),
+			];
+
+			for (const [surfaceName, fill] of surfaces) {
+				const primaryRatio = contrastRatio(paintOver(get('text-primary'), fill), fill);
+				const secondaryRatio = contrastRatio(paintOver(get('text-secondary'), fill), fill);
+				if (primaryRatio < secondaryRatio) {
+					failures.push(
+						`${selector}: text hierarchy inverted on ${surfaceName} (${primaryRatio.toFixed(3)} < ${secondaryRatio.toFixed(3)})`,
+					);
+				}
+				for (const [role, floor] of foregrounds) {
+					if (
+						(surfaceName.includes('input/') || surfaceName.includes('primary/')) &&
+						role !== 'text-primary' &&
+						role !== 'text-secondary'
+					) {
+						continue;
+					}
+					const fg = paintOver(get(role), fill);
+					const ratio = contrastRatio(fg, fill);
+					if (ratio < floor) {
+						failures.push(
+							`${selector}: ${role} on ${surfaceName} = ${ratio.toFixed(3)} < ${floor}`,
+						);
+					}
+				}
+			}
+
+			const actionText = get('action-primary-text');
+			for (const variant of ['action-primary', 'action-primary-hover', 'action-primary-pressed']) {
+				const variantSpec = get(variant);
+				for (const [baseName, base] of bases) {
+					const fill = paintOver(variantSpec, base);
+					const textRatio = contrastRatio(paintOver(actionText, fill), fill);
+					if (textRatio < 4.5) {
+						failures.push(
+							`${selector}: action-primary-text on ${baseName}+${variant} = ${textRatio.toFixed(3)} < 4.5`,
+						);
+					}
+					const boundaryRatio = contrastRatio(fill, base);
+					if (boundaryRatio < 3.0) {
+						failures.push(
+							`${selector}: ${variant} UI on ${baseName} = ${boundaryRatio.toFixed(3)} < 3.0`,
+						);
+					}
+				}
+			}
+
+			const inverseBg = get('surface-inverse').rgb;
+			const inverseFg = paintOver(get('text-inverse'), inverseBg);
+			const invRatio = contrastRatio(inverseFg, inverseBg);
+			if (invRatio < 4.5) {
+				failures.push(
+					`${selector}: text-inverse on surface-inverse = ${invRatio.toFixed(3)} < 4.5`,
+				);
+			}
+			const inv80 = compositeOpacity(inverseFg, inverseBg, 0.8);
+			const inv80Ratio = contrastRatio(inv80, inverseBg);
+			if (inv80Ratio < 4.5) {
+				failures.push(
+					`${selector}: text-inverse@80% on surface-inverse = ${inv80Ratio.toFixed(3)} < 4.5`,
+				);
+			}
+			const kbdRatio = contrastRatio(
+				inverseFg,
+				compositeOpacity(canvas, inverseBg, dark ? 0.1 : 0.15),
+			);
+			if (kbdRatio < 4.5) {
+				failures.push(`${selector}: text-inverse on tooltip kbd = ${kbdRatio.toFixed(3)} < 4.5`);
+			}
+			const hintRatio = contrastRatio(
+				paintOver(get('text-inverse'), get('status-warning').rgb),
+				get('status-warning').rgb,
+			);
+			if (hintRatio < 4.5) {
+				failures.push(
+					`${selector}: text-inverse on status-warning = ${hintRatio.toFixed(3)} < 4.5`,
+				);
+			}
+			for (const [surfaceName, bgRole] of [
+				['text-muted', 'text-muted'],
+				['text-secondary', 'text-secondary'],
+				['border-focus', 'border-focus'],
+			] as const) {
+				const bgSpec = paintOver(get(bgRole), canvas);
+				const fgSpec = paintOver(get('text-inverse'), bgSpec);
+				const ratio = contrastRatio(fgSpec, bgSpec);
+				if (ratio < 4.5) {
+					failures.push(`${selector}: text-inverse on ${surfaceName} = ${ratio.toFixed(3)} < 4.5`);
+				}
+			}
+		}
+		expect(failures).toEqual([]);
 	});
 });

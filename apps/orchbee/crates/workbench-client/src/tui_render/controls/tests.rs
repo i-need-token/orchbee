@@ -916,8 +916,9 @@ fn row_keeps_focus_current_checked_pending_and_explicit_content_while_disabled()
     );
     assert_eq!(
         buffer[(19, 0)].style().fg,
-        theme.style(Role::StatusPending).fg
+        theme.style(Role::AccentSelection).fg
     );
+    assert!(!buffer[(19, 0)].style().add_modifier.contains(Modifier::DIM));
     for x in 0..row.width {
         assert_eq!(
             buffer[(x, 0)].style().bg,
@@ -1367,16 +1368,30 @@ fn destructive_row_keeps_markers_and_disabled_content_without_pointer_emphasis()
                         }
                     );
                     let label = buffer[(3, 0)].style();
-                    assert_eq!(
-                        label.fg,
-                        theme
-                            .style(if availability == Availability::Disabled {
-                                Role::TextDisabled
-                            } else {
-                                Role::AccentDestructive
-                            })
-                            .fg
-                    );
+                    let interaction = match pointer {
+                        PointerPresentation::Pressed => Some(Role::SurfacePressed),
+                        PointerPresentation::Hovered | PointerPresentation::Rest => {
+                            Some(Role::SurfaceSelection)
+                        }
+                    };
+                    let expected = if availability == Availability::Disabled {
+                        theme.style(Role::TextDisabled)
+                    } else {
+                        theme.content_on_surface(
+                            Role::SurfaceOverlay,
+                            interaction,
+                            Some(Role::AccentDestructive),
+                            theme.style(Role::AccentDestructive),
+                        )
+                    };
+                    assert_eq!(label.fg, expected.fg);
+                    if availability == Availability::Enabled
+                        && pointer != PointerPresentation::Pressed
+                        && theme.polarity.is_some()
+                        && level == ColorLevel::Truecolor
+                    {
+                        assert_eq!(label.bg, theme.style(Role::SurfaceSelection).bg);
+                    }
                     if availability == Availability::Disabled {
                         assert!(!label.add_modifier.contains(Modifier::BOLD));
                         assert_eq!(

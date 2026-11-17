@@ -171,13 +171,57 @@ pub(crate) fn simulate(color: Rgb, deficiency: Deficiency) -> Rgb {
     encode(matrix.map(|row| row[0] * red + row[1] * green + row[2] * blue))
 }
 
-/// OKLab perceptual lightness, `0.0` for black through `1.0` for white.
-pub(crate) fn oklab_lightness(color: Rgb) -> f64 {
+/// Composite `foreground` at `opacity_percent` (`0..=100`) over `background` in sRGB (`color-mix(in srgb, fg P%, transparent)`).
+pub(crate) fn srgb_composite(foreground: Rgb, background: Rgb, opacity_percent: u8) -> Rgb {
+    let p = f64::from(opacity_percent) / 100.0;
+    let channel = |fg: u8, bg: u8| {
+        (f64::from(fg) * p + f64::from(bg) * (1.0 - p))
+            .round()
+            .clamp(0.0, 255.0) as u8
+    };
+    Rgb::new(
+        channel(foreground.red, background.red),
+        channel(foreground.green, background.green),
+        channel(foreground.blue, background.blue),
+    )
+}
+
+fn to_oklab(color: Rgb) -> [f64; 3] {
     let [red, green, blue] = linear(color);
     let l = (0.412_221_470_8 * red + 0.536_332_536_3 * green + 0.051_445_992_9 * blue).cbrt();
     let m = (0.211_903_498_2 * red + 0.680_699_545_1 * green + 0.107_396_956_6 * blue).cbrt();
     let s = (0.088_302_461_9 * red + 0.281_718_837_6 * green + 0.629_978_700_5 * blue).cbrt();
-    0.210_454_255_3 * l + 0.793_617_785 * m - 0.004_072_046_8 * s
+    let lightness = 0.210_454_255_3 * l + 0.793_617_785 * m - 0.004_072_046_8 * s;
+    if color.red == color.green && color.green == color.blue {
+        return [lightness, 0.0, 0.0];
+    }
+    [
+        lightness,
+        1.977_998_495_1 * l - 2.428_592_205_0 * m + 0.450_593_709_9 * s,
+        0.025_904_037_1 * l + 0.782_771_766_2 * m - 0.808_675_766_0 * s,
+    ]
+}
+
+/// Mix `first` (`first_percent`%) with `second` in OKLab (`color-mix(in oklab, first P%, second)`).
+pub(crate) fn oklab_mix(first: Rgb, second: Rgb, first_percent: u8) -> Rgb {
+    let [l1, a1, b1] = to_oklab(first);
+    let [l2, a2, b2] = to_oklab(second);
+    let w1 = f64::from(first_percent) / 100.0;
+    let w2 = 1.0 - w1;
+    let (light, a, b) = (l1 * w1 + l2 * w2, a1 * w1 + a2 * w2, b1 * w1 + b2 * w2);
+    let l = (light + 0.396_337_777_4 * a + 0.215_803_757_3 * b).powi(3);
+    let m = (light - 0.105_561_345_8 * a - 0.063_854_172_8 * b).powi(3);
+    let s = (light - 0.089_484_177_5 * a - 1.291_485_548_0 * b).powi(3);
+    encode([
+        4.076_741_662_1 * l - 3.307_711_591_3 * m + 0.230_969_929_2 * s,
+        -1.268_438_004_6 * l + 2.609_757_401_1 * m - 0.341_319_396_5 * s,
+        -0.004_196_086_3 * l - 0.703_418_614_7 * m + 1.707_614_701_0 * s,
+    ])
+}
+
+/// OKLab perceptual lightness, `0.0` for black through `1.0` for white.
+pub(crate) fn oklab_lightness(color: Rgb) -> f64 {
+    to_oklab(color)[0]
 }
 
 fn assert_close(actual: f64, expected: f64, tolerance: f64, what: &str) {

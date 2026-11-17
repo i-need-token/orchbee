@@ -591,7 +591,7 @@
 	);
 	--ob-sys-color-text-muted: color-mix(
 		in srgb,
-		var(--ob-ref-color-orchbee-light-text) 48%,
+		var(--ob-ref-color-orchbee-light-text) 62%,
 		transparent
 	);
 	--ob-sys-color-text-placeholder: color-mix(
@@ -601,10 +601,10 @@
 	);
 	--ob-sys-color-text-disabled: var(--ob-ref-color-neutral-400);
 	--ob-sys-color-text-inverse: var(--ob-ref-color-neutral-0);
-	--ob-sys-color-text-link: var(--ob-ref-color-blue-600);
-	--ob-sys-color-text-link-hover: var(--ob-ref-color-blue-500);
-	--ob-sys-color-text-link-focus: var(--ob-ref-color-blue-500);
-	--ob-sys-color-text-link-pressed: var(--ob-ref-color-blue-700);
+	--ob-sys-color-text-link: var(--ob-ref-color-blue-700);
+	--ob-sys-color-text-link-hover: var(--ob-ref-color-blue-800);
+	--ob-sys-color-text-link-focus: var(--ob-ref-color-blue-800);
+	--ob-sys-color-text-link-pressed: var(--ob-ref-color-blue-900);
 	--ob-sys-color-icon-primary: var(--ob-sys-color-text-primary);
 	--ob-sys-color-icon-secondary: var(--ob-sys-color-text-secondary);
 	--ob-sys-color-icon-muted: var(--ob-sys-color-text-muted);
@@ -648,14 +648,14 @@
 	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: var(--ob-ref-color-orchbee-accent);
 	--ob-sys-color-action-primary-hover: color-mix(
-		in srgb,
+		in oklab,
 		var(--ob-ref-color-orchbee-accent) 90%,
-		transparent
+		var(--ob-ref-color-neutral-1000)
 	);
 	--ob-sys-color-action-primary-pressed: color-mix(
-		in srgb,
-		var(--ob-ref-color-orchbee-accent) 82%,
-		transparent
+		in oklab,
+		var(--ob-ref-color-orchbee-accent) 80%,
+		var(--ob-ref-color-neutral-1000)
 	);
 	--ob-sys-color-action-primary-text: var(--ob-ref-color-orchbee-light-surface);
 	--ob-sys-color-action-secondary: var(--ob-ref-color-neutral-100);
@@ -671,9 +671,9 @@
 	--ob-sys-color-status-agent-done: var(--ob-ref-color-traffic-light-green);
 	--ob-sys-color-status-agent-error: var(--ob-ref-color-traffic-light-red);
 	--ob-sys-color-status-unread: var(--ob-ref-color-blue-700);
-	--ob-sys-color-status-info: var(--ob-ref-color-blue-600);
-	--ob-sys-color-status-info-hover: var(--ob-ref-color-blue-500);
-	--ob-sys-color-status-info-pressed: var(--ob-ref-color-blue-700);
+	--ob-sys-color-status-info: var(--ob-ref-color-blue-700);
+	--ob-sys-color-status-info-hover: var(--ob-ref-color-blue-800);
+	--ob-sys-color-status-info-pressed: var(--ob-ref-color-blue-900);
 	--ob-sys-color-status-info-surface: color-mix(
 		in oklch,
 		var(--ob-ref-color-blue-600) 10%,
@@ -687,11 +687,15 @@
 	--ob-sys-color-status-info-border: var(--ob-ref-color-blue-300);
 	--ob-sys-color-status-info-border-hover: var(--ob-ref-color-blue-400);
 	--ob-sys-color-status-info-text: var(--ob-ref-color-blue-700);
-	--ob-sys-color-status-info-text-hover: var(--ob-ref-color-blue-600);
-	--ob-sys-color-status-info-text-pressed: var(--ob-ref-color-blue-800);
-	--ob-sys-color-status-success: var(--ob-ref-color-orchbee-success);
-	--ob-sys-color-status-success-hover: var(--ob-ref-color-green-500);
-	--ob-sys-color-status-success-pressed: var(--ob-ref-color-green-700);
+	--ob-sys-color-status-info-text-hover: var(--ob-ref-color-blue-800);
+	--ob-sys-color-status-info-text-pressed: var(--ob-ref-color-blue-900);
+	--ob-sys-color-status-success: color-mix(
+		in oklab,
+		var(--ob-ref-color-orchbee-success) 90%,
+		var(--ob-ref-color-neutral-1000)
+	);
+	--ob-sys-color-status-success-hover: var(--ob-ref-color-green-900);
+	--ob-sys-color-status-success-pressed: var(--ob-ref-color-green-950);
 	--ob-sys-color-status-success-surface: color-mix(
 		in oklch,
 		var(--ob-ref-color-green-600) 10%,
@@ -704,12 +708,12 @@
 	);
 	--ob-sys-color-status-success-border: var(--ob-ref-color-green-300);
 	--ob-sys-color-status-success-border-hover: var(--ob-ref-color-green-400);
-	--ob-sys-color-status-success-text: var(--ob-ref-color-green-700);
-	--ob-sys-color-status-success-text-hover: var(--ob-ref-color-green-600);
-	--ob-sys-color-status-success-text-pressed: var(--ob-ref-color-green-800);
-	--ob-sys-color-status-warning: var(--ob-ref-color-orange-600);
-	--ob-sys-color-status-warning-hover: var(--ob-ref-color-orange-500);
-	--ob-sys-color-status-warning-pressed: var(--ob-ref-color-orange-700);
+	--ob-sys-color-status-success-text: var(--ob-ref-color-green-800);
+	--ob-sys-color-status-success-text-hover: var(--ob-ref-color-green-900);
+	--ob-sys-color-status-success-text-pressed: var(--ob-ref-color-green-950);
+	--ob-sys-color-status-warning: var(--ob-ref-color-orange-800);
+	--ob-sys-color-status-warning-hover: var(--ob-ref-color-orange-900);
+	--ob-sys-color-status-warning-pressed: var(--ob-ref-color-orange-950);
 	--ob-sys-color-status-warning-surface: color-mix(
 		in oklch,
 		var(--ob-ref-color-orange-600) 10%,
@@ -722,12 +726,12 @@
 	);
 	--ob-sys-color-status-warning-border: var(--ob-ref-color-orange-300);
 	--ob-sys-color-status-warning-border-hover: var(--ob-ref-color-orange-400);
-	--ob-sys-color-status-warning-text: var(--ob-ref-color-orange-700);
-	--ob-sys-color-status-warning-text-hover: var(--ob-ref-color-orange-600);
-	--ob-sys-color-status-warning-text-pressed: var(--ob-ref-color-orange-800);
-	--ob-sys-color-status-danger: var(--ob-ref-color-red-600);
-	--ob-sys-color-status-danger-hover: var(--ob-ref-color-red-500);
-	--ob-sys-color-status-danger-pressed: var(--ob-ref-color-red-700);
+	--ob-sys-color-status-warning-text: var(--ob-ref-color-orange-800);
+	--ob-sys-color-status-warning-text-hover: var(--ob-ref-color-orange-900);
+	--ob-sys-color-status-warning-text-pressed: var(--ob-ref-color-orange-950);
+	--ob-sys-color-status-danger: var(--ob-ref-color-red-800);
+	--ob-sys-color-status-danger-hover: var(--ob-ref-color-red-900);
+	--ob-sys-color-status-danger-pressed: var(--ob-ref-color-red-950);
 	--ob-sys-color-status-danger-surface: color-mix(
 		in oklch,
 		var(--ob-ref-color-red-600) 10%,
@@ -740,9 +744,9 @@
 	);
 	--ob-sys-color-status-danger-border: var(--ob-ref-color-red-300);
 	--ob-sys-color-status-danger-border-hover: var(--ob-ref-color-red-400);
-	--ob-sys-color-status-danger-text: var(--ob-ref-color-red-700);
-	--ob-sys-color-status-danger-text-hover: var(--ob-ref-color-red-600);
-	--ob-sys-color-status-danger-text-pressed: var(--ob-ref-color-red-800);
+	--ob-sys-color-status-danger-text: var(--ob-ref-color-red-800);
+	--ob-sys-color-status-danger-text-hover: var(--ob-ref-color-red-900);
+	--ob-sys-color-status-danger-text-pressed: var(--ob-ref-color-red-950);
 	--ob-sys-color-data-1: var(--ob-ref-color-orange-600);
 	--ob-sys-color-data-2: var(--ob-ref-color-green-600);
 	--ob-sys-color-data-3: var(--ob-ref-color-blue-600);
@@ -977,10 +981,10 @@
 	--ob-sys-color-text-placeholder: var(--ob-ref-color-neutral-500);
 	--ob-sys-color-text-disabled: var(--ob-ref-color-neutral-600);
 	--ob-sys-color-text-inverse: var(--ob-ref-color-neutral-900);
-	--ob-sys-color-text-link: var(--ob-ref-color-blue-400);
-	--ob-sys-color-text-link-hover: var(--ob-ref-color-blue-300);
-	--ob-sys-color-text-link-focus: var(--ob-ref-color-blue-300);
-	--ob-sys-color-text-link-pressed: var(--ob-ref-color-blue-500);
+	--ob-sys-color-text-link: var(--ob-ref-color-blue-300);
+	--ob-sys-color-text-link-hover: var(--ob-ref-color-blue-200);
+	--ob-sys-color-text-link-focus: var(--ob-ref-color-blue-200);
+	--ob-sys-color-text-link-pressed: var(--ob-ref-color-blue-100);
 	--ob-sys-color-icon-primary: var(--ob-ref-color-neutral-50);
 	--ob-sys-color-icon-secondary: var(--ob-ref-color-neutral-300);
 	--ob-sys-color-icon-muted: var(--ob-ref-color-neutral-400);
@@ -1027,9 +1031,9 @@
 	--ob-sys-color-status-agent-done: var(--ob-ref-color-traffic-light-green);
 	--ob-sys-color-status-agent-error: var(--ob-ref-color-traffic-light-red);
 	--ob-sys-color-status-unread: var(--ob-ref-color-blue-400);
-	--ob-sys-color-status-info: var(--ob-ref-color-blue-400);
-	--ob-sys-color-status-info-hover: var(--ob-ref-color-blue-300);
-	--ob-sys-color-status-info-pressed: var(--ob-ref-color-blue-500);
+	--ob-sys-color-status-info: var(--ob-ref-color-blue-300);
+	--ob-sys-color-status-info-hover: var(--ob-ref-color-blue-200);
+	--ob-sys-color-status-info-pressed: var(--ob-ref-color-blue-100);
 	--ob-sys-color-status-info-surface: color-mix(
 		in oklch,
 		var(--ob-ref-color-blue-400) 15%,
@@ -1044,10 +1048,10 @@
 	--ob-sys-color-status-info-border-hover: var(--ob-ref-color-blue-600);
 	--ob-sys-color-status-info-text: var(--ob-ref-color-blue-300);
 	--ob-sys-color-status-info-text-hover: var(--ob-ref-color-blue-200);
-	--ob-sys-color-status-info-text-pressed: var(--ob-ref-color-blue-400);
-	--ob-sys-color-status-success: var(--ob-ref-color-green-400);
-	--ob-sys-color-status-success-hover: var(--ob-ref-color-green-300);
-	--ob-sys-color-status-success-pressed: var(--ob-ref-color-green-500);
+	--ob-sys-color-status-info-text-pressed: var(--ob-ref-color-blue-100);
+	--ob-sys-color-status-success: var(--ob-ref-color-green-300);
+	--ob-sys-color-status-success-hover: var(--ob-ref-color-green-200);
+	--ob-sys-color-status-success-pressed: var(--ob-ref-color-green-100);
 	--ob-sys-color-status-success-surface: color-mix(
 		in oklch,
 		var(--ob-ref-color-green-400) 15%,
@@ -1062,10 +1066,10 @@
 	--ob-sys-color-status-success-border-hover: var(--ob-ref-color-green-600);
 	--ob-sys-color-status-success-text: var(--ob-ref-color-green-300);
 	--ob-sys-color-status-success-text-hover: var(--ob-ref-color-green-200);
-	--ob-sys-color-status-success-text-pressed: var(--ob-ref-color-green-400);
-	--ob-sys-color-status-warning: var(--ob-ref-color-orange-400);
-	--ob-sys-color-status-warning-hover: var(--ob-ref-color-orange-300);
-	--ob-sys-color-status-warning-pressed: var(--ob-ref-color-orange-500);
+	--ob-sys-color-status-success-text-pressed: var(--ob-ref-color-green-100);
+	--ob-sys-color-status-warning: var(--ob-ref-color-orange-300);
+	--ob-sys-color-status-warning-hover: var(--ob-ref-color-orange-200);
+	--ob-sys-color-status-warning-pressed: var(--ob-ref-color-orange-100);
 	--ob-sys-color-status-warning-surface: color-mix(
 		in oklch,
 		var(--ob-ref-color-orange-400) 15%,
@@ -1080,10 +1084,10 @@
 	--ob-sys-color-status-warning-border-hover: var(--ob-ref-color-orange-600);
 	--ob-sys-color-status-warning-text: var(--ob-ref-color-orange-300);
 	--ob-sys-color-status-warning-text-hover: var(--ob-ref-color-orange-200);
-	--ob-sys-color-status-warning-text-pressed: var(--ob-ref-color-orange-400);
-	--ob-sys-color-status-danger: var(--ob-ref-color-red-400);
-	--ob-sys-color-status-danger-hover: var(--ob-ref-color-red-300);
-	--ob-sys-color-status-danger-pressed: var(--ob-ref-color-red-500);
+	--ob-sys-color-status-warning-text-pressed: var(--ob-ref-color-orange-100);
+	--ob-sys-color-status-danger: var(--ob-ref-color-red-300);
+	--ob-sys-color-status-danger-hover: var(--ob-ref-color-red-200);
+	--ob-sys-color-status-danger-pressed: var(--ob-ref-color-red-100);
 	--ob-sys-color-status-danger-surface: color-mix(
 		in oklch,
 		var(--ob-ref-color-red-400) 15%,
@@ -1098,7 +1102,7 @@
 	--ob-sys-color-status-danger-border-hover: var(--ob-ref-color-red-600);
 	--ob-sys-color-status-danger-text: var(--ob-ref-color-red-300);
 	--ob-sys-color-status-danger-text-hover: var(--ob-ref-color-red-200);
-	--ob-sys-color-status-danger-text-pressed: var(--ob-ref-color-red-400);
+	--ob-sys-color-status-danger-text-pressed: var(--ob-ref-color-red-100);
 	--ob-sys-color-data-1: var(--ob-ref-color-blue-400);
 	--ob-sys-color-data-2: var(--ob-ref-color-green-400);
 	--ob-sys-color-data-3: var(--ob-ref-color-orange-400);
