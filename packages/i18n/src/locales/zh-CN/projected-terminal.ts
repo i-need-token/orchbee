@@ -39,10 +39,10 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.control.viewOnly': '仅查看',
 	'terminal.projected.control.viewOnlyCropped': '仅查看 · 只显示了一部分',
 	'terminal.projected.control.viewOnlyCroppedReason':
-		'另一个窗口正在这里输入。只显示了光标附近的一部分；向上滚动可查看其余内容。',
-	'terminal.projected.control.viewOnlyReason': '另一个窗口正在这里输入。',
+		'把键盘输入发到这个终端。在此之前只显示光标附近的一部分；向上滚动可查看其余内容。',
+	'terminal.projected.control.viewOnlyReason': '把键盘输入发到这个终端。',
 	'terminal.projected.failure.control': '不确定是否完成，请先看一下再重试。',
-	'terminal.projected.failure.input': '不确定是否完成，请先看一下再重试。',
+	'terminal.projected.failure.input': '没能发送输入。',
 	'terminal.projected.failure.request': '没能完成终端操作。',
 	'terminal.projected.failure.resize': '没能调整终端大小。',
 	'terminal.projected.failure.selection': '没能更新所选内容。',

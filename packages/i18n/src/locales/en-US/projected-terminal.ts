@@ -38,10 +38,10 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.control.viewOnly': 'View only',
 	'terminal.projected.control.viewOnlyCropped': 'View only · Only part is shown',
 	'terminal.projected.control.viewOnlyCroppedReason':
-		'Another window is typing here. Only the part around the cursor is shown; scroll up to read the rest.',
-	'terminal.projected.control.viewOnlyReason': 'Another window is typing here.',
+		'Send your typing to this terminal. Until then only the part around the cursor is shown; scroll up to read the rest.',
+	'terminal.projected.control.viewOnlyReason': 'Send your typing to this terminal.',
 	'terminal.projected.failure.control': 'Not sure it finished. Check, then try again.',
-	'terminal.projected.failure.input': 'Not sure it finished. Check, then try again.',
+	'terminal.projected.failure.input': "Couldn't send the input.",
 	'terminal.projected.failure.request': "Couldn't finish the terminal action.",
 	'terminal.projected.failure.resize': "Couldn't resize the terminal.",
 	'terminal.projected.failure.selection': "Couldn't update the selection.",

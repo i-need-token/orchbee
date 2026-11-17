@@ -129,12 +129,16 @@ Workbench owns this presentation override and leaves the Server's Agent observat
 
 An attachment feature failure remains distinct from transport loss and terminal outcome. The shared
 surface retains its operation, code, retryability, Host correlation ID or client request sequence as
-bounded diagnostics and applies the matching Terminal consequence. Background input acknowledgement,
-history, and resize failures never create a global terminal-content notice: rejected input remains in
-the bounded diagnostic and required transport-recovery paths, history feedback belongs to the find
-surface, and resize remains in its bounded retry and diagnostic path. Connection, runtime, and
-explicit user-action failures retain localized visible feedback. The application does not
-automatically replay terminal input, control, clipboard, or navigation effects.
+bounded diagnostics and applies the matching Terminal consequence. As in the TUI, an input or resize
+the terminal refuses loses only that action: the window keeps control and shows Couldn't send the
+input or Couldn't resize the terminal for five seconds, and an unknown outcome says Not sure it
+finished, while the window becomes View only because the Server released its grant. Each such notice
+replaces the last, so refused typing never stacks them. A lost connection, a transport recovery, or a
+lost terminal runtime says nothing more for the action, since its own state already shows. History
+feedback belongs to the find surface. Connection, runtime, and explicit user-action failures retain
+localized visible feedback. View only's Type here tooltip says what the button does rather than who
+holds the terminal, because the window does not know whether another window does. The application
+does not automatically replay terminal input, control, clipboard, or navigation effects.
 
 The shared adapter exposes the last completed draw checkpoint as
 `data-projected-terminal-rendered-generation` and

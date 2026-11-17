@@ -523,6 +523,19 @@ export async function startProjectedTerminalRenderer(
 		if (actionStatusTimer !== undefined) clearTimeout(actionStatusTimer);
 		actionStatusTimer = undefined;
 	};
+	/** A brief notice for one action; the next one replaces it rather than stacking beside it. */
+	const showActionStatus = (presentation: ProjectedTerminalActionResultPresentation): void => {
+		clearActionStatusTimer();
+		statusKind = 'action';
+		status.setAttribute('role', presentation.role);
+		renderStatus = () => intl.formatMessage(presentation.message);
+		status.textContent = renderStatus();
+		status.hidden = false;
+		actionStatusTimer = setTimeout(() => {
+			actionStatusTimer = undefined;
+			if (statusKind === 'action') clearStatus();
+		}, 5_000);
+	};
 	const reportActionResult = (event: ProjectedTerminalActionResultEvent): void => {
 		rootElement.dataset['projectedTerminalActionId'] = event.actionId;
 		rootElement.dataset['projectedTerminalActionResult'] = event.result.kind;
@@ -535,16 +548,7 @@ export async function startProjectedTerminalRenderer(
 		}
 		const presentation = projectedTerminalActionResultPresentation(event);
 		if (presentation === null) return;
-		clearActionStatusTimer();
-		statusKind = 'action';
-		status.setAttribute('role', presentation.role);
-		renderStatus = () => intl.formatMessage(presentation.message);
-		status.textContent = renderStatus();
-		status.hidden = false;
-		actionStatusTimer = setTimeout(() => {
-			actionStatusTimer = undefined;
-			if (statusKind === 'action') clearStatus();
-		}, 5_000);
+		showActionStatus(presentation);
 	};
 	const observeCommandCompletion = (metadata: ProjectedTerminalMetadata): void => {
 		const completion = metadata.commandCompletion;
@@ -661,11 +665,19 @@ export async function startProjectedTerminalRenderer(
 		) {
 			return;
 		}
-		if (
-			failure.operation === 'history' ||
-			failure.operation === 'input' ||
-			failure.operation === 'resize'
-		) {
+		if (failure.operation === 'history') return;
+		if (failure.operation === 'input' || failure.operation === 'resize') {
+			// Only this action is lost and it is never replayed. A lost connection, a recovery or a
+			// lost runtime already says more than the action's notice would.
+			if (
+				statusKind === 'connection-failure' ||
+				!transportAvailable ||
+				attachmentFailureRequiresRecovery(failure) ||
+				failure.code === 'terminal-runtime-unavailable'
+			) {
+				return;
+			}
+			showActionStatus({ message: controlActionFailureMessage(failure), role: 'status' });
 			return;
 		}
 		const lasting =
@@ -1645,6 +1657,16 @@ function attachmentFailureRequiresRecovery(failure: ProjectedTerminalFailure): b
 			failure.code === 'host-transport-backpressure' ||
 			failure.code === 'host-connection-unavailable')
 	);
+}
+
+/** As in the TUI: a refusal says the action did not happen, an unknown outcome says just that. */
+function controlActionFailureMessage(
+	failure: ProjectedTerminalFailure,
+): ProjectedTerminalActionResultPresentation['message'] {
+	if (failure.code === 'outcome-unknown') return projectedTerminalMessages.controlOutcomeUnknown;
+	return failure.operation === 'resize'
+		? projectedTerminalMessages.resizeFailure
+		: projectedTerminalMessages.inputFailure;
 }
 
 function projectedTerminalFailureMessage(failure: ProjectedTerminalFailure) {

@@ -1319,10 +1319,6 @@ describe('startProjectedTerminalRenderer', () => {
 				projectedTerminalFailureRetryable: 'true',
 				projectedTerminalState: 'open',
 			});
-			expect(liveElements.additionalStatus).toMatchObject({
-				hidden: true,
-				textContent: null,
-			});
 			const historyFailure = {
 				code: 'history-unavailable',
 				message: 'History is unavailable.',
@@ -1331,7 +1327,6 @@ describe('startProjectedTerminalRenderer', () => {
 			};
 			liveTransport.emitMessage({ failure: historyFailure, kind: 'failure' });
 			expect(notifyBrokerFailure).toHaveBeenLastCalledWith(historyFailure);
-			expect(liveElements.additionalStatus).toMatchObject({ hidden: true, textContent: null });
 			const inputFailure = {
 				code: 'input-acknowledgement-unavailable',
 				message: 'The input acknowledgement was unavailable.',
@@ -1347,7 +1342,19 @@ describe('startProjectedTerminalRenderer', () => {
 				projectedTerminalFailureRequestSequence: '14',
 				projectedTerminalFailureRetryable: 'false',
 			});
-			expect(liveElements.additionalStatus).toMatchObject({ hidden: true, textContent: null });
+			expect(liveElements.additionalStatus).toMatchObject({
+				hidden: false,
+				textContent: "Couldn't send the input.",
+			});
+			// A later answer replaces the notice instead of stacking beside it.
+			liveTransport.emitMessage({
+				failure: { ...inputFailure, code: 'outcome-unknown', requestSequence: '15' },
+				kind: 'failure',
+			});
+			expect(liveElements.additionalStatus).toMatchObject({
+				hidden: false,
+				textContent: 'Not sure it finished. Check, then try again.',
+			});
 			const directActionFailure = {
 				code: 'control-rejected',
 				message: 'Control failed.',
